@@ -88,12 +88,15 @@ export function AdminConfigSyncTab() {
   const [importResult, setImportResult] = useState<{
     imported: number;
     skipped: number;
+    deleted?: number;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"browse" | "compare" | "manage">("browse");
   const [compareOpen, setCompareOpen] = useState(false);
   const [entityTypeFilter, setEntityTypeFilter] = useState<string>("all");
   const [filterExistingContacts, setFilterExistingContacts] = useState<boolean>(true);
+  const [latestOnlyFilter, setLatestOnlyFilter] = useState<boolean>(true);
+  const [replaceExistingPrices, setReplaceExistingPrices] = useState<boolean>(true);
   const [totalUnfiltered, setTotalUnfiltered] = useState<number>(0);
   const [recordsExpanded, setRecordsExpanded] = useState<boolean>(true);
   // Sync preferences: { recordId: 'compulsory' | 'choice' | null }
@@ -150,17 +153,20 @@ export function AdminConfigSyncTab() {
       setSelectedRecords(new Set());
       setEntityTypeFilter("all");
 
-      // For price_histories, add filter parameter
-      const filterParam = selectedTable === "price_histories" && filterExistingContacts
-        ? "?filter_existing_contacts=true"
-        : "";
+      // For price_histories, add filter parameters
+      const params = new URLSearchParams();
+      if (selectedTable === "price_histories") {
+        if (filterExistingContacts) params.append("filter_existing_contacts", "true");
+        if (latestOnlyFilter) params.append("latest_only", "true");
+      }
+      const queryString = params.toString() ? `?${params.toString()}` : "";
 
       const response = await api.get<{
         success: boolean;
         records: ConfigRecord[];
         source_tenant: TenantInfo;
         total_unfiltered?: number;
-      }>(`/api/v1/admin/config_sync/tenants/${selectedTenant}/config/${selectedTable}${filterParam}`);
+      }>(`/api/v1/admin/config_sync/tenants/${selectedTenant}/config/${selectedTable}${queryString}`);
 
       if (response?.success) {
         setRecords(response.records);
@@ -172,7 +178,7 @@ export function AdminConfigSyncTab() {
     } finally {
       setRecordsLoading(false);
     }
-  }, [selectedTenant, selectedTable, filterExistingContacts]);
+  }, [selectedTenant, selectedTable, filterExistingContacts, latestOnlyFilter]);
 
   useEffect(() => {
     if (viewMode === "browse") {
@@ -340,16 +346,19 @@ export function AdminConfigSyncTab() {
         skipped?: Array<{ name: string; reason: string }>;
         errors?: string[];
         error?: string;
+        deleted_count?: number;
       }>("/api/v1/admin/config_sync/import", {
         source_tenant_id: parseInt(selectedTenant),
         table: selectedTable,
         record_ids: Array.from(selectedRecords),
+        replace_existing_prices: selectedTable === "price_histories" && replaceExistingPrices,
       });
 
       if (response?.success) {
         setImportResult({
           imported: response.imported?.length || 0,
           skipped: response.skipped?.length || 0,
+          deleted: response.deleted_count,
         });
         setSelectedRecords(new Set());
         // Refresh records
@@ -569,22 +578,44 @@ export function AdminConfigSyncTab() {
               </Select>
             )}
 
-            {/* Price History Filter - only show for contacts that exist in TEEEM */}
+            {/* Price History Filters */}
             {viewMode === "browse" && selectedTable === "price_histories" && selectedTenant && (
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="filter-existing-contacts"
-                  checked={filterExistingContacts}
-                  onCheckedChange={(checked) => setFilterExistingContacts(!!checked)}
-                />
-                <label htmlFor="filter-existing-contacts" className="text-sm cursor-pointer">
-                  Only for TEEEM contacts
-                  {filterExistingContacts && totalUnfiltered > 0 && records.length !== totalUnfiltered && (
-                    <span className="text-muted-foreground ml-1">
-                      ({records.length} of {totalUnfiltered})
-                    </span>
-                  )}
-                </label>
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="filter-existing-contacts"
+                    checked={filterExistingContacts}
+                    onCheckedChange={(checked) => setFilterExistingContacts(!!checked)}
+                  />
+                  <label htmlFor="filter-existing-contacts" className="text-sm cursor-pointer">
+                    Only for TEEEM contacts
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="filter-latest-only"
+                    checked={latestOnlyFilter}
+                    onCheckedChange={(checked) => setLatestOnlyFilter(!!checked)}
+                  />
+                  <label htmlFor="filter-latest-only" className="text-sm cursor-pointer">
+                    Latest price only
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="replace-existing-prices"
+                    checked={replaceExistingPrices}
+                    onCheckedChange={(checked) => setReplaceExistingPrices(!!checked)}
+                  />
+                  <label htmlFor="replace-existing-prices" className="text-sm cursor-pointer">
+                    Replace existing prices
+                  </label>
+                </div>
+                {(filterExistingContacts || latestOnlyFilter) && totalUnfiltered > 0 && records.length !== totalUnfiltered && (
+                  <span className="text-sm text-muted-foreground">
+                    ({records.length} of {totalUnfiltered})
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -610,8 +641,10 @@ export function AdminConfigSyncTab() {
             <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
               <Check className="h-5 w-5" />
               <span>
-                Import complete: {importResult.imported} imported, {importResult.skipped}{" "}
-                skipped
+                Import complete: {importResult.imported} imported, {importResult.skipped} skipped
+                {importResult.deleted !== undefined && importResult.deleted > 0 && (
+                  <>, {importResult.deleted} old prices deleted</>
+                )}
               </span>
             </div>
           </CardContent>

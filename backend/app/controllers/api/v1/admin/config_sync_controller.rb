@@ -59,6 +59,25 @@ module Api
             end
           end
 
+          # Filter price_histories to only show latest per supplier+pricebook_item
+          if params[:table] == "price_histories" && params[:latest_only] == "true"
+            # Group by supplier_id + pricebook_item_id, keep latest by date_effective
+            latest_records = {}
+            records.each do |record|
+              key = "#{record[:supplier_id]}_#{record[:pricebook_item_id]}"
+              existing = latest_records[key]
+              record_date = record[:date_effective] || record[:created_at]
+
+              if existing.nil?
+                latest_records[key] = record
+              else
+                existing_date = existing[:date_effective] || existing[:created_at]
+                latest_records[key] = record if record_date && existing_date && record_date > existing_date
+              end
+            end
+            records = latest_records.values
+          end
+
           render json: {
             success: true,
             table: params[:table],
@@ -79,6 +98,7 @@ module Api
         #   source_tenant_id: integer - tenant to import from
         #   table: string - config table name
         #   record_ids: array - IDs of records to import
+        #   replace_existing_prices: boolean - For price_histories, delete existing before import
         def import
           source_tenant = Tenant.find(import_params[:source_tenant_id])
           service = TenantConfigSyncService.new(master_tenant)
@@ -86,17 +106,19 @@ module Api
           result = service.import_from_tenant(
             source_tenant: source_tenant,
             table: import_params[:table],
-            record_ids: import_params[:record_ids].map(&:to_i)
+            record_ids: import_params[:record_ids].map(&:to_i),
+            replace_existing_prices: import_params[:replace_existing_prices] == true || import_params[:replace_existing_prices] == "true"
           )
 
           if result[:success]
-            Rails.logger.info "[ConfigSync] User #{current_user.id} imported #{result[:imported].length} records from #{source_tenant.name}"
+            Rails.logger.info "[ConfigSync] User #{current_user.id} imported #{result[:imported].length} records from #{source_tenant.name} (deleted #{result[:deleted_count] || 0} existing)"
 
             render json: {
               success: true,
               message: "Configuration imported successfully",
               imported: result[:imported],
-              skipped: result[:skipped]
+              skipped: result[:skipped],
+              deleted_count: result[:deleted_count] || 0
             }
           else
             render json: {
@@ -104,7 +126,8 @@ module Api
               error: "Import failed with errors",
               errors: result[:errors],
               imported: result[:imported],
-              skipped: result[:skipped]
+              skipped: result[:skipped],
+              deleted_count: result[:deleted_count] || 0
             }, status: :unprocessable_entity
           end
         rescue ActiveRecord::RecordNotFound
@@ -277,7 +300,7 @@ module Api
         end
 
         def import_params
-          params.permit(:source_tenant_id, :table, record_ids: [])
+          params.permit(:source_tenant_id, :table, :replace_existing_prices, record_ids: [])
         end
 
         def sync_pref_params

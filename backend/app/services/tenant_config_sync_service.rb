@@ -386,7 +386,10 @@ class TenantConfigSyncService
   # ============================================================================
 
   # Import selected records from a source tenant into TEEEM
-  def import_from_tenant(source_tenant:, table:, record_ids:)
+  # Options:
+  #   replace_existing_prices: boolean - For price_histories, delete existing prices for
+  #                                       the same supplier+item before importing
+  def import_from_tenant(source_tenant:, table:, record_ids:, replace_existing_prices: false)
     validate_table!(table)
     @errors = []
 
@@ -399,10 +402,17 @@ class TenantConfigSyncService
     model = config[:model].constantize
     imported = []
     skipped = []
+    deleted_count = 0
 
     # Get source records
     source_records = ActsAsTenant.with_tenant(source_tenant) do
       model.where(id: record_ids)
+    end
+
+    # For price_histories with replace mode, delete existing prices for the same supplier+item
+    if table.to_sym == :price_histories && replace_existing_prices
+      deleted_count = delete_existing_price_histories(source_tenant, source_records)
+      Rails.logger.info "[ConfigSync] Deleted #{deleted_count} existing price histories before import"
     end
 
     # Import each record
@@ -433,7 +443,8 @@ class TenantConfigSyncService
       success: @errors.empty?,
       imported: imported.map { |r| record_to_json(r, config) },
       skipped: skipped,
-      errors: @errors
+      errors: @errors,
+      deleted_count: deleted_count
     }
 
     # Include price history sync results if applicable
@@ -445,6 +456,50 @@ class TenantConfigSyncService
     end
 
     result
+  end
+
+  # Delete existing price histories in TEEEM that match the supplier+item combinations being imported
+  def delete_existing_price_histories(source_tenant, source_records)
+    return 0 if source_records.empty?
+
+    # Build a map of supplier_id -> display_name from source tenant
+    source_supplier_ids = source_records.map { |r| r.supplier_id }.compact.uniq
+    source_supplier_names = ActsAsTenant.with_tenant(source_tenant) do
+      Contact.where(id: source_supplier_ids).pluck(:id, :display_name).to_h
+    end
+
+    # Build a map of pricebook_item_id -> item_code from source tenant
+    source_item_ids = source_records.map { |r| r.pricebook_item_id }.compact.uniq
+    source_item_codes = ActsAsTenant.with_tenant(source_tenant) do
+      PricebookItem.where(id: source_item_ids).pluck(:id, :item_code).to_h
+    end
+
+    # Find matching TEEEM contacts and items
+    ActsAsTenant.with_tenant(tenant) do
+      teeem_contacts = Contact.where(display_name: source_supplier_names.values).pluck(:display_name, :id).to_h
+      teeem_items = PricebookItem.where(item_code: source_item_codes.values).pluck(:item_code, :id).to_h
+
+      # Build list of TEEEM supplier_id + pricebook_item_id combinations to delete
+      delete_conditions = []
+      source_records.each do |record|
+        supplier_name = source_supplier_names[record.supplier_id]
+        item_code = source_item_codes[record.pricebook_item_id]
+
+        teeem_supplier_id = teeem_contacts[supplier_name]
+        teeem_item_id = teeem_items[item_code]
+
+        if teeem_supplier_id && teeem_item_id
+          delete_conditions << { supplier_id: teeem_supplier_id, pricebook_item_id: teeem_item_id }
+        end
+      end
+
+      # Delete existing price histories for these combinations
+      deleted = 0
+      delete_conditions.uniq.each do |condition|
+        deleted += PriceHistory.where(condition).delete_all
+      end
+      deleted
+    end
   end
 
   # ============================================================================
@@ -542,6 +597,91 @@ class TenantConfigSyncService
     end
 
     result
+  end
+
+  # ============================================================================
+  # Compulsory Sync (for new tenant provisioning)
+  # ============================================================================
+
+  # Sync all compulsory records to a new tenant
+  # Called during tenant provisioning to auto-sync records marked as compulsory
+  #
+  # Returns hash with results per table:
+  #   { job_types: { imported: 5, skipped: 2 }, document_types: { imported: 10, skipped: 0 }, ... }
+  def sync_compulsory_records
+    results = {}
+    master = master_tenant
+
+    unless master
+      Rails.logger.warn "[ConfigSync] No master tenant found, skipping compulsory sync"
+      return { success: false, error: "No master tenant found" }
+    end
+
+    # Get all compulsory preferences grouped by type
+    compulsory_prefs = TenantSyncPreference.compulsory.where(tenant: master)
+
+    # Group by configurable_type
+    by_type = compulsory_prefs.group_by(&:configurable_type)
+
+    by_type.each do |model_name, prefs|
+      # Find the table key for this model
+      table_key = CONFIG_TABLES.find { |_k, v| v[:model] == model_name }&.first
+      next unless table_key
+
+      record_ids = prefs.map(&:configurable_id)
+      next if record_ids.empty?
+
+      Rails.logger.info "[ConfigSync] Syncing #{record_ids.length} compulsory #{model_name} records to #{tenant.name}"
+
+      begin
+        result = pull_from_master(table: table_key, record_ids: record_ids, mode: :add_new)
+        results[table_key] = {
+          imported: result[:imported]&.length || 0,
+          skipped: result[:skipped]&.length || 0,
+          errors: result[:errors]
+        }
+      rescue StandardError => e
+        Rails.logger.error "[ConfigSync] Error syncing #{model_name}: #{e.message}"
+        results[table_key] = { error: e.message }
+      end
+    end
+
+    Rails.logger.info "[ConfigSync] Compulsory sync complete for #{tenant.name}: #{results.inspect}"
+    { success: true, results: results }
+  end
+
+  # Get list of choice records available for new tenant
+  # Returns hash: { table_key => [{ id: 1, name: "...", description: "..." }, ...] }
+  def available_choice_records
+    choices = {}
+    master = master_tenant
+    return choices unless master
+
+    choice_prefs = TenantSyncPreference.choice.where(tenant: master)
+    by_type = choice_prefs.group_by(&:configurable_type)
+
+    by_type.each do |model_name, prefs|
+      table_key = CONFIG_TABLES.find { |_k, v| v[:model] == model_name }&.first
+      next unless table_key
+
+      config = CONFIG_TABLES[table_key]
+      model = model_name.constantize
+      record_ids = prefs.map(&:configurable_id)
+
+      records = ActsAsTenant.with_tenant(master) do
+        model.where(id: record_ids)
+      end
+
+      choices[table_key] = records.map do |r|
+        {
+          id: r.id,
+          name: r.send(config[:name_field]),
+          description: config[:description]
+        }
+      end
+    end
+
+    choices
   end
 
   private

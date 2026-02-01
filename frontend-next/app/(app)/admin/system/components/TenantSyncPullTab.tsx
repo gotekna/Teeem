@@ -68,9 +68,10 @@ export function TenantSyncPullTab() {
   const [loading, setLoading] = useState(true);
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [pulling, setPulling] = useState(false);
-  const [pullResult, setPullResult] = useState<{ imported: number; updated: number; skipped: number } | null>(null);
+  const [pullResult, setPullResult] = useState<{ imported: number; updated: number; skipped: number; markupApplied?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
+  const [priceMarkupPercent, setPriceMarkupPercent] = useState<number>(5); // Default 5% markup
 
   // Fetch available tables on mount
   useEffect(() => {
