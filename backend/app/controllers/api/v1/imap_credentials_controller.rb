@@ -457,7 +457,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
         email_signature: cred.email_signature,
         email_aliases: cred.email_aliases || [],
         position: saved_positions[account_id] || (fallback_position += 1),
-        is_favorite: favorite_ids.include?(account_id)
+        is_favorite: favorite_ids.include?(account_id),
+        last_synced_at: cred.last_synced_at&.iso8601,
+        last_sync_status: cred.last_sync_status
       }
     end
 

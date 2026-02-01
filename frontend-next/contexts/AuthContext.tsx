@@ -194,7 +194,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
 
         setUser(response.user);
-        applyUserTheme(response.user);
+        // Only apply user's preferred theme on initial page load
+        // Don't override if user manually changed theme (checkAuth shouldn't force theme reset)
+        // Theme is applied on login, so checkAuth (which runs on page refresh) should not re-apply
+        // This allows users to temporarily toggle theme without it reverting on every modal open
+        // applyUserTheme(response.user); // REMOVED - only apply on login, not on auth check
         // Load column type definitions from SSoT (fires in background)
         loadTypeDefinitions();
       } else {
