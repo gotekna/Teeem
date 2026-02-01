@@ -95,7 +95,7 @@ export function TabbedDetailPage({ children, className }: PageWrapperProps) {
 export function ScrollablePage({ children, className }: PageWrapperProps) {
   // Uses default "padded" mode - no need to call useSetLayoutMode
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn("flex flex-col gap-6", className)}>
       {children}
     </div>
   );
@@ -163,7 +163,8 @@ export function TabbedPage({
   return (
     <div
       className={cn(
-        fullHeight ? "flex flex-col h-full" : "space-y-6",
+        "flex flex-col gap-6",
+        fullHeight && "h-full",
         className
       )}
     >
@@ -184,7 +185,7 @@ export function TabbedPage({
       </div>
 
       {/* Tabs Content */}
-      <div className={fullHeight ? "flex-1 min-h-0 flex flex-col" : ""}>
+      <div className={fullHeight ? "flex-1 min-h-0 flex flex-col" : "flex-1 min-h-0"}>
         {children}
       </div>
     </div>
@@ -251,6 +252,29 @@ interface ContentProps {
 const TabbedSettingsContext = React.createContext<{ isFullHeight: boolean }>({
   isFullHeight: false,
 });
+
+/**
+ * ⚠️ CRITICAL FIX (Feb 2026): Flex Layout Compatibility for Scrolling
+ *
+ * ROOT CAUSE: Parent layout uses `flex flex-col overflow-auto` for main content area.
+ * Previously these page wrappers used `space-y-6` which is incompatible with flex containers.
+ *
+ * THE PROBLEM:
+ * 1. app/(app)/layout.tsx: `<div className="h-full flex flex-col overflow-auto">`
+ * 2. Page wrappers used: `space-y-6` (block layout utility)
+ * 3. Result: Content grows beyond viewport but doesn't scroll (broken flex hierarchy)
+ *
+ * THE FIX:
+ * - Changed all wrappers to use `flex flex-col gap-*` instead of `space-y-*`
+ * - Content components use `flex-1 min-h-0` to enable proper scrolling
+ * - This makes wrappers flex-compatible and allows parent overflow to work
+ *
+ * COMPONENTS FIXED:
+ * - TabbedSettingsPage: `space-y-6` → `flex flex-col gap-6`
+ * - TabbedPage: `space-y-6` → `flex flex-col gap-6`
+ * - ScrollablePage: `space-y-6` → `flex flex-col gap-6`
+ * - TabbedSettingsPage.Content: Always `flex-1 min-h-0` for scrolling
+ */
 
 /**
  * TabbedSettingsPage - For pages with multiple tab rows (like Settings)
@@ -364,17 +388,16 @@ function TabSection({ label, children, className }: TabSectionProps) {
 /**
  * Content - The main content area
  *
- * Automatically applies correct spacing based on layout mode:
- * - Full-height mode: flex-1, min-h-0, mt-4
- * - Scrollable mode: no special styling (parent space-y-6 handles it)
+ * Always uses flex-1 min-h-0 to work properly in flex layout:
+ * - flex-1: Fills remaining space
+ * - min-h-0: Allows shrinking for overflow/scroll to work
+ * - Parent gap-6 handles spacing (no manual margin needed)
  */
 function Content({ children, className }: ContentProps) {
-  const { isFullHeight } = React.useContext(TabbedSettingsContext);
-
   return (
     <div
       className={cn(
-        isFullHeight ? "flex-1 min-h-0 mt-4" : "",
+        "flex-1 min-h-0",
         className
       )}
     >
