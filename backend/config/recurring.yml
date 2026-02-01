@@ -319,6 +319,14 @@ imap_email_sync:
   queue: default
   schedule: every 2 minutes
 
+# SELF-HEALING: Email health monitor
+# Detects stale syncs, cleans orphaned jobs, triggers recovery
+# Runs every 5 minutes for responsive self-healing
+email_health_monitor:
+  class: EmailHealthMonitorJob
+  queue: default
+  schedule: every 5 minutes
+
 # Upload synced emails to Wasabi storage (self-healing)
 # FRC (Jan 2026): Auto-recovers from queue DB connection failures
 # Auto-discovers all tenants with pending emails (no manual tenant_id needed)
