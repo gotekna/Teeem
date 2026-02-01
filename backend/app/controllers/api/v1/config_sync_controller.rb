@@ -97,23 +97,108 @@ module Api
       end
 
       # GET /api/v1/config_sync/master_records/:table
-      # View master tenant's records for a specific table
+      # View master tenant's records for a specific table with sync preferences
       def master_records
         unless master_tenant
           return render json: { success: false, error: "No master tenant found" }, status: :not_found
         end
 
-        service = TenantConfigSyncService.new(current_tenant)
-        records = service.browse_tenant_config(master_tenant, params[:table])
+        table_config = TenantConfigSyncService::CONFIG_TABLES[params[:table]&.to_sym]
+        unless table_config
+          return render json: { success: false, error: "Unknown table" }, status: :bad_request
+        end
+
+        model = table_config[:model].constantize
+        match_fields = table_config[:match_fields]
+
+        # Get master records
+        master_records = ActsAsTenant.with_tenant(master_tenant) do
+          model.all.order(table_config[:name_field])
+        end
+
+        # Get sync preferences for master records
+        preferences = TenantSyncPreference.modes_for_type(table_config[:model], tenant: master_tenant)
+
+        # Get tenant's existing records for comparison
+        tenant_records_by_key = ActsAsTenant.with_tenant(current_tenant) do
+          model.all.index_by { |r| match_key(r, match_fields) }
+        end
+
+        # Build response with sync status
+        records = master_records.map do |record|
+          key = match_key(record, match_fields)
+          tenant_record = tenant_records_by_key[key]
+
+          record_json = {
+            id: record.id,
+            name: record.send(table_config[:name_field]),
+            sync_mode: preferences[record.id],
+            exists_in_tenant: tenant_record.present?,
+            tenant_record_id: tenant_record&.id,
+            created_at: record.created_at,
+            updated_at: record.updated_at
+          }
+
+          # Include all sync fields for display
+          table_config[:sync_fields].each do |field|
+            record_json[field] = record.send(field) if record.respond_to?(field)
+          end
+
+          record_json
+        end
+
+        # Filter to only show records with sync_mode set (compulsory or choice)
+        # unless show_all param is passed
+        unless params[:show_all] == "true"
+          records = records.select { |r| r[:sync_mode].present? }
+        end
 
         render json: {
           success: true,
           table: params[:table],
           master_tenant: tenant_info(master_tenant),
-          records: records
+          records: records,
+          total_in_master: master_records.length
         }
       rescue ArgumentError => e
         render json: { success: false, error: e.message }, status: :bad_request
+      end
+
+      # POST /api/v1/config_sync/auto_sync_compulsory
+      # Auto-sync all compulsory records from master to current tenant
+      def auto_sync_compulsory
+        service = TenantConfigSyncService.new(current_tenant)
+        results = {}
+
+        TenantConfigSyncService::CONFIG_TABLES.each_key do |table|
+          table_config = TenantConfigSyncService::CONFIG_TABLES[table]
+          compulsory_ids = TenantSyncPreference.compulsory_ids_for_type(table_config[:model], tenant: master_tenant)
+
+          next if compulsory_ids.empty?
+
+          result = service.pull_from_master(
+            table: table.to_s,
+            record_ids: compulsory_ids,
+            mode: :replace_existing
+          )
+
+          results[table.to_s] = {
+            imported: result[:imported]&.length || 0,
+            updated: result[:updated]&.length || 0,
+            skipped: result[:skipped]&.length || 0
+          }
+        end
+
+        render json: {
+          success: true,
+          message: "Auto-sync completed",
+          results: results
+        }
+      end
+
+      # Helper to generate match key
+      def match_key(record, match_fields)
+        match_fields.map { |f| record.send(f).to_s.downcase.strip }.join("|")
       end
 
       # POST /api/v1/config_sync/push

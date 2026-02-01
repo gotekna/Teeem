@@ -8,6 +8,7 @@ import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { ConfigSyncTab } from "./ConfigSyncTab";
 import { AdminConfigSyncTab } from "./AdminConfigSyncTab";
+import { TenantSyncPullTab } from "./TenantSyncPullTab";
 import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
@@ -96,7 +97,7 @@ const scopes = [
     isEmailConfig: true,
   },
   {
-    id: "config_sync",
+    id: "sync",
     label: "Sync",
     icon: RefreshCw,
     showEntityFilters: false,
@@ -115,7 +116,7 @@ const SCOPE_LABELS: Record<string, string> = {
   document_types: "Document Types",
   storage_config: "Storage Config",
   email_config: "Email Config",
-  config_sync: "Config Sync",
+  sync: "Sync",
 };
 
 // Build breadcrumb items from path and active scope
@@ -227,6 +228,15 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
                 <div className="space-y-8">
                   {/* Admin Import UI - Pull data FROM other tenants INTO TEEEM */}
                   <AdminConfigSyncTab />
+
+                  {/* Divider */}
+                  <div className="border-t pt-8">
+                    <h2 className="text-lg font-semibold mb-4">Sync from TEEEM</h2>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Pull configuration records marked as compulsory or optional from TEEEM master tenant
+                    </p>
+                    <TenantSyncPullTab />
+                  </div>
 
                   {/* Divider */}
                   <div className="border-t pt-8">

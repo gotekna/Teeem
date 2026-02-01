@@ -58,7 +58,8 @@ class TenantProvisioningService
 
       # Phase 3: Storage and reference data
       setup_storage           # 8. WarehouseProvider
-      create_default_reference_data # 9. Job types, statuses, etc.
+      sync_compulsory_config  # 9. Sync compulsory config from master tenant
+      create_default_reference_data # 10. Fallback: Create defaults if no compulsory records
 
       # Phase 4: Optional enhancements
       start_trial if @params[:start_trial]
@@ -278,61 +279,101 @@ class TenantProvisioningService
     :s3_compatible
   end
 
+  # Sync compulsory configuration records from master tenant
+  # This syncs all records marked as "compulsory" in TenantSyncPreference
+  def sync_compulsory_config
+    sync_service = TenantConfigSyncService.new(@tenant)
+    result = sync_service.sync_compulsory_records
+
+    if result[:success]
+      results = result[:results] || {}
+      total_imported = results.values.sum { |r| r[:imported] || 0 }
+      Rails.logger.info "[TenantProvisioning] Synced #{total_imported} compulsory config records for #{@tenant.name}"
+
+      # Log details per table
+      results.each do |table, stats|
+        if stats[:imported] && stats[:imported] > 0
+          Rails.logger.info "[TenantProvisioning]   - #{table}: #{stats[:imported]} imported"
+        end
+      end
+    else
+      Rails.logger.warn "[TenantProvisioning] Compulsory sync had issues: #{result[:error]}"
+    end
+  rescue StandardError => e
+    Rails.logger.warn "[TenantProvisioning] Compulsory sync warning: #{e.message}"
+    # Don't fail provisioning for sync errors - defaults will be created as fallback
+  end
+
   def create_default_reference_data
-    # Create default job types (schema uses 'position' not 'display_order')
-    default_job_types = ["New Build", "Renovation", "Extension", "Other"]
-    default_job_types.each_with_index do |name, index|
-      JobType.create(
-        tenant_id: @tenant.id,
-        name: name,
-        position: index,
-        is_active: true
-      )
+    # Only create defaults if compulsory sync didn't provide them
+    # This acts as a fallback for tables without compulsory records
+
+    # Create default job types (only if none exist)
+    if JobType.where(tenant_id: @tenant.id).count == 0
+      default_job_types = ["New Build", "Renovation", "Extension", "Other"]
+      default_job_types.each_with_index do |name, index|
+        JobType.create(
+          tenant_id: @tenant.id,
+          name: name,
+          position: index,
+          is_active: true
+        )
+      end
+      Rails.logger.info "[TenantProvisioning] Created default job types (no compulsory records found)"
     end
 
-    # Create default job statuses (schema uses 'position', no 'is_open' column)
-    default_job_statuses = [
-      { name: "Lead", color: "#94a3b8" },
-      { name: "Quoting", color: "#3b82f6" },
-      { name: "Won", color: "#22c55e" },
-      { name: "In Progress", color: "#f59e0b" },
-      { name: "Complete", color: "#10b981" },
-      { name: "Lost", color: "#ef4444" }
-    ]
-    default_job_statuses.each_with_index do |attrs, index|
-      JobStatus.create(
-        tenant_id: @tenant.id,
-        name: attrs[:name],
-        color: attrs[:color],
-        position: index,
-        is_active: true
-      )
+    # Create default job statuses (only if none exist from compulsory sync)
+    if JobStatus.where(tenant_id: @tenant.id).count == 0
+      default_job_statuses = [
+        { name: "Lead", color: "#94a3b8" },
+        { name: "Quoting", color: "#3b82f6" },
+        { name: "Won", color: "#22c55e" },
+        { name: "In Progress", color: "#f59e0b" },
+        { name: "Complete", color: "#10b981" },
+        { name: "Lost", color: "#ef4444" }
+      ]
+      default_job_statuses.each_with_index do |attrs, index|
+        JobStatus.create(
+          tenant_id: @tenant.id,
+          name: attrs[:name],
+          color: attrs[:color],
+          position: index,
+          is_active: true
+        )
+      end
+      Rails.logger.info "[TenantProvisioning] Created default job statuses (no compulsory records found)"
     end
 
-    # Create default job stages
-    default_job_stages = ["Pre-Construction", "Foundation", "Frame", "Lock Up", "Fit Off", "Handover"]
-    default_job_stages.each_with_index do |name, index|
-      JobStage.create(
-        tenant_id: @tenant.id,
-        name: name,
-        position: index,
-        is_active: true
-      )
+    # Create default job stages (only if none exist from compulsory sync)
+    if JobStage.where(tenant_id: @tenant.id).count == 0
+      default_job_stages = ["Pre-Construction", "Foundation", "Frame", "Lock Up", "Fit Off", "Handover"]
+      default_job_stages.each_with_index do |name, index|
+        JobStage.create(
+          tenant_id: @tenant.id,
+          name: name,
+          position: index,
+          is_active: true
+        )
+      end
+      Rails.logger.info "[TenantProvisioning] Created default job stages (no compulsory records found)"
     end
 
-    # Create default contact types (schema uses 'position', 'active', and requires 'display_name')
-    default_contact_types = ["Client", "Supplier", "Subcontractor", "Consultant", "Architect", "Engineer"]
-    default_contact_types.each_with_index do |name, index|
-      ContactType.create(
-        tenant_id: @tenant.id,
-        name: name.downcase,       # slug-style name
-        display_name: name,        # Human-readable display name
-        position: index,
-        active: true
-      )
+    # Create default contact types (only if none exist from compulsory sync)
+    if ContactType.where(tenant_id: @tenant.id).count == 0
+      default_contact_types = ["Client", "Supplier", "Subcontractor", "Consultant", "Architect", "Engineer"]
+      default_contact_types.each_with_index do |name, index|
+        ContactType.create(
+          tenant_id: @tenant.id,
+          name: name.downcase,       # slug-style name
+          display_name: name,        # Human-readable display name
+          position: index,
+          active: true
+        )
+      end
+      Rails.logger.info "[TenantProvisioning] Created default contact types (no compulsory records found)"
     end
 
-    Rails.logger.info "[TenantProvisioning] Created default reference data for #{@tenant.name}"
+    Rails.logger.info "[TenantProvisioning] Reference data check complete for #{@tenant.name}"
   rescue StandardError => e
     Rails.logger.warn "[TenantProvisioning] Reference data creation warning: #{e.message}"
     # Don't fail for reference data errors - can be set up later

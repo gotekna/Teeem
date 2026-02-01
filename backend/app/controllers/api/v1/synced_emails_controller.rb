@@ -1647,6 +1647,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       source_type: email.source_type || "outlook",
       imap_credential_id: email.imap_credential_id,
       mailbox: email.mailbox_owner_email,
+      mailbox_owner_email: email.mailbox_owner_email,  # SSoT: Explicit field for reply From address
       # Direction and importance (direction column may not exist yet)
       direction: email.respond_to?(:direction) ? email.direction : nil,
       importance: email.importance,

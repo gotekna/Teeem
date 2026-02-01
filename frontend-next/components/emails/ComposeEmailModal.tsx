@@ -64,6 +64,7 @@ interface ComposeEmailModalProps {
   defaultBody?: string;
   replyToMessageId?: string;
   defaultFromAccountId?: string; // Account ID to send from (for replies)
+  defaultFromEmail?: string; // Email address to find account for (alternative to ID)
   /** Resume from a saved draft */
   draft?: EmailDraft;
   /** Pre-loaded file attachments (e.g., from Task response) */
@@ -90,6 +91,7 @@ export function ComposeEmailModal({
   defaultBody = "",
   replyToMessageId,
   defaultFromAccountId,
+  defaultFromEmail,
   draft,
   initialAttachments,
   initialExistingStorageKeys,
@@ -436,6 +438,16 @@ export function ComposeEmailModal({
       if (defaultFromAccountId) {
         accountToSelect = activeAccounts.find((a) => String(a.id) === defaultFromAccountId);
         console.log('[ComposeAccounts] Looking for defaultFromAccountId:', defaultFromAccountId, 'found:', !!accountToSelect);
+      }
+
+      // If no account found by ID, try to find by email address (for replies)
+      if (!accountToSelect && defaultFromEmail) {
+        const emailLower = defaultFromEmail.toLowerCase();
+        accountToSelect = activeAccounts.find(
+          (a) => a.email_address.toLowerCase() === emailLower ||
+                 a.email_aliases?.some(alias => alias.toLowerCase() === emailLower)
+        );
+        console.log('[ComposeAccounts] Looking for defaultFromEmail:', defaultFromEmail, 'found:', !!accountToSelect);
       }
 
       if (!accountToSelect) {

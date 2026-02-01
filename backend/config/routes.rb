@@ -442,6 +442,7 @@ Rails.application.routes.draw do
       # GET    /api/v1/config_sync/diff/:table       -> Compare tenant to TEEEM master
       # POST   /api/v1/config_sync/pull              -> Pull selected records from master
       # GET    /api/v1/config_sync/master_records/:table -> View master tenant's records
+      # POST   /api/v1/config_sync/auto_sync_compulsory -> Auto-sync all compulsory records
       resource :config_sync, only: [], controller: "config_sync" do
         collection do
           get :tables
@@ -449,6 +450,7 @@ Rails.application.routes.draw do
           get "master_records/:table", action: :master_records
           post :pull
           post :push  # TEEEM staff only - push records to master
+          post :auto_sync_compulsory  # Auto-sync all compulsory records from master
         end
       end
       delete "job_status_stages/:id", to: "job_status_stages#destroy"
