@@ -30,13 +30,14 @@ class WarehouseFolder < ApplicationRecord
   # SSoT: 'payment' added for subcontractor payment docs (Jan 2026)
   # SSoT: 'bank_statement', 'template', 'esignature', 'plan' added (Jan 2026)
   WAREHOUSE_TYPES = %w[
-    corporate job document contact email warehouse
+    corporate job document contact email email_body email_attachments warehouse
     task task_attachments task_responses
     case case_documents case_emails
     asset asset_expenses asset_service asset_readings
     financial financial_transactions
     compliance payment payment_invoices payment_proof
-    bank_statement template
+    bank_statement balance_sheet template
+    template_documents template_bank_statements template_invoices template_email_signatures template_pdf_fields
     esignature esignature_pending esignature_completed
     plan
     xero user

@@ -76,7 +76,8 @@ const WAREHOUSE_TYPE_PARENTS: Record<string, string> = {
   'task_responses': 'task',
   'case_documents': 'case',
   'case_emails': 'case',
-  // Note: email_body, email_attachments NOT here - they're shown as entity tabs, not folder nodes
+  'email_body': 'email',
+  'email_attachments': 'email',
   'asset_expenses': 'asset',
   'asset_service': 'asset',
   'asset_readings': 'asset',
@@ -604,7 +605,11 @@ function TreeNode({
 
   // Manual save handler - saves immediately without waiting for debounce
   const handleManualSave = React.useCallback(async () => {
-    if (!currentEditingScopeKey) return;
+    console.log('🟡 [handleManualSave] Called', { currentEditingScopeKey, editValue, folderTemplate, downloadNameTemplate, uiNameTemplate, hasConfigLink, configLinkUrl });
+    if (!currentEditingScopeKey) {
+      console.log('🟡 [handleManualSave] No currentEditingScopeKey, returning');
+      return;
+    }
 
     // Clear any pending auto-save
     if (saveTimeoutRef.current) {
@@ -615,13 +620,15 @@ function TreeNode({
     setIsSaving(true);
     try {
       const linkToSave = hasConfigLink ? configLinkUrl : null;
+      console.log('🟡 [handleManualSave] Calling onSaveTemplates with:', { currentEditingScopeKey, editValue, folderTemplate, downloadNameTemplate, uiNameTemplate, linkToSave });
       await onSaveTemplates(currentEditingScopeKey, editValue, folderTemplate, downloadNameTemplate, uiNameTemplate, linkToSave);
+      console.log('🟡 [handleManualSave] Save successful');
       setLastSaved(new Date());
       hasModified.current = false;
       setHasUnsavedChanges(false);
       prevScopeRef.current = null;
     } catch (error) {
-      console.error('Failed to save templates:', error);
+      console.error('🟡 [handleManualSave] Failed to save templates:', error);
     } finally {
       setIsSaving(false);
     }
@@ -629,7 +636,11 @@ function TreeNode({
 
   // Auto-save function with debounce - calls actual API
   const autoSave = React.useCallback(async (scopeKey: string, baseFolder: string, folder: string, downloadName: string, uiName: string, configLink: string | null) => {
-    if (!scopeKey || !hasModified.current) return;
+    console.log('🟢 [autoSave] Called', { scopeKey, baseFolder, folder, downloadName, uiName, configLink, hasModified: hasModified.current });
+    if (!scopeKey || !hasModified.current) {
+      console.log('🟢 [autoSave] Skipping - no scopeKey or not modified');
+      return;
+    }
 
     // Update the ref so we can save when switching
     prevScopeRef.current = { scopeKey, baseFolder, folder, downloadName, uiName, configLink };
@@ -638,15 +649,17 @@ function TreeNode({
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = setTimeout(async () => {
+      console.log('🟢 [autoSave] Debounce triggered, saving...');
       setIsSaving(true);
       try {
         await onSaveTemplates(scopeKey, baseFolder, folder, downloadName, uiName, configLink);
+        console.log('🟢 [autoSave] Save successful');
         setLastSaved(new Date());
         hasModified.current = false;
         setHasUnsavedChanges(false);
         prevScopeRef.current = null; // Clear after successful save
       } catch (error) {
-        console.error('Failed to save templates:', error);
+        console.error('🟢 [autoSave] Failed to save templates:', error);
       } finally {
         setIsSaving(false);
       }
@@ -712,6 +725,7 @@ function TreeNode({
   React.useEffect(() => {
     if (currentEditingScopeKey) {
       const scopeActuallyChanged = initializedScopeRef.current !== currentEditingScopeKey;
+      console.log('🟣 [TreeNode useEffect] Scope edit check:', { currentEditingScopeKey, previousScope: initializedScopeRef.current, scopeActuallyChanged, nodePath: node.path });
 
       // Only initialize templates when switching to a DIFFERENT scope
       if (scopeActuallyChanged) {
@@ -720,10 +734,17 @@ function TreeNode({
         // The template portion is in scopeTemplates (set via setFolderTemplate below)
         const fullPath = currentPath[currentEditingScopeKey] || node.path;
         const firstSegment = fullPath?.split('/')[0] || fullPath || '';
+        const initialTemplate = getInitialFolderTemplate(currentEditingScopeKey);
+        console.log('🟣 [TreeNode useEffect] Initializing edit values:', {
+          fullPath,
+          firstSegment,
+          folderTemplate: initialTemplate,
+          downloadName: downloadNameTemplates[currentEditingScopeKey],
+          uiName: uiNameTemplates[currentEditingScopeKey],
+          configLink: configLinks[currentEditingScopeKey],
+        });
         setEditValue(firstSegment);
-        setFolderTemplate(
-          getInitialFolderTemplate(currentEditingScopeKey)
-        );
+        setFolderTemplate(initialTemplate);
         setDownloadNameTemplate(
           downloadNameTemplates[currentEditingScopeKey] || ''
         );
@@ -2119,11 +2140,23 @@ export function WarehouseProviderTab() {
     uiNameTemplate: string,
     configLink: string | null
   ) => {
+    // DEBUG: Log all save parameters
+    console.log('🔵 [saveScopeTemplates] Called with:', {
+      scopeKey,
+      baseFolder,
+      folderTemplate,
+      downloadNameTemplate,
+      uiNameTemplate,
+      configLink,
+    });
+
     try {
       // SSoT: warehouse_folders stores the FULL path - this is the source of truth
       // UI shows parent portion greyed out for child types, but we save the complete path
       const isChildType = !!WAREHOUSE_TYPE_PARENTS[scopeKey];
       const parentKey = WAREHOUSE_TYPE_PARENTS[scopeKey];
+
+      console.log('🔵 [saveScopeTemplates] Child type check:', { isChildType, parentKey, parentPath: parentKey ? formData.warehouse_folders[parentKey] : null });
 
       // For child types: parent's base folder + suffix (full path)
       // For parent types: baseFolder + folderTemplate (full path)
@@ -2139,18 +2172,25 @@ export function WarehouseProviderTab() {
             .replace(/\/+/g, '/')  // Normalize double slashes
             .replace(/\/+$/, '');  // Strip trailing slash for consistency
 
+      console.log('🔵 [saveScopeTemplates] Computed warehouseFolderValue:', warehouseFolderValue);
+
+      const payload = {
+        storage: {
+          warehouse_folders: { [scopeKey]: warehouseFolderValue },
+          warehouse_folder_templates: { [scopeKey]: folderTemplate },
+          download_names: { [scopeKey]: downloadNameTemplate },
+          ui_name_templates: { [scopeKey]: uiNameTemplate },
+          config_links: { [scopeKey]: configLink }, // null removes the link
+        }
+      };
+      console.log('🔵 [saveScopeTemplates] API payload:', JSON.stringify(payload, null, 2));
+
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
         "/api/v1/warehouse_provider",
-        {
-          storage: {
-            warehouse_folders: { [scopeKey]: warehouseFolderValue },
-            warehouse_folder_templates: { [scopeKey]: folderTemplate },
-            download_names: { [scopeKey]: downloadNameTemplate },
-            ui_name_templates: { [scopeKey]: uiNameTemplate },
-            config_links: { [scopeKey]: configLink }, // null removes the link
-          }
-        }
+        payload
       );
+      console.log('🔵 [saveScopeTemplates] API response:', response);
+
       if (response?.success) {
         // Update local state to reflect saved values
         setFormData(prev => {
@@ -2181,7 +2221,7 @@ export function WarehouseProviderTab() {
       });
       throw error; // Re-throw so auto-save can handle it
     }
-  }, [toast]);
+  }, [toast, formData.warehouse_folders]);
 
   // Phase 4: Toggle virtual warehouse via API
   const toggleVirtualScope = React.useCallback(async (scopeKey: string, isVirtual: boolean) => {
@@ -2251,10 +2291,16 @@ export function WarehouseProviderTab() {
   const loadConfig = async () => {
     try {
       setLoading(true);
+      console.log('🔴 [loadConfig] Fetching storage config...');
       const response = await api.get<{ success: boolean; data: StorageConfig }>(
         "/api/v1/warehouse_provider"
       );
+      console.log('🔴 [loadConfig] Response:', response);
       if (response?.success && response.data) {
+        console.log('🔴 [loadConfig] warehouse_folders:', response.data.warehouse_folders);
+        console.log('🔴 [loadConfig] warehouse_folder_templates:', response.data.warehouse_folder_templates);
+        console.log('🔴 [loadConfig] download_names:', response.data.download_names);
+        console.log('🔴 [loadConfig] ui_name_templates:', response.data.ui_name_templates);
         setConfig(response.data);
         setFormData({
           // Provider type - normalize legacy values (wasabi/s3 → s3_compatible)
