@@ -18,7 +18,7 @@ export default function ScheduleMasterPage() {
           Configure schedule templates, tasks, and workflows
         </p>
       </div>
-      <ScheduleMasterTab />
+      <ScheduleMasterTab basePath="/schedule-master" />
     </div>
   );
 }

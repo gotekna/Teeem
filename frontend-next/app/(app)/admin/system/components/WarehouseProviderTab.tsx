@@ -1408,9 +1408,12 @@ function TabNode({
     const shouldInit = isEditing && !wasEditingRef.current;
     console.log('[TabNode useEffect]', { isEditing, wasEditing: wasEditingRef.current, shouldInit, tabId: tab.id });
     if (shouldInit) {
+      console.log('[TabNode useEffect] tab.warehouse_folder:', JSON.stringify(tab.warehouse_folder));
+      console.log('[TabNode useEffect] tab.storage_folder_path:', JSON.stringify(tab.storage_folder_path));
       const stored = tab.warehouse_folder ?? tab.storage_folder_path ?? '';
+      console.log('[TabNode useEffect] stored (after ??):', JSON.stringify(stored));
       const folderName = stored ? extractFolderName(stored, basePath) : '';
-      console.log('[TabNode useEffect] Initializing editPath to:', folderName);
+      console.log('[TabNode useEffect] Initializing editPath to:', JSON.stringify(folderName));
       setEditPath(folderName);
       setEditDisplayName(tab.display_name || '');
       setEditSendName(tab.send_name_template || '');
