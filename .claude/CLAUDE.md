@@ -590,7 +590,7 @@ staging → beta → production
 | Rob Dev | `teeem-rob-dev` | - | - |
 | Sam Dev | `teeem-sam-dev` | - | - |
 
-**Deploy:** Use `/l` command (SSoT) - deploys staging to production
+**Deploy:** Use `/p` command (SSoT) - deploys to production via pipeline
 
 **Local:** Frontend port 3000, Backend port 3001
 
@@ -635,7 +635,7 @@ staging → beta → production
 **This is a monorepo. NEVER push directly to Heroku.**
 
 - ❌ WRONG: `git push heroku staging:main` (pushes full monorepo, Puma can't find config)
-- ✅ RIGHT: Use `/l` or `/lp` commands (extracts `backend/` only)
+- ✅ RIGHT: Use `/p`, `/s`, or `/b` commands (extracts `backend/` only)
 
 **Why:** Heroku expects Rails app at root. The monorepo has `backend/` subdirectory, so direct push breaks with `config/puma.rb not found`.
 
@@ -731,9 +731,6 @@ WarehouseProvider.instance.resolve_path(:job, JobCode: "J-001", Category: "Plans
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**DocumentProviderAware concern:** Use `include DocumentProviderAware` in services to get
-provider-agnostic file operations (upload, download, list, delete).
-
 **CRITICAL (Jan 2026):** Frontend NEVER knows about paths.
 - Frontend sends: `{ scope: "emails", tokens: { mailbox: "inbox@tekna.com.au" } }`
 - Backend resolves paths internally using WarehouseProvider
@@ -775,7 +772,7 @@ credential.sharepoint_drive_id   # Use WarehouseProvider.instance
 
 ### Admin UI
 
-**Configure at:** `/settings/company/connections` (Storage Provider tab)
+**Configure at:** `/settings/connections` (Storage Provider tab)
 - Edit paths (Jobs, Contacts, People, etc.)
 - Edit path templates with drag-and-drop tokens
 - View storage provider connection status
