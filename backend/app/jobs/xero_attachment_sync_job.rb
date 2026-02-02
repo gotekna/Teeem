@@ -276,7 +276,10 @@ class XeroAttachmentSyncJob < ApplicationJob
     results
   end
 
-  def find_invoices_needing_pdfs(limit, tenant_id = nil, invoice_type = nil)
+  # FRC (Feb 2026): tenant_id param is now Xero UUID, not TEEEM integer
+  # ExternalInvoice.tenant_id is TEEEM integer (fixed earlier today)
+  # Filter by contact's external link which has the Xero tenant_id
+  def find_invoices_needing_pdfs(limit, xero_tenant_id = nil, invoice_type = nil)
     # SSoT: Find invoices that DON'T already have PDF synced via WarehouseDocument
     # WarehouseDocument with source_type: "xero" and storage_blob_id present = synced
     already_synced_ids = WarehouseDocument
@@ -294,7 +297,15 @@ class XeroAttachmentSyncJob < ApplicationJob
       .where.not(id: already_synced_ids)
       .limit(limit)
 
-    query = query.where(tenant_id: tenant_id) if tenant_id.present?
+    # FRC (Feb 2026): Filter by Xero org via contact's external link
+    # ExternalInvoice.tenant_id is TEEEM integer, xero_tenant_id is Xero UUID
+    if xero_tenant_id.present?
+      contact_ids_for_xero_org = ContactExternalLink
+        .where(source: "xero", tenant_id: xero_tenant_id)
+        .pluck(:contact_id)
+      query = query.where(contact_id: contact_ids_for_xero_org)
+    end
+
     query = query.where(invoice_type: invoice_type) if invoice_type.present?
 
     query
