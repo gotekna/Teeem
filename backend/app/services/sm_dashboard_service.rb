@@ -125,7 +125,7 @@ class SmDashboardService
       .where(entry_date: start_date..end_date)
       .approved
 
-    time_entries = time_entries.joins(:task).where(sm_tasks: { construction_id: @construction_id }) if @construction_id
+    time_entries = time_entries.joins(:task).where(sm_tasks: { job_id: @construction_id }) if @construction_id
 
     # Calculate labor costs
     labor_cost = 0
@@ -196,14 +196,14 @@ class SmDashboardService
 
       # Hours logged this week
       entries = SmTimeEntry.where(entry_date: current_week..week_end)
-      entries = entries.joins(:task).where(sm_tasks: { construction_id: @construction_id }) if @construction_id
+      entries = entries.joins(:task).where(sm_tasks: { job_id: @construction_id }) if @construction_id
 
       hours_logged = entries.sum(:total_hours).to_f
       hours_approved = entries.approved.sum(:total_hours).to_f
 
       # Resource allocation
       allocations = SmResourceAllocation.where(allocation_date: current_week..week_end)
-      allocations = allocations.joins(:task).where(sm_tasks: { construction_id: @construction_id }) if @construction_id
+      allocations = allocations.joins(:task).where(sm_tasks: { job_id: @construction_id }) if @construction_id
       hours_allocated = allocations.sum(:allocated_hours).to_f
 
       weeks_data << {
@@ -238,7 +238,7 @@ class SmDashboardService
       .where(allocation_date: start_date..end_date)
       .where(status: %w[planned confirmed])
 
-    allocations = allocations.joins(:task).where(sm_tasks: { construction_id: @construction_id }) if @construction_id
+    allocations = allocations.joins(:task).where(sm_tasks: { job_id: @construction_id }) if @construction_id
 
     # Group by date
     by_date = (start_date..end_date).map do |date|
