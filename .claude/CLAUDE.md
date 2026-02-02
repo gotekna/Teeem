@@ -171,7 +171,7 @@ When discovering duplicates:
 |-----------|---------------|-------------|
 | Storage paths/config | `WarehouseProvider` | Credential tables, settings |
 | Auth tokens/secrets | Appropriate credential table | Config tables |
-| Company settings | `CompanySetting` | `CorporateCompanySetting` (legacy) |
+| Company settings | `CompanySetting` | Multiple settings tables |
 | User preferences | `User` model | Settings tables |
 
 ### Run Before Creating Migration
@@ -771,10 +771,6 @@ provider-agnostic file operations (upload, download, list, delete).
 credential.sharepoint_site_id    # Use WarehouseProvider.instance
 credential.sharepoint_drive_id   # Use WarehouseProvider.instance
 # All storage config is now in WarehouseProvider, not credentials
-
-# ❌ DEPRECATED in CorporateCompanySetting:
-CorporateCompanySetting.sharepoint_full_path(:jobs)  # Use WarehouseProvider
-CorporateCompanySetting.contact_documents_path       # Use WarehouseProvider.instance.path_for(:contacts)
 ```
 
 ### Admin UI
