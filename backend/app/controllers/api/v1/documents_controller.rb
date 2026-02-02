@@ -1347,7 +1347,8 @@ module Api
             }
           end
 
-          { folders: folders.sort_by { |f| f[:name].to_s.downcase }, files: [] }
+          # Sort by task ID descending (newest/highest ID first)
+          { folders: folders.sort_by { |f| -f[:taskId].to_i }, files: [] }
         else
           # Deeper level - find matching task and show subfolders (Attachments/Responses)
           matching_task_path = task_folders.keys.find { |p| path.start_with?(p) || p.start_with?(path) }
