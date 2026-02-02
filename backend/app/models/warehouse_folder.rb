@@ -625,6 +625,7 @@ class WarehouseFolder < ApplicationRecord
       xero_account_name: xero_account_name,  # Resolved name (e.g., "Tekna Homes")
       warehouse_enabled: warehouse_enabled,
       warehouse_folder: read_attribute(:warehouse_folder),  # SSoT: Raw value for editing (nil = use display_name default)
+      send_name_template: read_attribute(:send_name_template),  # SSoT: Template for download/send filename
       full_warehouse_path: full_warehouse_path,
       # SSoT: Template inheritance fields
       uses_custom_path: uses_custom_path,
