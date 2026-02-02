@@ -1947,7 +1947,8 @@ export function WarehouseProviderTab() {
     sendNameTemplate: string
   ) => {
     try {
-      const response = await api.patch<{ success: boolean; error?: string }>(
+      console.log('[saveTabFolderPath] Saving:', { tabId, folderPath, displayName, sendNameTemplate });
+      const response = await api.patch<{ success: boolean; error?: string; data?: WarehouseTabConfig }>(
         `/api/v1/warehouse_folders/${tabId}`,
         {
           warehouse_folder: {
@@ -1957,8 +1958,18 @@ export function WarehouseProviderTab() {
           }
         }
       );
+      console.log('[saveTabFolderPath] Response:', response);
       if (response?.success) {
-        // Update local state
+        // SSoT: Use RESPONSE data if available, not sent values
+        // Backend might transform/normalize values (e.g., empty string handling)
+        const savedData = response.data;
+        const savedFolderPath = savedData?.warehouse_folder ?? folderPath;
+        const savedDisplayName = savedData?.display_name ?? displayName;
+        const savedSendName = savedData?.send_name_template ?? sendNameTemplate;
+
+        console.log('[saveTabFolderPath] Using values:', { savedFolderPath, savedDisplayName, savedSendName });
+
+        // Update local state with response data (SSoT)
         setWarehouseTabConfigs(prev => {
           const newTabs = { ...prev };
           Object.keys(newTabs).forEach(scope => {
@@ -1966,10 +1977,10 @@ export function WarehouseProviderTab() {
               tab.id === tabId
                 ? {
                     ...tab,
-                    display_name: displayName,
-                    warehouse_folder: folderPath,
-                    storage_folder_path: folderPath,  // Legacy alias
-                    send_name_template: sendNameTemplate
+                    display_name: savedDisplayName,
+                    warehouse_folder: savedFolderPath,
+                    storage_folder_path: savedFolderPath,  // Legacy alias
+                    send_name_template: savedSendName
                   }
                 : tab
             );

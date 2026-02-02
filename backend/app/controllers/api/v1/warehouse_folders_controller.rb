@@ -58,7 +58,13 @@ module Api
 
       # PATCH/PUT /api/v1/warehouse_folders/:id
       def update
+        Rails.logger.info "[WarehouseFolders#update] Received params: #{warehouse_folder_params.inspect}"
+        Rails.logger.info "[WarehouseFolders#update] warehouse_folder value: #{warehouse_folder_params[:warehouse_folder].inspect}"
+
         if @warehouse_folder.update(warehouse_folder_params)
+          @warehouse_folder.reload  # Ensure we get the actual saved value
+          Rails.logger.info "[WarehouseFolders#update] Saved. DB value: #{@warehouse_folder.read_attribute(:warehouse_folder).inspect}"
+
           render json: { success: true, data: @warehouse_folder.as_nested_json }
         else
           render json: { success: false, error: @warehouse_folder.errors.full_messages.join(', ') }, status: :unprocessable_entity

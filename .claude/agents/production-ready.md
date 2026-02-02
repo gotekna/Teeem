@@ -1,985 +1,1266 @@
 # Production Ready Agent
 
-**Purpose:** Comprehensive QA release readiness testing of the TEEEM app - like a full-time QA engineer checking everything before release.
+**Purpose:** Comprehensive QA testing - click through EVERY left nav item, EVERY tab, EVERY page.
 
 **Target:** Staging: `https://teeem-staging.vercel.app`
 
-**Priority:** THOROUGHNESS over speed. This is NOT a quick smoke test. This is a FULL release readiness check.
-
-**Time:** Allow up to 60+ minutes. Quality matters, not speed.
+**Time:** 60+ minutes. THOROUGHNESS over speed.
 
 ---
 
-## PHILOSOPHY
+## CRITICAL: EXECUTION RULES
 
-This is the role of a QA engineer at a software company before a release. Every single interactive element must be tested:
-
-- Every **page** loads without errors
-- Every **tab** at every level (primary, sub-tabs, tertiary)
-- Every **popup/modal** opens and closes correctly
-- Every **drawer/side panel** opens, displays content, and closes
-- Every **link** navigates to the correct destination
-- Every **button** performs its action
-- Every **table** displays data
-- Every **table row** can be clicked to open detail/drawer
-- Every **form** can be opened (and tested where safe)
-- Every **create action** works (then clean up)
-- Every **edit action** works (then revert or cancel)
-- Every **delete action** works (on test items only)
-
-**DO NOT RUSH. DO NOT SKIP. TEST EVERYTHING.**
+1. **CLICK THE NAV BAR** - Don't just navigate to URLs, actually click the left nav items
+2. **ONE NAV ITEM AT A TIME** - Complete all testing for one nav item before moving to next
+3. **SHOW PROGRESS AFTER EACH NAV ITEM** - Display the progress block
+4. **DO NOT SKIP** - Every nav item, every sub-item, every tab must be tested
+5. **ACTUALLY DO IT** - Don't describe what you would do, execute the actions
+6. **VERIFY CORRECT PAGE** - After each navigation, check URL matches expected
+7. **USE FALLBACK URL** - If clicking nav doesn't work, navigate directly to URL
 
 ---
 
-## 1. SETUP PHASE
+## MASTER URL LIST - ALL PAGES TO TEST (94 total)
 
-### Connect Chrome DevTools MCP
+**You MUST open and test EVERY URL in this list. Check them off as you go.**
 
-```
-1. Test connection: mcp__chrome-devtools__list_pages()
-2. If no pages, create one: mcp__chrome-devtools__new_page({ url: "https://teeem-staging.vercel.app" })
-3. Navigate to login: mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/login' })
-```
+### Top-Level Nav Items (15)
+| # | Nav Item | URL | Status |
+|---|----------|-----|--------|
+| 1 | Dashboard | `/dashboard` | ⬜ |
+| 2 | Tasks | `/tasks` | ⬜ |
+| 3 | Email | `/email` | ⬜ |
+| 4 | Calendar | `/calendar` | ⬜ |
+| 5 | Contacts | `/contacts` | ⬜ |
+| 6 | Leads | `/leads` | ⬜ |
+| 7 | Jobs | `/jobs` | ⬜ |
+| 8 | Finance | `/finance` | ⬜ |
+| 9 | Meetings | `/meetings` | ⬜ |
+| 10 | Warehouse | `/warehouse` | ⬜ |
+| 11 | Corporate | `/corporate` | ⬜ |
+| 12 | Portal | `/portal` | ⬜ |
+| 13 | Settings | `/settings` | ⬜ |
+| 14 | Teeem Docs | `/my-docs` | ⬜ |
+| 15 | Missing | `/missing` | ⬜ |
 
-### Login
+### Email Accounts (8)
+| # | Account | URL | Status |
+|---|---------|-----|--------|
+| 3.1 | robert@tekna.com.au | `/email?account=ms365_9_6588f630` | ⬜ |
+| 3.2 | robert@teeem.au | `/email?account=2` | ⬜ |
+| 3.3 | hello@coinvesthomes.com.au | `/email?account=1` | ⬜ |
+| 3.4 | robert@homesofhope.org.au | `/email?account=ms365_11_85f3617d` | ⬜ |
+| 3.5 | rob@100xbestlife.com | `/email?account=ms365_10_798a35c1` | ⬜ |
+| 3.6 | rob@lyw.org.au | `/email?account=ms365_12_ec16e727` | ⬜ |
+| 3.7 | james@homesofhope.org.au | `/email?account=ms365_11_0e80ccd6` | ⬜ |
+| 3.8 | andrew@homesofhope.org.au | `/email?account=ms365_11_a9258d5e` | ⬜ |
 
-```
-Credentials:
-- Email: robert@tekna.com.au
-- Password: Wisdom50-50
+### Jobs Sub-Items (18)
+| # | Page | URL | Status |
+|---|------|-----|--------|
+| 7.1 | Gantt Schedule | `/admin/system/schedule-master/gantt` | ⬜ |
+| 7.2 | Schedule Master | `/admin/system/schedule-master/data-view/setup` | ⬜ |
+| 7.3 | WHS | `/whs` | ⬜ |
+| 7.4 | Purchase Orders | `/purchase_orders` | ⬜ |
+| 7.5 | Quote Requests | `/quote-requests` | ⬜ |
+| 7.6 | Site Presence | `/admin/site-presence` | ⬜ |
+| 7.6.1 | Active Sessions | `/site_presence_sessions` | ⬜ |
+| 7.6.2 | Live Tracking | `/site-presence/live` | ⬜ |
+| 7.6.3 | Worker Profiles | `/worker_profiles` | ⬜ |
+| 7.6.4 | Cost Centres | `/cost_centres` | ⬜ |
+| 7.6.5 | Labour Costs | `/labour_cost_entries` | ⬜ |
+| 7.6.6 | Job Budgets | `/job_cost_budgets` | ⬜ |
+| 7.6.7 | AI Suggestions | `/ai_timesheet_suggestions` | ⬜ |
+| 7.7 | Price Book | `/pricebook` | ⬜ |
+| 7.8 | Price Histories | `/price_histories` | ⬜ |
+| 7.9 | Estimating | `/estimates` | ⬜ |
+| 7.10 | Recipes | `/recipes` | ⬜ |
+| 7.11 | Job Photos | `/jobs/photos` | ⬜ |
 
-Steps:
-1. Take snapshot to find form fields
-2. Fill email field
-3. Fill password field
-4. Click Sign In button
-5. Wait for Dashboard to load
-6. Verify login successful
-```
+### Finance Sub-Items (2)
+| # | Page | URL | Status |
+|---|------|-----|--------|
+| 8.1 | Xero | `/settings/integrations/xero` | ⬜ |
+| 8.2 | T.A.S. | `/financial/tas` | ⬜ |
 
-### Create Todo List
+### Corporate Sub-Items (2)
+| # | Page | URL | Status |
+|---|------|-----|--------|
+| 11.1 | Assets | `/corporate/assets` | ⬜ |
+| 11.2 | Cases | `/cases` | ⬜ |
 
-Create a todo for EACH left navigation item (22 items):
+### Settings Pages (29)
+| # | Page | URL | Status |
+|---|------|-----|--------|
+| 13.1 | Profile | `/settings/profile` | ⬜ |
+| 13.2 | Notifications | `/settings/notifications` | ⬜ |
+| 13.3 | Security | `/settings/security` | ⬜ |
+| 13.4 | Preferences | `/settings/preferences` | ⬜ |
+| 13.5 | Users | `/settings/users` | ⬜ |
+| 13.6 | Access Control | `/settings/roles` | ⬜ |
+| 13.7 | Corporate | `/settings/corporate` | ⬜ |
+| 13.8 | Company | `/settings/company` | ⬜ |
+| 13.9 | Company - Info | `/settings/company/info` | ⬜ |
+| 13.10 | Company - Brand Colors | `/settings/company/brand-colors` | ⬜ |
+| 13.11 | Company - Documents | `/settings/company/documents` | ⬜ |
+| 13.12 | Company - Holidays | `/settings/company/holidays` | ⬜ |
+| 13.13 | Company - Workflows | `/settings/company/workflows` | ⬜ |
+| 13.14 | Company - Job Setup | `/settings/company/job-setup` | ⬜ |
+| 13.15 | Company - Entity Config | `/settings/company/entity-config` | ⬜ |
+| 13.16 | Company - Offline | `/settings/company/offline` | ⬜ |
+| 13.17 | Operations | `/settings/operations` | ⬜ |
+| 13.18 | Connections | `/settings/connections` | ⬜ |
+| 13.19 | Connections - Provider | `/settings/connections/provider` | ⬜ |
+| 13.20 | Connections - Integrations | `/settings/connections/integrations` | ⬜ |
+| 13.21 | Connections - Migration | `/settings/connections/migration` | ⬜ |
+| 13.22 | Connections - Costs | `/settings/connections/costs` | ⬜ |
+| 13.23 | System | `/settings/system` | ⬜ |
+| 13.24 | Developer | `/settings/developer` | ⬜ |
+| 13.25 | Developer - Components | `/settings/developer/components` | ⬜ |
+| 13.26 | Developer - Tools | `/settings/developer/tools` | ⬜ |
+| 13.27 | Developer - Brand Guidelines | `/settings/developer/brand-guidelines` | ⬜ |
+| 13.28 | Developer - Unreal | `/settings/developer/unreal` | ⬜ |
 
-```
-Dashboard, Leads, Jobs, Tasks, Schedule, Meetings, WHS, Finance,
-Purchase Orders, Quote Requests, Contacts, Email, Price Book,
-Price Histories, Documents, Teeem Docs, Workflows, Corporate,
-Cases, Portal, Admin, Settings
-```
+### Settings Sub-Items in Nav (5)
+| # | Page | URL | Status |
+|---|------|-----|--------|
+| 13.S1 | Support | `/support` | ⬜ |
+| 13.S2 | Workflows | `/workflows/processes` | ⬜ |
+| 13.S3 | SaaS Customers | `/admin/saas-customers` | ⬜ |
+| 13.S4 | Support Tickets | `/admin/support-tickets` | ⬜ |
+| 13.S5 | Referrers | `/admin/referrers` | ⬜ |
 
----
-
-## 2. LEFT NAVIGATION ORDER (SSoT)
-
-**Source:** `/settings/system/navigation` - 94 items total (15 top-level + 53 nested + 26 Missing)
-
-**Test in this EXACT order (top-level items):**
-
-| # | Nav Item | URL | Children | Priority |
-|---|----------|-----|----------|----------|
-| 1 | Dashboard | `/dashboard` | 0 | Standard |
-| 2 | Tasks | `/tasks` | 0 | **CREATE TEST** |
-| 3 | Email | `/email` | 8 accounts | **TEST ACCOUNTS** |
-| 4 | Calendar | `/calendar` | 0 | Standard |
-| 5 | Contacts | `/contacts` | 0 | **CREATE TEST** |
-| 6 | Leads | `/leads` | 0 | Standard |
-| 7 | Jobs | `/jobs` | 18 sub-items | **DEEP TEST** |
-| 8 | Finance | `/finance` | 2 | Standard |
-| 9 | Meetings | `/meetings` | 0 | Standard |
-| 10 | Warehouse | `/warehouse` | 0 | Standard |
-| 11 | Corporate | `/corporate` | 2 | Standard |
-| 12 | Portal | `/portal` | 0 | Standard |
-| 13 | Settings | `/settings` | 5 | Standard |
-| 14 | Teeem Docs | `/my-docs` | 0 | Standard |
-| 15 | Missing | `/missing` | 26 | **TEST ALL** |
-
-### Full Navigation Tree (68 items)
-
-```
-1.  Dashboard                    /dashboard
-2.  Tasks                        /tasks
-3.  Email                        /email
-    ├── robert@tekna.com.au      /email?account=ms365_9_6588f630
-    ├── robert@teeem.au          /email?account=2
-    ├── hello@coinvesthomes.com.au /email?account=1
-    ├── robert@homesofhope.org.au /email?account=ms365_11_85f3617d
-    ├── rob@100xbestlife.com     /email?account=ms365_10_798a35c1
-    ├── rob@lyw.org.au           /email?account=ms365_12_ec16e727
-    ├── james@homesofhope.org.au /email?account=ms365_11_0e80ccd6
-    └── andrew@homesofhope.org.au /email?account=ms365_11_a9258d5e
-4.  Calendar                     /calendar
-5.  Contacts                     /contacts
-6.  Leads                        /leads
-7.  Jobs                         /jobs
-    ├── Gantt Schedule           /admin/system/schedule-master/gantt
-    ├── Schedule Master          /admin/system/schedule-master/data-view/setup
-    ├── WHS                      /whs
-    ├── Purchase Orders          /purchase_orders
-    ├── Quote Requests           /quote-requests
-    ├── Site Presence            /admin/site-presence
-    │   ├── Active Sessions      /site_presence_sessions
-    │   ├── Live Tracking        /site-presence/live
-    │   ├── Worker Profiles      /worker_profiles
-    │   ├── Cost Centres         /cost_centres
-    │   ├── Labour Costs         /labour_cost_entries
-    │   ├── Job Budgets          /job_cost_budgets
-    │   └── AI Suggestions       /ai_timesheet_suggestions
-    ├── Price Book               /pricebook
-    ├── Price Histories          /price_histories
-    ├── Estimating               /estimates
-    ├── Recipes                  /recipes
-    └── Job Photos               /jobs/photos
-8.  Finance                      /finance
-    ├── Xero                     /settings/integrations/xero
-    └── T.A.S.                   /financial/tas
-9.  Meetings                     /meetings
-10. Warehouse                    /warehouse
-11. Corporate                    /corporate
-    ├── Assets                   /corporate/assets
-    └── Cases                    /cases
-12. Portal                       /portal
-13. Settings                     /settings
-    ├── Support                  /support
-    ├── Workflows                /workflows/processes
-    ├── SaaS Customers           /admin/saas-customers
-    ├── Support Tickets          /admin/support-tickets
-    └── Referrers                /admin/referrers
-14. Teeem Docs                   /my-docs
-15. Missing                      /missing (26 sub-items - test all)
-```
+### Missing Sub-Items (~26)
+Navigate to `/missing` and test each sub-item found there.
 
 ---
 
-## 3. PER-PAGE TEST CHECKLIST (COMPREHENSIVE)
+## PHASE 1: SETUP
 
-**For EACH nav item, run ALL these checks. Take your time.**
+### Step 1: Connect Chrome
+```
+mcp__chrome-devtools__list_pages()
+```
+If fails → Tell user to run `/c` first, then STOP
 
-### A. Page Load Checks
-- [ ] Page loads without error
-- [ ] URL is correct (matches expected)
-- [ ] No "404" or "not found" text in snapshot
-- [ ] No 500 errors in network requests
-- [ ] No red errors in console
-- [ ] Page title is correct
-- [ ] Main content area has expected content (not blank)
+### Step 2: Navigate to Staging
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/login' })
+```
 
-### B. Navigation Checks
-- [ ] Breadcrumbs are visible
-- [ ] Breadcrumbs show correct hierarchy
-- [ ] Click EACH breadcrumb - verify it navigates correctly
-- [ ] Back button visible (if applicable)
-- [ ] Back button works (navigates to previous page)
+### Step 3: Login
+```
+mcp__chrome-devtools__take_snapshot()
+```
+Find email field, password field, sign in button:
+```
+mcp__chrome-devtools__fill({ uid: "[EMAIL_UID]", value: "robert@tekna.com.au" })
+mcp__chrome-devtools__fill({ uid: "[PASSWORD_UID]", value: "Wisdom50-50" })
+mcp__chrome-devtools__click({ uid: "[SIGN_IN_UID]" })
+```
 
-### C. Tab Checks (ALL LEVELS)
-- [ ] Count all PRIMARY tabs on the page
-- [ ] Click EACH primary tab one by one
-- [ ] After clicking each primary tab:
-  - [ ] Content loads without error
-  - [ ] Count any SUB-TABS within this tab
-  - [ ] Click EACH sub-tab one by one
-  - [ ] After clicking each sub-tab:
-    - [ ] Content loads without error
-    - [ ] Count any TERTIARY tabs
-    - [ ] Click EACH tertiary tab
-    - [ ] Verify content loads
-- [ ] Check console after EACH tab click
-- [ ] Record total tabs tested at all levels
-
-### D. Table Checks
-- [ ] Find all tables on the page/tab
-- [ ] For EACH table:
-  - [ ] Table renders with data (or shows "no data" message)
-  - [ ] Column headers visible
-  - [ ] Sorting works (if available - click header)
-  - [ ] Search/filter works (if available)
-  - [ ] Click at least 1 row
-  - [ ] Verify detail/drawer opens
-  - [ ] Verify drawer shows correct data
-  - [ ] Close drawer (X button or click outside)
-  - [ ] Verify drawer closes cleanly
-
-### E. Drawer/Side Panel Checks
-- [ ] Find all buttons that open drawers (Add, Edit, View, etc.)
-- [ ] For EACH drawer trigger:
-  - [ ] Click to open drawer
-  - [ ] Drawer slides in smoothly
-  - [ ] Drawer content loads
-  - [ ] All fields/tabs in drawer are visible
-  - [ ] Click any tabs WITHIN the drawer
-  - [ ] Close drawer with X button
-  - [ ] Close drawer by clicking outside (if supported)
-  - [ ] Verify drawer closes completely
-  - [ ] No lingering overlay
-
-### F. Modal/Popup Checks
-- [ ] Find all buttons that open modals (Delete, Confirm, Settings, etc.)
-- [ ] For EACH modal trigger:
-  - [ ] Click to open modal
-  - [ ] Modal appears centered
-  - [ ] Modal content is correct
-  - [ ] Cancel/Close button works
-  - [ ] Click outside to close (if supported)
-  - [ ] Escape key closes modal (if supported)
-  - [ ] Modal closes completely
-  - [ ] No lingering overlay
-
-### G. Link Checks
-- [ ] Find all internal links on the page
-- [ ] For EACH link:
-  - [ ] Click link
-  - [ ] Verify navigation to correct page
-  - [ ] Navigate back
-  - [ ] Original page still works
-- [ ] Find all external links (if any)
-- [ ] Verify external links have target="_blank" (don't navigate away)
-
-### H. Button Checks
-- [ ] Find all action buttons (Save, Submit, Export, Download, etc.)
-- [ ] For non-destructive buttons:
-  - [ ] Click button
-  - [ ] Verify action occurs or modal opens
-  - [ ] Cancel if needed
-- [ ] For destructive buttons (Delete):
-  - [ ] Only test on test items you created
-  - [ ] Verify confirmation dialog appears
-  - [ ] Cancel first time
-  - [ ] Confirm second time (on test item)
-
-### I. Form Checks (where applicable)
-- [ ] Find all forms on the page
-- [ ] For EACH form:
-  - [ ] All form fields render
-  - [ ] Required fields marked
-  - [ ] Dropdowns open and show options
-  - [ ] Date pickers work
-  - [ ] Validation fires on invalid input
-  - [ ] Cancel button works (closes without saving)
-  - [ ] (Only save on test items)
-
-### J. Create/Edit/Delete Tests (where applicable)
-- [ ] CREATE: Add new item with test data
-  - [ ] Form opens
-  - [ ] Fill all required fields
-  - [ ] Save succeeds
-  - [ ] New item appears in list
-- [ ] EDIT: Modify the test item
-  - [ ] Edit form opens with data
-  - [ ] Modify a field
-  - [ ] Save succeeds
-  - [ ] Changes reflected
-- [ ] DELETE: Remove the test item
-  - [ ] Delete button works
-  - [ ] Confirmation appears
-  - [ ] Delete succeeds
-  - [ ] Item removed from list
-
-### K. Error Handling Checks
-- [ ] Check console for errors after all interactions
-- [ ] Check network for failed requests (4xx, 5xx)
-- [ ] Note any error messages shown to user
-
-### L. UI Consistency Checks (Gold Standard / SSoT)
-
-Reference: `/settings/developer/brand-guidelines`
-
-- [ ] Colors match brand guidelines (no random hardcoded hex colors)
-- [ ] Buttons use standard Button component (not custom styled divs)
-- [ ] Tables use TeeemTableView (not custom tables)
-- [ ] Modals use Dialog component
-- [ ] Drawers/Side panels use Sheet component
-- [ ] Icons are from Lucide (consistent sizing 16px, 20px, 24px)
-- [ ] Dark mode works:
-  - [ ] Toggle dark mode
-  - [ ] All text readable
-  - [ ] All backgrounds correct
-  - [ ] No white flashes
-  - [ ] Toggle back to light mode
-- [ ] Spacing is consistent (Tailwind spacing scale)
-- [ ] Typography matches design system (font sizes, weights)
-- [ ] Loading states show Spinner component
-- [ ] Empty states have helpful messaging (not just blank)
-- [ ] Error states display user-friendly messages
-- [ ] Hover states work on interactive elements
-- [ ] Focus states visible for accessibility
-- [ ] No broken images or missing icons
+### Step 4: Wait for Dashboard
+```
+mcp__chrome-devtools__wait_for({ text: "Dashboard", timeout: 15000 })
+mcp__chrome-devtools__take_snapshot()
+```
+Verify you see the left navigation bar.
 
 ---
 
-## 3B. COMPLETE TAB INVENTORY
+## PHASE 2: LEFT NAVIGATION TESTING
 
-**Every page, every tab, in the entire system:**
+**Work through the left navigation bar from TOP to BOTTOM.**
 
-### Dashboard
-- Primary: Overview, Competitor Analysis, Architecture
-- Tables: 0
-
-### Tasks
-- Primary: (single view)
-- Tables: 1
-
-### Email
-- Primary: (per account - 8 accounts)
-- Per email: Reading pane
-
-### Calendar
-- Primary: (single view)
-
-### Contacts
-- Primary: (list view)
-- Detail tabs: Overview, Documents, Communication, Billing, Notes
-
-### Leads
-- Primary: (list view)
-- Detail tabs: Overview, Notes
-
-### Jobs (COMPLEX - 18 sub-items + detail tabs)
-- List: Jobs table
-- Job Detail tabs: Overview, Contract Info, Plans, People, Finance, Documents, Schedule, Tasks, Notes
-  - Finance sub-tabs: Profit, Claims, Expenses
-  - Documents sub-tabs: Folders view
-  - Schedule sub-tabs: Gantt view
-- Sub-items under Jobs:
-  - Gantt Schedule, Schedule Master, WHS, Purchase Orders, Quote Requests
-  - Site Presence (7 children), Price Book, Price Histories, Estimating, Recipes, Job Photos
-
-### Finance (2 sub-items)
-- Xero: Contacts, Invoices, Bank Transactions tabs
-- T.A.S.: Revenue, Expenses tabs
-
-### Meetings
-- Primary: (list view)
-- Detail: Meeting details
-
-### Warehouse
-- Primary: Folders, Documents tabs
-
-### Corporate (2 sub-items)
-- Assets: Asset list
-- Cases: Case list, Case detail
-
-### Portal
-- Primary: (single view)
-
-### Settings (COMPLEX - 22+ tabs total)
-**Personal tabs (4):**
-- Profile, Notifications, Security, Preferences
-
-**Organization tabs (8):**
-1. Users
-2. Access Control → sub-tabs: Permissions, User Roles, Groups
-3. Corporate → sub-tabs: Groups, Companies, Company Tabs
-4. Company → sub-tabs: Info, Brand Colors, Documents, Holidays, Workflows, Job Setup, Entity Config, Offline
-   - Documents sub-tabs: Document Types, Templates, PDF Fields
-   - Job Setup sub-tabs: Types, Statuses, Stages, Suburbs, Workflow
-5. Operations → sub-tabs: Schedule Master, SM Tasks, Contact Types, Meeting Types, Supervisor Checklist, Cost
-6. Connections → sub-tabs: Storage Provider, Integrations, Migration, Cost Comparison
-7. System → sub-tabs: Navigation, AI Agents, Scheduled Jobs, Email Accounts, AI Processing, Backups, Config Sync, System Health, User Manual, Inspiring Quotes
-8. Developer → sub-tabs: Components Lab, Developer Tools, Brand Guidelines, Unreal Engine
-
-**Settings sub-items (5):**
-- Support, Workflows, SaaS Customers, Support Tickets, Referrers
-
-### Teeem Docs
-- Primary: Notebooks list
-- Detail: Pages within notebook
-
-### Missing (26 sub-items)
-- Test all 26 pages under Missing navigation
+For EACH nav item:
+1. Take snapshot to find the nav item in the sidebar
+2. Click the nav item
+3. Wait for page to load
+4. Take snapshot of the page
+5. Test all tabs, tables, drawers on that page
+6. If nav item has children, expand and test each child
+7. Show progress block
+8. Move to next nav item
 
 ---
 
-## 4. VISUAL PROGRESS DISPLAY
+## LEFT NAV ITEM 1: Dashboard
+**EXPECTED URL:** `https://teeem-staging.vercel.app/dashboard`
 
-**Show this progress bar AFTER EACH nav item:**
+### Step 1.1: Click Dashboard in Left Nav
+```
+mcp__chrome-devtools__take_snapshot()
+```
+Find "Dashboard" in the left navigation sidebar → get its UID
+```
+mcp__chrome-devtools__click({ uid: "[DASHBOARD_NAV_UID]" })
+```
 
+### Step 1.2: Verify Dashboard Loads - MUST CHECK URL
+```
+mcp__chrome-devtools__take_snapshot()
+```
+**VERIFY:** The snapshot shows URL contains `/dashboard`
+**IF WRONG URL:** Navigate directly:
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/dashboard' })
+```
+
+### Step 1.3: Click ALL Tabs on Dashboard
+Find tabs in snapshot. Expected tabs: **Overview, Competitor Analysis, Architecture**
+
+**Tab 1: Overview**
+- Find "Overview" tab → click it
+- Take snapshot → verify content
+
+**Tab 2: Competitor Analysis**
+- Find "Competitor Analysis" tab → click it
+- Take snapshot → verify content
+
+**Tab 3: Architecture**
+- Find "Architecture" tab → click it
+- Take snapshot → verify content
+
+### Step 1.4: Check for Errors
+```
+mcp__chrome-devtools__list_console_messages({ types: ["error"] })
+```
+
+### Step 1.5: Record and Show Progress
 ```
 ════════════════════════════════════════════════════════════════════════════════
-PRODUCTION READY CHECK - PROGRESS
+LEFT NAV PROGRESS: 1/15 COMPLETE
 ════════════════════════════════════════════════════════════════════════════════
-
-NAV ITEMS (15 top-level + 79 nested = 94 total)
+✅ 1. Dashboard        3 tabs clicked | 0 tables | 0 errors
+⬜ 2. Tasks
+⬜ 3. Email            (8 sub-items)
+⬜ 4. Calendar
+⬜ 5. Contacts
+⬜ 6. Leads
+⬜ 7. Jobs             (18 sub-items)
+⬜ 8. Finance          (2 sub-items)
+⬜ 9. Meetings
+⬜ 10. Warehouse
+⬜ 11. Corporate       (2 sub-items)
+⬜ 12. Portal
+⬜ 13. Settings        (72 tabs total)
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
 ────────────────────────────────────────────────────────────────────────────────
-✅ Dashboard          3 tabs | 0 tables | 2 links | 0 drawers | 0 errors
-✅ Tasks              4 tabs | 1 table | 3 links | 2 drawers | 1 modal | CREATE ✓ | 0 errors
-✅ Email              8 accounts | 2 emails opened | 5 links | 1 drawer | 0 errors
-🔄 Calendar           testing tabs...
-⬜ Contacts           (detail: 6 tabs, drawer with tabs)
-⬜ Leads              (detail: drawer, pipeline view)
-⬜ Jobs               (18 sub-items, 9 detail tabs, 3 sub-tabs)
-⬜ Finance            (2 sub-items, 5 tabs)
-⬜ Meetings
-⬜ Warehouse          (4 tabs, folder navigation)
-⬜ Corporate          (2 sub-items, 5 tabs)
-⬜ Portal
-⬜ Settings           (72 tabs total across all levels)
-⬜ Teeem Docs         (notebook/page navigation)
-⬜ Missing            (26 sub-items)
+TOTALS: Tabs: 3 | Tables: 0 | Rows: 0 | Drawers: 0 | Errors: 0
+════════════════════════════════════════════════════════════════════════════════
+```
 
+---
+
+## LEFT NAV ITEM 2: Tasks
+**EXPECTED URL:** `https://teeem-staging.vercel.app/tasks`
+
+### Step 2.1: Click Tasks in Left Nav
+```
+mcp__chrome-devtools__take_snapshot()
+```
+Find "Tasks" in the left navigation sidebar → click it
+```
+mcp__chrome-devtools__click({ uid: "[TASKS_NAV_UID]" })
+```
+
+### Step 2.2: Verify Tasks Page Loads - MUST CHECK URL
+```
+mcp__chrome-devtools__take_snapshot()
+```
+**VERIFY:** URL contains `/tasks`
+**IF WRONG URL:** Navigate directly:
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/tasks' })
+```
+
+### Step 2.3: Test Table
+- Find table rows in snapshot
+- Click first row → verify drawer opens
+- Close drawer (click X or outside)
+
+### Step 2.4: Test Create (CRUD)
+1. Find "Add" or "+" button → click it
+2. Fill title: "PR Test Task - DELETE ME"
+3. Save
+4. Verify task appears
+5. Delete the test task
+
+### Step 2.5: Check Errors
+```
+mcp__chrome-devtools__list_console_messages({ types: ["error"] })
+```
+
+### Step 2.6: Show Progress
+```
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 2/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1. Dashboard        3 tabs | 0 tables | 0 errors
+✅ 2. Tasks            0 tabs | 1 table | 1 row | 1 drawer | CREATE ✓ | 0 errors
+⬜ 3. Email            (8 sub-items)
+⬜ 4. Calendar
+⬜ 5. Contacts
+⬜ 6. Leads
+⬜ 7. Jobs             (18 sub-items)
+⬜ 8. Finance          (2 sub-items)
+⬜ 9. Meetings
+⬜ 10. Warehouse
+⬜ 11. Corporate       (2 sub-items)
+⬜ 12. Portal
+⬜ 13. Settings        (72 tabs total)
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
 ────────────────────────────────────────────────────────────────────────────────
-RUNNING TOTALS
+TOTALS: Tabs: 3 | Tables: 1 | Rows: 1 | Drawers: 1 | Creates: 1 | Errors: 0
+════════════════════════════════════════════════════════════════════════════════
+```
+
+---
+
+## LEFT NAV ITEM 3: Email (HAS 8 SUB-ITEMS)
+**EXPECTED URL:** `https://teeem-staging.vercel.app/email`
+**SUB-ITEM URLS:**
+- Account 1: `/email?account=ms365_9_6588f630` (robert@tekna.com.au)
+- Account 2: `/email?account=2` (robert@teeem.au)
+- Account 3: `/email?account=1` (hello@coinvesthomes.com.au)
+- Account 4: `/email?account=ms365_11_85f3617d` (robert@homesofhope.org.au)
+- Account 5: `/email?account=ms365_10_798a35c1` (rob@100xbestlife.com)
+- Account 6: `/email?account=ms365_12_ec16e727` (rob@lyw.org.au)
+- Account 7: `/email?account=ms365_11_0e80ccd6` (james@homesofhope.org.au)
+- Account 8: `/email?account=ms365_11_a9258d5e` (andrew@homesofhope.org.au)
+
+### Step 3.1: Click Email in Left Nav
+```
+mcp__chrome-devtools__take_snapshot()
+```
+Find "Email" in left nav → click it
+```
+mcp__chrome-devtools__click({ uid: "[EMAIL_NAV_UID]" })
+```
+
+### Step 3.2: Verify Email Page Loads - MUST CHECK URL
+```
+mcp__chrome-devtools__take_snapshot()
+```
+**VERIFY:** URL contains `/email`
+**IF WRONG URL:** Navigate directly:
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/email' })
+```
+
+### Step 3.3: Test Main Email Page
+- Verify email list renders
+- Click one email to open it
+- Verify email content displays
+- Close email
+
+### Step 3.4: Test ALL 8 Email Account Sub-Items
+The Email nav item should expand to show 8 email accounts. Click EACH one:
+
+**Sub-item 3.1: robert@tekna.com.au**
+- Find this account in nav or account selector → click
+- Verify emails load for this account
+- Take snapshot
+
+**Sub-item 3.2: robert@teeem.au**
+- Click this account
+- Verify emails load
+- Take snapshot
+
+**Sub-item 3.3: hello@coinvesthomes.com.au**
+- Click → verify → snapshot
+
+**Sub-item 3.4: robert@homesofhope.org.au**
+- Click → verify → snapshot
+
+**Sub-item 3.5: rob@100xbestlife.com**
+- Click → verify → snapshot
+
+**Sub-item 3.6: rob@lyw.org.au**
+- Click → verify → snapshot
+
+**Sub-item 3.7: james@homesofhope.org.au**
+- Click → verify → snapshot
+
+**Sub-item 3.8: andrew@homesofhope.org.au**
+- Click → verify → snapshot
+
+### Step 3.5: Check Errors
+```
+mcp__chrome-devtools__list_console_messages({ types: ["error"] })
+```
+
+### Step 3.6: Show Progress
+```
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 3/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1. Dashboard        3 tabs | 0 tables | 0 errors
+✅ 2. Tasks            0 tabs | 1 table | 1 row | 1 drawer | CREATE ✓ | 0 errors
+✅ 3. Email            8 accounts tested | 1 email opened | 0 errors
+⬜ 4. Calendar
+⬜ 5. Contacts
+⬜ 6. Leads
+⬜ 7. Jobs             (18 sub-items)
+⬜ 8. Finance          (2 sub-items)
+⬜ 9. Meetings
+⬜ 10. Warehouse
+⬜ 11. Corporate       (2 sub-items)
+⬜ 12. Portal
+⬜ 13. Settings        (72 tabs total)
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
 ────────────────────────────────────────────────────────────────────────────────
-Pages:     3/94 (3%)     | Tabs:    15/150+    | Tables:   2/40+
-Drawers:   3/30+         | Modals:  1/20+      | Links:    10/50+
-Forms:     2             | CRUD:    1 create   | Errors:   0
+TOTALS: Tabs: 3 | Tables: 1 | Accounts: 8 | Emails: 1 | Errors: 0
+════════════════════════════════════════════════════════════════════════════════
+```
+
+---
+
+## LEFT NAV ITEM 4: Calendar
+**EXPECTED URL:** `https://teeem-staging.vercel.app/calendar`
+
+### Step 4.1: Click Calendar in Left Nav OR Navigate Directly
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/calendar' })
+```
+
+### Step 4.2: Verify Calendar Loads - MUST CHECK URL
+```
+mcp__chrome-devtools__take_snapshot()
+```
+**VERIFY:** URL contains `/calendar`
+
+### Step 4.3: Test Calendar Features
+- Verify calendar view loads
+- Try clicking a date if possible
+- Check for any tabs
+
+### Step 4.4: Check Errors & Show Progress
+```
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 4/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1. Dashboard        3 tabs | 0 errors
+✅ 2. Tasks            1 table | 1 drawer | CREATE ✓ | 0 errors
+✅ 3. Email            8 accounts | 0 errors
+✅ 4. Calendar         0 tabs | calendar renders | 0 errors
+⬜ 5. Contacts
+⬜ 6. Leads
+⬜ 7. Jobs             (18 sub-items)
+⬜ 8. Finance          (2 sub-items)
+⬜ 9. Meetings
+⬜ 10. Warehouse
+⬜ 11. Corporate       (2 sub-items)
+⬜ 12. Portal
+⬜ 13. Settings        (72 tabs total)
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
+════════════════════════════════════════════════════════════════════════════════
+```
+
+---
+
+## LEFT NAV ITEM 5: Contacts
+**EXPECTED URL:** `https://teeem-staging.vercel.app/contacts`
+
+### Step 5.1: Navigate to Contacts
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/contacts' })
+```
+
+### Step 5.2: Verify Contacts Page Loads - MUST CHECK URL
+```
+mcp__chrome-devtools__take_snapshot()
+```
+**VERIFY:** URL contains `/contacts`
+
+### Step 5.3: Test Table
+- Find table rows
+- Click first contact row → drawer opens
+
+### Step 5.4: Test Drawer Tabs (5 tabs expected)
+Inside the contact drawer, click ALL tabs:
+1. **Overview** → click → verify
+2. **Documents** → click → verify
+3. **Communication** → click → verify
+4. **Billing** → click → verify
+5. **Notes** → click → verify
+
+Close drawer
+
+### Step 5.5: Test Create
+1. Find Add button → click
+2. Fill name: "PR Test Contact - DELETE ME"
+3. Save
+4. Delete the test contact
+
+### Step 5.6: Show Progress
+```
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 5/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1. Dashboard        3 tabs | 0 errors
+✅ 2. Tasks            1 table | 1 drawer | CREATE ✓ | 0 errors
+✅ 3. Email            8 accounts | 0 errors
+✅ 4. Calendar         calendar renders | 0 errors
+✅ 5. Contacts         1 table | 1 drawer | 5 drawer tabs | CREATE ✓ | 0 errors
+⬜ 6. Leads
+⬜ 7. Jobs             (18 sub-items)
+⬜ 8. Finance          (2 sub-items)
+⬜ 9. Meetings
+⬜ 10. Warehouse
+⬜ 11. Corporate       (2 sub-items)
+⬜ 12. Portal
+⬜ 13. Settings        (72 tabs total)
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
+════════════════════════════════════════════════════════════════════════════════
+```
+
+---
+
+## LEFT NAV ITEM 6: Leads
+**EXPECTED URL:** `https://teeem-staging.vercel.app/leads`
+
+### Step 6.1: Navigate to Leads
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/leads' })
+```
+
+### Step 6.2: Verify and Test - MUST CHECK URL
+```
+mcp__chrome-devtools__take_snapshot()
+```
+**VERIFY:** URL contains `/leads`
+- Click first row → drawer opens
+- Test drawer tabs: **Overview, Notes**
+- Close drawer
+
+### Step 6.3: Show Progress
+```
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 6/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1. Dashboard        3 tabs | 0 errors
+✅ 2. Tasks            1 table | CREATE ✓ | 0 errors
+✅ 3. Email            8 accounts | 0 errors
+✅ 4. Calendar         0 errors
+✅ 5. Contacts         5 drawer tabs | CREATE ✓ | 0 errors
+✅ 6. Leads            1 table | 2 drawer tabs | 0 errors
+⬜ 7. Jobs             (18 sub-items)
+⬜ 8. Finance          (2 sub-items)
+⬜ 9. Meetings
+⬜ 10. Warehouse
+⬜ 11. Corporate       (2 sub-items)
+⬜ 12. Portal
+⬜ 13. Settings        (72 tabs total)
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
+════════════════════════════════════════════════════════════════════════════════
+```
+
+---
+
+## LEFT NAV ITEM 7: Jobs (HAS 18 SUB-ITEMS - MOST COMPLEX)
+**EXPECTED URL:** `https://teeem-staging.vercel.app/jobs`
+**ALL SUB-ITEM URLS (must navigate to each):**
+- Gantt Schedule: `/admin/system/schedule-master/gantt`
+- Schedule Master: `/admin/system/schedule-master/data-view/setup`
+- WHS: `/whs`
+- Purchase Orders: `/purchase_orders`
+- Quote Requests: `/quote-requests`
+- Site Presence: `/admin/site-presence`
+- Active Sessions: `/site_presence_sessions`
+- Live Tracking: `/site-presence/live`
+- Worker Profiles: `/worker_profiles`
+- Cost Centres: `/cost_centres`
+- Labour Costs: `/labour_cost_entries`
+- Job Budgets: `/job_cost_budgets`
+- AI Suggestions: `/ai_timesheet_suggestions`
+- Price Book: `/pricebook`
+- Price Histories: `/price_histories`
+- Estimating: `/estimates`
+- Recipes: `/recipes`
+- Job Photos: `/jobs/photos`
+
+### Step 7.1: Navigate to Jobs
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/jobs' })
+```
+
+### Step 7.2: Test Jobs List Page - MUST CHECK URL
+```
+mcp__chrome-devtools__take_snapshot()
+```
+**VERIFY:** URL contains `/jobs`
+- Click first job row → opens job detail page
+
+### Step 7.3: Test ALL 9 Job Detail Tabs
+**Tab 1: Overview** → click → verify
+**Tab 2: Contract Info** → click → verify
+**Tab 3: Plans** → click → verify → if plans exist, click one to test PDF preview
+**Tab 4: People** → click → verify
+**Tab 5: Finance** → click → verify
+  - **Sub-tab: Profit** → click → verify
+  - **Sub-tab: Claims** → click → verify
+  - **Sub-tab: Expenses** → click → verify
+**Tab 6: Documents** → click → verify folder view
+**Tab 7: Schedule** → click → verify Gantt/schedule
+**Tab 8: Tasks** → click → verify task list
+**Tab 9: Notes** → click → verify
+
+Navigate back to Jobs list
+
+### Step 7.4: Test ALL 18 Jobs Sub-Items - NAVIGATE TO EACH URL
+
+**Sub-item 7.1: Gantt Schedule**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/admin/system/schedule-master/gantt' })
+```
+Take snapshot, verify Gantt loads
+
+**Sub-item 7.2: Schedule Master**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/admin/system/schedule-master/data-view/setup' })
+```
+Take snapshot, verify loads
+
+**Sub-item 7.3: WHS**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/whs' })
+```
+Take snapshot, test any tabs
+
+**Sub-item 7.4: Purchase Orders**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/purchase_orders' })
+```
+Take snapshot, click table row if exists
+
+**Sub-item 7.5: Quote Requests**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/quote-requests' })
+```
+Take snapshot, verify loads
+
+**Sub-item 7.6: Site Presence**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/admin/site-presence' })
+```
+Take snapshot, verify loads
+
+**Child 7.6.1: Active Sessions**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/site_presence_sessions' })
+```
+Take snapshot, verify loads
+
+**Child 7.6.2: Live Tracking**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/site-presence/live' })
+```
+Take snapshot, verify loads
+
+**Child 7.6.3: Worker Profiles**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/worker_profiles' })
+```
+Take snapshot, verify loads
+
+**Child 7.6.4: Cost Centres**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/cost_centres' })
+```
+Take snapshot, verify loads
+
+**Child 7.6.5: Labour Costs**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/labour_cost_entries' })
+```
+Take snapshot, verify loads
+
+**Child 7.6.6: Job Budgets**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/job_cost_budgets' })
+```
+Take snapshot, verify loads
+
+**Child 7.6.7: AI Suggestions**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/ai_timesheet_suggestions' })
+```
+Take snapshot, verify loads
+
+**Sub-item 7.7: Price Book**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/pricebook' })
+```
+Take snapshot, verify loads
+
+**Sub-item 7.8: Price Histories**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/price_histories' })
+```
+Take snapshot, verify loads
+
+**Sub-item 7.9: Estimating**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/estimates' })
+```
+Take snapshot, verify loads
+
+**Sub-item 7.10: Recipes**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/recipes' })
+```
+Take snapshot, verify loads
+
+**Sub-item 7.11: Job Photos**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/jobs/photos' })
+```
+Take snapshot, verify loads
+
+### Step 7.5: Show Progress
+```
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 7/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1. Dashboard        3 tabs | 0 errors
+✅ 2. Tasks            1 table | CREATE ✓ | 0 errors
+✅ 3. Email            8 accounts | 0 errors
+✅ 4. Calendar         0 errors
+✅ 5. Contacts         5 drawer tabs | CREATE ✓ | 0 errors
+✅ 6. Leads            2 drawer tabs | 0 errors
+✅ 7. Jobs             9 detail tabs | 3 sub-tabs | 18 sub-items | 7 site presence children | 0 errors
+⬜ 8. Finance          (2 sub-items)
+⬜ 9. Meetings
+⬜ 10. Warehouse
+⬜ 11. Corporate       (2 sub-items)
+⬜ 12. Portal
+⬜ 13. Settings        (72 tabs total)
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
 ────────────────────────────────────────────────────────────────────────────────
-```
-
-**Legend:**
-- ✅ = Complete (all checks passed)
-- ❌ = Complete (has errors - document for fixing)
-- 🔄 = Currently testing
-- ⬜ = Not started
-
-**Rules:**
-- Test ALL 94 pages (15 top-level + 79 nested including Missing)
-- Test ALL tabs at ALL levels on EVERY page
-- Open and close ALL drawers and modals
-- Click ALL internal links
-- Test CRUD where applicable
-- DO NOT RUSH - thoroughness over speed
-
----
-
-## 5. CREATE/ACTION TESTS
-
-**For specific pages, actually CREATE something:**
-
-### Tasks - Create a Task
-```
-1. Navigate to /tasks
-2. Click "Add Task" or "+" button
-3. Fill in: Title = "PR Test Task - DELETE ME"
-4. Save
-5. Verify task appears in list
-6. Delete the task (or note it for cleanup)
-```
-
-### Contacts - Create a Contact
-```
-1. Navigate to /contacts
-2. Click "Add Contact" button
-3. Fill in: Name = "PR Test Contact - DELETE ME"
-4. Save
-5. Verify contact appears
-6. Delete the contact
-```
-
-### Email - Send Reply (if safe)
-```
-1. Navigate to /email
-2. Open an existing email
-3. Click Reply
-4. Type: "Test reply from /pr command - please ignore"
-5. Check that links in email viewer work
-6. CANCEL (don't actually send unless safe)
-```
-
-### Jobs - Deep Tab Test
-```
-1. Navigate to /jobs
-2. Search for "Watego" or open first job
-3. Click into job detail
-4. Test ALL tabs:
-   - Overview
-   - Contract Info
-   - Plans (test PDF preview!)
-   - People
-   - Finance → Profit, Claims, Expenses sub-tabs
-   - Documents
-   - Schedule
-   - Tasks
-   - Notes
-5. For Plans tab: Click a plan, verify PDF loads
+JOBS SUB-ITEMS TESTED:
+  ✅ Gantt Schedule    ✅ Schedule Master   ✅ WHS
+  ✅ Purchase Orders   ✅ Quote Requests    ✅ Site Presence (7 children)
+  ✅ Price Book        ✅ Price Histories   ✅ Estimating
+  ✅ Recipes           ✅ Job Photos
+════════════════════════════════════════════════════════════════════════════════
 ```
 
 ---
 
-## 6. DETAILED CHECK TABLE
+## LEFT NAV ITEM 8: Finance (HAS 2 SUB-ITEMS)
+**EXPECTED URL:** `https://teeem-staging.vercel.app/finance`
+**SUB-ITEM URLS:**
+- Xero: `/settings/integrations/xero`
+- T.A.S.: `/financial/tas`
 
-| Check | How to Test | Pass Criteria |
-|-------|-------------|---------------|
-| URL correct | Take snapshot, verify URL in result | Matches expected path |
-| Breadcrumbs | Find breadcrumb elements in snapshot | Visible, correct hierarchy |
-| Breadcrumb click | Click each breadcrumb uid | Navigates correctly |
-| Back button | Find and click back button | Returns to previous page |
-| Tabs | Find tab elements, click each | Content loads, no errors |
-| Tables | Find table rows | Table renders with data |
-| Row click | Click row uid | Drawer/detail opens |
-| Drawer close | Find close button, click | Drawer closes |
-| Links | Find link elements | Links are clickable |
-| Navigation | Click link, check URL | URL changes correctly |
-| Create item | Click Add, fill form, save | Item appears in list |
-| Delete item | Find delete button, confirm | Item removed |
-| Console | list_console_messages | No error types |
-| Network | list_network_requests | No 500 status codes |
-
----
-
-## 7. NOTEBOOK REPORTING WORKFLOW
-
-### After ALL Testing Complete
-
-**OPTION A: Via Backend API (Preferred - More Reliable)**
-
-```bash
-# Get the section ID for "Production Ready" notebook first
-# Then create/update page via API
-
-# Create new page:
-curl -X POST "https://teeem-staging-d60a657ed68a.herokuapp.com/api/v1/notebook_sections/{SECTION_ID}/pages" \
-  -H "Content-Type: application/json" \
-  -H "Cookie: {AUTH_COOKIE}" \
-  -d '{
-    "title": "PR Report - 2026-01-29 10:30",
-    "content": "{FULL_REPORT_CONTENT}"
-  }'
-
-# Update existing page:
-curl -X PATCH "https://teeem-staging-d60a657ed68a.herokuapp.com/api/v1/notebook_pages/{PAGE_ID}" \
-  -H "Content-Type: application/json" \
-  -H "Cookie: {AUTH_COOKIE}" \
-  -d '{
-    "title": "PR Report - 2026-01-29 10:30",
-    "content": "{UPDATED_REPORT_CONTENT}"
-  }'
+### Step 8.1: Navigate to Finance
 ```
-
-**API Endpoints:**
-- List notebooks: `GET /api/v1/notebooks`
-- List sections: `GET /api/v1/notebooks/{id}/sections`
-- List pages: `GET /api/v1/notebook_sections/{section_id}/pages`
-- Create page: `POST /api/v1/notebook_sections/{section_id}/pages`
-- Update page: `PATCH /api/v1/notebook_pages/{id}`
-- Search pages: `GET /api/v1/notebook_pages/search?q=Production%20Ready`
-
-**Using Chrome's Authenticated Session for API Calls:**
-
-Since Chrome is already logged in, use `mcp__chrome-devtools__evaluate_script` to make authenticated API calls:
-
-```javascript
-// Find Production Ready notebook and get section ID
-mcp__chrome-devtools__evaluate_script({
-  function: `async () => {
-    const res = await fetch('/api/v1/notebooks');
-    const data = await res.json();
-    const notebook = data.notebooks.find(n => n.name === 'Production Ready');
-    if (!notebook) return { error: 'Notebook not found' };
-
-    const sectionsRes = await fetch('/api/v1/notebooks/' + notebook.id + '/sections');
-    const sectionsData = await sectionsRes.json();
-    return { notebook_id: notebook.id, sections: sectionsData.sections };
-  }`
-})
-
-// Create a new page with report content
-mcp__chrome-devtools__evaluate_script({
-  function: `async () => {
-    const content = \`YOUR_REPORT_CONTENT_HERE\`;
-    const res = await fetch('/api/v1/notebook_sections/SECTION_ID/pages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: 'PR Report - 2026-01-29 10:30',
-        content: content
-      })
-    });
-    return await res.json();
-  }`
-})
-
-// Update existing page
-mcp__chrome-devtools__evaluate_script({
-  function: `async () => {
-    const content = \`YOUR_UPDATED_REPORT_CONTENT_HERE\`;
-    const res = await fetch('/api/v1/notebook_pages/PAGE_ID', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: content
-      })
-    });
-    return await res.json();
-  }`
-})
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/finance' })
 ```
+Take snapshot, verify loads
 
-This uses the browser's existing authentication to call the API directly.
+### Step 8.2: Test Finance Sub-Items - NAVIGATE TO EACH
 
-**OPTION B: Via Chrome UI (Fallback)**
-
-**Step 1: Navigate to Notebooks**
+**Sub-item 8.1: Xero**
 ```
-mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/notebooks' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/integrations/xero' })
 ```
+Take snapshot, test tabs: **Contacts, Invoices, Bank Transactions** (click all 3)
 
-**Step 2: Open "Production Ready" Notebook**
-- Take snapshot to find notebook list
-- Look for "Production Ready" notebook
-- Click to open it
-- If not found, create new notebook named "Production Ready"
-
-**Step 3: Create/Open Dated Page**
-- Look for page with today's date
-- If not found, create new page: "Production Ready - 2026-01-29"
-- Open the page
-
-**Step 4: Paste Full Report**
-
-Use this format:
-
-```markdown
-# Production Ready Check - 2026-01-29 10:30
-
-## Summary
-- Nav Items: 22/22 tested
-- Tabs: 85 clicked
-- Tables: 34 tested
-- Rows: 28 clicked
-- Drawers: 15 opened
-- Links: 42 verified
-- Creates: 2 successful
-- Errors: 2 found
-
-## Results by Navigation
-
-### 1. Dashboard ✅
-- URL: /dashboard ✓
-- Breadcrumbs: Home ✓
-- Tabs: Overview ✓, Competitor ✓, Architecture ✓
-- Tables: 0
-- Errors: None
-
-### 2. Leads ✅
-- URL: /leads ✓
-- Breadcrumbs: Home > Leads ✓
-- Tabs: All ✓, Pipeline ✓
-- Tables: 1 (clicked row, drawer opened)
-- Errors: None
-
-### 3. Jobs ✅
-- URL: /jobs ✓
-- Breadcrumbs: Home > Jobs ✓
-- Tabs: Overview ✓, Contract Info ✓, Plans ✓, People ✓, Finance ✓, Documents ✓, Schedule ✓, Tasks ✓, Notes ✓
-- Sub-tabs: Finance → Profit ✓, Claims ✓, Expenses ✓
-- Tables: 3 (clicked 2 rows)
-- PDF Preview: ✓ Working
-- Errors: None
-
-### 4. Tasks ✅
-- URL: /tasks ✓
-- Created task: "PR Test Task - DELETE ME" ✓
-- Deleted task: ✓
-- Errors: None
-
-... (continue for all 22 nav items)
-
-## Failures (if any)
-
-### Failure 1: /jobs/plans - PDF Preview
-- **Error**: 500 on POST /api/v1/job_plans/preview
-- **Console**: "Cannot read property 'data' of null"
-- **Status**: NEW
-
-### Failure 2: /contacts/photo - Photo Tab
-- **Error**: Tab fails to load
-- **Console**: "NoMethodError - undefined method 'corporate_group'"
-- **Status**: KNOWN (reported before)
-
-## Create Tests
-
-| Test | Result | Notes |
-|------|--------|-------|
-| Task creation | ✅ Pass | Created and deleted successfully |
-| Contact creation | ✅ Pass | Created and deleted successfully |
-| Email reply | ⏭️ Skipped | Safety - didn't send |
-
-## Status: NEEDS FIXES / 100% PASS
+**Sub-item 8.2: T.A.S.**
 ```
-
-**Step 5: Save the Page**
-- Ensure content is saved in the notebook
-
----
-
-## 8. FIX-AND-RETEST LOOP
-
-**If failures exist:**
-
-### Step 1: Document All Failures
-List each failure with:
-- Page/URL
-- Error type (500, 404, console error)
-- Error message
-- Probable cause
-
-### Step 2: Fix Each Failure
-For each failure:
-1. Investigate root cause
-2. Implement fix
-3. Mark as fixed
-
-### Step 3: Retest ONLY Failed Items
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/financial/tas' })
 ```
-DO NOT retest everything.
-ONLY retest the specific pages/features that failed.
+Take snapshot, test tabs: **Revenue, Expenses** (click both)
+
+### Step 8.3: Show Progress
 ```
-
-### Step 4: Update Notebook
-After fixes:
-1. Navigate back to notebook
-2. Update the report:
-   - Change failure status to "FIXED"
-   - Add fix notes
-   - Update final status to "100% PASS"
-
-### Report Update Format
-```markdown
-## Failures (FIXED)
-
-### Failure 1: /jobs/plans - PDF Preview
-- **Error**: 500 on POST /api/v1/job_plans/preview
-- **Status**: ✅ FIXED
-- **Fix**: Added null check in job_plans_controller.rb:45
-
-### Failure 2: /contacts/photo - Photo Tab
-- **Status**: ✅ FIXED
-- **Fix**: Fixed corporate_group method in contact.rb:123
-
-## Status: 100% PASS ✅
-All failures resolved. Ready for production.
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 8/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1. Dashboard        3 tabs | 0 errors
+✅ 2. Tasks            CREATE ✓ | 0 errors
+✅ 3. Email            8 accounts | 0 errors
+✅ 4. Calendar         0 errors
+✅ 5. Contacts         5 drawer tabs | CREATE ✓ | 0 errors
+✅ 6. Leads            2 drawer tabs | 0 errors
+✅ 7. Jobs             9 tabs | 18 sub-items | 0 errors
+✅ 8. Finance          2 sub-items | Xero: 3 tabs | TAS: 2 tabs | 0 errors
+⬜ 9. Meetings
+⬜ 10. Warehouse
+⬜ 11. Corporate       (2 sub-items)
+⬜ 12. Portal
+⬜ 13. Settings        (72 tabs total)
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
+════════════════════════════════════════════════════════════════════════════════
 ```
 
 ---
 
-## 9. TODO TRACKING
+## LEFT NAV ITEM 9: Meetings
+**EXPECTED URL:** `https://teeem-staging.vercel.app/meetings`
 
-**Use TodoWrite throughout testing:**
-
-### Initial Setup
+### Step 9.1: Navigate to Meetings
 ```
-todos: [
-  { content: "Test Dashboard", status: "pending", activeForm: "Testing Dashboard" },
-  { content: "Test Leads", status: "pending", activeForm: "Testing Leads" },
-  { content: "Test Jobs", status: "pending", activeForm: "Testing Jobs" },
-  ... (all 22 nav items)
-]
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/meetings' })
 ```
 
-### During Testing
-- Mark current item as `in_progress`
-- After completing, mark as `completed`
-- Move to next item
-
-### After All Testing
-- Add "Save report to notebook" as new todo
-- Add "Fix failures" if any exist
-- Add "Retest failed items" if fixes made
-
----
-
-## 10. ERROR DETECTION CRITERIA
-
-### FAIL (Must Fix)
-- Network 500 errors
-- Page shows "404" or "not found"
-- Console errors with "Error", "500", "undefined"
-- Feature broken (PDF won't load, modal won't open)
-- Empty page when data expected
-
-### WARN (Should Review)
-- 404 for API endpoints (missing feature)
-- Slow loading (>5 seconds)
-- Console warnings
-- Deprecated API usage
-
-### IGNORE
-- `/api/v1/synced_email/unread_counts` 404 (known)
-- WebSocket connection attempts
-- React DevTools messages
-
----
-
-## 11. METRICS TO TRACK
-
-**Maintain running counters for EVERYTHING tested:**
-
+### Step 9.2: Test - VERIFY URL
 ```
-PAGES:
-  Nav Items Complete: 0/15 top-level
-  Sub-Items Complete: 0/79 nested
-  Total Pages: 0/94
-
-TABS (all levels):
-  Primary Tabs: 0
-  Sub-Tabs: 0
-  Tertiary Tabs: 0
-  Total Tabs: 0
-
-TABLES:
-  Tables Found: 0
-  Tables with Data: 0
-  Rows Clicked: 0
-  Sorts Tested: 0
-  Filters Tested: 0
-
-DRAWERS & MODALS:
-  Drawers Opened: 0
-  Drawers Closed: 0
-  Modals Opened: 0
-  Modals Closed: 0
-  Drawer Tabs Clicked: 0
-
-LINKS & BUTTONS:
-  Internal Links Clicked: 0
-  External Links Verified: 0
-  Action Buttons Clicked: 0
-
-FORMS:
-  Forms Opened: 0
-  Fields Tested: 0
-  Validations Triggered: 0
-
-CRUD OPERATIONS:
-  Items Created: 0
-  Items Edited: 0
-  Items Deleted: 0
-
-ERRORS:
-  Console Errors: 0
-  Network Errors (4xx): 0
-  Network Errors (5xx): 0
-  Errors Fixed: 0
-
-UI CONSISTENCY:
-  Dark Mode Tested: Yes/No
-  Brand Color Issues: 0
-  Non-Standard Components: 0
-  Accessibility Issues: 0
-  Broken Images/Icons: 0
+mcp__chrome-devtools__take_snapshot()
 ```
+**VERIFY:** URL contains `/meetings`
+- Click table row if exists → drawer opens
+- Close drawer
 
-**Pass Criteria:**
-- All 94 pages tested (15 top-level + 79 nested)
-- All tabs clicked at every level (expect 150+)
-- All tables tested (expect 40+)
-- All drawers opened and closed (expect 30+)
-- All modals tested (expect 20+)
-- Links verified (expect 50+)
-- CRUD tests passed where applicable
-- Errors: 0 (or all fixed before report)
-
----
-
-## 12. FINAL OUTPUT FORMAT
-
-**After ALL testing and fixes, output:**
-
+### Step 9.3: Show Progress
 ```
-========================================
-PRODUCTION READY CHECK - COMPLETE
-========================================
-Environment: Staging
-URL: https://teeem-staging.vercel.app
-Date: 2026-01-29 10:30 (Brisbane)
-
-========================================
-LEFT NAVIGATION PROGRESS (FINAL)
-========================================
-✅ Dashboard          (3 tabs, 0 tables, 0 errors)
-✅ Leads              (2 tabs, 1 table, 1 row, 0 errors)
-✅ Jobs               (8 tabs, 3 tables, 2 rows, 1 drawer, 0 errors)
-✅ Tasks              (1 tab, 1 table, 1 create, 0 errors)
-✅ Schedule           (2 tabs, 1 table, 0 errors)
-✅ Meetings           (1 tab, 1 table, 1 row, 0 errors)
-✅ WHS                (3 tabs, 1 table, 0 errors)
-✅ Finance            (5 tabs, 2 tables, 0 errors)
-✅ Purchase Orders    (2 tabs, 1 table, 1 row, 0 errors)
-✅ Quote Requests     (1 tab, 1 table, 0 errors)
-✅ Contacts           (6 tabs, 1 table, 1 create, 0 errors)
-✅ Email              (3 tabs, 1 table, 2 rows, 0 errors)
-✅ Price Book         (2 tabs, 1 table, 0 errors)
-✅ Price Histories    (1 tab, 1 table, 0 errors)
-✅ Documents          (4 tabs, 2 tables, 1 row, 0 errors)
-✅ Teeem Docs         (2 tabs, 1 table, 0 errors)
-✅ Workflows          (3 tabs, 1 table, 0 errors)
-✅ Corporate          (5 tabs, 2 tables, 2 rows, 0 errors)
-✅ Cases              (2 tabs, 1 table, 1 row, 0 errors)
-✅ Portal             (2 tabs, 1 table, 0 errors)
-✅ Admin              (8 tabs, 3 tables, 0 errors)
-✅ Settings           (15 tabs, 5 tables, 2 drawers, 0 errors)
-
-========================================
-TOTALS
-========================================
-Nav Items:     22/22 complete
-Tabs:          85 clicked
-Tables:        34 tested
-Rows:          28 clicked
-Drawers:       15 opened
-Links:         42 verified
-Creates:       2 successful
-Errors:        0 found (or X fixed)
-
-========================================
-STATUS: 100% PASS - READY FOR PRODUCTION
-========================================
-
-Report saved to: /notebooks → Production Ready → 2026-01-29
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 9/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1-8. [Previous items]
+✅ 9. Meetings         1 table | 1 row | 0 errors
+⬜ 10. Warehouse
+⬜ 11. Corporate       (2 sub-items)
+⬜ 12. Portal
+⬜ 13. Settings        (72 tabs total)
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
+════════════════════════════════════════════════════════════════════════════════
 ```
 
 ---
 
-## 13. CHROME DEVTOOLS MCP REQUIRED
+## LEFT NAV ITEM 10: Warehouse
+**EXPECTED URL:** `https://teeem-staging.vercel.app/warehouse`
 
-**This agent CANNOT function without Chrome DevTools MCP.**
+### Step 10.1: Navigate to Warehouse
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/warehouse' })
+```
 
-If tools are unavailable:
-1. Tell user: "Chrome DevTools MCP not connected"
-2. Ask user to run `/c` first
-3. Do NOT attempt curl-based testing
+### Step 10.2: Test - VERIFY URL
+```
+mcp__chrome-devtools__take_snapshot()
+```
+**VERIFY:** URL contains `/warehouse`
+- Test tabs: **Folders, Documents** (click both)
+- Test folder navigation if possible
 
-**Required tools:**
-- `mcp__chrome-devtools__navigate_page`
-- `mcp__chrome-devtools__take_snapshot`
-- `mcp__chrome-devtools__click`
-- `mcp__chrome-devtools__fill`
-- `mcp__chrome-devtools__wait_for`
-- `mcp__chrome-devtools__list_network_requests`
-- `mcp__chrome-devtools__list_console_messages`
-
----
-
-## 14. RECOVERY PROCEDURES
-
-### Page Hangs
-- Wait max 20 seconds
-- Mark as FAIL with timeout
-- Continue to next nav item
-
-### Lost Chrome Connection
-- Try `mcp__chrome-devtools__list_pages()`
-- If fails, tell user to restart with `/c`
-- Resume from last incomplete nav item
-
-### Login Expired
-- Re-navigate to login
-- Re-enter credentials
-- Continue testing
-
-### Too Many Failures
-- Don't stop - complete all nav items
-- Document all failures
-- Fix-and-retest at the end
+### Step 10.3: Show Progress
+```
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 10/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1-9. [Previous items]
+✅ 10. Warehouse       2 tabs | 0 errors
+⬜ 11. Corporate       (2 sub-items)
+⬜ 12. Portal
+⬜ 13. Settings        (72 tabs total)
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
+════════════════════════════════════════════════════════════════════════════════
+```
 
 ---
 
-## 15. QUICK REFERENCE
+## LEFT NAV ITEM 11: Corporate (HAS 2 SUB-ITEMS)
+**EXPECTED URL:** `https://teeem-staging.vercel.app/corporate`
+**SUB-ITEM URLS:**
+- Assets: `/corporate/assets`
+- Cases: `/cases`
 
-**Start:** Connect Chrome → Login → Create todos → Begin testing
+### Step 11.1: Navigate to Corporate
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/corporate' })
+```
+Take snapshot, verify loads
 
-**Per Item:** Navigate → Snapshot → Check 404 → Tabs → Tables → Rows → Drawers → Update progress
+### Step 11.2: Test Sub-Items - NAVIGATE TO EACH
 
-**End:** Navigate to notebooks → Create report → Save → Fix failures → Retest → Update report
+**Sub-item 11.1: Assets**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/corporate/assets' })
+```
+Take snapshot, click table row if exists
 
-**Output:** Visual progress → Final summary → Notebook saved
+**Sub-item 11.2: Cases**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/cases' })
+```
+Take snapshot, click table row if exists → drawer opens, close drawer
+
+### Step 11.3: Show Progress
+```
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 11/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1-10. [Previous items]
+✅ 11. Corporate       2 sub-items | Assets ✓ | Cases ✓ | 0 errors
+⬜ 12. Portal
+⬜ 13. Settings        (72 tabs total)
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
+════════════════════════════════════════════════════════════════════════════════
+```
+
+---
+
+## LEFT NAV ITEM 12: Portal
+**EXPECTED URL:** `https://teeem-staging.vercel.app/portal`
+
+### Step 12.1: Navigate to Portal
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/portal' })
+```
+
+### Step 12.2: Verify and Test - CHECK URL
+```
+mcp__chrome-devtools__take_snapshot()
+```
+**VERIFY:** URL contains `/portal`
+- Test any available features
+
+### Step 12.3: Show Progress
+```
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 12/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1-11. [Previous items]
+✅ 12. Portal          page loads | 0 errors
+⬜ 13. Settings        (72 tabs total)
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
+════════════════════════════════════════════════════════════════════════════════
+```
+
+---
+
+## LEFT NAV ITEM 13: Settings (72 TABS TOTAL - VERY COMPLEX)
+**EXPECTED URL:** `https://teeem-staging.vercel.app/settings`
+**ALL SETTINGS URLS - NAVIGATE TO EACH:**
+- Profile: `/settings/profile`
+- Notifications: `/settings/notifications`
+- Security: `/settings/security`
+- Preferences: `/settings/preferences`
+- Users: `/settings/users`
+- Access Control: `/settings/roles`
+- Corporate: `/settings/corporate`
+- Company: `/settings/company`
+- Company Info: `/settings/company/info`
+- Brand Colors: `/settings/company/brand-colors`
+- Documents: `/settings/company/documents`
+- Holidays: `/settings/company/holidays`
+- Workflows: `/settings/company/workflows`
+- Job Setup: `/settings/company/job-setup`
+- Entity Config: `/settings/company/entity-config`
+- Offline: `/settings/company/offline`
+- Operations: `/settings/operations`
+- Connections: `/settings/connections`
+- Storage Provider: `/settings/connections/provider`
+- Integrations: `/settings/connections/integrations`
+- Migration: `/settings/connections/migration`
+- Costs: `/settings/connections/costs`
+- System: `/settings/system`
+- Developer: `/settings/developer`
+- Components: `/settings/developer/components`
+- Tools: `/settings/developer/tools`
+- Brand Guidelines: `/settings/developer/brand-guidelines`
+- Unreal: `/settings/developer/unreal`
+
+### Step 13.1: Navigate to Settings Main
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings' })
+```
+Take snapshot, verify loads
+
+### Step 13.2: Test PERSONAL Tabs (4 pages) - NAVIGATE TO EACH
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/profile' })
+```
+Take snapshot, verify loads
+
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/notifications' })
+```
+Take snapshot, verify loads
+
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/security' })
+```
+Take snapshot, verify loads
+
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/preferences' })
+```
+Take snapshot, verify loads
+
+### Step 13.3: Test ORGANIZATION Pages - NAVIGATE TO EACH
+
+**Users**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/users' })
+```
+Take snapshot, verify user list
+
+**Access Control**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/roles' })
+```
+Take snapshot, click sub-tabs: **Permissions, User Roles, Groups**
+
+**Corporate**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/corporate' })
+```
+Take snapshot, click sub-tabs: **Groups, Companies, Company Tabs**
+
+**Company**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company' })
+```
+Take snapshot, then navigate to each sub-page:
+
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/info' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/brand-colors' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/documents' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/holidays' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/workflows' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/job-setup' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/entity-config' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/offline' })
+```
+Take snapshot after each, verify loads
+
+**Operations**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/operations' })
+```
+Take snapshot, click sub-tabs: **Schedule Master, SM Tasks, Contact Types, Meeting Types, Supervisor Checklist, Cost**
+
+**Connections**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/connections' })
+```
+Take snapshot, then navigate to each sub-page:
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/connections/provider' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/connections/integrations' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/connections/migration' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/connections/costs' })
+```
+Take snapshot after each, verify loads
+
+**System**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/system' })
+```
+Take snapshot, click sub-tabs: **Navigation, AI Agents, Scheduled Jobs, Email Accounts, AI Processing, Backups, Config Sync, System Health, User Manual, Inspiring Quotes**
+
+**Developer**
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/developer' })
+```
+Take snapshot, then navigate to each sub-page:
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/developer/components' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/developer/tools' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/developer/brand-guidelines' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/developer/unreal' })
+```
+Take snapshot after each, verify loads
+
+### Step 13.4: Test Settings Sub-Items in Left Nav (5 pages) - NAVIGATE TO EACH
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/support' })
+```
+Take snapshot, verify loads
+
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/workflows/processes' })
+```
+Take snapshot, verify loads
+
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/admin/saas-customers' })
+```
+Take snapshot, verify loads
+
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/admin/support-tickets' })
+```
+Take snapshot, verify loads
+
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/admin/referrers' })
+```
+Take snapshot, verify loads
+
+### Step 13.5: Show Progress
+```
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 13/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1-12. [Previous items]
+✅ 13. Settings        72 TABS TOTAL | 0 errors
+────────────────────────────────────────────────────────────────────────────────
+SETTINGS TABS TESTED:
+  PERSONAL (4): Profile ✓, Notifications ✓, Security ✓, Preferences ✓
+  ORGANIZATION:
+    Users ✓
+    Access Control ✓ → Permissions ✓, User Roles ✓, Groups ✓
+    Corporate ✓ → Groups ✓, Companies ✓, Company Tabs ✓
+    Company ✓ → Info ✓, Brand Colors ✓, Documents ✓ (3 sub), Holidays ✓,
+                Workflows ✓, Job Setup ✓ (5 sub), Entity Config ✓, Offline ✓
+    Operations ✓ → 6 sub-tabs ✓
+    Connections ✓ → 4 sub-tabs ✓
+    System ✓ → 10 sub-tabs ✓
+    Developer ✓ → 4 sub-tabs ✓
+  SUB-ITEMS (5): Support ✓, Workflows ✓, SaaS Customers ✓,
+                 Support Tickets ✓, Referrers ✓
+────────────────────────────────────────────────────────────────────────────────
+⬜ 14. Teeem Docs
+⬜ 15. Missing         (26 sub-items)
+════════════════════════════════════════════════════════════════════════════════
+```
+
+---
+
+## LEFT NAV ITEM 14: Teeem Docs
+**EXPECTED URL:** `https://teeem-staging.vercel.app/my-docs`
+
+### Step 14.1: Navigate to Teeem Docs
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/my-docs' })
+```
+
+### Step 14.2: Verify and Test - CHECK URL
+```
+mcp__chrome-devtools__take_snapshot()
+```
+**VERIFY:** URL contains `/my-docs`
+- Click a notebook if exists
+- Click a page if exists
+- Verify content renders
+
+### Step 14.3: Show Progress
+```
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 14/15 COMPLETE
+════════════════════════════════════════════════════════════════════════════════
+✅ 1-13. [Previous items]
+✅ 14. Teeem Docs      notebooks render | 0 errors
+⬜ 15. Missing         (26 sub-items)
+════════════════════════════════════════════════════════════════════════════════
+```
+
+---
+
+## LEFT NAV ITEM 15: Missing (26 SUB-ITEMS)
+**EXPECTED URL:** `https://teeem-staging.vercel.app/missing`
+
+### Step 15.1: Navigate to Missing
+```
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/missing' })
+```
+
+### Step 15.2: Take Snapshot to Find All Sub-Items
+```
+mcp__chrome-devtools__take_snapshot()
+```
+**VERIFY:** URL contains `/missing`
+List all sub-items visible under Missing in the left nav
+
+### Step 15.3: Test EACH Sub-Item (expect ~26) - NAVIGATE TO EACH
+For each sub-item found:
+1. Get the sub-item's URL from the nav
+2. Navigate directly to that URL:
+   ```
+   mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/[SUB_ITEM_PATH]' })
+   ```
+3. Take snapshot
+4. Verify page loads (not 404)
+5. Record result
+
+### Step 15.4: Show Final Progress
+```
+════════════════════════════════════════════════════════════════════════════════
+LEFT NAV PROGRESS: 15/15 COMPLETE - ALL DONE!
+════════════════════════════════════════════════════════════════════════════════
+✅ 1. Dashboard        3 tabs | 0 errors
+✅ 2. Tasks            1 table | CREATE ✓ | 0 errors
+✅ 3. Email            8 accounts | 0 errors
+✅ 4. Calendar         0 errors
+✅ 5. Contacts         5 drawer tabs | CREATE ✓ | 0 errors
+✅ 6. Leads            2 drawer tabs | 0 errors
+✅ 7. Jobs             9 tabs + 3 sub-tabs | 18 sub-items | 0 errors
+✅ 8. Finance          2 sub-items | 5 tabs | 0 errors
+✅ 9. Meetings         1 table | 0 errors
+✅ 10. Warehouse       2 tabs | 0 errors
+✅ 11. Corporate       2 sub-items | 0 errors
+✅ 12. Portal          0 errors
+✅ 13. Settings        72 tabs | 5 sub-items | 0 errors
+✅ 14. Teeem Docs      0 errors
+✅ 15. Missing         26 sub-items tested | [X] errors
+────────────────────────────────────────────────────────────────────────────────
+FINAL TOTALS:
+  Nav Items:    15/15 complete
+  Sub-Items:    60+ tested
+  Tabs:         100+ clicked
+  Tables:       15+ tested
+  Rows:         20+ clicked
+  Drawers:      10+ opened
+  Creates:      2 (Tasks, Contacts)
+  Errors:       [TOTAL]
+════════════════════════════════════════════════════════════════════════════════
+```
+
+---
+
+## PHASE 3: SAVE REPORT TO NOTEBOOK
+
+After completing all 15 nav items:
+
+1. Navigate to `/notebooks`
+2. Find or create "Production Ready" notebook
+3. Create new page with today's date
+4. Paste comprehensive report including:
+   - All 15 nav items with status
+   - All sub-items tested
+   - All tabs clicked
+   - All errors found
+   - Final PASS/FAIL status
+
+---
+
+## ERROR HANDLING
+
+- **Page timeout**: Wait 15 sec max, mark FAIL, continue
+- **404 error**: Mark FAIL, continue
+- **500 error**: Note error, mark FAIL, continue
+- **Console error**: Record text, mark WARN, continue
+
+---
+
+## MINIMUM ACCEPTANCE CRITERIA
+
+**NOT complete until:**
+- [ ] All 15 left nav items clicked and tested
+- [ ] All sub-items (60+) tested
+- [ ] All tabs (100+) clicked
+- [ ] All tables tested with row clicks
+- [ ] All drawers opened and closed
+- [ ] Create tests passed (Tasks, Contacts)
+- [ ] Report saved to notebook
+
+**DO NOT STOP EARLY.**
