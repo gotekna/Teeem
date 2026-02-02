@@ -23,8 +23,12 @@ class PerformanceRequest < ApplicationRecord
   scope :since, ->(time) { where("created_at > ?", time) }
   scope :for_endpoint, ->(endpoint) { where(endpoint: endpoint) }
   scope :for_method, ->(method) { where(method: method.upcase) }
-  scope :errors, -> { where("status_code >= 400") }
-  scope :server_errors, -> { where("status_code >= 500") }
+  # SSoT: Error scopes - use server_errors for dashboard "error rate"
+  # Client errors (401, 404, etc.) are often expected behavior, not failures
+  scope :errors, -> { where("status_code >= 400") }  # All errors (for backwards compat)
+  scope :server_errors, -> { where("status_code >= 500") }  # Actual failures
+  scope :client_errors, -> { where("status_code >= 400 AND status_code < 500") }  # 4xx only
+  scope :auth_errors, -> { where(status_code: 401) }  # Unauthorized (often expected)
   scope :successful, -> { where("status_code < 400 OR status_code IS NULL") }
   scope :slow, -> { where("duration_ms > ?", THRESHOLD_SLOW) }
   scope :for_user, ->(user) { where(user: user) }

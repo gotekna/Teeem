@@ -309,7 +309,11 @@ module Api
         return empty_overview if total.zero?
 
         stats = requests.latency_stats
-        error_count = requests.errors.count
+        # SSoT: Use server_errors (5xx) for error_rate - these are actual failures
+        # Client errors (4xx) are often expected behavior (auth failures, not found, etc.)
+        server_error_count = requests.server_errors.count
+        client_error_count = requests.client_errors.count
+        auth_error_count = requests.auth_errors.count
 
         {
           total_requests: total,
@@ -317,8 +321,13 @@ module Api
           p50_response_time: stats[:p50],
           p95_response_time: stats[:p95],
           p99_response_time: stats[:p99],
-          error_rate: (error_count.to_f / total * 100).round(2),
-          error_count: error_count,
+          # Primary metric: 5xx server errors only (actual failures)
+          error_rate: (server_error_count.to_f / total * 100).round(2),
+          error_count: server_error_count,
+          # Breakdown for transparency
+          client_error_count: client_error_count,
+          client_error_rate: (client_error_count.to_f / total * 100).round(2),
+          auth_error_count: auth_error_count,  # 401s (usually expected from expired tokens)
           requests_per_minute: (total.to_f / ((Time.current - since) / 60)).round(1)
         }
       end
@@ -332,6 +341,9 @@ module Api
           p99_response_time: nil,
           error_rate: 0,
           error_count: 0,
+          client_error_count: 0,
+          client_error_rate: 0,
+          auth_error_count: 0,
           requests_per_minute: 0
         }
       end

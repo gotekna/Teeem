@@ -52,8 +52,11 @@ interface PerformanceOverview {
   p50_response_time: number | null;
   p95_response_time: number | null;
   p99_response_time: number | null;
-  error_rate: number;
-  error_count: number;
+  error_rate: number;  // Server errors (5xx) - actual failures
+  error_count: number;  // Server error count
+  client_error_count?: number;  // 4xx errors (auth failures, not found, etc.)
+  client_error_rate?: number;  // 4xx error rate
+  auth_error_count?: number;  // 401 errors specifically (usually expected)
   requests_per_minute: number;
 }
 
@@ -404,7 +407,7 @@ export function PerformanceTab() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Error Rate</span>
+                <span className="text-sm text-muted-foreground">Server Error Rate</span>
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" />
               </div>
               <div className={cn(
@@ -414,8 +417,16 @@ export function PerformanceTab() {
                 {safePercent(overview.error_rate, 2)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {overview.error_count} errors
+                {overview.error_count} server errors (5xx)
               </p>
+              {overview.client_error_count != null && overview.client_error_count > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {overview.client_error_count} client errors (4xx)
+                  {overview.auth_error_count != null && overview.auth_error_count > 0 && (
+                    <span className="text-muted-foreground/70"> · {overview.auth_error_count} auth</span>
+                  )}
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -949,7 +960,7 @@ export function PerformanceTab() {
           <div className="flex items-start gap-2">
             <CheckCircle className="h-4 w-4 mt-0.5 text-green-500 dark:text-green-400 flex-shrink-0" />
             <p>
-              <strong>Good:</strong> API P95 &lt; 200ms, Web Vitals all green, Error rate &lt; 0.1%
+              <strong>Good:</strong> API P95 &lt; 200ms, Web Vitals all green, Server error rate &lt; 1%
             </p>
           </div>
           <div className="flex items-start gap-2">
@@ -962,6 +973,12 @@ export function PerformanceTab() {
             <Database className="h-4 w-4 mt-0.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
             <p>
               <strong>Slow Queries:</strong> Queries &gt; 100ms are captured automatically. Check for missing indexes.
+            </p>
+          </div>
+          <div className="flex items-start gap-2">
+            <Activity className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+            <p>
+              <strong>Client Errors:</strong> 4xx errors (especially 401s) are often expected from expired tokens on idle browser tabs.
             </p>
           </div>
         </CardContent>
