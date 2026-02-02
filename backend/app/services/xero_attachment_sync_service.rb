@@ -196,10 +196,11 @@ class XeroAttachmentSyncService
   def sync_attachments
     entity_type = external_invoice.quote? ? "Quotes" : "Invoices"
 
+    # FRC (Feb 2026): Use @xero_tenant_id (Xero UUID), NOT external_invoice.tenant_id (TEEEM integer)
     attachments_result = xero_client.get_attachments(
       entity_type,
       external_invoice.external_id,
-      tenant_id: external_invoice.tenant_id
+      tenant_id: @xero_tenant_id
     )
 
     unless attachments_result[:success]
@@ -247,11 +248,12 @@ class XeroAttachmentSyncService
     end
 
     # Download the attachment
+    # FRC (Feb 2026): Use @xero_tenant_id (Xero UUID), NOT external_invoice.tenant_id (TEEEM integer)
     download_result = xero_client.download_attachment(
       entity_type,
       external_invoice.external_id,
       filename,
-      tenant_id: external_invoice.tenant_id
+      tenant_id: @xero_tenant_id
     )
 
     unless download_result[:success]
@@ -481,13 +483,16 @@ class XeroAttachmentSyncService
   # ========================================
 
   def download_invoice_pdf
+    # FRC (Feb 2026): Use @xero_tenant_id (Xero UUID), NOT external_invoice.tenant_id (TEEEM integer)
+    # The tenant_id on ExternalInvoice is the TEEEM Tenant.id FK, not the Xero org UUID.
+    # This bug caused all API calls to fail or hit the wrong org's rate limits.
     case external_invoice.invoice_type
     when "quote"
-      xero_client.get_quote_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
+      xero_client.get_quote_pdf(external_invoice.external_id, tenant_id: @xero_tenant_id)
     when "credit_note"
-      xero_client.get_credit_note_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
+      xero_client.get_credit_note_pdf(external_invoice.external_id, tenant_id: @xero_tenant_id)
     else
-      xero_client.get_invoice_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
+      xero_client.get_invoice_pdf(external_invoice.external_id, tenant_id: @xero_tenant_id)
     end
   end
 
