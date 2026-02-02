@@ -152,6 +152,7 @@ interface WarehouseTabConfig {
   has_storage_folder?: boolean | null;
   storage_folder_path: string | null;
   download_name: string | null;
+  ui_name: string | null;  // SSoT: Document UI Name template
   enabled: boolean;
   order_position: number;
   icon_name: string | null;
