@@ -633,6 +633,10 @@ export function EmailAccountsTab() {
   const [shareableUsers, setShareableUsers] = useState<ShareableUser[]>([]);
   const [selectedSharedUsers, setSelectedSharedUsers] = useState<number[]>([]);
   const [savingSharing, setSavingSharing] = useState(false);
+  // Cross-tenant search state
+  const [crossTenantSearch, setCrossTenantSearch] = useState("");
+  const [crossTenantResults, setCrossTenantResults] = useState<ShareableUser[]>([]);
+  const [searchingCrossTenant, setSearchingCrossTenant] = useState(false);
 
   // Fetch credentials and providers on mount
   useEffect(() => {
@@ -863,6 +867,41 @@ export function EmailAccountsTab() {
     } finally {
       setSavingSharing(false);
     }
+  };
+
+  // Search for users across all tenants (for cross-tenant sharing)
+  const handleCrossTenantSearch = async (searchTerm: string) => {
+    setCrossTenantSearch(searchTerm);
+
+    if (searchTerm.length < 2) {
+      setCrossTenantResults([]);
+      return;
+    }
+
+    setSearchingCrossTenant(true);
+    try {
+      const response = await api.get<{ success: boolean; data: ShareableUser[] }>(
+        `/api/v1/imap_credentials/shareable_users?search=${encodeURIComponent(searchTerm)}&credential_id=${sharingCredential?.id}`
+      );
+      if (response.success) {
+        // Filter out users already in shareableUsers list
+        const existingIds = shareableUsers.map(u => u.id);
+        const newResults = response.data.filter(u => !existingIds.includes(u.id));
+        setCrossTenantResults(newResults);
+      }
+    } catch (error) {
+      console.error("Failed to search users:", error);
+    } finally {
+      setSearchingCrossTenant(false);
+    }
+  };
+
+  // Add a cross-tenant user to the shareable list
+  const handleAddCrossTenantUser = (user: ShareableUser) => {
+    setShareableUsers(prev => [...prev, user]);
+    setSelectedSharedUsers(prev => [...prev, user.id]);
+    setCrossTenantSearch("");
+    setCrossTenantResults([]);
   };
 
   if (loading) {

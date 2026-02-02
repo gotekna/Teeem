@@ -751,6 +751,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
   # List users who can be granted access to email credentials
   # SSoT (Jan 2026): Filter by current tenant for multi-tenancy isolation
   # FRC (Feb 2026): Also include already-shared users (even cross-tenant) so they appear in dialog
+  # FRC (Feb 2026): Support cross-tenant search via ?search= param
   def shareable_users
     tenant_user_ids = current_tenant&.users&.pluck(:id) || []
 
@@ -761,7 +762,31 @@ class Api::V1::ImapCredentialsController < ApplicationController
       already_shared_ids = credential&.shared_with_user_ids || []
     end
 
-    # Combine tenant users + already shared users (deduped)
+    # If search param provided, search ALL tenants (for cross-tenant sharing)
+    if params[:search].present? && params[:search].length >= 2
+      search_term = "%#{params[:search].downcase}%"
+      search_users = User.where("LOWER(name) LIKE ? OR LOWER(email) LIKE ?", search_term, search_term)
+                         .where.not(id: current_user.id) # Exclude current user
+                         .limit(20)
+                         .map do |user|
+        is_cross_tenant = !tenant_user_ids.include?(user.id)
+        {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          is_cross_tenant: is_cross_tenant,
+          tenant_name: user.tenant&.name
+        }
+      end
+
+      return render json: {
+        success: true,
+        data: search_users,
+        is_search_result: true
+      }
+    end
+
+    # Default: Combine tenant users + already shared users (deduped)
     all_user_ids = (tenant_user_ids + already_shared_ids).uniq
 
     users = User.where(id: all_user_ids).order(:name).map do |user|

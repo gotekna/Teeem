@@ -195,11 +195,11 @@ function SidebarContent({
       clearAllCachedRecords();
       console.log("[ClearCache] Records cache cleared");
 
-      // 3. Clear app localStorage (but not auth)
+      // 3. Clear app localStorage (but not auth or sidebar preferences)
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && !key.includes("token") && !key.includes("auth") && !key.includes("session")) {
+        if (key && !key.includes("token") && !key.includes("auth") && !key.includes("session") && !key.includes("sidebar")) {
           keysToRemove.push(key);
         }
       }
