@@ -344,21 +344,15 @@ class XeroAttachmentSyncService
   # ========================================
 
   # Compute folder path from DocumentType's primary WarehouseFolder
-  # SSoT: Derives folder from WarehouseProvider.warehouse_folders (not WarehouseFolder.display_name)
+  # SSoT: Uses warehouse_folder column directly (Feb 2026 consolidation)
   def compute_folder_from_document_type(document_type)
-    warehouse_folder = document_type.primary_warehouse_folder
-    return nil unless warehouse_folder
+    wf = document_type.primary_warehouse_folder
+    return nil unless wf
 
-    # SSoT: Derive template from WarehouseProvider.warehouse_folders
-    # path_for already handles alias normalization (e.g., 'corporate_entity' → 'corporate')
-    warehouse_type = warehouse_folder.warehouse_type || 'corporate'
-    config = WarehouseProvider.instance
-    template = config.path_for(warehouse_type)
+    # SSoT: warehouse_folder column stores complete path template
+    # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Invoices & Credit Notes"
+    template = wf.warehouse_folder
     return nil unless template.present?
-
-    # SSoT: {{TeeemXL}} is the UI placeholder for tab/folder name (Jan 2026)
-    # Support both {{TeeemXL}} and legacy {{TabName}} for backwards compatibility
-    template = template.gsub('{{TeeemXL}}', warehouse_folder.display_name.to_s).gsub('{{TabName}}', warehouse_folder.display_name.to_s)
 
     # Expand template with context from invoice/contact
     expand_folder_template(template)
