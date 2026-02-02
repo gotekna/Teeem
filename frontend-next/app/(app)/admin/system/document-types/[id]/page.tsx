@@ -165,7 +165,7 @@ export default function DocumentTypeDetailPage() {
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
-  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // SSoT: EntityTab hierarchy for Additional Tabs
+  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number | string; name: string; tab_key?: string; storage_path?: string; isScope?: boolean; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children?: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }> }>>([]); // SSoT: Scope-first hierarchy (Corporate > Job > Contact > tabs)
   const [allTabsForLookup, setAllTabsForLookup] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // All tabs (any group) for name lookups
   const [xeroTabs, setXeroTabs] = React.useState<Array<{ id?: number; name: string; key: string; children: Array<{ id?: number; name: string; key: string }> }>>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
@@ -1410,42 +1410,63 @@ export default function DocumentTypeDetailPage() {
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {folderHierarchy.filter(p => p.id).map((parent, idx) => {
-                        const hasChildren = (parent.children || []).filter((c: any) => c.id).length > 0;
+                      {/* SSoT: Scope-first hierarchy - Corporate > Job > Contact */}
+                      {folderHierarchy.map((scopeGroup, scopeIdx) => {
+                        // Scope groups are headers (not selectable)
+                        if (scopeGroup.isScope) {
+                          const scopeTabs = (scopeGroup.children || []).filter((t: any) => t.id);
+                          if (scopeTabs.length === 0) return null;
 
-                        return (
-                          <SelectGroup key={parent.id}>
-                            {idx > 0 && <SelectSeparator />}
-                            {hasChildren ? (
-                              <>
-                                {/* Parent with children - show as group header */}
-                                <SelectLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
-                                  📁 {parent.name}
-                                </SelectLabel>
-                                {/* Children with tree connectors */}
-                                {(parent.children || []).filter((c: any) => c.id).map((child: any, childIdx: number, arr: any[]) => (
-                                  <SelectItem key={child.id} value={child.id.toString()} className="pl-4">
-                                    <span className="text-muted-foreground">
-                                      {childIdx === arr.length - 1 ? '└─' : '├─'}
-                                    </span>
-                                    <span className="ml-1">{child.name}</span>
-                                    {child.storage_path && child.storage_path !== child.name && (
-                                      <span className="text-xs text-muted-foreground ml-1">({child.storage_path})</span>
-                                    )}
-                                  </SelectItem>
-                                ))}
-                              </>
-                            ) : (
-                              /* Leaf folder - show directly as selectable */
-                              <SelectItem value={parent.id!.toString()}>
-                                <span>📁 {parent.name}</span>
-                                {parent.storage_path && parent.storage_path !== parent.name && (
-                                  <span className="text-xs text-muted-foreground ml-1">({parent.storage_path})</span>
-                                )}
-                              </SelectItem>
-                            )}
-                          </SelectGroup>
-                        );
+                          return (
+                            <SelectGroup key={scopeGroup.tab_key}>
+                              {scopeIdx > 0 && <SelectSeparator />}
+                              {/* Scope header */}
+                              <SelectLabel className="text-xs font-semibold text-foreground px-2 py-1.5 bg-muted/50">
+                                {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
+                              </SelectLabel>
+                              {/* Tabs within this scope */}
+                              {scopeTabs.map((tab: any, tabIdx: number) => {
+                                const hasSubTabs = (tab.children || []).filter((c: any) => c.id).length > 0;
+
+                                if (hasSubTabs) {
+                                  // Tab with subtabs - show tab as header, subtabs as selectable
+                                  return (
+                                    <React.Fragment key={tab.id}>
+                                      <SelectLabel className="text-xs text-muted-foreground font-normal px-4 py-1">
+                                        📁 {tab.name}
+                                      </SelectLabel>
+                                      {(tab.children || []).filter((c: any) => c.id).map((subtab: any, subtabIdx: number, arr: any[]) => (
+                                        <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
+                                          <span className="text-muted-foreground">
+                                            {subtabIdx === arr.length - 1 ? '└─' : '├─'}
+                                          </span>
+                                          <span className="ml-1">{subtab.name}</span>
+                                          {subtab.storage_path && subtab.storage_path !== subtab.name && (
+                                            <span className="text-xs text-muted-foreground ml-1">({subtab.storage_path})</span>
+                                          )}
+                                        </SelectItem>
+                                      ))}
+                                    </React.Fragment>
+                                  );
+                                } else {
+                                  // Leaf tab - directly selectable
+                                  return (
+                                    <SelectItem key={tab.id} value={tab.id.toString()} className="pl-4">
+                                      <span className="text-muted-foreground">
+                                        {tabIdx === scopeTabs.length - 1 ? '└─' : '├─'}
+                                      </span>
+                                      <span className="ml-1">📁 {tab.name}</span>
+                                      {tab.storage_path && tab.storage_path !== tab.name && (
+                                        <span className="text-xs text-muted-foreground ml-1">({tab.storage_path})</span>
+                                      )}
+                                    </SelectItem>
+                                  );
+                                }
+                              })}
+                            </SelectGroup>
+                          );
+                        }
+                        return null;
                       })}
                     </SelectContent>
                   </Select>
@@ -1470,6 +1491,10 @@ export default function DocumentTypeDetailPage() {
                   updateField("entity_tab_ids", [primaryId, ...secondaryIds.filter(id => id !== tabId)].filter(Boolean));
                 };
 
+                // Helper to check if a tab ID is available (not primary or already selected)
+                const isTabAvailable = (tabId: number) =>
+                  tabId !== primaryId && !secondaryIds.includes(tabId);
+
                 return (
                   <div className="space-y-2">
                     {/* Display selected secondary tabs */}
@@ -1485,7 +1510,7 @@ export default function DocumentTypeDetailPage() {
                         ))}
                       </div>
                     )}
-                    {/* Add secondary tab dropdown */}
+                    {/* Add secondary tab dropdown - SSoT: Scope-first hierarchy */}
                     <Select
                       value=""
                       onValueChange={(value) => addSecondaryTab(parseInt(value))}
@@ -1494,44 +1519,69 @@ export default function DocumentTypeDetailPage() {
                         <SelectValue placeholder="+ Add tab..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {folderHierarchy.filter(p => p.id).map((parent, idx) => {
-                          // Get available children (not already selected)
-                          const availableChildren = (parent.children || []).filter((c: any) =>
-                            c.id && c.id !== primaryId && !secondaryIds.includes(c.id)
-                          );
-                          const parentAvailable = parent.id !== primaryId && !secondaryIds.includes(parent.id!);
-                          const hasChildren = availableChildren.length > 0;
+                        {folderHierarchy.map((scopeGroup, scopeIdx) => {
+                          // Scope groups are headers (not selectable)
+                          if (scopeGroup.isScope) {
+                            // Filter to available tabs/subtabs within this scope
+                            const availableTabs = (scopeGroup.children || []).filter((tab: any) => {
+                              if (tab.id && isTabAvailable(tab.id)) return true;
+                              // Check if any subtabs are available
+                              return (tab.children || []).some((subtab: any) =>
+                                subtab.id && isTabAvailable(subtab.id)
+                              );
+                            });
 
-                          // Skip group if nothing available
-                          if (!parentAvailable && !hasChildren) return null;
+                            if (availableTabs.length === 0) return null;
 
-                          return (
-                            <SelectGroup key={parent.id}>
-                              {idx > 0 && <SelectSeparator />}
-                              {hasChildren ? (
-                                <>
-                                  {/* Parent with children - show as group header */}
-                                  <SelectLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
-                                    📁 {parent.name}
-                                  </SelectLabel>
-                                  {/* Children with tree connectors */}
-                                  {availableChildren.map((child: any, childIdx: number) => (
-                                    <SelectItem key={child.id} value={child.id.toString()} className="pl-4">
-                                      <span className="text-muted-foreground">
-                                        {childIdx === availableChildren.length - 1 ? '└─' : '├─'}
-                                      </span>
-                                      <span className="ml-1">{child.name}</span>
-                                    </SelectItem>
-                                  ))}
-                                </>
-                              ) : parentAvailable ? (
-                                /* Leaf folder - show directly as selectable */
-                                <SelectItem value={parent.id!.toString()}>
-                                  <span>📁 {parent.name}</span>
-                                </SelectItem>
-                              ) : null}
-                            </SelectGroup>
-                          );
+                            return (
+                              <SelectGroup key={scopeGroup.tab_key}>
+                                {scopeIdx > 0 && <SelectSeparator />}
+                                {/* Scope header */}
+                                <SelectLabel className="text-xs font-semibold text-foreground px-2 py-1.5 bg-muted/50">
+                                  {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
+                                </SelectLabel>
+                                {/* Tabs within this scope */}
+                                {availableTabs.map((tab: any, tabIdx: number) => {
+                                  const availableSubTabs = (tab.children || []).filter((c: any) =>
+                                    c.id && isTabAvailable(c.id)
+                                  );
+                                  const hasSubTabs = availableSubTabs.length > 0;
+                                  const tabAvailable = tab.id && isTabAvailable(tab.id);
+
+                                  if (hasSubTabs) {
+                                    // Tab with subtabs - show tab as header (if available), subtabs as selectable
+                                    return (
+                                      <React.Fragment key={tab.id}>
+                                        <SelectLabel className="text-xs text-muted-foreground font-normal px-4 py-1">
+                                          📁 {tab.name}
+                                        </SelectLabel>
+                                        {availableSubTabs.map((subtab: any, subtabIdx: number) => (
+                                          <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
+                                            <span className="text-muted-foreground">
+                                              {subtabIdx === availableSubTabs.length - 1 ? '└─' : '├─'}
+                                            </span>
+                                            <span className="ml-1">{subtab.name}</span>
+                                          </SelectItem>
+                                        ))}
+                                      </React.Fragment>
+                                    );
+                                  } else if (tabAvailable) {
+                                    // Leaf tab - directly selectable
+                                    return (
+                                      <SelectItem key={tab.id} value={tab.id.toString()} className="pl-4">
+                                        <span className="text-muted-foreground">
+                                          {tabIdx === availableTabs.length - 1 ? '└─' : '├─'}
+                                        </span>
+                                        <span className="ml-1">📁 {tab.name}</span>
+                                      </SelectItem>
+                                    );
+                                  }
+                                  return null;
+                                })}
+                              </SelectGroup>
+                            );
+                          }
+                          return null;
                         })}
                       </SelectContent>
                     </Select>
