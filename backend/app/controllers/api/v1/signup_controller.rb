@@ -41,7 +41,7 @@ module Api
 
         # Check if company name/slug already exists
         slug = effective_params[:company_name].to_s.parameterize
-        if CorporateGroup.exists?(slug: slug)
+        if CompanyGroup.exists?(slug: slug)
           return render json: {
             success: false,
             error: "A company with this name already exists"
@@ -109,7 +109,7 @@ module Api
           }
         end
 
-        available = !CorporateGroup.exists?(slug: slug)
+        available = !CompanyGroup.exists?(slug: slug)
 
         render json: {
           available: available,

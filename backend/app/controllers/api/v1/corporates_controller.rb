@@ -65,7 +65,7 @@ module Api
             corporate_xero_connection: {},
             consolidation_parent: {},
             contact: {}, # Include contact with ABN verification fields
-            corporate_group: {} # Include company group for display
+            company_group: {} # Include company group for display
           },
           methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :sharepoint_folder_url, :has_consolidated_children? ]
           # Note: total_asset_value removed - depends on assets table
@@ -476,9 +476,9 @@ module Api
           trust = Corporate.find_by(name: @company.trust_name)
         end
 
-        # Get trust roles from ContactCorporateGroupMemberships
+        # Get trust roles from ContactCompanyGroupMemberships
         trust_group_id = trust&.company_group_id || @company.company_group_id
-        memberships = ContactCorporateGroupMembership
+        memberships = ContactCompanyGroupMembership
           .where(company_group_id: trust_group_id, membership_type: [ "beneficiary", "appointor", "trustee" ])
           .includes(:contact)
 
@@ -905,9 +905,9 @@ module Api
       # Returns all companies' ASIC login credentials for table view
       # Only shows entity_type = Company (excludes Person, Trust, Superfund)
       def asic_logins
-        # Performance: includes :corporate_group to avoid N+1 when accessing company_group_name
+        # Performance: includes :company_group to avoid N+1 when accessing company_group_name
         @companies = Corporate.where(entity_type: [ "Company", "company" ])
-                                     .includes(:corporate_group)
+                                     .includes(:company_group)
                                      .order(:name)
 
         # Filter by company group
@@ -929,7 +929,7 @@ module Api
               acn: company.acn,
               formatted_acn: company.formatted_acn,
               company_group_id: company.company_group_id,
-              company_group_name: company.corporate_group&.name,
+              company_group_name: company.company_group&.name,
               corporate_key: company.corporate_key,
               asic_username: company.asic_username,
               asic_password: company.encrypted_asic_password,

@@ -20,7 +20,7 @@ module Api
         api_environment = update_params.delete("api_environment")
 
         # Update api_environment on TenantSetting (the org-wide singleton)
-        # Also sync to CorporateGroup.environment for sidebar badge display
+        # Also sync to CompanyGroup.environment for sidebar badge display
         if api_environment.present?
           corporate_settings = TenantSetting.instance
           unless corporate_settings.update(api_environment: api_environment)
@@ -30,7 +30,7 @@ module Api
             }, status: :unprocessable_entity
           end
 
-          # Keep CorporateGroup.environment in sync (used by sidebar badge)
+          # Keep CompanyGroup.environment in sync (used by sidebar badge)
           tenant = ActsAsTenant.current_tenant
           if tenant && tenant.respond_to?(:environment=)
             tenant.update(environment: api_environment)

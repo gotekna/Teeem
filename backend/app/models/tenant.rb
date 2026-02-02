@@ -13,7 +13,7 @@
 #
 # Separation of concerns:
 # - Tenant: Multi-tenancy + credentials + config
-# - CorporateGroup: Business grouping (companies, directors, shareholders)
+# - CompanyGroup: Business grouping (companies, directors, shareholders)
 #
 # Tier:
 # - shared: Multiple tenants share infrastructure
@@ -42,9 +42,9 @@ class Tenant < ApplicationRecord
   # Settings
   has_one :tenant_setting, dependent: :destroy
 
-  # Business groupings (CorporateGroup now belongs_to Tenant)
-  has_many :corporate_groups, dependent: :destroy
-  has_many :corporate_companies, through: :corporate_groups
+  # Business groupings (CompanyGroup now belongs_to Tenant)
+  has_many :company_groups, dependent: :destroy
+  has_many :corporate_companies, through: :company_groups
 
   # Organizations (credential isolation within tenant)
   has_many :organizations, dependent: :destroy

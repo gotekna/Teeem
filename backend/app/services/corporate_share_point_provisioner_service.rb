@@ -146,7 +146,7 @@ class CorporateSharePointProvisionerService
       groups: []
     }
 
-    CorporateGroup.includes(:companies).order(:name).each do |group|
+    CompanyGroup.includes(:companies).order(:name).each do |group|
       group_info = {
         name: group.name,
         folder_path: "#{base_path}/#{group.name}",
@@ -201,7 +201,7 @@ class CorporateSharePointProvisionerService
       stats: @stats
     }
 
-    CorporateGroup.includes(:companies).order(:name).each do |group|
+    CompanyGroup.includes(:companies).order(:name).each do |group|
       Rails.logger.info "Creating folder for group: #{group.name}"
 
       # Create group folder

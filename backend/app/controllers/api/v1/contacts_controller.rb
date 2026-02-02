@@ -363,10 +363,10 @@ module Api
         director_fields = params[:is_director] == "true" ? [ :place_of_birth, :birth_state, :birth_country, :residential_address ] : []
 
         # Performance: Eager load associations to avoid N+1 queries
-        # portal_user and corporate_groups_via_membership are always included in as_json response
-        # FRC (Jan 2026): Fixed from :corporate_group (doesn't exist) to :corporate_groups_via_membership (has_many through)
+        # portal_user and company_groups_via_membership are always included in as_json response
+        # FRC (Jan 2026): Fixed from :corporate_group (doesn't exist) to :company_groups_via_membership (has_many through)
         # contact_emails needed for email method (used by email composer autocomplete)
-        @contacts = @contacts.includes(:portal_user, :corporate_groups_via_membership, :contact_emails)
+        @contacts = @contacts.includes(:portal_user, :company_groups_via_membership, :contact_emails)
 
         # Conditional eager loading for company relationships
         if include_companies
@@ -380,7 +380,7 @@ module Api
 
         # PERFORMANCE: Pre-compute company_group_memberships_count (avoids N+1)
         # P95 was 5.07s due to N+1 COUNT queries; should be <500ms with batch query
-        membership_counts = ContactCorporateGroupMembership
+        membership_counts = ContactCompanyGroupMembership
           .where(contact_id: contact_ids)
           .group(:contact_id)
           .count
@@ -394,7 +394,7 @@ module Api
 
         json_includes = {
           portal_user: {},
-          corporate_groups_via_membership: {}
+          company_groups_via_membership: {}
         }
 
         if include_all_emails
@@ -766,7 +766,7 @@ module Api
             registered_office_address: linked_company.registered_office_address,
             principal_place_of_business: linked_company.principal_place_of_business,
             company_group_id: linked_company.company_group_id,
-            company_group_name: linked_company.corporate_group&.name
+            company_group_name: linked_company.company_group&.name
           }
 
           # SSoT: Only include corporate data (directors, shareholdings) if user has permission
@@ -937,7 +937,7 @@ module Api
             }, status: :unprocessable_entity
           else
             # This is a person with Company Group memberships
-            membership_count = ContactCorporateGroupMembership.where(contact_id: @contact.id).count
+            membership_count = ContactCompanyGroupMembership.where(contact_id: @contact.id).count
             if membership_count > 0
               return render json: {
                 success: false,
@@ -1092,7 +1092,7 @@ module Api
               action: "Unlink from Company Group first."
             }
           else
-            membership_count = ContactCorporateGroupMembership.where(contact_id: @contact.id).count
+            membership_count = ContactCompanyGroupMembership.where(contact_id: @contact.id).count
             if membership_count > 0
               check[:can_delete] = false
               check[:blockers] << {
@@ -1763,7 +1763,7 @@ module Api
 
         # Eager load associations for show action to avoid N+1 queries
         # This reduces the show action from ~500ms to ~50ms
-        # Note: :corporate_group removed - Contact uses :corporate_groups_via_membership (has_many through)
+        # Note: :corporate_group removed - Contact uses :company_groups_via_membership (has_many through)
         eager_load_associations = if action_name == "show"
           [:contact_emails, :contact_phones, :contact_persons, :contact_addresses,
            :contact_groups, :portal_user]

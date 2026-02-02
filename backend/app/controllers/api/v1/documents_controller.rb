@@ -1818,7 +1818,7 @@ module Api
                         .enabled
                         .ordered
 
-        CorporateGroup.includes(:corporate_companies).order(:name).map do |group|
+        CompanyGroup.includes(:corporate_companies).order(:name).map do |group|
           {
             id: "group-#{group.id}",
             name: group.name,

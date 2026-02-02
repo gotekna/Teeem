@@ -253,7 +253,7 @@ class CaseWarehouseService
       relationships: contact.contact_relationships.includes(:related_contact),
       documents: WarehouseDocument.where(documentable_type: "Contact", documentable_id: contact_id),
       emails: SyncedEmail.involving_email(contact.email),
-      company_group_memberships: contact.corporate_group_memberships.includes(:corporate_group)
+      company_group_memberships: contact.company_group_memberships.includes(:company_group)
     }
   end
 

@@ -5,7 +5,7 @@ module Api
 
       # GET /api/v1/xero_chart_of_accounts
       def index
-        @accounts = XeroChartOfAccount.includes(:corporate_group)
+        @accounts = XeroChartOfAccount.includes(:company_group)
 
         # Filter by company group
         if params[:company_group_id].present?
@@ -88,7 +88,7 @@ module Api
           company: {
             id: company.id,
             name: company.name,
-            company_group: company.corporate_group&.name
+            company_group: company.company_group&.name
           }
         }
       end
@@ -260,7 +260,7 @@ module Api
       # Required: company_id param to determine the company group
       def with_company_presence
         company = Corporate.find(params[:company_id])
-        group = company.corporate_group
+        group = company.company_group
 
         # Get all companies in the group that have Xero connected
         companies_with_xero = if group
@@ -436,7 +436,7 @@ module Api
         {
           id: account.id,
           company_group_id: account.company_group_id,
-          company_group_name: account.corporate_group&.name,
+          company_group_name: account.company_group&.name,
           account_code: account.account_code,
           account_name: account.account_name,
           display_name: account.display_name,
@@ -478,7 +478,7 @@ module Api
         {
           total_accounts: @accounts.count,
           by_type: @accounts.group(:account_type).count,
-          groups: CorporateGroup.all.map { |g|
+          groups: CompanyGroup.all.map { |g|
             { id: g.id, name: g.name, accounts_count: g.xero_chart_of_accounts.count }
           }
         }
