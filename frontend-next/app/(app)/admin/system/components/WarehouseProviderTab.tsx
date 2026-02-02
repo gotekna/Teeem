@@ -1942,7 +1942,7 @@ export function WarehouseProviderTab() {
       const response = await api.patch<{ success: boolean; error?: string }>(
         `/api/v1/warehouse_folders/${tabId}`,
         {
-          entity_tab: {
+          warehouse_folder: {
             display_name: displayName,
             warehouse_folder: folderPath,
             send_name_template: sendNameTemplate,
