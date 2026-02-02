@@ -142,6 +142,8 @@ interface ShareableUser {
   id: number;
   name: string;
   email: string;
+  is_cross_tenant?: boolean; // FRC (Feb 2026): True if user is from different tenant
+  tenant_name?: string; // FRC (Feb 2026): Tenant name for cross-tenant users
 }
 
 // Component for configuring MS365 mailbox access
@@ -814,18 +816,16 @@ export function EmailAccountsTab() {
     setSelectedSharedUsers(cred.shared_with_user_ids || []);
     setShareDialogOpen(true);
 
-    // Fetch shareable users if not already loaded
-    if (shareableUsers.length === 0) {
-      try {
-        const response = await api.get<{ success: boolean; data: ShareableUser[] }>(
-          "/api/v1/imap_credentials/shareable_users"
-        );
-        if (response.success) {
-          setShareableUsers(response.data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch shareable users:", error);
+    // FRC (Feb 2026): Always fetch shareable users with credential_id to include cross-tenant shared users
+    try {
+      const response = await api.get<{ success: boolean; data: ShareableUser[] }>(
+        `/api/v1/imap_credentials/shareable_users?credential_id=${cred.id}`
+      );
+      if (response.success) {
+        setShareableUsers(response.data);
       }
+    } catch (error) {
+      console.error("Failed to fetch shareable users:", error);
     }
   };
 
@@ -1388,6 +1388,11 @@ export function EmailAccountsTab() {
                           {user.email}
                         </div>
                       </div>
+                      {user.is_cross_tenant && user.tenant_name && (
+                        <Badge variant="outline" className="text-xs">
+                          {user.tenant_name}
+                        </Badge>
+                      )}
                       {user.email === sharingCredential?.email_address && (
                         <Badge variant="secondary" className="text-xs">
                           Email owner

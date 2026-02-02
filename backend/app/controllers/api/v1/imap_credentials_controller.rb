@@ -750,13 +750,28 @@ class Api::V1::ImapCredentialsController < ApplicationController
   # GET /api/v1/imap_credentials/shareable_users
   # List users who can be granted access to email credentials
   # SSoT (Jan 2026): Filter by current tenant for multi-tenancy isolation
+  # FRC (Feb 2026): Also include already-shared users (even cross-tenant) so they appear in dialog
   def shareable_users
     tenant_user_ids = current_tenant&.users&.pluck(:id) || []
-    users = User.where(id: tenant_user_ids).order(:name).map do |user|
+
+    # Include users already shared with this credential (for cross-tenant visibility)
+    already_shared_ids = []
+    if params[:credential_id].present?
+      credential = ImapCredential.find_by(id: params[:credential_id])
+      already_shared_ids = credential&.shared_with_user_ids || []
+    end
+
+    # Combine tenant users + already shared users (deduped)
+    all_user_ids = (tenant_user_ids + already_shared_ids).uniq
+
+    users = User.where(id: all_user_ids).order(:name).map do |user|
+      is_cross_tenant = !tenant_user_ids.include?(user.id)
       {
         id: user.id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        is_cross_tenant: is_cross_tenant,
+        tenant_name: is_cross_tenant ? user.tenant&.name : nil
       }
     end
 
