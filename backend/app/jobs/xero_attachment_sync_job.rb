@@ -13,6 +13,7 @@
 # 2. Per-tenant mode (with tenant_id): Process that tenant's invoices
 # 3. No global lock - each tenant has its own lock
 # 4. No follow-up chains - scheduler runs every 10 min and re-queues all
+# 5. STAGGER: Jobs start 30s apart to avoid hitting Xero API simultaneously
 #
 # This scales to 15,000+ Xero orgs with linear throughput increase.
 # ════════════════════════════════════════════════════════════════════════════
@@ -97,10 +98,13 @@ class XeroAttachmentSyncJob < ApplicationJob
         next
       end
 
-      # Queue a job for this tenant (runs in parallel with other tenants)
-      XeroAttachmentSyncJob.perform_later(nil, tenant_id: tenant_id, limit: options[:limit] || 50)
+      # Queue a job for this tenant with STAGGER to prevent simultaneous API hits
+      # ⚠️ DO NOT REMOVE STAGGER - All orgs hitting Xero at once = all rate limited at once (Feb 2026)
+      # 30 second gap between each tenant's job start = spread load across the minute
+      stagger_delay = (scheduled_count * 30).seconds
+      XeroAttachmentSyncJob.set(wait: stagger_delay).perform_later(nil, tenant_id: tenant_id, limit: options[:limit] || 50)
       scheduled_count += 1
-      Rails.logger.info("[XeroAttachmentSync] Scheduled job for #{credential.tenant_name} (#{remaining} remaining)")
+      Rails.logger.info("[XeroAttachmentSync] Scheduled job for #{credential.tenant_name} in #{stagger_delay.to_i}s (#{remaining} remaining)")
     end
 
     Rails.logger.info("[XeroAttachmentSync] Scheduled #{scheduled_count} tenant jobs, skipped #{skipped_count}")
