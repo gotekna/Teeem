@@ -313,7 +313,7 @@ module Api
           :display_mode,  # SSoT: How tab renders (icon_only, text_only, both)
           :hidden_by_default,  # SSoT: Tab hidden in overflow menu by default
           :xero_scope,  # SSoT: Which Xero account this tab uses (nil, "primary", or tenant_id)
-          :send_name_template,  # SSoT: Template for download/send filename
+          :download_name,  # SSoT: "Document Download Name" in UI
           entity_filters: [],
           document_type_ids: []  # SSoT: Link document types to this tab
         )

@@ -204,8 +204,8 @@ class WarehouseFolderQueryService
       # SSoT: Return raw stored warehouse_folder for editing (nil/empty = use display_name default in UI)
       # ⚠️ DO NOT use .presence here - empty string "" must be preserved (user intentionally cleared it)
       warehouse_folder: tab.read_attribute(:warehouse_folder),
-      # SSoT: Return raw send_name_template (was missing - caused Document Download Name not to save)
-      send_name_template: tab.read_attribute(:send_name_template),
+      # SSoT: "Document Download Name" in UI
+      download_name: tab.read_attribute(:download_name),
       full_warehouse_path: warehouse_data[:full_path],
       uses_custom_path: tab.uses_custom_path,
       warehouse_type_override: tab.warehouse_type_override || 'corporate',

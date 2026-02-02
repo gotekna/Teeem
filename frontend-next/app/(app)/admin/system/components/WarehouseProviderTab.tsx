@@ -151,7 +151,7 @@ interface WarehouseTabConfig {
   warehouse_enabled?: boolean | null;
   has_storage_folder?: boolean | null;
   storage_folder_path: string | null;
-  send_name_template: string | null;
+  download_name: string | null;
   enabled: boolean;
   order_position: number;
   icon_name: string | null;
@@ -200,7 +200,7 @@ interface StorageConfig {
   warehouse_folders: ScopeFolders;
   // SSoT: Templates for folder paths and filenames per warehouse type
   warehouse_folder_templates: Record<string, string>;
-  download_name_templates: Record<string, string>;  // Filename when downloading
+  download_names: Record<string, string>;  // Filename when downloading
   ui_name_templates: Record<string, string>;  // Name shown in File Warehouse UI
   // Legacy field names for backwards compatibility during API transition
   file_name_templates?: Record<string, string>;
@@ -1398,7 +1398,7 @@ function TabNode({
   const defaultFolderName = storedPath ? extractFolderName(storedPath, basePath) : '';
   const [editPath, setEditPath] = React.useState(defaultFolderName);
   const [editDisplayName, setEditDisplayName] = React.useState(tab.display_name || '');
-  const [editSendName, setEditSendName] = React.useState(tab.send_name_template || '');
+  const [editSendName, setEditSendName] = React.useState(tab.download_name || '');
 
   // Track previous isEditing state to only initialize on ENTRY to edit mode
   const wasEditingRef = React.useRef(false);
@@ -1416,10 +1416,10 @@ function TabNode({
       console.log('[TabNode useEffect] Initializing editPath to:', JSON.stringify(folderName));
       setEditPath(folderName);
       setEditDisplayName(tab.display_name || '');
-      setEditSendName(tab.send_name_template || '');
+      setEditSendName(tab.download_name || '');
     }
     wasEditingRef.current = isEditing;
-  }, [isEditing, tab.warehouse_folder, tab.storage_folder_path, tab.display_name, tab.send_name_template, basePath]);
+  }, [isEditing, tab.warehouse_folder, tab.storage_folder_path, tab.display_name, tab.download_name, basePath]);
 
   // Build full path preview: rootPath + basePath + folderName
   const fullPathPreview = [rootPath, basePath, editPath]
@@ -1566,7 +1566,7 @@ function TabNode({
             </div>
             <div>
               <span className="font-medium">Document Download Name: </span>
-              <span className="font-mono">{tab.send_name_template || '{{OriginalFileName}}'}</span>
+              <span className="font-mono">{tab.download_name || '{{OriginalFileName}}'}</span>
             </div>
           </div>
         )}
@@ -1746,7 +1746,7 @@ export function WarehouseProviderTab() {
     warehouse_folders: {} as ScopeFolders,
     // SSoT: Templates for folder paths and filenames per warehouse type
     warehouse_folder_templates: {} as Record<string, string>,
-    download_name_templates: {} as Record<string, string>,  // Filename when downloading
+    download_names: {} as Record<string, string>,  // Filename when downloading
     ui_name_templates: {} as Record<string, string>,  // Name shown in File Warehouse UI
     // SSoT: Config links for warehouse folders
     config_links: {} as Record<string, string>,
@@ -1957,7 +1957,7 @@ export function WarehouseProviderTab() {
           warehouse_folder: {
             display_name: displayName,
             warehouse_folder: folderPath,
-            send_name_template: sendNameTemplate,
+            download_name: sendNameTemplate,
           }
         }
       );
@@ -1968,7 +1968,7 @@ export function WarehouseProviderTab() {
         const savedData = response.data;
         const savedFolderPath = savedData?.warehouse_folder ?? folderPath;
         const savedDisplayName = savedData?.display_name ?? displayName;
-        const savedSendName = savedData?.send_name_template ?? sendNameTemplate;
+        const savedSendName = savedData?.download_name ?? sendNameTemplate;
 
         console.log('[saveTabFolderPath] Using values:', { savedFolderPath, savedDisplayName, savedSendName });
 
@@ -1983,7 +1983,7 @@ export function WarehouseProviderTab() {
                     display_name: savedDisplayName,
                     warehouse_folder: savedFolderPath,
                     storage_folder_path: savedFolderPath,  // Legacy alias
-                    send_name_template: savedSendName
+                    download_name: savedSendName
                   }
                 : tab
             );
@@ -2042,7 +2042,7 @@ export function WarehouseProviderTab() {
           storage: {
             warehouse_folders: { [scopeKey]: warehouseFolderValue },
             warehouse_folder_templates: { [scopeKey]: folderTemplate },
-            download_name_templates: { [scopeKey]: downloadNameTemplate },
+            download_names: { [scopeKey]: downloadNameTemplate },
             ui_name_templates: { [scopeKey]: uiNameTemplate },
             config_links: { [scopeKey]: configLink }, // null removes the link
           }
@@ -2061,7 +2061,7 @@ export function WarehouseProviderTab() {
             ...prev,
             warehouse_folders: { ...prev.warehouse_folders, [scopeKey]: warehouseFolderValue },
             warehouse_folder_templates: { ...prev.warehouse_folder_templates, [scopeKey]: folderTemplate },
-            download_name_templates: { ...prev.download_name_templates, [scopeKey]: downloadNameTemplate },
+            download_names: { ...prev.download_names, [scopeKey]: downloadNameTemplate },
             ui_name_templates: { ...prev.ui_name_templates, [scopeKey]: uiNameTemplate },
             config_links: newConfigLinks,
           };
@@ -2171,9 +2171,9 @@ export function WarehouseProviderTab() {
           // warehouse_folders REMOVED (Jan 2026 SSoT fix)
           warehouse_folders: response.data.warehouse_folders || {},
           // SSoT: Templates from WarehouseProvider
-          // Support both old (file_name_templates/display_name_templates) and new (download_name_templates/ui_name_templates) field names
+          // Support both old (file_name_templates/display_name_templates) and new (download_names/ui_name_templates) field names
           warehouse_folder_templates: response.data.warehouse_folder_templates || {},
-          download_name_templates: response.data.download_name_templates || response.data.file_name_templates || {},
+          download_names: response.data.download_names || response.data.file_name_templates || {},
           ui_name_templates: response.data.ui_name_templates || response.data.display_name_templates || {},
           // SSoT: Config links from WarehouseProvider
           config_links: response.data.config_links || {},
@@ -2210,7 +2210,7 @@ export function WarehouseProviderTab() {
             // SSoT: warehouse_folders is THE ONE place for warehouse type roots
             warehouse_folders: config?.warehouse_folders,
             warehouse_folder_templates: formData.warehouse_folder_templates,
-            download_name_templates: formData.download_name_templates,
+            download_names: formData.download_names,
             ui_name_templates: formData.ui_name_templates,
             config_links: formData.config_links,
             virtual_warehouses: formData.virtual_warehouses,  // Phase 4: Virtual File Warehouse
@@ -3133,7 +3133,7 @@ export function WarehouseProviderTab() {
                     onSaveTabEdit={saveTabFolderPath}
                     onCancelTabEdit={() => setEditingTabId(null)}
                     scopeTemplates={formData.warehouse_folder_templates}
-                    downloadNameTemplates={formData.download_name_templates}
+                    downloadNameTemplates={formData.download_names}
                     uiNameTemplates={formData.ui_name_templates}
                     configLinks={formData.config_links}
                     onSaveTemplates={saveScopeTemplates}
