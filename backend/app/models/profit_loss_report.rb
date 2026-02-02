@@ -28,7 +28,7 @@
 #  updated_at           :datetime         not null
 #
 class ProfitLossReport < ApplicationRecord
-  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+  belongs_to :corporate, foreign_key: "company_id"
   belongs_to :document_type, optional: true
 
   # Validations
@@ -100,7 +100,7 @@ class ProfitLossReport < ApplicationRecord
     update!(status: "generating", error_message: nil)
 
     begin
-      connection = corporate_company.company_xero_connection
+      connection = corporate.company_xero_connection
       raise "Company is not connected to Xero" unless connection&.connected?
 
       # Fetch P&L from Xero
@@ -266,7 +266,7 @@ class ProfitLossReport < ApplicationRecord
   def template_context
     {
       company_code: company_code,
-      company_name: corporate_company&.name,
+      company_name: corporate&.name,
       doc_type_name: document_type&.name || "Profit and Loss",
       doc_type_code: document_type&.abbreviation || "P&L",
       financial_year: financial_year,

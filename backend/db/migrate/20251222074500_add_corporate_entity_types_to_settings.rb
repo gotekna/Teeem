@@ -1,6 +1,6 @@
 class AddCorporateEntityTypesToSettings < ActiveRecord::Migration[7.2]
   def change
-    add_column :corporate_company_settings, :corporate_entity_types, :jsonb, default: [
+    add_column :corporate_settings, :corporate_entity_types, :jsonb, default: [
       "Company",
       "Trust", 
       "Superfund",

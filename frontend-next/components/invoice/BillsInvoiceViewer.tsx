@@ -115,7 +115,7 @@ export interface BillDetail {
   ocr_extraction_result: unknown;
   comparison_data: ComparisonData | null;
   xero_tenant_name: string | null;
-  corporate_company: {
+  corporate: {
     id: number;
     name: string;
     code: string;
@@ -438,7 +438,7 @@ export function BillsInvoiceViewer({
           <div className="flex items-center gap-2">
             <div className="px-3 py-1 bg-blue-600 text-white rounded min-w-[140px]">
               <div className="text-[10px] uppercase tracking-wide opacity-80">Pay From</div>
-              <div className="font-bold text-sm truncate">{bill.corporate_company?.name || bill.xero_tenant_name || "Company"}</div>
+              <div className="font-bold text-sm truncate">{bill.corporate?.name || bill.xero_tenant_name || "Company"}</div>
             </div>
             <ArrowLeft className="h-5 w-5 text-muted-foreground rotate-180" />
             <div className="px-3 py-1 bg-green-600 text-white rounded min-w-[140px]">

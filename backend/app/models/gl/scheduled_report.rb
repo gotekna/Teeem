@@ -20,7 +20,7 @@ module Gl
     FREQUENCIES = %w[daily weekly monthly quarterly].freeze
     FORMATS = %w[pdf csv excel].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :created_by, class_name: "User", optional: true
 
     validates :name, presence: true
@@ -176,47 +176,47 @@ module Gl
     # Report generation methods
     def generate_profit_loss
       period = parameters["period"] || "this_month"
-      Gl::ReportGenerator.profit_loss(corporate_company, period: period, format: format)
+      Gl::ReportGenerator.profit_loss(corporate, period: period, format: format)
     end
 
     def generate_balance_sheet
       as_of = parameters["as_of"] || Date.current.to_s
-      Gl::ReportGenerator.balance_sheet(corporate_company, as_of: as_of, format: format)
+      Gl::ReportGenerator.balance_sheet(corporate, as_of: as_of, format: format)
     end
 
     def generate_trial_balance
       as_of = parameters["as_of"] || Date.current.to_s
-      Gl::ReportGenerator.trial_balance(corporate_company, as_of: as_of, format: format)
+      Gl::ReportGenerator.trial_balance(corporate, as_of: as_of, format: format)
     end
 
     def generate_aged_receivables
       as_of = parameters["as_of"] || Date.current.to_s
-      Gl::ReportGenerator.aged_receivables(corporate_company, as_of: as_of, format: format)
+      Gl::ReportGenerator.aged_receivables(corporate, as_of: as_of, format: format)
     end
 
     def generate_aged_payables
       as_of = parameters["as_of"] || Date.current.to_s
-      Gl::ReportGenerator.aged_payables(corporate_company, as_of: as_of, format: format)
+      Gl::ReportGenerator.aged_payables(corporate, as_of: as_of, format: format)
     end
 
     def generate_cash_flow
       period = parameters["period"] || "this_month"
-      Gl::ReportGenerator.cash_flow(corporate_company, period: period, format: format)
+      Gl::ReportGenerator.cash_flow(corporate, period: period, format: format)
     end
 
     def generate_gst_summary
       period = parameters["period"] || "this_quarter"
-      Gl::ReportGenerator.gst_summary(corporate_company, period: period, format: format)
+      Gl::ReportGenerator.gst_summary(corporate, period: period, format: format)
     end
 
     def generate_bank_reconciliation
       account_id = parameters["bank_account_id"]
-      Gl::ReportGenerator.bank_reconciliation(corporate_company, account_id: account_id, format: format)
+      Gl::ReportGenerator.bank_reconciliation(corporate, account_id: account_id, format: format)
     end
 
     def generate_job_costing
       job_id = parameters["job_id"]
-      Gl::ReportGenerator.job_costing(corporate_company, job_id: job_id, format: format)
+      Gl::ReportGenerator.job_costing(corporate, job_id: job_id, format: format)
     end
   end
 end

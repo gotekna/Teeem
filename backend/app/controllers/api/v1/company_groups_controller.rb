@@ -141,7 +141,7 @@ module Api
       # GET /api/v1/company_groups/:id/contacts
       def contacts
         memberships = @company_group.contact_memberships
-          .includes(:contact, :corporate_company)
+          .includes(:contact, :corporate)
 
         if params[:type].present?
           memberships = memberships.where(membership_type: params[:type])
@@ -241,7 +241,7 @@ module Api
           company_group_id: membership.company_group_id,
           membership_type: membership.membership_type,
           company_id: membership.company_id,
-          company_name: membership.corporate_company&.name,
+          company_name: membership.corporate&.name,
           can_view_confidential: membership.can_view_confidential,
           can_edit: membership.can_edit,
           is_active: membership.is_active,
@@ -340,10 +340,10 @@ module Api
         end
 
         # Get investments (companies this company owns)
-        investments = company.investments.includes(:corporate_company).map do |inv|
+        investments = company.investments.includes(:corporate).map do |inv|
           {
             company_id: inv.company_id,
-            company_name: inv.corporate_company&.name,
+            company_name: inv.corporate&.name,
             shares: inv.number_of_shares,
             percentage: inv.percentage_of_total
           }

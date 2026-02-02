@@ -428,7 +428,7 @@ module Api
       # GET /api/v1/companies/:id/investments
       # Returns companies that this company owns shares in
       def investments
-        investments = @company.investments.includes(:corporate_company)
+        investments = @company.investments.includes(:corporate)
 
         render json: {
           success: true,
@@ -608,7 +608,7 @@ module Api
         }
 
         # Xero connection stats - SSoT: Use XeroConnectionHealth
-        xero_connection = @company.corporate_company_xero_connection
+        xero_connection = @company.corporate_xero_connection
         xero_stats = if xero_connection
           health = xero_connection.health_status
           {
@@ -703,7 +703,7 @@ module Api
         }
 
         # 4. Xero Connection - SSoT: Use connected? which delegates to XeroConnectionHealth
-        xero = @company.corporate_company_xero_connection
+        xero = @company.corporate_xero_connection
         xero_connected = xero&.connected?
         xero_last_sync = xero&.last_sync_at
         xero_stale = xero_last_sync.nil? || xero_last_sync < 24.hours.ago
@@ -840,7 +840,7 @@ module Api
 
         # Pre-fetch contact link counts by tenant_id for efficiency
         tenant_ids = companies
-          .filter_map { |c| c.corporate_company_xero_connection&.xero_tenant_id }
+          .filter_map { |c| c.corporate_xero_connection&.xero_tenant_id }
           .compact
 
         contacts_by_tenant = ContactExternalLink
@@ -851,15 +851,15 @@ module Api
         # Pre-fetch bank account counts by company_id (avoids N+1)
         # Performance: 1 query instead of N queries for N companies
         bank_accounts_by_company = BankAccount
-          .where(corporate_company_id: company_ids)
+          .where(company_id: company_ids)
           .where.not(xero_account_id: nil)
-          .group(:corporate_company_id)
+          .group(:corporate_id)
           .count
 
         render json: {
           success: true,
           companies: companies.map do |company|
-            connection = company.corporate_company_xero_connection
+            connection = company.corporate_xero_connection
             connected = connection&.connected? || false
             tenant_id = connection&.xero_tenant_id
 
@@ -894,7 +894,7 @@ module Api
           end,
           summary: {
             total: companies.size,
-            connected: companies.count { |c| c.corporate_company_xero_connection&.connected? },
+            connected: companies.count { |c| c.corporate_xero_connection&.connected? },
             with_bank_accounts: bank_accounts_by_company.keys.size,
             with_contacts: contacts_by_tenant.values.count { |v| v > 0 }
           }

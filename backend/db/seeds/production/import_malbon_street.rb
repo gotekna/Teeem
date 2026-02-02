@@ -1,7 +1,7 @@
-# Import Malbon Street Construction Job to Production
-# This script creates the construction, imports POs, creates project, and generates schedule
+# Import Malbon Street Job to Production
+# This script creates the job, imports POs, creates project, and generates schedule
 
-puts "🏗️  Importing Malbon Street Construction Job..."
+puts "🏗️  Importing Malbon Street Job..."
 puts ""
 
 # Get first user for project manager
@@ -11,12 +11,12 @@ unless user
   exit
 end
 
-# Find or create the construction job
-construction = Construction.find_or_create_by!(id: 90) do |c|
-  c.title = "Lot 0 (56a) Malbon street, Eight Mile Plains, QLD"
-  c.status = "Active"
+# Find or create the job
+job = Job.find_or_create_by!(id: 90) do |j|
+  j.title = "Lot 0 (56a) Malbon street, Eight Mile Plains, QLD"
+  j.status = "Active"
 end
-puts "✓ Construction: #{construction.title} (ID: #{construction.id})"
+puts "✓ Job: #{job.title} (ID: #{job.id})"
 
 # Sample Purchase Orders data (abbreviated - add more as needed)
 po_data = [
@@ -75,7 +75,7 @@ po_data.each do |po_info|
   end
 
   # Create PO
-  construction.purchase_orders.create!(
+  job.purchase_orders.create!(
     purchase_order_number: po_info[:po_number],
     status: 'approved',
     description: po_info[:description],
@@ -98,7 +98,7 @@ puts ""
 # Create Project
 project = Project.find_or_create_by!(name: "Malbon Street Master Schedule") do |p|
   p.project_code = "MALBON-001"
-  p.construction = construction
+  p.job = job
   p.project_manager = user
   p.start_date = Date.current
   p.status = 'planning'

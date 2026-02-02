@@ -3,7 +3,7 @@
 class CreateGlBillingMilestones < ActiveRecord::Migration[7.1]
   def change
     create_table :gl_billing_milestones do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :job, null: false, foreign_key: true
       t.references :contact, null: false, foreign_key: true
       t.references :invoice, foreign_key: { to_table: :gl_invoices }
@@ -35,7 +35,7 @@ class CreateGlBillingMilestones < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_billing_milestones, [:corporate_company_id, :job_id, :sort_order],
+    add_index :gl_billing_milestones, [:corporate_id, :job_id, :sort_order],
               name: "idx_billing_milestones_order"
     add_index :gl_billing_milestones, [:status], name: "idx_billing_milestones_status"
   end

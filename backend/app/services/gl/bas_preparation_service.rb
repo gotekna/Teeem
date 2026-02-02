@@ -13,7 +13,7 @@ module Gl
   # Supports both quarterly and monthly BAS lodgement.
   #
   class BasPreparationService
-    attr_reader :corporate_company, :period_start, :period_end, :options
+    attr_reader :corporate, :period_start, :period_end, :options
 
     # BAS reporting periods for Australian FY (July-June)
     BAS_QUARTERS = {
@@ -26,8 +26,8 @@ module Gl
     # GST rate in Australia
     GST_RATE = 0.10
 
-    def initialize(corporate_company, options = {})
-      @corporate_company = corporate_company
+    def initialize(corporate, options = {})
+      @corporate = corporate
       @period_start = options[:period_start] || default_quarter_start
       @period_end = options[:period_end] || default_quarter_end
       @options = options.with_indifferent_access
@@ -431,7 +431,7 @@ module Gl
 
     def period_invoices
       @period_invoices ||= Gl::Invoice
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where(invoice_type: 'sales_invoice')
         .where(status: %w[approved paid])
         .where('invoice_date >= ? AND invoice_date <= ?', period_start, period_end)
@@ -440,7 +440,7 @@ module Gl
 
     def period_bills
       @period_bills ||= Gl::Invoice
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where(invoice_type: 'bill')
         .where(status: %w[approved paid])
         .where('invoice_date >= ? AND invoice_date <= ?', period_start, period_end)
@@ -449,7 +449,7 @@ module Gl
 
     def period_credit_notes_sales
       Gl::Invoice
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where(invoice_type: 'credit_note')
         .where(status: %w[approved paid])
         .where('invoice_date >= ? AND invoice_date <= ?', period_start, period_end)
@@ -458,7 +458,7 @@ module Gl
 
     def period_credit_notes_purchases
       Gl::Invoice
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where(invoice_type: 'bill_credit_note')
         .where(status: %w[approved paid])
         .where('invoice_date >= ? AND invoice_date <= ?', period_start, period_end)
@@ -490,20 +490,20 @@ module Gl
 
     def find_gst_collected_account
       Gl::Account.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         system_account: 'gst_collected'
       ) || Gl::Account.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         code: '820' # Common GST Collected code
       )
     end
 
     def find_gst_paid_account
       Gl::Account.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         system_account: 'gst_paid'
       ) || Gl::Account.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         code: '821' # Common GST Paid code
       )
     end
@@ -513,14 +513,14 @@ module Gl
       Gl::LedgerLine
         .joins(:gl_journal_entry)
         .where(gl_account: account)
-        .where(gl_journal_entries: { corporate_company: corporate_company })
+        .where(gl_journal_entries: { corporate: corporate })
         .where('gl_journal_entries.entry_date >= ? AND gl_journal_entries.entry_date <= ?', period_start, period_end)
         .sum('credit - debit')
     end
 
     def unposted_transactions_count
       Gl::JournalEntry
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where('entry_date >= ? AND entry_date <= ?', period_start, period_end)
         .where(status: 'draft')
         .count
@@ -530,7 +530,7 @@ module Gl
       # Would integrate with payroll system
       # For now, estimate from expense accounts
       expense_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_class: 'wages'
       )
 
@@ -554,7 +554,7 @@ module Gl
       # Business income for PAYG instalments
       # Typically assessable income less certain deductions
       revenue_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'revenue'
       )
 
@@ -581,7 +581,7 @@ module Gl
       prior_end = period_end - 3.months
 
       prior_service = self.class.new(
-        corporate_company,
+        corporate,
         period_start: prior_start,
         period_end: prior_end
       )

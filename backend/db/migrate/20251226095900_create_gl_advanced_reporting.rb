@@ -4,7 +4,7 @@ class CreateGlAdvancedReporting < ActiveRecord::Migration[7.2]
   def change
     # Departments for departmental P&L
     create_table :gl_departments do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.string :name, null: false
       t.string :code
       t.references :parent, foreign_key: { to_table: :gl_departments }
@@ -16,12 +16,12 @@ class CreateGlAdvancedReporting < ActiveRecord::Migration[7.2]
       t.timestamps
     end
 
-    add_index :gl_departments, [:corporate_company_id, :code], unique: true
+    add_index :gl_departments, [:corporate_id, :code], unique: true
     add_index :gl_departments, :active
 
     # Tracking classes (multi-dimensional tagging)
     create_table :gl_tracking_classes do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.string :name, null: false
       t.string :class_type, null: false # location, project, product_line, region, etc.
       t.string :code
@@ -31,7 +31,7 @@ class CreateGlAdvancedReporting < ActiveRecord::Migration[7.2]
       t.timestamps
     end
 
-    add_index :gl_tracking_classes, [:corporate_company_id, :class_type, :code], unique: true
+    add_index :gl_tracking_classes, [:corporate_id, :class_type, :code], unique: true
     add_index :gl_tracking_classes, :class_type
     add_index :gl_tracking_classes, :active
 
@@ -48,7 +48,7 @@ class CreateGlAdvancedReporting < ActiveRecord::Migration[7.2]
 
     # Split transactions
     create_table :gl_split_transactions do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :original_transaction, polymorphic: true # Bank transaction, journal, etc.
       t.decimal :original_amount, precision: 15, scale: 2, null: false
       t.string :status, default: "pending" # pending, completed, reversed
@@ -76,7 +76,7 @@ class CreateGlAdvancedReporting < ActiveRecord::Migration[7.2]
 
     # Comparative report snapshots (for period comparisons)
     create_table :gl_period_snapshots do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.string :period_type, null: false # month, quarter, year
       t.date :period_start, null: false
       t.date :period_end, null: false
@@ -89,13 +89,13 @@ class CreateGlAdvancedReporting < ActiveRecord::Migration[7.2]
       t.timestamps
     end
 
-    add_index :gl_period_snapshots, [:corporate_company_id, :period_type, :period_start], unique: true
+    add_index :gl_period_snapshots, [:corporate_id, :period_type, :period_start], unique: true
     add_index :gl_period_snapshots, :period_type
     add_index :gl_period_snapshots, :finalized
 
     # KPI definitions
     create_table :gl_kpi_definitions do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.string :name, null: false
       t.string :code, null: false
       t.string :category # profitability, liquidity, efficiency, growth
@@ -112,7 +112,7 @@ class CreateGlAdvancedReporting < ActiveRecord::Migration[7.2]
       t.timestamps
     end
 
-    add_index :gl_kpi_definitions, [:corporate_company_id, :code], unique: true
+    add_index :gl_kpi_definitions, [:corporate_id, :code], unique: true
     add_index :gl_kpi_definitions, :category
     add_index :gl_kpi_definitions, :show_on_dashboard
 
@@ -134,7 +134,7 @@ class CreateGlAdvancedReporting < ActiveRecord::Migration[7.2]
 
     # Document request portal
     create_table :gl_document_requests do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :contact, null: false, foreign_key: true
       t.references :job, foreign_key: true
       t.references :created_by, foreign_key: { to_table: :users }

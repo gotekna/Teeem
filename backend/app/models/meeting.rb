@@ -1,7 +1,6 @@
 class Meeting < ApplicationRecord
   # Associations
   belongs_to :job, optional: true
-  alias_method :construction, :job  # Backwards compatibility
   belongs_to :created_by, class_name: "User"
   belongs_to :meeting_type
   has_many :meeting_participants, dependent: :destroy
@@ -22,7 +21,7 @@ class Meeting < ApplicationRecord
   # Scopes
   scope :upcoming, -> { where("start_time > ?", Time.current).order(:start_time) }
   scope :past, -> { where("start_time <= ?", Time.current).order(start_time: :desc) }
-  scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
+  scope :for_construction, ->(construction_id) { where(job_id: construction_id) }
   scope :for_user, ->(user_id) {
     joins(:meeting_participants).where(meeting_participants: { user_id: user_id })
   }

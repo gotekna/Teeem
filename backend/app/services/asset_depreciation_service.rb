@@ -6,7 +6,7 @@ class AssetDepreciationService
   def initialize(asset)
     @asset = asset
     @profile = asset.depreciation_profile
-    @company = asset.corporate_company
+    @company = asset.corporate
   end
 
   # Calculate depreciation for a specific financial year

@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :gl_account, class_name: 'Gl::Account'
     belongs_to :gl_period, class_name: 'Gl::Period'
     belongs_to :job, optional: true
@@ -75,16 +75,16 @@ module Gl
       end
 
       # Copy budgets from one FY to another
-      def copy_to_new_year(corporate_company, from_fy, to_fy, adjustment: 0)
+      def copy_to_new_year(corporate, from_fy, to_fy, adjustment: 0)
         # Create periods for new FY first
-        Gl::Period.generate_for_year(corporate_company, to_fy)
+        Gl::Period.generate_for_year(corporate, to_fy)
 
         for_financial_year(from_fy)
-          .where(corporate_company: corporate_company)
+          .where(corporate: corporate)
           .find_each do |budget|
             # Find corresponding period in new FY
             new_period = Gl::Period.find_by(
-              corporate_company: corporate_company,
+              corporate: corporate,
               financial_year: to_fy,
               period_number: budget.period_period_number
             )
@@ -94,7 +94,7 @@ module Gl
             adjusted_amount = budget.amount * (1 + adjustment / 100.0)
 
             create!(
-              corporate_company: corporate_company,
+              corporate: corporate,
               gl_account: budget.gl_account,
               gl_period: new_period,
               amount: adjusted_amount.round(2),

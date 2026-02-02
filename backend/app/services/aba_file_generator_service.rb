@@ -156,7 +156,7 @@ class AbaFileGeneratorService
   # Record Type 0: Descriptive Record (file header)
   def generate_descriptive_record
     bank_account = @batch.bank_account
-    company = @batch.corporate_company
+    company = @batch.corporate
 
     record = ""
     record += "0"                                              # Record type (1)
@@ -280,12 +280,12 @@ class AbaFileGeneratorService
   end
 
   def remitter_name
-    @batch.corporate_company.name[0, REMITTER_NAME_MAX]
+    @batch.corporate.name[0, REMITTER_NAME_MAX]
   end
 
   def generate_filename(sequence)
     date_str = @batch.payment_date.strftime("%Y%m%d")
-    company_code = @batch.corporate_company.code || "XXX"
+    company_code = @batch.corporate.code || "XXX"
     "ABA_#{company_code}_#{date_str}_#{sequence.to_s.rjust(2, "0")}.aba"
   end
 end

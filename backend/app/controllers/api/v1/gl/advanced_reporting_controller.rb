@@ -5,13 +5,13 @@ module Api
     module Gl
       # Controller for advanced reporting features
       class AdvancedReportingController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
 
         # === Departments ===
 
         # GET /api/v1/gl/advanced_reporting/departments
         def departments
-          departments = @corporate_company.gl_departments.includes(:parent, :manager).ordered
+          departments = @corporate.gl_departments.includes(:parent, :manager).ordered
           departments = departments.active if params[:active_only] == "true"
 
           render json: {
@@ -22,12 +22,12 @@ module Api
 
         # GET /api/v1/gl/advanced_reporting/departments/tree
         def department_tree
-          render json: { success: true, data: ::Gl::Department.tree(@corporate_company) }
+          render json: { success: true, data: ::Gl::Department.tree(@corporate) }
         end
 
         # POST /api/v1/gl/advanced_reporting/departments
         def create_department
-          dept = @corporate_company.gl_departments.build(department_params)
+          dept = @corporate.gl_departments.build(department_params)
 
           if dept.save
             render json: { success: true, data: dept }, status: :created
@@ -39,7 +39,7 @@ module Api
 
         # PATCH /api/v1/gl/advanced_reporting/departments/:id
         def update_department
-          dept = @corporate_company.gl_departments.find(params[:id])
+          dept = @corporate.gl_departments.find(params[:id])
 
           if dept.update(department_params)
             render json: { success: true, data: dept }
@@ -51,7 +51,7 @@ module Api
 
         # GET /api/v1/gl/advanced_reporting/departments/:id/profit_loss
         def department_profit_loss
-          dept = @corporate_company.gl_departments.find(params[:id])
+          dept = @corporate.gl_departments.find(params[:id])
           start_date = params[:start_date]&.to_date || Date.current.beginning_of_month
           end_date = params[:end_date]&.to_date || Date.current.end_of_month
 
@@ -66,7 +66,7 @@ module Api
           start_date = params[:start_date]&.to_date || Date.current.beginning_of_month
           end_date = params[:end_date]&.to_date || Date.current.end_of_month
 
-          departments = @corporate_company.gl_departments.active.ordered.map do |dept|
+          departments = @corporate.gl_departments.active.ordered.map do |dept|
             pl = dept.profit_loss(start_date: start_date, end_date: end_date)
             variance = dept.budget_variance(start_date: start_date, end_date: end_date)
             dept.as_json.merge(profit_loss: pl, budget_variance: variance)
@@ -79,7 +79,7 @@ module Api
 
         # GET /api/v1/gl/advanced_reporting/tracking_classes
         def tracking_classes
-          classes = @corporate_company.gl_tracking_classes.includes(:parent)
+          classes = @corporate.gl_tracking_classes.includes(:parent)
           classes = classes.active if params[:active_only] == "true"
           classes = classes.for_type(params[:type]) if params[:type].present?
 
@@ -88,18 +88,18 @@ module Api
 
         # GET /api/v1/gl/advanced_reporting/tracking_classes/types
         def tracking_class_types
-          render json: { success: true, data: ::Gl::TrackingClass.summary_by_type(@corporate_company) }
+          render json: { success: true, data: ::Gl::TrackingClass.summary_by_type(@corporate) }
         end
 
         # GET /api/v1/gl/advanced_reporting/tracking_classes/tree/:type
         def tracking_class_tree
-          tree = ::Gl::TrackingClass.tree_by_type(@corporate_company, params[:type])
+          tree = ::Gl::TrackingClass.tree_by_type(@corporate, params[:type])
           render json: { success: true, data: tree }
         end
 
         # POST /api/v1/gl/advanced_reporting/tracking_classes
         def create_tracking_class
-          tc = @corporate_company.gl_tracking_classes.build(tracking_class_params)
+          tc = @corporate.gl_tracking_classes.build(tracking_class_params)
 
           if tc.save
             render json: { success: true, data: tc }, status: :created
@@ -111,7 +111,7 @@ module Api
 
         # PATCH /api/v1/gl/advanced_reporting/tracking_classes/:id
         def update_tracking_class
-          tc = @corporate_company.gl_tracking_classes.find(params[:id])
+          tc = @corporate.gl_tracking_classes.find(params[:id])
 
           if tc.update(tracking_class_params)
             render json: { success: true, data: tc }
@@ -125,7 +125,7 @@ module Api
 
         # GET /api/v1/gl/advanced_reporting/splits
         def splits
-          splits = @corporate_company.gl_split_transactions.includes(:lines, :created_by).recent
+          splits = @corporate.gl_split_transactions.includes(:lines, :created_by).recent
           splits = splits.pending if params[:pending_only] == "true"
 
           render json: {
@@ -152,7 +152,7 @@ module Api
 
         # POST /api/v1/gl/advanced_reporting/splits/:id/complete
         def complete_split
-          split = @corporate_company.gl_split_transactions.find(params[:id])
+          split = @corporate.gl_split_transactions.find(params[:id])
 
           if split.complete!(current_user)
             render json: { success: true, data: split }
@@ -163,7 +163,7 @@ module Api
 
         # POST /api/v1/gl/advanced_reporting/splits/:id/reverse
         def reverse_split
-          split = @corporate_company.gl_split_transactions.find(params[:id])
+          split = @corporate.gl_split_transactions.find(params[:id])
 
           if split.reverse!(current_user)
             render json: { success: true, data: split }
@@ -176,7 +176,7 @@ module Api
 
         # GET /api/v1/gl/advanced_reporting/snapshots
         def period_snapshots
-          snapshots = @corporate_company.gl_period_snapshots.recent
+          snapshots = @corporate.gl_period_snapshots.recent
           snapshots = snapshots.for_type(params[:type]) if params[:type].present?
           snapshots = snapshots.finalized if params[:finalized_only] == "true"
 
@@ -190,7 +190,7 @@ module Api
           period_end = params[:period_end]&.to_date || Date.current.end_of_month
 
           snapshot = ::Gl::PeriodSnapshot.generate!(
-            @corporate_company,
+            @corporate,
             period_type: period_type,
             period_start: period_start,
             period_end: period_end,
@@ -202,7 +202,7 @@ module Api
 
         # POST /api/v1/gl/advanced_reporting/snapshots/:id/finalize
         def finalize_snapshot
-          snapshot = @corporate_company.gl_period_snapshots.find(params[:id])
+          snapshot = @corporate.gl_period_snapshots.find(params[:id])
           snapshot.finalize!
 
           render json: { success: true, data: snapshot }
@@ -210,10 +210,10 @@ module Api
 
         # GET /api/v1/gl/advanced_reporting/snapshots/:id/compare
         def compare_snapshots
-          current_snapshot = @corporate_company.gl_period_snapshots.find(params[:id])
+          current_snapshot = @corporate.gl_period_snapshots.find(params[:id])
 
           comparison = if params[:compare_to_id].present?
-                         other = @corporate_company.gl_period_snapshots.find(params[:compare_to_id])
+                         other = @corporate.gl_period_snapshots.find(params[:compare_to_id])
                          current_snapshot.compare_to(other)
                        elsif params[:yoy] == "true"
                          current_snapshot.year_over_year
@@ -229,7 +229,7 @@ module Api
           period_type = params[:period_type] || "month"
           periods = params[:periods]&.to_i || 6
 
-          snapshots = @corporate_company.gl_period_snapshots
+          snapshots = @corporate.gl_period_snapshots
                                         .for_type(period_type)
                                         .recent
                                         .limit(periods)
@@ -241,7 +241,7 @@ module Api
 
         # GET /api/v1/gl/advanced_reporting/kpis
         def kpis
-          kpis = @corporate_company.gl_kpi_definitions.ordered
+          kpis = @corporate.gl_kpi_definitions.ordered
           kpis = kpis.active if params[:active_only] == "true"
           kpis = kpis.on_dashboard if params[:dashboard_only] == "true"
 
@@ -250,7 +250,7 @@ module Api
 
         # POST /api/v1/gl/advanced_reporting/kpis
         def create_kpi
-          kpi = @corporate_company.gl_kpi_definitions.build(kpi_params)
+          kpi = @corporate.gl_kpi_definitions.build(kpi_params)
 
           if kpi.save
             render json: { success: true, data: kpi }, status: :created
@@ -262,7 +262,7 @@ module Api
 
         # PATCH /api/v1/gl/advanced_reporting/kpis/:id
         def update_kpi
-          kpi = @corporate_company.gl_kpi_definitions.find(params[:id])
+          kpi = @corporate.gl_kpi_definitions.find(params[:id])
 
           if kpi.update(kpi_params)
             render json: { success: true, data: kpi }
@@ -274,7 +274,7 @@ module Api
 
         # GET /api/v1/gl/advanced_reporting/kpis/:id/calculate
         def calculate_kpi
-          kpi = @corporate_company.gl_kpi_definitions.find(params[:id])
+          kpi = @corporate.gl_kpi_definitions.find(params[:id])
           start_date = params[:start_date]&.to_date
           end_date = params[:end_date]&.to_date
 
@@ -297,7 +297,7 @@ module Api
           start_date = params[:start_date]&.to_date || Date.current.beginning_of_month
           end_date = params[:end_date]&.to_date || Date.current.end_of_month
 
-          kpis = @corporate_company.gl_kpi_definitions.active.on_dashboard.ordered.map do |kpi|
+          kpis = @corporate.gl_kpi_definitions.active.on_dashboard.ordered.map do |kpi|
             value = kpi.calculate(start_date: start_date, end_date: end_date)
             {
               id: kpi.id,
@@ -316,7 +316,7 @@ module Api
 
         # POST /api/v1/gl/advanced_reporting/kpis/seed
         def seed_kpis
-          ::Gl::KpiDefinition.seed_common!(@corporate_company)
+          ::Gl::KpiDefinition.seed_common!(@corporate)
           render json: { success: true, message: "Common KPIs seeded" }
         end
 
@@ -330,7 +330,7 @@ module Api
           return render json: { success: false, error: "No benchmark found" }, status: :not_found unless benchmark
 
           # Get current value to compare
-          kpi = @corporate_company.gl_kpi_definitions.find_by(code: params[:kpi_code])
+          kpi = @corporate.gl_kpi_definitions.find_by(code: params[:kpi_code])
           current_value = kpi&.calculate
 
           comparison = benchmark.percentile_for(current_value)
@@ -349,7 +349,7 @@ module Api
 
         # GET /api/v1/gl/advanced_reporting/document_requests
         def document_requests
-          requests = @corporate_company.gl_document_requests
+          requests = @corporate.gl_document_requests
                                        .includes(:contact, :requested_documents)
                                        .recent
 
@@ -364,7 +364,7 @@ module Api
 
         # GET /api/v1/gl/advanced_reporting/document_requests/:id
         def show_document_request
-          request = @corporate_company.gl_document_requests.find(params[:id])
+          request = @corporate.gl_document_requests.find(params[:id])
 
           render json: {
             success: true,
@@ -377,7 +377,7 @@ module Api
 
         # POST /api/v1/gl/advanced_reporting/document_requests
         def create_document_request
-          request = @corporate_company.gl_document_requests.build(document_request_params)
+          request = @corporate.gl_document_requests.build(document_request_params)
           request.created_by = current_user
 
           if request.save
@@ -400,7 +400,7 @@ module Api
 
         # POST /api/v1/gl/advanced_reporting/document_requests/:id/send
         def send_document_request
-          request = @corporate_company.gl_document_requests.find(params[:id])
+          request = @corporate.gl_document_requests.find(params[:id])
 
           if request.send_request!
             render json: { success: true, data: request }
@@ -411,7 +411,7 @@ module Api
 
         # POST /api/v1/gl/advanced_reporting/document_requests/:id/remind
         def remind_document_request
-          request = @corporate_company.gl_document_requests.find(params[:id])
+          request = @corporate.gl_document_requests.find(params[:id])
 
           if request.send_reminder!
             render json: { success: true, message: "Reminder sent" }
@@ -423,7 +423,7 @@ module Api
         # POST /api/v1/gl/advanced_reporting/documents/:id/approve
         def approve_document
           doc = ::Gl::RequestedDocument.joins(:document_request)
-                                       .where(gl_document_requests: { corporate_company_id: @corporate_company.id })
+                                       .where(gl_document_requests: { company_id: @corporate.id })
                                        .find(params[:id])
           doc.approve!(current_user)
 
@@ -433,7 +433,7 @@ module Api
         # POST /api/v1/gl/advanced_reporting/documents/:id/reject
         def reject_document
           doc = ::Gl::RequestedDocument.joins(:document_request)
-                                       .where(gl_document_requests: { corporate_company_id: @corporate_company.id })
+                                       .where(gl_document_requests: { company_id: @corporate.id })
                                        .find(params[:id])
           doc.reject!(current_user, reason: params[:reason])
 
@@ -442,8 +442,8 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id])
         end
 
         def department_params
@@ -472,8 +472,8 @@ module Api
           id = params[:transaction_id]
 
           case type
-          when "invoice" then @corporate_company.gl_invoices.find(id)
-          when "payment" then @corporate_company.gl_payments.find(id)
+          when "invoice" then @corporate.gl_invoices.find(id)
+          when "payment" then @corporate.gl_payments.find(id)
           else raise "Unknown transaction type: #{type}"
           end
         end

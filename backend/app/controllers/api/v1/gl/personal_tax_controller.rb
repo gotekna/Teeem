@@ -372,7 +372,7 @@ module Api
           @current_user ||= OpenStruct.new(
             id: params[:user_id] || 1,
             name: params[:user_name] || 'Test User',
-            corporate_company_id: params[:corporate_company_id] || 1
+            company_id: params[:corporate_id] || 1
           )
         end
 

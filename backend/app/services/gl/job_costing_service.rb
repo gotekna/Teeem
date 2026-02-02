@@ -11,7 +11,7 @@ module Gl
   # - Cost to complete estimates
   #
   class JobCostingService
-    attr_reader :job, :corporate_company
+    attr_reader :job, :corporate
 
     # Cost categories for construction jobs
     COST_CATEGORIES = {
@@ -49,7 +49,7 @@ module Gl
 
     def initialize(job)
       @job = job
-      @corporate_company = job.respond_to?(:corporate_company) ? job.corporate_company : Corporate.first
+      @corporate = job.respond_to?(:corporate) ? job.corporate : Corporate.first
     end
 
     # Get complete job costing summary

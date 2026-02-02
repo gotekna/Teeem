@@ -5,7 +5,7 @@ module Gl
   class AiPoMatchAttempt < ApplicationRecord
     self.table_name = "gl_ai_po_match_attempts"
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :bill_inbox, optional: true
 
     # Scopes for analytics
@@ -17,18 +17,18 @@ module Gl
     # Get usage stats
     def self.usage_stats(company)
       {
-        today: where(corporate_company: company).today.count,
-        this_hour: where(corporate_company: company).this_hour.count,
-        total: where(corporate_company: company).count,
+        today: where(corporate: company).today.count,
+        this_hour: where(corporate: company).this_hour.count,
+        total: where(corporate: company).count,
         match_rate: calculate_match_rate(company)
       }
     end
 
     def self.calculate_match_rate(company)
-      total = where(corporate_company: company).count
+      total = where(corporate: company).count
       return 0.0 if total.zero?
 
-      matched = where(corporate_company: company).with_match.count
+      matched = where(corporate: company).with_match.count
       (matched.to_f / total * 100).round(1)
     end
   end

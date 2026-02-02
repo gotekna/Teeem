@@ -5,12 +5,12 @@ module Api
     module Gl
       # Controller for TPAR (Taxable Payments Annual Report)
       class TparController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
         before_action :set_report, only: [:show, :refresh, :submit, :lodge]
 
         # GET /api/v1/gl/tpar
         def index
-          reports = @corporate_company.gl_tpar_reports
+          reports = @corporate.gl_tpar_reports
                                       .includes(:payees)
                                       .order(financial_year: :desc)
 
@@ -29,14 +29,14 @@ module Api
         def generate
           financial_year = params[:financial_year] || ::Gl::TparReport.current_financial_year
 
-          if @corporate_company.gl_tpar_reports.exists?(financial_year: financial_year)
+          if @corporate.gl_tpar_reports.exists?(financial_year: financial_year)
             render json: { success: false, error: "Report for #{financial_year} already exists" },
                    status: :unprocessable_entity
             return
           end
 
           report = ::Gl::TparReport.generate!(
-            @corporate_company,
+            @corporate,
             financial_year: financial_year,
             user: current_user
           )
@@ -73,7 +73,7 @@ module Api
 
         # GET /api/v1/gl/tpar/contractors
         def contractors
-          contractors = @corporate_company.contacts
+          contractors = @corporate.contacts
                                           .where(tpar_required: true)
                                           .order(:name)
 
@@ -82,7 +82,7 @@ module Api
 
         # POST /api/v1/gl/tpar/mark_contractor
         def mark_contractor
-          contact = @corporate_company.contacts.find(params[:contact_id])
+          contact = @corporate.contacts.find(params[:contact_id])
           contact.update!(
             tpar_required: params[:tpar_required],
             tpar_industry_code: params[:industry_code]
@@ -100,7 +100,7 @@ module Api
 
           payments = ::Gl::Invoice
                      .joins(:contact)
-                     .where(corporate_company: @corporate_company)
+                     .where(corporate: @corporate)
                      .where(invoice_type: "bill", status: "paid")
                      .where(date: period_start..period_end)
                      .where(contacts: { tpar_required: true })
@@ -134,12 +134,12 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id])
         end
 
         def set_report
-          @report = @corporate_company.gl_tpar_reports.find(params[:id])
+          @report = @corporate.gl_tpar_reports.find(params[:id])
         end
       end
     end

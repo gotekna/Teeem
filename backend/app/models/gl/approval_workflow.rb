@@ -7,7 +7,7 @@ module Gl
 
     DOCUMENT_TYPES = %w[bill purchase_order invoice journal expense credit_note].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :created_by, class_name: "User", optional: true
 
     has_many :steps, class_name: "Gl::ApprovalWorkflowStep", foreign_key: "workflow_id", dependent: :destroy
@@ -25,7 +25,7 @@ module Gl
     # Find the matching workflow for a document
     def self.find_matching(company, document_type:, amount: nil, category: nil)
       workflows = active.for_type(document_type)
-                        .where(corporate_company_id: company.id)
+                        .where(company_id: company.id)
                         .by_priority
 
       workflows.find do |workflow|

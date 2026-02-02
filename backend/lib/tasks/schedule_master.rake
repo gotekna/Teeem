@@ -136,8 +136,8 @@ namespace :schedule_master do
     puts "Allow Duplicates: #{template.sm_template_rows.where(allow_duplicates: true).count}"
     puts
     puts "With Plan Types: #{template.sm_template_rows.where("jsonb_array_length(plan_type_ids) > 0").count}"
-    puts "With Start Docs: #{template.sm_template_rows.where("jsonb_array_length(start_entity_tab_ids) > 0").count}"
-    puts "With Complete Docs: #{template.sm_template_rows.where("jsonb_array_length(complete_entity_tab_ids) > 0").count}"
+    puts "With Start Docs: #{template.sm_template_rows.where("jsonb_array_length(start_warehouse_folder_ids) > 0").count}"
+    puts "With Complete Docs: #{template.sm_template_rows.where("jsonb_array_length(complete_warehouse_folder_ids) > 0").count}"
   end
 
   private

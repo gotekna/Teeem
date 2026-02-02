@@ -1,4 +1,4 @@
-# Setup Expenses tab - Foundation columns and EntityTab
+# Setup Expenses tab - Foundation columns and WarehouseFolder
 # This replicates the local database changes in production
 
 puts "Setting up Expenses tab for production..."
@@ -40,14 +40,14 @@ else
   puts "ℹ️  trade_from_task column already exists"
 end
 
-# 2. Create or update Expenses EntityTab
-finance_tab = EntityTab.find_by(scope: 'job', tab_key: 'finance')
+# 2. Create or update Expenses WarehouseFolder
+finance_tab = WarehouseFolder.find_by(scope: 'job', tab_key: 'finance')
 unless finance_tab
   puts "❌ Finance parent tab not found"
   exit 1
 end
 
-expenses_tab = EntityTab.find_or_initialize_by(scope: 'job', tab_key: 'expenses')
+expenses_tab = WarehouseFolder.find_or_initialize_by(scope: 'job', tab_key: 'expenses')
 expenses_tab.assign_attributes(
   display_name: 'Expenses',
   icon_name: 'Wallet',
@@ -69,4 +69,4 @@ end
 puts ""
 puts "Setup complete!"
 puts "  Foundation columns: stage_from_task, trade_from_task"
-puts "  EntityTab: expenses (child of Finance, position 10)"
+puts "  WarehouseFolder: expenses (child of Finance, position 10)"

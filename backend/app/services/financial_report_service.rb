@@ -19,7 +19,7 @@ class FinancialReportService
 
   def initialize(report)
     @report = report
-    @company = report.corporate_company
+    @company = report.corporate
     @config = REPORT_CONFIG[report.class.name] || { title: "Financial Report", code: "FR" }
   end
 

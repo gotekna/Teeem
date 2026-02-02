@@ -565,7 +565,7 @@ module Api
       # Get all documents from the associated job that can be attached to this PO
       # Performance: Pre-cache attached IDs to avoid N+1
       def available_documents
-        documents = DocumentTask.where(construction_id: @purchase_order.job_id)
+        documents = DocumentTask.where(job_id: @purchase_order.job_id)
                                  .order(:category, :name)
 
         # Performance: Cache attached IDs as a Set for O(1) lookup

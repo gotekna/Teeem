@@ -375,7 +375,7 @@ class BulkEmailSyncJob < ApplicationJob
     # SSoT: Use centralized path sanitization
     org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
 
-    # SSoT: Get email storage path from EntityTab (system-managed)
+    # SSoT: Get email storage path from WarehouseFolder (system-managed)
     folder_path = email_storage_path(
       org_name: org_name,
       year: year,
@@ -432,9 +432,9 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "=" * 60
   end
 
-  # SSoT: Get email storage path from EntityTab (system-managed)
+  # SSoT: Get email storage path from WarehouseFolder (system-managed)
   # Resolves templates like: "{{UserName}}/{{Year}}/{{Date}}" or "{{Mailbox}}/{{Year}}/{{Month}}"
-  # Falls back to hardcoded path if EntityTab doesn't exist
+  # Falls back to hardcoded path if WarehouseFolder doesn't exist
   #
   # Available placeholders:
   #   {{OrgName}}  - Organization name (sanitized)
@@ -444,7 +444,7 @@ class BulkEmailSyncJob < ApplicationJob
   #   {{Mailbox}}  - Email mailbox address (e.g., "robert@tekna.com.au")
   #   {{UserName}} - User's display name from mailbox (e.g., "Robert Harder")
   def email_storage_path(org_name:, year:, month:, mailbox: nil, date: nil)
-    email_tab = EntityTab.find_by(scope: "email", tab_key: "email-storage")
+    email_tab = WarehouseFolder.find_by(warehouse_type: "email", tab_key: "email-storage")
 
     if email_tab&.storage_folder_path.present?
       # Derive user name from mailbox email
@@ -463,7 +463,7 @@ class BulkEmailSyncJob < ApplicationJob
         .gsub("{{Mailbox}}", SharePoint::FilenameSanitizer.sanitize_path_segment(mailbox.to_s))
         .gsub("{{UserName}}", SharePoint::FilenameSanitizer.sanitize_path_segment(user_name))
     else
-      # Fallback if EntityTab doesn't exist - use WarehouseProvider SSoT
+      # Fallback if WarehouseFolder doesn't exist - use WarehouseProvider SSoT
       base_path = WarehouseProvider.instance.path_for(:email)
       "#{base_path}/#{org_name}/#{year}/#{month}"
     end

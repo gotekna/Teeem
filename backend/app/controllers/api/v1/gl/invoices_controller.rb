@@ -4,7 +4,7 @@ module Api
   module V1
     module Gl
       class InvoicesController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
         before_action :set_invoice, only: [ :show, :update, :destroy, :approve, :void ]
 
         # GET /api/v1/gl/invoices
@@ -54,7 +54,7 @@ module Api
         # POST /api/v1/gl/invoices
         def create
           invoice = ::Gl::Invoice.new(invoice_params)
-          invoice.corporate_company = @corporate_company
+          invoice.corporate = @corporate
           invoice.external_provider = params[:provider] if params[:provider].present? && params[:provider] != "standalone"
           invoice.external_tenant_id = params[:tenant_id]
           invoice.created_in_teeem = true
@@ -206,8 +206,8 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id] || current_user&.corporate_company_id)
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id] || current_user&.corporate_id)
         rescue ActiveRecord::RecordNotFound
           render json: { success: false, error: "Company not found" }, status: :not_found
         end
@@ -219,7 +219,7 @@ module Api
         end
 
         def scoped_invoices
-          scope = ::Gl::Invoice.where(corporate_company: @corporate_company)
+          scope = ::Gl::Invoice.where(corporate: @corporate)
 
           if params[:provider].present? && params[:provider] != "standalone"
             scope = scope.where(external_provider: params[:provider], external_tenant_id: params[:tenant_id])

@@ -195,7 +195,7 @@ class BillInboxSyncService
     bill = BillInbox.create!(
       source: "email",
       email_message_id: email["internetMessageId"],
-      synced_email_id: warehouse_email.id,
+      email_warehouse_id: warehouse_email.id,
       status: "pending",
       original_filename: attachment["name"],
       content_type: attachment["contentType"],

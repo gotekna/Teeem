@@ -1,9 +1,9 @@
 namespace :sync do
-  desc "Sync EntityTabs and linkings from JSON file"
-  task entity_tabs: :environment do
+  desc "Sync WarehouseFolders and linkings from JSON file"
+  task warehouse_folders: :environment do
     require 'json'
 
-    file_path = Rails.root.join('tmp', 'entity_tabs_export.json')
+    file_path = Rails.root.join('tmp', 'warehouse_folders_export.json')
     unless File.exist?(file_path)
       puts "Error: #{file_path} not found"
       exit 1
@@ -19,7 +19,7 @@ namespace :sync do
     created = 0
     updated = 0
     tabs_data.each do |t|
-      tab = EntityTab.find_or_initialize_by(scope: t['scope'], tab_key: t['tab_key'])
+      tab = WarehouseFolder.find_or_initialize_by(scope: t['scope'], tab_key: t['tab_key'])
       was_new = tab.new_record?
 
       tab.assign_attributes(
@@ -46,8 +46,8 @@ namespace :sync do
     tabs_data.each do |t|
       next unless t['parent_key'] && t['parent_scope']
 
-      tab = EntityTab.find_by(scope: t['scope'], tab_key: t['tab_key'])
-      parent = EntityTab.find_by(scope: t['parent_scope'], tab_key: t['parent_key'])
+      tab = WarehouseFolder.find_by(scope: t['scope'], tab_key: t['tab_key'])
+      parent = WarehouseFolder.find_by(scope: t['parent_scope'], tab_key: t['parent_key'])
 
       if tab && parent && tab.parent_id != parent.id
         tab.update!(parent_id: parent.id)
@@ -59,13 +59,13 @@ namespace :sync do
     # Sync document type linkings
     linkings_created = 0
     linkings_data.each do |l|
-      tab = EntityTab.find_by(scope: l['tab_scope'], tab_key: l['tab_key'])
+      tab = WarehouseFolder.find_by(scope: l['tab_scope'], tab_key: l['tab_key'])
       doc_type = DocumentType.find_by(name: l['doc_type_name'])
 
       next unless tab && doc_type
 
-      linking = EntityTabDocumentType.find_or_initialize_by(
-        entity_tab_id: tab.id,
+      linking = WarehouseFolderDocumentType.find_or_initialize_by(
+        warehouse_folder_id: tab.id,
         document_type_id: doc_type.id
       )
 

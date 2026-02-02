@@ -10,11 +10,11 @@ module Gl
   # - Cross-currency conversions (via base currency)
   #
   class CurrencyConverter
-    attr_reader :corporate_company, :base_currency
+    attr_reader :corporate, :base_currency
 
-    def initialize(corporate_company)
-      @corporate_company = corporate_company
-      @base_currency = Gl::Currency.base_currency_for(corporate_company)
+    def initialize(corporate)
+      @corporate = corporate
+      @base_currency = Gl::Currency.base_currency_for(corporate)
       @rate_cache = {}
     end
 
@@ -153,7 +153,7 @@ module Gl
     # Get all available exchange rates for a date
     def rates_for_date(date = Date.current)
       Gl::Currency
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .active
         .foreign
         .map do |currency|
@@ -192,7 +192,7 @@ module Gl
       return currency_or_code if currency_or_code.is_a?(Gl::Currency)
 
       Gl::Currency.find_by!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         code: currency_or_code.to_s.upcase
       )
     rescue ActiveRecord::RecordNotFound

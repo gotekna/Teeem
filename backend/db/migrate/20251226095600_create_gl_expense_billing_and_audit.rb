@@ -6,7 +6,7 @@ class CreateGlExpenseBillingAndAudit < ActiveRecord::Migration[7.1]
 
     # Expenses that can be billed to clients
     create_table :gl_billable_expenses do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :job, null: false, foreign_key: true
       t.references :contact, foreign_key: true  # Client to bill
       t.references :user, foreign_key: true  # Who incurred expense
@@ -39,7 +39,7 @@ class CreateGlExpenseBillingAndAudit < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_billable_expenses, [:corporate_company_id, :job_id, :status],
+    add_index :gl_billable_expenses, [:corporate_id, :job_id, :status],
               name: "idx_billable_expenses_job"
     add_index :gl_billable_expenses, [:status], name: "idx_billable_expenses_status"
 
@@ -47,7 +47,7 @@ class CreateGlExpenseBillingAndAudit < ActiveRecord::Migration[7.1]
 
     # Audit log for all changes
     create_table :gl_audit_logs do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :user, foreign_key: true
 
       # What was changed
@@ -73,7 +73,7 @@ class CreateGlExpenseBillingAndAudit < ActiveRecord::Migration[7.1]
 
     add_index :gl_audit_logs, [:auditable_type, :auditable_id],
               name: "idx_audit_logs_auditable"
-    add_index :gl_audit_logs, [:corporate_company_id, :created_at],
+    add_index :gl_audit_logs, [:corporate_id, :created_at],
               name: "idx_audit_logs_date"
     add_index :gl_audit_logs, [:user_id, :created_at],
               name: "idx_audit_logs_user"
@@ -81,7 +81,7 @@ class CreateGlExpenseBillingAndAudit < ActiveRecord::Migration[7.1]
 
     # Audit snapshots (periodic full copies for compliance)
     create_table :gl_audit_snapshots do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :created_by, foreign_key: { to_table: :users }
 
       t.string :snapshot_type, null: false, limit: 30
@@ -108,7 +108,7 @@ class CreateGlExpenseBillingAndAudit < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_audit_snapshots, [:corporate_company_id, :snapshot_date],
+    add_index :gl_audit_snapshots, [:corporate_id, :snapshot_date],
               name: "idx_audit_snapshots_date"
     add_index :gl_audit_snapshots, [:snapshot_type], name: "idx_audit_snapshots_type"
 
@@ -116,7 +116,7 @@ class CreateGlExpenseBillingAndAudit < ActiveRecord::Migration[7.1]
 
     # Track retainage releases over time
     create_table :gl_retainage_releases do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :job, null: false, foreign_key: true
       t.references :progress_claim, foreign_key: { to_table: :gl_progress_claims }
       t.references :invoice, foreign_key: { to_table: :gl_invoices }
@@ -138,7 +138,7 @@ class CreateGlExpenseBillingAndAudit < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_retainage_releases, [:corporate_company_id, :job_id],
+    add_index :gl_retainage_releases, [:corporate_id, :job_id],
               name: "idx_retainage_releases_job"
     add_index :gl_retainage_releases, [:status], name: "idx_retainage_releases_status"
   end

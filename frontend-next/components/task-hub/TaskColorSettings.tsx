@@ -104,7 +104,7 @@ export function getTaskColorClasses(type: TaskColorType): { bg: string; border: 
 export function getTaskRowColorClass(task: {
   is_following?: boolean;
   is_private?: boolean;
-  construction_id?: number;
+  job_id?: number;
   purchase_order_id?: number | null;
   is_overdue?: boolean;
   days_overdue?: number;
@@ -134,7 +134,7 @@ export function getTaskRowColorClass(task: {
     if (preset) return `${preset.bg} border-l-2 ${preset.border}`;
   }
 
-  if (task.construction_id && task.construction_id > 0 && settings.withJob !== 'none') {
+  if (task.job_id && task.job_id > 0 && settings.withJob !== 'none') {
     const preset = COLOR_PRESETS.find(p => p.id === settings.withJob);
     if (preset) return `${preset.bg} border-l-2 ${preset.border}`;
   }

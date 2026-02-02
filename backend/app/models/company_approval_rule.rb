@@ -2,7 +2,7 @@
 
 class CompanyApprovalRule < ApplicationRecord
   # Associations
-  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+  belongs_to :corporate, foreign_key: "company_id"
   belongs_to :bpmn_process, optional: true
   belongs_to :approver, class_name: "User", optional: true, foreign_key: :approver_id
   belongs_to :escalation_to, class_name: "User", optional: true, foreign_key: :escalation_to_user_id
@@ -26,7 +26,7 @@ class CompanyApprovalRule < ApplicationRecord
   scope :for_variance, -> { where(rule_type: "po_variance") }
   scope :workflow_configs, -> { where(rule_type: "workflow_config") }
   scope :by_priority, -> { order(priority: :desc) }
-  scope :for_company, ->(company_id) { where(corporate_company_id: company_id) }
+  scope :for_company, ->(company_id) { where(company_id: company_id) }
 
   # Instance methods
   def matches?(amount:, variance_percent: nil)

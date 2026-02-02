@@ -1572,7 +1572,7 @@ export default function FinancialPage() {
   // Fetch data from real GL API endpoints
   const fetchData = React.useCallback(async () => {
     setLoading(true);
-    const companyParam = selectedCompany !== "all" ? `?corporate_company_id=${selectedCompany}` : "";
+    const companyParam = selectedCompany !== "all" ? `?company_id=${selectedCompany}` : "";
 
     try {
       // Fetch companies list

@@ -9,7 +9,7 @@ class AddTenantIdToBillInboxes < ActiveRecord::Migration[8.0]
       UPDATE bill_inboxes
       SET tenant_id = corporate_companies.tenant_id
       FROM corporate_companies
-      WHERE bill_inboxes.corporate_company_id = corporate_companies.id
+      WHERE bill_inboxes.corporate_id = corporate_companies.id
       AND bill_inboxes.tenant_id IS NULL
       AND corporate_companies.tenant_id IS NOT NULL
     SQL

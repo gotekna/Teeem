@@ -11,7 +11,7 @@ module Api
 
         # Filter by construction if provided
         if params[:job_id].present?
-          quote_requests = quote_requests.where(construction_id: params[:job_id])
+          quote_requests = quote_requests.where(job_id: params[:job_id])
         end
 
         # Filter by status if provided
@@ -216,7 +216,7 @@ module Api
         # Create purchase order from quote
         quote_response = quote_request.selected_quote_response
         purchase_order = PurchaseOrder.new(
-          construction: quote_request.construction,
+          construction: quote_request.job,
           contact: quote_response.contact,
           po_number: generate_po_number,
           total: quote_response.price,
@@ -233,7 +233,7 @@ module Api
               purchase_order_id: purchase_order.id,
               po_number: purchase_order.po_number,
               total: purchase_order.total,
-              contact_name: purchase_order.contact.display_name
+              contact_name: purchase_order.supplier.display_name
             }
           }, status: :created
         else
@@ -293,9 +293,9 @@ module Api
           days_waiting: quote_request.days_waiting,
           created_at: quote_request.created_at,
           construction: {
-            id: quote_request.construction.id,
-            name: quote_request.construction.job_name,
-            address: quote_request.construction.street_address
+            id: quote_request.job.id,
+            name: quote_request.job.job_name,
+            address: quote_request.job.street_address
           },
           created_by: {
             id: quote_request.created_by.id,

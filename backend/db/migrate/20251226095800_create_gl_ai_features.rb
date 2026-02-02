@@ -4,7 +4,7 @@ class CreateGlAiFeatures < ActiveRecord::Migration[7.2]
   def change
     # AI Transaction Categorization
     create_table :gl_transaction_categories do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.string :name, null: false
       t.string :category_type # expense, revenue, asset, liability
       t.references :default_account, foreign_key: { to_table: :gl_accounts }
@@ -17,13 +17,13 @@ class CreateGlAiFeatures < ActiveRecord::Migration[7.2]
       t.timestamps
     end
 
-    add_index :gl_transaction_categories, [:corporate_company_id, :name], unique: true
+    add_index :gl_transaction_categories, [:corporate_id, :name], unique: true
     add_index :gl_transaction_categories, :category_type
     add_index :gl_transaction_categories, :active
 
     # AI Categorization predictions
     create_table :gl_categorization_predictions do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.bigint :bank_transaction_id # No FK - table may not exist yet
       t.references :predicted_category, foreign_key: { to_table: :gl_transaction_categories }
       t.references :predicted_account, foreign_key: { to_table: :gl_accounts }
@@ -45,7 +45,7 @@ class CreateGlAiFeatures < ActiveRecord::Migration[7.2]
 
     # Anomaly Detection
     create_table :gl_anomalies do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :anomalable, polymorphic: true # Can be invoice, payment, journal, etc.
       t.string :anomaly_type, null: false # unusual_amount, timing, duplicate, pattern_break
       t.string :severity, null: false, default: "medium" # low, medium, high, critical
@@ -68,7 +68,7 @@ class CreateGlAiFeatures < ActiveRecord::Migration[7.2]
 
     # Anomaly detection rules
     create_table :gl_anomaly_rules do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.string :name, null: false
       t.string :rule_type, null: false # threshold, pattern, statistical
       t.string :entity_type, null: false # invoice, payment, journal, etc.
@@ -85,7 +85,7 @@ class CreateGlAiFeatures < ActiveRecord::Migration[7.2]
 
     # Duplicate Detection
     create_table :gl_duplicate_groups do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.string :entity_type, null: false # invoice, bill, payment, contact
       t.string :status, default: "pending" # pending, reviewed, resolved
       t.float :similarity_score
@@ -114,7 +114,7 @@ class CreateGlAiFeatures < ActiveRecord::Migration[7.2]
 
     # Late Payment Prediction
     create_table :gl_payment_predictions do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :invoice, null: false, foreign_key: { to_table: :gl_invoices }
       t.references :contact, foreign_key: true
       t.float :probability_late, null: false # 0-1
@@ -133,7 +133,7 @@ class CreateGlAiFeatures < ActiveRecord::Migration[7.2]
 
     # Customer payment behavior history (for prediction model)
     create_table :gl_customer_payment_stats do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :contact, null: false, foreign_key: true
       t.integer :total_invoices, default: 0
       t.integer :paid_on_time, default: 0
@@ -149,7 +149,7 @@ class CreateGlAiFeatures < ActiveRecord::Migration[7.2]
       t.timestamps
     end
 
-    add_index :gl_customer_payment_stats, [:corporate_company_id, :contact_id], unique: true
+    add_index :gl_customer_payment_stats, [:corporate_id, :contact_id], unique: true
     add_index :gl_customer_payment_stats, :payment_reliability_score
   end
 end

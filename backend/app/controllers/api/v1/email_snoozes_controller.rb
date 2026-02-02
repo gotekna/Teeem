@@ -196,7 +196,7 @@ class Api::V1::EmailSnoozesController < ApplicationController
     end
 
     if email_ids.any?
-      current_user.email_snoozes.active.where(synced_email_id: email_ids).find_each do |snooze|
+      current_user.email_snoozes.active.where(email_warehouse_id: email_ids).find_each do |snooze|
         snooze.cancel!
         cancelled += 1
       end

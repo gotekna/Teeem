@@ -3,7 +3,7 @@
 class CreateGlAccounts < ActiveRecord::Migration[8.0]
   def change
     create_table :gl_accounts do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
 
       # External provider linking (nullable - works for any provider)
       t.string :external_provider       # 'xero', 'quickbooks', 'myob', nil (standalone)
@@ -41,11 +41,11 @@ class CreateGlAccounts < ActiveRecord::Migration[8.0]
     end
 
     # Unique constraint: one account code per company per provider tenant
-    add_index :gl_accounts, [:corporate_company_id, :external_provider, :external_tenant_id, :code],
+    add_index :gl_accounts, [:corporate_id, :external_provider, :external_tenant_id, :code],
               unique: true, name: 'idx_gl_accounts_unique_code'
 
     # Unique constraint: one external ID per company per provider
-    add_index :gl_accounts, [:corporate_company_id, :external_provider, :external_tenant_id, :external_account_id],
+    add_index :gl_accounts, [:corporate_id, :external_provider, :external_tenant_id, :external_account_id],
               unique: true, name: 'idx_gl_accounts_unique_external',
               where: 'external_account_id IS NOT NULL'
 

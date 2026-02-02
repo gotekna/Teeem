@@ -10,8 +10,7 @@ class EmailUserState < ApplicationRecord
   belongs_to :email_warehouse, class_name: "SyncedEmail"
   belongs_to :user
 
-  # Alias for legacy column name (EmailWarehouse was renamed to SyncedEmail)
-  alias_attribute :synced_email_id, :email_warehouse_id
+  # Alias for legacy association name (EmailWarehouse was renamed to SyncedEmail)
   # Use alias_method for associations (alias_attribute only works for columns in Rails 8)
   alias_method :synced_email, :email_warehouse
   alias_method :synced_email=, :email_warehouse=
@@ -208,7 +207,7 @@ class EmailUserState < ApplicationRecord
   def as_json(options = {})
     {
       id: id,
-      email_id: synced_email_id,
+      email_id: email_warehouse_id,
       user_id: user_id,
       is_pinned: is_pinned,
       is_starred: is_starred,
@@ -242,7 +241,7 @@ class EmailUserState < ApplicationRecord
 
     return if changes.empty?
 
-    EmailChannel.broadcast_state_change(user, synced_email_id, changes)
+    EmailChannel.broadcast_state_change(user, email_warehouse_id, changes)
   rescue StandardError => e
     Rails.logger.error "Failed to broadcast email state change: #{e.message}"
   end

@@ -8,7 +8,7 @@ module Gl
     STATUSES = %w[draft submitted approved rejected void].freeze
     REASONS = %w[client_request design_change unforeseen_conditions code_compliance value_engineering other].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :job
     belongs_to :contact, optional: true
     belongs_to :requested_by, class_name: "User", optional: true
@@ -18,7 +18,7 @@ module Gl
 
     accepts_nested_attributes_for :lines, allow_destroy: true
 
-    validates :change_order_number, presence: true, uniqueness: { scope: [:corporate_company_id, :job_id] }
+    validates :change_order_number, presence: true, uniqueness: { scope: [:corporate_id, :job_id] }
     validates :title, presence: true
     validates :status, inclusion: { in: STATUSES }
 
@@ -91,7 +91,7 @@ module Gl
     def generate_number
       return if change_order_number.present?
 
-      max = self.class.where(corporate_company_id: corporate_company_id, job_id: job_id)
+      max = self.class.where(company_id: company_id, job_id: job_id)
                 .maximum(:change_order_number)
       num = max.to_s.scan(/\d+/).last.to_i + 1
 

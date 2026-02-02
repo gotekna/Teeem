@@ -12,10 +12,10 @@ interface Transaction {
   transaction_date: string;
   description?: string;
   category?: string;
-  construction_id?: number;
+  job_id?: number;
 }
 
-interface Construction {
+interface Job {
   id: number;
   name?: string;
 }
@@ -34,7 +34,7 @@ interface FormData {
   transaction_date: string;
   description: string;
   category: string;
-  construction_id: string;
+  job_id: string;
   auto_post: boolean;
 }
 
@@ -51,14 +51,14 @@ export default function TransactionForm({
     transaction_date: new Date().toISOString().split("T")[0],
     description: "",
     category: "",
-    construction_id: "",
+    job_id: "",
     auto_post: true,
   });
   const [receipt, setReceipt] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
-  const [jobs, setJobs] = useState<Construction[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
 
   // Load categories and jobs when form opens
   useEffect(() => {
@@ -74,7 +74,7 @@ export default function TransactionForm({
           transaction_date: transaction.transaction_date,
           description: transaction.description || "",
           category: transaction.category || "",
-          construction_id: transaction.construction_id?.toString() || "",
+          job_id: transaction.job_id?.toString() || "",
           auto_post: false, // Don't auto-post when editing
         });
       } else {
@@ -85,7 +85,7 @@ export default function TransactionForm({
           transaction_date: new Date().toISOString().split("T")[0],
           description: "",
           category: "",
-          construction_id: "",
+          job_id: "",
           auto_post: true,
         });
         setReceipt(null);
@@ -114,7 +114,7 @@ export default function TransactionForm({
 
   const loadJobs = async () => {
     try {
-      const response = await api.get<{ success: boolean; constructions: Construction[] }>(
+      const response = await api.get<{ success: boolean; constructions: Job[] }>(
         "/api/v1/jobs?per_page=100"
       );
       if (response?.success) {
@@ -330,15 +330,15 @@ export default function TransactionForm({
               {/* Job (optional) */}
               <div>
                 <label
-                  htmlFor="construction_id"
+                  htmlFor="job_id"
                   className="block text-sm font-medium text-foreground"
                 >
                   Job (optional)
                 </label>
                 <select
-                  name="construction_id"
-                  id="construction_id"
-                  value={formData.construction_id}
+                  name="job_id"
+                  id="job_id"
+                  value={formData.job_id}
                   onChange={handleChange}
                   className="mt-1 block w-full rounded-md border-border focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 >

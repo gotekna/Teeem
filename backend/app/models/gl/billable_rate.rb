@@ -7,7 +7,7 @@ module Gl
 
     RATE_TYPES = %w[user role default].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :user, optional: true
     belongs_to :job, optional: true
     belongs_to :contact, optional: true
@@ -27,7 +27,7 @@ module Gl
 
     # Find the best matching rate for a given context
     def self.find_rate_for(company, user:, job: nil, contact: nil, date: Date.current)
-      rates = where(corporate_company: company)
+      rates = where(corporate: company)
               .active
               .where("effective_from IS NULL OR effective_from <= ?", date)
               .where("effective_to IS NULL OR effective_to >= ?", date)

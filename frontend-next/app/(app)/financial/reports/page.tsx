@@ -38,7 +38,7 @@ interface ProfitLoss {
 }
 
 interface JobProfitability {
-  construction_id: number;
+  job_id: number;
   job_name: string;
   income: number;
   expenses: number;
@@ -504,7 +504,7 @@ export default function FinancialReportsPage() {
                 </TableHeader>
                 <TableBody>
                   {jobProfitability.map((job) => (
-                    <TableRow key={job.construction_id}>
+                    <TableRow key={job.job_id}>
                       <TableCell className="font-medium">{job.job_name}</TableCell>
                       <TableCell className="text-right text-green-600 dark:text-green-400">
                         {formatCurrency(job.income)}

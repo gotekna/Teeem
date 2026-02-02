@@ -79,10 +79,10 @@ class RenameCorporateCompanyIdToCompanyId < ActiveRecord::Migration[8.0]
   def change
     TABLES_TO_RENAME.each do |table_name|
       next unless table_exists?(table_name)
-      next unless column_exists?(table_name, :corporate_company_id)
+      next unless column_exists?(table_name, :corporate_id)
 
       # Rename the column
-      rename_column table_name, :corporate_company_id, :company_id
+      rename_column table_name, :corporate_id, :company_id
 
       # Rename indexes that reference the old column name
       indexes_to_rename = indexes(table_name).select { |i| i.name.include?('corporate_company_id') }

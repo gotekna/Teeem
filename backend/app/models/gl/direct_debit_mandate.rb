@@ -9,10 +9,10 @@ module Gl
     FREQUENCIES = %w[one_time weekly monthly per_invoice].freeze
     AUTHORIZATION_METHODS = %w[online paper verbal].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :contact
 
-    validates :mandate_reference, presence: true, uniqueness: { scope: :corporate_company_id }
+    validates :mandate_reference, presence: true, uniqueness: { scope: :corporate_id }
     validates :status, inclusion: { in: STATUSES }
     validates :bsb, presence: true, if: :active?
     validates :account_number, presence: true, if: :active?
@@ -26,7 +26,7 @@ module Gl
     # Create mandate from online authorization
     def self.authorize_online!(contact, bank_details:, ip_address:, frequency: "per_invoice")
       create!(
-        corporate_company: contact.corporate_company,
+        corporate: contact.corporate,
         contact: contact,
         bsb: bank_details[:bsb],
         account_number: bank_details[:account_number],
@@ -84,7 +84,7 @@ module Gl
       return if mandate_reference.present?
 
       year = Date.current.year.to_s[-2..]
-      sequence = self.class.where(corporate_company_id: corporate_company_id).count + 1
+      sequence = self.class.where(company_id: company_id).count + 1
 
       self.mandate_reference = "DDM#{year}#{sequence.to_s.rjust(5, '0')}"
     end

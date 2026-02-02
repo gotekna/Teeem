@@ -59,7 +59,7 @@ import Link from "next/link";
 
 // SSoT: Simple scopes have inline editing (no document types)
 // Note: 'overview' is needed because the Tasks folder can have scopeKey='overview'
-// (from EntityTab.scope_base_folders when tab_key='overview' shares path with 'task')
+// (from WarehouseTabConfig.scope_base_folders when tab_key='overview' shares path with 'task')
 // Note: 'user' added for Teeem Docs (personal user documents)
 const SIMPLE_SCOPES = ['email', 'warehouse', 'task', 'user', 'overview'];
 // SSoT: Complex scopes need separate tab (have document types, entity filters)
@@ -139,8 +139,8 @@ interface DocumentType {
   file_name?: string;  // Document Download Name TEMPLATE: "{ContactName} {DocTypeCode} {Date}"
 }
 
-// Entity tab interface for tabs under each scope
-interface EntityTab {
+// WarehouseFolder interface for tabs under each scope
+interface WarehouseTabConfig {
   id: number;
   tab_key: string;
   display_name: string;
@@ -156,7 +156,7 @@ interface EntityTab {
   order_position: number;
   icon_name: string | null;
   warehouse_folder?: string | null;
-  children?: EntityTab[];
+  children?: WarehouseTabConfig[];
   document_types?: DocumentType[];
 }
 
@@ -222,7 +222,7 @@ interface FolderTreeNode {
   scopeKey: string | null;  // Primary scope key (first one added)
   scopeKeys: string[];  // ALL scope keys that share this path (for multi-scope folders like Tasks)
   children: FolderTreeNode[];
-  tabs?: EntityTab[];  // Tabs under this scope folder
+  tabs?: WarehouseTabConfig[];  // Tabs under this scope folder
 }
 
 // SSoT: Known scope root folder names (first segment of paths that should appear at root)
@@ -1353,7 +1353,7 @@ function resolveTemplatePreview(template: string, docType?: DocumentType): strin
 
 // TabNode component for displaying entity tabs
 interface TabNodeProps {
-  tab: EntityTab;
+  tab: WarehouseTabConfig;
   level: number;
   basePath: string;
   rootPath: string;
@@ -1751,7 +1751,7 @@ export function WarehouseProviderTab() {
   const [editingTabId, setEditingTabId] = React.useState<number | null>(null);
 
   // Entity tabs for each scope
-  const [entityTabs, setEntityTabs] = React.useState<Record<string, EntityTab[]>>({});
+  const [entityTabs, setWarehouseTabConfigs] = React.useState<Record<string, WarehouseTabConfig[]>>({});
   const [loadingTabs, setLoadingTabs] = React.useState(false);
 
   // Warehouse stats for live preview
@@ -1791,10 +1791,10 @@ export function WarehouseProviderTab() {
 
   // Fetch entity tabs for all scopes
   // FRC (Jan 2026): Use per-scope error handling so one failing scope doesn't break all tabs
-  const loadEntityTabs = async () => {
+  const loadWarehouseTabConfigs = async () => {
     setLoadingTabs(true);
     try {
-      const tabsByScope: Record<string, EntityTab[]> = {};
+      const tabsByScope: Record<string, WarehouseTabConfig[]> = {};
 
       // Fetch tabs for each scope in parallel with per-scope error handling
       const scopeKeys = Object.keys(SCOPE_TO_API_SCOPE);
@@ -1802,8 +1802,8 @@ export function WarehouseProviderTab() {
         scopeKeys.map(async (scopeKey) => {
           try {
             const apiScope = SCOPE_TO_API_SCOPE[scopeKey];
-            const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>(
-              `/api/v1/entity_tabs?scope=${apiScope}`
+            const response = await api.get<{ success: boolean; data: { tabs: WarehouseTabConfig[] } }>(
+              `/api/v1/warehouse_folders?scope=${apiScope}`
             );
             // Safely access nested properties
             const tabs = response?.success && response?.data?.tabs ? response.data.tabs : [];
@@ -1821,7 +1821,7 @@ export function WarehouseProviderTab() {
         tabsByScope[scopeKey] = tabs;
       });
 
-      setEntityTabs(tabsByScope);
+      setWarehouseTabConfigs(tabsByScope);
     } catch (error) {
       console.error("Failed to load entity tabs:", error);
     } finally {
@@ -1836,13 +1836,13 @@ export function WarehouseProviderTab() {
     const tree = buildFolderTree(scopeFolders);
 
     // Helper: Check if tab has doc types directly
-    const tabHasDocTypes = (tab: EntityTab): boolean => {
+    const tabHasDocTypes = (tab: WarehouseTabConfig): boolean => {
       return !!(tab.document_types && tab.document_types.length > 0);
     };
 
     // Helper: Check if tab or any descendants have doc types AND warehouse enabled
     // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)
-    const hasDescendantWithDocTypes = (tab: EntityTab): boolean => {
+    const hasDescendantWithDocTypes = (tab: WarehouseTabConfig): boolean => {
       // This tab has warehouse + doc types
       const isWarehouseEnabled = tab.warehouse_enabled ?? tab.has_storage_folder;
       if (isWarehouseEnabled && tabHasDocTypes(tab)) return true;
@@ -1855,7 +1855,7 @@ export function WarehouseProviderTab() {
 
     // Helper: Filter tabs recursively
     // Keep a tab if: (has warehouse + doc types) OR (has children that qualify)
-    const filterTabsWithDocTypes = (tabs: EntityTab[]): EntityTab[] => {
+    const filterTabsWithDocTypes = (tabs: WarehouseTabConfig[]): WarehouseTabConfig[] => {
       return tabs
         .filter(tab => hasDescendantWithDocTypes(tab))
         .map(tab => ({
@@ -1872,7 +1872,7 @@ export function WarehouseProviderTab() {
 
     // Helper: Filter tabs for scopes without doc types (just warehouse enabled)
     // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)
-    const filterWarehouseEnabledTabs = (tabs: EntityTab[]): EntityTab[] => {
+    const filterWarehouseEnabledTabs = (tabs: WarehouseTabConfig[]): WarehouseTabConfig[] => {
       return tabs
         .filter(tab => (tab.warehouse_enabled ?? tab.has_storage_folder) === true)
         .map(tab => ({
@@ -1940,7 +1940,7 @@ export function WarehouseProviderTab() {
     console.log('[saveTabFolderPath] Saving:', { tabId, folderPath, displayName, sendNameTemplate });
     try {
       const response = await api.patch<{ success: boolean; error?: string }>(
-        `/api/v1/entity_tabs/${tabId}`,
+        `/api/v1/warehouse_folders/${tabId}`,
         {
           entity_tab: {
             display_name: displayName,
@@ -1951,7 +1951,7 @@ export function WarehouseProviderTab() {
       );
       if (response?.success) {
         // Update local state
-        setEntityTabs(prev => {
+        setWarehouseTabConfigs(prev => {
           const newTabs = { ...prev };
           Object.keys(newTabs).forEach(scope => {
             newTabs[scope] = newTabs[scope].map(tab =>
@@ -2120,7 +2120,7 @@ export function WarehouseProviderTab() {
   // Load storage config and entity tabs on mount
   React.useEffect(() => {
     loadConfig();
-    loadEntityTabs();
+    loadWarehouseTabConfigs();
   }, []);
 
   const loadConfig = async () => {

@@ -771,7 +771,7 @@ module Api
 
           # SSoT: Only include corporate data (directors, shareholdings) if user has permission
           if can_view_corporate?
-            linked_company_data[:directors] = linked_company.corporate_company_directors.includes(:contact).map do |d|
+            linked_company_data[:directors] = linked_company.corporate_directors.includes(:contact).map do |d|
               {
                 id: d.id,
                 contact_id: d.contact_id,
@@ -783,7 +783,7 @@ module Api
                 is_current: d.is_current
               }
             end
-            linked_company_data[:shareholdings] = linked_company.corporate_company_shareholdings.includes(:shareholder).map do |s|
+            linked_company_data[:shareholdings] = linked_company.corporate_shareholdings.includes(:shareholder).map do |s|
               {
                 id: s.id,
                 shareholder_type: s.shareholder_type,
@@ -795,8 +795,8 @@ module Api
                 date_acquired: s.acquisition_date
               }
             end
-            linked_company_data[:directors_count] = linked_company.corporate_company_directors.current.count
-            linked_company_data[:shareholdings_count] = linked_company.corporate_company_shareholdings.count
+            linked_company_data[:directors_count] = linked_company.corporate_directors.current.count
+            linked_company_data[:shareholdings_count] = linked_company.corporate_shareholdings.count
             linked_company_data[:documents_count] = 0  # Table dropped (Jan 2026) - use WarehouseDocument
             # SSoT: Include bank accounts from the bank_accounts table
             linked_company_data[:bank_accounts] = linked_company.bank_accounts.active.map do |ba|
@@ -1500,7 +1500,7 @@ module Api
       # GET /api/v1/contacts/:id/documents
       # Returns WarehouseDocument records for this contact (including migrated Xero PDFs)
       # Optional params:
-      #   - tab_key: Filter by EntityTab (returns docs where document_type is linked to tab via primary or also_show_in)
+      #   - tab_key: Filter by WarehouseFolder (returns docs where document_type is linked to tab via primary or also_show_in)
       #   - folder: Filter by specific folder path
       #   - include_descendants: When true, includes documents from all subfolders (cascade view)
 

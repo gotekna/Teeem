@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[draft approved invoiced].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :contact
     belongs_to :job, optional: true
     belongs_to :invoice, class_name: "Gl::Invoice", optional: true
@@ -16,7 +16,7 @@ module Gl
     has_many :time_entries, class_name: "Gl::BillableTimeEntry",
                             foreign_key: "time_billing_batch_id", dependent: :nullify
 
-    validates :reference, presence: true, uniqueness: { scope: :corporate_company_id }
+    validates :reference, presence: true, uniqueness: { scope: :corporate_id }
     validates :period_start, presence: true
     validates :period_end, presence: true
     validates :status, inclusion: { in: STATUSES }
@@ -40,7 +40,7 @@ module Gl
       return nil if entries.empty?
 
       batch = create!(
-        corporate_company: company,
+        corporate: company,
         contact: contact,
         job: job,
         period_start: period_start,
@@ -70,7 +70,7 @@ module Gl
 
       # Create invoice
       new_invoice = Gl::Invoice.create!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         contact: contact,
         invoice_type: "sales",
         date: Date.current,
@@ -129,7 +129,7 @@ module Gl
 
       year = Date.current.year.to_s[-2..]
       month = Date.current.strftime("%m")
-      sequence = self.class.where(corporate_company_id: corporate_company_id)
+      sequence = self.class.where(company_id: company_id)
                            .where("reference LIKE ?", "TB#{year}#{month}%")
                            .count + 1
 

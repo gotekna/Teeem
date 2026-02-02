@@ -7,11 +7,11 @@ module Api
 
       # GET /api/v1/company_approval_rules
       def index
-        rules = CompanyApprovalRule.includes(:corporate_company, :bpmn_process)
+        rules = CompanyApprovalRule.includes(:corporate, :bpmn_process)
 
         # Filter by company
-        if params[:corporate_company_id].present?
-          rules = rules.where(corporate_company_id: params[:corporate_company_id])
+        if params[:corporate_id].present?
+          rules = rules.where(company_id: params[:corporate_id])
         end
 
         # Filter by rule type
@@ -23,7 +23,7 @@ module Api
         rules = rules.order(priority: :asc, created_at: :desc)
 
         render json: rules.as_json(include: {
-          corporate_company: {},
+          corporate: {},
           bpmn_process: {}
         })
       end
@@ -31,7 +31,7 @@ module Api
       # GET /api/v1/company_approval_rules/:id
       def show
         render json: @rule.as_json(include: {
-          corporate_company: {},
+          corporate: {},
           bpmn_process: {}
         })
       end
@@ -70,7 +70,7 @@ module Api
 
       def rule_params
         params.permit(
-          :corporate_company_id, :rule_type, :name,
+          :corporate_id, :rule_type, :name,
           :min_amount, :max_amount, :variance_threshold_percent,
           :approver_type, :approver_id, :bpmn_process_id,
           :priority, :is_active

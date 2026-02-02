@@ -31,7 +31,7 @@ namespace :tenant do
       SmScheduleMaster,
       SmScheduleMasterTemplate,
       SyncedEmail,
-      EntityTab
+      WarehouseFolder
     ]
 
     total_updated = 0

@@ -15,14 +15,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { getIcon } from "@/lib/icon-map";
-import type { EntityTab } from "@/lib/types/entity-tabs";
+import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 import type { Contact } from "../types";
 import type { XeroLink } from "./ContactHeader";
 
 // =============================================================================
 // SSoT: Contact Tab Visibility Evaluation
 // =============================================================================
-// These rules match the visibility_rule values in EntityTab database.
+// These rules match the visibility_rule values in WarehouseFolder database.
 // When evaluating, the rule string maps to a function that checks contact data.
 // =============================================================================
 
@@ -129,7 +129,7 @@ function getTabBadgeCount(
 // =============================================================================
 
 interface ContactTabsRendererProps {
-  tabs: EntityTab[];
+  tabs: WarehouseFolder[];
   activeTab: string;
   activeSubTab?: string | null;
   onTabChange: (tabKey: string) => void;
@@ -180,7 +180,7 @@ export function ContactTabsRenderer({
 
   // Create a map for quick lookup of tabs by key
   const tabsByKey = React.useMemo(() => {
-    const map = new Map<string, EntityTab>();
+    const map = new Map<string, WarehouseFolder>();
     tabs.forEach((tab) => map.set(tab.tab_key, tab));
     return map;
   }, [tabs]);
@@ -245,8 +245,8 @@ export function ContactTabsRenderer({
 // =============================================================================
 
 interface TabWithDropdownProps {
-  tab: EntityTab;
-  children: EntityTab[];
+  tab: WarehouseFolder;
+  children: WarehouseFolder[];
   activeTab: string;
   activeSubTab?: string | null;
   onTabChange: (tabKey: string) => void;

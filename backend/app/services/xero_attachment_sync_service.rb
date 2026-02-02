@@ -4,20 +4,20 @@
 #
 # SSoT Architecture (Jan 2026):
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ EntityTab (SSoT for folder structure)                           │
+# │ WarehouseFolder (SSoT for folder structure)                           │
 # │ ├── warehouse_type: "contact"                                   │
 # │ ├── warehouse_folder: "{{ContactName}}/Bills"                   │
 # │     ↓ links via                                                 │
-# │ EntityTabDocumentType (join table, is_primary: true)            │
+# │ WarehouseFolderDocumentType (join table, is_primary: true)            │
 # │     ↓ to                                                        │
 # │ DocumentType (classification)                                   │
 # │ ├── name: "Xero Bill"                                           │
-# │ ├── derived_scope: computed from EntityTab.warehouse_type       │
+# │ ├── derived_scope: computed from WarehouseFolder.warehouse_type       │
 # │     ↓ used by                                                   │
 # │ WarehouseDocument (universal metadata)                          │
 # │ ├── documentable: ExternalInvoice                               │
 # │ ├── storage_blob_id: → StorageBlob                              │
-# │ ├── folder: computed from EntityTab template                    │
+# │ ├── folder: computed from WarehouseFolder template                    │
 # │ ├── source_type: "xero"                                         │
 # │     ↓ links to                                                  │
 # │ StorageBlob (flat storage, deduplication)                       │
@@ -26,7 +26,7 @@
 # └─────────────────────────────────────────────────────────────────┘
 #
 # Physical Storage: s3://bucket/Blobs/{hash_prefix}/{hash}.pdf
-# Virtual Folders: Computed from EntityTab.warehouse_folder, stored in warehouse_documents.folder
+# Virtual Folders: Computed from WarehouseFolder.display_name, stored in warehouse_documents.folder
 #
 class XeroAttachmentSyncService
   include DocumentProviderAware
@@ -128,7 +128,7 @@ class XeroAttachmentSyncService
       return
     end
 
-    # SSoT: Get folder path from EntityTab (no hardcoding)
+    # SSoT: Get folder path from WarehouseFolder (no hardcoding)
     folder = compute_folder_from_document_type(document_type)
 
     # ========================================
@@ -340,25 +340,25 @@ class XeroAttachmentSyncService
   end
 
   # ========================================
-  # SSoT: Folder Computation from EntityTab
+  # SSoT: Folder Computation from WarehouseFolder
   # ========================================
 
-  # Compute folder path from DocumentType's primary EntityTab
-  # SSoT: Derives folder from WarehouseProvider.warehouse_folders (not EntityTab.warehouse_folder)
+  # Compute folder path from DocumentType's primary WarehouseFolder
+  # SSoT: Derives folder from WarehouseProvider.warehouse_folders (not WarehouseFolder.display_name)
   def compute_folder_from_document_type(document_type)
-    entity_tab = document_type.primary_entity_tab
-    return nil unless entity_tab
+    warehouse_folder = document_type.primary_warehouse_folder
+    return nil unless warehouse_folder
 
     # SSoT: Derive template from WarehouseProvider.warehouse_folders
     # path_for already handles alias normalization (e.g., 'corporate_entity' → 'corporate')
-    warehouse_type = entity_tab.warehouse_type || 'corporate'
+    warehouse_type = warehouse_folder.warehouse_type || 'corporate'
     config = WarehouseProvider.instance
     template = config.path_for(warehouse_type)
     return nil unless template.present?
 
     # SSoT: {{TeeemXL}} is the UI placeholder for tab/folder name (Jan 2026)
     # Support both {{TeeemXL}} and legacy {{TabName}} for backwards compatibility
-    template = template.gsub('{{TeeemXL}}', entity_tab.display_name.to_s).gsub('{{TabName}}', entity_tab.display_name.to_s)
+    template = template.gsub('{{TeeemXL}}', warehouse_folder.display_name.to_s).gsub('{{TabName}}', warehouse_folder.display_name.to_s)
 
     # Expand template with context from invoice/contact
     expand_folder_template(template)

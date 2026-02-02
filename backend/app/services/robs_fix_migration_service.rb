@@ -14,7 +14,7 @@ class RobsFixMigrationService
     "TEEEM Jobs 5"
   ].freeze
 
-  # Map source folder prefixes to target EntityTab tab_keys
+  # Map source folder prefixes to target WarehouseFolder tab_keys
   SOURCE_TO_TAB_MAP = {
     /^01\s*revit/i => "drawings",
     /^02\s*land\s*info/i => "documents",

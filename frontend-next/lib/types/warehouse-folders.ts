@@ -1,26 +1,25 @@
 // WarehouseFolder types - SSoT for folder/storage configuration
-// Renamed: EntityTab → StorageLocation → WarehouseFolder (Jan 2026)
-// Backend model is "WarehouseFolder" (table: warehouse_folders)
-// Frontend keeps "EntityTab" as interface name for UI tab rendering
-// "WarehouseFolder" and "StorageLocation" are aliases for backward compatibility
+// SSoT Rename (Feb 2026): EntityTab → StorageLocation → WarehouseFolder
+// "WarehouseFolder" is THE ONE name - all aliases removed
+// API Endpoint: /api/v1/warehouse_folders
 
 // SSoT: 'corporate' is THE ONE scope for corporate entities (Jan 2026 - 'corporate_entity' renamed)
 // SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
-export type EntityTabScope = 'corporate' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
+export type WarehouseFolderScope = 'corporate' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
 
-// Tab groups - matches backend EntityTab::TAB_GROUPS
+// Tab groups - matches backend WarehouseFolder::TAB_GROUPS
 // 'system' is for system-managed tabs (email storage, warehousing) - read-only in UI
 export type TabGroup = 'overview' | 'documents' | 'reports' | 'data' | 'setup' | 'main' | 'system';
 
-// Display modes for tabs - matches backend EntityTab::DISPLAY_MODES
+// Display modes for tabs - matches backend WarehouseFolder::DISPLAY_MODES
 // - 'both': Show icon + text (default)
 // - 'icon_only': Show only icon (root tabs only, tooltip shows name)
 // - 'text_only': Show only text (no icon)
 export type TabDisplayMode = 'both' | 'icon_only' | 'text_only';
 
-export interface EntityTab {
+export interface WarehouseFolder {
   id: number;
-  scope: EntityTabScope;
+  scope: WarehouseFolderScope;
   tab_key: string;
   display_name: string;
   display_code: string | null;
@@ -55,13 +54,13 @@ export interface EntityTab {
   hierarchy_path: string;
   document_count: number;
   can_delete: boolean;
-  children: EntityTab[];
-  document_types: EntityTabDocumentType[];
+  children: WarehouseFolder[];
+  document_types: WarehouseFolderDocumentType[];
   is_photo_category: boolean;
   is_cad_category: boolean;
 }
 
-export interface EntityTabDocumentType {
+export interface WarehouseFolderDocumentType {
   id: number;
   name: string;
   display_name: string;
@@ -70,23 +69,23 @@ export interface EntityTabDocumentType {
   is_primary?: boolean;  // SSoT: true = this tab is the primary home, false = secondary ("also show in")
 }
 
-export interface EntityTabsResponse {
+export interface WarehouseFoldersResponse {
   success: boolean;
   data: {
-    scope: EntityTabScope;
-    tabs: EntityTab[];
+    scope: WarehouseFolderScope;
+    tabs: WarehouseFolder[];
     groups: TabGroup[];
     primary_xero_name: string | null;  // SSoT: Name of primary Xero account
   };
 }
 
-export interface EntityTabResponse {
+export interface WarehouseFolderResponse {
   success: boolean;
-  data: EntityTab;
+  data: WarehouseFolder;
 }
 
-export interface EntityTabCreateParams {
-  scope: EntityTabScope;
+export interface WarehouseFolderCreateParams {
+  scope: WarehouseFolderScope;
   tab_key: string;
   display_name: string;
   display_code?: string;
@@ -110,7 +109,7 @@ export interface EntityTabCreateParams {
   hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
 }
 
-export interface EntityTabUpdateParams {
+export interface WarehouseFolderUpdateParams {
   display_name?: string;
   display_code?: string;
   description?: string;
@@ -138,9 +137,7 @@ export interface ReorderTabParams {
 }
 
 // Scope display names for UI
-// SSoT: 'corporate' is THE ONE scope for corporate entities (Jan 2026 - 'corporate_entity' renamed)
-// SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
-export const SCOPE_LABELS: Record<EntityTabScope, string> = {
+export const SCOPE_LABELS: Record<WarehouseFolderScope, string> = {
   corporate: 'Corporate',
   job: 'Job',
   contact: 'Contact',
@@ -161,28 +158,21 @@ export const GROUP_LABELS: Record<TabGroup, string> = {
   system: 'System',
 };
 
-// Entity type options are now fetched from API (SSoT: CorporateSetting)
-// See: GET /api/v1/entity_tabs/entity_types
-
 // ============================================================================
-// SSoT Rename (Jan 2026): EntityTab → StorageLocation → WarehouseFolder
-// Backend: WarehouseFolder model (table: warehouse_folders)
-// Frontend: EntityTab interface (for UI rendering)
-// These aliases allow backward compatibility
+// DEPRECATED ALIASES - For backwards compatibility during migration
+// These will be removed in a future release
 // ============================================================================
-export type StorageLocationScope = EntityTabScope;
-export type StorageLocation = EntityTab;
-export type StorageLocationDocumentType = EntityTabDocumentType;
-export type StorageLocationsResponse = EntityTabsResponse;
-export type StorageLocationResponse = EntityTabResponse;
-export type StorageLocationCreateParams = EntityTabCreateParams;
-export type StorageLocationUpdateParams = EntityTabUpdateParams;
-
-// New naming (Jan 2026) - backend model is WarehouseFolder
-export type WarehouseFolderScope = EntityTabScope;
-export type WarehouseFolder = EntityTab;
-export type WarehouseFolderDocumentType = EntityTabDocumentType;
-export type WarehouseFoldersResponse = EntityTabsResponse;
-export type WarehouseFolderResponse = EntityTabResponse;
-export type WarehouseFolderCreateParams = EntityTabCreateParams;
-export type WarehouseFolderUpdateParams = EntityTabUpdateParams;
+/** @deprecated Use WarehouseFolderScope instead */
+export type EntityTabScope = WarehouseFolderScope;
+/** @deprecated Use WarehouseFolder instead */
+export type EntityTab = WarehouseFolder;
+/** @deprecated Use WarehouseFolderDocumentType instead */
+export type EntityTabDocumentType = WarehouseFolderDocumentType;
+/** @deprecated Use WarehouseFoldersResponse instead */
+export type EntityTabsResponse = WarehouseFoldersResponse;
+/** @deprecated Use WarehouseFolderResponse instead */
+export type EntityTabResponse = WarehouseFolderResponse;
+/** @deprecated Use WarehouseFolderCreateParams instead */
+export type EntityTabCreateParams = WarehouseFolderCreateParams;
+/** @deprecated Use WarehouseFolderUpdateParams instead */
+export type EntityTabUpdateParams = WarehouseFolderUpdateParams;

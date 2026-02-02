@@ -869,8 +869,8 @@ module Api
         return true if contact.quote_request_contacts.exists?
         return true if contact.pricebook_items.exists?
         return true if contact.case_contacts.exists?
-        return true if contact.corporate_company_directorships.exists?
-        return true if contact.corporate_company_shareholdings.exists?
+        return true if contact.corporate_directorships.exists?
+        return true if contact.corporate_shareholdings.exists?
         return true if contact.contact_activities.exists?
 
         false
@@ -1381,7 +1381,7 @@ module Api
         # Associations to skip globally (heavy or problematic)
         skip_associations = [
           :po_supplier,       # Contact model with 81+ associations - load lazily
-          :photo_entity_tab   # EntityTab has recursive parent/children
+          :photo_entity_tab   # WarehouseFolder has recursive parent/children
         ]
 
         model.reflect_on_all_associations(:belongs_to).each do |reflection|

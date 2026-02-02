@@ -59,7 +59,7 @@ class CreateJobStorageFoldersJob < ApplicationJob
         return
       end
 
-      # SSoT: Folder structure comes from EntityTab hierarchy (no longer uses FolderTemplate)
+      # SSoT: Folder structure comes from WarehouseFolder hierarchy (no longer uses FolderTemplate)
       # Create folder structure for this job
       job_folder = @document_provider.create_job_folder_structure(job)
 

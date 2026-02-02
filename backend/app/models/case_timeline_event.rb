@@ -3,7 +3,7 @@ class CaseTimelineEvent < ApplicationRecord
   belongs_to :case_record, foreign_key: :case_id, class_name: "CaseRecord"
   belongs_to :source, polymorphic: true, optional: true
   belongs_to :contact, optional: true
-  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id", optional: true
+  belongs_to :corporate, foreign_key: "company_id", optional: true
   belongs_to :job, optional: true
 
   validates :event_date, presence: true

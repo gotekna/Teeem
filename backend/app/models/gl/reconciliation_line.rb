@@ -11,7 +11,7 @@ module Gl
     belongs_to :gl_ledger_line, class_name: 'Gl::LedgerLine', optional: true
     belongs_to :gl_account, class_name: 'Gl::Account', optional: true  # For adjustments
 
-    delegate :corporate_company, to: :gl_bank_reconciliation
+    delegate :corporate, to: :gl_bank_reconciliation
 
     # ═══════════════════════════════════════════════════════════════
     # CONSTANTS

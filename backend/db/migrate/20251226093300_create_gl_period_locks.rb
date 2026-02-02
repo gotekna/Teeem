@@ -3,7 +3,7 @@
 class CreateGlPeriodLocks < ActiveRecord::Migration[7.1]
   def change
     create_table :gl_period_locks do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :locked_by, foreign_key: { to_table: :users }
       t.references :unlocked_by, foreign_key: { to_table: :users }
 
@@ -26,10 +26,10 @@ class CreateGlPeriodLocks < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_period_locks, [:corporate_company_id, :period_end], unique: true, name: "idx_period_locks_unique"
-    add_index :gl_period_locks, [:corporate_company_id, :status], name: "idx_period_locks_status"
+    add_index :gl_period_locks, [:corporate_id, :period_end], unique: true, name: "idx_period_locks_unique"
+    add_index :gl_period_locks, [:corporate_id, :status], name: "idx_period_locks_status"
 
     # Add lock_date to company settings for quick lookup
-    add_column :corporate_company_settings, :gl_lock_date, :date
+    add_column :corporate_settings, :gl_lock_date, :date
   end
 end

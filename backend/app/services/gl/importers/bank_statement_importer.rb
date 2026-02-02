@@ -11,7 +11,7 @@ module Gl
     #
     # Usage:
     #   importer = Gl::Importers::BankStatementImporter.new(
-    #     corporate_company,
+    #     corporate,
     #     account: bank_account,
     #     provider: 'xero',
     #     tenant_id: 'abc'
@@ -27,7 +27,7 @@ module Gl
     #   )
     #
     class BankStatementImporter
-      attr_reader :corporate_company, :account, :external_provider, :external_tenant_id
+      attr_reader :corporate, :account, :external_provider, :external_tenant_id
 
       # Supported file formats
       SUPPORTED_FORMATS = %w[csv ofx qfx qif].freeze
@@ -43,8 +43,8 @@ module Gl
         '%Y%m%d'         # 20241231
       ].freeze
 
-      def initialize(corporate_company, account:, provider: nil, tenant_id: nil)
-        @corporate_company = corporate_company
+      def initialize(corporate, account:, provider: nil, tenant_id: nil)
+        @corporate = corporate
         @account = account
         @external_provider = provider
         @external_tenant_id = tenant_id
@@ -117,7 +117,7 @@ module Gl
       # Get import history
       def import_history
         Gl::JournalEntry
-          .where(corporate_company: corporate_company)
+          .where(corporate: corporate)
           .where(source_type: 'bank_import')
           .where('description LIKE ?', "%#{account.code}%")
           .order(created_at: :desc)
@@ -397,14 +397,14 @@ module Gl
 
       def create_bank_transaction(tx_data)
         period = Gl::Period.for_date(
-          corporate_company,
+          corporate,
           tx_data[:date],
           provider: external_provider,
           tenant_id: external_tenant_id
         )
 
         journal = Gl::JournalEntry.new(
-          corporate_company: corporate_company,
+          corporate: corporate,
           gl_period: period,
           external_provider: external_provider,
           external_tenant_id: external_tenant_id,
@@ -439,7 +439,7 @@ module Gl
 
       def find_or_create_suspense_account
         Gl::Account.find_or_create_by!(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: external_provider,
           external_tenant_id: external_tenant_id,
           code: '9999'

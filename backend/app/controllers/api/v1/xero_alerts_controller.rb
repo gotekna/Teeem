@@ -9,7 +9,7 @@ module Api
       # GET /api/v1/xero/alerts
       # Get all active alerts for the current user's company
       def index
-        company = current_user.corporate_company
+        company = current_user.corporate
 
         alerts = XeroAlert.active.recent
 
@@ -41,7 +41,7 @@ module Api
       # GET /api/v1/xero/health
       # Get overall Xero integration health status
       def health
-        company = current_user.corporate_company
+        company = current_user.corporate
         credential = find_credential_for_company(company)
 
         render json: {
@@ -114,7 +114,7 @@ module Api
       # GET /api/v1/xero/alerts/count
       # Quick endpoint to get alert counts for notification badge
       def count
-        company = current_user.corporate_company
+        company = current_user.corporate
 
         alerts = XeroAlert.active
         alerts = alerts.for_company(company.id) if company
@@ -140,8 +140,8 @@ module Api
         @alert = XeroAlert.find(params[:id])
 
         # Ensure user can access this alert
-        company = current_user.corporate_company
-        if company && @alert.corporate_company_id && @alert.corporate_company_id != company.id
+        company = current_user.corporate
+        if company && @alert.corporate_id && @alert.corporate_id != company.id
           render json: { success: false, error: "Not authorized" }, status: :forbidden
         end
       end
@@ -150,7 +150,7 @@ module Api
         return XeroCredential.current unless company
 
         # Try to find via connection
-        connection = company.corporate_company_xero_connection
+        connection = company.corporate_xero_connection
         connection&.xero_credential || XeroCredential.current
       end
 

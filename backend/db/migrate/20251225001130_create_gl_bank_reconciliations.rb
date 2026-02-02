@@ -6,7 +6,7 @@ class CreateGlBankReconciliations < ActiveRecord::Migration[8.0]
     # GL BANK RECONCILIATIONS - Track reconciliation sessions
     # ═══════════════════════════════════════════════════════════════
     create_table :gl_bank_reconciliations do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :gl_account, null: false, foreign_key: true  # Bank account
 
       # External provider linking
@@ -43,7 +43,7 @@ class CreateGlBankReconciliations < ActiveRecord::Migration[8.0]
       t.timestamps
 
       t.index [ :gl_account_id, :statement_date ], unique: true, name: 'idx_gl_recon_account_date'
-      t.index [ :corporate_company_id, :status ], name: 'idx_gl_recon_company_status'
+      t.index [ :corporate_id, :status ], name: 'idx_gl_recon_company_status'
     end
 
     # ═══════════════════════════════════════════════════════════════
@@ -84,7 +84,7 @@ class CreateGlBankReconciliations < ActiveRecord::Migration[8.0]
     # GL RECONCILIATION RULES - Auto-matching rules
     # ═══════════════════════════════════════════════════════════════
     create_table :gl_reconciliation_rules do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :gl_account, foreign_key: true  # Specific bank account or null for all
 
       # Rule definition
@@ -110,7 +110,7 @@ class CreateGlBankReconciliations < ActiveRecord::Migration[8.0]
 
       t.timestamps
 
-      t.index [ :corporate_company_id, :active, :priority ], name: 'idx_gl_recon_rules_active'
+      t.index [ :corporate_id, :active, :priority ], name: 'idx_gl_recon_rules_active'
     end
   end
 end

@@ -14,7 +14,7 @@
 import * as React from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import type { EntityTab } from "@/lib/types/entity-tabs";
+import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 
 // ============================================
 // TYPES
@@ -25,11 +25,11 @@ type IconComponent = React.ComponentType<{ className?: string }>;
 
 interface TabNavigationProps {
   /** Level 1 tabs */
-  l1Tabs: EntityTab[];
+  l1Tabs: WarehouseFolder[];
   /** Level 2 tabs (children of active L1) */
-  l2Tabs: EntityTab[];
+  l2Tabs: WarehouseFolder[];
   /** Level 3 tabs (children of active L2) */
-  l3Tabs: EntityTab[];
+  l3Tabs: WarehouseFolder[];
 
   /** Active tab keys */
   activeL1Key: string | null;
@@ -80,7 +80,7 @@ function getIcon(iconName: string | null): IconComponent | null {
 // ============================================
 
 interface TabLevelProps {
-  tabs: EntityTab[];
+  tabs: WarehouseFolder[];
   activeKey: string | null;
   onChange: (tabKey: string) => void;
   level: 1 | 2 | 3;
@@ -197,7 +197,7 @@ export function TabNavigation({
 // ============================================
 
 interface SimpleTabListProps {
-  tabs: EntityTab[];
+  tabs: WarehouseFolder[];
   activeKey: string | null;
   onChange: (tabKey: string) => void;
   className?: string;

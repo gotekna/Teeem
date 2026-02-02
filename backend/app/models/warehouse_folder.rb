@@ -685,7 +685,7 @@ class WarehouseFolder < ApplicationRecord
   #
   def self.warehouse_base_folders
     # SSoT: Delegate to WarehouseProvider.warehouse_folders
-    # EntityTab.warehouse_folder is DEPRECATED - all paths now derived from SSoT
+    # Legacy warehouse_folder is DEPRECATED - all paths now derived from SSoT
     WarehouseProvider.instance.effective_warehouse_folders
   rescue StandardError => e
     Rails.logger.warn "[WarehouseFolder.warehouse_base_folders] Error fetching from SSoT: #{e.message}"
@@ -1251,8 +1251,8 @@ class WarehouseFolder < ApplicationRecord
     return if old_name.blank? || new_name.blank? || old_name == new_name
 
     # Synchronous call - it's just DB updates, fast enough to run inline
-    EntityTabFolderRenameService.new(
-      entity_tab: self,
+    WarehouseFolderRenameService.new(
+      warehouse_folder: self,
       old_display_name: old_name,
       new_display_name: new_name
     ).execute

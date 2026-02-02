@@ -26,7 +26,7 @@ class ConsolidateCorporateSettingsToTenantSettings < ActiveRecord::Migration[8.0
 
     # Phase 2: Migrate data from corporate_company_settings (singleton table - no tenant_id)
     # Copy to tenant_id = 2 (Tekna) which is the primary tenant
-    if table_exists?(:corporate_company_settings)
+    if table_exists?(:corporate_settings)
       execute <<-SQL
         UPDATE tenant_settings ts
         SET
@@ -72,13 +72,13 @@ class ConsolidateCorporateSettingsToTenantSettings < ActiveRecord::Migration[8.0
     end
 
     # Phase 3: Drop the old table
-    drop_table :corporate_company_settings if table_exists?(:corporate_company_settings)
+    drop_table :corporate_settings if table_exists?(:corporate_settings)
   end
 
   def down
     # Recreate corporate_company_settings table for rollback
-    unless table_exists?(:corporate_company_settings)
-      create_table :corporate_company_settings do |t|
+    unless table_exists?(:corporate_settings)
+      create_table :corporate_settings do |t|
         t.string :company_name
         t.string :abn
         t.string :gst_number

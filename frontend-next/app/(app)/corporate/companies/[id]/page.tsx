@@ -57,13 +57,13 @@ import { Spinner } from "@/components/ui/spinner";
 // Shared types for corporate entities (SSoT for Company type)
 import type { Corporate } from "@/lib/types/corporate";
 
-// SSoT: Using unified EntityTabs API directly (Phase 5 - no adapter hooks)
-import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
+// SSoT: Using unified WarehouseFolders API directly (Phase 5 - no adapter hooks)
+import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import { getIcon } from "@/lib/icon-map";
 
 // =============================================================================
 // TAB CONFIGURATION
-// SSoT: GET /api/v1/entity_tabs?scope=corporate (EntityTab model)
+// SSoT: GET /api/v1/warehouse_folders?scope=corporate (WarehouseFolder model)
 // Xero tabs are children of the Xero tab in corporate scope (SSoT)
 // Manage via: Admin > System > Entity Configuration
 // Phase 5 Migration: Using XeroTabRenderer for dynamic Xero tab rendering
@@ -173,8 +173,8 @@ export default function CompanyDetailPage() {
     return entityType;
   }, [company]);
 
-  // SSoT: Using unified EntityTabs API directly (Phase 5 - no adapter hooks)
-  const { tabs: entityTabs } = useEntityTabs({
+  // SSoT: Using unified WarehouseFolders API directly (Phase 5 - no adapter hooks)
+  const { tabs: entityTabs } = useWarehouseFolders({
     scope: "corporate",
     entityType: normalizedEntityType,
   });

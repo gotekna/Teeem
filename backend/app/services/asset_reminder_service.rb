@@ -30,7 +30,7 @@ class AssetReminderService
       target_date = @today + days_before.days
 
       insurances = AssetInsurance
-        .includes(asset: :corporate_company)
+        .includes(asset: :corporate)
         .where(status: "active")
         .where(renewal_date: target_date)
 
@@ -42,7 +42,7 @@ class AssetReminderService
     end
 
     # Overdue insurance
-    overdue_insurances = AssetInsurance.overdue.includes(asset: :corporate_company)
+    overdue_insurances = AssetInsurance.overdue.includes(asset: :corporate)
     overdue_insurances.each do |insurance|
       if send_insurance_overdue_reminder(insurance)
         sent_count += 1
@@ -96,7 +96,7 @@ class AssetReminderService
     send_email(recipients, subject, body)
 
     # Log activity
-    insurance.asset.company.corporate_company_activities.create!(
+    insurance.asset.company.corporate_activities.create!(
       activity_type: "insurance_reminder_sent",
       description: "Insurance renewal reminder sent for #{insurance.asset.name}",
       metadata: {
@@ -127,7 +127,7 @@ class AssetReminderService
     send_email(recipients, subject, body)
 
     # Log activity
-    insurance.asset.company.corporate_company_activities.create!(
+    insurance.asset.company.corporate_activities.create!(
       activity_type: "insurance_overdue_reminder_sent",
       description: "Insurance overdue reminder sent for #{insurance.asset.name}",
       metadata: {
@@ -155,7 +155,7 @@ class AssetReminderService
     send_email(recipients, subject, body)
 
     # Log activity
-    asset.company.corporate_company_activities.create!(
+    asset.company.corporate_activities.create!(
       activity_type: "service_reminder_sent",
       description: "Service reminder sent for #{asset.name}",
       metadata: {
@@ -184,7 +184,7 @@ class AssetReminderService
     send_email(recipients, subject, body)
 
     # Log activity
-    asset.company.corporate_company_activities.create!(
+    asset.company.corporate_activities.create!(
       activity_type: "service_overdue_reminder_sent",
       description: "Service overdue reminder sent for #{asset.name}",
       metadata: {

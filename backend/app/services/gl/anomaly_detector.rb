@@ -26,8 +26,8 @@ module Gl
       round_number
     ].freeze
 
-    def initialize(corporate_company)
-      @company = corporate_company
+    def initialize(corporate)
+      @company = corporate
     end
 
     # Scan all recent transactions for anomalies
@@ -255,7 +255,7 @@ module Gl
 
       # Get journal entry lines (most detailed)
       JournalEntry
-        .where(corporate_company: @company)
+        .where(corporate: @company)
         .where("entry_date >= ?", start_date)
         .includes(:lines, :contact)
         .flat_map(&:lines)
@@ -265,7 +265,7 @@ module Gl
 
     def transactions_in_range(start_date, end_date)
       JournalEntry
-        .where(corporate_company: @company)
+        .where(corporate: @company)
         .where(entry_date: start_date..end_date)
         .includes(:lines, :contact)
         .flat_map(&:lines)
@@ -286,7 +286,7 @@ module Gl
 
     def contact_account_history(contact, account)
       JournalEntry
-        .where(corporate_company: @company, contact: contact)
+        .where(corporate: @company, contact: contact)
         .joins(:lines)
         .where(journal_entry_lines: { gl_account_id: account.id })
         .limit(10)
@@ -295,14 +295,14 @@ module Gl
     end
 
     def contact_transaction_count(contact)
-      JournalEntry.where(corporate_company: @company, contact: contact).count
+      JournalEntry.where(corporate: @company, contact: contact).count
     rescue StandardError
       0
     end
 
     def same_day_transactions_count(contact, date)
       JournalEntry
-        .where(corporate_company: @company, contact: contact, entry_date: date)
+        .where(corporate: @company, contact: contact, entry_date: date)
         .count
     rescue StandardError
       0
@@ -314,7 +314,7 @@ module Gl
       tolerance = amount.abs * 0.01 # 1% tolerance
 
       JournalEntry
-        .where(corporate_company: @company, contact: contact)
+        .where(corporate: @company, contact: contact)
         .where(entry_date: start_date..end_date)
         .joins(:lines)
         .where("ABS(journal_entry_lines.debit + journal_entry_lines.credit - ?) <= ?", amount.abs, tolerance)

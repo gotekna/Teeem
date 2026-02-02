@@ -116,7 +116,7 @@ class JobActivity < ApplicationRecord
           po_number: purchase_order.purchase_order_number,
           total: purchase_order.total,
           supplier_id: purchase_order.supplier_id,
-          supplier_name: purchase_order.contact&.display_name
+          supplier_name: purchase_order.supplier&.display_name
         }
       )
     end
@@ -136,13 +136,13 @@ class JobActivity < ApplicationRecord
       log(
         job: job,
         activity_type: "purchase_order_sent",
-        description: "Purchase Order #{purchase_order.purchase_order_number} sent to #{purchase_order.contact&.display_name || 'supplier'}",
+        description: "Purchase Order #{purchase_order.purchase_order_number} sent to #{purchase_order.supplier&.display_name || 'supplier'}",
         user: user,
         related: purchase_order,
         related_url: document_url,
         metadata: {
           po_number: purchase_order.purchase_order_number,
-          supplier_name: purchase_order.contact&.display_name,
+          supplier_name: purchase_order.supplier&.display_name,
           document_url: document_url
         }
       )

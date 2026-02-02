@@ -4,7 +4,7 @@ class CreateGlApprovalWorkflows < ActiveRecord::Migration[7.1]
   def change
     # Approval workflow templates
     create_table :gl_approval_workflows do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :created_by, foreign_key: { to_table: :users }
 
       t.string :name, null: false
@@ -22,7 +22,7 @@ class CreateGlApprovalWorkflows < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_approval_workflows, [:corporate_company_id, :document_type, :active],
+    add_index :gl_approval_workflows, [:corporate_id, :document_type, :active],
               name: "idx_approval_workflows_type"
 
     # Workflow steps (multi-level)
@@ -52,7 +52,7 @@ class CreateGlApprovalWorkflows < ActiveRecord::Migration[7.1]
 
     # Approval requests (instances of approvals)
     create_table :gl_approval_requests do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :workflow, foreign_key: { to_table: :gl_approval_workflows }
       t.references :requested_by, foreign_key: { to_table: :users }
 
@@ -76,7 +76,7 @@ class CreateGlApprovalWorkflows < ActiveRecord::Migration[7.1]
 
     add_index :gl_approval_requests, [:approvable_type, :approvable_id],
               name: "idx_approval_requests_approvable"
-    add_index :gl_approval_requests, [:corporate_company_id, :status],
+    add_index :gl_approval_requests, [:corporate_id, :status],
               name: "idx_approval_requests_status"
 
     # Individual step approvals

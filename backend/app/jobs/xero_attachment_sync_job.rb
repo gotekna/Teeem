@@ -6,7 +6,7 @@
 # SSoT Architecture (Jan 2026):
 # - WarehouseDocument is THE ONE for all Xero document metadata
 # - StorageBlob handles deduplication and flat Blobs/ storage
-# - EntityTab + DocumentType define folder structure (no hardcoding)
+# - WarehouseFolder + DocumentType define folder structure (no hardcoding)
 #
 # Rate Limit Handling:
 # - Checks XeroRateLimitTracker for Xero-enforced lockouts before processing

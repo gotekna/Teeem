@@ -8,7 +8,7 @@ module Gl
     EXPENSE_TYPES = %w[travel materials equipment subcontractor meals accommodation other].freeze
     STATUSES = %w[pending approved billed paid written_off].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :job
     belongs_to :contact, optional: true
     belongs_to :user, optional: true

@@ -4,7 +4,7 @@ class CreateGlConstructionFeatures < ActiveRecord::Migration[7.1]
   def change
     # ===== LIEN WAIVERS =====
     create_table :gl_lien_waivers do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :job, null: false, foreign_key: true
       t.references :contact, null: false, foreign_key: true  # Subcontractor
       t.references :progress_claim, foreign_key: { to_table: :gl_progress_claims }
@@ -28,13 +28,13 @@ class CreateGlConstructionFeatures < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_lien_waivers, [:corporate_company_id, :job_id, :contact_id],
+    add_index :gl_lien_waivers, [:corporate_id, :job_id, :contact_id],
               name: "idx_lien_waivers_job_contact"
     add_index :gl_lien_waivers, [:status], name: "idx_lien_waivers_status"
 
     # ===== CHANGE ORDERS =====
     create_table :gl_change_orders do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :job, null: false, foreign_key: true
       t.references :contact, foreign_key: true  # Client
       t.references :requested_by, foreign_key: { to_table: :users }
@@ -68,7 +68,7 @@ class CreateGlConstructionFeatures < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_change_orders, [:corporate_company_id, :job_id, :change_order_number],
+    add_index :gl_change_orders, [:corporate_id, :job_id, :change_order_number],
               unique: true, name: "idx_change_orders_number"
     add_index :gl_change_orders, [:status], name: "idx_change_orders_status"
 
@@ -91,7 +91,7 @@ class CreateGlConstructionFeatures < ActiveRecord::Migration[7.1]
 
     # ===== EQUIPMENT COSTING =====
     create_table :gl_equipment do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
 
       t.string :equipment_number, null: false
       t.string :name, null: false
@@ -125,7 +125,7 @@ class CreateGlConstructionFeatures < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_equipment, [:corporate_company_id, :equipment_number],
+    add_index :gl_equipment, [:corporate_id, :equipment_number],
               unique: true, name: "idx_equipment_number"
     add_index :gl_equipment, [:status], name: "idx_equipment_status"
 

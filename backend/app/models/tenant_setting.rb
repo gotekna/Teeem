@@ -171,7 +171,7 @@ class TenantSetting < ApplicationRecord
   # =============================================================================
 
   # Resolve template placeholders with provided values
-  # Used by EntityTab and DocumentMigrationJob
+  # Used by WarehouseFolder and DocumentMigrationJob
   def self.resolve_template(template, values)
     result = template.dup
     values.each do |key, value|

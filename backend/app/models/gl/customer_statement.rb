@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[generated sent viewed].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :contact
     belongs_to :generated_by, class_name: "User", optional: true
 
@@ -29,7 +29,7 @@ module Gl
       period_start ||= as_of.beginning_of_month
 
       statement = create!(
-        corporate_company: contact.corporate_company,
+        corporate: contact.corporate,
         contact: contact,
         statement_date: as_of,
         period_start: period_start,
@@ -123,7 +123,7 @@ module Gl
 
       year = Date.current.year.to_s[-2..]
       month = Date.current.strftime("%m")
-      sequence = self.class.where(corporate_company_id: corporate_company_id)
+      sequence = self.class.where(company_id: company_id)
                            .where("reference LIKE ?", "STMT#{year}#{month}%")
                            .count + 1
 

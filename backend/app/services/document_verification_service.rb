@@ -222,7 +222,7 @@ class DocumentVerificationService
 
   def initialize(document)
     @document = document
-    @company = document.corporate_company
+    @company = document.corporate
   end
 
   def verify!
@@ -784,8 +784,8 @@ class DocumentVerificationService
   end
 
   def build_document_types_section
-    # Get document types from database (folder is computed from primary EntityTab)
-    doc_types = DocumentType.active.includes(entity_tab_document_types: :entity_tab).order(:name)
+    # Get document types from database (folder is computed from primary WarehouseFolder)
+    doc_types = DocumentType.active.includes(warehouse_folder_document_types: :warehouse_folder).order(:name)
 
     if doc_types.any?
       # Group by computed folder for better organization

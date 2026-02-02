@@ -41,8 +41,8 @@ module Api
         @tasks = @tasks.visible_to(current_user)
 
         # Apply filters
-        @tasks = @tasks.where(construction_id: params[:job_id]) if params[:job_id].present?
-        @tasks = @tasks.where(construction_id: params[:job_ids]) if params[:job_ids].present?
+        @tasks = @tasks.where(job_id: params[:job_id]) if params[:job_id].present?
+        @tasks = @tasks.where(job_id: params[:job_ids]) if params[:job_ids].present?
         @tasks = @tasks.where(assigned_user_id: params[:assigned_user_id]) if params[:assigned_user_id].present?
         @tasks = @tasks.where(status: params[:statuses]) if params[:statuses].present?
         @tasks = @tasks.by_trade(params[:trade]) if params[:trade].present?
@@ -853,7 +853,7 @@ module Api
         # Add job context
         if @task.job.present?
           case_attrs[:contact_id] = @task.job.client_id
-          case_attrs[:company_id] = @task.job.corporate_company_id
+          case_attrs[:company_id] = @task.job.corporate_id
         end
 
         @case = CaseRecord.new(case_attrs)
@@ -3213,7 +3213,7 @@ module Api
 
       def task_to_json_with_job(task)
         json = task_to_json(task)
-        json[:job_id] = task.construction_id
+        json[:job_id] = task.job_id
         json[:job_name] = task.job&.name || "Unknown Job"
         json[:is_critical_path] = false # Placeholder - would need critical path calculation
         json[:blockers] = task.is_hold_task ? [ task.hold_notes ].compact : []
@@ -3258,7 +3258,7 @@ module Api
       def task_to_json(task, include_dependencies: false)
         json = {
           id: task.id,
-          construction_id: task.construction_id,
+          construction_id: task.job_id,
           job_name: task.job&.name || "Unknown Job",
           task_number: task.task_number,
           name: task.name,

@@ -78,16 +78,19 @@ class UserDocument < ApplicationRecord
     CATEGORIES[category] || :users
   end
 
-  # SSoT: Get the EntityTab from DocumentType (primary_entity_tab method)
+  # SSoT: Get the WarehouseFolder from DocumentType (primary_warehouse_folder method)
   # This provides the folder name and storage_folder_path template
-  def effective_entity_tab
-    document_type&.primary_entity_tab
+  def effective_warehouse_folder
+    document_type&.primary_warehouse_folder
   end
 
-  # SSoT: Get the storage folder path template from EntityTab
+  # DEPRECATED: Use effective_warehouse_folder (Jan 2026)
+  alias_method :effective_entity_tab, :effective_warehouse_folder
+
+  # SSoT: Get the storage folder path template from WarehouseFolder
   # This is the database-stored template, NOT a hardcoded constant
   def storage_folder_template
-    effective_entity_tab&.storage_folder_path
+    effective_warehouse_folder&.storage_folder_path
   end
 
   # ========================================
@@ -166,7 +169,7 @@ class UserDocument < ApplicationRecord
 
   # SSoT: Default tokens for storage path template
   # Path is built from:
-  # 1. EntityTab.storage_folder_path template (from database, NOT hardcoded)
+  # 1. WarehouseFolder.storage_folder_path template (from database, NOT hardcoded)
   # 2. Tokens expanded from this method
   #
   # Category determines base folder:
@@ -174,17 +177,17 @@ class UserDocument < ApplicationRecord
   # - contracts: /Users/Contracts/{UserName}/filename
   # - my_docs: /Users/MyDocs/{UserName}/filename
   def default_storage_tokens
-    entity_tab = effective_entity_tab
+    warehouse_folder = effective_warehouse_folder
 
     {
       # User tokens
       UserName: sanitize_path_component(user&.name || "Unknown"),
       UserEmail: user&.email,
 
-      # Tab tokens (from EntityTab - SSoT for folder structure)
-      TabName: entity_tab&.display_name || folder || category&.titleize || "Documents",
-      TabKey: entity_tab&.tab_key,
-      SubTabName: entity_tab&.parent&.display_name,
+      # Tab tokens (from WarehouseFolder - SSoT for folder structure)
+      TabName: warehouse_folder&.display_name || folder || category&.titleize || "Documents",
+      TabKey: warehouse_folder&.tab_key,
+      SubTabName: warehouse_folder&.parent&.display_name,
 
       # DocumentType tokens
       DocTypeCode: document_type&.code,

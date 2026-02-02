@@ -36,11 +36,11 @@ interface Transaction {
   transaction_date: string;
   description?: string;
   category?: string;
-  construction_id?: number;
+  job_id?: number;
   status: string;
-  construction?: Construction;
+  job?: Construction;
   user?: User;
-  construction_name?: string;
+  job_name?: string;
   user_name?: string;
   [key: string]: unknown; // Index signature for TableRow compatibility
 }
@@ -135,7 +135,7 @@ export default function FinancialTransactionsPage() {
         // Transform data to include computed fields for TeeemTableView
         const transformedData = response.transactions.map((t) => ({
           ...t,
-          construction_name: t.construction?.name || "N/A",
+          job_name: t.job?.name || "N/A",
           user_name: t.user
             ? `${t.user.first_name} ${t.user.last_name}`
             : "Unknown",
@@ -183,8 +183,8 @@ export default function FinancialTransactionsPage() {
             t.id === response.transaction.id
               ? {
                   ...response.transaction,
-                  construction_name:
-                    response.transaction.construction?.name || "N/A",
+                  job_name:
+                    response.transaction.job?.name || "N/A",
                   user_name: response.transaction.user
                     ? `${response.transaction.user.first_name} ${response.transaction.user.last_name}`
                     : "Unknown",

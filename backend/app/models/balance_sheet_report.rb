@@ -27,7 +27,7 @@
 #  updated_at           :datetime         not null
 #
 class BalanceSheetReport < ApplicationRecord
-  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+  belongs_to :corporate, foreign_key: "company_id"
   belongs_to :document_type, optional: true
 
   # Validations
@@ -99,7 +99,7 @@ class BalanceSheetReport < ApplicationRecord
     update!(status: "generating", error_message: nil)
 
     begin
-      connection = corporate_company.company_xero_connection
+      connection = corporate.company_xero_connection
       raise "Company is not connected to Xero" unless connection&.connected?
 
       # Fetch Balance Sheet from Xero
@@ -262,7 +262,7 @@ class BalanceSheetReport < ApplicationRecord
   def template_context
     {
       company_code: company_code,
-      company_name: corporate_company&.name,
+      company_name: corporate&.name,
       doc_type_name: document_type&.name || "Balance Sheet",
       doc_type_code: document_type&.abbreviation || "BS",
       financial_year: financial_year,

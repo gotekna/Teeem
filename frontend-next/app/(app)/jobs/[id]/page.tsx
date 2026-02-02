@@ -14,8 +14,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { HierarchicalTabsList } from "@/components/ui/hierarchical-tabs-list";
-// SSoT: Using unified EntityTabs API directly (Phase 5 - no adapter hooks)
-import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
+// SSoT: Using unified WarehouseFolders API directly (Phase 5 - no adapter hooks)
+import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { BackButton } from "@/components/ui/back-button";
 import {
@@ -69,7 +69,7 @@ import dynamic from "next/dynamic";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { JobSpreadsheetsSection } from "@/components/jobs/JobSpreadsheetsSection";
-import type { EntityTab } from "@/lib/types/entity-tabs";
+import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 
 // =============================================================================
 // LAZY LOADED TAB COMPONENTS - Performance optimization
@@ -743,8 +743,8 @@ export default function JobDetailPage() {
   const [job, setJob] = React.useState<Job | null>(null);
   const [loading, setLoading] = React.useState(true);
 
-  // Dynamic job tabs configuration - SSoT: unified EntityTabs API directly (Phase 5)
-  const { tabs: jobTabs, loading: tabsLoading } = useEntityTabs({ scope: "job" });
+  // Dynamic job tabs configuration - SSoT: unified WarehouseFolders API directly (Phase 5)
+  const { tabs: jobTabs, loading: tabsLoading } = useWarehouseFolders({ scope: "job" });
 
   // User tab preferences (visibility, order, default tab)
   const {
@@ -922,7 +922,7 @@ export default function JobDetailPage() {
   // Includes parent tabs + all children, excluding special tabs (overview, whs, plans)
   // Children get a compositeKey (parent__child) to prevent tab_key collisions
   const allDynamicTabs = React.useMemo(() => {
-    const tabs: (EntityTab & { compositeKey?: string })[] = [];
+    const tabs: (WarehouseFolder & { compositeKey?: string })[] = [];
     for (const tab of visibleJobTabs) {
       // Add parent tab if it has a registered component and isn't special
       if (!SPECIAL_TABS.includes(tab.tab_key) && JOB_TAB_COMPONENTS[tab.tab_key]) {
@@ -1763,7 +1763,7 @@ export default function JobDetailPage() {
           </div>
         </TabsContent>
 
-        {/* SSoT: Dynamic tab rendering from EntityTabs + JOB_TAB_COMPONENTS registry */}
+        {/* SSoT: Dynamic tab rendering from WarehouseFolders + JOB_TAB_COMPONENTS registry */}
         {/* Child tabs use compositeKey (parent__child) to prevent tab_key collisions */}
         {allDynamicTabs.map((tab) => {
           // SSoT: Use compositeKey for children to prevent collision with same-named parent tabs
@@ -1789,11 +1789,11 @@ export default function JobDetailPage() {
           // 2. Document categories with SharePoint (folder_path set) - shows document viewer
           if (tab.is_photo_category || tab.folder_path) {
             // SSoT: Find parent tab to pass its children as categories
-            // This eliminates duplicate API call - parent already has the data from useEntityTabs
+            // This eliminates duplicate API call - parent already has the data from useWarehouseFolders
             const parentTab = visibleJobTabs.find(p =>
               p.children?.some(c => c.tab_key === tab.tab_key)
             );
-            // Convert EntityTab children to DocumentCategory format
+            // Convert WarehouseFolder children to DocumentCategory format
             const categories = parentTab?.children?.map(c => ({
               id: c.id,
               tab_key: c.tab_key,
@@ -1827,7 +1827,7 @@ export default function JobDetailPage() {
           // Look up component from registry
           const Component = JOB_TAB_COMPONENTS[tab.tab_key];
           if (!Component) {
-            // Tab exists in EntityTabs but no component registered - show placeholder
+            // Tab exists in WarehouseFolders but no component registered - show placeholder
             return (
               <TabsContent key={tabValue} value={tabValue} className="mt-4">
                 <Card>

@@ -90,7 +90,7 @@ module Gl
     # @param accepted [Boolean] Whether the user accepted the AI suggestion
     def record_feedback(transaction:, ai_suggestion:, user_choice:, accepted:)
       Gl::AiCategorizationLearning.create!(
-        corporate_company: company,
+        corporate: company,
         transaction_description: normalize_description(transaction[:description]),
         transaction_amount_type: transaction[:amount].to_d >= 0 ? "credit" : "debit",
         transaction_reference: transaction[:reference],
@@ -173,7 +173,7 @@ module Gl
     def build_accounts_context
       # Cache the accounts context to reduce DB queries
       Rails.cache.fetch("ai_categorization_accounts_#{company.id}", expires_in: CONTEXT_CACHE_TTL) do
-        accounts = Gl::Account.where(corporate_company: company)
+        accounts = Gl::Account.where(corporate: company)
                               .active
                               .where(account_type: %w[revenue expense])
                               .ordered
@@ -186,7 +186,7 @@ module Gl
     def build_learning_context(transaction)
       # Find similar past transactions and what accounts they were assigned to
       similar = Gl::AiCategorizationLearning
-        .where(corporate_company: company)
+        .where(corporate: company)
         .where(was_accepted: true)
         .where(transaction_amount_type: transaction[:amount].to_d >= 0 ? "credit" : "debit")
         .order(feedback_date: :desc)
@@ -231,7 +231,7 @@ module Gl
       return nil unless account_code.present?
 
       # Find the account
-      account = Gl::Account.where(corporate_company: company)
+      account = Gl::Account.where(corporate: company)
                            .active
                            .find_by(code: account_code)
 
@@ -259,7 +259,7 @@ module Gl
 
     def rate_limit_exceeded?
       recent_count = Gl::AiCategorizationAttempt
-        .where(corporate_company: company)
+        .where(corporate: company)
         .where("created_at > ?", RATE_LIMIT_PERIOD.ago)
         .count
 
@@ -268,7 +268,7 @@ module Gl
 
     def record_ai_attempt(transaction, result)
       Gl::AiCategorizationAttempt.create!(
-        corporate_company: company,
+        corporate: company,
         transaction_description: transaction[:description]&.first(500),
         transaction_amount: transaction[:amount],
         suggested_account_id: result&.dig(:account_id),

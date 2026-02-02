@@ -55,8 +55,8 @@ namespace :sync_storage_config do
       sc.update!(warehouse_folders: warehouse_folders)
       puts "  Updated #{warehouse_folders.keys.count} warehouse_folders paths"
 
-      # Fix EntityTab display names (match by tab_key since IDs may differ)
-      puts "\nFixing EntityTab display names..."
+      # Fix WarehouseFolder display names (match by tab_key since IDs may differ)
+      puts "\nFixing WarehouseFolder display names..."
 
       tab_fixes = {
         "chat" => { display_name: "Chat" },
@@ -64,7 +64,7 @@ namespace :sync_storage_config do
       }
 
       tab_fixes.each do |tab_key, attrs|
-        tab = EntityTab.find_by(tab_key: tab_key)
+        tab = WarehouseFolder.find_by(tab_key: tab_key)
         if tab
           old_name = tab.display_name
           tab.update!(attrs)

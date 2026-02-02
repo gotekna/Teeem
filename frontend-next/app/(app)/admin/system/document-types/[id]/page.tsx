@@ -257,7 +257,7 @@ export default function DocumentTypeDetailPage() {
 
         for (const scopeCfg of scopeConfig) {
           try {
-            const scopeData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${scopeCfg.apiScope}`);
+            const scopeData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/warehouse_folders?scope=${scopeCfg.apiScope}`);
             if (scopeData.success && scopeData.data?.tabs) {
               // Filter to tabs that can store documents
               const documentTabs = scopeData.data.tabs.filter((t: any) => t.has_storage_folder || t.tab_group === 'documents');

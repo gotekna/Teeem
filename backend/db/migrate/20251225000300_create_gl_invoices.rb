@@ -6,7 +6,7 @@ class CreateGlInvoices < ActiveRecord::Migration[8.0]
     # GL INVOICES - Sales Invoices and Bills
     # ═══════════════════════════════════════════════════════════════
     create_table :gl_invoices do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
 
       # External provider linking (nullable - works for ANY provider or standalone)
       t.string :external_provider         # 'xero', 'quickbooks', 'myob', nil (standalone)
@@ -68,8 +68,8 @@ class CreateGlInvoices < ActiveRecord::Migration[8.0]
 
       t.index [ :external_provider, :external_tenant_id, :external_invoice_id ],
               name: 'idx_gl_invoices_external', unique: true
-      t.index [ :corporate_company_id, :invoice_type, :status ], name: 'idx_gl_inv_company_type_status'
-      t.index [ :corporate_company_id, :invoice_date ], name: 'idx_gl_inv_company_date'
+      t.index [ :corporate_id, :invoice_type, :status ], name: 'idx_gl_inv_company_type_status'
+      t.index [ :corporate_id, :invoice_date ], name: 'idx_gl_inv_company_date'
       t.index [ :contact_id, :invoice_type ], name: 'idx_gl_inv_contact_type'
       t.index :pending_push, name: 'idx_gl_inv_pending_push'
     end
@@ -119,7 +119,7 @@ class CreateGlInvoices < ActiveRecord::Migration[8.0]
     # GL PAYMENTS - Payment records
     # ═══════════════════════════════════════════════════════════════
     create_table :gl_payments do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
 
       # External provider linking
       t.string :external_provider
@@ -165,7 +165,7 @@ class CreateGlInvoices < ActiveRecord::Migration[8.0]
 
       t.index [ :external_provider, :external_tenant_id, :external_payment_id ],
               name: 'idx_gl_payments_external', unique: true
-      t.index [ :corporate_company_id, :payment_type, :payment_date ], name: 'idx_gl_pay_company_type_date'
+      t.index [ :corporate_id, :payment_type, :payment_date ], name: 'idx_gl_pay_company_type_date'
       t.index :contact_id, name: 'idx_gl_pay_contact'
       t.index :gl_journal_entry_id, name: 'idx_gl_pay_journal'
     end

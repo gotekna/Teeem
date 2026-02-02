@@ -1,6 +1,6 @@
 class MinuteTemplate < ApplicationRecord
   # Associations
-  has_many :corporate_company_minutes, dependent: :nullify
+  has_many :corporate_minutes, dependent: :nullify
 
   # Validations
   validates :name, presence: true, uniqueness: true

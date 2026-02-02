@@ -1,7 +1,7 @@
 class CreateCompanyApprovalRules < ActiveRecord::Migration[8.0]
   def change
     create_table :company_approval_rules do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
 
       t.string :rule_type, null: false  # bill_approval, payment_batch, po_variance, workflow_config
       t.string :name, null: false
@@ -35,7 +35,7 @@ class CreateCompanyApprovalRules < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :company_approval_rules, [ :corporate_company_id, :rule_type, :is_active ],
+    add_index :company_approval_rules, [ :corporate_id, :rule_type, :is_active ],
               name: 'idx_approval_rules_company_type_active'
     add_index :company_approval_rules, :priority
     add_foreign_key :company_approval_rules, :users, column: :approver_id

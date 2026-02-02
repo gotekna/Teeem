@@ -8,11 +8,11 @@ module Gl
     # into double-entry journal entries.
     #
     class Base
-      attr_reader :source, :corporate_company
+      attr_reader :source, :corporate
 
       def initialize(source)
         @source = source
-        @corporate_company = source.corporate_company
+        @corporate = source.corporate
       end
 
       # Create the journal entry - subclasses must implement
@@ -24,13 +24,13 @@ module Gl
 
       # Find the appropriate period for a date
       def period_for(date)
-        Gl::Period.find_or_create_for_date(corporate_company, date)
+        Gl::Period.find_or_create_for_date(corporate, date)
       end
 
       # Find account by system account type
       def find_system_account(system_type)
         Gl::Account.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           system_account: system_type,
           active: true
         )
@@ -41,7 +41,7 @@ module Gl
         return nil if code.blank?
 
         Gl::Account.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           code: code,
           active: true
         )
@@ -52,7 +52,7 @@ module Gl
         return nil if id.blank?
 
         Gl::Account.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           id: id,
           active: true
         )
@@ -92,7 +92,7 @@ module Gl
       def create_journal_entry(attrs = {})
         Gl::JournalEntry.new(
           {
-            corporate_company: corporate_company,
+            corporate: corporate,
             status: 'posted',
             currency_code: 'AUD',
             exchange_rate: 1.0

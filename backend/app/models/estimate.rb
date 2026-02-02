@@ -3,7 +3,7 @@ class Estimate < ApplicationRecord
   acts_as_tenant :tenant
 
   # Associations
-  belongs_to :construction, optional: true
+  belongs_to :job, optional: true
   has_many :estimate_line_items, dependent: :destroy
   has_many :purchase_orders, dependent: :nullify
   has_many :estimate_reviews, dependent: :destroy
@@ -36,9 +36,9 @@ class Estimate < ApplicationRecord
     matched_automatically == true
   end
 
-  def match_to_construction!(construction, confidence_score = nil)
+  def match_to_job!(job, confidence_score = nil)
     update!(
-      construction: construction,
+      job: job,
       status: :matched,
       match_confidence_score: confidence_score,
       matched_automatically: confidence_score.present?

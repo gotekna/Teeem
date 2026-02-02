@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :gl_currency, class_name: 'Gl::Currency'
 
     # Delegate
@@ -25,7 +25,7 @@ module Gl
     validates :rate, presence: true, numericality: { greater_than: 0 }
     validates :source, inclusion: { in: SOURCES }, allow_blank: true
     validates :effective_date, uniqueness: {
-      scope: [:corporate_company_id, :gl_currency_id],
+      scope: [:corporate_id, :gl_currency_id],
       message: 'already has a rate for this currency'
     }
 
@@ -52,9 +52,9 @@ module Gl
       end
 
       # Set rate for a currency on a date
-      def set_rate(corporate_company, currency, date, rate, source: 'manual')
+      def set_rate(corporate, currency, date, rate, source: 'manual')
         find_or_initialize_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           gl_currency: currency,
           effective_date: date
         ).tap do |er|
@@ -65,15 +65,15 @@ module Gl
       end
 
       # Import rates from an external source
-      def import_rates(corporate_company, rates_hash, date: Date.current, source: 'manual')
+      def import_rates(corporate, rates_hash, date: Date.current, source: 'manual')
         rates_hash.each do |currency_code, rate|
           currency = Gl::Currency.find_by(
-            corporate_company: corporate_company,
+            corporate: corporate,
             code: currency_code.to_s.upcase
           )
           next unless currency
 
-          set_rate(corporate_company, currency, date, rate, source: source)
+          set_rate(corporate, currency, date, rate, source: source)
         end
       end
     end
@@ -122,7 +122,7 @@ module Gl
 
     # Display string
     def display_rate
-      "1 #{currency_code} = #{rate.round(6)} #{corporate_company.base_currency_code || 'AUD'}"
+      "1 #{currency_code} = #{rate.round(6)} #{corporate.base_currency_code || 'AUD'}"
     end
   end
 end

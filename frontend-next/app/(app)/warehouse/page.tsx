@@ -217,7 +217,7 @@ interface ScopeFolders {
 }
 
 // SSoT: Entity Tab structure from Entity Configurator
-interface EntityTabFolder {
+interface WarehouseTabFolder {
   id: number;
   display_name: string;
   scope: string;
@@ -225,7 +225,7 @@ interface EntityTabFolder {
   icon: string | null;
   is_enabled: boolean;
   document_count?: number;
-  children?: EntityTabFolder[];
+  children?: WarehouseTabFolder[];
 }
 
 // Icon mapping for all storage scopes - matches WarehouseProvider.SCOPE_FOLDERS
@@ -428,9 +428,9 @@ export default function AllDocumentsPage() {
 
   // SSoT: All configured folders from Entity Configurator
   const [entityFolders, setEntityFolders] = useState<{
-    job: EntityTabFolder[];
-    corporate: EntityTabFolder[];
-    contact: EntityTabFolder[];
+    job: WarehouseTabFolder[];
+    corporate: WarehouseTabFolder[];
+    contact: WarehouseTabFolder[];
   }>({ job: [], corporate: [], contact: [] });
 
   // SSoT: Scope hierarchies from /api/v1/documents/scope_hierarchy
@@ -536,9 +536,9 @@ export default function AllDocumentsPage() {
       try {
         // Fetch folders for all scopes in parallel
         const [jobRes, corpRes, contactRes] = await Promise.all([
-          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=job&include_disabled=false"),
-          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=corporate&include_disabled=false"),
-          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=contact&include_disabled=false"),
+          api.get<{ success: boolean; data: { tabs: WarehouseTabFolder[] } }>("/api/v1/warehouse_folders?scope=job&include_disabled=false"),
+          api.get<{ success: boolean; data: { tabs: WarehouseTabFolder[] } }>("/api/v1/warehouse_folders?scope=corporate&include_disabled=false"),
+          api.get<{ success: boolean; data: { tabs: WarehouseTabFolder[] } }>("/api/v1/warehouse_folders?scope=contact&include_disabled=false"),
         ]);
 
         setEntityFolders({

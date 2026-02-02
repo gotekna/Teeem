@@ -4,7 +4,7 @@ class CreateGlCustomerPortal < ActiveRecord::Migration[7.1]
   def change
     # Customer portal access tokens
     create_table :gl_portal_tokens do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :contact, null: false, foreign_key: true
 
       t.string :token, null: false
@@ -42,7 +42,7 @@ class CreateGlCustomerPortal < ActiveRecord::Migration[7.1]
 
     # Customer statements
     create_table :gl_customer_statements do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :contact, null: false, foreign_key: true
       t.references :generated_by, foreign_key: { to_table: :users }
 
@@ -75,7 +75,7 @@ class CreateGlCustomerPortal < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_customer_statements, [:corporate_company_id, :contact_id, :statement_date],
+    add_index :gl_customer_statements, [:corporate_id, :contact_id, :statement_date],
               name: "idx_statements_contact_date"
 
     # Statement line items
@@ -97,7 +97,7 @@ class CreateGlCustomerPortal < ActiveRecord::Migration[7.1]
 
     # Direct debit mandates
     create_table :gl_direct_debit_mandates do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :contact, null: false, foreign_key: true
 
       t.string :mandate_reference, null: false
@@ -127,7 +127,7 @@ class CreateGlCustomerPortal < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_direct_debit_mandates, [:corporate_company_id, :mandate_reference],
+    add_index :gl_direct_debit_mandates, [:corporate_id, :mandate_reference],
               unique: true, name: "idx_dd_mandates_ref"
     add_index :gl_direct_debit_mandates, [:contact_id, :status],
               name: "idx_dd_mandates_contact"

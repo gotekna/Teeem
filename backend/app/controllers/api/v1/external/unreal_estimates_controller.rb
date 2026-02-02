@@ -27,32 +27,32 @@ module Api
               end
             end
 
-            # Try to match to a construction job
+            # Try to match to a job
             matcher_result = JobMatcherService.new(params[:job_name]).call
 
             if matcher_result[:success]
               case matcher_result[:status]
               when :auto_matched
                 matched_job = matcher_result[:matched_job]
-                construction = Job.find(matched_job[:id])
-                estimate.match_to_construction!(construction, matched_job[:confidence_score])
+                job = Job.find(matched_job[:id])
+                estimate.match_to_job!(job, matched_job[:confidence_score])
 
                 estimate.save!
 
                 # Trigger OneDrive folder creation if not already created
-                construction.create_folders_if_needed!
+                job.create_folders_if_needed!
 
                 render json: {
                   success: true,
                   estimate_id: estimate.id,
                   matched_job: {
-                    id: construction.id,
-                    title: construction.title,
+                    id: job.id,
+                    title: job.title,
                     confidence_score: matched_job[:confidence_score]
                   },
                   status: "matched",
                   total_items: estimate.total_items,
-                  message: "Estimate matched to job ##{construction.id} with #{matched_job[:confidence_score].round(1)}% confidence"
+                  message: "Estimate matched to job ##{job.id} with #{matched_job[:confidence_score].round(1)}% confidence"
                 }, status: :created
 
               when :suggest_candidates

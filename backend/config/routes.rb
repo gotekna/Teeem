@@ -457,7 +457,7 @@ Rails.application.routes.draw do
 
       # User files from S3 (must be before resources :documents to avoid :id match)
       get "documents/user_files", to: "documents#user_files"
-      # SSoT: Unified endpoint for EntityTab folder files (job, corporate, contact)
+      # SSoT: Unified endpoint for WarehouseFolder folder files (job, corporate, contact)
       get "documents/folder_files", to: "documents#folder_files"
       # Legacy alias for corporate folders
       get "documents/corporate_folder_files", to: "documents#folder_files"
@@ -1632,7 +1632,7 @@ Rails.application.routes.draw do
         end
       end
 
-      # NOTE: folder_templates routes removed - SSoT: EntityTab is now the source of truth for folder structure
+      # NOTE: folder_templates routes removed - SSoT: WarehouseFolder is now the source of truth for folder structure
 
       # Setup data management
       post "setup/pull_from_local", to: "setup#pull_from_local"
@@ -3030,9 +3030,9 @@ Rails.application.routes.draw do
         end
       end
 
-      # Entity Tabs (SSoT: Unified tab configuration)
-      # Replaces: corporate_entity_tabs, job_tabs, document_folders config
-      resources :entity_tabs do
+      # Warehouse Folders (SSoT: Unified tab configuration)
+      # Replaces: legacy tab configuration (Jan 2026)
+      resources :warehouse_folders do
         collection do
           post :reorder
           post :reset_paths
@@ -3048,8 +3048,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # User Entity Tab Preferences (per-user tab visibility, order, and defaults)
-      resources :user_entity_tab_preferences, only: [], param: :scope do
+      # User Warehouse Folder Preferences (per-user tab visibility, order, and defaults)
+      resources :user_warehouse_folder_preferences, only: [], param: :scope do
         member do
           get '/', action: :show
           patch '/', action: :update

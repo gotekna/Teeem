@@ -7,12 +7,12 @@ module Gl
 
     PERIOD_TYPES = %w[month quarter year].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
 
     validates :period_type, presence: true, inclusion: { in: PERIOD_TYPES }
     validates :period_start, presence: true
     validates :period_end, presence: true
-    validates :period_start, uniqueness: { scope: [:corporate_company_id, :period_type] }
+    validates :period_start, uniqueness: { scope: [:corporate_id, :period_type] }
 
     scope :for_type, ->(type) { where(period_type: type) }
     scope :finalized, -> { where(finalized: true) }
@@ -21,7 +21,7 @@ module Gl
     # Generate snapshot for a period
     def self.generate!(company, period_type:, period_start:, period_end:, label: nil)
       snapshot = find_or_initialize_by(
-        corporate_company: company,
+        corporate: company,
         period_type: period_type,
         period_start: period_start
       )
@@ -62,7 +62,7 @@ module Gl
     def year_over_year
       previous_year_start = period_start - 1.year
       previous_snapshot = self.class.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         period_type: period_type,
         period_start: previous_year_start
       )
@@ -79,7 +79,7 @@ module Gl
                        end
 
       previous_snapshot = self.class.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         period_type: period_type,
         period_start: previous_start
       )
@@ -98,25 +98,25 @@ module Gl
     end
 
     def capture_account_balances
-      corporate_company.gl_accounts.pluck(:id, :balance).to_h
+      corporate.gl_accounts.pluck(:id, :balance).to_h
     end
 
     def capture_department_totals
-      corporate_company.gl_departments.active.to_h do |dept|
+      corporate.gl_departments.active.to_h do |dept|
         pl = dept.profit_loss(start_date: period_start, end_date: period_end)
         [dept.id, pl]
       end
     end
 
     def capture_class_totals
-      corporate_company.gl_tracking_classes.active.to_h do |tc|
+      corporate.gl_tracking_classes.active.to_h do |tc|
         totals = tc.totals(start_date: period_start, end_date: period_end)
         [tc.id, totals]
       end
     end
 
     def capture_kpis
-      corporate_company.gl_kpi_definitions.active.to_h do |kpi|
+      corporate.gl_kpi_definitions.active.to_h do |kpi|
         value = kpi.calculate(start_date: period_start, end_date: period_end)
         [kpi.code, value]
       end

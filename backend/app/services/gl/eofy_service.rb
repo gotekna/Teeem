@@ -11,7 +11,7 @@ module Gl
   # - EOFY report package generation
   #
   class EofyService
-    attr_reader :corporate_company, :financial_year, :options
+    attr_reader :corporate, :financial_year, :options
 
     # Australian FY runs July 1 - June 30
     FY_START_MONTH = 7
@@ -136,8 +136,8 @@ module Gl
       }
     ].freeze
 
-    def initialize(corporate_company, financial_year = nil, options = {})
-      @corporate_company = corporate_company
+    def initialize(corporate, financial_year = nil, options = {})
+      @corporate = corporate
       @financial_year = financial_year || current_financial_year
       @options = options.with_indifferent_access
     end
@@ -298,7 +298,7 @@ module Gl
     # Create adjustment journal entry
     def create_adjustment(type:, amount:, description:, debit_account_id:, credit_account_id:)
       entry = Gl::JournalEntry.create!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         gl_period: fy_end_period,
         entry_date: fy_end_date,
         description: "EOFY Adjustment: #{description}",
@@ -405,7 +405,7 @@ module Gl
     def has_inventory?
       # Check if company uses inventory tracking
       Gl::Account.exists?(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_class: 'inventory'
       )
     end
@@ -413,7 +413,7 @@ module Gl
     def has_payroll?
       # Check if company has payroll accounts
       Gl::Account.exists?(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_class: 'wages'
       )
     end
@@ -433,7 +433,7 @@ module Gl
 
     def check_bank_reconciliation
       bank_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         is_bank_account: true
       )
 
@@ -465,7 +465,7 @@ module Gl
     def check_depreciation_calculated
       # Check if depreciation journal exists for the year
       Gl::JournalEntry.exists?(
-        corporate_company: corporate_company,
+        corporate: corporate,
         source_type: 'depreciation',
         entry_date: fy_start_date..fy_end_date
       )
@@ -529,7 +529,7 @@ module Gl
 
     def fy_end_period
       Gl::Period.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         financial_year: financial_year,
         period_number: 12 # June = period 12 for AU FY
       )
@@ -537,14 +537,14 @@ module Gl
 
     def lock_periods!
       Gl::Period.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         financial_year: financial_year
       ).update_all(status: 'locked', closed_at: Time.current)
     end
 
     def unlock_periods!
       Gl::Period.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         financial_year: financial_year
       ).update_all(status: 'open', closed_at: nil)
     end
@@ -560,7 +560,7 @@ module Gl
 
       # Create closing entry
       entry = Gl::JournalEntry.create!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         gl_period: fy_end_period,
         entry_date: fy_end_date,
         description: "#{financial_year} Year End Closing Entry",
@@ -618,7 +618,7 @@ module Gl
         next if balance.zero?
 
         Gl::OpeningBalance.create!(
-          corporate_company: corporate_company,
+          corporate: corporate,
           gl_account: account,
           effective_date: next_fy_start,
           balance: balance,
@@ -639,7 +639,7 @@ module Gl
 
     def find_or_create_retained_earnings_account
       Gl::Account.find_or_create_by!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         code: '3900',
         account_type: 'equity'
       ) do |account|
@@ -651,21 +651,21 @@ module Gl
 
     def revenue_accounts
       Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'revenue'
       )
     end
 
     def expense_accounts
       Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'expense'
       )
     end
 
     def balance_sheet_accounts
       Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: %w[asset liability equity]
       )
     end
@@ -674,7 +674,7 @@ module Gl
       Gl::LedgerLine
         .joins(:gl_journal_entry)
         .where(gl_account: account)
-        .where(gl_journal_entries: { corporate_company: corporate_company })
+        .where(gl_journal_entries: { corporate: corporate })
         .where('gl_journal_entries.entry_date >= ? AND gl_journal_entries.entry_date <= ?', fy_start_date, fy_end_date)
         .sum('debit - credit')
     end

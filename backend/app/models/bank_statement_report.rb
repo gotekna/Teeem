@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
 # Stores generated bank statement PDF reports for ATO compliance.
-# SSoT: DocumentType (ID 22: "X Bank Statement") → EntityTab (xero-bank-statement) → storage_folder_path
-# Path template from EntityTab: Corporate/{CompanyGroup}/{CompanyCode}/XERO/Bank
+# SSoT: DocumentType (ID 22: "X Bank Statement") → WarehouseFolder (xero-bank-statement) → storage_folder_path
+# Path template from WarehouseFolder: Corporate/{CompanyGroup}/{CompanyCode}/XERO/Bank
 # Example: Corporate/Tekna/THS/XERO/Bank/THS XB NAB 083-052 305422840 Dec24.pdf
 # PDFs can be regenerated on demand from the underlying bank transaction data.
 class BankStatementReport < ApplicationRecord
   include StorageUploadable
 
-  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id", optional: true
+  belongs_to :corporate, foreign_key: "company_id", optional: true
   belongs_to :bank_account, primary_key: "xero_account_id", foreign_key: "bank_account_id", optional: true
   belongs_to :document_type, optional: true
 
@@ -227,7 +227,7 @@ class BankStatementReport < ApplicationRecord
 
     {
       company_code: company_code,
-      company_name: corporate_company&.name,
+      company_name: corporate&.name,
       doc_type_name: document_type&.name || "Bank Statement",
       doc_type_code: document_type&.abbreviation || "BS",
       financial_year: financial_year,
@@ -363,25 +363,25 @@ class BankStatementReport < ApplicationRecord
 
   # Upload file content to storage using SSoT folder structure from DocumentType system
   # Path: /Shared Documents/00 TEEEM PRIVATE/{CompanyGroup}/{CompanyCode}/BANK/{filename}
-  # SSoT: Uses EntityTab.storage_folder_path for path resolution (WarehouseProvider for base)
+  # SSoT: Uses WarehouseFolder.storage_folder_path for path resolution (WarehouseProvider for base)
   def upload_to_storage(content, filename)
-    # SSoT: EntityTab (xero-bank-statement) → storage_folder_path is THE ONE source
-    # Path defined in Admin > Entity Tabs > Bank Statement tab
-    entity_tab = EntityTab.find_by(tab_key: 'xero-bank-statement')
-    unless entity_tab&.storage_folder_path.present?
-      Rails.logger.error("[BankStatementReport] SSoT missing: EntityTab 'xero-bank-statement' has no storage_folder_path")
+    # SSoT: WarehouseFolder (xero-bank-statement) → storage_folder_path is THE ONE source
+    # Path defined in Admin > Warehouse Folders > Bank Statement tab
+    warehouse_folder = WarehouseFolder.find_by(tab_key: 'xero-bank-statement')
+    unless warehouse_folder&.storage_folder_path.present?
+      Rails.logger.error("[BankStatementReport] SSoT missing: WarehouseFolder 'xero-bank-statement' has no storage_folder_path")
       return nil
     end
-    path_template = entity_tab.storage_folder_path
+    path_template = warehouse_folder.storage_folder_path
 
     # SSoT: Resolve placeholders in path template
-    company_group = corporate_company&.group_name || "Other"
+    company_group = corporate&.group_name || "Other"
     resolved_path = path_template
       .gsub("{CompanyGroup}", company_group)
       .gsub("{CompanyCode}", company_code || "UNKNOWN")
       .gsub("{company_code}", company_code || "UNKNOWN")
 
-    Rails.logger.info("[BankStatementReport] SSoT path from EntityTab: #{resolved_path}/#{filename}")
+    Rails.logger.info("[BankStatementReport] SSoT path from WarehouseFolder: #{resolved_path}/#{filename}")
 
     # Use StorageUploadable for provider-agnostic upload
     result = upload_to_storage_path(resolved_path, content, filename, content_type: "application/pdf")
@@ -394,7 +394,7 @@ class BankStatementReport < ApplicationRecord
     Rails.logger.info("[BankStatementReport] Uploaded to storage: #{resolved_path}/#{filename}")
 
     # SSoT: Create WarehouseDocument so it appears in document warehouse
-    if corporate_company.present?
+    if corporate.present?
       create_warehouse_document_record(
         filename: filename,
         storage_path: result[:path] || resolved_path,
@@ -431,8 +431,8 @@ class BankStatementReport < ApplicationRecord
     folder_path = WarehouseProvider.instance.resolve_virtual_path(
       :bank_statement,
       {
-        CompanyGroup: corporate_company&.company_group&.name.presence || "Default",
-        CompanyCode: corporate_company&.company_code
+        CompanyGroup: corporate&.company_group&.name.presence || "Default",
+        CompanyCode: corporate&.company_code
       }
     )
     doc.assign_attributes(
@@ -441,7 +441,7 @@ class BankStatementReport < ApplicationRecord
       original_filename: filename,
       folder: folder_path,
       storage_blob: blob,
-      linkable: corporate_company,
+      linkable: corporate,
       metadata: {
         document_type: "Bank Statement",
         document_date: period_end&.iso8601,

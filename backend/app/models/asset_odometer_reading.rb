@@ -114,10 +114,10 @@ class AssetOdometerReading < ApplicationRecord
   end
 
   def create_activity
-    return unless asset.corporate_company.present?
+    return unless asset.corporate.present?
 
     user_record = user || User.first
-    asset.corporate_company.corporate_company_activities.create!(
+    asset.corporate.corporate_activities.create!(
       activity_type: "asset_reading_recorded",
       description: "Odometer/hours reading recorded for #{asset.display_name}: #{display_value}",
       change_details: { asset_id: asset.id, reading: display_value },

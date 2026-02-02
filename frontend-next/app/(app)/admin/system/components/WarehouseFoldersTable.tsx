@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * EntityTabsTable - Tree view for Storage Locations (Folder Configuration)
+ * WarehouseFoldersTable - Tree view for Storage Locations (Folder Configuration)
  *
  * Shows the complete hierarchy:
  * - Tab Groups (Overview, Documents, Special)
@@ -14,6 +14,8 @@
  * - Inline SharePoint path editing
  * - Drag-to-reorder
  * - Enable/disable toggle
+ *
+ * Renamed from WarehouseTabRowsTable.tsx (Jan 2026)
  */
 
 import * as React from "react";
@@ -65,7 +67,7 @@ interface SubTab {
   folder: string;
 }
 
-interface EntityTab {
+interface WarehouseTabRow {
   id: string;
   tab_key: string;
   name: string;
@@ -121,12 +123,12 @@ const GROUP_CONFIG = {
 // MAIN COMPONENT
 // =============================================================================
 
-export function EntityTabsTable() {
+export function WarehouseFoldersTable() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
 
   // State
-  const [tabs, setTabs] = React.useState<EntityTab[]>([]);
+  const [tabs, setTabs] = React.useState<WarehouseTabRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set(["documents"]));
@@ -139,7 +141,7 @@ export function EntityTabsTable() {
   const [addingTab, setAddingTab] = React.useState<{ group: string; name: string; folder: string } | null>(null);
 
   // Folder browser state
-  const [folderBrowserTab, setFolderBrowserTab] = React.useState<EntityTab | null>(null);
+  const [folderBrowserTab, setFolderBrowserTab] = React.useState<WarehouseTabRow | null>(null);
   const [selectedFolder, setSelectedFolder] = React.useState<{ id?: string; name: string; path: string } | null>(null);
 
   // Xero feature tabs state (SSoT: shows what Xero sub-tabs will be created)
@@ -158,13 +160,13 @@ export function EntityTabsTable() {
   // Load tabs from API
   const loadTabs = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs?warehouse_type=corporate");
+      const response = await api.get<{ success: boolean; data: { tabs: WarehouseTabRow[] } }>("/api/v1/warehouse_folders?warehouse_type=corporate");
       if (response.success && response.data?.tabs) {
         setTabs(response.data.tabs);
       }
     } catch (error) {
-      console.error("Failed to load entity tabs:", error);
-      toast({ title: "Error", description: "Failed to load entity tabs", variant: "destructive" });
+      console.error("Failed to load warehouse folders:", error);
+      toast({ title: "Error", description: "Failed to load warehouse folders", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -206,7 +208,7 @@ export function EntityTabsTable() {
 
   // Group tabs
   const groupedTabs = React.useMemo(() => {
-    const groups: Record<string, EntityTab[]> = {
+    const groups: Record<string, WarehouseTabRow[]> = {
       overview: [],
       documents: [],
       special: [],
@@ -250,11 +252,11 @@ export function EntityTabsTable() {
   };
 
   // Save warehouse folder path
-  const handleSavePath = async (tab: EntityTab) => {
+  const handleSavePath = async (tab: WarehouseTabRow) => {
     if (!editingPath) return;
     setSaving(true);
     try {
-      await api.patch(`/api/v1/corporate/entity_tabs/${tab.id}`, {
+      await api.patch(`/api/v1/corporate/warehouse_folders/${tab.id}`, {
         tab: {
           warehouse_enabled: !!editingPath.value,
           warehouse_folder: editingPath.value || null,
@@ -272,7 +274,7 @@ export function EntityTabsTable() {
   };
 
   // Add sub-tab
-  const handleAddSubTab = async (tab: EntityTab) => {
+  const handleAddSubTab = async (tab: WarehouseTabRow) => {
     if (!addingSubTab || !addingSubTab.name.trim()) return;
     setSaving(true);
     try {
@@ -284,7 +286,7 @@ export function EntityTabsTable() {
           folder: addingSubTab.folder || addingSubTab.name,
         }
       ];
-      await api.patch(`/api/v1/corporate/entity_tabs/${tab.id}`, {
+      await api.patch(`/api/v1/corporate/warehouse_folders/${tab.id}`, {
         tab: { sub_tabs: newSubTabs }
       });
       await loadTabs();
@@ -299,13 +301,13 @@ export function EntityTabsTable() {
   };
 
   // Delete sub-tab
-  const handleDeleteSubTab = async (tab: EntityTab, subTabKey: string, e: React.MouseEvent) => {
+  const handleDeleteSubTab = async (tab: WarehouseTabRow, subTabKey: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!(await confirm(`Delete sub-folder "${subTabKey}"?`))) return;
     setSaving(true);
     try {
       const newSubTabs = (tab.sub_tabs || []).filter((st) => st.key !== subTabKey);
-      await api.patch(`/api/v1/corporate/entity_tabs/${tab.id}`, {
+      await api.patch(`/api/v1/corporate/warehouse_folders/${tab.id}`, {
         tab: { sub_tabs: newSubTabs }
       });
       await loadTabs();
@@ -319,7 +321,7 @@ export function EntityTabsTable() {
   };
 
   // Toggle entity type on a tab
-  const handleToggleEntityType = async (tab: EntityTab, entityType: string, e: React.MouseEvent) => {
+  const handleToggleEntityType = async (tab: WarehouseTabRow, entityType: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSaving(true);
     try {
@@ -328,7 +330,7 @@ export function EntityTabsTable() {
         ? tab.entity_types.filter((t) => t !== entityType)
         : [...tab.entity_types, entityType];
 
-      await api.patch(`/api/v1/corporate/entity_tabs/${tab.id}`, {
+      await api.patch(`/api/v1/corporate/warehouse_folders/${tab.id}`, {
         tab: { entity_types: newEntityTypes }
       });
       await loadTabs();
@@ -352,7 +354,7 @@ export function EntityTabsTable() {
       // Extract folder name from path (last segment)
       const folderName = selectedFolder.path.split("/").filter(Boolean).pop() || selectedFolder.name;
 
-      await api.patch(`/api/v1/corporate/entity_tabs/${folderBrowserTab.id}`, {
+      await api.patch(`/api/v1/corporate/warehouse_folders/${folderBrowserTab.id}`, {
         tab: {
           warehouse_enabled: true,
           warehouse_folder: folderName,
@@ -851,3 +853,6 @@ export function EntityTabsTable() {
     </div>
   );
 }
+
+// Backwards compatibility alias for old name
+export const EntityTabsTable = WarehouseFoldersTable;

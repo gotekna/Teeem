@@ -13,13 +13,13 @@ module Gl
 
     # Get all currencies for company
     def currencies
-      Gl::Currency.where(corporate_company: company).order(:code)
+      Gl::Currency.where(corporate: company).order(:code)
     end
 
     # Get base currency
     def base_currency
-      Gl::Currency.find_by(corporate_company: company, is_base_currency: true) ||
-        Gl::Currency.find_by(corporate_company: company, code: 'AUD')
+      Gl::Currency.find_by(corporate: company, is_base_currency: true) ||
+        Gl::Currency.find_by(corporate: company, code: 'AUD')
     end
 
     # Convert amount between currencies
@@ -34,13 +34,13 @@ module Gl
 
     # Set exchange rate
     def set_rate(currency_code, rate, date: nil)
-      currency = Gl::Currency.find_by(corporate_company: company, code: currency_code)
+      currency = Gl::Currency.find_by(corporate: company, code: currency_code)
       return { success: false, error: 'Currency not found' } unless currency
 
       effective_date = date || Date.current
 
       exchange_rate = Gl::ExchangeRate.find_or_initialize_by(
-        corporate_company: company,
+        corporate: company,
         gl_currency: currency,
         effective_date: effective_date
       )
@@ -67,11 +67,11 @@ module Gl
 
     # Get rate history
     def rate_history(currency_code, from_date: nil, to_date: nil)
-      currency = Gl::Currency.find_by(corporate_company: company, code: currency_code)
+      currency = Gl::Currency.find_by(corporate: company, code: currency_code)
       return [] unless currency
 
       scope = Gl::ExchangeRate.where(
-        corporate_company: company,
+        corporate: company,
         gl_currency: currency
       ).order(effective_date: :desc)
 
@@ -95,7 +95,7 @@ module Gl
         next if currency.is_base_currency
 
         latest_rate = Gl::ExchangeRate.where(
-          corporate_company: company,
+          corporate: company,
           gl_currency: currency
         ).order(effective_date: :desc).first
 
@@ -131,7 +131,7 @@ module Gl
       created = []
       default_currencies.each do |curr|
         currency = Gl::Currency.find_or_create_by(
-          corporate_company: company,
+          corporate: company,
           code: curr[:code]
         ) do |c|
           c.name = curr[:name]

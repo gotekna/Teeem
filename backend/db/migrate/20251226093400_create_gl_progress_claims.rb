@@ -3,7 +3,7 @@
 class CreateGlProgressClaims < ActiveRecord::Migration[7.1]
   def change
     create_table :gl_progress_claims do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :job, null: false, foreign_key: true
       t.references :contact, null: false, foreign_key: true
       t.references :invoice, foreign_key: { to_table: :gl_invoices }
@@ -53,9 +53,9 @@ class CreateGlProgressClaims < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_progress_claims, [:corporate_company_id, :job_id, :claim_sequence],
+    add_index :gl_progress_claims, [:corporate_id, :job_id, :claim_sequence],
               unique: true, name: "idx_progress_claims_sequence"
-    add_index :gl_progress_claims, [:corporate_company_id, :claim_number],
+    add_index :gl_progress_claims, [:corporate_id, :claim_number],
               unique: true, name: "idx_progress_claims_number"
     add_index :gl_progress_claims, [:status], name: "idx_progress_claims_status"
 

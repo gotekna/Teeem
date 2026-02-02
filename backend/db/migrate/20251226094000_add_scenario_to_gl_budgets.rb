@@ -6,12 +6,12 @@ class AddScenarioToGlBudgets < ActiveRecord::Migration[7.1]
     add_column :gl_budgets, :scenario, :string, limit: 30, default: "base"
     add_column :gl_budgets, :scenario_assumptions, :text
 
-    add_index :gl_budgets, [:corporate_company_id, :gl_period_id, :scenario],
+    add_index :gl_budgets, [:corporate_id, :gl_period_id, :scenario],
               name: "idx_budgets_period_scenario"
 
     # Budget scenarios (groups of budgets)
     create_table :gl_budget_scenarios do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :created_by, foreign_key: { to_table: :users }
 
       t.string :name, null: false
@@ -31,7 +31,7 @@ class AddScenarioToGlBudgets < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_budget_scenarios, [:corporate_company_id, :fiscal_year, :scenario_type],
+    add_index :gl_budget_scenarios, [:corporate_id, :fiscal_year, :scenario_type],
               name: "idx_budget_scenarios_year"
   end
 end

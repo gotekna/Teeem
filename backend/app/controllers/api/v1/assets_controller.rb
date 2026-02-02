@@ -19,7 +19,7 @@ module Api
         # Build includes array based on what tables exist
         # Check if table exists using raw SQL to avoid loading the model
         has_insurance_table = ActiveRecord::Base.connection.table_exists?("asset_insurances")
-        includes_array = [ :corporate_company ]
+        includes_array = [ :corporate ]
         includes_array << :asset_insurance if has_insurance_table
 
         @assets = Asset.includes(includes_array).all
@@ -45,7 +45,7 @@ module Api
         end
 
         # Build include hash based on what tables exist
-        include_hash = { corporate_company: {} }
+        include_hash = { corporate: {} }
         if has_insurance_table
           include_hash[:asset_insurance] = { methods: [ :days_until_renewal ] }
         end
@@ -65,7 +65,7 @@ module Api
           success: true,
           asset: @asset.as_json(
             include: {
-              corporate_company: {},
+              corporate: {},
               asset_insurance: {
                 methods: [ :days_until_renewal, :expired?, :expiring_soon? ]
               }

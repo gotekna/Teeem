@@ -48,9 +48,9 @@ class RenameRemainingSharepointColumns < ActiveRecord::Migration[8.0]
     # ========================================
     # corporate_company_documents
     # ========================================
-    rename_column :corporate_company_documents, :expected_sharepoint_path, :expected_storage_path
-    rename_column :corporate_company_documents, :sharepoint_file_id, :storage_file_id
-    rename_column :corporate_company_documents, :sharepoint_download_url, :storage_download_url
+    rename_column :corporate_documents, :expected_sharepoint_path, :expected_storage_path
+    rename_column :corporate_documents, :sharepoint_file_id, :storage_file_id
+    rename_column :corporate_documents, :sharepoint_download_url, :storage_download_url
 
     # ========================================
     # contact_documents

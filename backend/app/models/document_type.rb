@@ -6,17 +6,23 @@ class DocumentType < ApplicationRecord
   # Note: corporate_company_documents and job_documents associations REMOVED (Jan 2026) - tables dropped
   # SSoT: WarehouseDocument is now THE ONE table for document metadata
 
-  # SSoT: WarehouseFolder associations (renamed: EntityTab → StorageLocation → WarehouseFolder, Jan 2026)
+  # SSoT: WarehouseFolder associations (renamed: legacy tabs → StorageLocation → WarehouseFolder, Jan 2026)
   has_many :warehouse_folder_document_types, foreign_key: :document_type_id, dependent: :destroy
   has_many :warehouse_folders, through: :warehouse_folder_document_types
 
   # Backwards compatibility aliases
   alias_method :storage_location_document_types, :warehouse_folder_document_types
   alias_method :storage_locations, :warehouse_folders
+  # DEPRECATED: Use warehouse_folder_document_types (Jan 2026)
   def entity_tab_document_types
     warehouse_folder_document_types
   end
-  has_many :entity_tabs, through: :warehouse_folder_document_types, source: :warehouse_folder
+  # DEPRECATED: Use warehouse_folders (Jan 2026)
+  def entity_tabs
+    warehouse_folders
+  end
+  # DEPRECATED: Use warehouse_folders (Jan 2026)
+  # has_many :entity_tabs, through: :warehouse_folder_document_types, source: :warehouse_folder
 
   # Get location names for display
   def location_names
@@ -73,7 +79,7 @@ class DocumentType < ApplicationRecord
   end
 
   # SSoT: category is DEPRECATED (Jan 2026)
-  # Was used for legacy folder organization, now superseded by EntityTab hierarchy
+  # Was used for legacy folder organization, now superseded by WarehouseFolder hierarchy
   # Returns nil - callers use .presence with "General" fallback
   def category
     nil
@@ -165,7 +171,7 @@ class DocumentType < ApplicationRecord
   # Name must be unique within each scope (company, job, contacts, both)
   # This allows the same name in different scopes (e.g., "Invoice" for both company and job)
   validates :name, presence: true, uniqueness: { scope: [:tenant_id, :scope], message: "has already been taken for this scope" }
-  # Note: category field is deprecated - tabs/folders (EntityTab) are now the primary organization method
+  # Note: category field is deprecated - WarehouseFolder is now the primary organization method
 
   # Scopes
   scope :active, -> { where(active: true) }

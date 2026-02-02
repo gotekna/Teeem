@@ -247,9 +247,9 @@ class CaseWarehouseService
 
     {
       contact: contact,
-      directorships: contact.corporate_company_directors.includes(:corporate_company),
+      directorships: contact.corporate_directors.includes(:corporate),
       shareholdings: CorporateShareholding.where(shareholder_type: "Contact", shareholder_id: contact_id)
-                                        .includes(:corporate_company),
+                                        .includes(:corporate),
       relationships: contact.contact_relationships.includes(:related_contact),
       documents: WarehouseDocument.where(documentable_type: "Contact", documentable_id: contact_id),
       emails: SyncedEmail.involving_email(contact.email),
@@ -266,8 +266,8 @@ class CaseWarehouseService
 
     {
       company: company,
-      directors: company.corporate_company_directors.includes(:contact),
-      shareholders: company.corporate_company_shareholdings.includes(:contact),
+      directors: company.corporate_directors.includes(:contact),
+      shareholders: company.corporate_shareholdings.includes(:contact),
       job_summary: query_mv("mv_job_summary", "job_id IN (?)", [ job_ids ]),
       financial_summary: query_mv("mv_financial_summary", "company_id = ?", [ company_id ]),
       document_summary: query_mv("mv_document_summary", "company_id = ?", [ company_id ]),

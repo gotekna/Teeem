@@ -15,7 +15,7 @@ module Api
 
       # GET /api/v1/cases
       def index
-        cases = CaseRecord.includes(:contact, :corporate_company, :company_group, :assigned_to, :created_by)
+        cases = CaseRecord.includes(:contact, :corporate, :company_group, :assigned_to, :created_by)
 
         # Filter by status
         cases = cases.by_status(params[:status]) if params[:status].present?
@@ -174,7 +174,7 @@ module Api
 
       # GET /api/v1/cases/:id/companies
       def companies
-        companies = @case.case_companies.includes(:corporate_company)
+        companies = @case.case_companies.includes(:corporate)
 
         render json: {
           success: true,
@@ -571,7 +571,7 @@ module Api
             folder: folder_path,
             content_type: Marcel::MimeType.for(name: review.new_file_name),
             file_size: review.new_file_size,
-            documentable: @case.corporate_company
+            documentable: @case.corporate
           )
           review.keep_both!(current_user, new_doc)
         else
@@ -894,7 +894,7 @@ module Api
         emails = warehouse_service.search_emails(query: nil) # Gets all by related entities
         emails.each do |email|
           # Skip if already linked to case
-          if @case.case_emails.exists?(synced_email_id: email.id)
+          if @case.case_emails.exists?(email_warehouse_id: email.id)
             results[:emails_skipped] += 1
             next
           end
@@ -1076,7 +1076,7 @@ module Api
           contact_id: c.contact_id,
           contact_name: c.contact&.display_name,
           company_id: c.company_id,
-          company_name: c.corporate_company&.name,
+          company_name: c.corporate&.name,
           company_group_id: c.company_group_id,
           company_group_name: c.company_group&.name,
           investigation_start_date: c.investigation_start_date,
@@ -1178,7 +1178,7 @@ module Api
         email = ce.email_warehouse
         {
           id: ce.id,
-          synced_email_id: ce.synced_email_id,
+          synced_email_id: ce.email_warehouse_id,
           subject: email.subject,
           from_email: email.from_email,
           to_emails: email.to_emails || [],

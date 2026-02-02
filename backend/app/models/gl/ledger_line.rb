@@ -13,7 +13,7 @@ module Gl
     belongs_to :contact, optional: true
 
     # Delegate to journal entry
-    delegate :corporate_company, :entry_date, :gl_period, to: :gl_journal_entry
+    delegate :corporate, :entry_date, :gl_period, to: :gl_journal_entry
     delegate :account_type, :is_bank_account, to: :gl_account, prefix: :account
 
     # ═══════════════════════════════════════════════════════════════

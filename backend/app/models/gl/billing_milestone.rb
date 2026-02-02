@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[pending in_progress completed invoiced paid cancelled].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :job
     belongs_to :contact
     belongs_to :invoice, class_name: "Gl::Invoice", optional: true
@@ -75,7 +75,7 @@ module Gl
       gst_amount = (amount * 0.1).round(2)
 
       inv = Gl::Invoice.create!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         contact: contact,
         invoice_type: "sales",
         status: "draft",

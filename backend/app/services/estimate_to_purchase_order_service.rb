@@ -1,7 +1,7 @@
 class EstimateToPurchaseOrderService
   def initialize(estimate)
     @estimate = estimate
-    @construction = estimate.construction
+    @construction = estimate.job
     @created_pos = []
     @warnings = []
   end

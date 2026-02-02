@@ -10,7 +10,7 @@ class CaseRecord < ApplicationRecord
 
   # Primary entity being investigated (optional)
   belongs_to :contact, optional: true
-  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id", optional: true
+  belongs_to :corporate, foreign_key: "company_id", optional: true
   belongs_to :company_group, optional: true
 
   # Case management
@@ -189,7 +189,7 @@ class CaseRecord < ApplicationRecord
   end
 
   def primary_entity
-    contact || corporate_company || company_group
+    contact || corporate || company_group
   end
 
   def primary_entity_name

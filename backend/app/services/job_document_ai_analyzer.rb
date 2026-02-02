@@ -162,8 +162,8 @@ class JobDocumentAiAnalyzer
   end
 
   def build_document_types_section
-    # folder is computed from primary EntityTab - group in Ruby after query
-    doc_types = DocumentType.where(scope: %w[job both]).active.includes(entity_tab_document_types: :entity_tab).order(:name)
+    # folder is computed from primary WarehouseFolder - group in Ruby after query
+    doc_types = DocumentType.where(scope: %w[job both]).active.includes(warehouse_folder_document_types: :warehouse_folder).order(:name)
 
     if doc_types.any?
       lines = []

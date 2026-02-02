@@ -10,6 +10,6 @@
 # Values: 'production' (default), 'beta', 'staging'
 class AddApiEnvironmentToCorporateCompanySettings < ActiveRecord::Migration[7.2]
   def change
-    add_column :corporate_company_settings, :api_environment, :string, default: 'production'
+    add_column :corporate_settings, :api_environment, :string, default: 'production'
   end
 end

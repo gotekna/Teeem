@@ -55,8 +55,6 @@ class SmTask < ApplicationRecord
 
   # Associations
   belongs_to :job, optional: true  # Tasks can exist without a job
-  alias_method :construction, :job  # Backwards compatibility
-  alias_attribute :construction_id, :job_id  # Backwards compatibility for queries
 
   # SSoT association - points to sm_schedule_master (THE ONE template system)
   belongs_to :sm_schedule_master, optional: true
@@ -78,7 +76,7 @@ class SmTask < ApplicationRecord
   belongs_to :assigned_user, class_name: "User", optional: true
   belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
-  belongs_to :photo_entity_tab, class_name: "EntityTab", optional: true
+  belongs_to :photo_entity_tab, class_name: "WarehouseFolder", optional: true
   belongs_to :spawn_scan_task, class_name: "SmScheduleMaster", optional: true
 
   belongs_to :created_by, class_name: "User", optional: true
@@ -310,7 +308,7 @@ class SmTask < ApplicationRecord
   scope :regular_tasks, -> { where(is_hold_task: false) }
   scope :ordered, -> { order(:sequence_order) }
   scope :by_trade, ->(trade) { where(trade: trade) if trade.present? }
-  scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
+  scope :for_construction, ->(construction_id) { where(job_id: construction_id) }
   scope :past_due, -> { where("start_date < ?", Date.current).active }
   scope :for_role, ->(role) { where(assigned_role: role) }
 
@@ -349,7 +347,7 @@ class SmTask < ApplicationRecord
     job_conditions = job_assignments.map do |jc|
       role_id = role_id_map[jc.role]
       next nil unless role_id
-      where(construction_id: jc.job_id, assigned_role: role_id, assigned_user_id: nil)
+      where(job_id: jc.job_id, assigned_role: role_id, assigned_user_id: nil)
     end.compact
     job_specific = job_conditions.any? ? job_conditions.reduce(:or) : none
 

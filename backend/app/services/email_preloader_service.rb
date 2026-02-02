@@ -116,8 +116,8 @@ class EmailPreloaderService
     return if email_ids.empty?
 
     @cache[:user_states] = EmailUserState.where(
-      synced_email_id: email_ids,
+      email_warehouse_id: email_ids,
       user_id: user.id
-    ).index_by(&:synced_email_id)
+    ).index_by(&:email_warehouse_id)
   end
 end

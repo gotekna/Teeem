@@ -28,7 +28,7 @@ module Api
       # GET /api/v1/asset_reports/register
       # Asset Register - Full list of all assets with values and status
       def register
-        assets = Asset.includes(:corporate_company, :depreciation_profile, :asset_insurance, :assigned_user)
+        assets = Asset.includes(:corporate, :depreciation_profile, :asset_insurance, :assigned_user)
                       .order(:company_id, :asset_type, :name)
 
         # Apply filters
@@ -54,7 +54,7 @@ module Api
               total_book_value: assets.sum(:current_book_value) || 0,
               by_type: assets.group(:asset_type).count,
               by_status: assets.group(:status).count,
-              by_entity_type: assets.joins(:corporate_company).group("corporate_companies.entity_type").count
+              by_entity_type: assets.joins(:corporate).group("corporate_companies.entity_type").count
             },
             assets: assets.map do |asset|
               {
@@ -64,9 +64,9 @@ module Api
                 display_name: asset.display_name,
                 asset_type: asset.asset_type,
                 status: asset.status,
-                company_name: asset.corporate_company&.name,
-                company_code: asset.corporate_company&.code,
-                entity_type: asset.corporate_company&.entity_type,
+                company_name: asset.corporate&.name,
+                company_code: asset.corporate&.code,
+                entity_type: asset.corporate&.entity_type,
                 make: asset.make,
                 model: asset.model,
                 serial_number: asset.serial_number,
@@ -91,7 +91,7 @@ module Api
       def depreciation
         financial_year = params[:financial_year] || current_financial_year
 
-        assets = Asset.includes(:corporate_company, :depreciation_profile, :depreciation_schedules)
+        assets = Asset.includes(:corporate, :depreciation_profile, :depreciation_schedules)
                       .joins(:depreciation_profile)
                       .order(:company_id, :asset_type, :name)
 
@@ -132,8 +132,8 @@ module Api
                 name: asset.name,
                 display_name: asset.display_name,
                 asset_type: asset.asset_type,
-                company_name: asset.corporate_company&.name,
-                entity_type: asset.corporate_company&.entity_type,
+                company_name: asset.corporate&.name,
+                entity_type: asset.corporate&.entity_type,
                 purchase_date: asset.purchase_date,
                 purchase_price: asset.purchase_price,
                 depreciable_cost: profile&.depreciable_cost,
@@ -166,7 +166,7 @@ module Api
       # GET /api/v1/asset_reports/insurance
       # Insurance Summary - Coverage, renewals, and premiums
       def insurance
-        assets = Asset.includes(:corporate_company, :asset_insurance)
+        assets = Asset.includes(:corporate, :asset_insurance)
                       .joins(:asset_insurance)
                       .order(:company_id, "asset_insurances.renewal_date")
 
@@ -218,8 +218,8 @@ module Api
                 name: asset.name,
                 display_name: asset.display_name,
                 asset_type: asset.asset_type,
-                company_name: asset.corporate_company&.name,
-                entity_type: asset.corporate_company&.entity_type,
+                company_name: asset.corporate&.name,
+                entity_type: asset.corporate&.entity_type,
                 current_book_value: asset.current_book_value,
                 insurance: {
                   id: insurance.id,
@@ -246,7 +246,7 @@ module Api
       # GET /api/v1/asset_reports/summary
       # Dashboard summary with key metrics
       def summary
-        assets = Asset.includes(:corporate_company, :depreciation_profile, :asset_insurance)
+        assets = Asset.includes(:corporate, :depreciation_profile, :asset_insurance)
 
         # Apply filters
         assets = assets.where(company_id: params[:company_id]) if params[:company_id].present?
@@ -274,7 +274,7 @@ module Api
             disposed_assets: disposed_assets.count,
             by_type: assets.group(:asset_type).count,
             by_status: assets.group(:status).count,
-            by_entity_type: assets.joins(:corporate_company).group("corporate_companies.entity_type").count,
+            by_entity_type: assets.joins(:corporate).group("corporate_companies.entity_type").count,
             financials: {
               total_purchase_value: assets.sum(:purchase_price) || 0,
               total_book_value: active_assets.sum(:current_book_value) || 0,
@@ -308,7 +308,7 @@ module Api
       # Supports comma-separated multiple entity types
       def apply_entity_type_filter(assets)
         entity_types = params[:entity_type].to_s.split(",").map(&:strip)
-        assets.joins(:corporate_company).where(corporate_companies: { entity_type: entity_types })
+        assets.joins(:corporate).where(corporate_companies: { entity_type: entity_types })
       end
     end
   end

@@ -4,7 +4,7 @@ class CreateXeroAlerts < ActiveRecord::Migration[8.0]
   def change
     create_table :xero_alerts do |t|
       t.references :xero_credential, foreign_key: true
-      t.references :corporate_company, foreign_key: true
+      t.references :corporate, foreign_key: true
 
       # Alert classification
       t.string :alert_type, null: false # token_expired, sync_stale, rate_limited, disconnected, inactivity_warning
@@ -26,7 +26,7 @@ class CreateXeroAlerts < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :xero_alerts, [ :corporate_company_id, :dismissed, :created_at ], name: 'idx_xero_alerts_company_active'
+    add_index :xero_alerts, [ :corporate_id, :dismissed, :created_at ], name: 'idx_xero_alerts_company_active'
     add_index :xero_alerts, [ :xero_credential_id, :alert_type, :dismissed ], name: 'idx_xero_alerts_credential_type'
     add_index :xero_alerts, [ :severity, :dismissed ], name: 'idx_xero_alerts_severity_active'
   end

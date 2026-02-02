@@ -46,7 +46,7 @@ module Api
         # GET /api/v1/contacts/:contact_id/corporate/directors
         # Returns all directors for this corporate contact
         def directors
-          directors = @corporate_details.corporate_company_directors
+          directors = @corporate_details.corporate_directors
             .includes(:contact)
             .order(is_current: :desc, appointment_date: :desc)
 
@@ -64,7 +64,7 @@ module Api
         # GET /api/v1/contacts/:contact_id/corporate/shareholders
         # Returns all shareholders for this corporate contact
         def shareholders
-          shareholdings = @corporate_details.corporate_company_shareholdings
+          shareholdings = @corporate_details.corporate_shareholdings
             .includes(:shareholder)
             .order(created_at: :desc)
 
@@ -82,7 +82,7 @@ module Api
         # GET /api/v1/contacts/:contact_id/corporate/compliance
         # Returns compliance items for this corporate contact
         def compliance
-          compliance_items = @corporate_details.corporate_company_compliance_items
+          compliance_items = @corporate_details.corporate_compliance_items
             .order(due_date: :asc)
 
           render json: {

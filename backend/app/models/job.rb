@@ -281,7 +281,7 @@ class Job < ApplicationRecord
   # Trigger storage folder creation if not already created
   # SSoT: THE ONE way to create job folders
   # - Uses CreateJobStorageFoldersJob (provider-agnostic)
-  # - Subfolder structure from EntityTab hierarchy
+  # - Subfolder structure from WarehouseFolder hierarchy
   # - template_id param is DEPRECATED (ignored)
   def create_folders_if_needed!(template_id = nil)
     return unless folders_not_requested?

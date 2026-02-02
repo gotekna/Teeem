@@ -3,7 +3,7 @@
 class CreateGlSyncLogs < ActiveRecord::Migration[8.0]
   def change
     create_table :gl_sync_logs do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :gl_provider_credential, foreign_key: true
 
       # Provider Identity
@@ -41,7 +41,7 @@ class CreateGlSyncLogs < ActiveRecord::Migration[8.0]
     end
 
     # Performance indexes
-    add_index :gl_sync_logs, [:corporate_company_id, :external_provider, :external_tenant_id, :created_at],
+    add_index :gl_sync_logs, [:corporate_id, :external_provider, :external_tenant_id, :created_at],
               name: 'idx_gl_sync_logs_lookup'
     add_index :gl_sync_logs, :status
     add_index :gl_sync_logs, :sync_type

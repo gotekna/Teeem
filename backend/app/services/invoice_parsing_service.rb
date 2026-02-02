@@ -427,7 +427,7 @@ class InvoiceParsingService
     end
 
     if company
-      @bill.update!(detected_company: company, corporate_company: company)
+      @bill.update!(detected_company: company, corporate: company)
       Rails.logger.info "[InvoiceParsing] Detected bill-to company: #{company.name} (strategy: #{match_strategy})"
     else
       Rails.logger.info "[InvoiceParsing] Could not detect bill-to company. ABN: #{bill_to_abn.presence || 'none'}, Name: #{result['billing_company_name'].presence || 'none'}"

@@ -3095,7 +3095,7 @@ module Api
           failed = 0
 
           companies_with_xero.find_each do |company|
-            connection = company.corporate_company_xero_connection
+            connection = company.corporate_xero_connection
             next unless connection&.connected?
 
             begin

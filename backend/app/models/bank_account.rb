@@ -23,7 +23,7 @@ class BankAccount < ApplicationRecord
 
   # Associations
   belongs_to :tenant
-  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+  belongs_to :corporate, foreign_key: "company_id"
   has_many :bank_transactions, dependent: :nullify
 
   # Validations
@@ -99,7 +99,7 @@ class BankAccount < ApplicationRecord
 
   def create_activity
     user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
-    corporate_company.corporate_company_activities.create!(
+    corporate.corporate_activities.create!(
       activity_type: "bank_account_added",
       description: "Bank account added: #{display_name}",
       change_details: { bank_account_id: id, institution: institution_name },
@@ -110,7 +110,7 @@ class BankAccount < ApplicationRecord
   def create_update_activity
     if status == "closed"
       user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
-      corporate_company.corporate_company_activities.create!(
+      corporate.corporate_activities.create!(
         activity_type: "bank_account_closed",
         description: "Bank account closed: #{display_name}",
         change_details: { bank_account_id: id, date_closed: date_closed },

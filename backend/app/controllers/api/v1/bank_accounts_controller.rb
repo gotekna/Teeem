@@ -6,7 +6,7 @@ module Api
       # GET /api/v1/bank_accounts
       # GET /api/v1/companies/:company_id/bank_accounts
       def index
-        @bank_accounts = BankAccount.includes(:corporate_company).all
+        @bank_accounts = BankAccount.includes(:corporate).all
 
         # Filter by company (from nested route or query param)
         company_id = params[:company_id]
@@ -18,7 +18,7 @@ module Api
         render json: {
           success: true,
           bank_accounts: @bank_accounts.as_json(
-            include: { corporate_company: {} },
+            include: { corporate: {} },
             methods: [ :display_name, :masked_account_number, :formatted_bsb, :last_transaction_date, :first_transaction_date ]
           )
         }
@@ -29,7 +29,7 @@ module Api
         render json: {
           success: true,
           bank_account: @bank_account.as_json(
-            include: { corporate_company: {} },
+            include: { corporate: {} },
             methods: [ :display_name, :formatted_bsb ]
           )
         }

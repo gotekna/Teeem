@@ -1,6 +1,6 @@
 class Design < ApplicationRecord
   # Associations
-  has_many :constructions, dependent: :nullify
+  has_many :jobs, dependent: :nullify
 
   # Validations
   validates :name, presence: true, uniqueness: true
@@ -13,13 +13,13 @@ class Design < ApplicationRecord
   scope :by_size, -> { order(:size) }
 
   # Before callbacks
-  before_destroy :check_constructions
+  before_destroy :check_jobs
 
   private
 
-  def check_constructions
-    if constructions.any?
-      errors.add(:base, "Cannot delete design that is assigned to constructions")
+  def check_jobs
+    if jobs.any?
+      errors.add(:base, "Cannot delete design that is assigned to jobs")
       throw :abort
     end
   end

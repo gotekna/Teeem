@@ -128,7 +128,7 @@ interface Asset {
     full_name: string;
     email?: string;
   };
-  corporate_company?: {
+  corporate?: {
     id: number;
     name: string;
     code?: string;

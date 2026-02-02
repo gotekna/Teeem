@@ -20,7 +20,7 @@ module Api
         # GET /api/v1/contacts/corporate_structure/:contact_id/memberships
         # Returns all company group memberships for this contact
         def company_group_memberships
-          memberships = @contact.company_group_memberships.includes(:company_group, :corporate_company)
+          memberships = @contact.company_group_memberships.includes(:company_group, :corporate)
 
           render json: {
             success: true,
@@ -36,8 +36,8 @@ module Api
         # GET /api/v1/contacts/corporate_structure/:contact_id/directorships
         # Returns all directorships for this contact (from CorporateDirector table)
         def directorships
-          directorships = @contact.corporate_company_directorships
-            .includes(corporate_company: :company_group)
+          directorships = @contact.corporate_directorships
+            .includes(corporate: :company_group)
             .order(is_current: :desc, appointment_date: :desc)
 
           render json: {
@@ -46,13 +46,13 @@ module Api
               {
                 id: d.id,
                 company_id: d.company_id,
-                company_name: d.corporate_company&.name,
-                company_acn: d.corporate_company&.acn,
-                company_abn: d.corporate_company&.abn,
-                company_status: d.corporate_company&.status,
-                company_entity_type: d.corporate_company&.entity_type,
-                company_group_id: d.corporate_company&.company_group_id,
-                company_group_name: d.corporate_company&.company_group&.name,
+                company_name: d.corporate&.name,
+                company_acn: d.corporate&.acn,
+                company_abn: d.corporate&.abn,
+                company_status: d.corporate&.status,
+                company_entity_type: d.corporate&.entity_type,
+                company_group_id: d.corporate&.company_group_id,
+                company_group_name: d.corporate&.company_group&.name,
                 position: d.position,
                 formatted_position: d.formatted_position,
                 appointment_date: d.appointment_date,
@@ -74,8 +74,8 @@ module Api
         # GET /api/v1/contacts/corporate_structure/:contact_id/shareholdings
         # Returns all shareholdings for this contact (from CorporateShareholding table)
         def shareholdings
-          shareholdings = @contact.corporate_company_shareholdings
-            .includes(corporate_company: :company_group)
+          shareholdings = @contact.corporate_shareholdings
+            .includes(corporate: :company_group)
             .order(created_at: :desc)
 
           render json: {
@@ -84,13 +84,13 @@ module Api
               {
                 id: s.id,
                 company_id: s.company_id,
-                company_name: s.corporate_company&.name,
-                company_acn: s.corporate_company&.acn,
-                company_abn: s.corporate_company&.abn,
-                company_status: s.corporate_company&.status,
-                company_entity_type: s.corporate_company&.entity_type,
-                company_group_id: s.corporate_company&.company_group_id,
-                company_group_name: s.corporate_company&.company_group&.name,
+                company_name: s.corporate&.name,
+                company_acn: s.corporate&.acn,
+                company_abn: s.corporate&.abn,
+                company_status: s.corporate&.status,
+                company_entity_type: s.corporate&.entity_type,
+                company_group_id: s.corporate&.company_group_id,
+                company_group_name: s.corporate&.company_group&.name,
                 share_class: s.share_class,
                 number_of_shares: s.number_of_shares,
                 percentage_of_total: s.percentage_of_total,
@@ -189,14 +189,14 @@ module Api
         # and what those companies own (including trusts)
         def ownership_chain
           # Get direct shareholdings for this contact
-          direct_holdings = @contact.corporate_company_shareholdings
-            .includes(corporate_company: [:company_group])
+          direct_holdings = @contact.corporate_shareholdings
+            .includes(corporate: [:company_group])
             .where("number_of_shares > 0")
 
           chain = direct_holdings.map do |holding|
             percentage = holding.percentage_of_total
             next nil if percentage <= 0
-            build_ownership_node(holding.corporate_company, percentage)
+            build_ownership_node(holding.corporate, percentage)
           end.compact
 
           render json: {
@@ -229,7 +229,7 @@ module Api
             company_group_name: membership.company_group&.name,
             membership_type: membership.membership_type,
             company_id: membership.company_id,
-            company_name: membership.corporate_company&.name,
+            company_name: membership.corporate&.name,
             can_view_confidential: membership.can_view_confidential,
             can_edit: membership.can_edit,
             is_active: membership.is_active
@@ -245,12 +245,12 @@ module Api
           child_holdings = CorporateShareholding
             .where(shareholder_type: "Company", shareholder_id: company.id)
             .where("number_of_shares > 0")
-            .includes(corporate_company: [:company_group])
+            .includes(corporate: [:company_group])
 
           children = child_holdings.map do |holding|
             child_percentage = holding.percentage_of_total
             next nil if child_percentage <= 0
-            build_ownership_node(holding.corporate_company, child_percentage, visited)
+            build_ownership_node(holding.corporate, child_percentage, visited)
           end.compact
 
           # Check if this company is a trustee

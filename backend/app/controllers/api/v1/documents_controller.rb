@@ -868,30 +868,30 @@ module Api
       end
 
       # GET /api/v1/documents/folder_files
-      # SSoT: Unified endpoint for fetching files from EntityTab folders
+      # SSoT: Unified endpoint for fetching files from WarehouseFolder folders
       # Used by File Warehouse to display subfolder contents for ALL scopes
       # Supports: job, corporate/corporate_entity/corp, contact/people
       def folder_files
-        entity_tab_id = params[:entity_tab_id]
+        warehouse_folder_id = params[:warehouse_folder_id] || params[:entity_tab_id]
         scope = params[:scope] || "corporate"
 
-        unless entity_tab_id.present?
-          return render json: { success: false, error: "entity_tab_id required", files: [] }, status: :bad_request
+        unless warehouse_folder_id.present?
+          return render json: { success: false, error: "warehouse_folder_id required", files: [] }, status: :bad_request
         end
 
-        entity_tab = EntityTab.find_by(id: entity_tab_id)
-        unless entity_tab
-          return render json: { success: false, error: "EntityTab not found", files: [] }, status: :not_found
+        warehouse_folder = WarehouseFolder.find_by(id: warehouse_folder_id)
+        unless warehouse_folder
+          return render json: { success: false, error: "WarehouseFolder not found", files: [] }, status: :not_found
         end
 
         # SSoT: Route to correct document model based on scope
         files = case scope.to_s.downcase
                 when "job"
-                  fetch_job_documents(entity_tab)
+                  fetch_job_documents(warehouse_folder)
                 when "corporate", "corporate_entity", "corp"
-                  fetch_corporate_documents(entity_tab)
+                  fetch_corporate_documents(warehouse_folder)
                 when "contact", "people"
-                  fetch_people_documents(entity_tab)
+                  fetch_people_documents(warehouse_folder)
                 else
                   []
                 end
@@ -899,7 +899,7 @@ module Api
         render json: {
           success: true,
           files: files,
-          folder: entity_tab.display_name,
+          folder: warehouse_folder.display_name,
           scope: scope,
           count: files.size
         }
@@ -1813,7 +1813,7 @@ module Api
       # SSoT (Jan 2026): Uses WarehouseDocument for document counts
       def build_corporate_hierarchy
         # Get document tabs for corporate scope (SSoT: 'corporate' is THE ONE - Jan 2026)
-        tabs = EntityTab.for_scope("corporate")
+        tabs = WarehouseFolder.for_warehouse_type("corporate")
                         .where(tab_group: "documents")
                         .enabled
                         .ordered
@@ -1864,7 +1864,7 @@ module Api
       # SSoT (Jan 2026): Uses WarehouseDocument for contact document counts
       def build_contact_hierarchy
         # Get document tabs for contact scope (includes Invoices, Financial, etc.)
-        tabs = EntityTab.for_scope("contact")
+        tabs = WarehouseFolder.for_warehouse_type("contact")
                         .where(tab_group: "documents")
                         .enabled
                         .ordered
@@ -1911,7 +1911,7 @@ module Api
       # SSoT (Jan 2026): Uses WarehouseDocument for job document counts
       def build_job_hierarchy
         # Get document tabs for job scope
-        tabs = EntityTab.for_scope("job")
+        tabs = WarehouseFolder.for_warehouse_type("job")
                         .where(tab_group: "documents")
                         .enabled
                         .ordered
@@ -1952,7 +1952,7 @@ module Api
       # SSoT: People hierarchy follows template {{ContactName}}/{{TabName}}
       def build_people_hierarchy
         # Get document tabs for people scope
-        tabs = EntityTab.for_scope("people")
+        tabs = WarehouseFolder.for_warehouse_type("people")
                         .where(tab_group: "documents")
                         .enabled
                         .ordered
@@ -1992,14 +1992,14 @@ module Api
         end
       end
 
-      # SSoT: Fetch job documents by EntityTab.document_type_ids
+      # SSoT: Fetch job documents by WarehouseFolder.document_type_ids
       # Migrated to WarehouseDocument (Jan 2026)
-      def fetch_job_documents(entity_tab)
-        return [] if entity_tab.document_type_ids.empty?
+      def fetch_job_documents(warehouse_folder)
+        return [] if warehouse_folder.document_type_ids.empty?
 
         WarehouseDocument
           .where(source_type: "job")
-          .where("metadata->>'document_type_id' IN (?)", entity_tab.document_type_ids.map(&:to_s))
+          .where("metadata->>'document_type_id' IN (?)", warehouse_folder.document_type_ids.map(&:to_s))
           .includes(:storage_blob, :linkable)
           .order(created_at: :desc)
           .limit(500)
@@ -2021,14 +2021,14 @@ module Api
           end
       end
 
-      # SSoT: Fetch corporate documents by EntityTab.document_type_ids
+      # SSoT: Fetch corporate documents by WarehouseFolder.document_type_ids
       # Migrated to WarehouseDocument (Jan 2026)
-      def fetch_corporate_documents(entity_tab)
-        return [] if entity_tab.document_type_ids.empty?
+      def fetch_corporate_documents(warehouse_folder)
+        return [] if warehouse_folder.document_type_ids.empty?
 
         WarehouseDocument
           .where(source_type: "corporate")
-          .where("metadata->>'document_type_id' IN (?)", entity_tab.document_type_ids.map(&:to_s))
+          .where("metadata->>'document_type_id' IN (?)", warehouse_folder.document_type_ids.map(&:to_s))
           .includes(:storage_blob, :linkable)
           .order(created_at: :desc)
           .limit(500)
@@ -2135,12 +2135,12 @@ module Api
         []  # TeeemPdf might not exist
       end
 
-      # SSoT: Fetch people documents by EntityTab.document_type_ids
-      def fetch_people_documents(entity_tab)
-        return [] if entity_tab.document_type_ids.empty?
+      # SSoT: Fetch people documents by WarehouseFolder.document_type_ids
+      def fetch_people_documents(warehouse_folder)
+        return [] if warehouse_folder.document_type_ids.empty?
 
         PeopleDocument
-          .where(document_type_id: entity_tab.document_type_ids)
+          .where(document_type_id: warehouse_folder.document_type_ids)
           .includes(:contact)
           .order(created_at: :desc)
           .limit(500)
@@ -2429,7 +2429,7 @@ module Api
           createdAt: doc.created_at&.iso8601,
           # Parent info
           companyId: doc.company_id,
-          companyName: doc.corporate_company&.name,
+          companyName: doc.corporate&.name,
           # Optional links
           contactId: doc.contact_id,
           contactName: doc.contact&.name,

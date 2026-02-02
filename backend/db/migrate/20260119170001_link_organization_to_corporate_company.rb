@@ -14,8 +14,8 @@
 #
 class LinkOrganizationToCorporateCompany < ActiveRecord::Migration[8.0]
   def up
-    add_column :organizations, :corporate_company_id, :bigint
-    add_index :organizations, :corporate_company_id
+    add_column :organizations, :corporate_id, :bigint
+    add_index :organizations, :corporate_id
     add_foreign_key :organizations, :corporate_companies
 
     # Link existing organizations to their corresponding companies
@@ -34,7 +34,7 @@ class LinkOrganizationToCorporateCompany < ActiveRecord::Migration[8.0]
 
   def down
     remove_foreign_key :organizations, :corporate_companies
-    remove_index :organizations, :corporate_company_id
-    remove_column :organizations, :corporate_company_id
+    remove_index :organizations, :corporate_id
+    remove_column :organizations, :corporate_id
   end
 end

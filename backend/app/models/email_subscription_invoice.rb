@@ -73,7 +73,7 @@ class EmailSubscriptionInvoice < ApplicationRecord
     period_label = billing_period_start.strftime("%B %Y")
 
     invoice = Gl::Invoice.create!(
-      corporate_company: billing_company,
+      corporate: billing_company,
       contact: contact,
       invoice_type: "sales_invoice",
       status: "draft",

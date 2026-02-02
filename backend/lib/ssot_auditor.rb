@@ -52,7 +52,7 @@ class SsotAuditor
     "location" => %w[location address site_address],
 
     # Associations (common renames)
-    "company" => %w[company corporate_company parent_company],
+    "company" => %w[company corporate parent_company],
     "contact" => %w[contact supplier customer client],
     "job" => %w[job construction project],
     "construction" => %w[construction job project],

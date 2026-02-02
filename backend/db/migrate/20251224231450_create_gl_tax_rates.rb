@@ -3,7 +3,7 @@
 class CreateGlTaxRates < ActiveRecord::Migration[8.0]
   def change
     create_table :gl_tax_rates do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
 
       # External provider linking
       t.string :external_provider         # 'xero', 'quickbooks', 'myob', nil
@@ -30,7 +30,7 @@ class CreateGlTaxRates < ActiveRecord::Migration[8.0]
     end
 
     # Unique constraint: one tax code per company per provider tenant
-    add_index :gl_tax_rates, [:corporate_company_id, :external_provider, :external_tenant_id, :code],
+    add_index :gl_tax_rates, [:corporate_id, :external_provider, :external_tenant_id, :code],
               unique: true, name: 'idx_gl_tax_rates_unique'
 
     # Performance indexes

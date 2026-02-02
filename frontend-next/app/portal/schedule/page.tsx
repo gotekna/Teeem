@@ -139,7 +139,7 @@ const TaskCard = ({
 
       {/* Construction info */}
       <div className="mt-2 text-xs text-muted-foreground dark:text-muted-foreground">
-        {task.construction?.name}
+        {task.job?.name}
       </div>
 
       {/* Stats row */}

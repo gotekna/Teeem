@@ -6,9 +6,6 @@ class EmailJobProposal < ApplicationRecord
   belongs_to :approved_by_user, class_name: "User", optional: true
   belongs_to :job, optional: true
 
-  # Alias for backwards compatibility (use synced_email_id in code, maps to email_warehouse_id)
-  alias_attribute :synced_email_id, :email_warehouse_id
-
   # Validations
   validates :status, presence: true, inclusion: { in: %w[pending approved rejected error] }
   validates :email_warehouse_id, presence: true

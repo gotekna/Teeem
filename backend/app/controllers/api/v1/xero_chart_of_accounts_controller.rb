@@ -126,7 +126,7 @@ module Api
           connection = nil
           if company_id.present?
             company = Corporate.find_by(id: company_id)
-            connection = company&.corporate_company_xero_connection
+            connection = company&.corporate_xero_connection
           end
 
           accounts.each do |xero_account|
@@ -265,20 +265,20 @@ module Api
         # Get all companies in the group that have Xero connected
         companies_with_xero = if group
           group.corporate_companies
-               .includes(:corporate_company_xero_connection)
-               .select { |c| c.corporate_company_xero_connection&.connected? }
+               .includes(:corporate_xero_connection)
+               .select { |c| c.corporate_xero_connection&.connected? }
         else
-          [ company ].select { |c| c.corporate_company_xero_connection&.connected? }
+          [ company ].select { |c| c.corporate_xero_connection&.connected? }
         end
 
         # Build map of account_code -> { account_data, company_ids }
         # Aggregates all unique accounts from all companies in the group
         accounts_map = {}
         companies_with_xero.each do |c|
-          conn = c.corporate_company_xero_connection
+          conn = c.corporate_xero_connection
           next unless conn
 
-          scope = conn.corporate_company_xero_accounts
+          scope = conn.corporate_xero_accounts
           scope = scope.where(status: "ACTIVE") unless params[:include_inactive] == "true"
 
           scope.each do |acct|
@@ -355,7 +355,7 @@ module Api
       # Returns per-company Xero accounts with consolidated_account_code mapping
       def company_accounts
         company = Corporate.find(params[:company_id])
-        connection = company.corporate_company_xero_connection
+        connection = company.corporate_xero_connection
 
         unless connection
           return render json: {
@@ -364,7 +364,7 @@ module Api
           }, status: :not_found
         end
 
-        @accounts = connection.corporate_company_xero_accounts
+        @accounts = connection.corporate_xero_accounts
         @accounts = @accounts.where(status: "ACTIVE") unless params[:include_inactive] == "true"
         @accounts = @accounts.order(:account_code)
 
@@ -393,7 +393,7 @@ module Api
       def build_company_accounts_map(companies)
         client = XeroApiClient.new
         companies.each_with_object({}) do |company, map|
-          connection = company.corporate_company_xero_connection
+          connection = company.corporate_xero_connection
           next unless connection&.connected?
 
           begin

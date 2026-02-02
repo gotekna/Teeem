@@ -103,9 +103,9 @@ module Api
             status: quote_request.status,
             created_at: quote_request.created_at,
             construction: {
-              id: quote_request.construction.id,
-              name: quote_request.construction.job_name,
-              address: quote_request.construction.street_address
+              id: quote_request.job.id,
+              name: quote_request.job.job_name,
+              address: quote_request.job.street_address
             },
             created_by: {
               name: quote_request.created_by.name

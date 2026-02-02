@@ -6,7 +6,7 @@ module Api
       # Controller for customer-facing portal
       class CustomerPortalController < ApplicationController
         skip_before_action :authorize_request, only: [:access, :invoice, :pay, :statement, :setup_direct_debit]
-        before_action :set_corporate_company, except: [:access, :invoice, :pay, :statement, :setup_direct_debit]
+        before_action :set_corporate, except: [:access, :invoice, :pay, :statement, :setup_direct_debit]
         before_action :validate_portal_token, only: [:invoice, :pay, :statement, :setup_direct_debit]
 
         # ===== PUBLIC (Token-based) ENDPOINTS =====
@@ -49,7 +49,7 @@ module Api
           render json: {
             success: true,
             data: invoice.as_json(include: :lines).merge(
-              company: invoice.corporate_company.as_json(only: [:id, :name, :abn]),
+              company: invoice.corporate.as_json(only: [:id, :name, :abn]),
               can_pay: invoice.status.in?(%w[submitted approved]) && invoice.amount_due.positive?
             )
           }
@@ -117,7 +117,7 @@ module Api
 
         # GET /api/v1/gl/customer_portal/tokens
         def tokens
-          tokens = @corporate_company.gl_portal_tokens
+          tokens = @corporate.gl_portal_tokens
                                      .includes(:contact)
                                      .order(created_at: :desc)
 
@@ -156,7 +156,7 @@ module Api
 
         # POST /api/v1/gl/customer_portal/revoke_token/:id
         def revoke_token
-          token = @corporate_company.gl_portal_tokens.find(params[:id])
+          token = @corporate.gl_portal_tokens.find(params[:id])
           token.revoke!
 
           render json: { success: true, message: "Token revoked" }
@@ -164,7 +164,7 @@ module Api
 
         # GET /api/v1/gl/customer_portal/statements
         def statements
-          statements = @corporate_company.gl_customer_statements
+          statements = @corporate.gl_customer_statements
                                          .includes(:contact)
                                          .order(statement_date: :desc)
 
@@ -188,7 +188,7 @@ module Api
 
         # POST /api/v1/gl/customer_portal/send_statement/:id
         def send_statement
-          statement = @corporate_company.gl_customer_statements.find(params[:id])
+          statement = @corporate.gl_customer_statements.find(params[:id])
           # TODO: Send email
           statement.mark_sent!
 
@@ -197,7 +197,7 @@ module Api
 
         # GET /api/v1/gl/customer_portal/direct_debits
         def direct_debits
-          mandates = @corporate_company.gl_direct_debit_mandates
+          mandates = @corporate.gl_direct_debit_mandates
                                        .includes(:contact)
                                        .order(created_at: :desc)
 
@@ -209,7 +209,7 @@ module Api
 
         # POST /api/v1/gl/customer_portal/cancel_direct_debit/:id
         def cancel_direct_debit
-          mandate = @corporate_company.gl_direct_debit_mandates.find(params[:id])
+          mandate = @corporate.gl_direct_debit_mandates.find(params[:id])
           mandate.cancel!(params[:reason])
 
           render json: { success: true, data: mandate, message: "Direct debit cancelled" }
@@ -217,8 +217,8 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id])
         end
 
         def validate_portal_token

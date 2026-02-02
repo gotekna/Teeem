@@ -17,8 +17,8 @@
 # - Connection config (site IDs, buckets, endpoints)
 # - Root path for the storage location
 #
-# FOLDER STRUCTURE is handled by EntityTab (SSoT for paths per tab)
-# Each EntityTab defines its own warehouse_folder template.
+# FOLDER STRUCTURE is handled by WarehouseFolder (SSoT for paths per tab)
+# Each WarehouseFolder defines its own path template.
 #
 # SSoT Hierarchy (Jan 2026 fix):
 #   Tenant       → WarehouseProvider (one per tenant)
@@ -458,8 +458,8 @@ class WarehouseProvider < ApplicationRecord
   end
 
   # Get all warehouse folders (full templates with tokens)
-  # SSoT: warehouse_folders column is THE ONE source (no merging with EntityTab)
-  # EntityTab.warehouse_folder is DEPRECATED - all paths derived from warehouse_folders
+  # SSoT: warehouse_folders column is THE ONE source
+  # Legacy paths are DEPRECATED - all paths derived from warehouse_folders
   def effective_warehouse_folders
     warehouse_folders || {}
   end
@@ -510,7 +510,7 @@ class WarehouseProvider < ApplicationRecord
   #
   # @param warehouse_type [String, Symbol] The warehouse type name (job, task, contact, etc.)
   # @param substitutions [Hash] Values to substitute in path (e.g., { JobCode: "JOB-001" })
-  # @param subfolder [String] Optional subfolder to append (e.g., EntityTab.folder_path)
+  # @param subfolder [String] Optional subfolder to append (e.g., WarehouseFolder.effective_warehouse_path)
   # @return [String] Full resolved path
   #
   # Example:
@@ -619,10 +619,10 @@ class WarehouseProvider < ApplicationRecord
     end
 
     # Corporate company context
-    if record.respond_to?(:corporate_company) && record.corporate_company
-      tokens[:CompanyCode] = record.corporate_company.company_code
-      tokens[:CompanyName] = record.corporate_company.name
-      tokens[:CompanyGroup] = record.corporate_company.company_group&.name.presence || "Default"
+    if record.respond_to?(:corporate) && record.corporate
+      tokens[:CompanyCode] = record.corporate.company_code
+      tokens[:CompanyName] = record.corporate.name
+      tokens[:CompanyGroup] = record.corporate.company_group&.name.presence || "Default"
     end
 
     # Date tokens - try multiple date fields
@@ -966,7 +966,7 @@ class WarehouseProvider < ApplicationRecord
 
     if job.present?
       # Job-attached: Use job folder structure
-      # SSoT: EntityTab defines the folder name, but we use tab_name for document type
+      # SSoT: WarehouseFolder defines the folder name, but we use tab_name for document type
       effective_tab_name = tab_name || default_tab_name_for(scope)
       job_path(job.job_code, effective_tab_name)
     else
@@ -1024,7 +1024,7 @@ class WarehouseProvider < ApplicationRecord
     WarehouseDocument
   end
 
-  # SSoT: Get the EntityTab warehouse type for a source
+  # SSoT: Get the WarehouseFolder warehouse type for a source
   # @param source [String, Symbol] The document source
   # @return [String] The warehouse type name (contact, corporate, etc.)
   def document_warehouse_type_for(source)

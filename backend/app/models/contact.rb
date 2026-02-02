@@ -546,7 +546,7 @@ class Contact < ApplicationRecord
   # SSoT: Sync Contact → Corporate for standard contact fields
   # One-way sync: Contact is SSoT for name, email, phone, bank details
   # Two-way sync for ABN: Contact.abn ↔ Corporate.abn
-  after_commit :sync_to_corporate_company, if: :should_sync_to_corporate?
+  after_commit :sync_to_corporate, if: :should_sync_to_corporate?
 
   # SSoT: Auto-link unlinked Xero invoices when contact is created/updated
   # If invoice.contact_name matches contact.display_name exactly, link them
@@ -987,7 +987,7 @@ class Contact < ApplicationRecord
   end
 
   def director_companies
-    current_directorships.includes(:corporate_company).map(&:company)
+    current_directorships.includes(:corporate).map(&:company)
   end
 
   # Company/Employment relationship helpers
@@ -1962,7 +1962,7 @@ class Contact < ApplicationRecord
   end
 
   # SSoT: Sync Contact → Corporate for standard contact fields
-  def sync_to_corporate_company
+  def sync_to_corporate
     # Prevent infinite loops
     return if Thread.current[:syncing_contact_to_company]
 

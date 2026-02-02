@@ -8,13 +8,13 @@
 class RemoveLegacyFolderFormatColumns < ActiveRecord::Migration[8.0]
   def change
     # SSoT: contact_folder_format replaced by StorageConfiguration.template_for(:contact)
-    if column_exists?(:corporate_company_settings, :contact_folder_format)
-      remove_column :corporate_company_settings, :contact_folder_format, :string, default: "id_name"
+    if column_exists?(:corporate_settings, :contact_folder_format)
+      remove_column :corporate_settings, :contact_folder_format, :string, default: "id_name"
     end
 
     # SSoT: job_folder_name_format replaced by StorageConfiguration.template_for(:job)
-    if column_exists?(:corporate_company_settings, :job_folder_name_format)
-      remove_column :corporate_company_settings, :job_folder_name_format, :jsonb
+    if column_exists?(:corporate_settings, :job_folder_name_format)
+      remove_column :corporate_settings, :job_folder_name_format, :jsonb
     end
   end
 end

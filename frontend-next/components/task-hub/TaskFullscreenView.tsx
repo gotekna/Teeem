@@ -2221,8 +2221,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   const handleJobChange = async (jobId: number | null) => {
     setLoading('job');
-    // Backend permits job_id, not construction_id. Also update construction_id for optimistic UI.
-    await updateTask(task.id, { job_id: jobId || 0, construction_id: jobId || 0 } as Partial<SmTask>);
+    await updateTask(task.id, { job_id: jobId || 0 } as Partial<SmTask>);
     setLoading(null);
   };
 
@@ -5164,8 +5163,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 <div className="flex-1">
                   <ComboboxDropdown
                     items={jobItems}
-                    selectedItem={task.construction_id > 0 ? {
-                      id: task.construction_id.toString(),
+                    selectedItem={task.job_id > 0 ? {
+                      id: task.job_id.toString(),
                       label: task.job_name || 'Unknown Job'
                     } : undefined}
                     onSelect={(item) => handleJobChange(parseInt(item.id))}
@@ -5305,11 +5304,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
             {/* Quick Links */}
             <div className="border-t pt-4 flex flex-wrap gap-2">
-              {task.construction_id > 0 && (
+              {task.job_id > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => window.open(`/jobs/${task.construction_id}`, '_blank')}
+                  onClick={() => window.open(`/jobs/${task.job_id}`, '_blank')}
                 >
                   <ExternalLink className="h-3 w-3 mr-1" />
                   Open Job
@@ -5981,7 +5980,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   attachments={pendingAttachments}
                   onAdd={handleAddAttachment}
                   onRemove={handleRemovePendingAttachment}
-                  jobId={task.construction_id > 0 ? String(task.construction_id) : undefined}
+                  jobId={task.job_id > 0 ? String(task.job_id) : undefined}
                 />
               </div>
             )}

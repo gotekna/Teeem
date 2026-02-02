@@ -5,7 +5,7 @@ module Gl
   class CustomerPaymentStats < ApplicationRecord
     self.table_name = "gl_customer_payment_stats"
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :contact
 
     scope :good_payers, -> { where("payment_reliability_score >= 80") }
@@ -13,8 +13,8 @@ module Gl
     scope :with_outstanding, -> { where("total_outstanding > 0") }
 
     # Record a payment
-    def self.record_payment!(corporate_company:, contact:, invoice:, payment_date:)
-      stats = find_or_initialize_by(corporate_company: corporate_company, contact: contact)
+    def self.record_payment!(corporate:, contact:, invoice:, payment_date:)
+      stats = find_or_initialize_by(corporate: corporate, contact: contact)
 
       was_late = payment_date > invoice.due_date
       days_to_pay = (payment_date - invoice.date).to_i
@@ -35,7 +35,7 @@ module Gl
       stats.largest_invoice = [stats.largest_invoice || 0, invoice.total].max
 
       # Recalculate outstanding
-      stats.total_outstanding = corporate_company.gl_invoices
+      stats.total_outstanding = corporate.gl_invoices
                                                  .where(contact: contact, status: %w[authorised sent])
                                                  .sum(:amount_due)
 
@@ -48,8 +48,8 @@ module Gl
 
     # Recalculate from scratch
     def recalculate!
-      invoices = corporate_company.gl_invoices.where(contact: contact)
-      payments = Gl::Payment.where(corporate_company: corporate_company)
+      invoices = corporate.gl_invoices.where(contact: contact)
+      payments = Gl::Payment.where(corporate: corporate)
                             .joins(:allocations)
                             .where(gl_payment_allocations: { invoice_id: invoices.select(:id) })
 
@@ -121,14 +121,14 @@ module Gl
 
     # Customers at risk of late payment
     def self.at_risk(company, threshold: 50)
-      where(corporate_company: company)
+      where(corporate: company)
         .where("payment_reliability_score < ?", threshold)
         .order(:payment_reliability_score)
     end
 
     # Best customers
     def self.best_payers(company, limit: 10)
-      where(corporate_company: company)
+      where(corporate: company)
         .where("total_invoices >= 3")
         .order(payment_reliability_score: :desc)
         .limit(limit)

@@ -70,7 +70,7 @@ class SaasBillingRecord < ApplicationRecord
     raise "Teeem corporate company not found" unless teeem_company
 
     invoice = Gl::Invoice.create!(
-      corporate_company: teeem_company,
+      corporate: teeem_company,
       contact: contact,
       invoice_type: "sales_invoice",
       status: "draft",

@@ -223,9 +223,9 @@ module AccountingAdapters
 
     def build_invoice_description(invoice)
       po = invoice.purchase_order
-      "Work completed for #{po.construction.job_name}\n" \
+      "Work completed for #{po.job.job_name}\n" \
       "Purchase Order: #{po.po_number}\n" \
-      "Job Address: #{po.construction.street_address}"
+      "Job Address: #{po.job.street_address}"
     end
   end
 

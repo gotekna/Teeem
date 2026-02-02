@@ -205,15 +205,15 @@ module WarehouseDocumentable
     end
 
     # 3. Common associations that typically have tenant
-    %i[user job contact project corporate_company].each do |assoc|
+    %i[user job contact project corporate].each do |assoc|
       if respond_to?(assoc) && send(assoc)&.respond_to?(:tenant) && send(assoc).tenant.present?
         return send(assoc).tenant
       end
     end
 
     # 4. Try associations with nested tenant path
-    if respond_to?(:corporate_company) && corporate_company&.company_group&.respond_to?(:tenant)
-      return corporate_company.company_group.tenant if corporate_company.company_group.tenant.present?
+    if respond_to?(:corporate) && corporate&.company_group&.respond_to?(:tenant)
+      return corporate.company_group.tenant if corporate.company_group.tenant.present?
     end
 
     # 5. Fall back to ActsAsTenant if available

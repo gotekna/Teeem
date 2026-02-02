@@ -3,7 +3,7 @@
 class CreateGlCurrencies < ActiveRecord::Migration[8.0]
   def change
     create_table :gl_currencies do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
 
       # Currency Identity
       t.string :code, null: false          # "AUD", "USD", "NZD", "GBP"
@@ -21,10 +21,10 @@ class CreateGlCurrencies < ActiveRecord::Migration[8.0]
     end
 
     # Unique constraint: one currency code per company
-    add_index :gl_currencies, [:corporate_company_id, :code], unique: true
+    add_index :gl_currencies, [:corporate_id, :code], unique: true
 
     # Only one base currency per company
-    add_index :gl_currencies, [:corporate_company_id, :is_base_currency],
+    add_index :gl_currencies, [:corporate_id, :is_base_currency],
               unique: true, where: 'is_base_currency = true',
               name: 'idx_gl_currencies_base_currency'
   end

@@ -4,7 +4,7 @@ class CreateGlInventory < ActiveRecord::Migration[7.1]
   def change
     # Inventory items
     create_table :gl_inventory_items do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :pricebook_item, foreign_key: { to_table: :pricebook }
       t.references :cogs_account, foreign_key: { to_table: :gl_accounts }
       t.references :inventory_account, foreign_key: { to_table: :gl_accounts }
@@ -45,8 +45,8 @@ class CreateGlInventory < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_inventory_items, [:corporate_company_id, :sku], unique: true, name: "idx_inventory_items_sku"
-    add_index :gl_inventory_items, [:corporate_company_id, :category], name: "idx_inventory_items_category"
+    add_index :gl_inventory_items, [:corporate_id, :sku], unique: true, name: "idx_inventory_items_sku"
+    add_index :gl_inventory_items, [:corporate_id, :category], name: "idx_inventory_items_category"
     add_index :gl_inventory_items, [:status], name: "idx_inventory_items_status"
 
     # Inventory transactions (movements)
@@ -81,7 +81,7 @@ class CreateGlInventory < ActiveRecord::Migration[7.1]
 
     # Stock counts (stocktakes)
     create_table :gl_stock_counts do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :created_by, foreign_key: { to_table: :users }
       t.references :approved_by, foreign_key: { to_table: :users }
 
@@ -96,7 +96,7 @@ class CreateGlInventory < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_stock_counts, [:corporate_company_id, :reference],
+    add_index :gl_stock_counts, [:corporate_id, :reference],
               unique: true, name: "idx_stock_counts_ref"
 
     # Stock count lines

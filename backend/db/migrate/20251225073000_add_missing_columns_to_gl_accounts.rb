@@ -5,8 +5,8 @@ class AddMissingColumnsToGlAccounts < ActiveRecord::Migration[8.0]
     # Add missing columns to gl_accounts table
     # The original migration was marked as run but columns weren't created
 
-    unless column_exists?(:gl_accounts, :corporate_company_id)
-      add_reference :gl_accounts, :corporate_company, null: false, foreign_key: true
+    unless column_exists?(:gl_accounts, :corporate_id)
+      add_reference :gl_accounts, :corporate, null: false, foreign_key: true
     end
 
     unless column_exists?(:gl_accounts, :external_provider)
@@ -49,8 +49,8 @@ class AddMissingColumnsToGlAccounts < ActiveRecord::Migration[8.0]
     end
 
     # Add indexes if they don't exist
-    unless index_exists?(:gl_accounts, [:corporate_company_id, :external_provider, :external_tenant_id, :code], name: 'idx_gl_accounts_unique_code')
-      add_index :gl_accounts, [:corporate_company_id, :external_provider, :external_tenant_id, :code],
+    unless index_exists?(:gl_accounts, [:corporate_id, :external_provider, :external_tenant_id, :code], name: 'idx_gl_accounts_unique_code')
+      add_index :gl_accounts, [:corporate_id, :external_provider, :external_tenant_id, :code],
                 unique: true, name: 'idx_gl_accounts_unique_code'
     end
 

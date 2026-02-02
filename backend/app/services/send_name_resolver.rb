@@ -184,8 +184,8 @@ class SendNameResolver
     end
 
     # Company context
-    if documentable.respond_to?(:corporate_company) && documentable.corporate_company
-      company = documentable.corporate_company
+    if documentable.respond_to?(:corporate) && documentable.corporate
+      company = documentable.corporate
       context[:company_code] = company.company_code || company.code
       context[:company_name] = company.name
       context[:company_group] = company.company_group&.name  # SSoT: use association

@@ -7,7 +7,7 @@ module Api
       # POST /api/v1/estimates/:estimate_id/ai_review
       def create
         # Check if estimate is matched to construction
-        unless @estimate.construction
+        unless @estimate.job
           return render json: {
             success: false,
             error: "Estimate must be matched to a construction/job before AI review"

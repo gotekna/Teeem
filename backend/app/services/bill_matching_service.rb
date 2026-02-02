@@ -45,9 +45,9 @@ class BillMatchingService
   private
 
   def load_company_config
-    return {} unless @bill.corporate_company
+    return {} unless @bill.corporate
 
-    CompanyApprovalRule.default_bill_config(@bill.corporate_company)
+    CompanyApprovalRule.default_bill_config(@bill.corporate)
   end
 
   def find_matching_po
@@ -101,7 +101,7 @@ class BillMatchingService
   def try_ai_match
     return nil unless @enable_ai
 
-    matcher = Gl::AiPoInvoiceMatcher.new(@bill, corporate_company: @bill.corporate_company)
+    matcher = Gl::AiPoInvoiceMatcher.new(@bill, corporate: @bill.corporate)
     result = matcher.find_best_match
     return nil unless result && result[:confidence] >= 60
 
@@ -268,10 +268,10 @@ class BillMatchingService
 
   def should_auto_create_po?
     return false unless @config[:auto_create_po_for_subsidiaries]
-    return false unless @bill.corporate_company
+    return false unless @bill.corporate
 
     # Auto-create if not the primary company
-    !@bill.corporate_company.is_primary?
+    !@bill.corporate.is_primary?
   end
 
   def auto_create_po!
@@ -327,15 +327,15 @@ class BillMatchingService
 
   def find_or_create_default_job
     # Find a default job for the company, or create one
-    Job.find_by(corporate_company: @bill.corporate_company, is_default: true) ||
-      Job.where(corporate_company: @bill.corporate_company).first ||
+    Job.find_by(corporate: @bill.corporate, is_default: true) ||
+      Job.where(corporate: @bill.corporate).first ||
       create_default_job
   end
 
   def create_default_job
     Job.create!(
-      name: "General Expenses - #{@bill.corporate_company.name}",
-      corporate_company: @bill.corporate_company,
+      name: "General Expenses - #{@bill.corporate.name}",
+      corporate: @bill.corporate,
       status: "active",
       is_default: true
     )

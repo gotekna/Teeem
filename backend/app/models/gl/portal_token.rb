@@ -7,7 +7,7 @@ module Gl
 
     TOKEN_TYPES = %w[invoice statement portal].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :contact
     belongs_to :invoice, class_name: "Gl::Invoice", optional: true
 
@@ -24,7 +24,7 @@ module Gl
     # Generate token for single invoice
     def self.for_invoice(invoice, expires_in: 30.days)
       create!(
-        corporate_company: invoice.corporate_company,
+        corporate: invoice.corporate,
         contact: invoice.contact,
         invoice: invoice,
         token_type: "invoice",
@@ -35,7 +35,7 @@ module Gl
     # Generate token for customer statement
     def self.for_statement(contact, expires_in: 7.days)
       create!(
-        corporate_company: contact.corporate_company,
+        corporate: contact.corporate,
         contact: contact,
         token_type: "statement",
         expires_at: Time.current + expires_in
@@ -45,7 +45,7 @@ module Gl
     # Generate full portal access token
     def self.for_portal(contact, expires_in: nil)
       create!(
-        corporate_company: contact.corporate_company,
+        corporate: contact.corporate,
         contact: contact,
         token_type: "portal",
         expires_at: expires_in ? Time.current + expires_in : nil

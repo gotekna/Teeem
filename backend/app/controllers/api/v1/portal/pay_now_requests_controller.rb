@@ -305,7 +305,7 @@ module Api
           {
             id: po.id,
             purchase_order_number: po.purchase_order_number,
-            construction_name: po.construction&.name,
+            construction_name: po.job&.name,
             total: po.total,
             existing_payments: existing_payments,
             remaining_amount: remaining_amount,

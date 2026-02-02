@@ -21,9 +21,9 @@ module Gl
     RATE_LIMIT_THRESHOLD = 100
     RATE_LIMIT_PERIOD = 1.hour
 
-    def initialize(bill_inbox, corporate_company: nil)
+    def initialize(bill_inbox, corporate: nil)
       @bill = bill_inbox
-      @company = corporate_company || @bill.corporate_company
+      @company = corporate || @bill.corporate
     end
 
     # Main entry: Find best PO match with confidence scoring
@@ -78,7 +78,7 @@ module Gl
     # Record user's match confirmation for learning
     def record_confirmation(po, was_accepted:, user: nil)
       AiPoMatchLearning.create!(
-        corporate_company: @company,
+        corporate: @company,
         bill_inbox: @bill,
         purchase_order: po,
         was_accepted: was_accepted,
@@ -380,7 +380,7 @@ module Gl
 
     def rate_limited?
       recent_count = AiPoMatchAttempt
-        .where(corporate_company: @company)
+        .where(corporate: @company)
         .where("created_at > ?", RATE_LIMIT_PERIOD.ago)
         .count
 
@@ -389,7 +389,7 @@ module Gl
 
     def record_ai_attempt!
       AiPoMatchAttempt.create!(
-        corporate_company: @company,
+        corporate: @company,
         bill_inbox: @bill
       )
     end

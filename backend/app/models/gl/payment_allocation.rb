@@ -11,7 +11,7 @@ module Gl
     belongs_to :gl_invoice, class_name: 'Gl::Invoice'
 
     # Delegates
-    delegate :corporate_company, to: :gl_payment
+    delegate :corporate, to: :gl_payment
     delegate :payment_date, to: :gl_payment
     delegate :invoice_number, to: :gl_invoice
 

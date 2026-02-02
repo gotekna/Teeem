@@ -36,20 +36,20 @@ class RemoveLegacySharepointTemplateColumns < ActiveRecord::Migration[8.0]
     end
 
     # Remove the legacy columns
-    remove_column :corporate_company_settings, :sharepoint_job_template, :string
-    remove_column :corporate_company_settings, :sharepoint_company_template, :string
-    remove_column :corporate_company_settings, :sharepoint_people_template, :string
-    remove_column :corporate_company_settings, :sharepoint_contacts_template, :string
-    remove_column :corporate_company_settings, :sharepoint_task_template, :string
+    remove_column :corporate_settings, :sharepoint_job_template, :string
+    remove_column :corporate_settings, :sharepoint_company_template, :string
+    remove_column :corporate_settings, :sharepoint_people_template, :string
+    remove_column :corporate_settings, :sharepoint_contacts_template, :string
+    remove_column :corporate_settings, :sharepoint_task_template, :string
   end
 
   def down
     # Re-add columns for rollback
-    add_column :corporate_company_settings, :sharepoint_job_template, :string, default: "{{JobCode}}/{{Category}}"
-    add_column :corporate_company_settings, :sharepoint_company_template, :string, default: "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"
-    add_column :corporate_company_settings, :sharepoint_people_template, :string, default: "{{ContactName}}/{{Category}}"
-    add_column :corporate_company_settings, :sharepoint_contacts_template, :string, default: "{{ContactName}}/{{Category}}"
-    add_column :corporate_company_settings, :sharepoint_task_template, :string
+    add_column :corporate_settings, :sharepoint_job_template, :string, default: "{{JobCode}}/{{Category}}"
+    add_column :corporate_settings, :sharepoint_company_template, :string, default: "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"
+    add_column :corporate_settings, :sharepoint_people_template, :string, default: "{{ContactName}}/{{Category}}"
+    add_column :corporate_settings, :sharepoint_contacts_template, :string, default: "{{ContactName}}/{{Category}}"
+    add_column :corporate_settings, :sharepoint_task_template, :string
 
     # Restore data from StorageConfiguration if available
     if defined?(StorageConfiguration) && defined?(CorporateCompanySetting)

@@ -40,10 +40,10 @@ class GlSyncBackupJob < ApplicationJob
     tenant_name = xero_cred.tenant_name
 
     # Find corporate company for this tenant
-    connection = xero_cred.corporate_company_xero_connections.first
-    corporate_company = connection&.corporate_company
+    connection = xero_cred.corporate_xero_connections.first
+    corporate = connection&.corporate
 
-    unless corporate_company
+    unless corporate
       Rails.logger.warn("[GlSyncBackupJob] No company linked for tenant #{tenant_name} (#{tenant_id})")
       return :skipped
     end
@@ -65,7 +65,7 @@ class GlSyncBackupJob < ApplicationJob
     Rails.logger.info("[GlSyncBackupJob] Tenant #{tenant_name} stale (last: #{last_sync || 'never'}), queueing sync")
 
     GlSyncJob.perform_later(
-      corporate_company.id,
+      corporate.id,
       'xero',
       tenant_id,
       'incremental',

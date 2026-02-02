@@ -23,7 +23,7 @@ class TemplatePackItem < ApplicationRecord
     document_types
     sm_schedule_master_templates
     public_holidays
-    entity_tabs
+    warehouse_folders
   ].freeze
 
   # =============================================================================
@@ -57,7 +57,7 @@ class TemplatePackItem < ApplicationRecord
     when "document_types" then DocumentType
     when "sm_schedule_master_templates" then SmScheduleMasterTemplate
     when "public_holidays" then PublicHoliday
-    when "entity_tabs" then EntityTab
+    when "warehouse_folders" then WarehouseFolder
     else
       raise ArgumentError, "Unknown item type: #{item_type}"
     end
@@ -73,7 +73,7 @@ class TemplatePackItem < ApplicationRecord
     when "document_types" then "Document Types"
     when "sm_schedule_master_templates" then "Schedule Master Templates"
     when "public_holidays" then "Public Holidays"
-    when "entity_tabs" then "Entity Tabs"
+    when "warehouse_folders" then "Warehouse Folders"
     else
       item_type.humanize.titleize
     end

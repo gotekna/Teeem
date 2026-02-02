@@ -89,20 +89,20 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
+import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 // useUrlState removed - doesn't work reliably with catch-all routes
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { Spinner } from "@/components/ui/spinner";
 import type {
-  EntityTab,
-  EntityTabScope,
+  WarehouseFolder,
+  WarehouseFolderScope,
   TabGroup,
   TabDisplayMode,
-  EntityTabCreateParams,
-  EntityTabUpdateParams,
+  WarehouseFolderCreateParams,
+  WarehouseFolderUpdateParams,
   ReorderTabParams,
-} from "@/lib/types/entity-tabs";
-import { SCOPE_LABELS, GROUP_LABELS } from "@/lib/types/entity-tabs";
+} from "@/lib/types/warehouse-folders";
+import { SCOPE_LABELS, GROUP_LABELS } from "@/lib/types/warehouse-folders";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -147,7 +147,7 @@ const WAREHOUSE_SCOPE_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 // Hook to fetch used icons for a scope
-function useUsedIcons(scope: EntityTabScope) {
+function useUsedIcons(scope: WarehouseFolderScope) {
   const [usedIcons, setUsedIcons] = React.useState<Array<{ id: number; icon_name: string; display_name: string }>>([]);
   const [loading, setLoading] = React.useState(false);
 
@@ -155,7 +155,7 @@ function useUsedIcons(scope: EntityTabScope) {
     setLoading(true);
     try {
       const response = await api.get<{ success: boolean; data: Array<{ id: number; icon_name: string; display_name: string }> }>(
-        `/api/v1/entity_tabs/used_icons?scope=${scope}`
+        `/api/v1/warehouse_folders/used_icons?scope=${scope}`
       );
       if (response?.success) {
         setUsedIcons(response.data);
@@ -198,7 +198,7 @@ function useEntityTypes() {
 
   const fetchEntityTypes = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: string[] }>('/api/v1/entity_tabs/entity_types');
+      const response = await api.get<{ success: boolean; data: string[] }>('/api/v1/warehouse_folders/entity_types');
       if (response?.success) {
         setEntityTypes(response.data);
       }
@@ -218,7 +218,7 @@ function useEntityTypes() {
   const updateEntityTypes = async (types: string[]) => {
     setSaving(true);
     try {
-      const response = await api.put<{ success: boolean; data: string[] }>('/api/v1/entity_tabs/entity_types', {
+      const response = await api.put<{ success: boolean; data: string[] }>('/api/v1/warehouse_folders/entity_types', {
         entity_types: types,
       });
       if (response?.success) {
@@ -237,8 +237,8 @@ function useEntityTypes() {
   return { entityTypes, loading, saving, updateEntityTypes, refetch: fetchEntityTypes };
 }
 
-interface EntityTabsConfigProps {
-  scope: EntityTabScope;
+interface WarehouseFoldersConfigProps {
+  scope: WarehouseFolderScope;
   showEntityFilters?: boolean;      // Show entity type checkboxes (for corporate scope)
   showSharePointPaths?: boolean;    // Show SharePoint path config
   showDocumentTypes?: boolean;      // Show linked document types
@@ -248,7 +248,7 @@ interface EntityTabsConfigProps {
   compact?: boolean;                // Hide title/description for embedded use
 }
 
-export function EntityTabsConfig({
+export function WarehouseFoldersConfig({
   scope,
   showEntityFilters = false,
   showSharePointPaths = false,
@@ -257,7 +257,7 @@ export function EntityTabsConfig({
   title,
   description,
   compact = false,
-}: EntityTabsConfigProps) {
+}: WarehouseFoldersConfigProps) {
   const {
     tabs,
     groups,
@@ -269,7 +269,7 @@ export function EntityTabsConfig({
     reorderTabs,
     toggleEnabled,
     refetch,
-  } = useEntityTabs({ scope, includeDisabled: true });
+  } = useWarehouseFolders({ scope, includeDisabled: true });
 
   // Fetch entity types from API (SSoT)
   const {
@@ -334,7 +334,7 @@ export function EntityTabsConfig({
 
   // SSoT: THE ONE function to get full storage path for a tab
   // Handles storage_path_type override (e.g., Corporate tab using 'people' path)
-  const getTabFullPath = React.useCallback((tab: EntityTab, defaultScope: string): string => {
+  const getTabFullPath = React.useCallback((tab: WarehouseFolder, defaultScope: string): string => {
     // Determine which scope folder to use based on storage_path_type override
     const pathScope = tab.warehouse_type_override === 'corporate' ? 'people' : defaultScope;
     const basePath = getBasePath(pathScope);
@@ -383,7 +383,7 @@ export function EntityTabsConfig({
   const editingTab = React.useMemo(() => {
     if (!editingTabKey || dialogAction !== "edit") return null;
     // Search recursively through tabs and children by tab_key
-    const findTab = (tabList: EntityTab[]): EntityTab | null => {
+    const findTab = (tabList: WarehouseFolder[]): WarehouseFolder | null => {
       for (const tab of tabList) {
         if (tab.tab_key === editingTabKey) return tab;
         if (tab.children?.length) {
@@ -402,7 +402,7 @@ export function EntityTabsConfig({
     // Find the plans tab and add the component_name
     const plansTab = tabs.find(t => t.tab_key === "plans");
     if (!plansTab) return null;
-    return { ...plansTab, component_name: configPanelName } as EntityTab & { component_name: string };
+    return { ...plansTab, component_name: configPanelName } as WarehouseFolder & { component_name: string };
   }, [configPanelName, tabs]);
 
   // Use tab_key (slug) for expanded state - Set<string> instead of Set<number>
@@ -423,7 +423,7 @@ export function EntityTabsConfig({
   }, []);
 
   // Use tab_key (slug) instead of numeric ID
-  const setEditingTab = React.useCallback((tab: EntityTab | null) => {
+  const setEditingTab = React.useCallback((tab: WarehouseFolder | null) => {
     if (tab) {
       setEditingTabKey(tab.tab_key);
       setDialogAction("edit");
@@ -445,11 +445,11 @@ export function EntityTabsConfig({
     setEditingTabKey(null);
   }, []);
 
-  const setConfigTab = React.useCallback((tab: EntityTab | null, componentName?: string) => {
+  const setConfigTab = React.useCallback((tab: WarehouseFolder | null, componentName?: string) => {
     setConfigPanelName(componentName || null);
   }, []);
 
-  const [deleteConfirmTab, setDeleteConfirmTab] = React.useState<EntityTab | null>(null);
+  const [deleteConfirmTab, setDeleteConfirmTab] = React.useState<WarehouseFolder | null>(null);
   const [showEntityTypesEditor, setShowEntityTypesEditor] = React.useState(false);
   const [newEntityType, setNewEntityType] = React.useState("");
 
@@ -567,7 +567,7 @@ export function EntityTabsConfig({
         });
       }
 
-      console.log('[EntityTabsConfig] Setting status to saving...');
+      console.log('[WarehouseFoldersConfig] Setting status to saving...');
       setSaveStatus('saving');
       await api.patch('/api/v1/warehouse_provider', {
         storage: {
@@ -577,11 +577,11 @@ export function EntityTabsConfig({
       });
 
       // Show green tick - stays until page closes or next change
-      console.log('[EntityTabsConfig] Setting status to saved...');
+      console.log('[WarehouseFoldersConfig] Setting status to saved...');
       setSaveStatus('saved');
-      console.log('[EntityTabsConfig] Auto-saved templates');
+      console.log('[WarehouseFoldersConfig] Auto-saved templates');
     } catch (err) {
-      console.error('[EntityTabsConfig] Failed to auto-save templates:', err);
+      console.error('[WarehouseFoldersConfig] Failed to auto-save templates:', err);
       setSaveStatus('idle');
     }
   }, [
@@ -659,7 +659,7 @@ export function EntityTabsConfig({
   }, [isAuthenticated]);
 
   // Form state for create/edit
-  const [formData, setFormData] = React.useState<Partial<EntityTabCreateParams & { warehouse_type_override?: 'corporate' | 'contacts'; display_mode?: TabDisplayMode; hidden_by_default?: boolean }>>({});
+  const [formData, setFormData] = React.useState<Partial<WarehouseFolderCreateParams & { warehouse_type_override?: 'corporate' | 'contacts'; display_mode?: TabDisplayMode; hidden_by_default?: boolean }>>({});
 
   // Convert entity types to MultipleSelector options
   const entityTypeOptions: Option[] = React.useMemo(() =>
@@ -675,7 +675,7 @@ export function EntityTabsConfig({
 
   // Group tabs by tab_group
   const groupedTabs = React.useMemo(() => {
-    const grouped: Record<string, EntityTab[]> = {};
+    const grouped: Record<string, WarehouseFolder[]> = {};
     const allGroups = [...groups];
 
     // Initialize all groups
@@ -785,7 +785,7 @@ export function EntityTabsConfig({
   };
 
   // Handle drag-and-drop reorder
-  const handleReorder = async (newItems: EntityTab[], group?: TabGroup) => {
+  const handleReorder = async (newItems: WarehouseFolder[], group?: TabGroup) => {
     setSaving(true);
     try {
       const reorderData: ReorderTabParams[] = newItems.map((item, index) => ({
@@ -813,7 +813,7 @@ export function EntityTabsConfig({
   };
 
   // Handle visibility toggle
-  const handleToggleEnabled = async (tab: EntityTab) => {
+  const handleToggleEnabled = async (tab: WarehouseFolder) => {
     setSaving(true);
     try {
       await toggleEnabled(tab.id);
@@ -825,7 +825,7 @@ export function EntityTabsConfig({
   };
 
   // Handle delete
-  const handleDelete = async (tab: EntityTab) => {
+  const handleDelete = async (tab: WarehouseFolder) => {
     if (!tab.can_delete) {
       return;
     }
@@ -863,7 +863,7 @@ export function EntityTabsConfig({
 
   // Open edit dialog - always opens the edit dialog for tab settings
   // (Special config sheets are accessed via dedicated buttons, not the edit action)
-  const openEditDialog = (tab: EntityTab) => {
+  const openEditDialog = (tab: WarehouseFolder) => {
     // Note: Both {{TabName}} (parent) and {{SubTabName}} (current) are valid for subtabs
     const folderPath = tab.warehouse_folder || "";
 
@@ -932,7 +932,7 @@ export function EntityTabsConfig({
         const hasWarehouseEnabled = editingTab.warehouse_enabled || formData.warehouse_enabled;
 
         // Update existing
-        const updateParams: EntityTabUpdateParams = {
+        const updateParams: WarehouseFolderUpdateParams = {
           display_name: formData.display_name,
           display_code: formData.display_code,
           description: formData.description,
@@ -974,7 +974,7 @@ export function EntityTabsConfig({
         return;
       } else {
         // Create new
-        const createParams: EntityTabCreateParams = {
+        const createParams: WarehouseFolderCreateParams = {
           scope,
           tab_key: formData.tab_key || formData.display_name?.toLowerCase().replace(/\s+/g, "-") || "",
           display_name: formData.display_name || "",
@@ -1008,7 +1008,7 @@ export function EntityTabsConfig({
 
   // Toggle entity filter inline (click badge to toggle)
   // Children inherit from parent - updating parent updates all children
-  const toggleEntityFilter = async (tab: EntityTab, entityType: string) => {
+  const toggleEntityFilter = async (tab: WarehouseFolder, entityType: string) => {
     const currentFilters = tab.entity_filters || [];
     const newFilters = currentFilters.includes(entityType)
       ? currentFilters.filter((t) => t !== entityType)
@@ -1019,7 +1019,7 @@ export function EntityTabsConfig({
       await updateTab(tab.id, { entity_filters: newFilters });
 
       // Update all children recursively
-      const updateChildren = async (children: EntityTab[]) => {
+      const updateChildren = async (children: WarehouseFolder[]) => {
         for (const child of children) {
           await updateTab(child.id, { entity_filters: newFilters });
           if (child.children && child.children.length > 0) {
@@ -1038,8 +1038,8 @@ export function EntityTabsConfig({
 
   // Helper to find siblings (tabs with same parent), sorted by order_position
   // When showTabGroups is false (flat list mode), all root tabs are siblings
-  const findSiblings = (tab: EntityTab): EntityTab[] => {
-    let siblings: EntityTab[];
+  const findSiblings = (tab: WarehouseFolder): WarehouseFolder[] => {
+    let siblings: WarehouseFolder[];
 
     if (!tab.parent_id) {
       // Root level
@@ -1052,7 +1052,7 @@ export function EntityTabsConfig({
       }
     } else {
       // Find parent and return its children
-      const findParent = (items: EntityTab[]): EntityTab | null => {
+      const findParent = (items: WarehouseFolder[]): WarehouseFolder | null => {
         for (const item of items) {
           if (item.id === tab.parent_id) return item;
           if (item.children?.length) {
@@ -1072,7 +1072,7 @@ export function EntityTabsConfig({
   };
 
   // Handle position change via typing a number
-  const handlePositionChange = async (tab: EntityTab, newPosition: number, depth: number) => {
+  const handlePositionChange = async (tab: WarehouseFolder, newPosition: number, depth: number) => {
     try {
       const siblings = findSiblings(tab);
       if (siblings.length === 0) return;
@@ -1102,7 +1102,7 @@ export function EntityTabsConfig({
   };
 
   // Handle reorder for children
-  const handleChildReorder = async (parentTab: EntityTab, newChildren: EntityTab[]) => {
+  const handleChildReorder = async (parentTab: WarehouseFolder, newChildren: WarehouseFolder[]) => {
     setSaving(true);
     try {
       const reorderData: ReorderTabParams[] = newChildren.map((item) => ({
@@ -1118,7 +1118,7 @@ export function EntityTabsConfig({
   };
 
   // Render tab with all its children recursively
-  const renderTabWithChildren = (tab: EntityTab, index: number, depth = 0): React.ReactNode => {
+  const renderTabWithChildren = (tab: WarehouseFolder, index: number, depth = 0): React.ReactNode => {
     return (
       <React.Fragment key={tab.id}>
         {renderTabItem(tab, index, depth > 0, depth)}
@@ -1218,7 +1218,7 @@ export function EntityTabsConfig({
   };
 
   // Render a single tab item
-  const renderTabItem = (tab: EntityTab, index: number, isChild = false, depth = 0) => {
+  const renderTabItem = (tab: WarehouseFolder, index: number, isChild = false, depth = 0) => {
     // SSoT: Use effective_icon_name for inherited icons from parent
     const IconComponent = getIcon(tab.effective_icon_name || tab.icon_name || "file");
     const hasChildren = tab.children && tab.children.length > 0;
@@ -1558,7 +1558,7 @@ export function EntityTabsConfig({
   };
 
   // Render a group of tabs
-  const renderTabGroup = (group: TabGroup, tabsInGroup: EntityTab[]) => {
+  const renderTabGroup = (group: TabGroup, tabsInGroup: WarehouseFolder[]) => {
     return (
       <Card key={group}>
         <CardHeader className="pb-3">
@@ -2482,7 +2482,7 @@ export function EntityTabsConfig({
                   // Get actual tab names for preview
                   const parentId = formData.parent_id || editingTab?.parent_id;
                   // Recursive search to find parent tab (might be nested)
-                  const findTabById = (tabList: EntityTab[], id: number): EntityTab | null => {
+                  const findTabById = (tabList: WarehouseFolder[], id: number): WarehouseFolder | null => {
                     for (const tab of tabList) {
                       if (tab.id === id) return tab;
                       if (tab.children?.length) {
@@ -2534,7 +2534,7 @@ export function EntityTabsConfig({
                       size="sm"
                       className="h-7 text-xs"
                       onClick={() => {
-                        // Map EntityTabScope to document type scope
+                        // Map WarehouseFolderScope to document type scope
                         const docTypeScope = scope === 'corporate' ? 'company' : scope;
                         // Pass tab ID so it can be pre-selected as the folder
                         const tabId = editingTab?.id;
@@ -2706,3 +2706,6 @@ export function EntityTabsConfig({
     </div>
   );
 }
+
+// Backwards compatibility alias for old name
+export const EntityTabsConfig = WarehouseFoldersConfig;

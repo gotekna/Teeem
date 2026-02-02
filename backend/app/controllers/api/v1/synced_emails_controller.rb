@@ -272,7 +272,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
     all_email_ids = emails.map(&:id)
-    user_states_cache = EmailUserState.where(synced_email_id: all_email_ids, user_id: current_user.id).index_by(&:synced_email_id)
+    user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
 
     render json: {
       emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) },
@@ -298,8 +298,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
       # Batch load user states for read status
       email_ids = thread_emails.map(&:id)
-      user_states_cache = EmailUserState.where(synced_email_id: email_ids, user_id: current_user.id)
-                                        .index_by(&:synced_email_id)
+      user_states_cache = EmailUserState.where(email_warehouse_id: email_ids, user_id: current_user.id)
+                                        .index_by(&:email_warehouse_id)
 
       return render json: {
         email: email_json(@email, include_body: true),
@@ -337,8 +337,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Batch load all user states for thread (1 query)
     email_ids = thread_emails.map(&:id)
-    user_states_cache = EmailUserState.where(synced_email_id: email_ids, user_id: current_user.id)
-                                      .index_by(&:synced_email_id)
+    user_states_cache = EmailUserState.where(email_warehouse_id: email_ids, user_id: current_user.id)
+                                      .index_by(&:email_warehouse_id)
 
     # Batch load all contacts for thread (1 query)
     all_contact_ids = thread_emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
@@ -1614,7 +1614,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     user_state = if user_states_cache
       user_states_cache[email.id]
     else
-      EmailUserState.find_by(synced_email_id: email.id, user_id: current_user.id)
+      EmailUserState.find_by(email_warehouse_id: email.id, user_id: current_user.id)
     end
     # FRC (Jan 2026): If user has a state, use it. Otherwise fall back to the email's
     # read status from O365/IMAP. Previously defaulted to false, which showed emails
@@ -1911,7 +1911,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
       contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
       all_email_ids = emails.map(&:id)
-      user_states_cache = EmailUserState.where(synced_email_id: all_email_ids, user_id: current_user.id).index_by(&:synced_email_id)
+      user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
 
       return render json: {
         success: true,
@@ -1937,7 +1937,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     all_contact_ids = all_emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
     all_email_ids = all_emails.map(&:id)
-    user_states_cache = EmailUserState.where(synced_email_id: all_email_ids, user_id: current_user.id).index_by(&:synced_email_id)
+    user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
 
     render json: {
       success: true,

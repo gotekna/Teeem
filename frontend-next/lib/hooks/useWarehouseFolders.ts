@@ -3,26 +3,26 @@
 import * as React from "react";
 import { api } from "@/lib/api";
 import type {
-  EntityTab,
-  EntityTabScope,
-  EntityTabsResponse,
-  EntityTabResponse,
-  EntityTabCreateParams,
-  EntityTabUpdateParams,
+  WarehouseFolder,
+  WarehouseFolderScope,
+  WarehouseFoldersResponse,
+  WarehouseFolderResponse,
+  WarehouseFolderCreateParams,
+  WarehouseFolderUpdateParams,
   ReorderTabParams,
   TabGroup,
-} from "@/lib/types/entity-tabs";
+} from "@/lib/types/warehouse-folders";
 
 // =============================================================================
 // REQUEST DEDUPLICATION - Prevents duplicate API calls that cause screen flashing
 // =============================================================================
-// Problem: Multiple components calling useEntityTabs({ scope: "job" }) each make
-// their own API call, causing multiple loading → loaded cycles (flashing).
+// Problem: Multiple components calling useWarehouseFolders({ scope: "job" }) each make
+// their own API call, causing multiple loading -> loaded cycles (flashing).
 // Solution: Cache in-flight requests and recent responses at module level.
 // =============================================================================
 
 interface CachedResponse {
-  tabs: EntityTab[];
+  tabs: WarehouseFolder[];
   groups: TabGroup[];
   primaryXeroName: string | null;
   timestamp: number;
@@ -30,7 +30,7 @@ interface CachedResponse {
 
 // Module-level cache for request deduplication
 interface CachedRequest {
-  promise: Promise<EntityTabsResponse>;
+  promise: Promise<WarehouseFoldersResponse>;
   timestamp: number;
 }
 const requestCache = new Map<string, CachedRequest>();
@@ -39,7 +39,7 @@ const CACHE_TTL_MS = 5000; // Cache responses for 5 seconds
 const REQUEST_CACHE_TTL_MS = 30000; // Max 30 seconds for in-flight requests
 
 function getCacheKey(
-  scope: EntityTabScope,
+  scope: WarehouseFolderScope,
   entityType?: string,
   tabGroup?: TabGroup,
   includeDisabled?: boolean
@@ -62,38 +62,38 @@ function invalidateCache(key: string): void {
   requestCache.delete(key);
 }
 
-interface UseEntityTabsOptions {
-  scope: EntityTabScope;
+interface UseWarehouseFoldersOptions {
+  scope: WarehouseFolderScope;
   entityType?: string; // For filtering corporate tabs by Company, Trust, etc.
   tabGroup?: TabGroup; // Filter by group
   includeDisabled?: boolean; // Include disabled tabs (for admin views)
 }
 
-interface UseEntityTabsReturn {
-  tabs: EntityTab[];
+interface UseWarehouseFoldersReturn {
+  tabs: WarehouseFolder[];
   groups: TabGroup[];
   loading: boolean;
   error: string | null;
   // SSoT: Primary Xero account name (from XeroCredential.is_primary)
   primaryXeroName: string | null;
   // CRUD operations
-  createTab: (params: EntityTabCreateParams) => Promise<EntityTab>;
-  updateTab: (id: number, params: EntityTabUpdateParams) => Promise<EntityTab>;
+  createTab: (params: WarehouseFolderCreateParams) => Promise<WarehouseFolder>;
+  updateTab: (id: number, params: WarehouseFolderUpdateParams) => Promise<WarehouseFolder>;
   deleteTab: (id: number) => Promise<void>;
   // Specialized operations
-  reorderTabs: (items: ReorderTabParams[], optimisticTabs?: EntityTab[]) => Promise<void>;
-  toggleEnabled: (id: number) => Promise<EntityTab>;
+  reorderTabs: (items: ReorderTabParams[], optimisticTabs?: WarehouseFolder[]) => Promise<void>;
+  toggleEnabled: (id: number) => Promise<WarehouseFolder>;
   // Refresh
   refetch: () => Promise<void>;
 }
 
-export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsReturn {
+export function useWarehouseFolders(options: UseWarehouseFoldersOptions): UseWarehouseFoldersReturn {
   const { scope, entityType, tabGroup, includeDisabled } = options;
   const cacheKey = getCacheKey(scope, entityType, tabGroup, includeDisabled);
 
   // Initialize from cache if available (prevents flash on mount)
   const cachedInitial = getCachedResponse(cacheKey);
-  const [tabs, setTabs] = React.useState<EntityTab[]>(cachedInitial?.tabs || []);
+  const [tabs, setTabs] = React.useState<WarehouseFolder[]>(cachedInitial?.tabs || []);
   const [groups, setGroups] = React.useState<TabGroup[]>(cachedInitial?.groups || []);
   const [loading, setLoading] = React.useState(!cachedInitial);
   const [error, setError] = React.useState<string | null>(null);
@@ -126,7 +126,7 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
       if (tabGroup) params.append("tab_group", tabGroup);
       if (includeDisabled) params.append("include_disabled", "true");
 
-      const url = `/api/v1/entity_tabs?${params.toString()}`;
+      const url = `/api/v1/warehouse_folders?${params.toString()}`;
 
       // Deduplicate in-flight requests - if same request is already in progress, reuse it
       // Clear stale cache entries to prevent hanging on dead promises
@@ -134,17 +134,17 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
       const cachedRequest = requestCache.get(cacheKey);
 
       if (cachedRequest && now - cachedRequest.timestamp > REQUEST_CACHE_TTL_MS) {
-        console.warn(`Clearing stale entity tabs request cache for ${cacheKey}`);
+        console.warn(`Clearing stale warehouse folders request cache for ${cacheKey}`);
         requestCache.delete(cacheKey);
       }
 
-      let requestPromise: Promise<EntityTabsResponse>;
+      let requestPromise: Promise<WarehouseFoldersResponse>;
       const freshCached = requestCache.get(cacheKey);
 
       if (freshCached && !forceRefresh) {
         requestPromise = freshCached.promise;
       } else {
-        requestPromise = api.get<EntityTabsResponse>(url);
+        requestPromise = api.get<WarehouseFoldersResponse>(url);
         requestCache.set(cacheKey, { promise: requestPromise, timestamp: now });
       }
 
@@ -172,7 +172,7 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
     } catch (err) {
       requestCache.delete(cacheKey);
       setError("Failed to load tab configuration");
-      console.error("Failed to fetch entity tabs:", err);
+      console.error("Failed to fetch warehouse folders:", err);
     } finally {
       setLoading(false);
     }
@@ -182,10 +182,10 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
     fetchTabs();
   }, [fetchTabs]);
 
-  const createTab = async (params: EntityTabCreateParams): Promise<EntityTab> => {
+  const createTab = async (params: WarehouseFolderCreateParams): Promise<WarehouseFolder> => {
     try {
-      const response = await api.post<EntityTabResponse>("/api/v1/entity_tabs", {
-        entity_tab: { ...params, scope },
+      const response = await api.post<WarehouseFolderResponse>("/api/v1/warehouse_folders", {
+        warehouse_folder: { ...params, scope },
       });
 
       if (response?.success) {
@@ -202,11 +202,11 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
 
   const updateTab = async (
     id: number,
-    params: EntityTabUpdateParams
-  ): Promise<EntityTab> => {
+    params: WarehouseFolderUpdateParams
+  ): Promise<WarehouseFolder> => {
     try {
-      const response = await api.patch<EntityTabResponse>(`/api/v1/entity_tabs/${id}`, {
-        entity_tab: params,
+      const response = await api.patch<WarehouseFolderResponse>(`/api/v1/warehouse_folders/${id}`, {
+        warehouse_folder: params,
       });
 
       if (response?.success) {
@@ -224,7 +224,7 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
   const deleteTab = async (id: number): Promise<void> => {
     try {
       const response = await api.delete<{ success: boolean; error?: string }>(
-        `/api/v1/entity_tabs/${id}`
+        `/api/v1/warehouse_folders/${id}`
       );
 
       if (!response?.success) {
@@ -238,14 +238,14 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
     }
   };
 
-  const reorderTabs = async (items: ReorderTabParams[], optimisticTabs?: EntityTab[]): Promise<void> => {
+  const reorderTabs = async (items: ReorderTabParams[], optimisticTabs?: WarehouseFolder[]): Promise<void> => {
     // Optimistic update - immediately show new order to prevent jitter
     if (optimisticTabs) {
       setTabs(optimisticTabs);
     }
 
     try {
-      await api.post("/api/v1/entity_tabs/reorder", { tabs: items });
+      await api.post("/api/v1/warehouse_folders/reorder", { tabs: items });
       invalidateCache(cacheKey);
       await fetchTabs(true); // Confirm with server data
     } catch (err) {
@@ -257,10 +257,10 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
     }
   };
 
-  const toggleEnabled = async (id: number): Promise<EntityTab> => {
+  const toggleEnabled = async (id: number): Promise<WarehouseFolder> => {
     try {
-      const response = await api.post<EntityTabResponse>(
-        `/api/v1/entity_tabs/${id}/toggle`
+      const response = await api.post<WarehouseFolderResponse>(
+        `/api/v1/warehouse_folders/${id}/toggle`
       );
 
       if (response?.success) {
@@ -295,3 +295,13 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
     refetch,
   };
 }
+
+// Backwards compatibility alias
+export const useEntityTabs = useWarehouseFolders;
+
+// Re-export types for convenience
+export type { UseWarehouseFoldersOptions, UseWarehouseFoldersReturn };
+
+// Backwards compatibility type aliases
+export type UseEntityTabsOptions = UseWarehouseFoldersOptions;
+export type UseEntityTabsReturn = UseWarehouseFoldersReturn;

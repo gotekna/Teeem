@@ -14,7 +14,7 @@ class BillPayment < ApplicationRecord
   belongs_to :purchase_order, optional: true
 
   # Delegations
-  delegate :corporate_company, to: :bill_payment_batch
+  delegate :corporate, to: :bill_payment_batch
   delegate :bank_account, to: :bill_payment_batch
 
   # Validations

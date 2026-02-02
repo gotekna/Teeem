@@ -1,7 +1,7 @@
 /**
  * Tab Component Registry - Single Source of Truth
  *
- * Maps EntityTab.component_name values to React lazy-loaded components.
+ * Maps WarehouseFolder.component_name values to React lazy-loaded components.
  * This is THE ONE place to register tab components for dynamic rendering.
  *
  * Usage:
@@ -12,7 +12,7 @@
  *
  * Adding a new tab component:
  *   1. Create component in appropriate folder
- *   2. Add entry here with matching component_name from EntityTabs database
+ *   2. Add entry here with matching component_name from WarehouseFolders database
  *   3. Ideally component accepts TabComponentProps, but legacy components are allowed during migration
  */
 

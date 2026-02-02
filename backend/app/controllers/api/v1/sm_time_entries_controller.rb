@@ -415,7 +415,7 @@ module Api
           json[:task] = {
             id: entry.task_id,
             name: entry.task.name,
-            construction_id: entry.task.construction_id,
+            construction_id: entry.task.job_id,
             start_date: entry.task.start_date,
             end_date: entry.task.end_date
           }

@@ -20,14 +20,14 @@ class UpdateSharepointPathDefaults < ActiveRecord::Migration[8.0]
     SQL
 
     # Change column defaults
-    change_column_default :corporate_company_settings, :sharepoint_jobs_path, from: "TEEEM Jobs", to: "Jobs"
-    change_column_default :corporate_company_settings, :job_documents_base_path, from: "TEEEM Jobs", to: "Jobs"
+    change_column_default :corporate_settings, :sharepoint_jobs_path, from: "TEEEM Jobs", to: "Jobs"
+    change_column_default :corporate_settings, :job_documents_base_path, from: "TEEEM Jobs", to: "Jobs"
   end
 
   def down
     # Revert column defaults
-    change_column_default :corporate_company_settings, :sharepoint_jobs_path, from: "Jobs", to: "TEEEM Jobs"
-    change_column_default :corporate_company_settings, :job_documents_base_path, from: "Jobs", to: "TEEEM Jobs"
+    change_column_default :corporate_settings, :sharepoint_jobs_path, from: "Jobs", to: "TEEEM Jobs"
+    change_column_default :corporate_settings, :job_documents_base_path, from: "Jobs", to: "TEEEM Jobs"
 
     # Don't revert data - would lose user customizations
   end

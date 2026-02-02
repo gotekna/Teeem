@@ -164,12 +164,12 @@ class DocumentEsignService
 
   def build_job_folder_path
     # Build path like: "Jobs/123 - Smith Residence/Documents"
-    # SSoT: EntityTab owns folder names, WarehouseProvider owns base path
+    # SSoT: WarehouseFolder owns folder names, WarehouseProvider owns base path
     base_path = WarehouseProvider.instance.path_for(:jobs)
     job_folder = "#{job.id} - #{job.name}"
 
-    # SSoT: Use EntityTab for folder name instead of hardcoding
-    documents_tab = EntityTab.find_by(scope: "job", tab_key: "documents")
+    # SSoT: Use WarehouseFolder for folder name instead of hardcoding
+    documents_tab = WarehouseFolder.find_by(warehouse_type: "job", tab_key: "documents")
     folder_name = documents_tab&.display_name || "Documents"
 
     "#{base_path}/#{job_folder}/#{folder_name}"

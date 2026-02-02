@@ -18,7 +18,7 @@ class SmHoldLog < ApplicationRecord
 
   scope :starts, -> { where(event_type: "hold_started") }
   scope :releases, -> { where(event_type: "hold_released") }
-  scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
+  scope :for_construction, ->(construction_id) { where(job_id: construction_id) }
   scope :recent, -> { order(created_at: :desc) }
 
   def hold_started?

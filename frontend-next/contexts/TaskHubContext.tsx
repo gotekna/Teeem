@@ -134,8 +134,7 @@ export interface SmTask {
   sequence_order?: number;
 
   // Job relationship
-  construction_id: number;
-  job_id?: number; // API write field (backend permits job_id, not construction_id)
+  job_id: number;
   job_name?: string;
 
   // Assignment
@@ -393,7 +392,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       progress_percentage: 100,
       trade: 'Concrete',
       stage: 'Foundation',
-      construction_id: 101,
+      job_id: 101,
       job_name: 'Smith Residence - 42 Oak St',
       assigned_user_id: currentUserId,
       assigned_user_name: 'You',
@@ -417,7 +416,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       progress_percentage: 60,
       trade: 'Carpentry',
       stage: 'Framing',
-      construction_id: 101,
+      job_id: 101,
       job_name: 'Smith Residence - 42 Oak St',
       assigned_user_id: currentUserId,
       assigned_user_name: 'You',
@@ -443,7 +442,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       progress_percentage: 0,
       trade: 'Electrical',
       stage: 'Rough-In',
-      construction_id: 101,
+      job_id: 101,
       job_name: 'Smith Residence - 42 Oak St',
       assigned_user_id: 2,
       assigned_user_name: 'Mike Electrician',
@@ -468,7 +467,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       progress_percentage: 0,
       trade: 'Plumbing',
       stage: 'Rough-In',
-      construction_id: 101,
+      job_id: 101,
       job_name: 'Smith Residence - 42 Oak St',
       assigned_user_id: 3,
       assigned_user_name: 'Pete Plumber',
@@ -493,7 +492,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       progress_percentage: 0,
       trade: 'Admin',
       stage: 'Inspection',
-      construction_id: 101,
+      job_id: 101,
       job_name: 'Smith Residence - 42 Oak St',
       assigned_user_id: currentUserId,
       assigned_user_name: 'You',
@@ -518,7 +517,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       progress_percentage: 0,
       trade: 'HVAC',
       stage: 'Fit-Off',
-      construction_id: 101,
+      job_id: 101,
       job_name: 'Smith Residence - 42 Oak St',
       assigned_user_id: 4,
       assigned_user_name: 'Harry HVAC',
@@ -544,7 +543,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       progress_percentage: 100,
       trade: 'Demolition',
       stage: 'Site Prep',
-      construction_id: 102,
+      job_id: 102,
       job_name: 'Johnson Reno - 15 Pine Ave',
       assigned_user_id: 5,
       assigned_user_name: 'Demo Dave',
@@ -568,7 +567,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       progress_percentage: 40,
       trade: 'Carpentry',
       stage: 'Fit-Off',
-      construction_id: 102,
+      job_id: 102,
       job_name: 'Johnson Reno - 15 Pine Ave',
       assigned_user_id: currentUserId,
       assigned_user_name: 'You',
@@ -595,7 +594,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       duration_days: 1,
       progress_percentage: 0,
       trade: 'Admin',
-      construction_id: 0, // No job
+      job_id: 0, // No job
       job_name: 'Personal Task',
       assigned_user_id: currentUserId,
       assigned_user_name: 'You',
@@ -617,7 +616,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       duration_days: 1,
       progress_percentage: 0,
       trade: 'Admin',
-      construction_id: 0,
+      job_id: 0,
       job_name: 'Personal Task',
       assigned_user_id: currentUserId,
       assigned_user_name: 'You',
@@ -639,7 +638,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       duration_days: 2,
       progress_percentage: 50,
       trade: 'Admin',
-      construction_id: 0,
+      job_id: 0,
       job_name: 'Personal Task',
       assigned_user_id: currentUserId,
       assigned_user_name: 'You',
@@ -664,7 +663,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       progress_percentage: 0,
       trade: 'Painting',
       stage: 'Finishing',
-      construction_id: 101,
+      job_id: 101,
       job_name: 'Smith Residence - 42 Oak St',
       locked: false,
       is_hold_task: false,
@@ -685,7 +684,7 @@ const generateMockTasks = (currentUserId?: number): SmTask[] => {
       progress_percentage: 0,
       trade: 'Flooring',
       stage: 'Finishing',
-      construction_id: 101,
+      job_id: 101,
       job_name: 'Smith Residence - 42 Oak St',
       locked: false,
       is_hold_task: false,
@@ -1551,7 +1550,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     // Find matching tasks on the same job that are not completed
     return tasks.filter(t =>
       task.completion_linked_task_ids!.includes(t.id) &&
-      t.construction_id === task.construction_id &&
+      t.job_id === task.construction_id &&
       t.status !== TASK_STATUS.COMPLETED &&
       !t.hold
     );

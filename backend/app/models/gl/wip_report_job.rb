@@ -76,7 +76,7 @@ module Gl
     def calculate_prior_revenue
       # Get revenue recognized from previous WIP report
       prior_report = Gl::WipReport
-                     .where(corporate_company_id: wip_report.corporate_company_id)
+                     .where(company_id: wip_report.corporate_id)
                      .where("report_date < ?", wip_report.report_date)
                      .order(report_date: :desc)
                      .first

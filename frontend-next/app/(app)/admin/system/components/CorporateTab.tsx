@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { EntityTabsTable } from "./EntityTabsTable";
+import { WarehouseFoldersTable } from "./WarehouseFoldersTable";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1198,8 +1198,8 @@ const XERO_TABS_FALLBACK = [
   { id: "connection", name: "Connection", type: "functional", enabled: true },
 ];
 
-// Entity tab interface (matches API response)
-interface EntityTab {
+// Corporate tab interface (matches API response)
+interface CorporateTabConfig {
   id: string;
   name: string;
   type: string;
@@ -1218,9 +1218,9 @@ interface EntityTab {
 }
 
 function CompanyTabsSubTab() {
-  // Use the new EntityTabsTable component for all entity tab configuration
+  // Use the WarehouseFoldersTable component for all entity tab configuration
   // This provides inline SharePoint path editing, expandable sub-tabs, and drag-to-reorder
-  return <EntityTabsTable />;
+  return <WarehouseFoldersTable />;
 }
 
 // Sub-tab definitions for corporate

@@ -16,7 +16,7 @@ interface ChatMessage {
   created_at: string;
   formatted_timestamp?: string;
   saved_to_job?: boolean;
-  construction_id?: number;
+  job_id?: number;
   user?: {
     id: number;
     name?: string;
@@ -24,7 +24,7 @@ interface ChatMessage {
   };
 }
 
-interface Construction {
+interface Job {
   id: number;
   title: string;
 }
@@ -52,7 +52,7 @@ export function ChatBox({
   const [sending, setSending] = React.useState(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const [savingMessageId, setSavingMessageId] = React.useState<number | null>(null);
-  const [constructions, setConstructions] = React.useState<Construction[]>([]);
+  const [jobs, setConstructions] = React.useState<Job[]>([]);
   const [showJobSelector, setShowJobSelector] = React.useState<number | null>(null);
   const [showConversationJobSelector, setShowConversationJobSelector] = React.useState(false);
   const [savingConversation, setSavingConversation] = React.useState(false);
@@ -84,12 +84,12 @@ export function ChatBox({
   const loadConstructions = async () => {
     try {
       // SSoT: Uses PAGE_SIZE_REFERENCE from pagination-constants.ts
-      const response = await api.get<{ constructions: Construction[] }>("/api/v1/jobs", {
+      const response = await api.get<{ jobs: Job[] }>("/api/v1/jobs", {
         params: { status: "Active", per_page: PAGE_SIZE_REFERENCE },
       });
-      setConstructions(response?.constructions || []);
+      setConstructions(response?.jobs || []);
     } catch (error) {
-      console.error("Failed to load constructions:", error);
+      console.error("Failed to load jobs:", error);
       setConstructions([]);
     }
   };
@@ -100,7 +100,7 @@ export function ChatBox({
     // Poll for new messages every 3 seconds
     const interval = setInterval(fetchMessages, 3000);
 
-    // Load constructions for job selector if showSaveToJob is enabled
+    // Load jobs for job selector if showSaveToJob is enabled
     if (showSaveToJob) {
       loadConstructions();
     }
@@ -161,13 +161,13 @@ export function ChatBox({
     setSavingMessageId(messageId);
     try {
       await api.post(`/api/v1/chat_messages/${messageId}/save_to_job`, {
-        construction_id: constructionId,
+        job_id: constructionId,
       });
 
       setMessages(
         messages.map((msg) =>
           msg.id === messageId
-            ? { ...msg, saved_to_job: true, construction_id: constructionId }
+            ? { ...msg, saved_to_job: true, job_id: constructionId }
             : msg
         )
       );
@@ -185,7 +185,7 @@ export function ChatBox({
     try {
       const messageIds = messages.map((msg) => msg.id);
       await api.post("/api/v1/chat_messages/save_conversation_to_job", {
-        construction_id: constructionId,
+        job_id: constructionId,
         message_ids: messageIds,
       });
 
@@ -193,7 +193,7 @@ export function ChatBox({
         messages.map((msg) => ({
           ...msg,
           saved_to_job: true,
-          construction_id: constructionId,
+          job_id: constructionId,
         }))
       );
 
@@ -242,7 +242,7 @@ export function ChatBox({
             Save all {messages.length} messages in this conversation to:
           </p>
           <div className="space-y-1 max-h-48 overflow-y-auto">
-            {constructions.map((construction) => (
+            {jobs.map((construction) => (
               <button
                 key={construction.id}
                 onClick={() => handleSaveConversationToJob(construction.id)}
@@ -317,7 +317,7 @@ export function ChatBox({
                         Select a job to save this message to:
                       </p>
                       <div className="space-y-1 max-h-48 overflow-y-auto">
-                        {constructions.map((construction) => (
+                        {jobs.map((construction) => (
                           <button
                             key={construction.id}
                             onClick={() => handleSaveToJob(message.id, construction.id)}

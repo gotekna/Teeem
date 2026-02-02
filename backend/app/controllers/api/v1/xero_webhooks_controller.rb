@@ -229,13 +229,13 @@ module Api
         xero_cred = XeroCredential.find_by(tenant_id: tenant_id)
         return unless xero_cred
 
-        connection = xero_cred.corporate_company_xero_connections.first
-        corporate_company = connection&.corporate_company
-        return unless corporate_company
+        connection = xero_cred.corporate_xero_connections.first
+        corporate = connection&.corporate
+        return unless corporate
 
         # Queue the GL sync job
         GlSyncJob.perform_later(
-          corporate_company.id,
+          corporate.id,
           'xero',
           tenant_id,
           sync_type,

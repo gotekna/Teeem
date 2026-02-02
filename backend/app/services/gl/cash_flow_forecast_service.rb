@@ -11,7 +11,7 @@ module Gl
   # - Scheduled payments
   #
   class CashFlowForecastService
-    attr_reader :corporate_company, :forecast_days, :start_date
+    attr_reader :corporate, :forecast_days, :start_date
 
     # Default thresholds for warnings
     DEFAULT_WARNING_THRESHOLD = 10_000  # Warn if balance drops below this
@@ -26,8 +26,8 @@ module Gl
       overdue_120: 0.20   # 90+ days overdue
     }.freeze
 
-    def initialize(corporate_company, options = {})
-      @corporate_company = corporate_company
+    def initialize(corporate, options = {})
+      @corporate = corporate
       @forecast_days = options[:days] || 90
       @start_date = options[:start_date] || Date.current
       @warning_threshold = options[:warning_threshold] || DEFAULT_WARNING_THRESHOLD
@@ -164,7 +164,7 @@ module Gl
     def calculate_opening_balance
       # Sum of all bank account balances
       bank_accounts = Gl::Account
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where(is_bank_account: true)
         .where(active: true)
 
@@ -465,7 +465,7 @@ module Gl
 
     def outstanding_receivables
       @receivables ||= Gl::Invoice
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where(invoice_type: 'sales_invoice')
         .where(status: %w[approved submitted])
         .where('amount_due > 0')
@@ -475,7 +475,7 @@ module Gl
 
     def outstanding_payables
       @payables ||= Gl::Invoice
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where(invoice_type: 'bill')
         .where(status: %w[approved submitted])
         .where('amount_due > 0')
@@ -539,7 +539,7 @@ module Gl
       # This is a simplified version - production would use ML
       recurring_expenses = Gl::LedgerLine
         .joins(:gl_journal_entry, :gl_account)
-        .where(gl_accounts: { corporate_company: corporate_company, account_type: 'expense' })
+        .where(gl_accounts: { corporate: corporate, account_type: 'expense' })
         .where('gl_journal_entries.entry_date >= ?', 6.months.ago)
         .group('gl_accounts.name', 'EXTRACT(DAY FROM gl_journal_entries.entry_date)')
         .having('COUNT(*) >= 3')  # At least 3 occurrences

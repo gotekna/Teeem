@@ -60,7 +60,7 @@ class FinancialReportingService
     scope = FinancialTransaction.posted
     scope = scope.for_company(@company.id) if @company
     scope = scope.in_date_range(from_date, to_date) if from_date
-    scope = scope.where(construction_id: construction_ids) if construction_ids.present?
+    scope = scope.where(job_id: construction_ids) if construction_ids.present?
     scope = scope.where.not(construction_id: nil) # Only transactions linked to jobs
 
     # Group by job

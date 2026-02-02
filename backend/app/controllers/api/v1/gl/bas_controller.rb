@@ -259,7 +259,7 @@ module Api
         # Mark BAS as lodged (manual tracking)
         def mark_lodged
           lodgement = ::Gl::BasLodgement.create!(
-            corporate_company: current_company,
+            corporate: current_company,
             period_code: params[:quarter] || current_quarter_code,
             period_year: current_financial_year,
             status: "lodged",
@@ -321,7 +321,7 @@ module Api
         # List all BAS lodgements
         def lodgements
           lodgements = ::Gl::BasLodgement
-            .where(corporate_company: current_company)
+            .where(corporate: current_company)
             .includes(:lodged_by)
             .order(period_year: :desc, period_code: :desc)
             .limit(params[:limit] || 20)
@@ -464,7 +464,7 @@ module Api
 
         def current_company
           @current_company ||= Corporate.find(
-            params[:corporate_company_id] || current_user&.corporate_company_id || 1
+            params[:corporate_id] || current_user&.corporate_id || 1
           )
         end
 
@@ -481,7 +481,7 @@ module Api
 
         def period_invoices
           ::Gl::Invoice
-            .where(corporate_company: current_company)
+            .where(corporate: current_company)
             .where(invoice_type: 'sales_invoice')
             .where(status: %w[approved paid])
             .where('invoice_date >= ? AND invoice_date <= ?', period_start, period_end)
@@ -490,7 +490,7 @@ module Api
 
         def period_bills
           ::Gl::Invoice
-            .where(corporate_company: current_company)
+            .where(corporate: current_company)
             .where(invoice_type: 'bill')
             .where(status: %w[approved paid])
             .where('invoice_date >= ? AND invoice_date <= ?', period_start, period_end)

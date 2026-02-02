@@ -7,7 +7,7 @@ module Gl
     self.table_name = "gl_ai_categorization_attempts"
 
     # Associations
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :suggested_account, class_name: "Gl::Account", optional: true
 
     # Validations
@@ -21,7 +21,7 @@ module Gl
 
     # Rate limit check
     def self.rate_limit_remaining(company, threshold: 200, period: 1.hour)
-      used = where(corporate_company: company)
+      used = where(corporate: company)
              .where("created_at > ?", period.ago)
              .count
 
@@ -30,7 +30,7 @@ module Gl
 
     # Usage statistics
     def self.usage_stats(company, period: 7.days)
-      base = where(corporate_company: company)
+      base = where(corporate: company)
              .where("created_at > ?", period.ago)
 
       {

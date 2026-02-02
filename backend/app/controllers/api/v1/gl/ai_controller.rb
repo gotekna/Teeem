@@ -5,13 +5,13 @@ module Api
     module Gl
       # Controller for AI-powered features
       class AiController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
 
         # === Transaction Categorization ===
 
         # GET /api/v1/gl/ai/categories
         def categories
-          categories = @corporate_company.gl_transaction_categories
+          categories = @corporate.gl_transaction_categories
                                          .includes(:default_account)
                                          .order(:name)
 
@@ -26,7 +26,7 @@ module Api
 
         # POST /api/v1/gl/ai/categories
         def create_category
-          category = @corporate_company.gl_transaction_categories.build(category_params)
+          category = @corporate.gl_transaction_categories.build(category_params)
 
           if category.save
             render json: { success: true, data: category }, status: :created
@@ -38,7 +38,7 @@ module Api
 
         # PATCH /api/v1/gl/ai/categories/:id
         def update_category
-          category = @corporate_company.gl_transaction_categories.find(params[:id])
+          category = @corporate.gl_transaction_categories.find(params[:id])
 
           if category.update(category_params)
             render json: { success: true, data: category }
@@ -50,13 +50,13 @@ module Api
 
         # POST /api/v1/gl/ai/categories/seed
         def seed_categories
-          ::Gl::TransactionCategory.seed_common!(@corporate_company)
+          ::Gl::TransactionCategory.seed_common!(@corporate)
           render json: { success: true, message: "Common categories seeded" }
         end
 
         # GET /api/v1/gl/ai/predictions
         def predictions
-          predictions = @corporate_company.gl_categorization_predictions
+          predictions = @corporate.gl_categorization_predictions
                                           .includes(:bank_transaction, :predicted_category, :predicted_account)
                                           .recent
 
@@ -72,7 +72,7 @@ module Api
 
         # POST /api/v1/gl/ai/predictions/:id/accept
         def accept_prediction
-          prediction = @corporate_company.gl_categorization_predictions.find(params[:id])
+          prediction = @corporate.gl_categorization_predictions.find(params[:id])
           prediction.accept!(current_user)
 
           render json: { success: true, data: prediction }
@@ -80,7 +80,7 @@ module Api
 
         # POST /api/v1/gl/ai/predictions/:id/reject
         def reject_prediction
-          prediction = @corporate_company.gl_categorization_predictions.find(params[:id])
+          prediction = @corporate.gl_categorization_predictions.find(params[:id])
           prediction.reject!(current_user, reason: params[:reason])
 
           render json: { success: true, data: prediction }
@@ -88,9 +88,9 @@ module Api
 
         # POST /api/v1/gl/ai/predictions/:id/correct
         def correct_prediction
-          prediction = @corporate_company.gl_categorization_predictions.find(params[:id])
-          category = @corporate_company.gl_transaction_categories.find(params[:category_id])
-          account = params[:account_id].present? ? @corporate_company.gl_accounts.find(params[:account_id]) : nil
+          prediction = @corporate.gl_categorization_predictions.find(params[:id])
+          category = @corporate.gl_transaction_categories.find(params[:category_id])
+          account = params[:account_id].present? ? @corporate.gl_accounts.find(params[:account_id]) : nil
 
           prediction.correct!(current_user, category: category, account: account)
 
@@ -99,7 +99,7 @@ module Api
 
         # GET /api/v1/gl/ai/predictions/accuracy
         def prediction_accuracy
-          stats = ::Gl::CategorizationPrediction.accuracy_stats(@corporate_company)
+          stats = ::Gl::CategorizationPrediction.accuracy_stats(@corporate)
           render json: { success: true, data: stats }
         end
 
@@ -107,7 +107,7 @@ module Api
 
         # GET /api/v1/gl/ai/anomalies
         def anomalies
-          anomalies = @corporate_company.gl_anomalies
+          anomalies = @corporate.gl_anomalies
                                         .includes(:anomalable, :assigned_to)
                                         .recent
 
@@ -124,13 +124,13 @@ module Api
 
         # GET /api/v1/gl/ai/anomalies/:id
         def show_anomaly
-          anomaly = @corporate_company.gl_anomalies.find(params[:id])
+          anomaly = @corporate.gl_anomalies.find(params[:id])
           render json: { success: true, data: anomaly.as_json(include: [:anomalable, :assigned_to, :resolved_by]) }
         end
 
         # POST /api/v1/gl/ai/anomalies/:id/assign
         def assign_anomaly
-          anomaly = @corporate_company.gl_anomalies.find(params[:id])
+          anomaly = @corporate.gl_anomalies.find(params[:id])
           user = User.find(params[:user_id])
 
           anomaly.assign!(user)
@@ -139,7 +139,7 @@ module Api
 
         # POST /api/v1/gl/ai/anomalies/:id/resolve
         def resolve_anomaly
-          anomaly = @corporate_company.gl_anomalies.find(params[:id])
+          anomaly = @corporate.gl_anomalies.find(params[:id])
           anomaly.resolve!(current_user, notes: params[:notes])
 
           render json: { success: true, data: anomaly }
@@ -147,7 +147,7 @@ module Api
 
         # POST /api/v1/gl/ai/anomalies/:id/dismiss
         def dismiss_anomaly
-          anomaly = @corporate_company.gl_anomalies.find(params[:id])
+          anomaly = @corporate.gl_anomalies.find(params[:id])
           anomaly.dismiss!(current_user, reason: params[:reason])
 
           render json: { success: true, data: anomaly }
@@ -155,13 +155,13 @@ module Api
 
         # GET /api/v1/gl/ai/anomalies/summary
         def anomaly_summary
-          summary = ::Gl::Anomaly.summary(@corporate_company)
+          summary = ::Gl::Anomaly.summary(@corporate)
           render json: { success: true, data: summary }
         end
 
         # GET /api/v1/gl/ai/anomaly_rules
         def anomaly_rules
-          rules = @corporate_company.gl_anomaly_rules.order(:name)
+          rules = @corporate.gl_anomaly_rules.order(:name)
           rules = rules.active if params[:active_only] == "true"
 
           render json: { success: true, data: rules }
@@ -169,7 +169,7 @@ module Api
 
         # POST /api/v1/gl/ai/anomaly_rules
         def create_anomaly_rule
-          rule = @corporate_company.gl_anomaly_rules.build(anomaly_rule_params)
+          rule = @corporate.gl_anomaly_rules.build(anomaly_rule_params)
 
           if rule.save
             render json: { success: true, data: rule }, status: :created
@@ -181,7 +181,7 @@ module Api
 
         # PATCH /api/v1/gl/ai/anomaly_rules/:id
         def update_anomaly_rule
-          rule = @corporate_company.gl_anomaly_rules.find(params[:id])
+          rule = @corporate.gl_anomaly_rules.find(params[:id])
 
           if rule.update(anomaly_rule_params)
             render json: { success: true, data: rule }
@@ -193,7 +193,7 @@ module Api
 
         # POST /api/v1/gl/ai/anomaly_rules/seed
         def seed_anomaly_rules
-          ::Gl::AnomalyRule.seed_defaults!(@corporate_company)
+          ::Gl::AnomalyRule.seed_defaults!(@corporate)
           render json: { success: true, message: "Default anomaly rules seeded" }
         end
 
@@ -201,7 +201,7 @@ module Api
 
         # GET /api/v1/gl/ai/duplicates
         def duplicates
-          groups = @corporate_company.gl_duplicate_groups
+          groups = @corporate.gl_duplicate_groups
                                      .includes(:members, :reviewed_by)
                                      .recent
 
@@ -217,7 +217,7 @@ module Api
 
         # GET /api/v1/gl/ai/duplicates/:id
         def show_duplicate
-          group = @corporate_company.gl_duplicate_groups.find(params[:id])
+          group = @corporate.gl_duplicate_groups.find(params[:id])
 
           render json: {
             success: true,
@@ -227,7 +227,7 @@ module Api
 
         # POST /api/v1/gl/ai/duplicates/:id/keep_first
         def keep_first_duplicate
-          group = @corporate_company.gl_duplicate_groups.find(params[:id])
+          group = @corporate.gl_duplicate_groups.find(params[:id])
           group.keep_first!(current_user)
 
           render json: { success: true, data: group }
@@ -235,7 +235,7 @@ module Api
 
         # POST /api/v1/gl/ai/duplicates/:id/keep_last
         def keep_last_duplicate
-          group = @corporate_company.gl_duplicate_groups.find(params[:id])
+          group = @corporate.gl_duplicate_groups.find(params[:id])
           group.keep_last!(current_user)
 
           render json: { success: true, data: group }
@@ -243,7 +243,7 @@ module Api
 
         # POST /api/v1/gl/ai/duplicates/:id/merge
         def merge_duplicates
-          group = @corporate_company.gl_duplicate_groups.find(params[:id])
+          group = @corporate.gl_duplicate_groups.find(params[:id])
           group.merge!(current_user)
 
           render json: { success: true, data: group }
@@ -251,7 +251,7 @@ module Api
 
         # POST /api/v1/gl/ai/duplicates/:id/not_duplicate
         def not_duplicate
-          group = @corporate_company.gl_duplicate_groups.find(params[:id])
+          group = @corporate.gl_duplicate_groups.find(params[:id])
           group.mark_not_duplicate!(current_user)
 
           render json: { success: true, data: group }
@@ -260,7 +260,7 @@ module Api
         # POST /api/v1/gl/ai/duplicates/scan
         def scan_duplicates
           entity_type = params[:entity_type] || "invoice"
-          groups = ::Gl::DuplicateGroup.scan!(@corporate_company, entity_type)
+          groups = ::Gl::DuplicateGroup.scan!(@corporate, entity_type)
 
           render json: {
             success: true,
@@ -273,7 +273,7 @@ module Api
 
         # GET /api/v1/gl/ai/payment_predictions
         def payment_predictions
-          predictions = @corporate_company.gl_payment_predictions
+          predictions = @corporate.gl_payment_predictions
                                           .includes(:invoice, :contact)
                                           .recent
 
@@ -288,7 +288,7 @@ module Api
 
         # GET /api/v1/gl/ai/payment_predictions/for_invoice/:invoice_id
         def invoice_prediction
-          invoice = @corporate_company.gl_invoices.find(params[:invoice_id])
+          invoice = @corporate.gl_invoices.find(params[:invoice_id])
           prediction = invoice.gl_payment_predictions.recent.first
 
           unless prediction
@@ -300,18 +300,18 @@ module Api
 
         # GET /api/v1/gl/ai/payment_predictions/accuracy
         def prediction_accuracy_stats
-          accuracy = ::Gl::PaymentPrediction.accuracy(@corporate_company)
+          accuracy = ::Gl::PaymentPrediction.accuracy(@corporate)
           render json: { success: true, data: { accuracy: accuracy } }
         end
 
         # GET /api/v1/gl/ai/customer_stats
         def customer_stats
-          stats = @corporate_company.gl_customer_payment_stats
+          stats = @corporate.gl_customer_payment_stats
                                     .includes(:contact)
                                     .order(payment_reliability_score: :desc)
 
           stats = stats.with_outstanding if params[:with_outstanding] == "true"
-          stats = stats.at_risk(@corporate_company) if params[:at_risk] == "true"
+          stats = stats.at_risk(@corporate) if params[:at_risk] == "true"
 
           render json: {
             success: true,
@@ -321,14 +321,14 @@ module Api
 
         # GET /api/v1/gl/ai/customer_stats/:contact_id
         def show_customer_stats
-          stats = @corporate_company.gl_customer_payment_stats.find_by!(contact_id: params[:contact_id])
+          stats = @corporate.gl_customer_payment_stats.find_by!(contact_id: params[:contact_id])
 
           render json: { success: true, data: stats.as_json(include: :contact) }
         end
 
         # POST /api/v1/gl/ai/customer_stats/:contact_id/recalculate
         def recalculate_customer_stats
-          stats = @corporate_company.gl_customer_payment_stats.find_or_initialize_by(contact_id: params[:contact_id])
+          stats = @corporate.gl_customer_payment_stats.find_or_initialize_by(contact_id: params[:contact_id])
           stats.recalculate!
 
           render json: { success: true, data: stats }
@@ -339,27 +339,27 @@ module Api
           render json: {
             success: true,
             data: {
-              categorization: ::Gl::CategorizationPrediction.accuracy_stats(@corporate_company),
-              anomalies: ::Gl::Anomaly.summary(@corporate_company),
+              categorization: ::Gl::CategorizationPrediction.accuracy_stats(@corporate),
+              anomalies: ::Gl::Anomaly.summary(@corporate),
               duplicates: {
-                pending: @corporate_company.gl_duplicate_groups.pending.count,
-                resolved_this_week: @corporate_company.gl_duplicate_groups
+                pending: @corporate.gl_duplicate_groups.pending.count,
+                resolved_this_week: @corporate.gl_duplicate_groups
                                                       .where(status: "resolved")
                                                       .where("resolved_at >= ?", 1.week.ago).count
               },
               payment_predictions: {
-                high_risk_invoices: @corporate_company.gl_payment_predictions.high_risk.count,
-                accuracy: ::Gl::PaymentPrediction.accuracy(@corporate_company)
+                high_risk_invoices: @corporate.gl_payment_predictions.high_risk.count,
+                accuracy: ::Gl::PaymentPrediction.accuracy(@corporate)
               },
-              at_risk_customers: @corporate_company.gl_customer_payment_stats.at_risk(@corporate_company).count
+              at_risk_customers: @corporate.gl_customer_payment_stats.at_risk(@corporate).count
             }
           }
         end
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id])
         end
 
         def category_params

@@ -3,7 +3,7 @@
 class CreateGlAnomalyReviews < ActiveRecord::Migration[7.1]
   def change
     create_table :gl_anomaly_reviews do |t|
-      t.references :corporate_company, null: false, foreign_key: true, index: true
+      t.references :corporate, null: false, foreign_key: true, index: true
       t.string :transaction_type, null: false, limit: 50
       t.bigint :transaction_id, null: false
       t.string :status, null: false, limit: 30, default: "acknowledged"
@@ -18,7 +18,7 @@ class CreateGlAnomalyReviews < ActiveRecord::Migration[7.1]
 
     # Unique index on transaction
     add_index :gl_anomaly_reviews,
-              [:corporate_company_id, :transaction_type, :transaction_id],
+              [:corporate_id, :transaction_type, :transaction_id],
               unique: true,
               name: "idx_anomaly_reviews_transaction"
 

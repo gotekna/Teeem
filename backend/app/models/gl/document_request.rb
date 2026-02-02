@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[pending sent partially_received completed expired].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :contact
     belongs_to :job, optional: true
     belongs_to :created_by, class_name: "User", optional: true
@@ -95,7 +95,7 @@ module Gl
     # Create common request
     def self.create_tax_return_request!(company, contact:, year:, user:)
       request = create!(
-        corporate_company: company,
+        corporate: company,
         contact: contact,
         created_by: user,
         title: "Tax Return Documents - FY#{year}",

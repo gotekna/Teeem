@@ -814,7 +814,7 @@ class TeknaDocumentGenerator
     path_parts = sharepoint_path.split("/")
     filename = path_parts.pop
 
-    # Resolve folder names from EntityTab
+    # Resolve folder names from WarehouseFolder
     resolved_path_parts = path_parts.map { |f| resolve_folder_name(f) }
     full_path = "#{job_folder_path}/#{resolved_path_parts.join('/')}/#{filename}"
 
@@ -853,8 +853,8 @@ class TeknaDocumentGenerator
     raise GenerationError, "Storage error: #{e.message}"
   end
 
-  # SSoT: Resolve folder names from EntityTab
-  # Maps template folder names to actual folder names from EntityTab
+  # SSoT: Resolve folder names from WarehouseFolder
+  # Maps template folder names to actual folder names from WarehouseFolder
   # Falls back to original name if no mapping exists
   FOLDER_NAME_MAPPINGS = {
     "04 Plans" => ["job", "plans"],
@@ -867,6 +867,6 @@ class TeknaDocumentGenerator
     return folder_name unless mapping
 
     scope, tab_key = mapping
-    EntityTab.folder_name_for(scope, tab_key, folder_name)
+    WarehouseFolder.folder_name_for(scope, tab_key, folder_name)
   end
 end

@@ -9,7 +9,7 @@ module Gl
   # - Manual entry
   #
   class RatesFetchService
-    attr_reader :corporate_company
+    attr_reader :corporate
 
     # RBA RSS feed for exchange rates
     RBA_RATES_URL = 'https://www.rba.gov.au/rss/rss-cb-exchange-rates.xml'
@@ -17,8 +17,8 @@ module Gl
     # Currency codes RBA provides rates for
     RBA_CURRENCIES = %w[USD CNY JPY EUR KRW GBP SGD INR THB NZD TWD MYR IDR VND AED].freeze
 
-    def initialize(corporate_company)
-      @corporate_company = corporate_company
+    def initialize(corporate)
+      @corporate = corporate
     end
 
     # Fetch and store rates from the best available source
@@ -83,7 +83,7 @@ module Gl
         next unless currency
 
         Gl::ExchangeRate.set_rate(
-          corporate_company,
+          corporate,
           currency,
           date,
           rate,
@@ -115,7 +115,7 @@ module Gl
       end
 
       # Get Xero credentials
-      credential = XeroCredential.active_for_company(corporate_company)
+      credential = XeroCredential.active_for_company(corporate)
       return { success: false, error: 'No active Xero credential' } unless credential
 
       # Fetch rates from Xero API
@@ -138,7 +138,7 @@ module Gl
         next unless currency
 
         Gl::ExchangeRate.set_rate(
-          corporate_company,
+          corporate,
           currency,
           date,
           rate_response,
@@ -165,7 +165,7 @@ module Gl
       return { success: false, error: "Currency #{currency_code} not found" } unless currency
 
       Gl::ExchangeRate.set_rate(
-        corporate_company,
+        corporate,
         currency,
         date,
         rate,
@@ -191,7 +191,7 @@ module Gl
     # @return [Hash] Result summary
     #
     def import_rates(rates, date: Date.current, source: 'manual')
-      Gl::ExchangeRate.import_rates(corporate_company, rates, date: date, source: source)
+      Gl::ExchangeRate.import_rates(corporate, rates, date: date, source: source)
 
       {
         success: true,
@@ -204,7 +204,7 @@ module Gl
     # Get rate history for a currency
     def rate_history(currency_code, from_date: 30.days.ago, to_date: Date.current)
       currency = Gl::Currency.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         code: currency_code.upcase
       )
 
@@ -228,7 +228,7 @@ module Gl
     def rates_stale?(threshold: 1.day)
       latest_rate = Gl::ExchangeRate
         .joins(:gl_currency)
-        .where(gl_currencies: { corporate_company: corporate_company })
+        .where(gl_currencies: { corporate: corporate })
         .order(effective_date: :desc)
         .first
 
@@ -276,7 +276,7 @@ module Gl
       info = Gl::Currency::COMMON_CURRENCIES[code]
 
       Gl::Currency.find_or_create_by!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         code: code
       ) do |currency|
         if info
@@ -295,7 +295,7 @@ module Gl
     end
 
     def xero_connected?
-      XeroCredential.active_for_company(corporate_company).present?
+      XeroCredential.active_for_company(corporate).present?
     rescue
       false
     end

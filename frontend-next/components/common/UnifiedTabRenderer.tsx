@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * UnifiedTabRenderer - Dynamic tab rendering from EntityTabs database
+ * UnifiedTabRenderer - Dynamic tab rendering from WarehouseFolders database
  *
- * This component renders tabs dynamically based on the EntityTabs configuration.
+ * This component renders tabs dynamically based on the WarehouseFolders configuration.
  * It replaces hardcoded tab conditionals with database-driven rendering.
  *
  * Features:
- * - Fetches tabs from useEntityTabs(scope)
+ * - Fetches tabs from useWarehouseFolders(scope)
  * - Builds hierarchy (L1 → L2 → L3)
  * - Renders component from registry OR SharePoint folder
  * - Standardized props via TabComponentProps
@@ -24,12 +24,12 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
+import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import { getTabComponent, isTabComponentRegistered } from "@/lib/tab-component-registry";
 import { TabNavigation } from "./TabNavigation";
 import { AlertCircle } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
-import type { EntityTab, EntityTabScope, TabGroup } from "@/lib/types/entity-tabs";
+import type { WarehouseFolder, WarehouseFolderScope, TabGroup } from "@/lib/types/warehouse-folders";
 import type { TabComponentProps, TabNavigationState } from "@/lib/types/tab-component";
 
 // ============================================
@@ -53,7 +53,7 @@ export function isUnifiedTabsEnabled(): boolean {
 
 interface UnifiedTabRendererProps {
   /** Tab scope (corporate, job, contact) */
-  scope: EntityTabScope;
+  scope: WarehouseFolderScope;
 
   /** Entity ID for data fetching */
   entityId: string;
@@ -150,7 +150,7 @@ export function UnifiedTabRenderer({
   const isEnabled = forceEnabled || isUnifiedTabsEnabled();
 
   // Fetch tabs from API
-  const { tabs, loading, error, refetch } = useEntityTabs({
+  const { tabs, loading, error, refetch } = useWarehouseFolders({
     scope,
     entityType,
     tabGroup,

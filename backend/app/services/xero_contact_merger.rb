@@ -161,8 +161,8 @@ class XeroContactMerger
     duplicate.employees.update_all(primary_company_id: target.id)
 
     # Transfer corporate directorships and shareholdings
-    duplicate.corporate_company_directorships.update_all(contact_id: target.id)
-    duplicate.corporate_company_shareholdings.update_all(shareholder_id: target.id)
+    duplicate.corporate_directorships.update_all(contact_id: target.id)
+    duplicate.corporate_shareholdings.update_all(shareholder_id: target.id)
     duplicate.dividend_payments.update_all(shareholder_id: target.id)
   end
 

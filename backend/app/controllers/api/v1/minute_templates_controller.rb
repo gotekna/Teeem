@@ -65,7 +65,7 @@ module Api
 
       # DELETE /api/v1/minute_templates/:id
       def destroy
-        if @minute_template.corporate_company_minutes.any?
+        if @minute_template.corporate_minutes.any?
           return render json: {
             success: false,
             errors: [ "Cannot delete template with existing minutes" ]
@@ -134,7 +134,7 @@ module Api
           template_type: template.template_type,
           required_fields: template.required_fields,
           active: template.active,
-          minutes_count: template.corporate_company_minutes.count,
+          minutes_count: template.corporate_minutes.count,
           created_at: template.created_at,
           updated_at: template.updated_at
         }

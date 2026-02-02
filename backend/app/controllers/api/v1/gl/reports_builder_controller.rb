@@ -5,11 +5,11 @@ module Api
     module Gl
       # Controller for custom report builder
       class ReportsBuilderController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
 
         # GET /api/v1/gl/reports_builder
         def index
-          reports = @corporate_company.gl_custom_reports
+          reports = @corporate.gl_custom_reports
                                       .includes(:created_by)
                                       .order(last_run_at: :desc)
 
@@ -25,7 +25,7 @@ module Api
 
         # GET /api/v1/gl/reports_builder/:id
         def show
-          report = @corporate_company.gl_custom_reports.find(params[:id])
+          report = @corporate.gl_custom_reports.find(params[:id])
           render json: {
             success: true,
             data: report.as_json(include: [:report_columns, :report_filters])
@@ -34,7 +34,7 @@ module Api
 
         # POST /api/v1/gl/reports_builder
         def create
-          report = @corporate_company.gl_custom_reports.build(report_params)
+          report = @corporate.gl_custom_reports.build(report_params)
           report.created_by = current_user
 
           if report.save
@@ -47,7 +47,7 @@ module Api
 
         # PATCH /api/v1/gl/reports_builder/:id
         def update
-          report = @corporate_company.gl_custom_reports.find(params[:id])
+          report = @corporate.gl_custom_reports.find(params[:id])
 
           if report.update(report_params)
             render json: { success: true, data: report }
@@ -59,14 +59,14 @@ module Api
 
         # DELETE /api/v1/gl/reports_builder/:id
         def destroy
-          report = @corporate_company.gl_custom_reports.find(params[:id])
+          report = @corporate.gl_custom_reports.find(params[:id])
           report.destroy!
           render json: { success: true, message: "Report deleted" }
         end
 
         # POST /api/v1/gl/reports_builder/:id/run
         def run
-          report = @corporate_company.gl_custom_reports.find(params[:id])
+          report = @corporate.gl_custom_reports.find(params[:id])
           parameters = params[:parameters]&.to_unsafe_h || {}
 
           results = report.run!(user: current_user, parameters: parameters)
@@ -78,7 +78,7 @@ module Api
 
         # POST /api/v1/gl/reports_builder/:id/export
         def export
-          report = @corporate_company.gl_custom_reports.find(params[:id])
+          report = @corporate.gl_custom_reports.find(params[:id])
           format = params[:format] || "csv"
           parameters = params[:parameters]&.to_unsafe_h || {}
 
@@ -94,7 +94,7 @@ module Api
 
         # POST /api/v1/gl/reports_builder/:id/duplicate
         def duplicate
-          report = @corporate_company.gl_custom_reports.find(params[:id])
+          report = @corporate.gl_custom_reports.find(params[:id])
           new_report = report.duplicate!(current_user)
 
           render json: { success: true, data: new_report }, status: :created
@@ -121,14 +121,14 @@ module Api
         # POST /api/v1/gl/reports_builder/from_template/:template_id
         def create_from_template
           template = ::Gl::ReportTemplate.find(params[:template_id])
-          report = ::Gl::CustomReport.from_template(template, @corporate_company, current_user)
+          report = ::Gl::CustomReport.from_template(template, @corporate, current_user)
 
           render json: { success: true, data: report }, status: :created
         end
 
         # GET /api/v1/gl/reports_builder/:id/history
         def history
-          report = @corporate_company.gl_custom_reports.find(params[:id])
+          report = @corporate.gl_custom_reports.find(params[:id])
           runs = report.report_runs.includes(:run_by).recent.limit(50)
 
           render json: {
@@ -139,7 +139,7 @@ module Api
 
         # POST /api/v1/gl/reports_builder/:id/favorite
         def add_favorite
-          report = @corporate_company.gl_custom_reports.find(params[:id])
+          report = @corporate.gl_custom_reports.find(params[:id])
           ::Gl::ReportFavorite.add!(current_user, report)
 
           render json: { success: true, message: "Added to favorites" }
@@ -149,7 +149,7 @@ module Api
 
         # DELETE /api/v1/gl/reports_builder/:id/favorite
         def remove_favorite
-          report = @corporate_company.gl_custom_reports.find(params[:id])
+          report = @corporate.gl_custom_reports.find(params[:id])
           ::Gl::ReportFavorite.find_by!(user: current_user, custom_report: report).destroy!
 
           render json: { success: true, message: "Removed from favorites" }
@@ -169,7 +169,7 @@ module Api
 
         # GET /api/v1/gl/reports_builder/dashboards
         def dashboards
-          dashboards = @corporate_company.gl_report_dashboards
+          dashboards = @corporate.gl_report_dashboards
                                          .includes(:created_by, :widgets)
                                          .order(is_default: :desc, name: :asc)
 
@@ -181,7 +181,7 @@ module Api
 
         # GET /api/v1/gl/reports_builder/dashboards/:id
         def show_dashboard
-          dashboard = @corporate_company.gl_report_dashboards.find(params[:id])
+          dashboard = @corporate.gl_report_dashboards.find(params[:id])
 
           render json: {
             success: true,
@@ -191,7 +191,7 @@ module Api
 
         # POST /api/v1/gl/reports_builder/dashboards
         def create_dashboard
-          dashboard = @corporate_company.gl_report_dashboards.build(dashboard_params)
+          dashboard = @corporate.gl_report_dashboards.build(dashboard_params)
           dashboard.created_by = current_user
 
           if dashboard.save
@@ -204,7 +204,7 @@ module Api
 
         # PATCH /api/v1/gl/reports_builder/dashboards/:id
         def update_dashboard
-          dashboard = @corporate_company.gl_report_dashboards.find(params[:id])
+          dashboard = @corporate.gl_report_dashboards.find(params[:id])
 
           if dashboard.update(dashboard_params)
             render json: { success: true, data: dashboard }
@@ -216,14 +216,14 @@ module Api
 
         # DELETE /api/v1/gl/reports_builder/dashboards/:id
         def destroy_dashboard
-          dashboard = @corporate_company.gl_report_dashboards.find(params[:id])
+          dashboard = @corporate.gl_report_dashboards.find(params[:id])
           dashboard.destroy!
           render json: { success: true, message: "Dashboard deleted" }
         end
 
         # POST /api/v1/gl/reports_builder/dashboards/:id/add_widget
         def add_widget
-          dashboard = @corporate_company.gl_report_dashboards.find(params[:id])
+          dashboard = @corporate.gl_report_dashboards.find(params[:id])
 
           widget = dashboard.widgets.build(widget_params)
           if widget.save
@@ -236,7 +236,7 @@ module Api
 
         # PATCH /api/v1/gl/reports_builder/dashboards/:dashboard_id/widgets/:id
         def update_widget
-          dashboard = @corporate_company.gl_report_dashboards.find(params[:dashboard_id])
+          dashboard = @corporate.gl_report_dashboards.find(params[:dashboard_id])
           widget = dashboard.widgets.find(params[:id])
 
           if widget.update(widget_params)
@@ -249,7 +249,7 @@ module Api
 
         # DELETE /api/v1/gl/reports_builder/dashboards/:dashboard_id/widgets/:id
         def remove_widget
-          dashboard = @corporate_company.gl_report_dashboards.find(params[:dashboard_id])
+          dashboard = @corporate.gl_report_dashboards.find(params[:dashboard_id])
           widget = dashboard.widgets.find(params[:id])
           widget.destroy!
 
@@ -258,7 +258,7 @@ module Api
 
         # POST /api/v1/gl/reports_builder/dashboards/:id/refresh
         def refresh_dashboard
-          dashboard = @corporate_company.gl_report_dashboards.find(params[:id])
+          dashboard = @corporate.gl_report_dashboards.find(params[:id])
 
           dashboard.widgets.each(&:refresh!)
 
@@ -267,8 +267,8 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id])
         end
 
         def report_params

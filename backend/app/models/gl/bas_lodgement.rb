@@ -9,7 +9,7 @@ module Gl
     self.table_name = "gl_bas_lodgements"
 
     # Associations
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :lodged_by, class_name: "User", optional: true
 
     # Validations
@@ -41,7 +41,7 @@ module Gl
 
     def can_amend?
       lodged? && !Gl::BasLodgement.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         period_code: period_code,
         period_year: period_year,
         is_amendment: true,
@@ -72,14 +72,14 @@ module Gl
     # Class methods
     def self.latest_for_period(company, period_code, period_year)
       where(
-        corporate_company: company,
+        corporate: company,
         period_code: period_code,
         period_year: period_year
       ).order(created_at: :desc).first
     end
 
     def self.lodged_periods(company)
-      where(corporate_company: company, status: "lodged")
+      where(corporate: company, status: "lodged")
         .select(:period_code, :period_year)
         .distinct
         .order(:period_year, :period_code)

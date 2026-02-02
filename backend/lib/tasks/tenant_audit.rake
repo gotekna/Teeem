@@ -336,7 +336,7 @@ class TenantAuditRunner
       DocumentType
       SmScheduleMasterTemplate
       PublicHoliday
-      EntityTab
+      WarehouseFolder
     ]
 
     issues_found = false

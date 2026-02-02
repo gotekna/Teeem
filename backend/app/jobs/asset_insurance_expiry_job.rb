@@ -53,7 +53,7 @@ class AssetInsuranceExpiryJob < ApplicationJob
 
   def create_expiry_notification(insurance, severity)
     asset = insurance.asset
-    company = asset.corporate_company
+    company = asset.corporate
 
     title, message = case severity
     when :expired

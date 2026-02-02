@@ -4,7 +4,7 @@ class Asset < ApplicationRecord
 
   # Associations
   belongs_to :tenant
-  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+  belongs_to :corporate, foreign_key: "company_id"
   belongs_to :assigned_user, class_name: "User", optional: true
 
   # Existing associations
@@ -136,7 +136,7 @@ class Asset < ApplicationRecord
   def generate_asset_number
     return if asset_number.present?
 
-    company_code = corporate_company&.code.presence || "XXX"
+    company_code = corporate&.code.presence || "XXX"
     type_code = ASSET_TYPE_CODES[asset_type] || "OTH"
 
     # Get next sequence number for this company + type combination
@@ -223,12 +223,12 @@ class Asset < ApplicationRecord
 
   # Company name (from association)
   def company_name
-    corporate_company&.name
+    corporate&.name
   end
 
   # Company code (from association)
   def company_code
-    corporate_company&.code
+    corporate&.code
   end
 
   # ========================================
@@ -363,7 +363,7 @@ class Asset < ApplicationRecord
     return if Rails.env.development? && caller.any? { |line| line.include?("import") }
 
     user = (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
-    corporate_company.corporate_company_activities.create!(
+    corporate.corporate_activities.create!(
       activity_type: "asset_added",
       description: "Asset added: #{display_name}",
       change_details: { asset_id: id, asset_type: asset_type, purchase_price: purchase_price },
@@ -381,14 +381,14 @@ class Asset < ApplicationRecord
     user = (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
 
     if saved_change_to_status? && status == "disposed"
-      corporate_company.corporate_company_activities.create!(
+      corporate.corporate_activities.create!(
         activity_type: "asset_disposed",
         description: "Asset disposed: #{display_name}",
         change_details: { asset_id: id },
         user: user
       )
     else
-      corporate_company.corporate_company_activities.create!(
+      corporate.corporate_activities.create!(
         activity_type: "asset_updated",
         description: "Asset updated: #{display_name}",
         change_details: { asset_id: id, changes: saved_changes.except("updated_at") },

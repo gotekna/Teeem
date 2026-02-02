@@ -32,14 +32,14 @@
 #   # => { success: true, tenant: Tenant, admin_user: User }
 #
 class TenantProvisioningService
-  attr_reader :params, :tenant, :company_group, :organization, :corporate_company, :admin_user, :errors
+  attr_reader :params, :tenant, :company_group, :organization, :corporate, :admin_user, :errors
 
   def initialize(params)
     @params = params.with_indifferent_access
     @tenant = nil
     @company_group = nil
     @organization = nil
-    @corporate_company = nil
+    @corporate = nil
     @admin_user = nil
     @errors = []
   end
@@ -51,7 +51,7 @@ class TenantProvisioningService
       create_company_group  # 2. CompanyGroup (belongs_to Tenant)
       create_organization     # 3. Organization (credential isolation)
       create_tenant_setting   # 4. TenantSetting (config)
-      create_corporate_company # 5. Corporate (main company)
+      create_corporate # 5. Corporate (main company)
 
       # Phase 2: Admin user (requires Contact per Jan 2026 rules)
       create_admin_user       # 6-7. Contact + User
@@ -157,7 +157,7 @@ class TenantProvisioningService
     raise ActiveRecord::Rollback
   end
 
-  def create_corporate_company
+  def create_corporate
     # Corporate requires a Contact (Contact is THE ONE SSoT for identity)
     # Create company contact first
     company_contact = Contact.create!(
@@ -172,7 +172,7 @@ class TenantProvisioningService
       is_active: true
     )
 
-    @corporate_company = Corporate.create!(
+    @corporate = Corporate.create!(
       tenant: @tenant,
       company_group_id: @company_group.id,
       contact: company_contact,
@@ -183,9 +183,9 @@ class TenantProvisioningService
     )
 
     # Set this company as the billing company for the tenant
-    @tenant.update!(billing_company: @corporate_company)
+    @tenant.update!(billing_company: @corporate)
 
-    Rails.logger.info "[TenantProvisioning] Created Corporate: #{@corporate_company.name}"
+    Rails.logger.info "[TenantProvisioning] Created Corporate: #{@corporate.name}"
   rescue ActiveRecord::RecordInvalid => e
     @errors << "Failed to create corporate company: #{e.message}"
     raise ActiveRecord::Rollback
@@ -207,7 +207,7 @@ class TenantProvisioningService
       email: @params[:admin_email],
       entity_type: "person",
       is_team_contact: true,  # Internal team member
-      primary_company_id: @corporate_company&.id,
+      primary_company_id: @corporate&.id,
       is_active: true
     )
 

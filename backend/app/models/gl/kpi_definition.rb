@@ -10,10 +10,10 @@ module Gl
     FORMATS = %w[currency percent number days].freeze
     DIRECTIONS = %w[higher_is_better lower_is_better target_range].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
 
     validates :name, presence: true
-    validates :code, presence: true, uniqueness: { scope: :corporate_company_id }
+    validates :code, presence: true, uniqueness: { scope: :corporate_id }
     validates :formula_type, presence: true, inclusion: { in: FORMULA_TYPES }
     validates :category, inclusion: { in: CATEGORIES }, allow_blank: true
     validates :format, inclusion: { in: FORMATS }, allow_blank: true
@@ -167,7 +167,7 @@ module Gl
       ]
 
       kpis.each_with_index do |kpi, index|
-        find_or_create_by!(corporate_company: company, code: kpi[:code]) do |k|
+        find_or_create_by!(corporate: company, code: kpi[:code]) do |k|
           k.assign_attributes(kpi.merge(position: index))
         end
       end
@@ -207,23 +207,23 @@ module Gl
     def get_metric(metric_name, start_date, end_date)
       case metric_name
       when "revenue"
-        corporate_company.gl_invoices.sales.where(date: start_date..end_date).sum(:total)
+        corporate.gl_invoices.sales.where(date: start_date..end_date).sum(:total)
       when "gross_profit"
         revenue = get_metric("revenue", start_date, end_date)
         cogs = get_metric("cogs", start_date, end_date)
         revenue - cogs
       when "cogs"
-        corporate_company.gl_accounts.where(account_type: "expense", code: /^5/).sum(:balance).abs
+        corporate.gl_accounts.where(account_type: "expense", code: /^5/).sum(:balance).abs
       when "net_profit"
         revenue = get_metric("revenue", start_date, end_date)
-        expenses = corporate_company.gl_invoices.bills.where(date: start_date..end_date).sum(:total)
+        expenses = corporate.gl_invoices.bills.where(date: start_date..end_date).sum(:total)
         revenue - expenses
       when "current_assets"
-        corporate_company.gl_accounts.where(account_type: "asset").where("code < '2'").sum(:balance)
+        corporate.gl_accounts.where(account_type: "asset").where("code < '2'").sum(:balance)
       when "current_liabilities"
-        corporate_company.gl_accounts.where(account_type: "liability").where("code < '3'").sum(:balance).abs
+        corporate.gl_accounts.where(account_type: "liability").where("code < '3'").sum(:balance).abs
       when "operating_expenses"
-        corporate_company.gl_invoices.bills.where(date: start_date..end_date).sum(:total)
+        corporate.gl_invoices.bills.where(date: start_date..end_date).sum(:total)
       else
         0
       end
@@ -233,19 +233,19 @@ module Gl
       revenue = get_metric("revenue", start_date, end_date)
       return nil if revenue.zero?
 
-      ar_balance = corporate_company.gl_accounts.where(account_type: "asset", name: /receivable/i).sum(:balance)
+      ar_balance = corporate.gl_accounts.where(account_type: "asset", name: /receivable/i).sum(:balance)
       days = (end_date - start_date).to_i
 
       (ar_balance / revenue) * days
     end
 
     def calculate_yoy_growth(_start_date, end_date)
-      current_year_revenue = corporate_company.gl_invoices.sales
+      current_year_revenue = corporate.gl_invoices.sales
                                               .where(date: end_date.beginning_of_year..end_date)
                                               .sum(:total)
 
       prior_year_end = end_date - 1.year
-      prior_year_revenue = corporate_company.gl_invoices.sales
+      prior_year_revenue = corporate.gl_invoices.sales
                                             .where(date: prior_year_end.beginning_of_year..prior_year_end)
                                             .sum(:total)
 

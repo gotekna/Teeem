@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[draft submitted approved certified invoiced paid].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :job
     belongs_to :contact
     belongs_to :invoice, class_name: "Gl::Invoice", optional: true
@@ -17,7 +17,7 @@ module Gl
     has_many :lines, class_name: "Gl::ProgressClaimLine", foreign_key: "progress_claim_id", dependent: :destroy
     accepts_nested_attributes_for :lines, allow_destroy: true
 
-    validates :claim_number, presence: true, uniqueness: { scope: :corporate_company_id }
+    validates :claim_number, presence: true, uniqueness: { scope: :corporate_id }
     validates :claim_date, presence: true
     validates :contract_value, presence: true, numericality: { greater_than: 0 }
     validates :this_claim_pct, presence: true, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
@@ -37,7 +37,7 @@ module Gl
 
     # Get previous claims for this job
     def previous_claims
-      self.class.where(job_id: job_id, corporate_company_id: corporate_company_id)
+      self.class.where(job_id: job_id, company_id: company_id)
                 .where("claim_sequence < ?", claim_sequence || 999)
                 .order(:claim_sequence)
     end
@@ -96,7 +96,7 @@ module Gl
       return nil unless %w[approved certified].include?(status)
 
       inv = Gl::Invoice.create!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         contact: contact,
         invoice_type: "sales",
         status: "draft",
@@ -134,7 +134,7 @@ module Gl
     private
 
     def set_claim_sequence
-      last_claim = self.class.where(job_id: job_id, corporate_company_id: corporate_company_id)
+      last_claim = self.class.where(job_id: job_id, company_id: company_id)
                              .order(:claim_sequence)
                              .last
 
@@ -146,7 +146,7 @@ module Gl
 
       prefix = "PC"
       year = Date.current.year.to_s[-2..]
-      sequence = self.class.where(corporate_company_id: corporate_company_id)
+      sequence = self.class.where(company_id: company_id)
                            .where("claim_number LIKE ?", "#{prefix}#{year}%")
                            .count + 1
 

@@ -9,11 +9,11 @@ module Gl
     # Assets = Liabilities + Equity
     #
     # Usage:
-    #   report = Gl::Reports::BalanceSheet.new(corporate_company, provider: 'xero', tenant_id: 'abc')
+    #   report = Gl::Reports::BalanceSheet.new(corporate, provider: 'xero', tenant_id: 'abc')
     #   result = report.generate(as_of_date: Date.current)
     #
     class BalanceSheet
-      attr_reader :corporate_company, :external_provider, :external_tenant_id
+      attr_reader :corporate, :external_provider, :external_tenant_id
 
       # Account classes grouped by section
       CURRENT_ASSET_CLASSES = %w[current_asset bank inventory prepayment].freeze
@@ -24,8 +24,8 @@ module Gl
 
       EQUITY_CLASSES = %w[equity].freeze
 
-      def initialize(corporate_company, provider: nil, tenant_id: nil)
-        @corporate_company = corporate_company
+      def initialize(corporate, provider: nil, tenant_id: nil)
+        @corporate = corporate
         @external_provider = provider
         @external_tenant_id = tenant_id
       end
@@ -33,7 +33,7 @@ module Gl
       # Generate Balance Sheet as of a date
       def generate(as_of_date:, compare_prior_date: nil)
         calculator = Gl::BalanceCalculator.new(
-          corporate_company,
+          corporate,
           provider: external_provider,
           tenant_id: external_tenant_id
         )
@@ -111,7 +111,7 @@ module Gl
       # Generate at end of each period in a financial year
       def generate_periodic(financial_year)
         periods = Gl::Period
-          .where(corporate_company: corporate_company)
+          .where(corporate: corporate)
           .where(financial_year: financial_year)
           .order(:period_end)
 
@@ -170,7 +170,7 @@ module Gl
         fy_start = fy_start_date(fy)
 
         pl_report = Gl::Reports::ProfitLoss.new(
-          corporate_company,
+          corporate,
           provider: external_provider,
           tenant_id: external_tenant_id
         )
@@ -215,7 +215,7 @@ module Gl
       end
 
       def scoped_accounts
-        scope = Gl::Account.where(corporate_company: corporate_company)
+        scope = Gl::Account.where(corporate: corporate)
         if external_provider
           scope = scope.where(external_provider: external_provider, external_tenant_id: external_tenant_id)
         else

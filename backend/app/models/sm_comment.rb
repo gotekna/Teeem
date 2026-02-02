@@ -90,7 +90,7 @@ class SmComment < ApplicationRecord
 
     SmActivity.track(
       "comment_added",
-      construction: task.construction,
+      construction: task.job,
       user: author,
       task: task,
       trackable: self,

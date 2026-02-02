@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
 
     has_many :exchange_rates, class_name: 'Gl::ExchangeRate', foreign_key: 'gl_currency_id', dependent: :destroy
 
@@ -33,7 +33,7 @@ module Gl
     validates :code, presence: true, length: { is: 3 }
     validates :name, presence: true
     validates :decimal_places, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 4 }
-    validates :code, uniqueness: { scope: :corporate_company_id }
+    validates :code, uniqueness: { scope: :corporate_id }
     validate :only_one_base_currency
 
     # ═══════════════════════════════════════════════════════════════
@@ -54,12 +54,12 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     class << self
       # Get base currency for a company
-      def base_currency_for(corporate_company)
-        where(corporate_company: corporate_company, is_base_currency: true).first
+      def base_currency_for(corporate)
+        where(corporate: corporate, is_base_currency: true).first
       end
 
       # Set up common currencies for a company
-      def setup_defaults_for(corporate_company, base_code: 'AUD')
+      def setup_defaults_for(corporate, base_code: 'AUD')
         COMMON_CURRENCIES.each do |code, attrs|
           create_with(
             name: attrs[:name],
@@ -67,7 +67,7 @@ module Gl
             decimal_places: attrs[:decimal_places],
             is_base_currency: code == base_code
           ).find_or_create_by!(
-            corporate_company: corporate_company,
+            corporate: corporate,
             code: code
           )
         end
@@ -132,7 +132,7 @@ module Gl
       return unless is_base_currency_changed?
 
       existing_base = self.class
-        .where(corporate_company: corporate_company, is_base_currency: true)
+        .where(corporate: corporate, is_base_currency: true)
         .where.not(id: id)
         .exists?
 

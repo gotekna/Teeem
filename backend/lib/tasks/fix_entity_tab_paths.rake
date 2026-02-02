@@ -1,4 +1,4 @@
-namespace :entity_tabs do
+namespace :warehouse_folders do
   desc "Fix warehouse_folder paths to use proper tokens instead of hardcoded values"
   task fix_paths: :environment do
     puts "=== Fixing Entity Tab Warehouse Folder Paths ==="
@@ -68,7 +68,7 @@ namespace :entity_tabs do
 
     puts "Updating warehouse_folder paths..."
     all_updates.each do |tab_id, new_path|
-      tab = EntityTab.find_by(id: tab_id)
+      tab = WarehouseFolder.find_by(id: tab_id)
       if tab
         old_path = tab.warehouse_folder
         if old_path != new_path
@@ -87,7 +87,7 @@ namespace :entity_tabs do
     puts "=== Fixing warehouse_type assignments ==="
 
     # My Documents should be under contact scope (not warehouse)
-    tab_369 = EntityTab.find_by(id: 369)
+    tab_369 = WarehouseFolder.find_by(id: 369)
     if tab_369 && tab_369.warehouse_type != "contact"
       old_type = tab_369.warehouse_type
       tab_369.update_columns(warehouse_type: "contact")
@@ -98,7 +98,7 @@ namespace :entity_tabs do
     end
 
     # Ensure Email Attachments is under email scope
-    tab_383 = EntityTab.find_by(id: 383)
+    tab_383 = WarehouseFolder.find_by(id: 383)
     if tab_383 && tab_383.warehouse_type != "email"
       old_type = tab_383.warehouse_type
       tab_383.update_columns(warehouse_type: "email")
@@ -112,10 +112,10 @@ namespace :entity_tabs do
     puts "=== Setting parent relationships ==="
 
     # Set Bank Statements and Contracts as children of Templates
-    templates_tab = EntityTab.find_by(tab_key: "templates")
+    templates_tab = WarehouseFolder.find_by(tab_key: "templates")
     if templates_tab
       [374, 375].each do |id|
-        tab = EntityTab.find_by(id: id)
+        tab = WarehouseFolder.find_by(id: id)
         if tab && tab.parent_id != templates_tab.id
           old_parent = tab.parent_id
           tab.update_columns(parent_id: templates_tab.id)

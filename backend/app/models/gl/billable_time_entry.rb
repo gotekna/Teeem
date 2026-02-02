@@ -8,7 +8,7 @@ module Gl
     STATUSES = %w[unbilled pending_approval approved billed written_off].freeze
     TASK_TYPES = %w[design development meeting review admin travel other].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :user
     belongs_to :job, optional: true
     belongs_to :billable_rate, class_name: "Gl::BillableRate", optional: true
@@ -33,16 +33,16 @@ module Gl
     scope :ready_to_bill, -> { where(status: "approved", billable: true, invoiced: false) }
 
     # Create from SmTimeEntry
-    def self.create_from_time_entry!(time_entry, corporate_company:)
+    def self.create_from_time_entry!(time_entry, corporate:)
       rate = BillableRate.find_rate_for(
-        corporate_company,
+        corporate,
         user: time_entry.user,
         job: time_entry.job,
         date: time_entry.date
       )
 
       create!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         time_entry_id: time_entry.id,
         user: time_entry.user,
         job: time_entry.job,

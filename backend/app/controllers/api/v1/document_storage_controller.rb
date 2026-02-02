@@ -1706,8 +1706,8 @@ module Api
 
         # Legacy path: JobDocument table (deprecated - will be removed)
         # Check if we have cached documents in the data warehouse
-        # Include entity_tabs through document_type to get entity_tab_key for folder view
-        cached_docs = job.job_documents.includes({ document_type: :entity_tabs }, :ai_suggested_type, :parent_document, :child_versions, :signed_by).synced
+        # Include warehouse_folders through document_type to get warehouse_folder_key for folder view
+        cached_docs = job.job_documents.includes({ document_type: :warehouse_folders }, :ai_suggested_type, :parent_document, :child_versions, :signed_by).synced
 
         # Filter by folder with optional cascade (include_descendants)
         if params[:folder].present?
@@ -1750,9 +1750,9 @@ module Api
               document_type_id: doc.document_type_id,
               document_type_name: doc.document_type&.name,
               document_type_abbreviation: doc.document_type&.abbreviation,
-              # Entity Tab key for folder view - uses primary_entity_tab (first ordered)
-              entity_tab_key: doc.document_type&.primary_entity_tab&.tab_key,
-              entity_tab_name: doc.document_type&.primary_entity_tab&.display_name,
+              # Warehouse Folder key for folder view - uses primary_warehouse_folder (first ordered)
+              warehouse_folder_key: doc.document_type&.primary_warehouse_folder&.tab_key,
+              warehouse_folder_name: doc.document_type&.primary_warehouse_folder&.display_name,
               suggested_document_types: build_document_type_display(doc),
               # AI analysis fields
               ai_analyzed: doc.ai_analyzed_at.present?,
@@ -2213,7 +2213,7 @@ module Api
       end
 
       # POST /api/v1/documents/bulk_categorize_job_documents
-      # Bulk categorize documents for a job based on folder paths matching EntityTabs
+      # Bulk categorize documents for a job based on folder paths matching WarehouseFolders
       # Used for client onboarding to automatically assign document types
       # Params:
       #   - job_id: Required - Job ID to categorize

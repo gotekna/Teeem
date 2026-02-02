@@ -3,7 +3,7 @@
 class CreateGlProviderCredentials < ActiveRecord::Migration[8.0]
   def change
     create_table :gl_provider_credentials do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
 
       # Provider Identity
       t.string :provider, null: false     # 'xero', 'quickbooks', 'myob'
@@ -35,7 +35,7 @@ class CreateGlProviderCredentials < ActiveRecord::Migration[8.0]
     end
 
     # Unique constraint: one credential per provider per tenant per company
-    add_index :gl_provider_credentials, [:corporate_company_id, :provider, :tenant_id],
+    add_index :gl_provider_credentials, [:corporate_id, :provider, :tenant_id],
               unique: true, name: 'idx_gl_provider_credentials_unique'
 
     # Performance indexes

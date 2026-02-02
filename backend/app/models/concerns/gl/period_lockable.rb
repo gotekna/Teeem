@@ -65,10 +65,10 @@ module Gl
 
     # Override in including class to specify the company
     def lockable_company
-      if respond_to?(:corporate_company_id)
-        corporate_company_id
-      elsif respond_to?(:corporate_company)
-        corporate_company
+      if respond_to?(:corporate_id)
+        company_id
+      elsif respond_to?(:corporate)
+        corporate
       end
     end
 

@@ -4,7 +4,7 @@ module Api
   module V1
     module Gl
       class AccountsController < ApplicationController
-        before_action :set_corporate_company, except: [:chart, :index]
+        before_action :set_corporate, except: [:chart, :index]
         before_action :set_account, only: [:show, :update, :ledger]
 
         # GET /api/v1/gl/accounts
@@ -47,7 +47,7 @@ module Api
         # POST /api/v1/gl/accounts
         def create
           account = ::Gl::Account.new(account_params)
-          account.corporate_company = @corporate_company
+          account.corporate = @corporate
           account.external_provider = params[:provider]
           account.external_tenant_id = params[:tenant_id]
 
@@ -88,7 +88,7 @@ module Api
           to_date = params[:to_date]&.to_date || Date.current
 
           calculator = ::Gl::BalanceCalculator.new(
-            @corporate_company,
+            @corporate,
             provider: params[:provider],
             tenant_id: params[:tenant_id]
           )
@@ -144,7 +144,7 @@ module Api
           accounts = scoped_accounts.where(is_bank_account: true).active.order(:code)
 
           calculator = ::Gl::BalanceCalculator.new(
-            @corporate_company,
+            @corporate,
             provider: params[:provider],
             tenant_id: params[:tenant_id]
           )
@@ -166,8 +166,8 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id] || current_user&.corporate_company_id)
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id] || current_user&.corporate_id)
         rescue ActiveRecord::RecordNotFound
           render json: { success: false, error: 'Company not found' }, status: :not_found
         end
@@ -179,7 +179,7 @@ module Api
         end
 
         def scoped_accounts
-          scope = ::Gl::Account.where(corporate_company: @corporate_company)
+          scope = ::Gl::Account.where(corporate: @corporate)
 
           if params[:provider].present?
             scope = scope.where(external_provider: params[:provider], external_tenant_id: params[:tenant_id])
@@ -203,7 +203,7 @@ module Api
 
           if include_balance
             calculator = ::Gl::BalanceCalculator.new(
-              @corporate_company,
+              @corporate,
               provider: account.external_provider,
               tenant_id: account.external_tenant_id
             )
@@ -213,7 +213,7 @@ module Api
           json
         end
 
-        # Simplified account JSON that doesn't require @corporate_company
+        # Simplified account JSON that doesn't require @corporate
         def chart_account_json(account)
           {
             id: account.id,

@@ -102,7 +102,7 @@ module Api
         checkins = SmSiteCheckin.includes(:resource, :construction, :task)
 
         # Filters
-        checkins = checkins.where(construction_id: params[:job_id]) if params[:job_id]
+        checkins = checkins.where(job_id: params[:job_id]) if params[:job_id]
         checkins = checkins.where(resource_id: params[:resource_id]) if params[:resource_id]
         checkins = checkins.for_date(Date.parse(params[:date])) if params[:date]
         checkins = checkins.today if params[:today] == "true"
@@ -318,8 +318,8 @@ module Api
       def checkin_json(checkin)
         {
           id: checkin.id,
-          construction_id: checkin.construction_id,
-          construction_name: checkin.construction&.name,
+          construction_id: checkin.job_id,
+          construction_name: checkin.job&.name,
           resource_id: checkin.resource_id,
           resource_name: checkin.resource&.name,
           task_id: checkin.sm_task_id,

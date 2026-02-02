@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
+import { WarehouseFoldersConfig } from "@/components/admin/WarehouseFoldersConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { EmailConfigTab } from "./EmailConfigTab";
@@ -161,7 +161,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
     const fetchCounts = async () => {
       try {
         const response = await api.get<{ success: boolean; data: { counts: Record<string, number> } }>(
-          "/api/v1/entity_tabs/document_type_counts"
+          "/api/v1/warehouse_folders/document_type_counts"
         );
         if (response?.success) {
           setScopeCounts(response.data.counts);
@@ -212,7 +212,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
           {scopes.map((scope) => (
             <TabsContent key={scope.id} value={scope.id} className="mt-0 h-full">
               {scope.isEntityTab ? (
-                <EntityTabsConfig
+                <WarehouseFoldersConfig
                   scope={scope.id as "corporate" | "job" | "contact" | "email" | "warehouse" | "task"}
                   showEntityFilters={scope.showEntityFilters}
                   showSharePointPaths={scope.showSharePointPaths}

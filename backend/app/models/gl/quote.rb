@@ -8,7 +8,7 @@ module Gl
     STATUSES = %w[draft sent viewed accepted rejected expired converted].freeze
     DISCOUNT_TYPES = %w[percent amount].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :contact
     belongs_to :job, optional: true
     belongs_to :created_by, class_name: "User", optional: true
@@ -19,7 +19,7 @@ module Gl
 
     accepts_nested_attributes_for :lines, allow_destroy: true
 
-    validates :quote_number, presence: true, uniqueness: { scope: :corporate_company_id }
+    validates :quote_number, presence: true, uniqueness: { scope: :corporate_id }
     validates :quote_date, presence: true
     validates :status, inclusion: { in: STATUSES }
 
@@ -79,7 +79,7 @@ module Gl
       return invoice if invoice.present?
 
       new_invoice = Gl::Invoice.create!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         contact: contact,
         job: job,
         invoice_type: "sales",
@@ -174,10 +174,10 @@ module Gl
 
     # Win rate for company
     def self.win_rate(company)
-      total = where(corporate_company: company).where.not(status: "draft").count
+      total = where(corporate: company).where.not(status: "draft").count
       return 0 if total.zero?
 
-      won = where(corporate_company: company, status: %w[accepted converted]).count
+      won = where(corporate: company, status: %w[accepted converted]).count
       (won.to_f / total * 100).round(1)
     end
 
@@ -187,7 +187,7 @@ module Gl
       return if quote_number.present?
 
       year = Date.current.year.to_s[-2..]
-      sequence = self.class.where(corporate_company_id: corporate_company_id)
+      sequence = self.class.where(company_id: company_id)
                            .where("quote_number LIKE ?", "Q#{year}%")
                            .count + 1
 

@@ -9,11 +9,11 @@ module Gl
     OWNERSHIP_TYPES = %w[owned leased rented].freeze
     CATEGORIES = %w[heavy light vehicles tools].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
 
     has_many :usages, class_name: "Gl::EquipmentUsage", foreign_key: "equipment_id", dependent: :destroy
 
-    validates :equipment_number, presence: true, uniqueness: { scope: :corporate_company_id }
+    validates :equipment_number, presence: true, uniqueness: { scope: :corporate_id }
     validates :name, presence: true
     validates :status, inclusion: { in: STATUSES }
     validates :ownership_type, inclusion: { in: OWNERSHIP_TYPES }

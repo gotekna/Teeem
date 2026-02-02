@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { api } from "@/lib/api";
-import type { EntityTabScope } from "@/lib/types/entity-tabs";
+import type { WarehouseFolderScope } from "@/lib/types/warehouse-folders";
 
 interface UserTabPreferences {
-  scope: EntityTabScope;
+  scope: WarehouseFolderScope;
   hidden_tabs: string[];
   default_tab: string | null;
   tab_order: string[];
@@ -27,7 +27,7 @@ interface UseUserTabPreferencesReturn {
   refetch: () => Promise<void>;
 }
 
-export function useUserTabPreferences(scope: EntityTabScope): UseUserTabPreferencesReturn {
+export function useUserTabPreferences(scope: WarehouseFolderScope): UseUserTabPreferencesReturn {
   const [preferences, setPreferences] = React.useState<UserTabPreferences | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -38,7 +38,7 @@ export function useUserTabPreferences(scope: EntityTabScope): UseUserTabPreferen
       setError(null);
 
       const response = await api.get<{ success: boolean; data: UserTabPreferences }>(
-        `/api/v1/user_entity_tab_preferences/${scope}`
+        `/api/v1/user_warehouse_folder_preferences/${scope}`
       );
 
       if (response?.success) {
@@ -99,7 +99,7 @@ export function useUserTabPreferences(scope: EntityTabScope): UseUserTabPreferen
       setPreferences((prev) => prev ? { ...prev, hidden_tabs: newHiddenTabs } : null);
 
       const response = await api.post<{ success: boolean; data: { hidden_tabs: string[] } }>(
-        `/api/v1/user_entity_tab_preferences/${scope}/toggle_tab`,
+        `/api/v1/user_warehouse_folder_preferences/${scope}/toggle_tab`,
         { tab_key: tabKey }
       );
 
@@ -118,7 +118,7 @@ export function useUserTabPreferences(scope: EntityTabScope): UseUserTabPreferen
       setPreferences((prev) => prev ? { ...prev, default_tab: tabKey } : null);
 
       const response = await api.post<{ success: boolean; data: { default_tab: string | null } }>(
-        `/api/v1/user_entity_tab_preferences/${scope}/set_default`,
+        `/api/v1/user_warehouse_folder_preferences/${scope}/set_default`,
         { tab_key: tabKey || "" }
       );
 
@@ -137,7 +137,7 @@ export function useUserTabPreferences(scope: EntityTabScope): UseUserTabPreferen
       setPreferences((prev) => prev ? { ...prev, tab_order: order } : null);
 
       const response = await api.post<{ success: boolean; data: { tab_order: string[] } }>(
-        `/api/v1/user_entity_tab_preferences/${scope}/reorder`,
+        `/api/v1/user_warehouse_folder_preferences/${scope}/reorder`,
         { tab_order: order }
       );
 
@@ -153,7 +153,7 @@ export function useUserTabPreferences(scope: EntityTabScope): UseUserTabPreferen
   const updatePreferences = React.useCallback(async (hidden: string[], defaultTabKey: string | null, order?: string[]) => {
     try {
       const response = await api.patch<{ success: boolean; data: UserTabPreferences }>(
-        `/api/v1/user_entity_tab_preferences/${scope}`,
+        `/api/v1/user_warehouse_folder_preferences/${scope}`,
         { hidden_tabs: hidden, default_tab: defaultTabKey, tab_order: order }
       );
 
@@ -168,7 +168,7 @@ export function useUserTabPreferences(scope: EntityTabScope): UseUserTabPreferen
 
   const resetToDefaults = React.useCallback(async () => {
     try {
-      await api.delete(`/api/v1/user_entity_tab_preferences/${scope}`);
+      await api.delete(`/api/v1/user_warehouse_folder_preferences/${scope}`);
       setPreferences({
         scope,
         hidden_tabs: [],

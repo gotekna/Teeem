@@ -4,7 +4,7 @@ class CreateGlCustomReports < ActiveRecord::Migration[7.2]
   def change
     # Custom report definitions
     create_table :gl_custom_reports do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :created_by, foreign_key: { to_table: :users }
       t.string :name, null: false
       t.text :description
@@ -114,7 +114,7 @@ class CreateGlCustomReports < ActiveRecord::Migration[7.2]
 
     # Report dashboards (collections of reports)
     create_table :gl_report_dashboards do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :created_by, foreign_key: { to_table: :users }
       t.string :name, null: false
       t.text :description

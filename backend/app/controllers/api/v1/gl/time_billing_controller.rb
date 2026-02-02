@@ -5,11 +5,11 @@ module Api
     module Gl
       # Controller for time-based billing
       class TimeBillingController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
 
         # GET /api/v1/gl/time_billing/rates
         def rates
-          rates = @corporate_company.gl_billable_rates
+          rates = @corporate.gl_billable_rates
                                     .includes(:user, :job, :contact)
                                     .order(rate_type: :asc, created_at: :desc)
 
@@ -21,7 +21,7 @@ module Api
 
         # POST /api/v1/gl/time_billing/rates
         def create_rate
-          rate = @corporate_company.gl_billable_rates.build(rate_params)
+          rate = @corporate.gl_billable_rates.build(rate_params)
 
           if rate.save
             render json: { success: true, data: rate }, status: :created
@@ -33,7 +33,7 @@ module Api
 
         # PATCH /api/v1/gl/time_billing/rates/:id
         def update_rate
-          rate = @corporate_company.gl_billable_rates.find(params[:id])
+          rate = @corporate.gl_billable_rates.find(params[:id])
 
           if rate.update(rate_params)
             render json: { success: true, data: rate }
@@ -45,7 +45,7 @@ module Api
 
         # GET /api/v1/gl/time_billing/entries
         def entries
-          entries = @corporate_company.gl_billable_time_entries
+          entries = @corporate.gl_billable_time_entries
                                       .includes(:user, :job, :billable_rate)
                                       .order(entry_date: :desc)
 
@@ -59,13 +59,13 @@ module Api
 
         # POST /api/v1/gl/time_billing/entries
         def create_entry
-          entry = @corporate_company.gl_billable_time_entries.build(entry_params)
+          entry = @corporate.gl_billable_time_entries.build(entry_params)
           entry.user = current_user unless entry.user_id
 
           # Find rate if not provided
           if entry.hourly_rate.blank?
             rate = ::Gl::BillableRate.find_rate_for(
-              @corporate_company,
+              @corporate,
               user: entry.user,
               job: entry.job,
               date: entry.entry_date
@@ -84,7 +84,7 @@ module Api
 
         # POST /api/v1/gl/time_billing/entries/:id/approve
         def approve_entry
-          entry = @corporate_company.gl_billable_time_entries.find(params[:id])
+          entry = @corporate.gl_billable_time_entries.find(params[:id])
 
           if entry.approve!(current_user)
             render json: { success: true, data: entry, message: "Entry approved" }
@@ -95,7 +95,7 @@ module Api
 
         # POST /api/v1/gl/time_billing/entries/batch_approve
         def batch_approve
-          entries = @corporate_company.gl_billable_time_entries
+          entries = @corporate.gl_billable_time_entries
                                       .where(id: params[:entry_ids])
                                       .where(status: "pending_approval")
 
@@ -109,7 +109,7 @@ module Api
 
         # GET /api/v1/gl/time_billing/unbilled
         def unbilled
-          entries = @corporate_company.gl_billable_time_entries
+          entries = @corporate.gl_billable_time_entries
                                       .ready_to_bill
                                       .includes(:user, :job)
                                       .order(entry_date: :desc)
@@ -140,7 +140,7 @@ module Api
 
         # GET /api/v1/gl/time_billing/batches
         def batches
-          batches = @corporate_company.gl_time_billing_batches
+          batches = @corporate.gl_time_billing_batches
                                       .includes(:contact, :job, :invoice)
                                       .order(created_at: :desc)
 
@@ -155,7 +155,7 @@ module Api
           job = params[:job_id].present? ? Job.find(params[:job_id]) : nil
 
           batch = ::Gl::TimeBillingBatch.create_batch!(
-            @corporate_company,
+            @corporate,
             contact: contact,
             period_start: Date.parse(params[:period_start]),
             period_end: Date.parse(params[:period_end]),
@@ -173,7 +173,7 @@ module Api
 
         # POST /api/v1/gl/time_billing/batches/:id/approve
         def approve_batch
-          batch = @corporate_company.gl_time_billing_batches.find(params[:id])
+          batch = @corporate.gl_time_billing_batches.find(params[:id])
 
           if batch.approve!
             render json: { success: true, data: batch, message: "Batch approved" }
@@ -184,7 +184,7 @@ module Api
 
         # POST /api/v1/gl/time_billing/batches/:id/generate_invoice
         def generate_invoice
-          batch = @corporate_company.gl_time_billing_batches.find(params[:id])
+          batch = @corporate.gl_time_billing_batches.find(params[:id])
           invoice = batch.generate_invoice!
 
           if invoice
@@ -200,7 +200,7 @@ module Api
           period_start = params[:start_date] ? Date.parse(params[:start_date]) : Date.current.beginning_of_month
           period_end = params[:end_date] ? Date.parse(params[:end_date]) : Date.current.end_of_month
 
-          entries = @corporate_company.gl_billable_time_entries.for_period(period_start, period_end)
+          entries = @corporate.gl_billable_time_entries.for_period(period_start, period_end)
 
           render json: {
             success: true,
@@ -223,8 +223,8 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id])
         end
 
         def rate_params

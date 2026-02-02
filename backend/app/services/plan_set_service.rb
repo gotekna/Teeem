@@ -36,8 +36,8 @@ class PlanSetService
     # Get job folder path
     raise ProcessingError, "Job has no storage folder" unless @construction.storage_folder_path.present?
 
-    # SSoT: Get plans folder name from EntityTab
-    plans_folder_name = EntityTab.folder_name_for("job", "plans", "04 Plans")
+    # SSoT: Get plans folder name from WarehouseFolder
+    plans_folder_name = WarehouseFolder.folder_name_for("job", "plans", "04 Plans")
     plans_folder_path = "#{@construction.storage_folder_path}/#{plans_folder_name}"
 
     # Check plans folder exists
@@ -220,8 +220,8 @@ class PlanSetService
   def get_or_create_plans_folder_path
     raise ProcessingError, "Job has no storage folder. Please create folder structure first." unless @construction.storage_folder_path.present?
 
-    # SSoT: Get plans folder name from EntityTab
-    plans_folder_name = EntityTab.folder_name_for("job", "plans", "04 Plans")
+    # SSoT: Get plans folder name from WarehouseFolder
+    plans_folder_name = WarehouseFolder.folder_name_for("job", "plans", "04 Plans")
     plans_folder_path = "#{@construction.storage_folder_path}/#{plans_folder_name}"
 
     # Ensure folder exists

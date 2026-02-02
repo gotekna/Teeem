@@ -9,7 +9,7 @@ class BillPaymentBatch < ApplicationRecord
 
   # Associations
   belongs_to :tenant
-  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+  belongs_to :corporate, foreign_key: "company_id"
   belongs_to :bank_account
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :approved_by, class_name: "User", optional: true
@@ -45,7 +45,7 @@ class BillPaymentBatch < ApplicationRecord
   scope :completed, -> { where(status: "completed") }
   scope :failed, -> { where(status: "failed") }
   scope :active, -> { where.not(status: %w[cancelled failed completed]) }
-  scope :for_company, ->(company_id) { where(corporate_company_id: company_id) }
+  scope :for_company, ->(company_id) { where(company_id: company_id) }
   scope :for_date, ->(date) { where(payment_date: date) }
   scope :recent, -> { order(created_at: :desc) }
 
@@ -179,7 +179,7 @@ class BillPaymentBatch < ApplicationRecord
     return if batch_reference.present?
 
     date_str = (payment_date || TenantSetting.today).strftime("%Y%m%d")
-    company_code = corporate_company&.code || "XXX"
+    company_code = corporate&.code || "XXX"
     sequence = SecureRandom.hex(3).upcase
     self.batch_reference = "PAY-#{company_code}-#{date_str}-#{sequence}"
   end
@@ -204,7 +204,7 @@ class BillPaymentBatch < ApplicationRecord
   end
 
   def bank_account_belongs_to_company
-    if bank_account.present? && bank_account.company_id != corporate_company_id
+    if bank_account.present? && bank_account.company_id != company_id
       errors.add(:bank_account, "must belong to the selected company")
     end
   end

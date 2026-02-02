@@ -5,19 +5,19 @@ class GlSyncJob < ApplicationJob
 
   # Perform GL sync for a corporate company
   #
-  # @param corporate_company_id [Integer] The company to sync
+  # @param company_id [Integer] The company to sync
   # @param provider [String] Provider name: 'xero', 'quickbooks', 'myob', 'standalone'
   # @param tenant_id [String] Provider's tenant/org ID
   # @param sync_type [String] Type of sync: 'full', 'incremental', 'accounts', etc.
   # @param options [Hash] Additional options
-  def perform(corporate_company_id, provider, tenant_id, sync_type = 'full', options = {})
-    @corporate_company = Corporate.find(corporate_company_id)
+  def perform(company_id, provider, tenant_id, sync_type = 'full', options = {})
+    @corporate = Corporate.find(company_id)
     @provider = provider
     @tenant_id = tenant_id
     @sync_type = sync_type
     @options = options.with_indifferent_access
 
-    Rails.logger.info("[GlSyncJob] Starting #{sync_type} sync for company #{@corporate_company.id} (#{provider}/#{tenant_id})")
+    Rails.logger.info("[GlSyncJob] Starting #{sync_type} sync for company #{@corporate.id} (#{provider}/#{tenant_id})")
 
     # Get the appropriate adapter
     adapter = get_adapter
@@ -69,19 +69,19 @@ class GlSyncJob < ApplicationJob
     if @provider.present? && @provider != 'standalone'
       # First try GL::ProviderCredential
       credential = ::Gl::ProviderCredential.find_by(
-        corporate_company: @corporate_company,
+        corporate: @corporate,
         provider: @provider,
         tenant_id: @tenant_id
       )
 
       if credential
-        ::Gl::Adapters.for(@corporate_company, credential: credential)
+        ::Gl::Adapters.for(@corporate, credential: credential)
       elsif @provider == 'xero' && @tenant_id.present?
         # Fallback for Xero: use existing XeroCredential
         xero_cred = XeroCredential.find_by(tenant_id: @tenant_id, status: 'connected')
         if xero_cred
           Rails.logger.info("[GlSyncJob] Using XeroCredential fallback for #{@tenant_id}")
-          ::Gl::Adapters::Xero.new(@corporate_company, xero_credential: xero_cred)
+          ::Gl::Adapters::Xero.new(@corporate, xero_credential: xero_cred)
         else
           Rails.logger.warn("[GlSyncJob] No XeroCredential found for #{@tenant_id}")
           nil
@@ -91,7 +91,7 @@ class GlSyncJob < ApplicationJob
         nil
       end
     else
-      ::Gl::Adapters::Standalone.new(@corporate_company)
+      ::Gl::Adapters::Standalone.new(@corporate)
     end
   end
 

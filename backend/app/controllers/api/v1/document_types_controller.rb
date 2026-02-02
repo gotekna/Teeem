@@ -4,10 +4,10 @@ module Api
       before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate, :detect_signature_fields ]
 
       # GET /api/v1/document_types
-      # PERFORMANCE: Eager load entity_tabs to prevent N+1 queries in serialize_document_type
+      # PERFORMANCE: Eager load warehouse_folders to prevent N+1 queries in serialize_document_type
       # P95 was 1.4s due to N+1; with eager loading should be <200ms
       def index
-        @document_types = DocumentType.includes(entity_tabs: :parent)
+        @document_types = DocumentType.includes(warehouse_folders: :parent)
 
         # Filter by scope (company, job, both)
         if params[:scope].present?
@@ -29,9 +29,9 @@ module Api
 
         # Optionally group by folder
         if params[:grouped] == "true"
-          # SSoT: folder is computed from primary EntityTab - group in Ruby after query
-          # Include entity_tabs association for folder computation
-          types = @document_types.active.includes(entity_tab_document_types: :entity_tab).order(:name)
+          # SSoT: folder is computed from primary WarehouseFolder - group in Ruby after query
+          # Include warehouse_folders association for folder computation
+          types = @document_types.active.includes(warehouse_folder_document_types: :warehouse_folder).order(:name)
           grouped = types.group_by(&:folder).sort_by { |folder, _| folder || "" }.to_h
           render json: {
             success: true,
@@ -148,8 +148,8 @@ module Api
         new_doc_type.display_name = new_name if @document_type.display_name.present?
 
         if new_doc_type.save
-          # Copy entity_tab associations using the setter (which calls sync_entity_tab_ids)
-          new_doc_type.sync_entity_tab_ids(@document_type.entity_tab_ids)
+          # Copy warehouse_folder associations using the setter (which calls sync_entity_tab_ids)
+          new_doc_type.sync_warehouse_folder_ids(@document_type.warehouse_folder_ids)
 
           render json: {
             success: true,
@@ -305,14 +305,14 @@ module Api
           tabs: [],
           file_extensions: [],
           folder_ids: [],
-          entity_tab_ids: [],  # SSoT: New EntityTab IDs
+          warehouse_folder_ids: [],  # SSoT: New WarehouseFolder IDs
           form_number_mapping: {}  # Hash: dwelling type -> form number
         )
       end
 
       def serialize_document_type(document_type)
-        # SSoT: EntityTab data (replaces deprecated document_type_folders)
-        entity_tabs_data = document_type.entity_tabs.ordered.map do |tab|
+        # SSoT: WarehouseFolder data (replaces deprecated document_type_folders)
+        warehouse_folders_data = document_type.warehouse_folders.ordered.map do |tab|
           {
             id: tab.id,
             tab_key: tab.tab_key,
@@ -323,7 +323,7 @@ module Api
           }
         end
 
-        primary_tab_data = entity_tabs_data.first
+        primary_tab_data = warehouse_folders_data.first
 
         {
           id: document_type.id,
@@ -341,9 +341,9 @@ module Api
           # Legacy tabs array (for backwards compatibility)
           tabs: document_type.tabs || [],
           primary_tab: document_type.primary_tab,
-          # SSoT: EntityTab data (backwards compatible field names)
-          folder_ids: entity_tabs_data.map { |t| t[:id] },
-          folders: entity_tabs_data.map.with_index { |t, i|
+          # SSoT: WarehouseFolder data (backwards compatible field names)
+          folder_ids: warehouse_folders_data.map { |t| t[:id] },
+          folders: warehouse_folders_data.map.with_index { |t, i|
             {
               id: t[:id],
               name: t[:display_name],
@@ -354,10 +354,10 @@ module Api
           },
           primary_folder_id: primary_tab_data&.dig(:id),
           primary_folder_name: primary_tab_data&.dig(:display_name),
-          # SSoT: EntityTab data (new field names)
-          entity_tab_ids: entity_tabs_data.map { |t| t[:id] },
-          entity_tabs: entity_tabs_data,
-          primary_entity_tab: primary_tab_data,
+          # SSoT: WarehouseFolder data (new field names)
+          warehouse_folder_ids: warehouse_folders_data.map { |t| t[:id] },
+          warehouse_folders: warehouse_folders_data,
+          primary_warehouse_folder: primary_tab_data,
           scope: document_type.scope,
           file_extensions: document_type.file_extensions || [],
           target_folder: document_type.target_folder,
@@ -382,8 +382,8 @@ module Api
       end
 
       def all_available_tabs
-        # SSoT: Get all document tabs from EntityTab (replaces old DocumentFolder)
-        EntityTab.for_scope('corporate')
+        # SSoT: Get all document tabs from WarehouseFolder (replaces old DocumentFolder)
+        WarehouseFolder.for_warehouse_type('corporate')
                  .for_group('documents')
                  .enabled
                  .root_tabs

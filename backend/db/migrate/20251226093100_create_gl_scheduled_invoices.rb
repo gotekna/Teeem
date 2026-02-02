@@ -3,7 +3,7 @@
 class CreateGlScheduledInvoices < ActiveRecord::Migration[7.1]
   def change
     create_table :gl_scheduled_invoices do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :invoice, null: false, foreign_key: { to_table: :gl_invoices }
       t.references :created_by, foreign_key: { to_table: :users }
 

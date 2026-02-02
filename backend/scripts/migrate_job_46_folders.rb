@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# One-time migration to rename Job 46 SharePoint folders to match EntityTab names
+# One-time migration to rename Job 46 SharePoint folders to match WarehouseFolder names
 # Usage: rails runner scripts/migrate_job_46_folders.rb
 
 job = Job.find(46)

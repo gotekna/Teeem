@@ -75,11 +75,11 @@ module Api
       end
 
       # POST /api/v1/setup/sync_folder_templates
-      # DEPRECATED: FolderTemplate has been removed - EntityTab is now the SSoT for folder structure
+      # DEPRECATED: FolderTemplate has been removed - WarehouseFolder is now the SSoT for folder structure
       def sync_folder_templates
         render json: {
           success: false,
-          message: "DEPRECATED: FolderTemplate has been removed. Folder structure is now defined in EntityTab hierarchy (Admin > System > Entity Tabs)."
+          message: "DEPRECATED: FolderTemplate has been removed. Folder structure is now defined in WarehouseFolder hierarchy (Admin > System > Entity Tabs)."
         }, status: :gone
       end
 
@@ -100,7 +100,7 @@ module Api
           sync_users_data
         when "supervisor_checklists"
           sync_supervisor_checklists_data
-        # NOTE: folder_templates removed - SSoT: EntityTab is now the source of truth
+        # NOTE: folder_templates removed - SSoT: WarehouseFolder is now the source of truth
         # NOTE: documentation_categories removed - SSoT: DocumentType with SmScheduleMasterDocumentType
         end
       end
@@ -157,7 +157,7 @@ module Api
         end
       end
 
-      # NOTE: sync_folder_templates_data removed - SSoT: EntityTab is now the source of truth for folder structure
+      # NOTE: sync_folder_templates_data removed - SSoT: WarehouseFolder is now the source of truth for folder structure
 
       def handle_sync_error(type, error)
         Rails.logger.error("Failed to sync #{type}: #{error.message}")

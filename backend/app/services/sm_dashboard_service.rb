@@ -288,7 +288,7 @@ class SmDashboardService
 
   def base_tasks
     scope = SmTask
-    scope = scope.where(construction_id: @construction_id) if @construction_id
+    scope = scope.where(job_id: @construction_id) if @construction_id
     scope
   end
 

@@ -1,7 +1,7 @@
 class CreateBillPaymentBatches < ActiveRecord::Migration[8.0]
   def change
     create_table :bill_payment_batches do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :bank_account, null: false, foreign_key: true
 
       t.string :batch_reference, null: false  # Auto-generated
@@ -40,7 +40,7 @@ class CreateBillPaymentBatches < ActiveRecord::Migration[8.0]
 
     add_index :bill_payment_batches, :batch_reference, unique: true
     add_index :bill_payment_batches, :status
-    add_index :bill_payment_batches, [ :corporate_company_id, :status ]
+    add_index :bill_payment_batches, [ :corporate_id, :status ]
     add_index :bill_payment_batches, :payment_date
     add_foreign_key :bill_payment_batches, :bpmn_process_instances, column: :bpmn_process_instance_id
   end

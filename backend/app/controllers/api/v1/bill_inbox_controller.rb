@@ -7,13 +7,13 @@ module Api
 
       # GET /api/v1/bill_inbox
       def index
-        bills = BillInbox.includes(:corporate_company, :supplier, :matched_purchase_order, :approved_by)
+        bills = BillInbox.includes(:corporate, :supplier, :matched_purchase_order, :approved_by)
 
         # Filter by status
         bills = bills.by_status(params[:status]) if params[:status].present?
 
         # Filter by company
-        bills = bills.for_company(params[:corporate_company_id]) if params[:corporate_company_id].present?
+        bills = bills.for_company(params[:corporate_id]) if params[:corporate_id].present?
 
         # Filter by match status
         bills = bills.where(match_status: params[:match_status]) if params[:match_status].present?
@@ -48,7 +48,7 @@ module Api
         render json: {
           bills: bills.as_json(
             include: {
-              corporate_company: {},
+              corporate: {},
               supplier: {},
               matched_purchase_order: {}
             },
@@ -65,11 +65,11 @@ module Api
       # GET /api/v1/bill_inbox/:id
       def show
         # Get xero tenant name from corporate company's xero connection
-        xero_tenant_name = @bill.corporate_company&.corporate_company_xero_connection&.xero_tenant_name
+        xero_tenant_name = @bill.corporate&.corporate_xero_connection&.xero_tenant_name
 
         render json: @bill.as_json(
           include: {
-            corporate_company: {},
+            corporate: {},
             detected_company: {},
             supplier: {},
             matched_purchase_order: {
@@ -187,7 +187,7 @@ module Api
       # GET /api/v1/bill_inbox/stats
       def stats
         bills = BillInbox.all
-        bills = bills.for_company(params[:corporate_company_id]) if params[:corporate_company_id].present?
+        bills = bills.for_company(params[:corporate_id]) if params[:corporate_id].present?
 
         render json: {
           total: bills.count,
@@ -211,7 +211,7 @@ module Api
 
       def bill_params
         params.permit(
-          :corporate_company_id, :supplier_id, :invoice_number,
+          :corporate_id, :supplier_id, :invoice_number,
           :invoice_date, :due_date, :subtotal, :tax_amount, :total_amount,
           :notes, :invoice_file
         )

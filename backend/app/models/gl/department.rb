@@ -5,7 +5,7 @@ module Gl
   class Department < ApplicationRecord
     self.table_name = "gl_departments"
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :parent, class_name: "Gl::Department", optional: true
     belongs_to :manager, class_name: "User", optional: true
 
@@ -15,7 +15,7 @@ module Gl
     has_many :split_lines, class_name: "Gl::SplitLine", dependent: :restrict_with_error
 
     validates :name, presence: true
-    validates :code, uniqueness: { scope: :corporate_company_id }, allow_blank: true
+    validates :code, uniqueness: { scope: :corporate_id }, allow_blank: true
 
     scope :active, -> { where(active: true) }
     scope :top_level, -> { where(parent_id: nil) }
@@ -94,11 +94,11 @@ module Gl
     end
 
     def revenue_account_ids
-      corporate_company.gl_accounts.where(account_type: "revenue").pluck(:id)
+      corporate.gl_accounts.where(account_type: "revenue").pluck(:id)
     end
 
     def expense_account_ids
-      corporate_company.gl_accounts.where(account_type: "expense").pluck(:id)
+      corporate.gl_accounts.where(account_type: "expense").pluck(:id)
     end
   end
 end

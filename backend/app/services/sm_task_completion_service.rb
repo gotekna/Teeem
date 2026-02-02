@@ -392,7 +392,7 @@ class SmTaskCompletionService
 
   def create_spawned_task(attrs)
     # Get next task number
-    max_number = SmTask.where(construction_id: task.construction_id).maximum(:task_number) || 0
+    max_number = SmTask.where(job_id: task.job_id).maximum(:task_number) || 0
 
     # Get sequence order (place right after parent task)
     new_sequence = task.sequence_order + 0.01
@@ -407,7 +407,7 @@ class SmTaskCompletionService
 
     # SSoT: Multi-tenancy - set tenant_id from parent task (background job has no tenant context)
     spawned = SmTask.create!(
-      construction_id: task.construction_id,
+      construction_id: task.job_id,
       parent_task_id: task.id,
       task_number: max_number + 1,
       sequence_order: new_sequence,
@@ -435,7 +435,7 @@ class SmTaskCompletionService
   def generate_unique_task_name(base_name)
     return base_name if base_name.blank?
 
-    job = Construction.find(task.construction_id)
+    job = Construction.find(task.job_id)
 
     # Find all tasks with exact name or numbered variants
     existing_tasks = job.sm_tasks.where(

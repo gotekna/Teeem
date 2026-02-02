@@ -58,7 +58,7 @@ class BillInbox < ApplicationRecord
   scope :awaiting_match, -> { where(status: "extracted", match_status: "unmatched") }
   scope :awaiting_approval, -> { where(status: "approval_pending") }
   scope :ready_for_payment, -> { where(status: "approved") }
-  scope :for_company, ->(company_id) { where(corporate_company_id: company_id) }
+  scope :for_company, ->(company_id) { where(company_id: company_id) }
   scope :with_variance, -> { where(match_status: "variance") }
   scope :recent, -> { order(created_at: :desc) }
   scope :by_status, ->(status) { where(status: status) if status.present? }

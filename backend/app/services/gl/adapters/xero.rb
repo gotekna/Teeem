@@ -51,8 +51,8 @@ module Gl
       }.freeze
 
       # Allow passing xero_credential directly for companies without GL::ProviderCredential
-      def initialize(corporate_company, credential: nil, xero_credential: nil)
-        super(corporate_company, credential: credential)
+      def initialize(corporate, credential: nil, xero_credential: nil)
+        super(corporate, credential: credential)
         @explicit_xero_credential = xero_credential
       end
 
@@ -352,7 +352,7 @@ module Gl
         # Find first connected XeroCredential through CorporateXeroConnection
         connection = CorporateXeroConnection
           .joins(:xero_credential)
-          .where(corporate_company: corporate_company)
+          .where(corporate: corporate)
           .where(xero_credentials: { status: 'connected' })
           .first
 
@@ -527,7 +527,7 @@ module Gl
 
       def sync_single_currency(xero_currency)
         currency = Gl::Currency.find_or_initialize_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           code: xero_currency['Code']
         )
 
@@ -547,7 +547,7 @@ module Gl
       def journalize_invoice(xero_invoice)
         # Skip if already journalized (include source_type to match unique constraint)
         return record_processed!(skipped: true) if Gl::JournalEntry.exists?(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
           source_type: 'invoice',
@@ -559,7 +559,7 @@ module Gl
         period = period_for(date)
 
         journal = Gl::JournalEntry.new(
-          corporate_company: corporate_company,
+          corporate: corporate,
           gl_period: period,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
@@ -609,7 +609,7 @@ module Gl
       def journalize_bill(xero_bill)
         # Skip if already journalized (include source_type to match unique constraint)
         return record_processed!(skipped: true) if Gl::JournalEntry.exists?(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
           source_type: 'bill',
@@ -625,7 +625,7 @@ module Gl
         contact_name = xero_bill.dig('Contact', 'Name') || 'Unknown Supplier'
 
         journal = Gl::JournalEntry.new(
-          corporate_company: corporate_company,
+          corporate: corporate,
           gl_period: period,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
@@ -682,7 +682,7 @@ module Gl
       def journalize_payment(xero_payment)
         # Skip if already journalized (include source_type to match unique constraint)
         return record_processed!(skipped: true) if Gl::JournalEntry.exists?(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
           source_type: 'payment',
@@ -701,7 +701,7 @@ module Gl
         payment_type = is_receivable ? 'receive' : 'spend'
 
         journal = Gl::JournalEntry.new(
-          corporate_company: corporate_company,
+          corporate: corporate,
           gl_period: period,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
@@ -744,7 +744,7 @@ module Gl
       def journalize_bank_transaction(xero_tx)
         # Skip if already journalized (include source_type to match unique constraint)
         return record_processed!(skipped: true) if Gl::JournalEntry.exists?(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
           source_type: 'bank_transaction',
@@ -764,7 +764,7 @@ module Gl
         reference = xero_tx['Reference'] || xero_tx['BankTransactionID'][0..7]
 
         journal = Gl::JournalEntry.new(
-          corporate_company: corporate_company,
+          corporate: corporate,
           gl_period: period,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
@@ -829,7 +829,7 @@ module Gl
       def journalize_credit_note(xero_cn)
         # Skip if already journalized (include source_type to match unique constraint)
         return record_processed!(skipped: true) if Gl::JournalEntry.exists?(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
           source_type: 'credit_note',
@@ -847,7 +847,7 @@ module Gl
         contact_name = xero_cn.dig('Contact', 'Name') || 'Unknown'
 
         journal = Gl::JournalEntry.new(
-          corporate_company: corporate_company,
+          corporate: corporate,
           gl_period: period,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
@@ -911,7 +911,7 @@ module Gl
       def import_manual_journal(xero_journal)
         # Skip if already imported (include source_type to match unique constraint)
         return record_processed!(skipped: true) if Gl::JournalEntry.exists?(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
           source_type: 'manual_journal',
@@ -926,7 +926,7 @@ module Gl
         period = period_for(date)
 
         journal = Gl::JournalEntry.new(
-          corporate_company: corporate_company,
+          corporate: corporate,
           gl_period: period,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
@@ -1062,7 +1062,7 @@ module Gl
 
       def find_system_account(system_account_type)
         Gl::Account.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
           system_account: system_account_type
@@ -1073,7 +1073,7 @@ module Gl
         return nil if account_code.blank?
 
         Gl::Account.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
           code: account_code

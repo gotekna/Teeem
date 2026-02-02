@@ -82,7 +82,7 @@ module Api
           status: new_status
         }
         update_attrs[:root_path] = sp[:root_path] if sp.key?(:root_path)
-        # NOTE: scope_folders column was removed - EntityTab is now SSoT for tab paths
+        # NOTE: scope_folders column was removed - WarehouseFolder is now SSoT for tab paths
         # Only warehouse_folders is stored on WarehouseProvider
 
         # SSoT: warehouse_folders column is THE ONE source (no merging, just replace)

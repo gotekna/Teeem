@@ -4,7 +4,7 @@ class CreateGlTimeBilling < ActiveRecord::Migration[7.1]
   def change
     # Billable rates per user/role/project
     create_table :gl_billable_rates do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :user, foreign_key: true  # Specific user rate
       t.references :job, foreign_key: true   # Job-specific rate
       t.references :contact, foreign_key: true  # Client-specific rate
@@ -23,14 +23,14 @@ class CreateGlTimeBilling < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_billable_rates, [:corporate_company_id, :user_id, :job_id],
+    add_index :gl_billable_rates, [:corporate_id, :user_id, :job_id],
               name: "idx_billable_rates_user_job"
-    add_index :gl_billable_rates, [:corporate_company_id, :rate_type],
+    add_index :gl_billable_rates, [:corporate_id, :rate_type],
               name: "idx_billable_rates_type"
 
     # Time entries marked for billing
     create_table :gl_billable_time_entries do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :time_entry, null: false  # Link to existing SmTimeEntry
       t.references :job, foreign_key: true
       t.references :user, null: false, foreign_key: true
@@ -59,16 +59,16 @@ class CreateGlTimeBilling < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_billable_time_entries, [:corporate_company_id, :status],
+    add_index :gl_billable_time_entries, [:corporate_id, :status],
               name: "idx_billable_time_status"
-    add_index :gl_billable_time_entries, [:corporate_company_id, :job_id, :entry_date],
+    add_index :gl_billable_time_entries, [:corporate_id, :job_id, :entry_date],
               name: "idx_billable_time_job_date"
     add_index :gl_billable_time_entries, [:invoice_id],
               name: "idx_billable_time_invoice"
 
     # Time billing batches (group entries for invoicing)
     create_table :gl_time_billing_batches do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :contact, null: false, foreign_key: true  # Client
       t.references :job, foreign_key: true
       t.references :invoice, foreign_key: { to_table: :gl_invoices }
@@ -89,9 +89,9 @@ class CreateGlTimeBilling < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_time_billing_batches, [:corporate_company_id, :reference],
+    add_index :gl_time_billing_batches, [:corporate_id, :reference],
               unique: true, name: "idx_time_batches_ref"
-    add_index :gl_time_billing_batches, [:corporate_company_id, :contact_id, :status],
+    add_index :gl_time_billing_batches, [:corporate_id, :contact_id, :status],
               name: "idx_time_batches_client"
   end
 end

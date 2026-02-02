@@ -297,10 +297,10 @@ class TemplateImportService
     @imported_counts[:public_holidays] = count
   end
 
-  def import_entity_tabs(data)
+  def import_warehouse_folders(data)
     count = 0
     data.each do |attrs|
-      record = EntityTab.find_or_initialize_by(
+      record = WarehouseFolder.find_or_initialize_by(
         entity_type: attrs["entity_type"],
         slug: attrs["slug"]
       )
@@ -320,9 +320,9 @@ class TemplateImportService
       if record.save
         count += 1
       else
-        @errors << "EntityTab '#{attrs['name']}' (#{attrs['entity_type']}): #{record.errors.full_messages.join(', ')}"
+        @errors << "WarehouseFolder '#{attrs['name']}' (#{attrs['entity_type']}): #{record.errors.full_messages.join(', ')}"
       end
     end
-    @imported_counts[:entity_tabs] = count
+    @imported_counts[:warehouse_folders] = count
   end
 end

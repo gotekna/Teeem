@@ -12,10 +12,10 @@ module Gl
     # - Cost category breakdown
     #
     class JobProfitability
-      attr_reader :corporate_company, :options
+      attr_reader :corporate, :options
 
-      def initialize(corporate_company, options = {})
-        @corporate_company = corporate_company
+      def initialize(corporate, options = {})
+        @corporate = corporate
         @options = options.with_indifferent_access
       end
 

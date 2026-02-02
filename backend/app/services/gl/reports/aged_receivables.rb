@@ -12,7 +12,7 @@ module Gl
     # - Payment history analysis
     #
     class AgedReceivables
-      attr_reader :corporate_company, :as_at_date, :options
+      attr_reader :corporate, :as_at_date, :options
 
       # Aging bucket definitions
       AGING_BUCKETS = [
@@ -34,8 +34,8 @@ module Gl
         days_120_plus: 100
       }.freeze
 
-      def initialize(corporate_company, options = {})
-        @corporate_company = corporate_company
+      def initialize(corporate, options = {})
+        @corporate = corporate
         @as_at_date = options[:as_at_date] || Date.current
         @options = options.with_indifferent_access
       end
@@ -122,7 +122,7 @@ module Gl
 
       def outstanding_invoices
         @invoices ||= Gl::Invoice
-          .where(corporate_company: corporate_company)
+          .where(corporate: corporate)
           .where(invoice_type: 'sales_invoice')
           .where(status: %w[approved submitted])
           .where('amount_due > 0')
@@ -343,7 +343,7 @@ module Gl
 
         # Get total sales for last 90 days
         sales_90_days = Gl::Invoice
-          .where(corporate_company: corporate_company)
+          .where(corporate: corporate)
           .where(invoice_type: 'sales_invoice')
           .where('invoice_date >= ?', as_at_date - 90.days)
           .where('invoice_date <= ?', as_at_date)
@@ -369,7 +369,7 @@ module Gl
       def customer_payment_history(customer)
         # Get last 12 months of paid invoices
         paid_invoices = Gl::Invoice
-          .where(corporate_company: corporate_company)
+          .where(corporate: corporate)
           .where(contact: customer)
           .where(invoice_type: 'sales_invoice')
           .where(status: 'paid')

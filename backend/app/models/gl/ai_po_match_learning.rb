@@ -6,7 +6,7 @@ module Gl
   class AiPoMatchLearning < ApplicationRecord
     self.table_name = "gl_ai_po_match_learnings"
 
-    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :bill_inbox
     belongs_to :purchase_order
     belongs_to :user, optional: true
@@ -22,7 +22,7 @@ module Gl
 
     # Analytics methods
     def self.acceptance_rate(company = nil)
-      scope = company ? where(corporate_company: company) : all
+      scope = company ? where(corporate: company) : all
       total = scope.count
       return 0.0 if total.zero?
 
@@ -31,7 +31,7 @@ module Gl
     end
 
     def self.common_rejection_patterns(company = nil, limit: 10)
-      scope = company ? where(corporate_company: company) : all
+      scope = company ? where(corporate: company) : all
 
       scope.rejected
            .group(:match_data)
@@ -43,7 +43,7 @@ module Gl
     # Get similar past matches to help with current matching
     def self.find_similar_matches(bill_supplier_name:, bill_amount:, company:, limit: 5)
       # Find accepted matches with similar supplier or amount
-      where(corporate_company: company)
+      where(corporate: company)
         .accepted
         .where("bill_supplier_name ILIKE ? OR ABS(bill_amount - ?) < ?",
                "%#{bill_supplier_name}%",
