@@ -1506,7 +1506,14 @@ function TabNode({
             {/* Document Download Name template */}
             <div className="space-y-1">
               <TokenBuilder
-                label={<span className="text-[11px] font-medium text-muted-foreground">Document Download Name</span>}
+                label={
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Document Download Name
+                    {(!tab.download_name || editSendName === '{{OriginalFileName}}') && (
+                      <span className="ml-1.5 text-[9px] text-blue-500/70 font-normal">(default)</span>
+                    )}
+                  </span>
+                }
                 value={editSendName}
                 onChange={setEditSendName}
                 scope="storage"
