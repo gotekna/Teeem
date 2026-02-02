@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[draft approved invoiced].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :contact
     belongs_to :job, optional: true
     belongs_to :invoice, class_name: "Gl::Invoice", optional: true

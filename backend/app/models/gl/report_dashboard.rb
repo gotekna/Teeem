@@ -5,7 +5,7 @@ module Gl
   class ReportDashboard < ApplicationRecord
     self.table_name = "gl_report_dashboards"
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :created_by, class_name: "User", optional: true
 
     has_many :widgets, class_name: "Gl::DashboardWidget", foreign_key: :dashboard_id, dependent: :destroy

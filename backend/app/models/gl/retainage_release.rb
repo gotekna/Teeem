@@ -8,7 +8,7 @@ module Gl
     RELEASE_TYPES = %w[partial final milestone].freeze
     STATUSES = %w[pending approved invoiced paid].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :job
     belongs_to :progress_claim, class_name: "Gl::ProgressClaim", optional: true
     belongs_to :invoice, class_name: "Gl::Invoice", optional: true

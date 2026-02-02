@@ -48,7 +48,7 @@ class TenantProvisioningService
     ActiveRecord::Base.transaction do
       # Phase 1: Core multi-tenancy structure
       create_tenant           # 1. Tenant (SSoT)
-      create_corporate_group  # 2. CompanyGroup (belongs_to Tenant)
+      create_company_group  # 2. CompanyGroup (belongs_to Tenant)
       create_organization     # 3. Organization (credential isolation)
       create_tenant_setting   # 4. TenantSetting (config)
       create_corporate_company # 5. Corporate (main company)
@@ -111,7 +111,7 @@ class TenantProvisioningService
     raise ActiveRecord::Rollback
   end
 
-  def create_corporate_group
+  def create_company_group
     @company_group = CompanyGroup.create!(
       tenant: @tenant,
       name: @params[:company_name],

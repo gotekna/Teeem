@@ -6,7 +6,7 @@ module Gl
     self.table_name = "gl_anomaly_reviews"
 
     # Associations
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :reviewed_by, class_name: "User", optional: true
 
     # Validations

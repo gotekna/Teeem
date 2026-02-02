@@ -8,7 +8,7 @@ module Gl
     STATUSES = %w[draft submitted approved rejected void].freeze
     REASONS = %w[client_request design_change unforeseen_conditions code_compliance value_engineering other].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :job
     belongs_to :contact, optional: true
     belongs_to :requested_by, class_name: "User", optional: true

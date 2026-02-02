@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[draft in_progress completed approved].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :created_by, class_name: "User", optional: true
     belongs_to :approved_by, class_name: "User", optional: true
 

@@ -8,7 +8,7 @@ module Gl
     RULE_TYPES = %w[threshold pattern statistical timing].freeze
     ENTITY_TYPES = %w[invoice payment journal bank_transaction expense].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
 
     validates :name, presence: true
     validates :rule_type, presence: true, inclusion: { in: RULE_TYPES }

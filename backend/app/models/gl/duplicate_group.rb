@@ -9,7 +9,7 @@ module Gl
     STATUSES = %w[pending reviewed resolved].freeze
     RESOLUTIONS = %w[keep_first keep_last merge none_duplicate].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :reviewed_by, class_name: "User", optional: true
 
     has_many :members, class_name: "Gl::DuplicateMember", foreign_key: :duplicate_group_id, dependent: :destroy

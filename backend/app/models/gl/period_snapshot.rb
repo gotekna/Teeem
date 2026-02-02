@@ -7,7 +7,7 @@ module Gl
 
     PERIOD_TYPES = %w[month quarter year].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
 
     validates :period_type, presence: true, inclusion: { in: PERIOD_TYPES }
     validates :period_start, presence: true

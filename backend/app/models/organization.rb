@@ -16,7 +16,7 @@ class Organization < ApplicationRecord
   belongs_to :tenant
 
   # Optional link to Corporate (for credential isolation per company)
-  belongs_to :corporate, optional: true
+  belongs_to :corporate, foreign_key: "company_id", optional: true
 
   # Associations - credentials belong to organizations
   has_many :microsoft_credentials, dependent: :destroy

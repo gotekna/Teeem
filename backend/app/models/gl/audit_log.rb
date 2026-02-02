@@ -8,7 +8,7 @@ module Gl
     ACTIONS = %w[create update delete approve reject void restore import].freeze
     SOURCES = %w[web api import system webhook].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :user, optional: true
     belongs_to :auditable, polymorphic: true, optional: true
 

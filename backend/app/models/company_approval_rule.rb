@@ -2,7 +2,7 @@
 
 class CompanyApprovalRule < ApplicationRecord
   # Associations
-  belongs_to :corporate_company
+  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
   belongs_to :bpmn_process, optional: true
   belongs_to :approver, class_name: "User", optional: true, foreign_key: :approver_id
   belongs_to :escalation_to, class_name: "User", optional: true, foreign_key: :escalation_to_user_id

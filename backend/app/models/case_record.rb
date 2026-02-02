@@ -129,7 +129,7 @@ class CaseRecord < ApplicationRecord
   def related_company_ids
     company_ids = corporate_companies.pluck(:id)
     company_ids << company_id if company_id
-    company_ids += corporate_group.corporate_companies.pluck(:id) if corporate_group
+    company_ids += company_group.corporate_companies.pluck(:id) if company_group
     company_ids.uniq
   end
 
@@ -189,7 +189,7 @@ class CaseRecord < ApplicationRecord
   end
 
   def primary_entity
-    contact || corporate_company || corporate_group
+    contact || corporate_company || company_group
   end
 
   def primary_entity_name

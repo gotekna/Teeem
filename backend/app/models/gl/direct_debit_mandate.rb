@@ -9,7 +9,7 @@ module Gl
     FREQUENCIES = %w[one_time weekly monthly per_invoice].freeze
     AUTHORIZATION_METHODS = %w[online paper verbal].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :contact
 
     validates :mandate_reference, presence: true, uniqueness: { scope: :corporate_company_id }

@@ -290,7 +290,7 @@ export function EntityTabsConfig({
     root_path?: string;
     warehouse_folders?: Record<string, string>;
     scope_templates?: Record<string, string>;
-    file_name_templates?: Record<string, string>;
+    download_name_templates?: Record<string, string>;  // Filename when downloading
   } | null>(null);
 
   React.useEffect(() => {
@@ -302,11 +302,16 @@ export function EntityTabsConfig({
             root_path?: string;
             warehouse_folders?: Record<string, string>;
             scope_templates?: Record<string, string>;
-            file_name_templates?: Record<string, string>;
+            download_name_templates?: Record<string, string>;
+            file_name_templates?: Record<string, string>;  // Legacy backwards compat
           };
         }>("/api/v1/warehouse_provider");
         if (response?.success && response.data) {
-          setStorageConfig(response.data);
+          // Support both old and new field names
+          setStorageConfig({
+            ...response.data,
+            download_name_templates: response.data.download_name_templates || response.data.file_name_templates,
+          });
         }
       } catch (err) {
         console.error("Failed to fetch storage config:", err);
@@ -474,33 +479,33 @@ export function EntityTabsConfig({
       const savedTemplate = storageConfig?.scope_templates?.[scope];
       setFolderPathTemplate(savedTemplate ?? getDefaultTemplate(scope));
 
-      // Initialize file name template
-      const savedFileNameTemplate = storageConfig?.file_name_templates?.[scope];
-      setFileNameTemplate(savedFileNameTemplate ?? '{{OriginalFileName}}');
+      // Initialize download name template
+      const savedDownloadNameTemplate = storageConfig?.download_name_templates?.[scope];
+      setFileNameTemplate(savedDownloadNameTemplate ?? '{{OriginalFileName}}');
 
       // Initialize attachments template for email scope
       if (scope === 'email') {
         const savedAttachmentsTemplate = storageConfig?.scope_templates?.['email_attachments'];
         setAttachmentsPathTemplate(savedAttachmentsTemplate ?? getDefaultTemplate('email'));
-        const savedAttachmentsFileName = storageConfig?.file_name_templates?.['email_attachments'];
-        setAttachmentsFileNameTemplate(savedAttachmentsFileName ?? '{{OriginalFileName}}');
+        const savedAttachmentsDownloadName = storageConfig?.download_name_templates?.['email_attachments'];
+        setAttachmentsFileNameTemplate(savedAttachmentsDownloadName ?? '{{OriginalFileName}}');
       }
 
       // Initialize warehouse sub-scope templates (SSoT: WAREHOUSE_SCOPE_CONFIGS)
       if (scope === 'warehouse') {
         const templates: Record<string, string> = {};
-        const fileNameTemplates: Record<string, string> = {};
+        const downloadNameTemplates: Record<string, string> = {};
         WAREHOUSE_SCOPE_CONFIGS.forEach(config => {
           // Skip 'primary' - it uses the main scope template
           if (config.id === 'primary') return;
           const saved = storageConfig?.scope_templates?.[config.id];
           // Use ?? to allow empty string (user intentionally cleared the template)
           templates[config.id] = saved ?? config.defaultTemplate;
-          const savedFileName = storageConfig?.file_name_templates?.[config.id];
-          fileNameTemplates[config.id] = savedFileName ?? '{{OriginalFileName}}';
+          const savedDownloadName = storageConfig?.download_name_templates?.[config.id];
+          downloadNameTemplates[config.id] = savedDownloadName ?? '{{OriginalFileName}}';
         });
         setWarehouseTemplates(templates);
-        setWarehouseFileNameTemplates(fileNameTemplates);
+        setWarehouseFileNameTemplates(downloadNameTemplates);
       }
     }
   }, [scope, storageConfig, showSharePointPaths, getDefaultTemplate]);
@@ -534,19 +539,19 @@ export function EntityTabsConfig({
       // Build scope_templates object
       // Always include templates even if empty (user may intentionally clear them)
       const scopeTemplates: Record<string, string> = {};
-      const fileNameTemplatesPayload: Record<string, string> = {};
+      const downloadNameTemplatesPayload: Record<string, string> = {};
 
       // Add main scope template (always save, even if empty)
       scopeTemplates[scope] = folderPathTemplate;
       if (fileNameTemplate !== '{{OriginalFileName}}') {
-        fileNameTemplatesPayload[scope] = fileNameTemplate;
+        downloadNameTemplatesPayload[scope] = fileNameTemplate;
       }
 
       // Add email attachments template
       if (scope === 'email') {
         scopeTemplates['email_attachments'] = attachmentsPathTemplate;
         if (attachmentsFileNameTemplate !== '{{OriginalFileName}}') {
-          fileNameTemplatesPayload['email_attachments'] = attachmentsFileNameTemplate;
+          downloadNameTemplatesPayload['email_attachments'] = attachmentsFileNameTemplate;
         }
       }
 
@@ -557,7 +562,7 @@ export function EntityTabsConfig({
         });
         Object.entries(warehouseFileNameTemplates).forEach(([key, value]) => {
           if (value !== '{{OriginalFileName}}') {
-            fileNameTemplatesPayload[key] = value;
+            downloadNameTemplatesPayload[key] = value;
           }
         });
       }
@@ -567,7 +572,7 @@ export function EntityTabsConfig({
       await api.patch('/api/v1/warehouse_provider', {
         storage: {
           scope_templates: scopeTemplates,
-          file_name_templates: fileNameTemplatesPayload,
+          download_name_templates: downloadNameTemplatesPayload,
         }
       });
 
@@ -1833,9 +1838,9 @@ export function EntityTabsConfig({
                         );
                       })()}
 
-                      {/* Download Name template */}
+                      {/* Document Download Name template */}
                       <TokenBuilder
-                        label={labelWithStatus("Download Name")}
+                        label={labelWithStatus("Document Download Name")}
                         value={fileNameTemplate}
                         onChange={setFileNameTemplate}
                         scope="storage"
@@ -1932,9 +1937,9 @@ export function EntityTabsConfig({
                           );
                         })()}
 
-                        {/* Download Name template for attachments */}
+                        {/* Document Download Name template for attachments */}
                         <TokenBuilder
-                          label={labelWithStatus("Download Name")}
+                          label={labelWithStatus("Document Download Name")}
                           value={attachmentsFileNameTemplate}
                           onChange={setAttachmentsFileNameTemplate}
                           scope="storage"
@@ -2036,9 +2041,9 @@ export function EntityTabsConfig({
                                   <span className="text-green-700 dark:text-green-300">{basePath}{template ? `/${previewPath}` : ''}</span>
                                 </div>
 
-                                {/* Download Name Template */}
+                                {/* Document Download Name Template */}
                                 <TokenBuilder
-                                  label={labelWithStatus("Download Name")}
+                                  label={labelWithStatus("Document Download Name")}
                                   value={fileNameTpl}
                                   onChange={(val) => setWarehouseScopeFileNameTemplate(config.id, val)}
                                   scope="storage"

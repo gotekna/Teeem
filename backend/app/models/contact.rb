@@ -880,8 +880,22 @@ class Contact < ApplicationRecord
 
   # Enable corporate management for this contact
   # Creates Corporate extension record if needed
-  def enable_corporate_management!
+  #
+  # @param company_group [CompanyGroup] Required - the group this company belongs to
+  # @return [Boolean] true if successful, false if failed
+  #
+  # FRC (Feb 2026): company_group is now REQUIRED to prevent orphan Corporate records.
+  # Root cause: 397 orphan Corporates were created without company_group_id because
+  # the old method didn't require it. This led to data quality issues with:
+  # - External suppliers incorrectly promoted to Corporate status
+  # - No visibility in Corporate dashboards (grouped by company_group)
+  def enable_corporate_management!(company_group:)
     return false unless can_be_corporate_managed?
+
+    unless company_group.is_a?(CompanyGroup) && company_group.persisted?
+      Rails.logger.error("Contact##{id}: company_group is required for enable_corporate_management!")
+      return false
+    end
 
     transaction do
       # Set flag
@@ -892,6 +906,7 @@ class Contact < ApplicationRecord
         Corporate.create!(
           contact: self,
           tenant: tenant,
+          company_group: company_group,
           name: display_name,
           abn: abn,
           acn: acn,

@@ -8,7 +8,7 @@ module Gl
     WAIVER_TYPES = %w[conditional_partial conditional_final unconditional_partial unconditional_final].freeze
     STATUSES = %w[requested received approved rejected].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :job
     belongs_to :contact
     belongs_to :progress_claim, class_name: "Gl::ProgressClaim", optional: true

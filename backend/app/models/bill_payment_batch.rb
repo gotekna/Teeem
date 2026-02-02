@@ -9,7 +9,7 @@ class BillPaymentBatch < ApplicationRecord
 
   # Associations
   belongs_to :tenant
-  belongs_to :corporate_company
+  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
   belongs_to :bank_account
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :approved_by, class_name: "User", optional: true

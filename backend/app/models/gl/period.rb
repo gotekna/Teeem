@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :closed_by, class_name: 'User', optional: true
 
     has_many :journal_entries, class_name: 'Gl::JournalEntry', foreign_key: 'gl_period_id', dependent: :restrict_with_error

@@ -5,7 +5,7 @@ module Gl
   class ScheduledInvoice < ApplicationRecord
     self.table_name = "gl_scheduled_invoices"
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :invoice, class_name: "Gl::Invoice"
     belongs_to :created_by, class_name: "User", optional: true
 

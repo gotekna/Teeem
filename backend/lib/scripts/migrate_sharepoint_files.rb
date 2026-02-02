@@ -423,7 +423,7 @@ puts "#{PRIVATE_FOLDER_NAME} folder ID: #{private_folder['id']}"
 # Create group and company folders
 company_folder_ids = {}
 
-CorporateGroup.includes(:companies).order(:name).each do |group|
+CompanyGroup.includes(:companies).order(:name).each do |group|
   puts "Creating folders for group: #{group.name}"
 
   # Create group folder

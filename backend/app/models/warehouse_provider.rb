@@ -1099,10 +1099,10 @@ class WarehouseProvider < ApplicationRecord
       # Computed from warehouse_folders: extracts template portion for frontend Full Path preview
       # e.g., "Teeem Docs/{{UserName}}/{{Year}}" → "{{UserName}}/{{Year}}"
       warehouse_folder_templates: scope_folder_templates,
-      # File name templates for document downloads
-      file_name_templates: file_name_templates || {},
-      # Display name templates for document display in UI
-      display_name_templates: display_name_templates || {},
+      # Download name templates for document downloads
+      download_name_templates: download_name_templates || {},
+      # UI name templates for document display in File Warehouse
+      ui_name_templates: ui_name_templates || {},
       # Config links for warehouse folders (URL to external config page)
       config_links: config_links || {},
       # Document routing configuration (SSoT for model selection)

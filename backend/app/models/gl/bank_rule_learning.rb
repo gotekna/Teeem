@@ -5,7 +5,7 @@ module Gl
   class BankRuleLearning < ApplicationRecord
     self.table_name = "gl_bank_rule_learnings"
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :gl_account, class_name: "Gl::Account"
     belongs_to :user, optional: true
 

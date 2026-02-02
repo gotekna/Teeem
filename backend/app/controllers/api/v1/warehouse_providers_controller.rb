@@ -93,16 +93,24 @@ module Api
           update_attrs[:warehouse_folders] = sp[:scope_root_folders].to_h
         end
 
-        # File name templates (for document downloads)
-        if sp.key?(:file_name_templates)
-          existing_file_templates = storage_config.file_name_templates || {}
-          update_attrs[:file_name_templates] = existing_file_templates.merge(sp[:file_name_templates].to_h)
+        # Download name templates (for document downloads)
+        # Accept both old and new param names for backwards compatibility
+        if sp.key?(:download_name_templates)
+          existing_templates = storage_config.download_name_templates || {}
+          update_attrs[:download_name_templates] = existing_templates.merge(sp[:download_name_templates].to_h)
+        elsif sp.key?(:file_name_templates)
+          existing_templates = storage_config.download_name_templates || {}
+          update_attrs[:download_name_templates] = existing_templates.merge(sp[:file_name_templates].to_h)
         end
 
-        # Display name templates (for document display in UI)
-        if sp.key?(:display_name_templates)
-          existing_display_templates = storage_config.display_name_templates || {}
-          update_attrs[:display_name_templates] = existing_display_templates.merge(sp[:display_name_templates].to_h)
+        # UI name templates (for document display in File Warehouse)
+        # Accept both old and new param names for backwards compatibility
+        if sp.key?(:ui_name_templates)
+          existing_templates = storage_config.ui_name_templates || {}
+          update_attrs[:ui_name_templates] = existing_templates.merge(sp[:ui_name_templates].to_h)
+        elsif sp.key?(:display_name_templates)
+          existing_templates = storage_config.ui_name_templates || {}
+          update_attrs[:ui_name_templates] = existing_templates.merge(sp[:display_name_templates].to_h)
         end
 
         if sp.key?(:config_links)
@@ -203,8 +211,10 @@ module Api
           # SSoT: warehouse_folders is THE ONE place for warehouse type roots (includes identifier patterns)
           warehouse_folders: {},
           scope_root_folders: {},  # Legacy backwards compat
-          file_name_templates: {},
-          display_name_templates: {},
+          download_name_templates: {},
+          file_name_templates: {},  # Legacy backwards compat
+          ui_name_templates: {},
+          display_name_templates: {},  # Legacy backwards compat
           config_links: {},
           document_routing: {},  # SSoT: Which model to use for each document source
           virtual_warehouses: {},   # Phase 4: Virtual File Warehouse - which warehouse types render from DB

@@ -7,7 +7,7 @@ module Gl
 
     SNAPSHOT_TYPES = %w[daily monthly quarterly annual eofy].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :created_by, class_name: "User", optional: true
 
     validates :snapshot_type, presence: true, inclusion: { in: SNAPSHOT_TYPES }

@@ -8,7 +8,7 @@ module Gl
     COSTING_METHODS = %w[average fifo lifo].freeze
     STATUSES = %w[active discontinued out_of_stock].freeze
 
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :pricebook_item, optional: true
     belongs_to :cogs_account, class_name: "Gl::Account", optional: true
     belongs_to :inventory_account, class_name: "Gl::Account", optional: true

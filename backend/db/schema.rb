@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_02_100003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1337,6 +1337,34 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["priority"], name: "index_company_approval_rules_on_priority"
   end
 
+  create_table "company_groups", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.string "default_registered_office"
+    t.string "default_principal_place"
+    t.string "default_accountant"
+    t.string "default_accountant_contact"
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "code"
+    t.string "slug"
+    t.integer "tier", default: 0
+    t.integer "environment", default: 0
+    t.boolean "is_master_tenant", default: false
+    t.string "website"
+    t.string "logo_url"
+    t.string "primary_color"
+    t.string "secondary_color"
+    t.bigint "tenant_id"
+    t.index ["environment"], name: "index_company_groups_on_environment"
+    t.index ["is_master_tenant"], name: "index_company_groups_on_is_master_tenant"
+    t.index ["name"], name: "index_company_groups_on_name", unique: true
+    t.index ["slug"], name: "index_company_groups_on_slug", unique: true
+    t.index ["tenant_id"], name: "index_company_groups_on_tenant_id"
+    t.index ["tier"], name: "index_company_groups_on_tier"
+  end
+
   create_table "contact_activities", force: :cascade do |t|
     t.bigint "contact_id", null: false
     t.string "activity_type"
@@ -1372,7 +1400,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["contact_id"], name: "index_contact_addresses_on_contact_id"
   end
 
-  create_table "contact_corporate_group_memberships", force: :cascade do |t|
+  create_table "contact_company_group_memberships", force: :cascade do |t|
     t.bigint "contact_id", null: false
     t.bigint "company_group_id", null: false
     t.string "membership_type"
@@ -1385,11 +1413,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "beneficiary_type"
     t.string "class_description"
     t.bigint "tenant_id"
-    t.index ["company_group_id"], name: "index_contact_corporate_group_memberships_on_company_group_id"
-    t.index ["company_id"], name: "index_contact_corporate_group_memberships_on_company_id"
+    t.index ["company_group_id"], name: "index_contact_company_group_memberships_on_company_group_id"
+    t.index ["company_id"], name: "index_contact_company_group_memberships_on_company_id"
     t.index ["contact_id", "company_group_id", "membership_type"], name: "idx_contact_group_membership_unique", unique: true
-    t.index ["contact_id"], name: "index_contact_corporate_group_memberships_on_contact_id"
-    t.index ["tenant_id"], name: "index_contact_corporate_group_memberships_on_tenant_id"
+    t.index ["contact_id"], name: "index_contact_company_group_memberships_on_contact_id"
+    t.index ["tenant_id"], name: "index_contact_company_group_memberships_on_tenant_id"
   end
 
   create_table "contact_documents", force: :cascade do |t|
@@ -1807,34 +1835,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["tenant_id"], name: "index_corporate_entity_tabs_on_tenant_id"
   end
 
-  create_table "corporate_groups", force: :cascade do |t|
-    t.string "name", null: false
-    t.text "description"
-    t.string "default_registered_office"
-    t.string "default_principal_place"
-    t.string "default_accountant"
-    t.string "default_accountant_contact"
-    t.boolean "active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "code"
-    t.string "slug"
-    t.integer "tier", default: 0
-    t.integer "environment", default: 0
-    t.boolean "is_master_tenant", default: false
-    t.string "website"
-    t.string "logo_url"
-    t.string "primary_color"
-    t.string "secondary_color"
-    t.bigint "tenant_id"
-    t.index ["environment"], name: "index_corporate_groups_on_environment"
-    t.index ["is_master_tenant"], name: "index_corporate_groups_on_is_master_tenant"
-    t.index ["name"], name: "index_corporate_groups_on_name", unique: true
-    t.index ["slug"], name: "index_corporate_groups_on_slug", unique: true
-    t.index ["tenant_id"], name: "index_corporate_groups_on_tenant_id"
-    t.index ["tier"], name: "index_corporate_groups_on_tier"
-  end
-
   create_table "corporate_loans", force: :cascade do |t|
     t.bigint "lender_company_id", null: false
     t.bigint "borrower_company_id", null: false
@@ -2007,11 +2007,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "health_status"
     t.boolean "has_loans", default: false
     t.boolean "loan_documents_in_place", default: false
-    t.string "storage_folder_id"
-    t.string "storage_folder_path"
     t.string "code"
-    t.string "storage_folder_url"
-    t.string "storage_folder_name"
     t.string "entity_type", default: "company"
     t.bigint "parent_company_id"
     t.integer "hierarchy_level", default: 0
@@ -2043,7 +2039,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["review_date"], name: "index_corporates_on_review_date"
     t.index ["slug"], name: "index_corporates_on_slug", unique: true
     t.index ["status"], name: "index_corporates_on_status"
-    t.index ["storage_folder_id"], name: "index_corporates_on_storage_folder_id"
     t.index ["tenant_id"], name: "index_corporates_on_tenant_id"
     t.index ["trading_names"], name: "index_corporates_on_trading_names", using: :gin
   end
@@ -10123,14 +10118,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.bigint "credential_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.jsonb "file_name_templates", default: {}, null: false
+    t.jsonb "download_name_templates", default: {}, null: false
     t.jsonb "config_links", default: {}, null: false
     t.jsonb "document_routing", default: {}, null: false
     t.jsonb "virtual_warehouses", default: {}, null: false
     t.jsonb "warehouse_folders", default: {}, null: false
     t.boolean "exclude_sm_tasks", default: false, null: false
     t.bigint "tenant_id", null: false
-    t.jsonb "display_name_templates", default: {}
+    t.jsonb "ui_name_templates", default: {}
     t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
     t.index ["organization_id"], name: "index_warehouse_providers_on_organization_id", unique: true
     t.index ["tenant_id"], name: "index_storage_configurations_on_tenant_id_unique", unique: true
@@ -10820,12 +10815,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "company_approval_rules", "corporates", column: "corporate_company_id"
   add_foreign_key "company_approval_rules", "users", column: "approver_id"
   add_foreign_key "company_approval_rules", "users", column: "escalation_to_user_id"
+  add_foreign_key "company_groups", "tenants"
   add_foreign_key "contact_activities", "contacts"
   add_foreign_key "contact_addresses", "contacts"
-  add_foreign_key "contact_corporate_group_memberships", "contacts"
-  add_foreign_key "contact_corporate_group_memberships", "corporate_groups", column: "company_group_id"
-  add_foreign_key "contact_corporate_group_memberships", "corporates", column: "company_id"
-  add_foreign_key "contact_corporate_group_memberships", "tenants"
+  add_foreign_key "contact_company_group_memberships", "company_groups"
+  add_foreign_key "contact_company_group_memberships", "contacts"
+  add_foreign_key "contact_company_group_memberships", "corporates", column: "company_id"
+  add_foreign_key "contact_company_group_memberships", "tenants"
   add_foreign_key "contact_documents", "contacts"
   add_foreign_key "contact_documents", "document_types"
   add_foreign_key "contact_documents", "storage_blobs"
@@ -10852,9 +10848,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "corporate_directors", "contacts"
   add_foreign_key "corporate_directors", "corporates", column: "company_id"
   add_foreign_key "corporate_directors", "tenants"
-  add_foreign_key "corporate_entity_tabs", "corporate_groups", column: "company_group_id"
+  add_foreign_key "corporate_entity_tabs", "company_groups"
   add_foreign_key "corporate_entity_tabs", "tenants"
-  add_foreign_key "corporate_groups", "tenants"
   add_foreign_key "corporate_loans", "corporates", column: "borrower_company_id"
   add_foreign_key "corporate_loans", "corporates", column: "lender_company_id"
   add_foreign_key "corporate_loans", "tenants"
@@ -10870,8 +10865,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "corporate_xero_connections", "corporates", column: "company_id"
   add_foreign_key "corporate_xero_connections", "tenants"
   add_foreign_key "corporate_xero_connections", "xero_credentials"
+  add_foreign_key "corporates", "company_groups"
   add_foreign_key "corporates", "contacts"
-  add_foreign_key "corporates", "corporate_groups", column: "company_group_id"
   add_foreign_key "corporates", "corporates", column: "consolidation_parent_id", on_delete: :nullify
   add_foreign_key "corporates", "corporates", column: "parent_company_id"
   add_foreign_key "corporates", "tenants"
@@ -11612,10 +11607,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "teeem_spreadsheets", "storage_blobs"
   add_foreign_key "teeem_spreadsheets", "users"
   add_foreign_key "template_pack_items", "template_packs"
-  add_foreign_key "template_packs", "corporate_groups", column: "source_tenant_id"
+  add_foreign_key "template_packs", "company_groups", column: "source_tenant_id"
   add_foreign_key "template_packs", "users", column: "created_by_id"
+  add_foreign_key "tenant_settings", "company_groups", column: "corporate_group_id"
   add_foreign_key "tenant_settings", "contacts", column: "saas_customer_contact_id"
-  add_foreign_key "tenant_settings", "corporate_groups"
   add_foreign_key "tenant_settings", "tenants"
   add_foreign_key "tenant_sync_preferences", "tenants"
   add_foreign_key "tenants", "corporates", column: "billing_company_id"

@@ -7,7 +7,7 @@ module Gl
     self.table_name = "gl_ai_categorization_attempts"
 
     # Associations
-    belongs_to :corporate_company, class_name: "Corporate"
+    belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
     belongs_to :suggested_account, class_name: "Gl::Account", optional: true
 
     # Validations

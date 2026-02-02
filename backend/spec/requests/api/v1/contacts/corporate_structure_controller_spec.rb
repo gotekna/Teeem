@@ -28,8 +28,8 @@ RSpec.describe "Api::V1::Contacts::CorporateStructure", type: :request do
       expect(json["data"]).to eq([])
     end
 
-    it "returns memberships for contact", skip: "Requires CorporateGroupMembership factory" do
-      # Would need to create corporate group membership records
+    it "returns memberships for contact", skip: "Requires CompanyGroupMembership factory" do
+      # Would need to create company group membership records
     end
   end
 
