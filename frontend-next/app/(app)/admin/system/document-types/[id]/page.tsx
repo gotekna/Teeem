@@ -33,6 +33,7 @@ import {
   ChevronLeft,
   Type,
   Copy,
+  Search,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import {
@@ -132,8 +133,8 @@ interface DocumentType {
 }
 
 export default function DocumentTypeDetailPage() {
-  // Use fullscreen layout mode - hides sidebar for focused editing
-  useSetLayoutMode("fullscreen");
+  // Use full-height layout mode for the detail form
+  useSetLayoutMode("full-height");
 
   const router = useRouter();
   const params = useParams();
@@ -163,6 +164,7 @@ export default function DocumentTypeDetailPage() {
   const [people, setPeople] = React.useState<Array<{id: number; name: string; code: string}>>([]);
   const [jobs, setJobs] = React.useState<Array<{id: number; name: string; code: string}>>([]);
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
+  const [tabSearch, setTabSearch] = React.useState(""); // Search filter for Primary/Secondary tab dropdowns
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
   const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number | string; name: string; tab_key?: string; storage_path?: string; isScope?: boolean; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children?: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }> }>>([]); // SSoT: Scope-first hierarchy (Corporate > Job > Contact > tabs)
@@ -185,11 +187,13 @@ export default function DocumentTypeDetailPage() {
   const [renaming, setRenaming] = React.useState(false);
 
   // SSoT: THE ONE function for tab name resolution in this component
-  // Searches recursively through tabs and their children
+  // Searches recursively through scope > tab > subtab hierarchy
   const findTabName = React.useCallback((items: any[], id: number | undefined): string | null => {
     if (!id || !items?.length) return null;
     for (const item of items) {
-      if (item.id === id) return item.name;
+      // Compare with type coercion to handle string/number mismatches
+      // eslint-disable-next-line eqeqeq
+      if (item.id == id) return item.name || null;
       if (item.children?.length) {
         const found = findTabName(item.children, id);
         if (found) return found;
@@ -199,10 +203,14 @@ export default function DocumentTypeDetailPage() {
   }, []);
 
   // SSoT: Returns storage_path for display (shows full folder path)
+  // Searches recursively through scope > tab > subtab hierarchy
   const findTabPath = React.useCallback((items: any[], id: number | undefined): string | null => {
     if (!id || !items?.length) return null;
     for (const item of items) {
-      if (item.id === id) return item.storage_path || item.name;
+      // Compare with type coercion to handle string/number mismatches
+      // eslint-disable-next-line eqeqeq
+      if (item.id == id) return item.storage_path || item.name || null;
+      // Search in children (handles scope > tabs > subtabs structure)
       if (item.children?.length) {
         const found = findTabPath(item.children, id);
         if (found) return found;
@@ -1395,6 +1403,15 @@ export default function DocumentTypeDetailPage() {
               <Label>Primary Tab</Label>
               {(() => {
                 const selectedId = documentType.entity_tab_ids?.[0];
+                const searchLower = tabSearch.toLowerCase();
+
+                // Filter function to check if tab/subtab matches search
+                const matchesSearch = (name: string, path?: string) => {
+                  if (!tabSearch) return true;
+                  return name.toLowerCase().includes(searchLower) ||
+                    (path && path.toLowerCase().includes(searchLower));
+                };
+
                 return (
                   <Select
                     value={selectedId?.toString() || ""}
@@ -1402,20 +1419,60 @@ export default function DocumentTypeDetailPage() {
                       const newId = parseInt(value);
                       const otherIds = (documentType.entity_tab_ids || []).slice(1);
                       updateField("entity_tab_ids", [newId, ...otherIds]);
+                      setTabSearch(""); // Clear search after selection
                     }}
                   >
                     <SelectTrigger className="text-sm">
                       <SelectValue placeholder="Select primary tab">
-                        {selectedId ? findTabPath(allTabsForLookup, selectedId) || findTabPath(folderHierarchy, selectedId) || `Tab ${selectedId}` : "Select..."}
+                        {(() => {
+                          if (!selectedId) return "Select...";
+                          // SSoT: First use entity_tabs from API (already loaded), then fall back to lookups
+                          const entityTab = documentType.entity_tabs?.find(t => t.id === selectedId || t.id == selectedId);
+                          return entityTab?.hierarchy_path || entityTab?.display_name ||
+                            findTabPath(allTabsForLookup, selectedId) || findTabPath(folderHierarchy, selectedId) || `Tab ${selectedId}`;
+                        })()}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
+                      {/* Search input */}
+                      <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
+                        <div className="flex items-center gap-2 px-2 py-1.5 border rounded-md bg-background">
+                          <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <input
+                            type="text"
+                            placeholder="Search tabs..."
+                            value={tabSearch}
+                            onChange={(e) => setTabSearch(e.target.value)}
+                            className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          />
+                          {tabSearch && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setTabSearch(""); }}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                       {/* SSoT: Scope-first hierarchy - Corporate > Job > Contact */}
                       {folderHierarchy.map((scopeGroup, scopeIdx) => {
                         // Scope groups are headers (not selectable)
                         if (scopeGroup.isScope) {
-                          const scopeTabs = (scopeGroup.children || []).filter((t: any) => t.id);
-                          if (scopeTabs.length === 0) return null;
+                          // Filter tabs within this scope based on search
+                          const filteredTabs = (scopeGroup.children || []).filter((tab: any) => {
+                            if (!tab.id) return false;
+                            // Check if tab matches
+                            if (matchesSearch(tab.name, tab.storage_path)) return true;
+                            // Check if any subtab matches
+                            return (tab.children || []).some((subtab: any) =>
+                              subtab.id && matchesSearch(subtab.name, subtab.storage_path)
+                            );
+                          });
+
+                          if (filteredTabs.length === 0) return null;
 
                           return (
                             <SelectGroup key={scopeGroup.tab_key}>
@@ -1425,8 +1482,11 @@ export default function DocumentTypeDetailPage() {
                                 {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
                               </SelectLabel>
                               {/* Tabs within this scope */}
-                              {scopeTabs.map((tab: any, tabIdx: number) => {
-                                const hasSubTabs = (tab.children || []).filter((c: any) => c.id).length > 0;
+                              {filteredTabs.map((tab: any, tabIdx: number) => {
+                                const filteredSubTabs = (tab.children || []).filter((c: any) =>
+                                  c.id && matchesSearch(c.name, c.storage_path)
+                                );
+                                const hasSubTabs = filteredSubTabs.length > 0;
 
                                 if (hasSubTabs) {
                                   // Tab with subtabs - show tab as header, subtabs as selectable
@@ -1435,10 +1495,10 @@ export default function DocumentTypeDetailPage() {
                                       <SelectLabel className="text-xs text-muted-foreground font-normal px-4 py-1">
                                         📁 {tab.name}
                                       </SelectLabel>
-                                      {(tab.children || []).filter((c: any) => c.id).map((subtab: any, subtabIdx: number, arr: any[]) => (
+                                      {filteredSubTabs.map((subtab: any, subtabIdx: number) => (
                                         <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
                                           <span className="text-muted-foreground">
-                                            {subtabIdx === arr.length - 1 ? '└─' : '├─'}
+                                            {subtabIdx === filteredSubTabs.length - 1 ? '└─' : '├─'}
                                           </span>
                                           <span className="ml-1">{subtab.name}</span>
                                           {subtab.storage_path && subtab.storage_path !== subtab.name && (
@@ -1448,12 +1508,12 @@ export default function DocumentTypeDetailPage() {
                                       ))}
                                     </React.Fragment>
                                   );
-                                } else {
-                                  // Leaf tab - directly selectable
+                                } else if (matchesSearch(tab.name, tab.storage_path)) {
+                                  // Leaf tab - directly selectable (only if it matches search)
                                   return (
                                     <SelectItem key={tab.id} value={tab.id.toString()} className="pl-4">
                                       <span className="text-muted-foreground">
-                                        {tabIdx === scopeTabs.length - 1 ? '└─' : '├─'}
+                                        {tabIdx === filteredTabs.length - 1 ? '└─' : '├─'}
                                       </span>
                                       <span className="ml-1">📁 {tab.name}</span>
                                       {tab.storage_path && tab.storage_path !== tab.name && (
@@ -1462,12 +1522,28 @@ export default function DocumentTypeDetailPage() {
                                     </SelectItem>
                                   );
                                 }
+                                return null;
                               })}
                             </SelectGroup>
                           );
                         }
                         return null;
                       })}
+                      {/* No results message */}
+                      {tabSearch && folderHierarchy.every(scopeGroup => {
+                        if (!scopeGroup.isScope) return true;
+                        return (scopeGroup.children || []).every((tab: any) => {
+                          if (!tab.id) return true;
+                          if (matchesSearch(tab.name, tab.storage_path)) return false;
+                          return !(tab.children || []).some((subtab: any) =>
+                            subtab.id && matchesSearch(subtab.name, subtab.storage_path)
+                          );
+                        });
+                      }) && (
+                        <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                          No tabs matching &quot;{tabSearch}&quot;
+                        </div>
+                      )}
                     </SelectContent>
                   </Select>
                 );
@@ -1480,10 +1556,19 @@ export default function DocumentTypeDetailPage() {
               {(() => {
                 const primaryId = documentType.entity_tab_ids?.[0];
                 const secondaryIds = (documentType.entity_tab_ids || []).slice(1);
+                const searchLower = tabSearch.toLowerCase();
+
+                // Filter function to check if tab/subtab matches search
+                const matchesSearch = (name: string, path?: string) => {
+                  if (!tabSearch) return true;
+                  return name.toLowerCase().includes(searchLower) ||
+                    (path && path.toLowerCase().includes(searchLower));
+                };
 
                 const addSecondaryTab = (tabId: number) => {
                   if (!secondaryIds.includes(tabId) && tabId !== primaryId) {
                     updateField("entity_tab_ids", [primaryId, ...secondaryIds, tabId].filter(Boolean));
+                    setTabSearch(""); // Clear search after selection
                   }
                 };
 
@@ -1500,17 +1585,22 @@ export default function DocumentTypeDetailPage() {
                     {/* Display selected secondary tabs */}
                     {secondaryIds.length > 0 && (
                       <div className="flex flex-wrap gap-1">
-                        {secondaryIds.map((tabId) => (
+                        {secondaryIds.map((tabId) => {
+                          // SSoT: First use entity_tabs from API (already loaded), then fall back to lookups
+                          const entityTab = documentType.entity_tabs?.find(t => t.id === tabId || t.id == tabId);
+                          const displayName = entityTab?.hierarchy_path || entityTab?.display_name ||
+                            findTabPath(allTabsForLookup, tabId) || findTabPath(folderHierarchy, tabId) || `Tab ${tabId}`;
+                          return (
                           <Badge key={tabId} variant="secondary" className="text-xs">
-                            {findTabPath(allTabsForLookup, tabId) || findTabPath(folderHierarchy, tabId) || `Tab ${tabId}`}
+                            {displayName}
                             <button onClick={() => removeSecondaryTab(tabId)} className="ml-1 hover:text-destructive">
                               <X className="h-2 w-2" />
                             </button>
                           </Badge>
-                        ))}
+                        );})}
                       </div>
                     )}
-                    {/* Add secondary tab dropdown - SSoT: Scope-first hierarchy */}
+                    {/* Add secondary tab dropdown - SSoT: Scope-first hierarchy with search */}
                     <Select
                       value=""
                       onValueChange={(value) => addSecondaryTab(parseInt(value))}
@@ -1519,15 +1609,45 @@ export default function DocumentTypeDetailPage() {
                         <SelectValue placeholder="+ Add tab..." />
                       </SelectTrigger>
                       <SelectContent>
+                        {/* Search input */}
+                        <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
+                          <div className="flex items-center gap-2 px-2 py-1.5 border rounded-md bg-background">
+                            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <input
+                              type="text"
+                              placeholder="Search tabs..."
+                              value={tabSearch}
+                              onChange={(e) => setTabSearch(e.target.value)}
+                              className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            />
+                            {tabSearch && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setTabSearch(""); }}
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
                         {folderHierarchy.map((scopeGroup, scopeIdx) => {
                           // Scope groups are headers (not selectable)
                           if (scopeGroup.isScope) {
-                            // Filter to available tabs/subtabs within this scope
+                            // Filter to available tabs/subtabs within this scope that match search
                             const availableTabs = (scopeGroup.children || []).filter((tab: any) => {
-                              if (tab.id && isTabAvailable(tab.id)) return true;
-                              // Check if any subtabs are available
-                              return (tab.children || []).some((subtab: any) =>
+                              // First check availability
+                              const tabIsAvailable = tab.id && isTabAvailable(tab.id);
+                              const hasAvailableSubTabs = (tab.children || []).some((subtab: any) =>
                                 subtab.id && isTabAvailable(subtab.id)
+                              );
+                              if (!tabIsAvailable && !hasAvailableSubTabs) return false;
+
+                              // Then check search match
+                              if (matchesSearch(tab.name, tab.storage_path)) return true;
+                              return (tab.children || []).some((subtab: any) =>
+                                subtab.id && isTabAvailable(subtab.id) && matchesSearch(subtab.name, subtab.storage_path)
                               );
                             });
 
@@ -1543,10 +1663,10 @@ export default function DocumentTypeDetailPage() {
                                 {/* Tabs within this scope */}
                                 {availableTabs.map((tab: any, tabIdx: number) => {
                                   const availableSubTabs = (tab.children || []).filter((c: any) =>
-                                    c.id && isTabAvailable(c.id)
+                                    c.id && isTabAvailable(c.id) && matchesSearch(c.name, c.storage_path)
                                   );
                                   const hasSubTabs = availableSubTabs.length > 0;
-                                  const tabAvailable = tab.id && isTabAvailable(tab.id);
+                                  const tabAvailable = tab.id && isTabAvailable(tab.id) && matchesSearch(tab.name, tab.storage_path);
 
                                   if (hasSubTabs) {
                                     // Tab with subtabs - show tab as header (if available), subtabs as selectable
@@ -1583,6 +1703,25 @@ export default function DocumentTypeDetailPage() {
                           }
                           return null;
                         })}
+                        {/* No results message */}
+                        {tabSearch && folderHierarchy.every(scopeGroup => {
+                          if (!scopeGroup.isScope) return true;
+                          return (scopeGroup.children || []).every((tab: any) => {
+                            const tabIsAvailable = tab.id && isTabAvailable(tab.id);
+                            const hasAvailableSubTabs = (tab.children || []).some((subtab: any) =>
+                              subtab.id && isTabAvailable(subtab.id)
+                            );
+                            if (!tabIsAvailable && !hasAvailableSubTabs) return true;
+                            if (matchesSearch(tab.name, tab.storage_path)) return false;
+                            return !(tab.children || []).some((subtab: any) =>
+                              subtab.id && isTabAvailable(subtab.id) && matchesSearch(subtab.name, subtab.storage_path)
+                            );
+                          });
+                        }) && (
+                          <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                            No tabs matching &quot;{tabSearch}&quot;
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                     <p className="text-[10px] text-muted-foreground">

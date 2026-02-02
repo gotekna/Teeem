@@ -169,6 +169,14 @@ class SmTaskAttachment < ApplicationRecord
     # Compute the task folder path (e.g., "Tasks/2236/Responses")
     folder = compute_task_folder_path
 
+    # FRC (Feb 2026): Prevent duplicate WarehouseDocuments for same blob+folder
+    # Same file can appear in multiple folders, but NOT multiple times in same folder
+    existing = WarehouseDocument.find_by(storage_blob_id: blob.id, folder: folder)
+    if existing
+      Rails.logger.debug("[SmTaskAttachment] ##{id}: Skipping duplicate - WD #{existing.id} already exists for blob #{blob.id} in #{folder}")
+      return
+    end
+
     # FRC (Jan 2026): Must set tenant explicitly - model callbacks don't have
     # ActsAsTenant context, and WarehouseDocument validates tenant presence
     create_warehouse_document!(
