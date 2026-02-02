@@ -59,16 +59,45 @@ class XeroRateLimitTracker
     #
     # FRC (Feb 2026): Each Xero org has its OWN rate limit - check per-tenant FIRST
     # Previously checked global lockout first, which blocked ALL orgs when any hit limit.
+    #
+    # SELF-HEALING (Feb 2026): Auto-clears stale lockouts that should have expired.
+    # Cache entries can persist past their logical expiry due to clock drift or
+    # cache backend issues. This method now proactively deletes expired entries.
     def current_lockout(tenant_id: nil)
       # FRC (Feb 2026): Check tenant-specific lockout FIRST (each org has independent limits)
       if tenant_id.present?
-        tenant_lockout = Rails.cache.read("#{LOCKOUT_KEY}:#{tenant_id}")
-        return tenant_lockout if tenant_lockout && Time.parse(tenant_lockout[:locked_until]) > Time.current
+        tenant_key = "#{LOCKOUT_KEY}:#{tenant_id}"
+        tenant_lockout = Rails.cache.read(tenant_key)
+        if tenant_lockout
+          locked_until = Time.parse(tenant_lockout[:locked_until]) rescue nil
+          recorded_at = Time.parse(tenant_lockout[:recorded_at]) rescue nil
+
+          # SELF-HEALING: Clear if expired OR recorded more than 1 hour ago (stale)
+          max_lockout_age = 1.hour
+          if locked_until.nil? || locked_until <= Time.current || (recorded_at && recorded_at < max_lockout_age.ago)
+            Rails.cache.delete(tenant_key)
+            Rails.logger.info("[XeroRateLimitTracker] SELF-HEAL: Cleared expired/stale lockout for tenant #{tenant_id}")
+          else
+            return tenant_lockout
+          end
+        end
       end
 
       # Only check global lockout if no tenant_id provided (fallback for legacy calls)
       lockout = Rails.cache.read(LOCKOUT_KEY)
-      return lockout if lockout && Time.parse(lockout[:locked_until]) > Time.current
+      if lockout
+        locked_until = Time.parse(lockout[:locked_until]) rescue nil
+        recorded_at = Time.parse(lockout[:recorded_at]) rescue nil
+
+        # SELF-HEALING: Clear if expired OR recorded more than 1 hour ago (stale)
+        max_lockout_age = 1.hour
+        if locked_until.nil? || locked_until <= Time.current || (recorded_at && recorded_at < max_lockout_age.ago)
+          Rails.cache.delete(LOCKOUT_KEY)
+          Rails.logger.info("[XeroRateLimitTracker] SELF-HEAL: Cleared expired/stale global lockout")
+        else
+          return lockout
+        end
+      end
 
       nil
     end
@@ -93,6 +122,41 @@ class XeroRateLimitTracker
       Rails.cache.delete(LOCKOUT_KEY)
       Rails.cache.delete("#{LOCKOUT_KEY}:#{tenant_id}") if tenant_id.present?
       Rails.logger.info("[XeroRateLimitTracker] Lockout cleared")
+    end
+
+    # SELF-HEALING: Proactively clear ALL stale lockouts across all tenants
+    # Call this at the start of sync jobs to ensure no stale lockouts block progress
+    # @return [Integer] Number of stale lockouts cleared
+    def heal_all_lockouts!
+      cleared = 0
+
+      # Clear global lockout if stale
+      if current_lockout(tenant_id: nil).nil? && Rails.cache.read(LOCKOUT_KEY)
+        # current_lockout already deleted it via self-healing
+        cleared += 1
+      end
+
+      # Check each tenant
+      XeroCredential.pluck(:tenant_id).each do |tid|
+        next unless tid.present?
+
+        tenant_key = "#{LOCKOUT_KEY}:#{tid}"
+        lockout = Rails.cache.read(tenant_key)
+        next unless lockout
+
+        locked_until = Time.parse(lockout[:locked_until]) rescue nil
+        recorded_at = Time.parse(lockout[:recorded_at]) rescue nil
+
+        # Clear if: expired, unparseable, or recorded more than 1 hour ago
+        if locked_until.nil? || locked_until <= Time.current || (recorded_at && recorded_at < 1.hour.ago)
+          Rails.cache.delete(tenant_key)
+          cleared += 1
+          Rails.logger.info("[XeroRateLimitTracker] HEAL_ALL: Cleared stale lockout for tenant #{tid}")
+        end
+      end
+
+      Rails.logger.info("[XeroRateLimitTracker] HEAL_ALL: Cleared #{cleared} stale lockouts") if cleared > 0
+      cleared
     end
 
     # Record an API request

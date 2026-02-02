@@ -47,6 +47,11 @@ class XeroAttachmentSyncJob < ApplicationJob
   # SSoT: Sync ALL connected Xero orgs, not just the primary
   # This ensures multi-org setups get their PDFs synced
   def sync_all_tenants(options)
+    # SELF-HEALING (Feb 2026): Clear any stale lockouts before starting
+    # This ensures expired lockouts don't block progress
+    healed = XeroRateLimitTracker.heal_all_lockouts!
+    Rails.logger.info("[XeroAttachmentSync] Self-healed #{healed} stale lockouts") if healed > 0
+
     credentials = XeroCredential.where(status: %w[connected degraded])
 
     if credentials.empty?
