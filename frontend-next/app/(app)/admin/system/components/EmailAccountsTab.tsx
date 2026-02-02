@@ -86,7 +86,7 @@ interface ImapCredential {
   email_signature: string | null;
   email_aliases: string[]; // Send-from aliases (e.g., demo@, sales@)
   shared_with_user_ids: number[];
-  shared_with_users: { id: number; name: string }[];
+  shared_with_users: { id: number; name: string; tenant_name?: string; is_cross_tenant?: boolean }[];
   user_id: number;
   owner_name?: string; // Name of the credential owner
   owner_tenant_id?: number; // Tenant ID of the credential owner
@@ -658,6 +658,12 @@ export function EmailAccountsTab() {
         api.get<{ success: boolean; data: ImapCredential[] }>("/api/v1/imap_credentials"),
         api.get<{ success: boolean; data: Provider[] }>("/api/v1/imap_credentials/providers"),
       ]);
+      // Debug: Log shared_with_users
+      console.log("[EmailAccounts] Credentials:", credResponse.data?.map(c => ({
+        id: c.id,
+        name: c.name,
+        shared_with_users: c.shared_with_users
+      })));
       setCredentials(credResponse.data || []);
       setProviders(providerResponse.data || []);
     } catch (error) {
@@ -1246,7 +1252,7 @@ export function EmailAccountsTab() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     {/* Sync Status - FRC (Feb 2026): Show warning when password missing */}
@@ -1273,18 +1279,20 @@ export function EmailAccountsTab() {
                     <span className="hidden sm:inline">
                       IMAP: {cred.imap_host}:{cred.imap_port}
                     </span>
-                  </div>
 
-                  {/* Sharing Info */}
-                  {cred.shared_with_users?.length > 0 && (
-                    <button
-                      onClick={() => handleOpenShareDialog(cred)}
-                      className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                    >
-                      <Users className="h-4 w-4" />
-                      <span>Shared with {cred.shared_with_users.map(u => u.name).join(", ")}</span>
-                    </button>
-                  )}
+                    {/* Sharing Info - inline with status */}
+                    {cred.shared_with_users?.length > 0 && (
+                      <button
+                        onClick={() => handleOpenShareDialog(cred)}
+                        className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                      >
+                        <Users className="h-4 w-4" />
+                        <span>Shared with {cred.shared_with_users.map(u =>
+                          u.tenant_name ? `${u.name} (${u.tenant_name})` : u.name
+                        ).join(", ")}</span>
+                      </button>
+                    )}
+                  </div>
 
                   {/* Actions */}
                   <div className="flex items-center gap-2">
@@ -1469,24 +1477,32 @@ export function EmailAccountsTab() {
                         </p>
                       ) : (
                         <div className="divide-y">
-                          {tenantUsers.map((user) => (
-                            <button
-                              key={user.id}
-                              onClick={() => handleAddCrossTenantUser(user)}
-                              className={`w-full flex items-center gap-3 p-2 hover:bg-muted/50 transition-colors text-left ${
-                                selectedSharedUsers.includes(user.id) ? "bg-primary/10" : ""
-                              }`}
-                            >
-                              <Checkbox
-                                checked={selectedSharedUsers.includes(user.id)}
-                                onCheckedChange={() => handleAddCrossTenantUser(user)}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium text-sm truncate">{user.name}</div>
-                                <div className="text-xs text-muted-foreground truncate">{user.email}</div>
-                              </div>
-                            </button>
-                          ))}
+                          {tenantUsers.map((user) => {
+                            const isCurrentlyShared = sharingCredential?.shared_with_user_ids?.includes(user.id);
+                            return (
+                              <button
+                                key={user.id}
+                                onClick={() => handleAddCrossTenantUser(user)}
+                                className={`w-full flex items-center gap-3 p-2 hover:bg-muted/50 transition-colors text-left ${
+                                  selectedSharedUsers.includes(user.id) ? "bg-primary/10" : ""
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={selectedSharedUsers.includes(user.id)}
+                                  onCheckedChange={() => handleAddCrossTenantUser(user)}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm truncate">{user.name}</div>
+                                  <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                                </div>
+                                {isCurrentlyShared && (
+                                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                                    Shared
+                                  </Badge>
+                                )}
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1511,33 +1527,41 @@ export function EmailAccountsTab() {
                 ) : (
                   shareableUsers
                     .filter((user) => user.id !== sharingCredential?.user_id) // Exclude owner
-                    .map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
-                    >
-                      <Checkbox
-                        checked={selectedSharedUsers.includes(user.id)}
-                        onCheckedChange={() => handleToggleUserAccess(user.id)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{user.name}</div>
-                        <div className="text-sm text-muted-foreground truncate">
-                          {user.email}
+                    .map((user) => {
+                      const isCurrentlyShared = sharingCredential?.shared_with_user_ids?.includes(user.id);
+                      return (
+                        <div
+                          key={user.id}
+                          className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                        >
+                          <Checkbox
+                            checked={selectedSharedUsers.includes(user.id)}
+                            onCheckedChange={() => handleToggleUserAccess(user.id)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{user.name}</div>
+                            <div className="text-sm text-muted-foreground truncate">
+                              {user.email}
+                            </div>
+                          </div>
+                          {isCurrentlyShared && (
+                            <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                              Shared
+                            </Badge>
+                          )}
+                          {user.is_cross_tenant && user.tenant_name && (
+                            <Badge variant="outline" className="text-xs">
+                              {user.tenant_name}
+                            </Badge>
+                          )}
+                          {user.email === sharingCredential?.email_address && (
+                            <Badge variant="secondary" className="text-xs">
+                              Email owner
+                            </Badge>
+                          )}
                         </div>
-                      </div>
-                      {user.is_cross_tenant && user.tenant_name && (
-                        <Badge variant="outline" className="text-xs">
-                          {user.tenant_name}
-                        </Badge>
-                      )}
-                      {user.email === sharingCredential?.email_address && (
-                        <Badge variant="secondary" className="text-xs">
-                          Email owner
-                        </Badge>
-                      )}
-                    </div>
-                  ))
+                      );
+                    })
               )}
             </div>
             </div>

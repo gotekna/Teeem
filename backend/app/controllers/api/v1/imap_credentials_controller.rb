@@ -1116,7 +1116,15 @@ class Api::V1::ImapCredentialsController < ApplicationController
       is_shared: credential.user_id != current_user.id,
       is_cross_tenant: credential.user&.tenant_id != current_user&.tenant_id,
       shared_with_user_ids: credential.shared_with_user_ids || [],
-      shared_with_users: User.where(id: credential.shared_with_user_ids || []).map { |u| { id: u.id, name: u.name } }
+      shared_with_users: User.where(id: credential.shared_with_user_ids || []).includes(:tenant).map { |u|
+        is_cross_tenant = u.tenant_id != credential.user&.tenant_id
+        {
+          id: u.id,
+          name: u.name,
+          tenant_name: is_cross_tenant ? u.tenant&.name : nil,
+          is_cross_tenant: is_cross_tenant
+        }
+      }
     }
 
     if include_folders

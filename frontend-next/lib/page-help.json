@@ -1110,17 +1110,17 @@
       "tips": ["Browse PDF files", "Search by name", "Sort by date"],
       "tasks": ["Browse PDFs", "Open existing", "Delete old files", "Upload new"]
     },
-    "/admin/system/entity-config": {
-      "title": "Entity Configuration",
-      "description": "Configure entity types and their settings.",
-      "tips": ["Define entity types", "Configure fields and relationships", "Set validation rules"],
-      "tasks": ["Add entity type", "Configure fields", "Set relationships", "Define validation"]
+    "/admin/system/warehouse-config": {
+      "title": "Warehouse Configuration",
+      "description": "Configure warehouse folders and their settings.",
+      "tips": ["Define folder structure", "Configure document types", "Set folder paths"],
+      "tasks": ["Add folder", "Configure settings", "Link document types", "Set paths"]
     },
-    "/admin/system/entity-config/[scope]": {
-      "title": "Entity Scope Config",
-      "description": "Configure settings for a specific entity scope.",
-      "tips": ["Modify scope settings", "Configure fields", "Set permissions"],
-      "tasks": ["Edit settings", "Configure fields", "Set permissions", "Save changes"]
+    "/admin/system/warehouse-config/[scope]": {
+      "title": "Warehouse Scope Config",
+      "description": "Configure settings for a specific folder scope.",
+      "tips": ["Modify scope settings", "Configure folders", "Set permissions"],
+      "tasks": ["Edit settings", "Configure folders", "Set permissions", "Save changes"]
     },
     "/admin/system/schedule-master": {
       "title": "Schedule Master Admin",

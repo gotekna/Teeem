@@ -596,21 +596,32 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // EntityConfigurationTab (/admin/system/entity-config?scope=xxx or ?group=xxx)
-  if (pathname === "/admin/system/entity-config") {
+  // FolderConfigurationTab (/admin/system/warehouse-config?scope=xxx or ?group=xxx)
+  // SSoT (Feb 2026): entity-config renamed to warehouse-config
+  if (pathname === "/admin/system/warehouse-config" || pathname === "/admin/system/entity-config") {
     const scope = searchParams.get("scope") || searchParams.get("group");
     if (scope) {
-      // Map legacy "documents" to "document_types"
-      const mappedScope = scope === "documents" ? "document_types" : scope;
-      redirectPath = `/admin/system/entity-config/${mappedScope}`;
+      // Map legacy scopes
+      const mappedScope = scope === "documents" ? "document_types" : scope === "storage_config" ? "warehouse_folders" : scope;
+      redirectPath = `/admin/system/warehouse-config/${mappedScope}`;
+    } else if (pathname === "/admin/system/entity-config") {
+      // Redirect legacy path to new path
+      redirectPath = `/admin/system/warehouse-config/warehouse_folders`;
     }
   }
 
-  // EntityConfigurationTab with scope in path - strip any query params (e.g., ?view=tabs)
-  const entityConfigMatch = pathname.match(/^\/admin\/system\/entity-config\/([^/]+)$/);
-  if (entityConfigMatch && searchParams.toString()) {
+  // FolderConfigurationTab with scope in path - strip any query params (e.g., ?view=tabs)
+  const folderConfigMatch = pathname.match(/^\/admin\/system\/warehouse-config\/([^/]+)$/);
+  if (folderConfigMatch && searchParams.toString()) {
     // Redirect to clean URL without query params
     redirectPath = pathname;
+  }
+
+  // Legacy entity-config redirect
+  const entityConfigMatch = pathname.match(/^\/admin\/system\/entity-config\/([^/]+)$/);
+  if (entityConfigMatch) {
+    const scope = entityConfigMatch[1] === "storage_config" ? "warehouse_folders" : entityConfigMatch[1];
+    redirectPath = `/admin/system/warehouse-config/${scope}`;
   }
 
   // === Dynamic Foundation Slug Routes ===

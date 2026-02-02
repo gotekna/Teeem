@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_03_110001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_03_110002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10108,7 +10108,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_110001) do
   end
 
   create_table "warehouse_providers", force: :cascade do |t|
-    t.bigint "organization_id"
     t.string "provider_type", default: "sharepoint", null: false
     t.string "status", default: "disconnected", null: false
     t.jsonb "connection_config", default: {}, null: false
@@ -10123,7 +10122,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_110001) do
     t.boolean "exclude_sm_tasks", default: false, null: false
     t.bigint "tenant_id", null: false
     t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
-    t.index ["organization_id"], name: "index_warehouse_providers_on_organization_id", unique: true
     t.index ["tenant_id"], name: "index_storage_configurations_on_tenant_id_unique", unique: true
     t.index ["tenant_id"], name: "index_warehouse_providers_on_tenant_id"
   end
@@ -11676,7 +11674,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_110001) do
   add_foreign_key "warehouse_folders", "jobs"
   add_foreign_key "warehouse_folders", "tenants"
   add_foreign_key "warehouse_folders", "warehouse_folders", column: "parent_id"
-  add_foreign_key "warehouse_providers", "organizations"
   add_foreign_key "warehouse_providers", "tenants"
   add_foreign_key "whs_action_items", "sm_tasks"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"

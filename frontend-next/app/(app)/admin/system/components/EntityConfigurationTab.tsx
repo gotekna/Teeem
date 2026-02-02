@@ -26,7 +26,7 @@ import { useSidebar } from "@/contexts/SidebarContext";
  *
  * Uses the unified EntityTabsConfig component with different scope props.
  */
-const DEFAULT_ENTITY_CONFIG_BASE_PATH = "/admin/system/entity-config";
+const DEFAULT_ENTITY_CONFIG_BASE_PATH = "/admin/system/warehouse-config";
 
 interface EntityConfigurationTabProps {
   onClose?: () => void;  // Called when user exits fullscreen
@@ -37,8 +37,8 @@ interface EntityConfigurationTabProps {
 
 const scopes = [
   {
-    id: "storage_config",  // SSoT: Provider-agnostic URL - FIRST for quick access
-    label: "Storage Config",  // SSoT: Provider-agnostic label
+    id: "warehouse_folders",  // SSoT: Matches warehouse_folders table - FIRST for quick access
+    label: "Warehouse Folders",  // SSoT: Matches warehouse_folders table name
     icon: Settings,
     showEntityFilters: false,
     showSharePointPaths: false,
@@ -114,7 +114,7 @@ const SCOPE_LABELS: Record<string, string> = {
   job: "Jobs",
   contact: "Contacts",
   document_types: "Document Types",
-  storage_config: "Storage Config",
+  warehouse_folders: "Warehouse Folders",
   email_config: "Email Config",
   sync: "Sync",
 };
@@ -126,13 +126,13 @@ function buildBreadcrumbs(basePath: string, activeScope: string): Array<{ label:
   if (basePath.startsWith("/settings/company")) {
     crumbs.push({ label: "Settings", path: "/settings" });
     crumbs.push({ label: "Company", path: "/settings/company" });
-    crumbs.push({ label: "Folder Config", path: "/settings/company/entity-config" });
+    crumbs.push({ label: "Warehouse Config", path: "/settings/company/warehouse-config" });
   } else if (basePath.startsWith("/admin/system")) {
     crumbs.push({ label: "Admin", path: "/admin" });
     crumbs.push({ label: "System", path: "/admin/system" });
-    crumbs.push({ label: "Folder Config", path: "/admin/system/entity-config" });
+    crumbs.push({ label: "Warehouse Config", path: "/admin/system/warehouse-config" });
   } else {
-    crumbs.push({ label: "Folder Config", path: basePath });
+    crumbs.push({ label: "Warehouse Config", path: basePath });
   }
 
   // Add active scope as final breadcrumb
@@ -146,7 +146,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
   const router = useRouter();
   const { sidebarWidth } = useSidebar();
   // Support both scope and subTab props (subTab for consistency with other tabs)
-  const activeScope = scope || subTab || "storage_config";
+  const activeScope = scope || subTab || "warehouse_folders";
 
   // Build breadcrumbs from basePath and active scope
   const breadcrumbs = React.useMemo(() => buildBreadcrumbs(basePath, activeScope), [basePath, activeScope]);

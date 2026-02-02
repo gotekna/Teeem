@@ -34,8 +34,9 @@ import { OfflineTab } from "@/app/(app)/admin/system/components/OfflineTab";
 // SSoT: Brand Guidelines moved to /settings/developer (developer tool)
 // SSoT: Workflow Config moved under Job Setup as sub-tab
 // SSoT: Documents consolidated here (was separate Organization tab)
-// SSoT: Folder Config (was Entity Config) moved here from Developer
+// SSoT: Warehouse Config (was Entity Config) moved here from Developer
 // SSoT (Jan 2026): Connections moved to top-level /settings/connections
+// SSoT (Feb 2026): entity-config renamed to warehouse-config for consistency
 const COMPANY_TABS = [
   { id: "info", label: "Info" },
   { id: "brand-colors", label: "Brand Colors" },
@@ -43,7 +44,7 @@ const COMPANY_TABS = [
   { id: "holidays", label: "Holidays" },
   { id: "workflows", label: "Workflows" },
   { id: "job-setup", label: "Job Setup" },
-  { id: "entity-config", label: "Folder Config" },
+  { id: "warehouse-config", label: "Warehouse Config" },
   { id: "offline", label: "Offline" },
 ];
 
@@ -62,10 +63,10 @@ export default function CompanySettingsPage() {
     const tab = parts[0] || DEFAULT_TAB;
     const sub = parts[1] || undefined;
     // Validate tab exists
-    // For entity-config tab without subTab, default to "storage_config"
+    // For warehouse-config tab without subTab, default to "warehouse_folders"
     const validTab = COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
     let effectiveSubTab = sub;
-    if (validTab === "entity-config" && !sub) effectiveSubTab = "storage_config";
+    if (validTab === "warehouse-config" && !sub) effectiveSubTab = "warehouse_folders";
     return {
       activeTab: validTab,
       subTab: effectiveSubTab,
@@ -81,8 +82,8 @@ export default function CompanySettingsPage() {
 
     // Redirect tabs with default sub-tabs to full URL
     if (!urlHasSubTab) {
-      if (activeTab === "entity-config") {
-        router.replace(`/settings/company/entity-config/storage_config`, { scroll: false });
+      if (activeTab === "warehouse-config") {
+        router.replace(`/settings/company/warehouse-config/warehouse_folders`, { scroll: false });
       }
     }
   }, [pathname, activeTab, router]);
@@ -126,8 +127,8 @@ export default function CompanySettingsPage() {
           <TabsContent value="documents">
             <DocumentsTab subTab={subTab} basePath="/settings/company/documents" />
           </TabsContent>
-          <TabsContent value="entity-config">
-            <EntityConfigurationTab subTab={subTab} basePath="/settings/company/entity-config" />
+          <TabsContent value="warehouse-config">
+            <EntityConfigurationTab subTab={subTab} basePath="/settings/company/warehouse-config" />
           </TabsContent>
           <TabsContent value="offline">
             <OfflineTab />

@@ -240,7 +240,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
   const pathname = usePathname();
 
   // Read scope from URL path for proper back button support
-  // e.g. /admin/system/entity-config/document_types/job -> "job"
+  // e.g. /admin/system/warehouse-config/document_types/job -> "job"
   const pathParts = pathname.split("/");
   const lastPart = pathParts[pathParts.length - 1];
   const validScopes = ["company", "job", "contacts"];

@@ -1322,8 +1322,8 @@ function DocumentStorageProvider() {
             />
             <p className="text-xs text-muted-foreground">
               S3 bucket where files are stored. Also editable in{" "}
-              <Link href="/settings/company/entity-config/storage_config" className="text-primary hover:underline">
-                Storage Config
+              <Link href="/settings/company/warehouse-config/warehouse_folders" className="text-primary hover:underline">
+                Warehouse Folders
               </Link>
             </p>
           </div>

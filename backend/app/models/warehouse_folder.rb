@@ -190,9 +190,10 @@ class WarehouseFolder < ApplicationRecord
   # These methods define the folder hierarchy for File Warehouse
   # ════════════════════════════════════════════════════════════════════════════════
 
-  # SSoT: Map root folder names to warehouse_type
-  # Derived from warehouse_type naming convention
-  ROOT_FOLDER_TO_WAREHOUSE_TYPE = {
+  # REMOVED (Feb 2026): SSoT is now warehouse_folders table.
+  # This constant is kept ONLY as documentation of expected values.
+  # DO NOT use this constant - use the methods below which query the database.
+  ROOT_FOLDER_TO_WAREHOUSE_TYPE_REFERENCE = {
     'Jobs' => 'job',
     'Contacts' => 'contact',
     'Corporate' => 'corporate',
@@ -205,20 +206,26 @@ class WarehouseFolder < ApplicationRecord
   }.freeze
 
   # Get warehouse_type for a root folder
+  # SSoT: Reads from warehouse_folders table (Feb 2026)
   def self.warehouse_type_for_root_folder(root_folder)
-    ROOT_FOLDER_TO_WAREHOUSE_TYPE[root_folder]
+    find_by(parent_id: nil, display_name: root_folder, warehouse_enabled: true)&.warehouse_type
   end
 
   # Get root folder for a warehouse_type (inverse lookup)
+  # SSoT: Reads from warehouse_folders table (Feb 2026)
   # @param warehouse_type [String] e.g., "job", "contact", "corporate"
   # @return [String, nil] e.g., "Jobs", "Contacts", "Corporate"
   def self.root_folder_for_warehouse_type(warehouse_type)
-    ROOT_FOLDER_TO_WAREHOUSE_TYPE.key(warehouse_type.to_s)
+    find_by(parent_id: nil, warehouse_type: warehouse_type.to_s, warehouse_enabled: true)&.display_name
   end
 
   # Get all root folders (for File Warehouse root level)
+  # SSoT: Reads from warehouse_folders table (Feb 2026)
   def self.all_root_folders
-    ROOT_FOLDER_TO_WAREHOUSE_TYPE.keys
+    where(parent_id: nil, warehouse_enabled: true)
+      .distinct
+      .pluck(:display_name)
+      .compact
   end
 
   # Get tabs (subfolders) for a root folder
