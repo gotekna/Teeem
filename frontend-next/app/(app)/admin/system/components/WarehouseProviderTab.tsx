@@ -494,7 +494,9 @@ function TreeNode({
   const isEditingThisNode = editingKey && node.scopeKeys?.includes(editingKey);
   // The currently editing scope key (could be different from node.scopeKey when multiple scopes share path)
   const currentEditingScopeKey = isEditingThisNode ? editingKey : null;
-  const [editValue, setEditValue] = React.useState(node.path);
+  // FRC Fix: Initialize editValue to FIRST segment only (Base Folder)
+  // NOT full path which would cause duplication with folderTemplate
+  const [editValue, setEditValue] = React.useState(node.path?.split('/')[0] || node.path || '');
   // SSoT: Initialize templates from props (loaded from backend), fallback to defaults
   // Use editingKey when available, otherwise primary scopeKey
   const activeScopeKey = currentEditingScopeKey || node.scopeKey;
@@ -710,7 +712,12 @@ function TreeNode({
 
       // Only initialize templates when switching to a DIFFERENT scope
       if (scopeActuallyChanged) {
-        setEditValue(currentPath[currentEditingScopeKey] || node.path);
+        // FRC Fix: Base Folder should be FIRST segment only (e.g., "Tasks")
+        // NOT the full path (e.g., "Tasks/{{TaskId}}/{{TaskName}}")
+        // The template portion is in scopeTemplates (set via setFolderTemplate below)
+        const fullPath = currentPath[currentEditingScopeKey] || node.path;
+        const firstSegment = fullPath?.split('/')[0] || fullPath || '';
+        setEditValue(firstSegment);
         setFolderTemplate(
           getInitialFolderTemplate(currentEditingScopeKey)
         );
@@ -1585,8 +1592,17 @@ function TabNode({
                 onClick={() => {
                   // Use tab.display_name as fallback if editDisplayName is empty
                   const displayNameToSave = editDisplayName.trim() || tab.display_name || 'Untitled';
-                  console.log('[TabNode Save] Clicked:', { tabId: tab.id, editPath, displayNameToSave, editSendName });
-                  onSaveEdit(tab.id, editPath, displayNameToSave, editSendName);
+
+                  // FRC Fix: Build full warehouse_folder path, not just the folder name
+                  // If basePath contains {{TeeemXL}} or {{TabName}}, replace with editPath
+                  // Otherwise, append editPath to basePath
+                  const hasPlaceholder = /\{\{TeeemXL\}\}|\{\{TabName\}\}/i.test(basePath);
+                  const fullPath = hasPlaceholder
+                    ? basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/gi, editPath)
+                    : [basePath, editPath].filter(Boolean).join('/').replace(/\/+/g, '/');
+
+                  console.log('[TabNode Save] Clicked:', { tabId: tab.id, editPath, fullPath, displayNameToSave, editSendName, basePath });
+                  onSaveEdit(tab.id, fullPath, displayNameToSave, editSendName);
                 }}
                 className="h-7 text-xs"
               >
