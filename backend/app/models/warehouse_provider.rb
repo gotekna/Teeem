@@ -179,9 +179,17 @@ class WarehouseProvider < ApplicationRecord
     for_tenant(tenant)
   end
 
+  # SSoT: Master tenant ID (Tekna) - warehouse_folders from this tenant are THE ONE source
+  MASTER_TENANT_ID = 2
+
+  # Get the master tenant's warehouse_folders (SSoT for all tenants)
+  def self.master_warehouse_folders
+    master = find_by(tenant_id: MASTER_TENANT_ID)
+    master&.warehouse_folders || DEFAULT_WAREHOUSE_FOLDERS
+  end
+
   # Create default configuration for a tenant
-  # SSoT: Uses tenant.document_provider - no hardcoded fallback
-  # SSoT: Copies DEFAULT_WAREHOUSE_FOLDERS into database (Jan 2026 consolidation)
+  # SSoT: Copies warehouse_folders from master tenant (Tekna)
   def self.create_default_for_tenant(tenant)
     return nil unless tenant
 
@@ -195,35 +203,38 @@ class WarehouseProvider < ApplicationRecord
            else "/" # S3, Wasabi, s3_compatible, local all use bucket/folder root
            end
 
-    # SSoT: Copy full warehouse_folders defaults into database
-    # Database is THE ONE SSoT - no runtime merging after creation
+    # SSoT: Copy warehouse_folders from master tenant (database is THE ONE SSoT)
+    # Falls back to DEFAULT_WAREHOUSE_FOLDERS only if master tenant doesn't exist
     create!(
       tenant: tenant,
       provider_type: provider,
       status: "disconnected",
       root_path: root,
-      warehouse_folders: DEFAULT_WAREHOUSE_FOLDERS.dup
+      warehouse_folders: master_warehouse_folders.dup
     )
   rescue ActiveRecord::RecordNotUnique
     # Handle race condition
     find_by(tenant: tenant)
   end
 
-  # Sync missing DEFAULT_WAREHOUSE_FOLDERS keys to all existing tenants
-  # SSoT: Call this after adding new keys to DEFAULT_WAREHOUSE_FOLDERS
+  # Sync missing warehouse folder keys from master tenant to all other tenants
+  # SSoT: Master tenant (Tekna) is THE ONE source - add folder types there
   # Returns: { synced: count, keys_added: [...] }
   def self.sync_missing_defaults!
+    master_folders = master_warehouse_folders
     synced = 0
     all_keys_added = Set.new
 
     find_each do |wp|
+      next if wp.tenant_id == MASTER_TENANT_ID # Don't sync master to itself
+
       folders = wp.warehouse_folders || {}
-      missing_keys = DEFAULT_WAREHOUSE_FOLDERS.keys - folders.keys
+      missing_keys = master_folders.keys - folders.keys
 
       next if missing_keys.empty?
 
       missing_keys.each do |key|
-        folders[key] = DEFAULT_WAREHOUSE_FOLDERS[key]
+        folders[key] = master_folders[key]
         all_keys_added << key
       end
 
