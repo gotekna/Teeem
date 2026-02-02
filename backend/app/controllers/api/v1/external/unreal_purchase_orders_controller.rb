@@ -82,6 +82,7 @@ module Api
 
             purchase_order = PurchaseOrder.create!(
               job_id: job.id,
+              tenant_id: job.tenant_id,
               sm_task_id: sm_task.id,
               description: sm_task.name,
               special_instructions: estimator_notes,

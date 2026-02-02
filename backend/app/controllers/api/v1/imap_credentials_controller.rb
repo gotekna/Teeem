@@ -434,8 +434,11 @@ class Api::V1::ImapCredentialsController < ApplicationController
           is_active: org_cred.status == "connected",
           is_default: is_primary_account,
           org_credential_id: org_cred.id,
+          credential_id: org_cred.id,
           position: saved_positions[account_id] || (fallback_position += 1),
-          is_favorite: favorite_ids.include?(account_id)
+          is_favorite: favorite_ids.include?(account_id),
+          last_synced_at: org_cred.last_sync_at&.iso8601,
+          last_sync_status: org_cred.status
         }
       end
     end
