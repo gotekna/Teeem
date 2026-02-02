@@ -65,21 +65,21 @@ const SIMPLE_SCOPES = ['email', 'warehouse', 'task', 'user', 'overview'];
 // SSoT: Complex scopes need separate tab (have document types, entity filters)
 const COMPLEX_SCOPES = ['corporate', 'job', 'contact'];
 
-// SSoT: Warehouse types that show inherited parent path in UI
-// Used for UI display only - shows parent tokens greyed out, user adds suffix
-// The database stores FULL paths for all types (SSoT is warehouse_folders)
+// SSoT: Warehouse types that inherit path from a parent type
+// These store only their suffix (e.g., "Attachments") and inherit the base from parent
+// Backend and frontend MUST match - WarehouseProvider.WAREHOUSE_TYPE_PARENTS is THE SSoT
 //
-// Note: Backend WAREHOUSE_TYPE_PARENTS is DIFFERENT (only case/email/asset types)
-// Task types store full paths directly, frontend just shows UI hint
+// Example: task_attachments stores "Attachments", path_for(:task_attachments) returns
+// "Tasks/{{TaskId}}/{{TaskName}}/Attachments" (parent path + suffix)
 const WAREHOUSE_TYPE_PARENTS: Record<string, string> = {
+  'task_attachments': 'task',
+  'task_responses': 'task',
   'case_documents': 'case',
   'case_emails': 'case',
   // Note: email_body, email_attachments NOT here - they're shown as entity tabs, not folder nodes
   'asset_expenses': 'asset',
   'asset_service': 'asset',
   'asset_readings': 'asset',
-  'task_attachments': 'task',
-  'task_responses': 'task',
 };
 
 // Human-readable labels for scope links
