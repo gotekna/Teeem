@@ -375,6 +375,29 @@ class XeroAttachmentSyncJob < ApplicationJob
   # Acquire a batch lock to prevent parallel processing
   # @return [Boolean] true if lock acquired, false if already held
   def acquire_batch_lock!
+    # SELF-HEALING (Feb 2026): Check if existing lock is stale before giving up
+    # A lock is stale if:
+    # 1. It's been held for > 10 minutes AND
+    # 2. No documents have been synced in the last 5 minutes
+    # This prevents crashed jobs from blocking sync for the full 30-min TTL
+    existing = Rails.cache.read(BATCH_LOCK_KEY)
+    if existing
+      locked_at = Time.parse(existing[:locked_at]) rescue nil
+      lock_age_minutes = locked_at ? ((Time.current - locked_at) / 60).round : 0
+
+      if lock_age_minutes > 10
+        # Check for recent sync activity
+        last_sync = WarehouseDocument.where(source_type: "xero").order(created_at: :desc).first
+        last_sync_minutes = last_sync ? ((Time.current - last_sync.created_at) / 60).round : 999
+
+        if last_sync_minutes > 5
+          # Lock is stale - clear it and proceed
+          Rails.cache.delete(BATCH_LOCK_KEY)
+          Rails.logger.warn("[XeroAttachmentSync] SELF-HEAL: Cleared stale batch lock (held #{lock_age_minutes} min, last sync #{last_sync_minutes} min ago)")
+        end
+      end
+    end
+
     # Try to set the lock key only if it doesn't exist
     # Returns true if we set it, false if it already existed
     acquired = Rails.cache.write(

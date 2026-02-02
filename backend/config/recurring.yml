@@ -254,13 +254,15 @@ xero_invoice_data_sync:
   args: [{}]
   schedule: every 5 minutes
 
-# Sync Xero invoice attachments (PDFs) - runs after invoice sync
+# Sync Xero invoice attachments (PDFs) - runs frequently for backfill
 # Syncs invoices to WarehouseDocument (SSoT for all documents)
+# FRC (Feb 2026): Was every 2 hours - too slow for 4000+ PDF backfill
+# Changed to every 10 minutes with self-healing batch lock
 warehouse_xero_attachments:
   class: XeroAttachmentSyncJob
   queue: low
   args: [null, { limit: 200 }]
-  schedule: every 2 hours at minute 45
+  schedule: every 10 minutes
 
 # NOTE: XeroStorageUploadBackfillJob was removed in Jan 2026 refactor
 # Storage upload now happens inline in XeroAttachmentSyncService
