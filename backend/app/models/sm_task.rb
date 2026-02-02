@@ -304,6 +304,9 @@ class SmTask < ApplicationRecord
 
   # Scopes
   scope :active, -> { where.not(status: "completed") }
+  scope :completed, -> { where(status: "completed") }
+  scope :started, -> { where(status: "started") }
+  scope :not_started, -> { where(status: "not_started") }
   scope :hold_tasks, -> { where(is_hold_task: true) }
   scope :regular_tasks, -> { where(is_hold_task: false) }
   scope :ordered, -> { order(:sequence_order) }
