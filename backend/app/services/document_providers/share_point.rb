@@ -63,7 +63,7 @@ module DocumentProviders
       return cred if cred
 
       # Also check app credentials
-      app_cred = MicrosoftCredential.app_credentials.connected.first
+      app_cred = MicrosoftCredential.refreshable_app.first
       return app_cred if app_cred
 
       # Final fallback: any active SharePoint credential
@@ -99,7 +99,7 @@ module DocumentProviders
         return cred if cred
 
         # Also check app credentials
-        app_cred = MicrosoftCredential.app_credentials.connected.first
+        app_cred = MicrosoftCredential.refreshable_app.first
         return app_cred if app_cred
       end
 

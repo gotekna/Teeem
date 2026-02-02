@@ -55,8 +55,9 @@ class User < ApplicationRecord
   end
 
   # SSoT: Get user's Microsoft credential (replaces has_one :microsoft_token)
+  # FRC (Feb 2026): Changed from .connected to .refreshable_delegated for 24/7 availability
   def microsoft_token
-    MicrosoftCredential.for_user(self).delegated_credentials.connected.first
+    MicrosoftCredential.for_user(self).refreshable_delegated.first
   end
 
   # SSoT: Assignable roles come from Role model (see Role.for_select)

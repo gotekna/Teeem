@@ -47,7 +47,7 @@ class CleanupEphemeralEmailsJob < ApplicationJob
           credential = if email.microsoft_credential_id.present?
                            MicrosoftCredential.find_by(id: email.microsoft_credential_id)
                          else
-                           MicrosoftCredential.app_credentials.connected.first
+                           MicrosoftCredential.refreshable_app.first
                          end
             if credential&.valid_credential?
               client = MicrosoftAppGraphClient.new(credential)

@@ -18,7 +18,9 @@ class AllOrgsEmailSyncJob < ApplicationJob
   queue_as :default
 
   def perform(sync_type = "incremental")
-    connected_credentials = MicrosoftCredential.app_credentials.connected
+    # FRC (Feb 2026): Changed from .connected to .refreshable_app for 24/7 availability
+    # Token may have expired overnight but can still be refreshed on-demand
+    connected_credentials = MicrosoftCredential.refreshable_app
 
     if connected_credentials.empty?
       Rails.logger.info "[AllOrgsEmailSync] No connected MS365 organizations found"

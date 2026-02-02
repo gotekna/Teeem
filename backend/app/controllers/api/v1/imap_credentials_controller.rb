@@ -286,7 +286,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       org_cred_id = parts[1].to_i
 
       # SSoT: Use MicrosoftCredential
-      org_cred = MicrosoftCredential.app_credentials.connected.find_by(id: org_cred_id)
+      # FRC (Feb 2026): Changed from .connected to .refreshable_app for 24/7 availability
+      org_cred = MicrosoftCredential.refreshable_app.find_by(id: org_cred_id)
       unless org_cred
         return render json: {
           success: false,

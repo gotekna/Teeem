@@ -71,8 +71,8 @@ class ForwardEmailJob < ApplicationJob
 
     # If we can't determine the account, try the default org MS365 account
     if credential_id.blank?
-      # Fall back to first active MS365 credential
-      ms365_cred = MicrosoftCredential.active.app_credentials.connected.first
+      # FRC (Feb 2026): Changed from .connected to .refreshable_app for 24/7 availability
+      ms365_cred = MicrosoftCredential.refreshable_app.first
       if ms365_cred
         account_type = "ms365"
         credential_id = ms365_cred.id
