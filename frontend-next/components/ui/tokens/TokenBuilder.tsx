@@ -318,13 +318,17 @@ export function TokenBuilder({
   // Remove a token at index
   const removeToken = (index: number) => {
     const newTokens = tokens.filter((_, i) => i !== index);
+    console.log('[TokenBuilder] removeToken:', { index, currentTokens: tokens.length, newTokens: newTokens.length, isFolderPathMode });
 
     // In folder path mode, rebuild by joining placeholders with separator
     if (isFolderPathMode) {
       const newValue = newTokens.map(t => t.value).join(separator);
+      console.log('[TokenBuilder] Calling onChange with:', JSON.stringify(newValue));
       onChange(newValue);
     } else {
-      onChange(buildTemplate(newTokens.map(({ type, value }) => ({ type, value }))));
+      const newValue = buildTemplate(newTokens.map(({ type, value }) => ({ type, value })));
+      console.log('[TokenBuilder] Calling onChange with:', JSON.stringify(newValue));
+      onChange(newValue);
     }
   };
 

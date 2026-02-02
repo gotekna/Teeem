@@ -1404,9 +1404,12 @@ function TabNode({
   React.useEffect(() => {
     // Only reset edit fields when ENTERING edit mode (false → true)
     // NOT when data changes during editing (that would overwrite user's changes)
-    if (isEditing && !wasEditingRef.current) {
+    const shouldInit = isEditing && !wasEditingRef.current;
+    console.log('[TabNode useEffect]', { isEditing, wasEditing: wasEditingRef.current, shouldInit, tabId: tab.id });
+    if (shouldInit) {
       const stored = tab.warehouse_folder || tab.storage_folder_path;
       const folderName = stored ? extractFolderName(stored, basePath) : (tab.display_name || '');
+      console.log('[TabNode useEffect] Initializing editPath to:', folderName);
       setEditPath(folderName);
       setEditDisplayName(tab.display_name || '');
       setEditSendName(tab.send_name_template || '');
