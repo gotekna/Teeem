@@ -1404,15 +1404,61 @@ export function EmailAccountsTab() {
             </div>
           ) : (
             // Owner view - show sharing controls
-            <div className="py-4 space-y-3 max-h-[400px] overflow-y-auto">
-              {shareableUsers.length === 0 ? (
-                <div className="flex items-center justify-center py-8">
-                  <Spinner />
+            <div className="py-4 space-y-4">
+              {/* Cross-tenant search */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">
+                  Search users from other organizations
+                </Label>
+                <div className="relative">
+                  <Input
+                    placeholder="Search by name or email..."
+                    value={crossTenantSearch}
+                    onChange={(e) => handleCrossTenantSearch(e.target.value)}
+                    className="pr-8"
+                  />
+                  {searchingCrossTenant && (
+                    <Spinner className="absolute right-2 top-2.5 h-4 w-4" />
+                  )}
                 </div>
-              ) : (
-                shareableUsers
-                  .filter((user) => user.id !== sharingCredential?.user_id) // Exclude owner
-                  .map((user) => (
+                {/* Search results */}
+                {crossTenantResults.length > 0 && (
+                  <div className="border rounded-lg divide-y max-h-[150px] overflow-y-auto">
+                    {crossTenantResults.map((user) => (
+                      <button
+                        key={user.id}
+                        onClick={() => handleAddCrossTenantUser(user)}
+                        className="w-full flex items-center gap-3 p-2 hover:bg-muted/50 transition-colors text-left"
+                      >
+                        <Plus className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{user.name}</div>
+                          <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                        </div>
+                        {user.tenant_name && (
+                          <Badge variant="outline" className="text-xs">
+                            {user.tenant_name}
+                          </Badge>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Divider */}
+              <div className="border-t" />
+
+              {/* Team members list */}
+              <div className="space-y-3 max-h-[250px] overflow-y-auto">
+                {shareableUsers.length === 0 ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Spinner />
+                  </div>
+                ) : (
+                  shareableUsers
+                    .filter((user) => user.id !== sharingCredential?.user_id) // Exclude owner
+                    .map((user) => (
                     <div
                       key={user.id}
                       className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
