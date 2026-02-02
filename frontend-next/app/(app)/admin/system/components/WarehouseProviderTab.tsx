@@ -874,12 +874,40 @@ function TreeNode({
 
         if (!displayPath) return null;
 
+        // Get UI/Download name status for this scope
+        const scopeUiName = uiNameTemplates[parentScopeKey] || '';
+        const scopeDownloadName = downloadNameTemplates[parentScopeKey] || '';
+
         return (
           <div
-            className="text-[10px] text-muted-foreground font-mono"
+            className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono"
             style={{ paddingLeft: `${level * 16 + 28}px` }}
           >
-            {displayPath}
+            <span>{displayPath}</span>
+            {/* UI Name indicator: green=custom, orange=default */}
+            <span
+              className={cn(
+                "px-1 py-0.5 rounded text-[9px] font-sans font-medium",
+                scopeUiName
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                  : "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300"
+              )}
+              title={`UI Name: ${scopeUiName || '{{OriginalFileName}} (default)'}`}
+            >
+              UI
+            </span>
+            {/* Download Name indicator: green=custom, orange=default */}
+            <span
+              className={cn(
+                "px-1 py-0.5 rounded text-[9px] font-sans font-medium",
+                scopeDownloadName
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                  : "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300"
+              )}
+              title={`Download Name: ${scopeDownloadName || '{{OriginalFileName}} (default)'}`}
+            >
+              DL
+            </span>
           </div>
         );
       })()}
