@@ -120,8 +120,8 @@ module Api
         def sync
           require_teeem_staff!
 
-          source = CorporateGroup.find(sync_params[:source_tenant_id])
-          target = CorporateGroup.find(sync_params[:target_tenant_id])
+          source = CompanyGroup.find(sync_params[:source_tenant_id])
+          target = CompanyGroup.find(sync_params[:target_tenant_id])
 
           service = TenantSyncService.new(source_tenant: source, target_tenant: target)
 
@@ -158,8 +158,8 @@ module Api
         def sync_preview
           require_teeem_staff!
 
-          source = CorporateGroup.find(params[:source_tenant_id])
-          target = CorporateGroup.find(params[:target_tenant_id])
+          source = CompanyGroup.find(params[:source_tenant_id])
+          target = CompanyGroup.find(params[:target_tenant_id])
 
           service = TenantSyncService.new(source_tenant: source, target_tenant: target)
           preview = service.preview_sync

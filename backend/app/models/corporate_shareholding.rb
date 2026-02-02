@@ -45,12 +45,12 @@ class CorporateShareholding < ApplicationRecord
 
   private
 
-  # SSoT: Automatically create ContactCorporateGroupMembership for shareholders
+  # SSoT: Automatically create ContactCompanyGroupMembership for shareholders
   def ensure_ssot_shareholder_membership
     return unless corporate&.company_group_id.present?
     return unless shareholder_type == "Contact" && shareholder_id.present?
 
-    ContactCorporateGroupMembership.find_or_create_by!(
+    ContactCompanyGroupMembership.find_or_create_by!(
       contact_id: shareholder_id,
       company_group_id: corporate.company_group_id,
       membership_type: "shareholder"

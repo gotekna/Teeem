@@ -212,8 +212,8 @@ module WarehouseDocumentable
     end
 
     # 4. Try associations with nested tenant path
-    if respond_to?(:corporate_company) && corporate_company&.corporate_group&.respond_to?(:tenant)
-      return corporate_company.corporate_group.tenant if corporate_company.corporate_group.tenant.present?
+    if respond_to?(:corporate_company) && corporate_company&.company_group&.respond_to?(:tenant)
+      return corporate_company.company_group.tenant if corporate_company.company_group.tenant.present?
     end
 
     # 5. Fall back to ActsAsTenant if available

@@ -15,7 +15,7 @@ module Api
 
       # GET /api/v1/cases
       def index
-        cases = CaseRecord.includes(:contact, :corporate_company, :corporate_group, :assigned_to, :created_by)
+        cases = CaseRecord.includes(:contact, :corporate_company, :company_group, :assigned_to, :created_by)
 
         # Filter by status
         cases = cases.by_status(params[:status]) if params[:status].present?
@@ -1078,7 +1078,7 @@ module Api
           company_id: c.company_id,
           company_name: c.corporate_company&.name,
           company_group_id: c.company_group_id,
-          company_group_name: c.corporate_group&.name,
+          company_group_name: c.company_group&.name,
           investigation_start_date: c.investigation_start_date,
           investigation_end_date: c.investigation_end_date,
           ai_summary: c.ai_summary,

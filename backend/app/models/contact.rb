@@ -109,8 +109,8 @@ class Contact < ApplicationRecord
   has_many :people_documents, dependent: :destroy
 
   # Company Group memberships (SSoT - links contact to company groups with permissions)
-  has_many :corporate_group_memberships, class_name: "ContactCorporateGroupMembership", dependent: :destroy
-  has_many :corporate_groups_via_membership, through: :corporate_group_memberships, source: :corporate_group
+  has_many :company_group_memberships, class_name: "ContactCompanyGroupMembership", dependent: :destroy
+  has_many :company_groups_via_membership, through: :company_group_memberships, source: :company_group
 
   # SSoT - if this contact is a company/trust, link to the Company record
   has_one :company_record, class_name: "Corporate", foreign_key: "contact_id", dependent: :nullify
@@ -1029,7 +1029,7 @@ class Contact < ApplicationRecord
   end
 
   def company_group_memberships_count
-    corporate_group_memberships.count
+    company_group_memberships.count
   end
 
   def trustees_of

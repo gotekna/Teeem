@@ -267,8 +267,8 @@ module Api
             target_contact.update(linked_company_id: source.linked_company_id, link_to_cg: true)
           end
 
-          ContactCorporateGroupMembership.where(contact_id: source.id).each do |membership|
-            existing = ContactCorporateGroupMembership.find_by(
+          ContactCompanyGroupMembership.where(contact_id: source.id).each do |membership|
+            existing = ContactCompanyGroupMembership.find_by(
               contact_id: target_contact.id,
               company_group_id: membership.company_group_id
             )

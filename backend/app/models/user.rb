@@ -8,7 +8,7 @@ class User < ApplicationRecord
   # User.email is the login email, synced to Contact.contact_emails with label='login'
   belongs_to :contact  # REQUIRED - User must have a Contact (Jan 2026 consolidation)
   belongs_to :tenant, optional: true  # Multi-tenancy: User's assigned tenant (SSoT)
-  belongs_to :corporate_group, optional: true  # DEPRECATED: Use tenant instead for multi-tenancy
+  belongs_to :company_group, optional: true  # DEPRECATED: Use tenant instead for multi-tenancy
   has_many :grok_plans, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
   has_many :foundation_views, dependent: :destroy
@@ -118,17 +118,17 @@ class User < ApplicationRecord
   def can_access_tenant?(tenant)
     return false unless tenant
 
-    teeem_staff? || corporate_group_id == tenant.id
+    teeem_staff? || company_group_id == tenant.id
   end
 
   # Get all tenants this user can access
   def available_tenants
     if teeem_staff?
-      CorporateGroup.all
-    elsif corporate_group_id.present?
-      CorporateGroup.where(id: corporate_group_id)
+      CompanyGroup.all
+    elsif company_group_id.present?
+      CompanyGroup.where(id: company_group_id)
     else
-      CorporateGroup.none
+      CompanyGroup.none
     end
   end
 
@@ -214,11 +214,11 @@ class User < ApplicationRecord
   # SSoT: Get accessible company groups for this user
   def accessible_company_groups
     if admin?
-      CorporateGroup.all
+      CompanyGroup.all
     else
       # TODO: Add UserCompanyGroupAssignment when needed
       # For now, all internal users can see all groups
-      CorporateGroup.all
+      CompanyGroup.all
     end
   end
 

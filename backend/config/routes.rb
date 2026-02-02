@@ -2886,7 +2886,7 @@ Rails.application.routes.draw do
       end
 
       # Company Groups
-      resources :company_groups, controller: "corporate_groups" do
+      resources :company_groups do
         member do
           get :companies
           get :structure

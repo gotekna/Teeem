@@ -6,8 +6,8 @@
 #
 # Usage:
 #   # Sync all configuration from Tekna to TEEEM master
-#   tekna = CorporateGroup.find_by(slug: 'tekna-homes')
-#   teeem = CorporateGroup.find_by(slug: 'teeem')
+#   tekna = CompanyGroup.find_by(slug: 'tekna-homes')
+#   teeem = CompanyGroup.find_by(slug: 'teeem')
 #
 #   service = TenantSyncService.new(source_tenant: tekna, target_tenant: teeem)
 #   result = service.sync_all!
@@ -131,8 +131,8 @@ class TenantSyncService
   private
 
   def master_tenant
-    @master_tenant ||= CorporateGroup.find_by(is_master_tenant: true) ||
-                       CorporateGroup.find_by(slug: "teeem")
+    @master_tenant ||= CompanyGroup.find_by(is_master_tenant: true) ||
+                       CompanyGroup.find_by(slug: "teeem")
   end
 
   def validate_tenants!

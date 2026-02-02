@@ -83,12 +83,12 @@ class CorporateDirector < ApplicationRecord
     )
   end
 
-  # SSoT: Automatically create ContactCorporateGroupMembership for directors
+  # SSoT: Automatically create ContactCompanyGroupMembership for directors
   def ensure_ssot_director_membership
     return unless company&.company_group_id.present?
     return unless contact_id.present?
 
-    ContactCorporateGroupMembership.find_or_create_by!(
+    ContactCompanyGroupMembership.find_or_create_by!(
       contact_id: contact_id,
       company_group_id: company.company_group_id,
       membership_type: "director"
@@ -105,7 +105,7 @@ class CorporateDirector < ApplicationRecord
   def update_ssot_director_membership
     return unless company&.company_group_id.present?
 
-    membership = ContactCorporateGroupMembership.find_by(
+    membership = ContactCompanyGroupMembership.find_by(
       contact_id: contact_id,
       company_group_id: company.company_group_id,
       membership_type: "director"

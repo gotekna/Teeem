@@ -1,8 +1,8 @@
-class CorporateGroup < ApplicationRecord
+class CompanyGroup < ApplicationRecord
   # =============================================================================
   # Business Grouping Model
   # =============================================================================
-  # CorporateGroup is for business grouping (companies, directors, shareholders).
+  # CompanyGroup is for business grouping (companies, directors, shareholders).
   # Multi-tenancy is handled by the Tenant model (SSoT).
   #
   # The tier and environment enums are DEPRECATED and will be removed.
@@ -28,7 +28,7 @@ class CorporateGroup < ApplicationRecord
   has_many :reconciliation_reports, dependent: :destroy
 
   # Contact memberships (SSoT - all contacts linked to this group)
-  has_many :contact_memberships, class_name: "ContactCorporateGroupMembership", foreign_key: :company_group_id, dependent: :destroy
+  has_many :contact_memberships, class_name: "ContactCompanyGroupMembership", foreign_key: :company_group_id, dependent: :destroy
   has_many :contacts, through: :contact_memberships
 
   # Tenant settings (per-tenant configuration)
@@ -81,22 +81,22 @@ class CorporateGroup < ApplicationRecord
 
   # SSoT Entity Queries - get entities by type from this group
   def people_in_group
-    contacts.joins(:corporate_group_memberships)
-            .where(contact_corporate_group_memberships: { corporate_group_id: id })
+    contacts.joins(:company_group_memberships)
+            .where(contact_company_group_memberships: { company_group_id: id })
             .where(entity_type: "person")
             .distinct
   end
 
   def companies_in_group
-    contacts.joins(:corporate_group_memberships)
-            .where(contact_corporate_group_memberships: { corporate_group_id: id })
+    contacts.joins(:company_group_memberships)
+            .where(contact_company_group_memberships: { company_group_id: id })
             .where(entity_type: "company")
             .distinct
   end
 
   def trusts_in_group
-    contacts.joins(:corporate_group_memberships)
-            .where(contact_corporate_group_memberships: { corporate_group_id: id })
+    contacts.joins(:company_group_memberships)
+            .where(contact_company_group_memberships: { company_group_id: id })
             .where(entity_type: "trust")
             .distinct
   end

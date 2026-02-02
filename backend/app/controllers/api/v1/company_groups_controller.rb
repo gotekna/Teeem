@@ -1,11 +1,11 @@
 module Api
   module V1
-    class CorporateGroupsController < ApplicationController
+    class CompanyGroupsController < ApplicationController
       before_action :set_company_group, only: [ :show, :update, :destroy, :companies, :structure, :contacts ]
 
       # GET /api/v1/company_groups
       def index
-        @company_groups = CorporateGroup.all
+        @company_groups = CompanyGroup.all
 
         # Filter by active status
         if params[:active].present?
@@ -19,7 +19,7 @@ module Api
             params[:search],
             columns: %w[name],
             mode: params[:search_mode] || 'contains',
-            model: CorporateGroup
+            model: CompanyGroup
           )
         end
 
@@ -41,7 +41,7 @@ module Api
 
       # POST /api/v1/company_groups
       def create
-        @company_group = CorporateGroup.new(company_group_params)
+        @company_group = CompanyGroup.new(company_group_params)
 
         if @company_group.save
           render json: {
@@ -160,7 +160,7 @@ module Api
       private
 
       def set_company_group
-        @company_group = CorporateGroup.find(params[:id])
+        @company_group = CompanyGroup.find(params[:id])
       end
 
       def company_group_params
