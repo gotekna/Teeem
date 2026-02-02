@@ -8,8 +8,11 @@
 # Each organization has its own Microsoft credentials and storage config.
 # Multi-tenancy isolation uses Tenant; Organization is for credential scoping.
 #
+# SSoT (Feb 2026): Storage config (provider_type, credential_id, bucket) is in WarehouseProvider.
+# The document_provider and document_provider_credential_id columns are DEPRECATED.
+#
 class Organization < ApplicationRecord
-  # Document provider options
+  # Document provider options (kept for constant reference - SSoT is WarehouseProvider)
   DOCUMENT_PROVIDERS = %w[sharepoint s3_compatible].freeze
 
   # Parent tenant (SSoT for multi-tenancy)
@@ -22,6 +25,7 @@ class Organization < ApplicationRecord
   has_many :microsoft_credentials, dependent: :destroy
   has_many :organization_microsoft_app_credentials, dependent: :destroy
   has_many :s3_compatible_credentials, dependent: :destroy
+  # DEPRECATED (Feb 2026): Use WarehouseProvider.credential instead
   belongs_to :document_provider_credential, class_name: 'S3CompatibleCredential', optional: true
 
   # SSoT: Storage configuration for document paths and provider settings
@@ -33,7 +37,8 @@ class Organization < ApplicationRecord
   # Validations
   validates :name, presence: true, uniqueness: true
   validates :slug, presence: true, uniqueness: true
-  validates :document_provider, inclusion: { in: DOCUMENT_PROVIDERS }, allow_nil: false
+  # DEPRECATED (Feb 2026): document_provider column will be removed - SSoT is WarehouseProvider.provider_type
+  validates :document_provider, inclusion: { in: DOCUMENT_PROVIDERS }, allow_nil: true
 
   # Returns the document storage provider instance for this organization
   # Uses factory pattern to return SharePoint or S3Compatible based on config
@@ -47,13 +52,15 @@ class Organization < ApplicationRecord
   end
 
   # Check if S3-compatible storage is enabled
+  # SSoT (Feb 2026): Uses WarehouseProvider.provider_type
   def s3_storage_enabled?
-    document_provider == 's3_compatible' && document_provider_credential.present?
+    storage_config&.provider_type == 's3_compatible' && storage_config&.credential_id.present?
   end
 
   # Check if SharePoint storage is enabled (default)
+  # SSoT (Feb 2026): Uses WarehouseProvider.provider_type
   def sharepoint_storage_enabled?
-    document_provider == 'sharepoint'
+    storage_config&.provider_type == 'sharepoint'
   end
 
   # Scopes

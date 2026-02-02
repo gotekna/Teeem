@@ -57,9 +57,10 @@ class Tenant < ApplicationRecord
   has_many :s3_compatible_credentials, dependent: :destroy
   has_many :organization_microsoft_app_credentials, dependent: :destroy
 
-  # Storage configuration (absorbed from Organization)
+  # SSoT: Storage configuration - WarehouseProvider is THE ONE source for provider_type, credential, bucket
   has_one :warehouse_provider, dependent: :destroy
   has_one :backup_configuration, dependent: :destroy
+  # DEPRECATED (Feb 2026): Use WarehouseProvider.credential instead
   belongs_to :document_provider_credential, class_name: 'S3CompatibleCredential', optional: true
 
   # Template packs (for sharing configuration between tenants)
@@ -240,13 +241,15 @@ class Tenant < ApplicationRecord
   end
 
   # Check if S3-compatible storage is enabled
+  # SSoT (Feb 2026): Uses WarehouseProvider.provider_type
   def s3_storage_enabled?
-    document_provider == 's3_compatible' && document_provider_credential.present?
+    warehouse_provider&.provider_type == 's3_compatible' && warehouse_provider&.credential_id.present?
   end
 
   # Check if SharePoint storage is enabled (default)
+  # SSoT (Feb 2026): Uses WarehouseProvider.provider_type
   def sharepoint_storage_enabled?
-    document_provider == 'sharepoint' || document_provider.nil?
+    warehouse_provider&.provider_type == 'sharepoint' || warehouse_provider&.provider_type.nil?
   end
 
   # =============================================================================

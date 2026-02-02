@@ -2045,14 +2045,15 @@ export function WarehouseProviderTab() {
     };
 
     // Attach tabs to scope nodes
-    // SSoT (Feb 2026): Storage Config shows ALL warehouse-enabled tabs for ALL scopes
-    // Previously filtered by doc types, but that hid valid warehouse tabs without doc types
+    // SSoT (Feb 2026): contact/job/corporate scopes show only tabs WITH document types
+    // email/task/warehouse/user/case scopes show ALL warehouse-enabled tabs (no doc type requirement)
     const attachTabs = (nodes: FolderTreeNode[]) => {
       nodes.forEach(node => {
         if (node.scopeKey && entityTabs[node.scopeKey]) {
           const allTabs = entityTabs[node.scopeKey];
-          // Use warehouse-enabled filter for all scopes (not just SCOPES_WITHOUT_DOC_TYPES)
-          if (true) {  // Was: SCOPES_WITHOUT_DOC_TYPES.includes(node.scopeKey)
+          // Scopes without doc types: show all warehouse-enabled tabs
+          // Other scopes (contact, job, corporate): only show tabs with document types
+          if (SCOPES_WITHOUT_DOC_TYPES.includes(node.scopeKey)) {
             node.tabs = filterWarehouseEnabledTabs(allTabs);
           } else {
             node.tabs = filterTabsWithDocTypes(allTabs);
