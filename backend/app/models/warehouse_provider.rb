@@ -263,6 +263,9 @@ class WarehouseProvider < ApplicationRecord
     # Bank statement documents (Jan 2026)
     # For: bank_statement_report (ATO compliance PDFs)
     'bank_statement' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/XERO/Bank',
+    # Balance sheet documents (Feb 2026)
+    # For: balance_sheet_report (financial statements)
+    'balance_sheet' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/XERO/Balance Sheet',
     # Document templates (Jan 2026) - internal system files under Warehousing
     # For: document_template (HTML templates, PDF overlays)
     'template' => 'Warehousing/Templates/{{TemplateType}}',
