@@ -8,7 +8,7 @@ module Gl
     STATUSES = %w[draft sent viewed accepted rejected expired converted].freeze
     DISCOUNT_TYPES = %w[percent amount].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :contact
     belongs_to :job, optional: true
     belongs_to :created_by, class_name: "User", optional: true

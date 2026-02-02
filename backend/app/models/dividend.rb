@@ -1,6 +1,6 @@
 class Dividend < ApplicationRecord
   # Associations
-  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
   has_many :dividend_payments, dependent: :destroy
 
   # Validations

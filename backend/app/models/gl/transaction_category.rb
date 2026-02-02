@@ -7,7 +7,7 @@ module Gl
 
     CATEGORY_TYPES = %w[expense revenue asset liability].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :default_account, class_name: "Gl::Account", optional: true
     belongs_to :default_tax_rate, class_name: "Gl::TaxRate", optional: true
 

@@ -9,7 +9,7 @@ module Gl
     self.table_name = "gl_bas_lodgements"
 
     # Associations
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :lodged_by, class_name: "User", optional: true
 
     # Validations

@@ -7,7 +7,7 @@ module Gl
 
     RATE_TYPES = %w[user role default].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :user, optional: true
     belongs_to :job, optional: true
     belongs_to :contact, optional: true

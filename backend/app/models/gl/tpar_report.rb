@@ -17,7 +17,7 @@ module Gl
       "security" => "S"
     }.freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :created_by, class_name: "User", optional: true
 
     has_many :payees, class_name: "Gl::TparPayee", foreign_key: "tpar_report_id", dependent: :destroy

@@ -7,7 +7,7 @@ module Gl
 
     CLASS_TYPES = %w[location region project product_line cost_center custom].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :parent, class_name: "Gl::TrackingClass", optional: true
 
     has_many :children, class_name: "Gl::TrackingClass", foreign_key: :parent_id, dependent: :nullify

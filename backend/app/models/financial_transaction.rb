@@ -5,7 +5,7 @@ class FinancialTransaction < ApplicationRecord
   # Associations
   belongs_to :job, optional: true
   belongs_to :user
-  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
   belongs_to :keepr_journal, class_name: "Keepr::Journal", optional: true
 
   # SSoT: Link to deduplicated file storage (Jan 2026)

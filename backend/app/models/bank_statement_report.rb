@@ -8,7 +8,7 @@
 class BankStatementReport < ApplicationRecord
   include StorageUploadable
 
-  belongs_to :corporate_company, foreign_key: "company_id", optional: true
+  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id", optional: true
   belongs_to :bank_account, primary_key: "xero_account_id", foreign_key: "bank_account_id", optional: true
   belongs_to :document_type, optional: true
 

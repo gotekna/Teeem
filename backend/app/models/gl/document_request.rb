@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[pending sent partially_received completed expired].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :contact
     belongs_to :job, optional: true
     belongs_to :created_by, class_name: "User", optional: true

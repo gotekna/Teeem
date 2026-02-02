@@ -2,7 +2,7 @@
 
 class XeroAlert < ApplicationRecord
   belongs_to :xero_credential, optional: true
-  belongs_to :corporate_company, optional: true
+  belongs_to :corporate_company, class_name: "Corporate", optional: true
   belongs_to :dismissed_by, class_name: "User", optional: true
 
   # Alert types

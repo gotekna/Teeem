@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[pending accepted rejected corrected].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :bank_transaction, class_name: "Gl::BankTransaction", optional: true
     belongs_to :predicted_category, class_name: "Gl::TransactionCategory", optional: true
     belongs_to :predicted_account, class_name: "Gl::Account", optional: true

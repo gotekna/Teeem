@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[draft final archived].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :created_by, class_name: "User", optional: true
 
     has_many :jobs, class_name: "Gl::WipReportJob", foreign_key: "wip_report_id", dependent: :destroy

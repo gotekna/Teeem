@@ -9,7 +9,7 @@ module Gl
     BASE_ENTITIES = %w[invoices bills payments accounts jobs contacts expenses time_entries].freeze
     CATEGORIES = %w[finance operations compliance custom].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :created_by, class_name: "User", optional: true
 
     has_many :report_columns, class_name: "Gl::ReportColumn", foreign_key: :custom_report_id, dependent: :destroy

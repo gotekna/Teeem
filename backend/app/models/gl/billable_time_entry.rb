@@ -8,7 +8,7 @@ module Gl
     STATUSES = %w[unbilled pending_approval approved billed written_off].freeze
     TASK_TYPES = %w[design development meeting review admin travel other].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :user
     belongs_to :job, optional: true
     belongs_to :billable_rate, class_name: "Gl::BillableRate", optional: true

@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :gl_period, class_name: 'Gl::Period'
     belongs_to :job, optional: true
     belongs_to :created_by, class_name: 'User', optional: true

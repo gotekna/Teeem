@@ -6,7 +6,7 @@ module Gl
   class AiPoMatchLearning < ApplicationRecord
     self.table_name = "gl_ai_po_match_learnings"
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :bill_inbox
     belongs_to :purchase_order
     belongs_to :user, optional: true

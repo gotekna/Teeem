@@ -7,7 +7,7 @@ module Gl
 
     RISK_LEVELS = %w[low medium high].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :invoice, class_name: "Gl::Invoice"
     belongs_to :contact, optional: true
 

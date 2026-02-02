@@ -10,7 +10,7 @@ module Gl
     FORMATS = %w[currency percent number days].freeze
     DIRECTIONS = %w[higher_is_better lower_is_better target_range].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
 
     validates :name, presence: true
     validates :code, presence: true, uniqueness: { scope: :corporate_company_id }

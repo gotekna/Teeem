@@ -1,6 +1,6 @@
 class DirectorOnboardingRequest < ApplicationRecord
   belongs_to :contact, optional: true
-  belongs_to :corporate_company, foreign_key: "company_id", optional: true
+  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id", optional: true
   belongs_to :reviewed_by, class_name: "User", optional: true
   belongs_to :invited_by, class_name: "User", optional: true
 
