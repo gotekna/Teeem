@@ -448,6 +448,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     ImapCredential.accessible_by(current_user).where(is_active: true).each do |cred|
       account_id = cred.id.to_s
       is_shared = cred.user_id != current_user.id
+      is_cross_tenant = cred.user&.tenant_id != current_user&.tenant_id
       accounts << {
         id: cred.id,
         type: "imap",
@@ -457,7 +458,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
         is_active: cred.is_active,
         is_default: false,
         is_shared: is_shared,
+        is_cross_tenant: is_cross_tenant,
         owner_name: is_shared ? cred.user&.name : nil,
+        owner_tenant_name: is_cross_tenant ? cred.user&.tenant&.name : nil,
         email_signature: cred.email_signature,
         email_aliases: cred.email_aliases || [],
         position: saved_positions[account_id] || (fallback_position += 1),
@@ -1035,7 +1038,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
       # Sharing fields
       user_id: credential.user_id,
       owner_name: credential.user&.name,
+      owner_tenant_id: credential.user&.tenant_id,
+      owner_tenant_name: credential.user&.tenant&.name,
       is_shared: credential.user_id != current_user.id,
+      is_cross_tenant: credential.user&.tenant_id != current_user&.tenant_id,
       shared_with_user_ids: credential.shared_with_user_ids || [],
       shared_with_users: User.where(id: credential.shared_with_user_ids || []).map { |u| { id: u.id, name: u.name } }
     }

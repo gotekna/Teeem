@@ -471,6 +471,17 @@ class WarehouseProvider < ApplicationRecord
     (warehouse_folders || {}).transform_values { |template| template.to_s.split('/').first }
   end
 
+  # Extract folder templates from warehouse_folders (everything after root folder)
+  # e.g., "Teeem Docs/{{UserName}}/{{Year}}" → "{{UserName}}/{{Year}}"
+  # e.g., "Jobs/{{JobCode}}" → "{{JobCode}}"
+  # e.g., "Contacts" → "" (no template)
+  def scope_folder_templates
+    (warehouse_folders || {}).transform_values do |full_path|
+      parts = full_path.to_s.split('/')
+      parts.length > 1 ? parts[1..].join('/') : ''
+    end
+  end
+
   # LIM (Jan 2026): Removed effective_scope_folders alias - use scope_root_folders.keys
 
   # ========================================
@@ -1084,8 +1095,10 @@ class WarehouseProvider < ApplicationRecord
       # Root path and warehouse folders
       root_path: root_path,
       # SSoT: warehouse_folders is THE ONE place for warehouse roots (includes identifier patterns)
-      # warehouse_folders REMOVED (Jan 2026 SSoT fix) - use warehouse_folders only
       warehouse_folders: effective_warehouse_folders,
+      # Computed from warehouse_folders: extracts template portion for frontend Full Path preview
+      # e.g., "Teeem Docs/{{UserName}}/{{Year}}" → "{{UserName}}/{{Year}}"
+      warehouse_folder_templates: scope_folder_templates,
       # File name templates for document downloads
       file_name_templates: file_name_templates || {},
       # Display name templates for document display in UI
