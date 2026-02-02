@@ -321,10 +321,11 @@ module Api
           end
         end
 
+        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
         def transfer_xero_links(source, target_contact)
           source.xero_links.each do |xero_link|
             existing = target_contact.xero_links.find_by(
-              tenant_id: xero_link.tenant_id,
+              xero_org_id: xero_link.xero_org_id,
               source: xero_link.source
             )
 

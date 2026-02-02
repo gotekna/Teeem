@@ -218,8 +218,9 @@ class XeroContactSyncService
 
     Rails.logger.info("Processing contacts with sync direction: #{sync_direction} (import: #{import_enabled}, export: #{export_enabled})")
 
-    # Get existing links for this tenant
-    existing_links = ContactExternalLink.xero.where(tenant_id: tenant_id).index_by(&:external_contact_id)
+    # Get existing links for this Xero org
+    # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
+    existing_links = ContactExternalLink.xero.where(xero_org_id: tenant_id).index_by(&:external_contact_id)
 
     # Build lookup maps for efficient matching
     teeem_by_xero_link = existing_links.transform_values { |link| Contact.find_by(id: link.contact_id) }
@@ -1459,8 +1460,9 @@ class XeroContactSyncService
   end
 
   def cleanup_deleted_xero_contacts_for_tenant(active_xero_ids, tenant_id)
-    # Find links for this tenant that are no longer in Xero
-    orphaned_links = ContactExternalLink.xero.where(tenant_id: tenant_id)
+    # Find links for this Xero org that are no longer in Xero
+    # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
+    orphaned_links = ContactExternalLink.xero.where(xero_org_id: tenant_id)
                                      .where.not(external_contact_id: active_xero_ids.to_a)
 
     count = orphaned_links.count

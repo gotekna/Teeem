@@ -2042,8 +2042,9 @@ class Contact < ApplicationRecord
     if active_duplicate
       # Transfer all Xero links to the active duplicate
       xero_links.each do |link|
-        # Check if duplicate already has a link to this Xero tenant
-        existing = active_duplicate.xero_links.find_by(tenant_id: link.tenant_id)
+        # Check if duplicate already has a link to this Xero org
+        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
+        existing = active_duplicate.xero_links.find_by(xero_org_id: link.xero_org_id)
         if existing
           # Duplicate already linked to this tenant - mark ours for review
           link.update_columns(needs_review: true, sync_error: "Deactivated - duplicate link exists on Contact##{active_duplicate.id}")

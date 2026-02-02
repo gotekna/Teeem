@@ -45,10 +45,11 @@ module Api
           query = query.where(id: duplicate_ids)
         end
 
-        # Filter contacts by Xero tenant (SSoT: ContactExternalLink.tenant_id)
+        # Filter contacts by Xero org (SSoT: ContactExternalLink.xero_org_id)
+        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
         if params[:xero_tenant_id].present? && model.table_name == "contacts"
           query = query.joins(:external_links)
-                       .where(contact_external_links: { source: "xero", tenant_id: params[:xero_tenant_id] })
+                       .where(contact_external_links: { source: "xero", xero_org_id: params[:xero_tenant_id] })
         end
 
         # Apply search filter with multiple search modes

@@ -288,10 +288,11 @@ module Api
           end
         end
 
-        # Filter contacts linked to a specific Xero tenant (SSoT: ContactExternalLink.tenant_id)
+        # Filter contacts linked to a specific Xero org (SSoT: ContactExternalLink.xero_org_id)
+        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
         if params[:xero_tenant_id].present?
           @contacts = @contacts.joins(:external_links)
-                               .where(contact_external_links: { source: "xero", tenant_id: params[:xero_tenant_id] })
+                               .where(contact_external_links: { source: "xero", xero_org_id: params[:xero_tenant_id] })
                                .distinct
         end
 

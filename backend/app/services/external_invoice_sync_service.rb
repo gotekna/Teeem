@@ -454,10 +454,10 @@ class ExternalInvoiceSyncService
 
     # LIM (Jan 2026): XeroContact lookup removed - ContactExternalLink is THE ONE SSoT
     # Find via ContactExternalLink (1,018 records linking Xero contacts to TEEEM contacts)
-    # FRC (Feb 2026): ContactExternalLink.tenant_id is Xero UUID, not TEEEM integer
+    # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
     link = ContactExternalLink.find_by(
       source: @source,
-      tenant_id: @xero_tenant_id,
+      xero_org_id: @xero_tenant_id,
       external_contact_id: invoice.external_contact_id
     )
 
@@ -509,12 +509,12 @@ class ExternalInvoiceSyncService
 
       if contact.save
         # Create ContactExternalLink for the new TEEEM Contact (SSoT)
-        # FRC (Feb 2026): ContactExternalLink.tenant_id is Xero UUID (String)
+        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
         if invoice.external_contact_id.present?
           ContactExternalLink.find_or_create_by!(
             contact: contact,
             source: @source,
-            tenant_id: @xero_tenant_id,
+            xero_org_id: @xero_tenant_id,
             external_contact_id: invoice.external_contact_id
           )
           Rails.logger.info("Created ContactExternalLink for contact #{contact.id}")
@@ -631,14 +631,14 @@ class ExternalInvoiceSyncService
 
   # Link an existing contact to XeroContact/ExternalLink (used when duplicate detected)
   # LIM (Jan 2026): Simplified - ContactExternalLink is THE ONE SSoT for Xero contact linking
-  # FRC (Feb 2026): ContactExternalLink.tenant_id is Xero UUID (String), not TEEEM integer
+  # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
   def link_existing_contact(contact, invoice)
     return if invoice.external_contact_id.blank?
 
     # Create ContactExternalLink if it doesn't exist
     link = ContactExternalLink.find_or_initialize_by(
       source: @source,
-      tenant_id: @xero_tenant_id,
+      xero_org_id: @xero_tenant_id,
       external_contact_id: invoice.external_contact_id
     )
     if link.new_record? || link.contact_id.nil?

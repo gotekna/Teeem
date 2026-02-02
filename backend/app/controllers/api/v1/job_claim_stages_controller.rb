@@ -278,7 +278,8 @@ module Api
         end
 
         # LIM (Jan 2026): XeroContact removed - ContactExternalLink is THE ONE SSoT
-        link = ContactExternalLink.find_by(contact_id: client.id, source: "xero", tenant_id: xero_credential.tenant_id)
+        # FRC (Feb 2026): xero_org_id stores Xero org UUID (renamed from tenant_id)
+        link = ContactExternalLink.find_by(contact_id: client.id, source: "xero", xero_org_id: xero_credential.tenant_id)
         external_contact_id = link&.external_contact_id
 
         unless external_contact_id

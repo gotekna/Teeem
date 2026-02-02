@@ -2032,8 +2032,9 @@ module Api
           tenant_stats = credentials.map do |cred|
             tenant_id = cred.tenant_id
 
-            # Count external links for this tenant
-            tenant_links = ContactExternalLink.xero.for_tenant(tenant_id)
+            # Count external links for this Xero org
+            # FRC (Feb 2026): Renamed for_tenant to for_xero_org for consistency
+            tenant_links = ContactExternalLink.xero.for_xero_org(tenant_id)
             links_count = tenant_links.count
             enabled_count = tenant_links.enabled.count
             pending_review_count = tenant_links.pending_review.count
@@ -2046,9 +2047,10 @@ module Api
               .where("c.id IS NULL")
               .count
 
-            # Count invoices/bills for this tenant
+            # Count invoices/bills for this Xero org
             # SSoT: Use .active scope + exclude drafts to match pdf_sync_status (drafts can't have PDFs)
-            tenant_invoices = ExternalInvoice.xero.active.where(tenant_id: tenant_id).where.not(status: "draft")
+            # FRC (Feb 2026): Use for_xero_org (xero_org_id column), not tenant_id (TEEEM FK)
+            tenant_invoices = ExternalInvoice.xero.active.for_xero_org(tenant_id).where.not(status: "draft")
             invoices_count = tenant_invoices.sales_invoices.count
             bills_count = tenant_invoices.bills.count
             quotes_count = tenant_invoices.quotes.count
@@ -2058,10 +2060,11 @@ module Api
             last_contact_sync = tenant_links.maximum(:last_synced_at)
             last_invoice_sync = tenant_invoices.maximum(:last_synced_at)
 
-            # Cross-tenant matches (contacts linked to multiple tenants)
+            # Cross-org matches (contacts linked to multiple Xero orgs)
+            # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
             cross_tenant_contact_ids = ContactExternalLink.xero
-                                                          .for_tenant(tenant_id)
-                                                          .joins("INNER JOIN contact_external_links cel2 ON cel2.contact_id = contact_external_links.contact_id AND cel2.tenant_id != contact_external_links.tenant_id AND cel2.source = 'xero'")
+                                                          .for_xero_org(tenant_id)
+                                                          .joins("INNER JOIN contact_external_links cel2 ON cel2.contact_id = contact_external_links.contact_id AND cel2.xero_org_id != contact_external_links.xero_org_id AND cel2.source = 'xero'")
                                                           .distinct
                                                           .pluck(:contact_id)
             cross_tenant_count = cross_tenant_contact_ids.count
@@ -2249,7 +2252,8 @@ module Api
 
           common_contacts_data = contacts.map do |contact|
             xero_links = contact.external_links.xero.to_a
-            tenant_ids = xero_links.map(&:tenant_id).uniq
+            # FRC (Feb 2026): Renamed tenant_id to xero_org_id
+            xero_org_ids = xero_links.map(&:xero_org_id).uniq
 
             {
               id: contact.id,
@@ -2257,12 +2261,12 @@ module Api
               entity_type: contact.entity_type,
               email: contact.email,
               tax_number: contact.tax_number,
-              tenant_count: tenant_ids.count,
-              tenants: tenant_ids.map do |tid|
-                cred = credentials.find { |c| c.tenant_id == tid }
-                link = xero_links.find { |l| l.tenant_id == tid }
+              tenant_count: xero_org_ids.count,
+              tenants: xero_org_ids.map do |xero_org_id|
+                cred = credentials.find { |c| c.tenant_id == xero_org_id }
+                link = xero_links.find { |l| l.xero_org_id == xero_org_id }
                 {
-                  tenant_id: tid,
+                  tenant_id: xero_org_id,
                   tenant_name: cred&.tenant_name || "Unknown",
                   external_contact_id: link&.external_contact_id,
                   external_contact_name: link&.external_name || link&.metadata&.dig("name") || link&.external_contact_id,

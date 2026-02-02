@@ -1070,6 +1070,7 @@ function TreeNode({
               showPreview={true}
               placeholder="Click tokens to build document UI name..."
               defaultExpanded={false}
+              defaultValue="{{OriginalFileName}}"
             />
 
             {/* Document Download Name Template (filename when downloading) */}
@@ -1081,6 +1082,7 @@ function TreeNode({
               showPreview={true}
               placeholder="Click tokens to build download filename..."
               defaultExpanded={false}
+              defaultValue="{{OriginalFileName}}"
             />
 
             {/* Auto-save status and close */}

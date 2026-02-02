@@ -82,29 +82,10 @@ module Api
           status: new_status
         }
         update_attrs[:root_path] = sp[:root_path] if sp.key?(:root_path)
-        # NOTE (Feb 2026): warehouse_folders column REMOVED from warehouse_providers
-        # Folder paths are now stored per-tab in warehouse_folders table (SSoT)
-        # warehouse_folders and scope_root_folders params are ignored
-
-        # Download name templates (for document downloads)
-        # Accept both old and new param names for backwards compatibility
-        if sp.key?(:download_name_templates)
-          existing_templates = storage_config.download_name_templates || {}
-          update_attrs[:download_name_templates] = existing_templates.merge(sp[:download_name_templates].to_h)
-        elsif sp.key?(:file_name_templates)
-          existing_templates = storage_config.download_name_templates || {}
-          update_attrs[:download_name_templates] = existing_templates.merge(sp[:file_name_templates].to_h)
-        end
-
-        # UI name templates (for document display in File Warehouse)
-        # Accept both old and new param names for backwards compatibility
-        if sp.key?(:ui_name_templates)
-          existing_templates = storage_config.ui_name_templates || {}
-          update_attrs[:ui_name_templates] = existing_templates.merge(sp[:ui_name_templates].to_h)
-        elsif sp.key?(:display_name_templates)
-          existing_templates = storage_config.ui_name_templates || {}
-          update_attrs[:ui_name_templates] = existing_templates.merge(sp[:display_name_templates].to_h)
-        end
+        # NOTE (Feb 2026): SSoT Consolidation
+        # - warehouse_folders column REMOVED - paths stored per-tab in warehouse_folders table
+        # - download_name_templates column REMOVED - stored per-tab in warehouse_folders.download_name
+        # - ui_name_templates column REMOVED - stored per-tab in warehouse_folders.ui_name
 
         if sp.key?(:config_links)
           existing_config_links = storage_config.config_links || {}
@@ -201,11 +182,9 @@ module Api
           :root_path,
           :exclude_sm_tasks,  # SM task exclusion setting (replaces scope_options)
           :link_expiry_days,  # Link expiry for presigned URLs (saved to TenantSetting)
-          # NOTE: warehouse_folders and scope_root_folders REMOVED (Feb 2026)
-          download_name_templates: {},
-          file_name_templates: {},  # Legacy backwards compat
-          ui_name_templates: {},
-          display_name_templates: {},  # Legacy backwards compat
+          # NOTE (Feb 2026): SSoT Consolidation - columns REMOVED from warehouse_providers:
+          # - warehouse_folders, scope_root_folders (paths now per-tab in warehouse_folders table)
+          # - download_name_templates, ui_name_templates (now per-tab in warehouse_folders)
           config_links: {},
           document_routing: {},  # SSoT: Which model to use for each document source
           virtual_warehouses: {},   # Phase 4: Virtual File Warehouse - which warehouse types render from DB

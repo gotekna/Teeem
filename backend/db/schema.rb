@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_02_224433) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1466,7 +1466,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224433) do
 
   create_table "contact_external_links", force: :cascade do |t|
     t.bigint "contact_id", null: false
-    t.string "tenant_id", null: false
+    t.string "xero_org_id", null: false
     t.string "tenant_name"
     t.string "external_contact_id", null: false
     t.boolean "sync_enabled", default: true
@@ -1491,11 +1491,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224433) do
     t.index ["contact_id"], name: "index_contact_external_links_on_contact_id"
     t.index ["last_verified_at"], name: "index_contact_external_links_on_last_verified_at"
     t.index ["needs_review"], name: "idx_contact_external_links_needs_review", where: "(needs_review = true)"
-    t.index ["source", "tenant_id", "external_contact_id"], name: "idx_contact_external_links_external", unique: true
+    t.index ["source", "xero_org_id", "external_contact_id"], name: "idx_contact_external_links_unique", unique: true
     t.index ["source"], name: "index_contact_external_links_on_source"
     t.index ["sync_enabled"], name: "index_contact_external_links_on_sync_enabled"
-    t.index ["tenant_id"], name: "index_contact_external_links_on_tenant_id"
     t.index ["xero_contact_status"], name: "index_contact_external_links_on_xero_contact_status"
+    t.index ["xero_org_id"], name: "index_contact_external_links_on_xero_org_id"
   end
 
   create_table "contact_group_memberships", force: :cascade do |t|
@@ -3049,6 +3049,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224433) do
     t.boolean "payment_portal_enabled", default: true
     t.datetime "last_payment_reminder_at"
     t.integer "payment_reminder_count", default: 0
+    t.string "xero_org_id"
     t.index ["contact_id"], name: "index_external_invoices_on_contact_id"
     t.index ["created_in_teeem"], name: "index_external_invoices_on_created_in_teeem"
     t.index ["external_contact_id"], name: "index_external_invoices_on_external_contact_id"
@@ -3067,6 +3068,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224433) do
     t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_external_invoices_pending_sync"
     t.index ["tenant_id"], name: "index_external_invoices_on_tenant_id"
     t.index ["tracking_data"], name: "index_external_invoices_on_tracking_data", using: :gin
+    t.index ["xero_org_id"], name: "index_external_invoices_on_xero_org_id"
   end
 
   create_table "fact_job_daily_snapshots", force: :cascade do |t|
@@ -10117,13 +10119,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224433) do
     t.bigint "credential_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.jsonb "download_name_templates", default: {}, null: false
     t.jsonb "config_links", default: {}, null: false
     t.jsonb "document_routing", default: {}, null: false
     t.jsonb "virtual_warehouses", default: {}, null: false
     t.boolean "exclude_sm_tasks", default: false, null: false
     t.bigint "tenant_id", null: false
-    t.jsonb "ui_name_templates", default: {}
     t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
     t.index ["organization_id"], name: "index_warehouse_providers_on_organization_id", unique: true
     t.index ["tenant_id"], name: "index_storage_configurations_on_tenant_id_unique", unique: true
