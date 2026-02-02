@@ -1942,21 +1942,16 @@ export function WarehouseProviderTab() {
     displayName: string,
     sendNameTemplate: string
   ) => {
-    console.log('[saveTabFolderPath] Saving:', { tabId, folderPath, displayName, sendNameTemplate });
     try {
-      // Construct body explicitly to debug parameter issues
-      const requestBody = {
-        warehouse_folder: {
-          display_name: displayName,
-          warehouse_folder: folderPath,
-          send_name_template: sendNameTemplate,
-        }
-      };
-      console.log('[saveTabFolderPath] Request body:', JSON.stringify(requestBody));
-
       const response = await api.patch<{ success: boolean; error?: string }>(
         `/api/v1/warehouse_folders/${tabId}`,
-        requestBody
+        {
+          warehouse_folder: {
+            display_name: displayName,
+            warehouse_folder: folderPath,
+            send_name_template: sendNameTemplate,
+          }
+        }
       );
       if (response?.success) {
         // Update local state
