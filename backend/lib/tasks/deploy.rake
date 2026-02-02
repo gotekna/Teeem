@@ -34,19 +34,10 @@ namespace :deploy do
       puts "   (Deployment will continue, but run 'rails foundation:sync' manually)"
     end
 
-    # 3. Sync warehouse folder defaults to all tenants (SSoT)
-    puts "\n📁 Syncing warehouse folder defaults..."
-    begin
-      result = WarehouseProvider.sync_missing_defaults!
-      if result[:keys_added].any?
-        puts "✅ Synced #{result[:keys_added].count} new folder type(s) to #{result[:synced]} tenant(s)"
-        puts "   Keys: #{result[:keys_added].join(', ')}"
-      else
-        puts "✅ All tenants have complete warehouse_folders"
-      end
-    rescue => e
-      puts "⚠️  Warehouse folder sync warning: #{e.message}"
-    end
+    # 3. (REMOVED Feb 2026) Warehouse folder sync no longer needed
+    # SSoT: Folder paths are now stored per-tab in warehouse_folders table
+    # No deployment sync required - paths are set when tabs are created
+    puts "\n📁 Warehouse folders: SSoT in warehouse_folders table ✅"
 
     # 4. Sync recurring jobs from config/recurring.yml (SolidQueue)
     if defined?(SolidQueue)
