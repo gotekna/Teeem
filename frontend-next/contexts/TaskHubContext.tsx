@@ -1550,7 +1550,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     // Find matching tasks on the same job that are not completed
     return tasks.filter(t =>
       task.completion_linked_task_ids!.includes(t.id) &&
-      t.job_id === task.construction_id &&
+      t.job_id === task.job_id &&
       t.status !== TASK_STATUS.COMPLETED &&
       !t.hold
     );

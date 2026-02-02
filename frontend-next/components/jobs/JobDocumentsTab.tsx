@@ -1170,7 +1170,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         {
           storage_key: uploadResult.key,
           task_id: taskId,
-          construction_id: jobId,
+          job_id: jobId,
           category: selectedCategory?.id,
         }
       );
