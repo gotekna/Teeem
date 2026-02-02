@@ -1,16 +1,16 @@
 # frozen_string_literal: true
 
-class Api::V1::UserEntityTabPreferencesController < ApplicationController
-  # GET /api/v1/user_entity_tab_preferences/:scope
+class Api::V1::UserWarehouseFolderPreferencesController < ApplicationController
+  # GET /api/v1/user_warehouse_folder_preferences/:scope
   # Get user's tab preferences for a scope
   def show
     scope_name = params[:scope]
 
-    unless UserEntityTabPreference::SCOPES.include?(scope_name)
+    unless UserWarehouseFolderPreference::SCOPES.include?(scope_name)
       return render json: { success: false, error: "Invalid scope: #{scope_name}" }, status: :unprocessable_entity
     end
 
-    preference = UserEntityTabPreference.find_by(user: current_user, scope: scope_name)
+    preference = UserWarehouseFolderPreference.find_by(user: current_user, scope: scope_name)
 
     render json: {
       success: true,
@@ -23,16 +23,16 @@ class Api::V1::UserEntityTabPreferencesController < ApplicationController
     }
   end
 
-  # PATCH /api/v1/user_entity_tab_preferences/:scope
+  # PATCH /api/v1/user_warehouse_folder_preferences/:scope
   # Update user's tab preferences for a scope
   def update
     scope_name = params[:scope]
 
-    unless UserEntityTabPreference::SCOPES.include?(scope_name)
+    unless UserWarehouseFolderPreference::SCOPES.include?(scope_name)
       return render json: { success: false, error: "Invalid scope: #{scope_name}" }, status: :unprocessable_entity
     end
 
-    preference = UserEntityTabPreference.for_user_scope(current_user, scope_name)
+    preference = UserWarehouseFolderPreference.for_user_scope(current_user, scope_name)
 
     if preference.update(preference_params)
       render json: {
@@ -49,13 +49,13 @@ class Api::V1::UserEntityTabPreferencesController < ApplicationController
     end
   end
 
-  # POST /api/v1/user_entity_tab_preferences/:scope/toggle_tab
+  # POST /api/v1/user_warehouse_folder_preferences/:scope/toggle_tab
   # Toggle visibility of a single tab
   def toggle_tab
     scope_name = params[:scope]
     tab_key = params[:tab_key]
 
-    unless UserEntityTabPreference::SCOPES.include?(scope_name)
+    unless UserWarehouseFolderPreference::SCOPES.include?(scope_name)
       return render json: { success: false, error: "Invalid scope: #{scope_name}" }, status: :unprocessable_entity
     end
 
@@ -63,7 +63,7 @@ class Api::V1::UserEntityTabPreferencesController < ApplicationController
       return render json: { success: false, error: "tab_key is required" }, status: :unprocessable_entity
     end
 
-    preference = UserEntityTabPreference.for_user_scope(current_user, scope_name)
+    preference = UserWarehouseFolderPreference.for_user_scope(current_user, scope_name)
     preference.toggle_tab!(tab_key)
 
     render json: {
@@ -77,17 +77,17 @@ class Api::V1::UserEntityTabPreferencesController < ApplicationController
     }
   end
 
-  # POST /api/v1/user_entity_tab_preferences/:scope/set_default
+  # POST /api/v1/user_warehouse_folder_preferences/:scope/set_default
   # Set the default tab for a scope
   def set_default
     scope_name = params[:scope]
     tab_key = params[:tab_key]
 
-    unless UserEntityTabPreference::SCOPES.include?(scope_name)
+    unless UserWarehouseFolderPreference::SCOPES.include?(scope_name)
       return render json: { success: false, error: "Invalid scope: #{scope_name}" }, status: :unprocessable_entity
     end
 
-    preference = UserEntityTabPreference.for_user_scope(current_user, scope_name)
+    preference = UserWarehouseFolderPreference.for_user_scope(current_user, scope_name)
 
     if tab_key.present?
       preference.set_default_tab!(tab_key)
@@ -104,17 +104,17 @@ class Api::V1::UserEntityTabPreferencesController < ApplicationController
     }
   end
 
-  # POST /api/v1/user_entity_tab_preferences/:scope/reorder
+  # POST /api/v1/user_warehouse_folder_preferences/:scope/reorder
   # Set custom tab order
   def reorder
     scope_name = params[:scope]
     tab_order = params[:tab_order]
 
-    unless UserEntityTabPreference::SCOPES.include?(scope_name)
+    unless UserWarehouseFolderPreference::SCOPES.include?(scope_name)
       return render json: { success: false, error: "Invalid scope: #{scope_name}" }, status: :unprocessable_entity
     end
 
-    preference = UserEntityTabPreference.for_user_scope(current_user, scope_name)
+    preference = UserWarehouseFolderPreference.for_user_scope(current_user, scope_name)
     preference.set_tab_order!(tab_order)
 
     render json: {
@@ -126,12 +126,12 @@ class Api::V1::UserEntityTabPreferencesController < ApplicationController
     }
   end
 
-  # DELETE /api/v1/user_entity_tab_preferences/:scope
+  # DELETE /api/v1/user_warehouse_folder_preferences/:scope
   # Reset preferences to system defaults
   def destroy
     scope_name = params[:scope]
 
-    preference = UserEntityTabPreference.find_by(user: current_user, scope: scope_name)
+    preference = UserWarehouseFolderPreference.find_by(user: current_user, scope: scope_name)
     preference&.destroy
 
     render json: {

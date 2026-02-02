@@ -2,20 +2,20 @@
 # This replaces multiple tab configuration endpoints with ONE unified API
 module Api
   module V1
-    class EntityTabsController < ApplicationController
-      before_action :set_entity_tab, only: [:show, :update, :destroy]
+    class WarehouseFoldersController < ApplicationController
+      before_action :set_warehouse_folder, only: [:show, :update, :destroy]
 
-      # GET /api/v1/entity_tabs?warehouse_type=corporate
+      # GET /api/v1/warehouse_folders?warehouse_type=corporate
       # Also accepts ?scope= for backwards compatibility
       # Use include_disabled=true for admin views to show all tabs
       #
-      # Performance: Uses EntityTabQueryService to eliminate N+1 queries
+      # Performance: Uses WarehouseFolderQueryService to eliminate N+1 queries
       # Original: 431 queries (657ms) → Optimized: ~5 queries (<50ms)
       def index
         # Accept both warehouse_type and scope params (scope for backwards compat)
         warehouse_type = params[:warehouse_type] || params[:scope]
 
-        service = EntityTabQueryService.new(
+        service = WarehouseFolderQueryService.new(
           warehouse_type: warehouse_type,
           entity_type: params[:entity_type],
           include_disabled: params[:include_disabled] == "true",
@@ -31,61 +31,61 @@ module Api
             warehouse_type: warehouse_type,
             scope: warehouse_type,  # Legacy backwards compat
             tabs: tabs,
-            groups: EntityTab::TAB_GROUPS,
-            primary_xero_name: EntityTab.primary_xero_name  # SSoT: Name of primary Xero account
+            groups: WarehouseFolder::TAB_GROUPS,
+            primary_xero_name: WarehouseFolder.primary_xero_name  # SSoT: Name of primary Xero account
           }
         }
       end
 
-      # GET /api/v1/entity_tabs/:id
+      # GET /api/v1/warehouse_folders/:id
       def show
         render json: {
           success: true,
-          data: @entity_tab.as_nested_json
+          data: @warehouse_folder.as_nested_json
         }
       end
 
-      # POST /api/v1/entity_tabs
+      # POST /api/v1/warehouse_folders
       def create
-        @entity_tab = EntityTab.new(entity_tab_params)
+        @warehouse_folder = WarehouseFolder.new(warehouse_folder_params)
 
-        if @entity_tab.save
-          render json: { success: true, data: @entity_tab.as_nested_json }, status: :created
+        if @warehouse_folder.save
+          render json: { success: true, data: @warehouse_folder.as_nested_json }, status: :created
         else
-          render json: { success: false, error: @entity_tab.errors.full_messages.join(', ') }, status: :unprocessable_entity
+          render json: { success: false, error: @warehouse_folder.errors.full_messages.join(', ') }, status: :unprocessable_entity
         end
       end
 
-      # PATCH/PUT /api/v1/entity_tabs/:id
+      # PATCH/PUT /api/v1/warehouse_folders/:id
       def update
-        if @entity_tab.update(entity_tab_params)
-          render json: { success: true, data: @entity_tab.as_nested_json }
+        if @warehouse_folder.update(warehouse_folder_params)
+          render json: { success: true, data: @warehouse_folder.as_nested_json }
         else
-          render json: { success: false, error: @entity_tab.errors.full_messages.join(', ') }, status: :unprocessable_entity
+          render json: { success: false, error: @warehouse_folder.errors.full_messages.join(', ') }, status: :unprocessable_entity
         end
       end
 
-      # DELETE /api/v1/entity_tabs/:id
+      # DELETE /api/v1/warehouse_folders/:id
       def destroy
         # Check if can be deleted
-        unless @entity_tab.can_delete?
-          error_msg = if @entity_tab.is_system_tab
+        unless @warehouse_folder.can_delete?
+          error_msg = if @warehouse_folder.is_system_tab
             "System tabs cannot be deleted. You can disable them instead."
           else
-            "This tab contains #{@entity_tab.document_count} documents. Move or delete them first."
+            "This tab contains #{@warehouse_folder.document_count} documents. Move or delete them first."
           end
 
           return render json: { success: false, error: error_msg }, status: :unprocessable_entity
         end
 
-        @entity_tab.destroy
-        render json: { success: true, message: "Tab '#{@entity_tab.display_name}' deleted" }
+        @warehouse_folder.destroy
+        render json: { success: true, message: "Tab '#{@warehouse_folder.display_name}' deleted" }
       end
 
-      # POST /api/v1/entity_tabs/reorder
+      # POST /api/v1/warehouse_folders/reorder
       def reorder
         params[:tabs].each_with_index do |tab_data, index|
-          EntityTab.where(id: tab_data[:id]).update_all(
+          WarehouseFolder.where(id: tab_data[:id]).update_all(
             order_position: index,
             parent_id: tab_data[:parent_id]
           )
@@ -94,26 +94,26 @@ module Api
         render json: { success: true, message: "Tabs reordered successfully" }
       end
 
-      # POST /api/v1/entity_tabs/:id/toggle
+      # POST /api/v1/warehouse_folders/:id/toggle
       def toggle
-        @entity_tab = EntityTab.find(params[:id])
-        @entity_tab.update!(enabled: !@entity_tab.enabled)
+        @warehouse_folder = WarehouseFolder.find(params[:id])
+        @warehouse_folder.update!(enabled: !@warehouse_folder.enabled)
 
         render json: {
           success: true,
-          data: @entity_tab.as_nested_json,
-          message: "Tab #{@entity_tab.enabled ? 'enabled' : 'disabled'}"
+          data: @warehouse_folder.as_nested_json,
+          message: "Tab #{@warehouse_folder.enabled ? 'enabled' : 'disabled'}"
         }
       end
 
-      # GET /api/v1/entity_tabs/for_warehouse_type/:warehouse_type
+      # GET /api/v1/warehouse_folders/for_warehouse_type/:warehouse_type
       # Also accepts for_scope/:scope for backwards compatibility (route alias)
       # Returns flat list of all tabs for a warehouse type (for dropdowns)
       def for_scope
         # Accept both warehouse_type and scope params (scope for backwards compat)
         warehouse_type = params[:warehouse_type] || params[:scope]
 
-        tabs = EntityTab.for_warehouse_type(warehouse_type)
+        tabs = WarehouseFolder.for_warehouse_type(warehouse_type)
                         .enabled
                         .ordered
                         .includes(:parent)
@@ -140,7 +140,7 @@ module Api
         }
       end
 
-      # GET /api/v1/entity_tabs/entity_types
+      # GET /api/v1/warehouse_folders/entity_types
       # Returns configured entity types for the entity filter dropdown
       def entity_types
         render json: {
@@ -149,7 +149,7 @@ module Api
         }
       end
 
-      # PUT /api/v1/entity_tabs/entity_types
+      # PUT /api/v1/warehouse_folders/entity_types
       # Update the list of entity types
       def update_entity_types
         types = params[:entity_types]
@@ -167,7 +167,7 @@ module Api
         }
       end
 
-      # GET /api/v1/entity_tabs/document_type_counts
+      # GET /api/v1/warehouse_folders/document_type_counts
       # Returns count of document types linked per warehouse type + total document types
       def document_type_counts
         counts = WarehouseFolder::WAREHOUSE_TYPES.each_with_object({}) do |warehouse_type, hash|
@@ -187,10 +187,10 @@ module Api
         }
       end
 
-      # POST /api/v1/entity_tabs/reset_paths
+      # POST /api/v1/warehouse_folders/reset_paths
       # Reset all tabs to use inherited SSoT paths (clears warehouse_folder, sets uses_custom_path = false)
       def reset_paths
-        updated_count = EntityTab
+        updated_count = WarehouseFolder
           .where(warehouse_enabled: true)
           .where("uses_custom_path = true OR warehouse_folder IS NOT NULL")
           .update_all(uses_custom_path: false, warehouse_folder: nil)
@@ -202,14 +202,14 @@ module Api
         }
       end
 
-      # GET /api/v1/entity_tabs/used_icons?warehouse_type=job
+      # GET /api/v1/warehouse_folders/used_icons?warehouse_type=job
       # Also accepts ?scope= for backwards compatibility
       # Returns list of icons already used by root tabs in a warehouse type
       # Used by IconPicker to gray out already-used icons
       def used_icons
         warehouse_type = params[:warehouse_type] || params[:scope]
 
-        icons = EntityTab.for_warehouse_type(warehouse_type)
+        icons = WarehouseFolder.for_warehouse_type(warehouse_type)
                          .root_tabs
                          .global
                          .where.not(icon_name: [nil, ''])
@@ -222,15 +222,15 @@ module Api
         }
       end
 
-      # GET /api/v1/entity_tabs/global_icon_usage
+      # GET /api/v1/warehouse_folders/global_icon_usage
       # Returns ALL icon usages across the system for consistency tracking
-      # SSoT: Shows where each icon is used (entity tabs, navigation) to ensure design consistency
+      # SSoT: Shows where each icon is used (warehouse folders, navigation) to ensure design consistency
       def global_icon_usage
         usages = {}
 
-        # Collect icon usage from ALL entity tab warehouse types
-        EntityTab::WAREHOUSE_TYPES.each do |warehouse_type|
-          EntityTab.for_warehouse_type(warehouse_type)
+        # Collect icon usage from ALL warehouse folder warehouse types
+        WarehouseFolder::WAREHOUSE_TYPES.each do |warehouse_type|
+          WarehouseFolder.for_warehouse_type(warehouse_type)
                    .root_tabs
                    .global
                    .where.not(icon_name: [nil, ''])
@@ -238,12 +238,12 @@ module Api
             icon = tab.icon_name
             usages[icon] ||= []
             usages[icon] << {
-              area: "Entity Tabs",
+              area: "Warehouse Folders",
               warehouse_type: warehouse_type.humanize,
               scope: warehouse_type.humanize,  # Legacy backwards compat
               name: tab.display_name,
               id: tab.id,
-              type: "entity_tab"
+              type: "warehouse_folder"
             }
           end
         end
@@ -271,13 +271,13 @@ module Api
 
       private
 
-      def set_entity_tab
-        @entity_tab = EntityTab.find(params[:id])
+      def set_warehouse_folder
+        @warehouse_folder = WarehouseFolder.find(params[:id])
       end
 
-      def entity_tab_params
+      def warehouse_folder_params
         # Accept both old and new param names for backwards compatibility
-        permitted = params.require(:entity_tab).permit(
+        permitted = params.require(:warehouse_folder).permit(
           :warehouse_type,
           :scope,  # Legacy backwards compat
           :tab_key,

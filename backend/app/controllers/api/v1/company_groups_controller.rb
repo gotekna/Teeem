@@ -257,8 +257,8 @@ module Api
         roles = []
 
         # Get directorship/officer roles (director, secretary, corporate_officer, public_officer)
-        contact.corporate_company_directorships.includes(:corporate_company).each do |dir|
-          next unless dir.corporate_company&.company_group_id == company_group_id
+        contact.corporate_directorships.includes(:corporate).each do |dir|
+          next unless dir.corporate&.company_group_id == company_group_id
 
           position = dir.position.to_s
 
@@ -267,7 +267,7 @@ module Api
             roles << {
               type: "director",
               company_id: dir.company_id,
-              company_name: dir.corporate_company.name,
+              company_name: dir.corporate.name,
               position: dir.position,
               is_current: dir.is_current
             }
@@ -278,7 +278,7 @@ module Api
             roles << {
               type: "secretary",
               company_id: dir.company_id,
-              company_name: dir.corporate_company.name,
+              company_name: dir.corporate.name,
               position: dir.position,
               is_current: dir.is_current
             }
@@ -289,7 +289,7 @@ module Api
             roles << {
               type: "corporate_officer",
               company_id: dir.company_id,
-              company_name: dir.corporate_company.name,
+              company_name: dir.corporate.name,
               position: dir.position,
               is_current: dir.is_current
             }
@@ -300,7 +300,7 @@ module Api
             roles << {
               type: "public_officer",
               company_id: dir.company_id,
-              company_name: dir.corporate_company.name,
+              company_name: dir.corporate.name,
               position: dir.position,
               is_current: dir.is_current
             }
@@ -308,12 +308,12 @@ module Api
         end
 
         # Get shareholder roles
-        contact.corporate_company_shareholdings.includes(:corporate_company).each do |sh|
-          next unless sh.corporate_company&.company_group_id == company_group_id
+        contact.corporate_shareholdings.includes(:corporate).each do |sh|
+          next unless sh.corporate&.company_group_id == company_group_id
           roles << {
             type: "shareholder",
             company_id: sh.company_id,
-            company_name: sh.corporate_company.name,
+            company_name: sh.corporate&.name,
             shares: sh.number_of_shares,
             percentage: sh.percentage_of_total
           }
@@ -324,7 +324,7 @@ module Api
 
       def build_hierarchy_tree(company, company_group = nil)
         # Get shareholdings where this company is owned
-        shareholders = company.corporate_company_shareholdings.includes(:shareholder).map do |sh|
+        shareholders = company.corporate_shareholdings.includes(:shareholder).map do |sh|
           # Use centralized DisplayValueResolver (SSoT for display values)
           shareholder_name = DisplayValueResolver.resolve(sh.shareholder)
           {
