@@ -235,11 +235,10 @@ class WarehouseProvider < ApplicationRecord
     # Task documents
     # SSoT: Virtual folder paths for File Warehouse display (SmTaskAttachment.virtual_folder_path)
     # Actual files stored in Blobs/{hash}.ext - these paths are for UI organization only
-    # FRC (Jan 2026): NO {{TaskName}} - UI already displays task name as folder label
-    # Same pattern as 'case' which uses just {{CaseId}}
-    'task' => 'Tasks/{{TaskId}}',
-    'task_attachments' => 'Tasks/{{TaskId}}/Attachments',
-    'task_responses' => 'Tasks/{{TaskId}}/Responses',
+    # Parent type has full path with {{TaskName}}; child types store SUFFIX ONLY - derived from 'task' base
+    'task' => 'Tasks/{{TaskId}}/{{TaskName}}',
+    'task_attachments' => 'Attachments',     # SSoT: Suffix only - base from 'task'
+    'task_responses' => 'Responses',          # SSoT: Suffix only - base from 'task'
     # Case documents (Jan 2026)
     # SSoT: Virtual folder paths for File Warehouse - actual files in Blobs/{hash}.ext
     # Child types store SUFFIX ONLY - derived from 'case' base
@@ -370,12 +369,14 @@ class WarehouseProvider < ApplicationRecord
   end
 
   # SSoT: Warehouse types that derive from a parent type
-  # These store only their suffix (e.g., "Documents") and inherit the base from parent
-  # Example: case_documents stores "Documents", derives base from case
+  # These store only their suffix (e.g., "Attachments") and inherit the base from parent
+  # Example: task_attachments stores "Attachments", derives base from task
   #
-  # Note: task_attachments and task_responses store FULL paths (SSoT in warehouse_folders)
-  # They are NOT in this list - the frontend shows greyed-out prefix as UI hint only
+  # path_for(:task_attachments) computes: "Tasks/{{TaskId}}/{{TaskName}}/Attachments"
+  # by combining path_for(:task) + stored suffix
   WAREHOUSE_TYPE_PARENTS = {
+    'task_attachments' => 'task',
+    'task_responses' => 'task',
     'case_documents' => 'case',
     'case_emails' => 'case',
     'email_body' => 'email',
@@ -403,9 +404,12 @@ class WarehouseProvider < ApplicationRecord
       parent_path = path_for(parent_type)
       return nil if parent_path.blank?
 
-      suffix = warehouse_folders&.dig(type_key)
-      suffix = suffix.sub(parent_path, '').sub(/^\//, '') if suffix&.include?(parent_path)
-      return nil if suffix.blank? || suffix == "DISABLED"
+      stored_value = warehouse_folders&.dig(type_key)
+      return nil if stored_value.blank? || stored_value == "DISABLED"
+
+      # Extract suffix from stored value using multiple strategies:
+      suffix = extract_suffix_from_stored_path(stored_value, parent_path)
+      return nil if suffix.blank?
 
       "#{parent_path}/#{suffix}".gsub(%r{//+}, '/')
     else
@@ -413,6 +417,44 @@ class WarehouseProvider < ApplicationRecord
       return nil if path.blank? || path == "DISABLED"
       path
     end
+  end
+
+  # Extract suffix from stored value, handling multiple formats:
+  # 1. New format: just "Attachments" (suffix only)
+  # 2. Old format: "Tasks/{{TaskId}}/Attachments" (full path with different parent)
+  # 3. Exact match: "Tasks/{{TaskId}}/{{TaskName}}/Attachments" (starts with current parent)
+  #
+  # @param stored_value [String] The value from warehouse_folders
+  # @param parent_path [String] The current parent path template
+  # @return [String] The extracted suffix
+  #
+  def extract_suffix_from_stored_path(stored_value, parent_path)
+    return stored_value if stored_value.blank?
+
+    # Strategy 1: If stored value doesn't contain slashes, it's already a suffix
+    return stored_value unless stored_value.include?('/')
+
+    # Strategy 2: If stored value starts with parent path, strip it
+    if stored_value.start_with?(parent_path)
+      return stored_value.sub(parent_path, '').sub(/^\//, '')
+    end
+
+    # Strategy 3: Find common prefix and extract the differing part
+    # Example: stored="Tasks/{{TaskId}}/Attachments", parent="Tasks/{{TaskId}}/{{TaskName}}"
+    # Common prefix is "Tasks/{{TaskId}}", suffix should be "Attachments"
+    stored_parts = stored_value.split('/')
+    parent_parts = parent_path.split('/')
+
+    # Find where paths diverge
+    diff_index = 0
+    while diff_index < stored_parts.length && diff_index < parent_parts.length &&
+          stored_parts[diff_index] == parent_parts[diff_index]
+      diff_index += 1
+    end
+
+    # Return the differing parts from stored value (usually just the last segment)
+    suffix_parts = stored_parts[diff_index..]
+    suffix_parts.present? ? suffix_parts.join('/') : stored_value.split('/').last
   end
 
   # Get all warehouse folders (full templates with tokens)
@@ -593,8 +635,13 @@ class WarehouseProvider < ApplicationRecord
                         record.try(:document_type)&.titleize ||
                         "Documents"
 
-    # Task ID for task documents
-    tokens[:TaskId] = record.id if record.is_a?(DocumentTask) || record.class.name == "SmTaskAttachment"
+    # Task context for task documents
+    if record.is_a?(DocumentTask) || record.class.name == "SmTaskAttachment"
+      tokens[:TaskId] = record.sm_task&.id || record.id
+      # TaskName: parameterize for URL-safe folder names
+      task_name = record.sm_task&.name.presence || "task-#{record.id}"
+      tokens[:TaskName] = task_name.parameterize
+    end
 
     tokens
   end

@@ -69,46 +69,10 @@ class RecomputeWarehouseFoldersJob < ApplicationJob
   end
 
   def compute_folder_for_document(config, doc, warehouse_type)
-    tokens = extract_tokens_for_document(doc)
-    config.resolve_virtual_path(warehouse_type.to_sym, tokens)
-  end
+    # SSoT: Use WarehouseProvider's extract_tokens_from (no duplicate logic)
+    tokens = config.extract_tokens_from(doc.documentable)
 
-  # Extract token values from document and its documentable
-  def extract_tokens_for_document(doc)
-    tokens = {}
-    documentable = doc.documentable
-
-    # Task context
-    if documentable.respond_to?(:id) && doc.source_type == "task"
-      tokens[:TaskId] = documentable.id
-    end
-
-    # Job context
-    if documentable.respond_to?(:job) && documentable.job
-      tokens[:JobCode] = documentable.job.job_code
-    elsif documentable.respond_to?(:job_code)
-      tokens[:JobCode] = documentable.job_code
-    end
-
-    # Contact context
-    if documentable.respond_to?(:contact) && documentable.contact
-      tokens[:ContactName] = documentable.contact.display_name.presence || "Contact-#{documentable.contact.id}"
-      tokens[:ContactId] = documentable.contact.id
-    end
-
-    # Corporate company context
-    if documentable.respond_to?(:corporate_company) && documentable.corporate_company
-      tokens[:CompanyCode] = documentable.corporate_company.company_code
-      tokens[:CompanyName] = documentable.corporate_company.name
-      tokens[:CompanyGroup] = documentable.corporate_company.company_group.presence || "Default"
-    end
-
-    # Case context
-    if documentable.respond_to?(:case_number)
-      tokens[:CaseId] = documentable.case_number
-    end
-
-    # Email context
+    # Add email-specific context (not in documentable)
     if doc.source_type.in?(%w[email email_attachment])
       tokens[:Mailbox] = doc.meta("mailbox") || "Unknown"
       received_at = doc.email_received_at || doc.created_at
@@ -116,11 +80,11 @@ class RecomputeWarehouseFoldersJob < ApplicationJob
       tokens[:Month] = received_at&.strftime("%m")
     end
 
-    # Date tokens
+    # Fallback date tokens if not set
     date = doc.created_at || Time.current
     tokens[:Year] ||= date.year.to_s
     tokens[:Month] ||= date.strftime("%m")
 
-    tokens
+    config.resolve_virtual_path(warehouse_type.to_sym, tokens)
   end
 end

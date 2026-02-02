@@ -81,8 +81,12 @@ class XeroAttachmentSyncJob < ApplicationJob
       combined_results[:tenants_processed] += 1
       combined_results[:tenant_results] << result.merge(tenant_id: credential.tenant_id)
 
-      # If we hit rate limits, don't continue to other tenants
-      break if result[:rate_limited] || result[:blocked_by_lockout]
+      # FRC (Feb 2026): Each Xero org has its OWN rate limit - don't stop other orgs!
+      # Previous code: break if result[:rate_limited] - WRONG, killed throughput
+      # Now we just log and continue to next tenant
+      if result[:rate_limited] || result[:blocked_by_lockout]
+        Rails.logger.info("[XeroAttachmentSync] #{credential.tenant_name} rate limited, continuing to next org")
+      end
     end
 
     Rails.logger.info("[XeroAttachmentSync] All orgs complete: #{combined_results.slice(:tenants_processed, :processed, :success, :failed)}")

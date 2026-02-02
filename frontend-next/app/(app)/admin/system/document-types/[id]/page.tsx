@@ -222,15 +222,10 @@ export default function DocumentTypeDetailPage() {
   const urlTabId = searchParams.get("tab");
 
   // SSoT: Fetch available tabs from EntityTab API (replaces old document_folders)
+  // Groups tabs by scope (Corporate, Job, Contact) for hierarchical display
   React.useEffect(() => {
     const fetchFolders = async () => {
       try {
-        // Use document type scope (for existing) or URL scope (for new), default to corporate
-        const scope = (documentType?.scope || urlScope || "company").toLowerCase();
-        // Map document type scope to EntityTab scope
-        // SSoT: "contacts" maps to "contact" (Jan 2026 consolidation)
-        const entityTabScope = scope === "contacts" ? "contact" : scope === "job" || scope === "jobs" ? "job" : "corporate";
-
         // Build folder hierarchy recursively for all depths
         const mapTabRecursive = (tab: any): any => ({
           id: tab.id,
@@ -241,39 +236,53 @@ export default function DocumentTypeDetailPage() {
           children: (tab.children || []).map(mapTabRecursive)
         });
 
-        // Fetch EntityTabs for the appropriate scope, documents group
-        // SSoT: Xero tabs are children of the Xero tab in corporate scope
-        const data = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${entityTabScope}`);
-        let allDocumentTabs: any[] = [];
+        // SSoT: Fetch ALL tabs from ALL scopes and group by scope
+        // This creates a hierarchy: Corporate > tabs, Job > tabs, Contact > tabs
+        const scopeConfig = [
+          { apiScope: 'corporate', displayName: 'Corporate', icon: '🏢' },
+          { apiScope: 'job', displayName: 'Job', icon: '📋' },
+          { apiScope: 'contact', displayName: 'Contact', icon: '👤' }
+        ];
 
-        if (data.success && data.data?.tabs) {
-          // SSoT: Filter to tabs that can store documents (has_storage_folder: true OR tab_group: 'documents')
-          allDocumentTabs = data.data.tabs.filter((t: any) => t.has_storage_folder || t.tab_group === 'documents');
-        }
-
-        // SSoT: Fetch ALL tabs from ALL scopes for name lookups
-        // This ensures we can display tab names even for tabs from other scopes
-        // (e.g., a company doc type referencing a job or contact tab)
-        const allScopes = ['corporate', 'job', 'contact'];
+        const scopeGroupedHierarchy: any[] = [];
         const allTabsFromAllScopes: any[] = [];
-        for (const scope of allScopes) {
+
+        for (const scopeCfg of scopeConfig) {
           try {
-            const scopeData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${scope}`);
+            const scopeData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${scopeCfg.apiScope}`);
             if (scopeData.success && scopeData.data?.tabs) {
+              // Filter to tabs that can store documents
+              const documentTabs = scopeData.data.tabs.filter((t: any) => t.has_storage_folder || t.tab_group === 'documents');
+
+              // Add to all tabs for lookup
               allTabsFromAllScopes.push(...scopeData.data.tabs.map(mapTabRecursive));
+
+              // Create scope group with tabs as children
+              if (documentTabs.length > 0) {
+                scopeGroupedHierarchy.push({
+                  id: `scope-${scopeCfg.apiScope}`,
+                  name: scopeCfg.displayName,
+                  tab_key: scopeCfg.apiScope,
+                  storage_path: scopeCfg.displayName,
+                  isScope: true, // Flag to identify scope-level items
+                  children: documentTabs.map(mapTabRecursive)
+                });
+              }
             }
           } catch {
             // Continue if one scope fails
           }
         }
+
         setAllTabsForLookup(allTabsFromAllScopes);
 
-        if (allDocumentTabs.length > 0) {
-          const hierarchy = allDocumentTabs.map(mapTabRecursive);
-          setFolderHierarchy(hierarchy);
+        if (scopeGroupedHierarchy.length > 0) {
+          setFolderHierarchy(scopeGroupedHierarchy);
 
-          // Extract root tab names for Folder/Primary Tab dropdowns (keep sorted)
-          const rootNames = allDocumentTabs.map((t: any) => t.display_name).sort();
+          // Extract all tab names for folder options
+          const rootNames = scopeGroupedHierarchy
+            .flatMap(scope => scope.children.map((t: any) => t.name))
+            .sort();
           setFolderOptions(rootNames);
         } else {
           // Fallback to hard-coded list if API fails
@@ -291,41 +300,51 @@ export default function DocumentTypeDetailPage() {
   }, [urlScope, documentType?.scope]);
 
   // SSoT: Xero subtabs are now children of "Xero" tab in EntityTab system
-  // They're included in the main entity_tabs fetch above, so we extract them from folderHierarchy
+  // With scope-first hierarchy, Xero is under Corporate > Xero
   React.useEffect(() => {
-    // Find Xero in the folder hierarchy and use its children as Xero tabs
-    const xeroFolder = folderHierarchy.find((f: any) => f.name === "Xero" || f.tab_key === "xero");
-    if (xeroFolder) {
-      setXeroTabs([{
-        name: xeroFolder.name,
-        key: xeroFolder.tab_key || "xero",
-        id: xeroFolder.id,
-        children: (xeroFolder.children || []).map((c: any) => ({
-          name: c.name,
-          key: c.tab_key,
-          id: c.id
-        }))
-      }]);
+    // Find Corporate scope, then find Xero tab within it
+    const corporateScope = folderHierarchy.find((f: any) => f.tab_key === "corporate" || f.name === "Corporate");
+    if (corporateScope) {
+      const xeroFolder = (corporateScope.children || []).find((f: any) => f.name === "Xero" || f.tab_key === "xero");
+      if (xeroFolder) {
+        setXeroTabs([{
+          name: xeroFolder.name,
+          key: xeroFolder.tab_key || "xero",
+          id: xeroFolder.id,
+          children: (xeroFolder.children || []).map((c: any) => ({
+            name: c.name,
+            key: c.tab_key,
+            id: c.id
+          }))
+        }]);
+      }
     }
   }, [folderHierarchy]);
 
   // Pre-fill folder from URL tab ID once hierarchy is loaded
+  // Now handles scope-first hierarchy: Scope > Tab > SubTab
   React.useEffect(() => {
     if (!isNew || !urlTabId || folderHierarchy.length === 0) return;
 
     const tabIdNum = parseInt(urlTabId);
-    // Find the tab name from the hierarchy
-    for (const folder of folderHierarchy) {
-      if (folder.id === tabIdNum) {
-        setDocumentType(prev => prev ? { ...prev, folder: folder.name, primary_tab: folder.name } : prev);
-        return;
-      }
-      // Check children
-      for (const child of folder.children || []) {
-        if (child.id === tabIdNum) {
-          // For subtabs, set folder to parent and keep the child in entity_tab_ids
-          setDocumentType(prev => prev ? { ...prev, folder: folder.name, primary_tab: folder.name } : prev);
-          return;
+
+    // Search through scope > tab > subtab hierarchy
+    for (const scopeGroup of folderHierarchy) {
+      // Skip scope-level items (they're not selectable tabs)
+      if (scopeGroup.isScope) {
+        // Check tabs within this scope
+        for (const tab of scopeGroup.children || []) {
+          if (tab.id === tabIdNum) {
+            setDocumentType(prev => prev ? { ...prev, folder: tab.name, primary_tab: tab.name } : prev);
+            return;
+          }
+          // Check subtabs
+          for (const subtab of tab.children || []) {
+            if (subtab.id === tabIdNum) {
+              setDocumentType(prev => prev ? { ...prev, folder: tab.name, primary_tab: tab.name } : prev);
+              return;
+            }
+          }
         }
       }
     }

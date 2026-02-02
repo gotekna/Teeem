@@ -452,20 +452,10 @@ export function AdminConfigSyncTab() {
     );
   }
 
+  // For non-TEEEM staff users, silently hide this admin-only section
+  // The "Tenant Configuration Overview" section below will still show
   if (error && !tables.length) {
-    return (
-      <Card className="border-destructive">
-        <CardHeader>
-          <CardTitle className="text-destructive flex items-center gap-2">
-            <AlertCircle className="h-5 w-5" />
-            Access Denied
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">{error}</p>
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   return (
