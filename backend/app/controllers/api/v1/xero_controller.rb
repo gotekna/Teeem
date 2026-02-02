@@ -2127,8 +2127,9 @@ module Api
           total_pending_reviews = all_xero_links.pending_review.count
 
           # Contacts linked to multiple Xero tenants
+          # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
           multi_tenant_contact_ids = all_xero_links.group(:contact_id)
-                                                    .having("COUNT(DISTINCT tenant_id) > 1")
+                                                    .having("COUNT(DISTINCT xero_org_id) > 1")
                                                     .pluck(:contact_id)
           multi_tenant_contacts_count = multi_tenant_contact_ids.count
 
@@ -2237,11 +2238,12 @@ module Api
           tenant_ids = credentials.pluck(:tenant_id)
 
           # Find contacts linked to 2+ Xero tenants (within visible tenants)
+          # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
           contact_ids_with_multiple_links = ContactExternalLink
             .xero
-            .where(tenant_id: tenant_ids)
+            .where(xero_org_id: tenant_ids)
             .group(:contact_id)
-            .having("COUNT(DISTINCT tenant_id) >= 2")
+            .having("COUNT(DISTINCT xero_org_id) >= 2")
             .count
             .keys
 
