@@ -1399,14 +1399,19 @@ function TabNode({
   const [editDisplayName, setEditDisplayName] = React.useState(tab.display_name || '');
   const [editSendName, setEditSendName] = React.useState(tab.send_name_template || '');
 
+  // Track previous isEditing state to only initialize on ENTRY to edit mode
+  const wasEditingRef = React.useRef(false);
   React.useEffect(() => {
-    if (isEditing) {
+    // Only reset edit fields when ENTERING edit mode (false → true)
+    // NOT when data changes during editing (that would overwrite user's changes)
+    if (isEditing && !wasEditingRef.current) {
       const stored = tab.warehouse_folder || tab.storage_folder_path;
       const folderName = stored ? extractFolderName(stored, basePath) : (tab.display_name || '');
       setEditPath(folderName);
       setEditDisplayName(tab.display_name || '');
       setEditSendName(tab.send_name_template || '');
     }
+    wasEditingRef.current = isEditing;
   }, [isEditing, tab.warehouse_folder, tab.storage_folder_path, tab.display_name, tab.send_name_template, basePath]);
 
   // Build full path preview: rootPath + basePath + folderName

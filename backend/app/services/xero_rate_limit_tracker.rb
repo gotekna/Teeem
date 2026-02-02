@@ -63,6 +63,12 @@ class XeroRateLimitTracker
     # SELF-HEALING (Feb 2026): Auto-clears stale lockouts that should have expired.
     # Cache entries can persist past their logical expiry due to clock drift or
     # cache backend issues. This method now proactively deletes expired entries.
+    #
+    # FRC (Feb 2026): Xero sometimes returns unreasonable retry-after (1 hour+).
+    # We cap max lockout to 15 minutes - if still rate limited, we'll get another
+    # 429 and wait another 15 min. Better than blocking for hours.
+    MAX_LOCKOUT_AGE = 15.minutes
+
     def current_lockout(tenant_id: nil)
       # FRC (Feb 2026): Check tenant-specific lockout FIRST (each org has independent limits)
       if tenant_id.present?
@@ -72,9 +78,8 @@ class XeroRateLimitTracker
           locked_until = Time.parse(tenant_lockout[:locked_until]) rescue nil
           recorded_at = Time.parse(tenant_lockout[:recorded_at]) rescue nil
 
-          # SELF-HEALING: Clear if expired OR recorded more than 1 hour ago (stale)
-          max_lockout_age = 1.hour
-          if locked_until.nil? || locked_until <= Time.current || (recorded_at && recorded_at < max_lockout_age.ago)
+          # SELF-HEALING: Clear if expired OR recorded more than MAX_LOCKOUT_AGE ago
+          if locked_until.nil? || locked_until <= Time.current || (recorded_at && recorded_at < MAX_LOCKOUT_AGE.ago)
             Rails.cache.delete(tenant_key)
             Rails.logger.info("[XeroRateLimitTracker] SELF-HEAL: Cleared expired/stale lockout for tenant #{tenant_id}")
           else
@@ -89,9 +94,8 @@ class XeroRateLimitTracker
         locked_until = Time.parse(lockout[:locked_until]) rescue nil
         recorded_at = Time.parse(lockout[:recorded_at]) rescue nil
 
-        # SELF-HEALING: Clear if expired OR recorded more than 1 hour ago (stale)
-        max_lockout_age = 1.hour
-        if locked_until.nil? || locked_until <= Time.current || (recorded_at && recorded_at < max_lockout_age.ago)
+        # SELF-HEALING: Clear if expired OR recorded more than MAX_LOCKOUT_AGE ago
+        if locked_until.nil? || locked_until <= Time.current || (recorded_at && recorded_at < MAX_LOCKOUT_AGE.ago)
           Rails.cache.delete(LOCKOUT_KEY)
           Rails.logger.info("[XeroRateLimitTracker] SELF-HEAL: Cleared expired/stale global lockout")
         else
@@ -147,8 +151,8 @@ class XeroRateLimitTracker
         locked_until = Time.parse(lockout[:locked_until]) rescue nil
         recorded_at = Time.parse(lockout[:recorded_at]) rescue nil
 
-        # Clear if: expired, unparseable, or recorded more than 1 hour ago
-        if locked_until.nil? || locked_until <= Time.current || (recorded_at && recorded_at < 1.hour.ago)
+        # Clear if: expired, unparseable, or recorded more than MAX_LOCKOUT_AGE ago
+        if locked_until.nil? || locked_until <= Time.current || (recorded_at && recorded_at < MAX_LOCKOUT_AGE.ago)
           Rails.cache.delete(tenant_key)
           cleared += 1
           Rails.logger.info("[XeroRateLimitTracker] HEAL_ALL: Cleared stale lockout for tenant #{tid}")
