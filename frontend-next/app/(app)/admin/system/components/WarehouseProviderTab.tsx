@@ -887,10 +887,10 @@ function TreeNode({
             {/* UI Name indicator: green=custom, orange=default */}
             <span
               className={cn(
-                "px-1 py-0.5 rounded text-[9px] font-sans font-medium",
+                "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
                 scopeUiName
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
-                  : "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300"
+                  ? "bg-green-500 text-white dark:bg-green-600"
+                  : "bg-orange-500 text-white dark:bg-orange-600"
               )}
               title={`UI Name: ${scopeUiName || '{{OriginalFileName}} (default)'}`}
             >
@@ -899,10 +899,10 @@ function TreeNode({
             {/* Download Name indicator: green=custom, orange=default */}
             <span
               className={cn(
-                "px-1 py-0.5 rounded text-[9px] font-sans font-medium",
+                "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
                 scopeDownloadName
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
-                  : "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300"
+                  ? "bg-green-500 text-white dark:bg-green-600"
+                  : "bg-orange-500 text-white dark:bg-orange-600"
               )}
               title={`Download Name: ${scopeDownloadName || '{{OriginalFileName}} (default)'}`}
             >
