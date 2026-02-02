@@ -1543,7 +1543,8 @@ module Api
                                        .where.not(external_invoices: { status: %w[voided deleted] })
 
           if tenant_id.present?
-            pdf_query = pdf_query.where(external_invoices: { tenant_id: tenant_id })
+            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+            pdf_query = pdf_query.where(external_invoices: { xero_org_id: tenant_id })
           end
 
           invoices_with_pdfs = pdf_query.distinct.count(:documentable_id)
@@ -1564,8 +1565,9 @@ module Api
                                            .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
                                            .where(documentable_type: "ExternalInvoice")
           if tenant_id.present?
+            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
             pdf_docs_query = pdf_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                           .where(external_invoices: { tenant_id: tenant_id })
+                                           .where(external_invoices: { xero_org_id: tenant_id })
           end
           last_pdf_sync = pdf_sync_status&.last_synced_at || pdf_docs_query.maximum(:created_at)
 
@@ -1576,8 +1578,9 @@ module Api
                                          .where(documentable_type: "ExternalInvoice")
                                          .where("warehouse_documents.created_at > ?", 24.hours.ago)
           if tenant_id.present?
+            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
             pdfs_last_24h_query = pdfs_last_24h_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                                     .where(external_invoices: { tenant_id: tenant_id })
+                                                     .where(external_invoices: { xero_org_id: tenant_id })
           end
           pdfs_last_24h = pdfs_last_24h_query.count
 
@@ -1602,8 +1605,9 @@ module Api
                                                    .where(documentable_type: "ExternalInvoice")
                                                    .where.not(storage_blob_id: nil)
           if tenant_id.present?
+            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
             sharepoint_docs_query = sharepoint_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                                         .where(external_invoices: { tenant_id: tenant_id })
+                                                         .where(external_invoices: { xero_org_id: tenant_id })
           end
           last_sharepoint_sync = sharepoint_sync_status&.last_synced_at || sharepoint_docs_query.maximum(:updated_at)
 
@@ -1623,7 +1627,8 @@ module Api
                                          .where(external_invoices: { invoice_type: "bill" })
                                          .where.not(external_invoices: { status: "draft" })
                                          .where.not(external_invoices: { status: %w[voided deleted] })
-          bills_query = bills_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
+          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          bills_query = bills_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
           bills_with_pdfs = bills_query.distinct.count("warehouse_documents.documentable_id")
 
           sales_total = pdf_eligible_invoices.sales_invoices.count
@@ -1636,7 +1641,8 @@ module Api
                                          .where(external_invoices: { invoice_type: "sales_invoice" })
                                          .where.not(external_invoices: { status: "draft" })
                                          .where.not(external_invoices: { status: %w[voided deleted] })
-          sales_query = sales_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
+          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          sales_query = sales_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
           sales_with_pdfs = sales_query.distinct.count("warehouse_documents.documentable_id")
 
           quotes_total = pdf_eligible_invoices.quotes.count
@@ -1649,7 +1655,8 @@ module Api
                                           .where(external_invoices: { invoice_type: "quote" })
                                           .where.not(external_invoices: { status: "draft" })
                                           .where.not(external_invoices: { status: %w[voided deleted] })
-          quotes_query = quotes_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
+          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          quotes_query = quotes_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
           quotes_with_pdfs = quotes_query.distinct.count("warehouse_documents.documentable_id")
 
           # Credit notes breakdown
@@ -1663,7 +1670,8 @@ module Api
                                                 .where(external_invoices: { invoice_type: "credit_note" })
                                                 .where.not(external_invoices: { status: "draft" })
                                                 .where.not(external_invoices: { status: %w[voided deleted] })
-          credit_notes_query = credit_notes_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
+          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          credit_notes_query = credit_notes_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
           credit_notes_with_pdfs = credit_notes_query.distinct.count("warehouse_documents.documentable_id")
 
           # Estimate time remaining for PDF sync (based on 10s per invoice)
