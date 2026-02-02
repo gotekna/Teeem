@@ -2153,11 +2153,11 @@ module Api
                                                 .includes(:contact)
                                                 .limit(10)
                                                 .map do |link|
-            tenant = credentials.find { |c| c.tenant_id == link.tenant_id }
+            tenant = credentials.find { |c| c.tenant_id == link.xero_org_id }
             # Try to get Xero contact name from multiple sources
             xero_name = link.external_name ||
                         link.metadata&.dig("name") ||
-                        ExternalInvoice.where(external_contact_id: link.external_contact_id, tenant_id: link.tenant_id)
+                        ExternalInvoice.where(external_contact_id: link.external_contact_id, tenant_id: link.xero_org_id)
                                        .where.not(contact_name: nil)
                                        .limit(1)
                                        .pick(:contact_name) ||
@@ -2166,7 +2166,7 @@ module Api
               id: link.id,
               contact_id: link.contact_id,
               contact_name: link.contact&.display_name,
-              tenant_id: link.tenant_id,
+              tenant_id: link.xero_org_id,
               tenant_name: tenant&.tenant_name || link.tenant_name,
               external_contact_id: link.external_contact_id,
               external_contact_name: xero_name,
@@ -2718,7 +2718,7 @@ module Api
 
             # Push to Xero - wrap in per-contact exception handling
             begin
-              result = xero_client.post("Contacts", xero_payload, tenant_id: link.tenant_id)
+              result = xero_client.post("Contacts", xero_payload, tenant_id: link.xero_org_id)
 
               if result[:success]
                 # Update the external_name to match what we pushed
@@ -2798,7 +2798,7 @@ module Api
             next unless contact
 
             # Fetch Xero contact details
-            result = xero_client.get("Contacts/#{link.external_contact_id}", tenant_id: link.tenant_id)
+            result = xero_client.get("Contacts/#{link.external_contact_id}", tenant_id: link.xero_org_id)
 
             unless result[:success] && result[:data].present?
               comparisons << {
@@ -3219,7 +3219,7 @@ module Api
           result = stale_links.map do |link|
             # Find invoices still pointing to this stale Xero contact
             invoices = ExternalInvoice
-              .where(tenant_id: link.tenant_id, external_contact_id: link.external_contact_id)
+              .where(tenant_id: link.xero_org_id, external_contact_id: link.external_contact_id)
               .order(invoice_date: :desc)
               .limit(10)
 
@@ -3227,8 +3227,8 @@ module Api
               link_id: link.id,
               xero_contact_name: link.external_name,
               xero_contact_id: link.external_contact_id,
-              tenant_id: link.tenant_id,
-              tenant_name: XeroCredential.find_by(tenant_id: link.tenant_id)&.tenant_name,
+              tenant_id: link.xero_org_id,
+              tenant_name: XeroCredential.find_by(tenant_id: link.xero_org_id)&.tenant_name,
               sync_error: link.sync_error,
               teeem_contact_id: link.contact_id,
               teeem_contact_name: link.contact&.display_name,

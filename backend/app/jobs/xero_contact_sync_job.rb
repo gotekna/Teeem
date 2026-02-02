@@ -154,7 +154,8 @@ class XeroContactSyncJob < ApplicationJob
   def sync_contact_from_xero(contact_id, tenant_id)
     Rails.logger.info("XeroContactSyncJob: Syncing contact #{contact_id} from Xero tenant #{tenant_id}")
     contact = Contact.find(contact_id)
-    link = contact.xero_links.find_by(tenant_id: tenant_id)
+    # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
+    link = contact.xero_links.find_by(xero_org_id: tenant_id)
 
     if link
       service = XeroContactSyncService.new(tenant_id: tenant_id)

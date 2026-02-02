@@ -33,8 +33,8 @@ module Api
 
         # Trigger sync now that it's approved
         begin
-          sync_service = XeroContactSyncService.new(tenant_id: @xero_link.tenant_id)
-          xero_contact = sync_service.fetch_single_xero_contact(@xero_link.external_contact_id, @xero_link.tenant_id)
+          sync_service = XeroContactSyncService.new(tenant_id: @xero_link.xero_org_id)
+          xero_contact = sync_service.fetch_single_xero_contact(@xero_link.external_contact_id, @xero_link.xero_org_id)
           if xero_contact
             sync_service.send(:sync_matched_contact, @xero_link.contact, xero_contact, @xero_link)
           end
@@ -60,7 +60,7 @@ module Api
         end
 
         xero_contact_id = @xero_link.external_contact_id
-        tenant_id = @xero_link.tenant_id
+        tenant_id = @xero_link.xero_org_id
 
         # Delete the incorrect link
         @xero_link.destroy!
@@ -106,7 +106,8 @@ module Api
         end
 
         # Check if already linked to this tenant
-        if @contact.xero_links.exists?(tenant_id: tenant_id)
+        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
+        if @contact.xero_links.exists?(xero_org_id: tenant_id)
           return render json: {
             success: false,
             error: "Contact already linked to this Xero organization"
@@ -186,7 +187,7 @@ module Api
         # Check if target already has link to same tenant
         existing_link = target_contact.external_links.find_by(
           source: @xero_link.source,
-          tenant_id: @xero_link.tenant_id
+          tenant_id: @xero_link.xero_org_id
         )
 
         if existing_link
@@ -272,12 +273,12 @@ module Api
       end
 
       def serialize_xero_link(link)
-        config = SyncConfiguration.find_by(xero_tenant_id: link.tenant_id)
+        config = SyncConfiguration.find_by(xero_tenant_id: link.xero_org_id)
 
         # Count invoices for this contact from this Xero tenant
         invoice_count = ExternalInvoice.where(
           contact_id: link.contact_id,
-          tenant_id: link.tenant_id,
+          tenant_id: link.xero_org_id,
           source: "xero"
         ).count
 
@@ -286,11 +287,11 @@ module Api
           contact_id: link.contact_id,
           source: link.source,
           # Legacy field names for backwards compatibility with frontend
-          xero_tenant_id: link.tenant_id,
+          xero_tenant_id: link.xero_org_id,
           xero_tenant_name: link.tenant_name,
           xero_contact_id: link.external_contact_id,
           # New generic field names
-          tenant_id: link.tenant_id,
+          tenant_id: link.xero_org_id,
           tenant_name: link.tenant_name,
           external_contact_id: link.external_contact_id,
           sync_enabled: link.sync_enabled,

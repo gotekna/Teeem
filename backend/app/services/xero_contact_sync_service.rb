@@ -131,8 +131,9 @@ class XeroContactSyncService
   end
 
   # Sync a single contact to a specific tenant
+  # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
   def sync_contact_to_tenant(contact, tenant_id)
-    link = contact.xero_links.find_by(tenant_id: tenant_id)
+    link = contact.xero_links.find_by(xero_org_id: tenant_id)
 
     if link&.external_contact_id.present?
       # Update existing Xero contact

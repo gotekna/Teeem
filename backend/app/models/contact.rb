@@ -1287,8 +1287,9 @@ class Contact < ApplicationRecord
   end
 
   # Get link for a specific Xero tenant
-  def xero_link_for_tenant(tenant_id)
-    xero_links.find_by(tenant_id: tenant_id)
+  # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
+  def xero_link_for_tenant(xero_org_id)
+    xero_links.find_by(xero_org_id: xero_org_id)
   end
 
   def has_xero_conflicts?

@@ -227,9 +227,10 @@ module Api
             xero_contact_status: contact.xero_contact_status,
             last_synced_at: contact.last_synced_at,
             xero_links_count: xero_links.count,
+            # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
             xero_orgs: xero_links.map { |link|
               {
-                tenant_id: link.tenant_id,
+                xero_org_id: link.xero_org_id,
                 external_contact_id: link.external_contact_id,
                 last_synced_at: link.last_synced_at
               }

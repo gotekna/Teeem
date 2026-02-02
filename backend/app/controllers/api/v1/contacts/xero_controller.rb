@@ -30,7 +30,8 @@ module Api
           end
 
           # Check if already linked to this tenant
-          existing_link = @contact.xero_links.find_by(tenant_id: tenant_id)
+          # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
+          existing_link = @contact.xero_links.find_by(xero_org_id: tenant_id)
           if existing_link
             return render json: {
               success: false,
@@ -86,9 +87,10 @@ module Api
           render json: {
             success: true,
             message: "Contact linked to Xero successfully",
+            # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
             xero_link: {
               id: link.id,
-              tenant_id: link.tenant_id,
+              xero_org_id: link.xero_org_id,
               tenant_name: link.tenant_name,
               external_contact_id: link.external_contact_id,
               xero_contact_name: xero_contact["Name"]
@@ -194,8 +196,9 @@ module Api
           tenant_id = params[:tenant_id]
 
           # Find the xero link to sync from
+          # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
           link = if tenant_id.present?
-            @contact.xero_links.find_by(tenant_id: tenant_id)
+            @contact.xero_links.find_by(xero_org_id: tenant_id)
           else
             @contact.xero_links.first
           end
@@ -213,7 +216,7 @@ module Api
           end
 
           begin
-            sync_service = XeroContactSyncService.new(tenant_id: link.tenant_id)
+            sync_service = XeroContactSyncService.new(tenant_id: link.xero_org_id)
             result = sync_service.sync_from_xero(link)
 
             if result[:success]
@@ -253,8 +256,9 @@ module Api
           tenant_id = params[:tenant_id]
 
           # Find the xero link to sync to
+          # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
           link = if tenant_id.present?
-            @contact.xero_links.find_by(tenant_id: tenant_id)
+            @contact.xero_links.find_by(xero_org_id: tenant_id)
           else
             @contact.xero_links.first
           end
@@ -267,7 +271,7 @@ module Api
           end
 
           begin
-            sync_service = XeroContactSyncService.new(tenant_id: link.tenant_id)
+            sync_service = XeroContactSyncService.new(tenant_id: link.xero_org_id)
             result = sync_service.sync_to_xero(@contact, link)
 
             if result[:success]
