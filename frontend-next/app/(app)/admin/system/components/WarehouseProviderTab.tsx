@@ -1987,7 +1987,7 @@ export function WarehouseProviderTab() {
     // Helper: Check if tab has doc types directly AND is warehouse enabled
     // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)
     const tabHasDocTypesAndWarehouse = (tab: WarehouseTabConfig): boolean => {
-      const isWarehouseEnabled = tab.warehouse_enabled ?? tab.has_storage_folder;
+      const isWarehouseEnabled = tab.warehouse_enabled ?? tab.has_storage_folder ?? false;
       const hasDocTypes = !!(tab.document_types && tab.document_types.length > 0);
       return isWarehouseEnabled && hasDocTypes;
     };
