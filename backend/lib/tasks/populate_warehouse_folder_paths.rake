@@ -7,68 +7,97 @@ namespace :warehouse do
     puts "Populating warehouse_folder paths for all tabs"
     puts "=" * 60
 
-    updated_count = 0
-    skipped_count = 0
-    error_count = 0
+    total_updated = 0
+    total_skipped = 0
+    total_errors = 0
 
-    # Get the warehouse_folders templates from WarehouseProvider
-    provider = WarehouseProvider.instance
-    templates = provider&.warehouse_folders || {}
+    # Process each tenant
+    Tenant.find_each do |tenant|
+      puts "\n" + "=" * 60
+      puts "TENANT: #{tenant.id} - #{tenant.name}"
+      puts "=" * 60
 
-    puts "\nWarehouse type templates:"
-    templates.each { |k, v| puts "  #{k}: #{v}" }
-    puts ""
+      ActsAsTenant.with_tenant(tenant) do
+        updated_count = 0
+        skipped_count = 0
+        error_count = 0
 
-    # Process each warehouse type
-    WarehouseFolder::WAREHOUSE_TYPES.each do |warehouse_type|
-      puts "\n--- Processing #{warehouse_type} ---"
+        # Get the warehouse_folders templates from WarehouseProvider
+        provider = WarehouseProvider.for_tenant(tenant)
+        templates = provider&.warehouse_folders || {}
 
-      base_template = templates[warehouse_type]
-      unless base_template
-        puts "  ⚠️  No template found for #{warehouse_type}, skipping"
-        next
-      end
+        if templates.empty?
+          puts "  ⚠️  No warehouse_folders templates found, skipping tenant"
+          next
+        end
 
-      # Get all tabs for this warehouse type, ordered by hierarchy
-      tabs = WarehouseFolder.where(warehouse_type: warehouse_type)
-                            .includes(:parent)
-                            .order(:parent_id, :order_position)
+        puts "\nWarehouse type templates:"
+        templates.each { |k, v| puts "  #{k}: #{v}" }
+        puts ""
 
-      tabs.each do |tab|
-        begin
-          # Skip if already has a custom warehouse_folder
-          existing = tab.read_attribute(:warehouse_folder)
-          if existing.present?
-            puts "  ⏭️  #{tab.display_name} - already has path: #{existing}"
-            skipped_count += 1
+        # Process each warehouse type
+        WarehouseFolder::WAREHOUSE_TYPES.each do |warehouse_type|
+          puts "\n--- Processing #{warehouse_type} ---"
+
+          base_template = templates[warehouse_type]
+          unless base_template
+            puts "  ⚠️  No template found for #{warehouse_type}, skipping"
             next
           end
 
-          # Compute the full path
-          full_path = compute_full_path(tab, base_template)
+          # Get all tabs for this warehouse type, ordered by hierarchy
+          tabs = WarehouseFolder.where(warehouse_type: warehouse_type)
+                                .includes(:parent)
+                                .order(:parent_id, :order_position)
 
-          if full_path.present?
-            tab.update_column(:warehouse_folder, full_path)
-            puts "  ✅ #{tab.display_name} → #{full_path}"
-            updated_count += 1
-          else
-            puts "  ⚠️  #{tab.display_name} - could not compute path"
-            skipped_count += 1
+          tabs.each do |tab|
+            begin
+              # Skip if already has a custom warehouse_folder
+              existing = tab.read_attribute(:warehouse_folder)
+              if existing.present?
+                puts "  ⏭️  #{tab.display_name} - already has path: #{existing}"
+                skipped_count += 1
+                next
+              end
+
+              # Compute the full path
+              full_path = compute_full_path(tab, base_template)
+
+              if full_path.present?
+                tab.update_column(:warehouse_folder, full_path)
+                puts "  ✅ #{tab.display_name} → #{full_path}"
+                updated_count += 1
+              else
+                puts "  ⚠️  #{tab.display_name} - could not compute path"
+                skipped_count += 1
+              end
+            rescue => e
+              puts "  ❌ #{tab.display_name} - ERROR: #{e.message}"
+              error_count += 1
+            end
           end
-        rescue => e
-          puts "  ❌ #{tab.display_name} - ERROR: #{e.message}"
-          error_count += 1
         end
+
+        puts "\nTenant Summary:"
+        puts "  Updated: #{updated_count}"
+        puts "  Skipped: #{skipped_count}"
+        puts "  Errors: #{error_count}"
+
+        total_updated += updated_count
+        total_skipped += skipped_count
+        total_errors += error_count
       end
     end
 
     puts "\n" + "=" * 60
-    puts "Summary:"
-    puts "  Updated: #{updated_count}"
-    puts "  Skipped (already set): #{skipped_count}"
-    puts "  Errors: #{error_count}"
+    puts "TOTAL Summary:"
+    puts "  Updated: #{total_updated}"
+    puts "  Skipped (already set): #{total_skipped}"
+    puts "  Errors: #{total_errors}"
     puts "=" * 60
   end
+
+  private
 
   # Compute the full path for a tab based on its hierarchy
   def compute_full_path(tab, base_template)
@@ -85,7 +114,7 @@ namespace :warehouse do
     # The base template typically ends with {{TabName}} or similar
     # We need to replace that with the actual hierarchy
 
-    # Extract the base path (everything before the last placeholder)
+    # Extract the base path (everything before the last placeholder like {{TabName}})
     # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}" -> "Corporate/{{CompanyGroup}}/{{CompanyCode}}"
     base_path = base_template.gsub(/\/\{\{TabName\}\}$/, '')
                              .gsub(/\/\{\{[^}]+\}\}$/, '') # Remove any trailing placeholder
