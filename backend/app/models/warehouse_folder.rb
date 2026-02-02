@@ -606,6 +606,7 @@ class WarehouseFolder < ApplicationRecord
       warehouse_enabled: warehouse_enabled,
       warehouse_folder: read_attribute(:warehouse_folder),  # SSoT: Raw value for editing (nil = use display_name default)
       download_name: read_attribute(:download_name),  # SSoT: "Document Download Name" in UI
+      ui_name: read_attribute(:ui_name),  # SSoT: "Document UI Name" in UI
       full_warehouse_path: full_warehouse_path,
       # SSoT: Template inheritance fields
       uses_custom_path: uses_custom_path,

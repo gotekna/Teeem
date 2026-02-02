@@ -1333,6 +1333,55 @@ export function WarehouseFoldersConfig({
                   </Tooltip>
                 </TooltipProvider>
               )}
+              {/* SSoT: Document naming indicators (green=custom, orange=default) */}
+              {(tab.warehouse_enabled || hasChildren) && (
+                <>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-xs gap-0.5 font-normal",
+                            tab.ui_name
+                              ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                              : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                          )}
+                        >
+                          <span>UI</span>
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p className="font-medium">Document UI Name</p>
+                        <p className="font-mono text-xs mt-1">{tab.ui_name || "{{OriginalFileName}}"}</p>
+                        <p className="text-muted-foreground mt-1 text-xs">{tab.ui_name ? "Custom template" : "Using default"}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-xs gap-0.5 font-normal",
+                            tab.download_name
+                              ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                              : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                          )}
+                        >
+                          <span>DL</span>
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p className="font-medium">Document Download Name</p>
+                        <p className="font-mono text-xs mt-1">{tab.download_name || "{{OriginalFileName}}"}</p>
+                        <p className="text-muted-foreground mt-1 text-xs">{tab.download_name ? "Custom template" : "Using default"}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </>
+              )}
               {/* SSoT: Primary Xero badge for tabs with xero_scope */}
               {tab.xero_scope === "primary" && (
                 <TooltipProvider>

@@ -43,6 +43,8 @@ export interface WarehouseFolder {
   xero_account_name: string | null;  // Resolved name (e.g., "Teeem Homes")
   warehouse_enabled: boolean;
   warehouse_folder: string | null;
+  download_name: string | null;  // SSoT: Document Download Name template (null = use default {{OriginalFileName}})
+  ui_name: string | null;  // SSoT: Document UI Name template (null = use default {{OriginalFileName}})
   full_warehouse_path: string | null;
   // SSoT: Template inheritance fields
   uses_custom_path: boolean;
