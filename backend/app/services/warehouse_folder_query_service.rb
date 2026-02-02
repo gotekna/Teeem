@@ -108,21 +108,21 @@ class WarehouseFolderQueryService
   end
 
   # Load storage config once (eliminates 192 queries)
-  # SSoT: Uses WarehouseProvider (not TenantSetting)
+  # SSoT: Uses WarehouseProvider for connection config only
+  # Path templates now come from warehouse_folders table (Feb 2026 consolidation)
   def load_storage_config
     config = WarehouseProvider.instance
     {
       root_path: config.root_path.presence || "",
-      # SSoT: warehouse_folders contains full path patterns including identifier
+      # SSoT: Base paths for legacy code (paths now stored per tab)
       paths: {
         job: config.path_for(:job),
         task: config.path_for(:task),
         people: config.path_for(:people),
         company: config.path_for(:corporate),
         contacts: config.path_for(:contacts)
-      },
-      # SSoT: Store full warehouse_folders for path derivation
-      warehouse_folders: config.effective_warehouse_folders
+      }
+      # NOTE: warehouse_folders removed - paths now stored directly in warehouse_folders table
     }
   end
 
@@ -141,24 +141,15 @@ class WarehouseFolderQueryService
     end
   end
 
-  # SSoT: Get resolved warehouse path by substituting folder name into template
-  # Template: WarehouseProvider.warehouse_folders (e.g., "Warehousing/{{TeeemXL}}")
-  # Folder name: warehouse_folder if set, otherwise display_name
+  # SSoT: Get the warehouse path template for this tab
+  # The warehouse_folder column stores the COMPLETE path template (Feb 2026 consolidation)
+  # No derivation needed - warehouse_folders table is THE ONE SSoT
   def derive_warehouse_folder(tab)
     return nil unless tab.warehouse_enabled
 
-    # Get template from SSoT
-    warehouse_type = tab.warehouse_type || 'corporate'
-    warehouse_type = WarehouseProvider::WAREHOUSE_KEY_ALIASES[warehouse_type] || warehouse_type
-    template = @storage_config.dig(:warehouse_folders, warehouse_type)
-    return nil unless template.present?
-
-    # SSoT: Use stored warehouse_folder if set, otherwise fall back to display_name
-    # warehouse_folder column EXISTS and stores the custom folder path/token
-    folder_name = tab.warehouse_folder.presence || tab.display_name.to_s
-
-    # Substitute folder name into template
-    template.gsub('{{TeeemXL}}', folder_name).gsub('{{TabName}}', folder_name)
+    # SSoT: warehouse_folder column stores complete path template
+    # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Documents"
+    tab.warehouse_folder
   end
 
   # Build JSON for a single tab (recursively includes children)
@@ -261,19 +252,20 @@ class WarehouseFolderQueryService
   end
 
   # Compute all warehouse-related paths
-  # SSoT: derived_folder comes from WarehouseProvider.warehouse_folders (not WarehouseFolder.warehouse_folder)
+  # SSoT: Compute warehouse paths from stored warehouse_folder column
+  # Feb 2026 consolidation: warehouse_folders table is THE ONE SSoT
   def compute_warehouse_data(tab, derived_folder)
     return {} unless tab.warehouse_enabled
 
     warehouse_type_key = warehouse_type_for_template(tab)
     base_path = compute_base_path(warehouse_type_key)
-    inherited_template = @storage_config.dig(:warehouse_folders, tab.warehouse_type)
-    effective_path = compute_effective_path(tab, inherited_template, derived_folder)
+    # SSoT: derived_folder IS the complete path template (from warehouse_folder column)
+    effective_path = derived_folder
     upload_path = compute_upload_path(tab, effective_path)
 
     {
       base_path: base_path,
-      inherited_template: inherited_template,
+      inherited_template: derived_folder,  # SSoT: Same as stored path
       effective_path: effective_path,
       upload_path: upload_path,
       full_path: derived_folder.present? ? "#{@storage_config[:root_path]}/#{derived_folder}" : nil
@@ -299,36 +291,8 @@ class WarehouseFolderQueryService
     "#{@storage_config[:root_path].chomp('/')}/#{sub_path.sub(/^\//, '')}"
   end
 
-  # Compute effective warehouse path (handles parent inheritance)
-  # SSoT: derived_folder comes from WarehouseProvider.warehouse_folders
-  def compute_effective_path(tab, template, derived_folder = nil)
-    return nil unless tab.warehouse_enabled
-
-    if tab.uses_custom_path && derived_folder.present?
-      # Custom path - use exactly what's derived from SSoT
-      derived_folder
-    elsif tab.parent_id.present?
-      # SSoT: Child tabs inherit from parent path
-      parent = @tabs_by_id[tab.parent_id]
-      if parent&.warehouse_enabled
-        parent_derived = derive_warehouse_folder(parent)
-        parent_template = @storage_config.dig(:warehouse_folders, parent.warehouse_type)
-        parent_path = compute_effective_path(parent, parent_template, parent_derived)
-        return nil unless parent_path.present?
-        "#{parent_path}/#{tab.display_name}"
-      else
-        nil
-      end
-    else
-      # Root tab - use derived folder or template from config
-      return derived_folder if derived_folder.present?
-      return nil unless template.present?
-      resolve_template(template, {
-        "Category" => tab.display_name,
-        "TabName" => tab.display_name
-      })
-    end
-  end
+  # NOTE: compute_effective_path removed (Feb 2026)
+  # Paths are now stored directly in warehouse_folder column - no derivation needed
 
   # Compute folder path for uploads (strips {{JobCode}} for job warehouse_type)
   def compute_upload_path(tab, effective_path)
