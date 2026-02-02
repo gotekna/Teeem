@@ -642,6 +642,13 @@ module Api
             }
           end.sort_by { |f| f[:name].to_s.downcase }
           files = []
+        elsif path == "Tasks" || path.start_with?("Tasks/")
+          # SSoT (Jan 2026): Tasks folder uses computed paths from WarehouseProvider templates
+          # This reads from warehouse_folders (path_for) so template changes take effect immediately
+          # No need to update stored folder column - paths are computed live
+          result = build_task_folder_tree_from_template(path)
+          folders = result[:folders]
+          files = result[:files]
         elsif !path.include?("/") && WarehouseFolder.warehouse_type_for_root_folder(path)
           # SSoT (Jan 2026): Root folder expanded - show tabs from WarehouseFolder
           # e.g., "Jobs" → shows Plans, Site, Sales, Photo, etc.
@@ -1287,6 +1294,117 @@ module Api
       end
 
       private
+
+      # ========================================
+      # SSoT: Computed Folder Tree Helpers
+      # ========================================
+
+      # Build task folder tree by computing paths from WarehouseProvider templates (SSoT)
+      # Instead of reading stored folder column, computes paths using path_for(:task_attachments)
+      # This ensures template changes (like adding {{TaskName}}) take effect immediately
+      #
+      # @param path [String] Current path (e.g., "", "Tasks", "Tasks/1811/task-name")
+      # @return [Hash] { folders: [...], files: [...] }
+      def build_task_folder_tree_from_template(path)
+        config = WarehouseProvider.instance
+
+        # Get all tasks with attachments
+        tasks_with_attachments = SmTask
+          .joins(:sm_task_attachments)
+          .distinct
+          .select(:id, :name)
+
+        # Compute folder path for each task using SSoT template
+        task_folders = {}
+        tasks_with_attachments.each do |task|
+          # Compute path from template: Tasks/{{TaskId}}/{{TaskName}}
+          computed_path = config.resolve_virtual_path(:task, {
+            TaskId: task.id,
+            TaskName: task.name&.parameterize || "task-#{task.id}"
+          })
+          next if computed_path.blank?
+
+          task_folders[computed_path] = {
+            task_id: task.id,
+            task_name: task.name,
+            attachment_count: task.sm_task_attachments.count
+          }
+        end
+
+        if path.blank? || path == "Tasks"
+          # Root level or Tasks level - show task folders
+          folders = task_folders.map do |folder_path, info|
+            # Extract the folder name after "Tasks/"
+            relative_path = folder_path.sub(%r{^Tasks/?}, "")
+            folder_name = relative_path.split("/").first
+            display_name = "##{info[:task_id]} #{info[:task_name]}"
+
+            {
+              name: display_name,
+              path: folder_path,
+              count: info[:attachment_count],
+              taskId: info[:task_id]
+            }
+          end
+
+          { folders: folders.sort_by { |f| f[:name].to_s.downcase }, files: [] }
+        else
+          # Deeper level - find matching task and show subfolders (Attachments/Responses)
+          matching_task_path = task_folders.keys.find { |p| path.start_with?(p) || p.start_with?(path) }
+
+          if matching_task_path
+            task_info = task_folders[matching_task_path]
+            task = SmTask.find_by(id: task_info[:task_id])
+
+            if path == matching_task_path
+              # At task folder level - show Attachments/Responses subfolders
+              attachments_path = config.resolve_virtual_path(:task_attachments, {
+                TaskId: task.id,
+                TaskName: task.name&.parameterize || "task-#{task.id}"
+              })
+              responses_path = config.resolve_virtual_path(:task_responses, {
+                TaskId: task.id,
+                TaskName: task.name&.parameterize || "task-#{task.id}"
+              })
+
+              attachments_count = task.sm_task_attachments.where(category: [nil, "info"]).count
+              responses_count = task.sm_task_attachments.where(category: "response").count
+
+              folders = []
+              folders << { name: "Attachments", path: attachments_path, count: attachments_count } if attachments_count > 0
+              folders << { name: "Responses", path: responses_path, count: responses_count } if responses_count > 0
+
+              { folders: folders, files: [] }
+            else
+              # At Attachments or Responses level - show files
+              is_responses = path.end_with?("/Responses")
+              attachments = if is_responses
+                              task.sm_task_attachments.where(category: "response")
+                            else
+                              task.sm_task_attachments.where(category: [nil, "info"])
+                            end
+
+              files = attachments.includes(:warehouse_document).map do |att|
+                wd = att.warehouse_document
+                {
+                  name: wd&.display_name || att.display_name || "Attachment #{att.id}",
+                  path: wd&.storage_blob&.storage_path,
+                  size: wd&.file_size || 0,
+                  content_type: wd&.content_type || "application/octet-stream",
+                  last_modified: att.updated_at&.iso8601,
+                  url: wd&.download_url,
+                  id: wd&.id,
+                  warehouse_document_id: wd&.id
+                }
+              end
+
+              { folders: [], files: files.sort_by { |f| f[:name].to_s.downcase } }
+            end
+          else
+            { folders: [], files: [] }
+          end
+        end
+      end
 
       # ========================================
       # Multi-Source Search Helpers (AttachmentPicker)
