@@ -192,7 +192,13 @@ class WarehouseProvider < ApplicationRecord
   #
   DEFAULT_WAREHOUSE_FOLDERS = {
     # User personal documents (Teeem Docs feature - Jan 2026)
-    'user' => 'Teeem Docs/{{UserName}}/{{Folder}}',
+    # Parent type has full path; child types store SUFFIX ONLY - derived from 'user' base
+    'user' => 'Teeem Docs/{{UserName}}/{{Year}}',
+    'user_excel' => 'Excel',           # SSoT: Suffix only - base from 'user'
+    'user_word' => 'Word',             # SSoT: Suffix only - base from 'user'
+    'user_powerpoint' => 'PowerPoint', # SSoT: Suffix only - base from 'user'
+    'user_pdf' => 'PDF',               # SSoT: Suffix only - base from 'user'
+    'user_notes' => 'Notes',           # SSoT: Suffix only - base from 'user'
     # Job documents - {{TabName}} resolves to tab's folder name (e.g., "Invoices", "Plans")
     'job' => 'Jobs/{{JobCode}}/{{TabName}}',
     # Contact documents (SSoT for all individuals - Jan 2026 'people' merged into 'contact')
@@ -351,6 +357,11 @@ class WarehouseProvider < ApplicationRecord
     'asset_expenses' => 'asset',
     'asset_service' => 'asset',
     'asset_readings' => 'asset',
+    'user_excel' => 'user',
+    'user_word' => 'user',
+    'user_powerpoint' => 'user',
+    'user_pdf' => 'user',
+    'user_notes' => 'user',
   }.freeze
 
   # SSoT: Returns the path template for a warehouse type

@@ -81,6 +81,11 @@ const WAREHOUSE_TYPE_PARENTS: Record<string, string> = {
   'asset_expenses': 'asset',
   'asset_service': 'asset',
   'asset_readings': 'asset',
+  'user_excel': 'user',
+  'user_word': 'user',
+  'user_powerpoint': 'user',
+  'user_pdf': 'user',
+  'user_notes': 'user',
 };
 
 // Human-readable labels for scope links
@@ -89,6 +94,15 @@ const SCOPE_LABELS: Record<string, string> = {
   job: 'Jobs',
   contact: 'Contacts',
   user: 'Teeem Docs',
+  // Teeem Docs sub-scopes (Feb 2026)
+  user_excel: 'Excel',
+  user_word: 'Word',
+  user_powerpoint: 'PowerPoint',
+  user_pdf: 'PDF',
+  user_notes: 'Notes',
+  // Email sub-scopes
+  email_body: 'Email Body',
+  email_attachments: 'Attachments',
   // Warehousing sub-scopes
   chat: 'Chat',
   bill_inbox: 'Bill Inbox',
@@ -294,8 +308,9 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
     'template_documents', 'template_bank_statements', 'template_invoices', 'template_email_signatures', 'template_pdf_fields',
     'esignature', 'esignature_pending', 'esignature_completed',
     'plan',
-    'task_attachments', 'task_responses'  // Task sub-scopes for attachments and responses
-    // Note: email_body, email_attachments NOT included - they're shown as entity tabs, not folder nodes
+    'task_attachments', 'task_responses',  // Task sub-scopes
+    'email_body', 'email_attachments',      // Email sub-scopes
+    'user_excel', 'user_word', 'user_powerpoint', 'user_pdf', 'user_notes',  // Teeem Docs sub-scopes
   ];
 
   filteredEntries.forEach(([key, path]) => {
@@ -361,11 +376,9 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
 
       currentPath = currentPath ? `${currentPath}/${part}` : part;
       const staticIndex = staticParts.indexOf(part);
-      const isLeaf = staticIndex === staticParts.length - 1;
-      // For scopes with subfolders after placeholder (like compliance, plan), set scopeKey on the LEAF
-      // For simple scopes (like job, contact), set scopeKey on first folder
-      const hasSubfolderAfterPlaceholder = staticParts.length > 1;
-      const shouldSetScopeKey = hasSubfolderAfterPlaceholder ? isLeaf : (staticIndex === 0);
+      // SSoT (Feb 2026): Always put scope badge on FIRST static folder (root level)
+      // This keeps badges visible at top level, not buried in subfolders
+      const shouldSetScopeKey = staticIndex === 0;
 
       // Look for existing node at this level
       let node = current.find(n => n.name === part);
@@ -2008,9 +2021,23 @@ export function WarehouseProviderTab() {
 
     // Helper: Filter tabs for scopes without doc types (just warehouse enabled)
     // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)
+    // SSoT (Feb 2026): Also exclude tabs whose tab_key matches a child scope in WAREHOUSE_TYPE_PARENTS
+    // These tabs now appear as folder nodes with badges, so showing them as entity tabs is duplicate
+    const CHILD_SCOPE_TAB_KEYS = Object.keys(WAREHOUSE_TYPE_PARENTS);
+    // SSoT: tab_key uses hyphens (email-attachments) but scope keys use underscores (email_attachments)
+    // Normalize both to underscores for comparison
+    const normalizeKey = (key: string) => key.replace(/-/g, '_');
     const filterWarehouseEnabledTabs = (tabs: WarehouseTabConfig[]): WarehouseTabConfig[] => {
       return tabs
-        .filter(tab => (tab.warehouse_enabled ?? tab.has_storage_folder) === true)
+        .filter(tab => {
+          // Must be warehouse enabled
+          if ((tab.warehouse_enabled ?? tab.has_storage_folder) !== true) return false;
+          // Exclude tabs that match child scope keys (they appear as folder nodes now)
+          // Normalize hyphen → underscore for comparison (tab_key: "email-attachments" → "email_attachments")
+          const normalizedTabKey = normalizeKey(tab.tab_key);
+          if (CHILD_SCOPE_TAB_KEYS.includes(normalizedTabKey)) return false;
+          return true;
+        })
         .map(tab => ({
           ...tab,
           children: tab.children ? filterWarehouseEnabledTabs(tab.children) : []
@@ -2018,14 +2045,14 @@ export function WarehouseProviderTab() {
     };
 
     // Attach tabs to scope nodes
-    // SSoT: For doc-type scopes, show tabs with document types
-    // For other scopes (email, task, warehouse), show all warehouse-enabled tabs
+    // SSoT (Feb 2026): Storage Config shows ALL warehouse-enabled tabs for ALL scopes
+    // Previously filtered by doc types, but that hid valid warehouse tabs without doc types
     const attachTabs = (nodes: FolderTreeNode[]) => {
       nodes.forEach(node => {
         if (node.scopeKey && entityTabs[node.scopeKey]) {
           const allTabs = entityTabs[node.scopeKey];
-          // Use different filter based on scope type
-          if (SCOPES_WITHOUT_DOC_TYPES.includes(node.scopeKey)) {
+          // Use warehouse-enabled filter for all scopes (not just SCOPES_WITHOUT_DOC_TYPES)
+          if (true) {  // Was: SCOPES_WITHOUT_DOC_TYPES.includes(node.scopeKey)
             node.tabs = filterWarehouseEnabledTabs(allTabs);
           } else {
             node.tabs = filterTabsWithDocTypes(allTabs);

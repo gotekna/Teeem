@@ -40,7 +40,7 @@ class WarehouseFolder < ApplicationRecord
     template_documents template_bank_statements template_invoices template_email_signatures template_pdf_fields
     esignature esignature_pending esignature_completed
     plan
-    xero user
+    xero user user_excel user_word user_powerpoint user_pdf user_notes
   ].freeze
 
   # Legacy alias for backward compatibility
