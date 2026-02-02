@@ -1984,32 +1984,24 @@ export function WarehouseProviderTab() {
     const scopeFolders = config?.warehouse_folders || {};
     const tree = buildFolderTree(scopeFolders);
 
-    // Helper: Check if tab has doc types directly
-    const tabHasDocTypes = (tab: WarehouseTabConfig): boolean => {
-      return !!(tab.document_types && tab.document_types.length > 0);
-    };
-
-    // Helper: Check if tab or any descendants have doc types AND warehouse enabled
+    // Helper: Check if tab has doc types directly AND is warehouse enabled
     // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)
-    const hasDescendantWithDocTypes = (tab: WarehouseTabConfig): boolean => {
-      // This tab has warehouse + doc types
+    const tabHasDocTypesAndWarehouse = (tab: WarehouseTabConfig): boolean => {
       const isWarehouseEnabled = tab.warehouse_enabled ?? tab.has_storage_folder;
-      if (isWarehouseEnabled && tabHasDocTypes(tab)) return true;
-      // Or any child has it
-      if (tab.children && tab.children.length > 0) {
-        return tab.children.some(child => hasDescendantWithDocTypes(child));
-      }
-      return false;
+      const hasDocTypes = !!(tab.document_types && tab.document_types.length > 0);
+      return isWarehouseEnabled && hasDocTypes;
     };
 
-    // Helper: Filter tabs recursively
-    // Keep a tab if: (has warehouse + doc types) OR (has children that qualify)
+    // Helper: Filter tabs to only those with document types DIRECTLY linked
+    // FRC (Feb 2026): Changed from hasDescendantWithDocTypes to direct check only
+    // Reason: Storage Config should show only tabs with doc types, not parent tabs
+    // whose children have doc types (those children aren't visible in this tree anyway)
     const filterTabsWithDocTypes = (tabs: WarehouseTabConfig[]): WarehouseTabConfig[] => {
       return tabs
-        .filter(tab => hasDescendantWithDocTypes(tab))
+        .filter(tab => tabHasDocTypesAndWarehouse(tab))
         .map(tab => ({
           ...tab,
-          // Recursively filter children - only keep those with warehouse + doc types (or qualifying descendants)
+          // Recursively filter children - only keep those with doc types directly
           children: tab.children ? filterTabsWithDocTypes(tab.children) : []
         }));
     };

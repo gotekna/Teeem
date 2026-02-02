@@ -22,8 +22,6 @@ class EmailSubscription < ApplicationRecord
   belongs_to :contact
   # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
   belongs_to :tenant
-  # DEPRECATED: Organization - kept for backwards compatibility
-  belongs_to :organization, optional: true
 
   has_many :email_mailboxes, dependent: :destroy
   has_many :email_migrations, dependent: :destroy
@@ -50,8 +48,6 @@ class EmailSubscription < ApplicationRecord
   scope :for_contact, ->(contact) { where(contact: contact) }
   # SSoT (Feb 2026): Tenant-scoped lookup
   scope :for_tenant, ->(tenant) { where(tenant: tenant) }
-  # DEPRECATED: Use for_tenant instead
-  scope :for_organization, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
 
   # Callbacks
   before_validation :set_defaults, on: :create

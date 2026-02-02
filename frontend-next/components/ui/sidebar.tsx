@@ -20,6 +20,8 @@ import {
   RefreshCw,
   ClipboardCopy,
   Check,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { clearAllCachedRecords } from "@/lib/records-cache";
@@ -443,7 +445,7 @@ function SidebarContent({
 }
 
 export function Sidebar() {
-  const { isExpanded, setIsExpanded } = useSidebar();
+  const { isExpanded, setIsExpanded, isPinned, setIsPinned } = useSidebar();
   const [persona, setPersona] = useState<Persona>('manager');
   const [badges, setBadges] = useState<Record<string, number>>({});
   const [emailAccountBadges, setEmailAccountBadges] = useState<Record<string, number>>({});
@@ -1031,18 +1033,45 @@ export function Sidebar() {
         )}
       >
         <SidebarContent {...sidebarContentProps} />
-        {/* Chevron Toggle Button */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-background border border-border rounded-full flex items-center justify-center hover:bg-secondary transition-colors shadow-sm z-10"
-          aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
-        >
-          {isExpanded ? (
-            <ChevronLeft className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
+        {/* Sidebar Toggle Buttons */}
+        <div className="absolute -right-3 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-10">
+          {/* Pin Button - only show when expanded */}
+          {isExpanded && (
+            <button
+              onClick={() => setIsPinned(!isPinned)}
+              className={cn(
+                "w-6 h-6 bg-background border border-border rounded-full flex items-center justify-center hover:bg-secondary transition-colors shadow-sm",
+                isPinned && "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+              )}
+              aria-label={isPinned ? "Unpin sidebar" : "Pin sidebar open"}
+              title={isPinned ? "Unpin sidebar" : "Pin sidebar open"}
+            >
+              {isPinned ? (
+                <Pin className="h-3 w-3" />
+              ) : (
+                <PinOff className="h-3 w-3" />
+              )}
+            </button>
           )}
-        </button>
+          {/* Chevron Toggle Button - disabled when pinned */}
+          <button
+            onClick={() => !isPinned && setIsExpanded(!isExpanded)}
+            className={cn(
+              "w-6 h-6 bg-background border border-border rounded-full flex items-center justify-center transition-colors shadow-sm",
+              isPinned
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:bg-secondary"
+            )}
+            aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            disabled={isPinned}
+          >
+            {isExpanded ? (
+              <ChevronLeft className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+        </div>
       </aside>
     </>
   );

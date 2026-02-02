@@ -78,10 +78,10 @@ module Api
         end
 
         # Create the desktop client linked to current user
-        # Note: Using default organization since users aren't org-scoped yet
+        # SSoT (Feb 2026): Uses tenant for multi-tenancy isolation
         client = DesktopClient.create!(
           user: current_user,
-          organization: default_organization,
+          tenant: current_user.tenant,
           device_id: pending[:device_id],
           device_name: pending[:device_name],
           platform: pending[:platform],
@@ -264,9 +264,10 @@ module Api
 
       # GET /api/v1/sync/exclusions
       # Get effective exclusion rules for current user
+      # SSoT (Feb 2026): Uses tenant for multi-tenancy isolation
       def exclusions
         rules = SyncExclusionRule.effective_rules_for(
-          organization: default_organization,
+          tenant: current_user&.tenant,
           user: current_user
         )
 
@@ -288,10 +289,11 @@ module Api
         SyncExclusionRule.for_user(current_user).destroy_all
 
         # Create new rules
+        # SSoT (Feb 2026): Uses tenant for multi-tenancy isolation
         rules.each do |rule_params|
           SyncExclusionRule.create!(
             user: current_user,
-            organization: default_organization,
+            tenant: current_user&.tenant,
             rule_type: rule_params[:rule_type],
             value: rule_params[:value],
             action: rule_params[:action] || "skip",
@@ -504,7 +506,8 @@ module Api
         end
 
         # Generate upload URL based on storage provider
-        provider = default_organization.document_storage
+        # SSoT (Feb 2026): Uses tenant for storage provider lookup
+        provider = current_user.tenant.document_storage
         upload_info = provider.upload_url(
           folder: sub.remote_path,
           filename: file_name,
@@ -660,17 +663,6 @@ module Api
         ENV.fetch("FRONTEND_URL", "https://teeem.vercel.app")
       end
 
-      # SSoT (Jan 2026): Derive organization from tenant, not Organization.first
-      def default_organization
-        @default_organization ||= begin
-          if current_tenant
-            current_tenant.organizations.first
-          else
-            Rails.logger.warn "[SyncController] No tenant context - cannot determine organization"
-            nil
-          end
-        end
-      end
 
       # SSoT: Uses WarehouseProvider for base paths
       def folder_json(entity, type)

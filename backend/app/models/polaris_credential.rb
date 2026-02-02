@@ -15,8 +15,6 @@
 class PolarisCredential < ApplicationRecord
   # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
   belongs_to :tenant
-  # DEPRECATED: Organization - kept for backwards compatibility
-  belongs_to :organization, optional: true
 
   # Encrypt credentials (stored as api_key/api_secret for DB compatibility)
   encrypts :api_key      # Admin username
@@ -39,18 +37,12 @@ class PolarisCredential < ApplicationRecord
   scope :connected, -> { active.where(status: "connected") }
   # SSoT (Feb 2026): Tenant-scoped lookup
   scope :for_tenant, ->(tenant) { where(tenant: tenant) }
-  # DEPRECATED: Use for_tenant instead
-  scope :for_org, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
 
   # SSoT (Feb 2026): Tenant-scoped lookup
   def self.active_for_tenant(tenant)
     for_tenant(tenant).active.connected.first
   end
 
-  # DEPRECATED: Use active_for_tenant instead
-  def self.active_for_org(organization)
-    active_for_tenant(organization)
-  end
 
   # Connection testing
   def test_connection!

@@ -6,8 +6,6 @@ class StripeConfiguration < ApplicationRecord
   # Associations
   # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
   belongs_to :tenant, optional: true
-  # DEPRECATED: Organization - kept for backwards compatibility
-  belongs_to :organization, optional: true
 
   # Encryption
   encrypts :webhook_secret_encrypted
@@ -20,8 +18,6 @@ class StripeConfiguration < ApplicationRecord
   scope :enabled, -> { where(enabled: true) }
   # SSoT (Feb 2026): Tenant-scoped lookup
   scope :for_tenant, ->(tenant) { where(tenant: tenant) }
-  # DEPRECATED: Use for_tenant instead
-  scope :for_organization, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
 
   # Class Methods
 

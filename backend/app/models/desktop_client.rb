@@ -11,8 +11,6 @@ class DesktopClient < ApplicationRecord
   belongs_to :user
   # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
   belongs_to :tenant
-  # DEPRECATED: Organization - kept for backwards compatibility
-  belongs_to :organization, optional: true
 
   has_many :sync_subscriptions, dependent: :destroy
   has_many :sync_file_states, dependent: :destroy
@@ -31,8 +29,6 @@ class DesktopClient < ApplicationRecord
   scope :for_user, ->(user) { where(user: user) }
   # SSoT (Feb 2026): Tenant-scoped lookup
   scope :for_tenant, ->(tenant) { where(tenant: tenant) }
-  # DEPRECATED: Use for_tenant instead
-  scope :for_organization, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
   scope :recently_seen, -> { where("last_seen_at > ?", 7.days.ago) }
   scope :stale, -> { where("last_seen_at < ? OR last_seen_at IS NULL", 30.days.ago) }
 
@@ -48,18 +44,14 @@ class DesktopClient < ApplicationRecord
   end
 
   # Start device code auth flow
-  # SSoT (Feb 2026): Now uses tenant, accepts organization for backwards compat
-  def self.initiate_device_auth(user:, tenant: nil, organization: nil, device_name:, platform:)
+  # SSoT (Feb 2026): Uses tenant for multi-tenancy isolation
+  def self.initiate_device_auth(user:, tenant:, device_name:, platform:)
     device_id = SecureRandom.uuid
     device_code = generate_device_code
 
-    # SSoT: Resolve tenant from organization if not provided directly
-    resolved_tenant = tenant || (organization.respond_to?(:tenant) ? organization.tenant : organization)
-
     client = create!(
       user: user,
-      tenant: resolved_tenant,
-      organization: organization,  # Keep for backwards compat
+      tenant: tenant,
       device_id: device_id,
       device_name: device_name,
       platform: platform,
@@ -109,8 +101,7 @@ class DesktopClient < ApplicationRecord
   def generate_access_token
     payload = {
       sub: user_id,
-      ten: tenant_id,       # SSoT (Feb 2026): tenant_id is THE ONE
-      org: organization_id, # DEPRECATED: Kept for backwards compat
+      ten: tenant_id,  # SSoT (Feb 2026): tenant_id is THE ONE
       dev: device_id,
       exp: 1.hour.from_now.to_i,
       iat: Time.current.to_i,

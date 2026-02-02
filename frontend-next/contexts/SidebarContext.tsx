@@ -7,6 +7,8 @@ import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-util
 interface SidebarContextType {
   isExpanded: boolean;
   setIsExpanded: (expanded: boolean) => void;
+  isPinned: boolean;
+  setIsPinned: (pinned: boolean) => void;
   sidebarWidth: number;
 }
 
@@ -36,22 +38,35 @@ function saveState(baseRoute: string, expanded: boolean): void {
   setStorageItem(STORAGE_KEYS.SIDEBAR_STATE, states);
 }
 
+// Get pinned state from localStorage synchronously
+function getPinnedState(): boolean {
+  return getStorageItem<boolean>(STORAGE_KEYS.SIDEBAR_PINNED, false);
+}
+
+// Save pinned state to localStorage
+function savePinnedState(pinned: boolean): void {
+  setStorageItem(STORAGE_KEYS.SIDEBAR_PINNED, pinned);
+}
+
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const baseRoute = getBaseRoute(pathname);
   const prevBaseRouteRef = useRef(baseRoute);
 
-  // Initialize state with stored value for initial route
-  const [isExpanded, setIsExpandedState] = useState(() => getStoredState(baseRoute));
+  // Initialize state with stored values
+  const [isExpandedInternal, setIsExpandedState] = useState(() => getStoredState(baseRoute));
+  const [isPinned, setIsPinnedState] = useState(() => getPinnedState());
 
-  // When base route changes, update expanded state from storage
+  // When base route changes, update expanded state from storage (only if not pinned)
   // This replaces the key={baseRoute} pattern which caused remounts
   useEffect(() => {
     if (prevBaseRouteRef.current !== baseRoute) {
       prevBaseRouteRef.current = baseRoute;
-      setIsExpandedState(getStoredState(baseRoute));
+      if (!isPinned) {
+        setIsExpandedState(getStoredState(baseRoute));
+      }
     }
-  }, [baseRoute]);
+  }, [baseRoute, isPinned]);
 
   // Wrapper to save state when changed
   const setIsExpanded = useMemo(
@@ -62,11 +77,26 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     [baseRoute]
   );
 
+  // Wrapper to save pinned state when changed
+  const setIsPinned = useMemo(
+    () => (pinned: boolean) => {
+      setIsPinnedState(pinned);
+      savePinnedState(pinned);
+      // When pinning, expand the sidebar
+      if (pinned) {
+        setIsExpandedState(true);
+      }
+    },
+    []
+  );
+
+  // When pinned, always show as expanded
+  const isExpanded = isPinned ? true : isExpandedInternal;
   const sidebarWidth = isExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH;
 
   const value = useMemo(
-    () => ({ isExpanded, setIsExpanded, sidebarWidth }),
-    [isExpanded, setIsExpanded, sidebarWidth]
+    () => ({ isExpanded, setIsExpanded, isPinned, setIsPinned, sidebarWidth }),
+    [isExpanded, setIsExpanded, isPinned, setIsPinned, sidebarWidth]
   );
 
   return (

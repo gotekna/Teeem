@@ -44,7 +44,6 @@ module Api
 
         credential = PolarisCredential.new(
           tenant: current_tenant,
-          organization: current_organization, # DEPRECATED: kept for backwards compat
           api_key: params[:admin_username],
           api_secret: params[:admin_password],
           is_active: true,

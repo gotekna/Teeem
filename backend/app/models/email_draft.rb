@@ -14,8 +14,6 @@ class EmailDraft < ApplicationRecord
   belongs_to :user
   # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
   belongs_to :tenant
-  # DEPRECATED: Organization - kept for backwards compatibility
-  belongs_to :organization, optional: true
   belongs_to :imap_credential, optional: true
 
   # Drafts can have empty fields - only validate when sending
@@ -34,8 +32,6 @@ class EmailDraft < ApplicationRecord
   scope :drafts_only, -> { where(status: "draft") }
   # SSoT (Feb 2026): Tenant-scoped lookup
   scope :for_tenant, ->(tenant) { where(tenant: tenant) }
-  # DEPRECATED: Use for_tenant instead
-  scope :for_organization, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
 
   # Parse JSON addresses to array
   def to_list

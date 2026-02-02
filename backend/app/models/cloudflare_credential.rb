@@ -13,8 +13,6 @@
 class CloudflareCredential < ApplicationRecord
   # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
   belongs_to :tenant
-  # DEPRECATED: Organization - kept for backwards compatibility
-  belongs_to :organization, optional: true
 
   # Encrypt sensitive API token
   encrypts :api_token

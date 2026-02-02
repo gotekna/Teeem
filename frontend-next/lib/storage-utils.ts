@@ -28,6 +28,7 @@ export const STORAGE_KEYS = {
   VIEW_MODE: 'view_mode',
   PERSONA: 'persona',
   SIDEBAR_STATE: 'sidebar_state',
+  SIDEBAR_PINNED: 'sidebar_pinned',
   EMAIL_STATE: 'email_state',
   READING_PANE: 'reading_pane_position',
 
