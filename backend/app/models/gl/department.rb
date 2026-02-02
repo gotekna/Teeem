@@ -5,7 +5,7 @@ module Gl
   class Department < ApplicationRecord
     self.table_name = "gl_departments"
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :parent, class_name: "Gl::Department", optional: true
     belongs_to :manager, class_name: "User", optional: true
 

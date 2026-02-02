@@ -8,7 +8,7 @@ module Gl
     SCENARIO_TYPES = %w[base optimistic pessimistic stretch custom].freeze
     STATUSES = %w[draft active archived].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :created_by, class_name: "User", optional: true
 
     validates :name, presence: true

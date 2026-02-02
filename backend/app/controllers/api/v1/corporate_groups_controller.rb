@@ -19,7 +19,7 @@ module Api
             params[:search],
             columns: %w[name],
             mode: params[:search_mode] || 'contains',
-            model: CompanyGroup
+            model: CorporateGroup
           )
         end
 

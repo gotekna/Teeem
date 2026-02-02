@@ -9,7 +9,7 @@ module Gl
     SEVERITIES = %w[low medium high critical].freeze
     STATUSES = %w[open investigating resolved dismissed].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :anomalable, polymorphic: true, optional: true
     belongs_to :assigned_to, class_name: "User", optional: true
     belongs_to :resolved_by, class_name: "User", optional: true

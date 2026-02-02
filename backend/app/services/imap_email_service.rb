@@ -113,15 +113,16 @@ class ImapEmailService
     results = { synced: 0, skipped: 0, errors: 0, new_emails: [] }
 
     # SSoT: Set tenant context for multi-tenancy
-    # SyncedEmail uses acts_as_tenant which requires corporate_group to be set
-    corporate_group = credential.user&.corporate_group
-    unless corporate_group
-      Rails.logger.error "[ImapEmailService] Cannot sync: user #{credential.user&.id} has no corporate_group"
-      credential.mark_sync_error!("User has no corporate_group assigned")
+    # SyncedEmail uses acts_as_tenant :tenant (NOT corporate_group)
+    # FRC (Feb 2026): Was incorrectly using corporate_group, blocking sync for users without one
+    tenant = credential.user&.tenant
+    unless tenant
+      Rails.logger.error "[ImapEmailService] Cannot sync: user #{credential.user&.id} has no tenant"
+      credential.mark_sync_error!("User has no tenant assigned")
       return results
     end
 
-    ActsAsTenant.with_tenant(corporate_group) do
+    ActsAsTenant.with_tenant(tenant) do
       sync_emails_with_tenant(full_sync: full_sync, results: results)
     end
 

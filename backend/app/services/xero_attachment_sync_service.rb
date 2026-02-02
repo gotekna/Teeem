@@ -36,34 +36,32 @@ class XeroAttachmentSyncService
     @external_invoice = external_invoice
     @xero_client = XeroApiClient.new
     @skip_storage_upload = skip_storage_upload
-    # SSoT: Derive TEEEM tenant from Xero tenant_id
-    # ExternalInvoice.tenant_id is Xero tenant UUID, not TEEEM Tenant.id
-    @xero_tenant_id = external_invoice.tenant_id  # Xero org UUID
-    @xero_credential = XeroCredential.find_by(tenant_id: @xero_tenant_id)
-    @xero_tenant_name = @xero_credential&.tenant_name  # Xero org name (e.g., "Tekna Homes")
-    @tenant = find_teeem_tenant_from_xero_tenant_id(external_invoice.tenant_id)
+
+    # FRC (Feb 2026): Fixed tenant_id confusion
+    # ExternalInvoice.tenant_id is NOW the TEEEM Tenant.id (integer FK)
+    # Xero org UUID is stored in raw_data or looked up via XeroCredential
+    @tenant = Tenant.find_by(id: external_invoice.tenant_id)
+
+    # Get Xero tenant UUID for API calls (from raw_data or credential lookup)
+    @xero_tenant_id = find_xero_tenant_id_for_invoice
+    @xero_credential = XeroCredential.find_by(tenant_id: @xero_tenant_id) if @xero_tenant_id
+    @xero_tenant_name = @xero_credential&.tenant_name
+
     @organization = @tenant&.organizations&.where(is_active: true)&.first
     @storage_config = @tenant ? WarehouseProvider.for_tenant(@tenant) : nil
     @results = { pdf: nil, attachments: [], errors: [], skipped: false }
   end
 
-  # Map Xero tenant_id (UUID) to TEEEM Tenant
-  # SSoT Chain: XeroCredential → CorporateXeroConnection → Corporate → Tenant
-  def find_teeem_tenant_from_xero_tenant_id(xero_tenant_id)
-    return nil unless xero_tenant_id.present?
+  # FRC (Feb 2026): Get Xero tenant UUID for API calls
+  # ExternalInvoice.tenant_id is TEEEM integer, need Xero UUID for API
+  def find_xero_tenant_id_for_invoice
+    # First try raw_data (if stored during sync)
+    xero_tid = external_invoice.raw_data&.dig("TenantId")
+    return xero_tid if xero_tid.present?
 
-    xero_credential = XeroCredential.find_by(tenant_id: xero_tenant_id)
-    return nil unless xero_credential
-
-    # Find Corporate linked to this XeroCredential via connection table
-    connection = CorporateXeroConnection.find_by(xero_credential_id: xero_credential.id)
-    return nil unless connection
-
-    corporate_company = Corporate.find_by(id: connection.company_id)
-    return nil unless corporate_company
-
-    # Get the TEEEM Tenant from the Corporate
-    Tenant.find_by(id: corporate_company.tenant_id)
+    # Fallback: Look up via XeroCredential.teeem_tenant_id
+    credential = XeroCredential.find_by(teeem_tenant_id: external_invoice.tenant_id)
+    credential&.tenant_id
   end
 
   # Sync all attachments for this invoice

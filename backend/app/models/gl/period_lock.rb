@@ -8,7 +8,7 @@ module Gl
     PERIOD_TYPES = %w[month quarter year].freeze
     STATUSES = %w[locked unlocked soft_locked].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :locked_by, class_name: "User", optional: true
     belongs_to :unlocked_by, class_name: "User", optional: true
 

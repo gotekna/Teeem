@@ -20,7 +20,7 @@ module Gl
     FREQUENCIES = %w[daily weekly monthly quarterly].freeze
     FORMATS = %w[pdf csv excel].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :created_by, class_name: "User", optional: true
 
     validates :name, presence: true

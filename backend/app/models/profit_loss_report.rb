@@ -28,7 +28,7 @@
 #  updated_at           :datetime         not null
 #
 class ProfitLossReport < ApplicationRecord
-  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
   belongs_to :document_type, optional: true
 
   # Validations

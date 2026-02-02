@@ -23,7 +23,7 @@ class BankAccount < ApplicationRecord
 
   # Associations
   belongs_to :tenant
-  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
   has_many :bank_transactions, dependent: :nullify
 
   # Validations

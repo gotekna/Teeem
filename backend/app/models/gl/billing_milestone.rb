@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[pending in_progress completed invoiced paid cancelled].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :job
     belongs_to :contact
     belongs_to :invoice, class_name: "Gl::Invoice", optional: true

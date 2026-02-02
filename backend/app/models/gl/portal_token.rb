@@ -7,7 +7,7 @@ module Gl
 
     TOKEN_TYPES = %w[invoice statement portal].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :contact
     belongs_to :invoice, class_name: "Gl::Invoice", optional: true
 

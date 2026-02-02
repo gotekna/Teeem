@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[draft pending_approval approved processing completed failed].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :bank_account, class_name: "Gl::Account", optional: true
     belongs_to :created_by, class_name: "User", optional: true
     belongs_to :approved_by, class_name: "User", optional: true

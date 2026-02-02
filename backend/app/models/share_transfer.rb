@@ -1,6 +1,6 @@
 class ShareTransfer < ApplicationRecord
   # Associations
-  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :corporate_company, class_name: "Corporate", foreign_key: "company_id"
   belongs_to :from_shareholder, class_name: "Contact", optional: true  # nil for new issues
   belongs_to :to_shareholder, class_name: "Contact"
 

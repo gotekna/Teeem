@@ -7,7 +7,7 @@ module Gl
 
     DOCUMENT_TYPES = %w[bill purchase_order invoice journal expense credit_note].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :created_by, class_name: "User", optional: true
 
     has_many :steps, class_name: "Gl::ApprovalWorkflowStep", foreign_key: "workflow_id", dependent: :destroy

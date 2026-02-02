@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :parent_account, class_name: 'Gl::Account', optional: true
 
     has_many :child_accounts, class_name: 'Gl::Account', foreign_key: :parent_account_id, dependent: :nullify

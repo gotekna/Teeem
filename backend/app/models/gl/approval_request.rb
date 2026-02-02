@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[pending approved rejected cancelled].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :workflow, class_name: "Gl::ApprovalWorkflow", optional: true
     belongs_to :requested_by, class_name: "User", optional: true
     belongs_to :approvable, polymorphic: true

@@ -18,7 +18,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
 
     has_many :sync_logs, class_name: 'Gl::SyncLog', foreign_key: 'gl_provider_credential_id', dependent: :destroy
 

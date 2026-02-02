@@ -23,7 +23,7 @@ class CorporateGroup < ApplicationRecord
   # =============================================================================
 
   # Existing associations
-  has_many :corporate_companies, foreign_key: :company_group_id, dependent: :nullify
+  has_many :corporate_companies, class_name: "Corporate", foreign_key: :company_group_id, dependent: :nullify
   has_many :xero_chart_of_accounts, dependent: :destroy
   has_many :reconciliation_reports, dependent: :destroy
 

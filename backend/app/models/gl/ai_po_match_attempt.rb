@@ -5,7 +5,7 @@ module Gl
   class AiPoMatchAttempt < ApplicationRecord
     self.table_name = "gl_ai_po_match_attempts"
 
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :bill_inbox, optional: true
 
     # Scopes for analytics

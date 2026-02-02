@@ -88,7 +88,10 @@ interface ImapCredential {
   shared_with_users: { id: number; name: string }[];
   user_id: number;
   owner_name?: string; // Name of the credential owner
+  owner_tenant_id?: number; // Tenant ID of the credential owner
+  owner_tenant_name?: string; // Tenant name of the credential owner
   is_shared?: boolean; // True if current user is not the owner
+  is_cross_tenant?: boolean; // True if credential owner is in a different tenant
 }
 
 interface Provider {
@@ -1320,6 +1323,11 @@ export function EmailAccountsTab() {
                       <span className="font-medium text-foreground">
                         {sharingCredential.owner_name || "Unknown"}
                       </span>
+                      {sharingCredential.is_cross_tenant && sharingCredential.owner_tenant_name && (
+                        <span className="text-muted-foreground">
+                          {" "}from <span className="font-medium">{sharingCredential.owner_tenant_name}</span>
+                        </span>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -1340,6 +1348,14 @@ export function EmailAccountsTab() {
                   You have been granted access to view emails from this account.
                   Only the owner can modify sharing settings.
                 </p>
+                {sharingCredential.is_cross_tenant && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    This is a cross-organization shared account from{" "}
+                    <span className="font-medium text-foreground">
+                      {sharingCredential.owner_tenant_name}
+                    </span>.
+                  </p>
+                )}
               </div>
             </div>
           ) : (

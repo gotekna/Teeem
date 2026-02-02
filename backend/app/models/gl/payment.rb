@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate_company, class_name: "Corporate"
     belongs_to :contact, optional: true
     belongs_to :gl_account, class_name: 'Gl::Account', optional: true  # Bank account
     belongs_to :gl_journal_entry, class_name: 'Gl::JournalEntry', optional: true
