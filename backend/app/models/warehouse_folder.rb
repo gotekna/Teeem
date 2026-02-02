@@ -431,35 +431,15 @@ class WarehouseFolder < ApplicationRecord
 
   public
 
-  # SSoT: Get the full warehouse path by substituting folder name into template
-  # Template comes from WarehouseProvider.warehouse_folders (e.g., "Jobs/{{JobCode}}/{{TabName}}")
-  # Folder name comes from: warehouse_folder column (if set) OR display_name (default)
+  # SSoT: Get the full warehouse path template for this tab
+  # The warehouse_folder column stores the COMPLETE path template (Feb 2026 consolidation)
+  # No derivation needed - warehouse_folders table is THE ONE SSoT
   def resolved_warehouse_path
     return nil unless warehouse_enabled
 
-    # Handle missing tenant context gracefully (e.g., background jobs, serialization)
-    config = begin
-      WarehouseProvider.instance
-    rescue TenantNotFoundError
-      return nil
-    end
-
-    wt = warehouse_type || 'corporate'
-    # SSoT: Normalize aliased keys (legacy 'corporate_entity' → 'corporate')
-    wt = WarehouseProvider::WAREHOUSE_KEY_ALIASES[wt] || wt
-    template = config.warehouse_folders&.dig(wt)
-    return nil unless template.present?
-
-    # Use stored warehouse_folder if set, otherwise default to display_name
-    raw_folder = read_attribute(:warehouse_folder).presence || display_name.to_s
-
-    # SSoT: Resolve folder tokens to actual folder names (Jan 2026)
-    # Tokens in warehouse_folder map to physical folder names in storage
-    folder_name = resolve_folder_token(raw_folder)
-
-    # SSoT: {{TabName}} is the placeholder for folder name (Jan 2026)
-    # Also support legacy {{TeeemXL}} for backwards compatibility
-    template.gsub('{{TabName}}', folder_name).gsub('{{TeeemXL}}', folder_name)
+    # SSoT: warehouse_folder column stores complete path template
+    # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Documents"
+    read_attribute(:warehouse_folder)
   end
 
   # Get the full storage path for this tab
