@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_02_110004) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_02_224433) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10094,6 +10094,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_110004) do
     t.bigint "tenant_id"
     t.string "download_name"
     t.string "warehouse_folder"
+    t.string "ui_name"
     t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
     t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_warehouse_folders_on_job_id"
@@ -10120,7 +10121,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_110004) do
     t.jsonb "config_links", default: {}, null: false
     t.jsonb "document_routing", default: {}, null: false
     t.jsonb "virtual_warehouses", default: {}, null: false
-    t.jsonb "warehouse_folders", default: {}, null: false
     t.boolean "exclude_sm_tasks", default: false, null: false
     t.bigint "tenant_id", null: false
     t.jsonb "ui_name_templates", default: {}

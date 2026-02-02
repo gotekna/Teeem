@@ -82,16 +82,9 @@ module Api
           status: new_status
         }
         update_attrs[:root_path] = sp[:root_path] if sp.key?(:root_path)
-        # NOTE: scope_folders column was removed - WarehouseFolder is now SSoT for tab paths
-        # Only warehouse_folders is stored on WarehouseProvider
-
-        # SSoT: warehouse_folders column is THE ONE source (no merging, just replace)
-        # Accept both old and new param names for backwards compatibility
-        if sp.key?(:warehouse_folders)
-          update_attrs[:warehouse_folders] = sp[:warehouse_folders].to_h
-        elsif sp.key?(:scope_root_folders)
-          update_attrs[:warehouse_folders] = sp[:scope_root_folders].to_h
-        end
+        # NOTE (Feb 2026): warehouse_folders column REMOVED from warehouse_providers
+        # Folder paths are now stored per-tab in warehouse_folders table (SSoT)
+        # warehouse_folders and scope_root_folders params are ignored
 
         # Download name templates (for document downloads)
         # Accept both old and new param names for backwards compatibility
@@ -196,8 +189,8 @@ module Api
       private
 
       def storage_params
-        # Get permitted warehouse folder keys - safely handle nil instance
-        warehouse_folder_keys = WarehouseProvider.instance&.effective_warehouse_folders&.keys&.map(&:to_sym) || []
+        # NOTE (Feb 2026): warehouse_folders column removed from warehouse_providers
+        # Folder paths are now stored per-tab in warehouse_folders table (SSoT)
 
         params.require(:storage).permit(
           :provider_type,
@@ -208,9 +201,7 @@ module Api
           :root_path,
           :exclude_sm_tasks,  # SM task exclusion setting (replaces scope_options)
           :link_expiry_days,  # Link expiry for presigned URLs (saved to TenantSetting)
-          # SSoT: warehouse_folders is THE ONE place for warehouse type roots (includes identifier patterns)
-          warehouse_folders: {},
-          scope_root_folders: {},  # Legacy backwards compat
+          # NOTE: warehouse_folders and scope_root_folders REMOVED (Feb 2026)
           download_name_templates: {},
           file_name_templates: {},  # Legacy backwards compat
           ui_name_templates: {},

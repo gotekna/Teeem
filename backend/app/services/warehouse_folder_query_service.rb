@@ -197,6 +197,8 @@ class WarehouseFolderQueryService
       warehouse_folder: tab.read_attribute(:warehouse_folder),
       # SSoT: "Document Download Name" in UI
       download_name: tab.read_attribute(:download_name),
+      # SSoT: "Document UI Name" in UI (Feb 2026)
+      ui_name: tab.read_attribute(:ui_name),
       full_warehouse_path: warehouse_data[:full_path],
       uses_custom_path: tab.uses_custom_path,
       warehouse_type_override: tab.warehouse_type_override || 'corporate',

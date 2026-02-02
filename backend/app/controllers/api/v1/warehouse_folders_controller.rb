@@ -314,6 +314,7 @@ module Api
           :hidden_by_default,  # SSoT: Tab hidden in overflow menu by default
           :xero_scope,  # SSoT: Which Xero account this tab uses (nil, "primary", or tenant_id)
           :download_name,  # SSoT: "Document Download Name" in UI
+          :ui_name,  # SSoT: "Document UI Name" in UI (Feb 2026)
           entity_filters: [],
           document_type_ids: []  # SSoT: Link document types to this tab
         )

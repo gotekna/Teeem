@@ -92,43 +92,9 @@ class WarehouseProvider < ApplicationRecord
   # SharePoint uses "/Shared Documents", S3/Wasabi/local use "/" (bucket root)
   before_save :sync_root_path_for_provider, if: :provider_type_changed?
 
-  # Clear warehouse folder tree cache when templates change
-  # This ensures File Warehouse instantly reflects template changes
-  after_save :invalidate_warehouse_folder_cache, if: :warehouse_folders_changed?
-
-  # SSoT: When templates change, queue job to update all affected WarehouseDocument.folder values
-  # This ensures File Warehouse always matches current templates
-  after_save :queue_folder_recomputation, if: :warehouse_folders_changed?
-
-  def invalidate_warehouse_folder_cache
-    Rails.cache.delete("warehouse_folder_tree_v2")
-    Rails.logger.info "[WarehouseProvider] Cleared warehouse folder tree cache after template change"
-  end
-
-  def queue_folder_recomputation
-    # Find which warehouse types had their templates changed
-    changed_types = warehouse_folders_change_affected_types
-    return if changed_types.empty?
-
-    Rails.logger.info "[WarehouseProvider] Template changed for: #{changed_types.join(', ')} - queuing folder recomputation"
-    RecomputeWarehouseFoldersJob.perform_later(tenant_id, changed_types)
-  end
-
-  # Determine which warehouse types had template changes
-  def warehouse_folders_change_affected_types
-    return [] unless saved_change_to_warehouse_folders?
-
-    old_folders, new_folders = saved_change_to_warehouse_folders
-    old_folders ||= {}
-    new_folders ||= {}
-
-    # Find keys where value changed
-    changed = []
-    (old_folders.keys | new_folders.keys).each do |key|
-      changed << key if old_folders[key] != new_folders[key]
-    end
-    changed
-  end
+  # NOTE: warehouse_folders_changed? callbacks REMOVED (Feb 2026)
+  # Folder templates are now stored per-tab in warehouse_folders table (SSoT)
+  # WarehouseProvider no longer stores customizable folder templates
 
   # Auto-sync root_path based on provider_type
   # SSoT: SharePoint = "/Shared Documents", S3/Wasabi/local = "/" (bucket root)
@@ -179,17 +145,8 @@ class WarehouseProvider < ApplicationRecord
     for_tenant(tenant)
   end
 
-  # SSoT: Master tenant ID (Tekna) - warehouse_folders from this tenant are THE ONE source
-  MASTER_TENANT_ID = 2
-
-  # Get the master tenant's warehouse_folders (SSoT for all tenants)
-  def self.master_warehouse_folders
-    master = find_by(tenant_id: MASTER_TENANT_ID)
-    master&.warehouse_folders || DEFAULT_WAREHOUSE_FOLDERS
-  end
-
   # Create default configuration for a tenant
-  # SSoT: Copies warehouse_folders from master tenant (Tekna)
+  # SSoT: Folder paths are in warehouse_folders table (Feb 2026 consolidation)
   def self.create_default_for_tenant(tenant)
     return nil unless tenant
 
@@ -203,46 +160,15 @@ class WarehouseProvider < ApplicationRecord
            else "/" # S3, Wasabi, s3_compatible, local all use bucket/folder root
            end
 
-    # SSoT: Copy warehouse_folders from master tenant (database is THE ONE SSoT)
-    # Falls back to DEFAULT_WAREHOUSE_FOLDERS only if master tenant doesn't exist
     create!(
       tenant: tenant,
       provider_type: provider,
       status: "disconnected",
-      root_path: root,
-      warehouse_folders: master_warehouse_folders.dup
+      root_path: root
     )
   rescue ActiveRecord::RecordNotUnique
     # Handle race condition
     find_by(tenant: tenant)
-  end
-
-  # Sync missing warehouse folder keys from master tenant to all other tenants
-  # SSoT: Master tenant (Tekna) is THE ONE source - add folder types there
-  # Returns: { synced: count, keys_added: [...] }
-  def self.sync_missing_defaults!
-    master_folders = master_warehouse_folders
-    synced = 0
-    all_keys_added = Set.new
-
-    find_each do |wp|
-      next if wp.tenant_id == MASTER_TENANT_ID # Don't sync master to itself
-
-      folders = wp.warehouse_folders || {}
-      missing_keys = master_folders.keys - folders.keys
-
-      next if missing_keys.empty?
-
-      missing_keys.each do |key|
-        folders[key] = master_folders[key]
-        all_keys_added << key
-      end
-
-      wp.update_column(:warehouse_folders, folders)
-      synced += 1
-    end
-
-    { synced: synced, keys_added: all_keys_added.to_a }
   end
 
   # DEPRECATED: Use create_default_for_tenant instead
@@ -431,8 +357,11 @@ class WarehouseProvider < ApplicationRecord
   # @param warehouse_type [String, Symbol] The warehouse type (job, contact, task, etc.)
   # @return [String, nil] Path template like "Jobs/{{JobCode}}" or nil if disabled
   #
+  # NOTE (Feb 2026): Now uses DEFAULT_WAREHOUSE_FOLDERS constant
+  # Per-tenant customization removed - folder paths are now stored per-tab in warehouse_folders table
+  #
   # Examples:
-  #   path_for(:job)              # => "Jobs/{{JobCode}}"
+  #   path_for(:job)              # => "Jobs/{{JobCode}}/{{TabName}}"
   #   path_for(:task)             # => "Tasks/{{TaskId}}/{{TaskName}}"
   #   path_for(:task_attachments) # => "Tasks/{{TaskId}}/{{TaskName}}/Attachments"
   #
@@ -445,71 +374,29 @@ class WarehouseProvider < ApplicationRecord
       parent_path = path_for(parent_type)
       return nil if parent_path.blank?
 
-      stored_value = warehouse_folders&.dig(type_key)
-      return nil if stored_value.blank? || stored_value == "DISABLED"
-
-      # Extract suffix from stored value using multiple strategies:
-      suffix = extract_suffix_from_stored_path(stored_value, parent_path)
-      return nil if suffix.blank?
+      suffix = DEFAULT_WAREHOUSE_FOLDERS[type_key]
+      return nil if suffix.blank? || suffix == "DISABLED"
 
       "#{parent_path}/#{suffix}".gsub(%r{//+}, '/')
     else
-      path = warehouse_folders&.dig(type_key)
+      path = DEFAULT_WAREHOUSE_FOLDERS[type_key]
       return nil if path.blank? || path == "DISABLED"
       path
     end
   end
 
-  # Extract suffix from stored value, handling multiple formats:
-  # 1. New format: just "Attachments" (suffix only)
-  # 2. Old format: "Tasks/{{TaskId}}/Attachments" (full path with different parent)
-  # 3. Exact match: "Tasks/{{TaskId}}/{{TaskName}}/Attachments" (starts with current parent)
-  #
-  # @param stored_value [String] The value from warehouse_folders
-  # @param parent_path [String] The current parent path template
-  # @return [String] The extracted suffix
-  #
-  def extract_suffix_from_stored_path(stored_value, parent_path)
-    return stored_value if stored_value.blank?
-
-    # Strategy 1: If stored value doesn't contain slashes, it's already a suffix
-    return stored_value unless stored_value.include?('/')
-
-    # Strategy 2: If stored value starts with parent path, strip it
-    if stored_value.start_with?(parent_path)
-      return stored_value.sub(parent_path, '').sub(/^\//, '')
-    end
-
-    # Strategy 3: Find common prefix and extract the differing part
-    # Example: stored="Tasks/{{TaskId}}/Attachments", parent="Tasks/{{TaskId}}/{{TaskName}}"
-    # Common prefix is "Tasks/{{TaskId}}", suffix should be "Attachments"
-    stored_parts = stored_value.split('/')
-    parent_parts = parent_path.split('/')
-
-    # Find where paths diverge
-    diff_index = 0
-    while diff_index < stored_parts.length && diff_index < parent_parts.length &&
-          stored_parts[diff_index] == parent_parts[diff_index]
-      diff_index += 1
-    end
-
-    # Return the differing parts from stored value (usually just the last segment)
-    suffix_parts = stored_parts[diff_index..]
-    suffix_parts.present? ? suffix_parts.join('/') : stored_value.split('/').last
-  end
-
   # Get all warehouse folders (full templates with tokens)
-  # SSoT: warehouse_folders column is THE ONE source
-  # Legacy paths are DEPRECATED - all paths derived from warehouse_folders
+  # SSoT (Feb 2026): Uses DEFAULT_WAREHOUSE_FOLDERS constant
+  # Per-tab paths are stored in warehouse_folders table
   def effective_warehouse_folders
-    warehouse_folders || {}
+    DEFAULT_WAREHOUSE_FOLDERS
   end
 
   # LIM (Jan 2026): Simple root folder mapping for frontend
   # Frontend only needs scope → root folder (e.g., "contact" → "Contacts")
   # Full templates are only used by backend for path resolution
   def scope_root_folders
-    (warehouse_folders || {}).transform_values { |template| template.to_s.split('/').first }
+    DEFAULT_WAREHOUSE_FOLDERS.transform_values { |template| template.to_s.split('/').first }
   end
 
   # Extract folder templates from warehouse_folders (everything after root folder)
@@ -517,7 +404,7 @@ class WarehouseProvider < ApplicationRecord
   # e.g., "Jobs/{{JobCode}}" → "{{JobCode}}"
   # e.g., "Contacts" → "" (no template)
   def scope_folder_templates
-    (warehouse_folders || {}).transform_values do |full_path|
+    DEFAULT_WAREHOUSE_FOLDERS.transform_values do |full_path|
       parts = full_path.to_s.split('/')
       parts.length > 1 ? parts[1..].join('/') : ''
     end

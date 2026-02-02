@@ -22,12 +22,12 @@ namespace :warehouse do
         skipped_count = 0
         error_count = 0
 
-        # Get the warehouse_folders templates from WarehouseProvider
-        provider = WarehouseProvider.for_tenant(tenant)
-        templates = provider&.warehouse_folders || {}
+        # SSoT (Feb 2026): Use DEFAULT_WAREHOUSE_FOLDERS constant
+        # Per-tenant customization removed - folder paths stored per-tab
+        templates = WarehouseProvider::DEFAULT_WAREHOUSE_FOLDERS
 
         if templates.empty?
-          puts "  ⚠️  No warehouse_folders templates found, skipping tenant"
+          puts "  ⚠️  No DEFAULT_WAREHOUSE_FOLDERS found, skipping"
           next
         end
 
