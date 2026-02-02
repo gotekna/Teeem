@@ -87,6 +87,16 @@ module Api
         # - download_name_templates column REMOVED - stored per-tab in warehouse_folders.download_name
         # - ui_name_templates column REMOVED - stored per-tab in warehouse_folders.ui_name
 
+        # SSoT: Save warehouse_folder path templates to warehouse_folders table per-warehouse_type
+        # This is THE ONE place where custom folder templates (like {{Year}}) are stored
+        if sp.key?(:warehouse_folders)
+          sp[:warehouse_folders].to_h.each do |warehouse_type, template|
+            folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
+            folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
+            folder&.update(warehouse_folder: template.presence)
+          end
+        end
+
         # SSoT: Save download_name templates to warehouse_folders table per-warehouse_type
         # First try root tab (parent_id: nil), then fall back to any folder of that type
         if sp.key?(:download_names)
@@ -206,8 +216,9 @@ module Api
           # - warehouse_folders, scope_root_folders (paths now per-tab in warehouse_folders table)
           # - download_name_templates, ui_name_templates (now per-tab in warehouse_folders)
           # These params are still accepted but saved to warehouse_folders table per-warehouse_type:
-          download_names: {},
-          ui_name_templates: {},
+          warehouse_folders: {},      # Path templates (e.g., "Teeem Docs/{{UserName}}/{{Year}}")
+          download_names: {},         # Download filename templates
+          ui_name_templates: {},      # UI display name templates
           config_links: {},
           document_routing: {},  # SSoT: Which model to use for each document source
           virtual_warehouses: {},   # Phase 4: Virtual File Warehouse - which warehouse types render from DB

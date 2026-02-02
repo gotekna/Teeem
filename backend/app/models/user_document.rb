@@ -98,19 +98,32 @@ class UserDocument < ApplicationRecord
   # ========================================
 
   # SSoT: Virtual folder path for File Warehouse display
-  # Uses WarehouseProvider template: Users/{{UserName}}/{{Folder}}
+  # Uses WarehouseProvider template from database (e.g., "Teeem Docs/{{UserName}}/{{Year}}")
   #
-  # @return [String] Virtual folder path like "Users/Robert Harder/Projects"
+  # @return [String] Virtual folder path like "Teeem Docs/Robert Harder/2026"
   def virtual_folder_path
     config = WarehouseProvider.instance
     template = config&.path_for(:user)
     raise "WarehouseProvider missing :user template - run rails warehouse:init" unless template
 
     result = template.dup
+
+    # User-related tokens
     result.gsub!("{{UserName}}", sanitize_path_component(user&.name.to_s))
+
+    # Date tokens (SSoT: based on document creation date)
+    doc_date = created_at || Time.current
+    result.gsub!("{{Year}}", doc_date.year.to_s)
+    result.gsub!("{{Month}}", doc_date.strftime("%m"))
+    result.gsub!("{{Day}}", doc_date.strftime("%d"))
+
+    # Folder/category tokens
     result.gsub!("{{Folder}}", folder.to_s)
     result.gsub!("{{Category}}", category&.titleize.to_s)
     result.gsub!("{{TabName}}", folder.to_s.presence || category&.titleize.to_s)
+
+    # File-related tokens
+    result.gsub!("{{OriginalFileName}}", sanitize_path_component(File.basename(file_name.to_s, ".*")))
 
     # Clean up empty tokens and double slashes
     result.gsub!(/\{\{[^}]+\}\}/, "")
@@ -178,6 +191,7 @@ class UserDocument < ApplicationRecord
   # - my_docs: /Users/MyDocs/{UserName}/filename
   def default_storage_tokens
     warehouse_folder = effective_warehouse_folder
+    doc_date = created_at || Time.current
 
     {
       # User tokens
@@ -197,8 +211,11 @@ class UserDocument < ApplicationRecord
       # Category token
       Category: category&.titleize,
 
-      # Date tokens
-      Date: created_at&.strftime("%Y-%m-%d"),
+      # Date tokens (SSoT: for folder organization)
+      Date: doc_date.strftime("%Y-%m-%d"),
+      Year: doc_date.year.to_s,
+      Month: doc_date.strftime("%m"),
+      Day: doc_date.strftime("%d"),
 
       # File tokens
       OriginalFileName: File.basename(file_name.to_s, ".*")

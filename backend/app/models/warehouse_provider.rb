@@ -357,8 +357,9 @@ class WarehouseProvider < ApplicationRecord
   # @param warehouse_type [String, Symbol] The warehouse type (job, contact, task, etc.)
   # @return [String, nil] Path template like "Jobs/{{JobCode}}" or nil if disabled
   #
-  # NOTE (Feb 2026): Now uses DEFAULT_WAREHOUSE_FOLDERS constant
-  # Per-tenant customization removed - folder paths are now stored per-tab in warehouse_folders table
+  # NOTE (Feb 2026): SSoT Consolidation
+  # Priority: 1. warehouse_folders.warehouse_folder column (per-tab custom)
+  #           2. DEFAULT_WAREHOUSE_FOLDERS constant (fallback)
   #
   # Examples:
   #   path_for(:job)              # => "Jobs/{{JobCode}}/{{TabName}}"
@@ -379,17 +380,34 @@ class WarehouseProvider < ApplicationRecord
 
       "#{parent_path}/#{suffix}".gsub(%r{//+}, '/')
     else
-      path = DEFAULT_WAREHOUSE_FOLDERS[type_key]
+      # SSoT: Check warehouse_folders table first (per-tab custom templates)
+      # Then fall back to DEFAULT_WAREHOUSE_FOLDERS constant
+      folder = WarehouseFolder.find_by(warehouse_type: type_key, parent_id: nil)
+      folder ||= WarehouseFolder.where(warehouse_type: type_key).order(:id).first
+      custom_path = folder&.warehouse_folder
+
+      path = custom_path.presence || DEFAULT_WAREHOUSE_FOLDERS[type_key]
       return nil if path.blank? || path == "DISABLED"
       path
     end
   end
 
   # Get all warehouse folders (full templates with tokens)
-  # SSoT (Feb 2026): Uses DEFAULT_WAREHOUSE_FOLDERS constant
-  # Per-tab paths are stored in warehouse_folders table
+  # SSoT (Feb 2026): Merges database values with DEFAULT_WAREHOUSE_FOLDERS
+  # Priority: warehouse_folders.warehouse_folder column > DEFAULT_WAREHOUSE_FOLDERS
   def effective_warehouse_folders
-    DEFAULT_WAREHOUSE_FOLDERS
+    result = DEFAULT_WAREHOUSE_FOLDERS.dup
+
+    # Override with any custom values from warehouse_folders table
+    DEFAULT_WAREHOUSE_FOLDERS.keys.each do |warehouse_type|
+      folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
+      folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
+      if folder&.warehouse_folder.present?
+        result[warehouse_type] = folder.warehouse_folder
+      end
+    end
+
+    result
   end
 
   # LIM (Jan 2026): Simple root folder mapping for frontend
@@ -403,8 +421,9 @@ class WarehouseProvider < ApplicationRecord
   # e.g., "Teeem Docs/{{UserName}}/{{Year}}" → "{{UserName}}/{{Year}}"
   # e.g., "Jobs/{{JobCode}}" → "{{JobCode}}"
   # e.g., "Contacts" → "" (no template)
+  # SSoT (Feb 2026): Uses effective_warehouse_folders (includes database overrides)
   def scope_folder_templates
-    DEFAULT_WAREHOUSE_FOLDERS.transform_values do |full_path|
+    effective_warehouse_folders.transform_values do |full_path|
       parts = full_path.to_s.split('/')
       parts.length > 1 ? parts[1..].join('/') : ''
     end
