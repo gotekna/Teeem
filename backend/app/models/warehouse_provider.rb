@@ -410,6 +410,22 @@ class WarehouseProvider < ApplicationRecord
     end
   end
 
+  # SSoT (Feb 2026): Get download_name templates from warehouse_folders table per-warehouse_type
+  # Returns: { "contact" => "{{CompanyCode}} {{DocType}}", "job" => nil, ... }
+  def scope_download_names
+    WarehouseFolder.root_tabs.where(warehouse_type: DEFAULT_WAREHOUSE_FOLDERS.keys)
+      .pluck(:warehouse_type, :download_name)
+      .to_h
+  end
+
+  # SSoT (Feb 2026): Get ui_name templates from warehouse_folders table per-warehouse_type
+  # Returns: { "contact" => "{{DocType}} - {{Date}}", "job" => nil, ... }
+  def scope_ui_names
+    WarehouseFolder.root_tabs.where(warehouse_type: DEFAULT_WAREHOUSE_FOLDERS.keys)
+      .pluck(:warehouse_type, :ui_name)
+      .to_h
+  end
+
   # LIM (Jan 2026): Removed effective_scope_folders alias - use scope_root_folders.keys
 
   # ========================================
@@ -1028,6 +1044,8 @@ class WarehouseProvider < ApplicationRecord
       # e.g., "Teeem Docs/{{UserName}}/{{Year}}" → "{{UserName}}/{{Year}}"
       warehouse_folder_templates: scope_folder_templates,
       # SSoT: download_name and ui_name are now per-tab in warehouse_folders table
+      download_names: scope_download_names,
+      ui_name_templates: scope_ui_names,
       # Config links for warehouse folders (URL to external config page)
       config_links: config_links || {},
       # Document routing configuration (SSoT for model selection)

@@ -87,6 +87,22 @@ module Api
         # - download_name_templates column REMOVED - stored per-tab in warehouse_folders.download_name
         # - ui_name_templates column REMOVED - stored per-tab in warehouse_folders.ui_name
 
+        # SSoT: Save download_name templates to warehouse_folders table per-warehouse_type
+        if sp.key?(:download_names)
+          sp[:download_names].to_h.each do |warehouse_type, template|
+            folder = WarehouseFolder.root_tabs.find_by(warehouse_type: warehouse_type)
+            folder&.update(download_name: template.presence) if folder
+          end
+        end
+
+        # SSoT: Save ui_name templates to warehouse_folders table per-warehouse_type
+        if sp.key?(:ui_name_templates)
+          sp[:ui_name_templates].to_h.each do |warehouse_type, template|
+            folder = WarehouseFolder.root_tabs.find_by(warehouse_type: warehouse_type)
+            folder&.update(ui_name: template.presence) if folder
+          end
+        end
+
         if sp.key?(:config_links)
           existing_config_links = storage_config.config_links || {}
           new_config_links = sp[:config_links].to_h
@@ -185,6 +201,9 @@ module Api
           # NOTE (Feb 2026): SSoT Consolidation - columns REMOVED from warehouse_providers:
           # - warehouse_folders, scope_root_folders (paths now per-tab in warehouse_folders table)
           # - download_name_templates, ui_name_templates (now per-tab in warehouse_folders)
+          # These params are still accepted but saved to warehouse_folders table per-warehouse_type:
+          download_names: {},
+          ui_name_templates: {},
           config_links: {},
           document_routing: {},  # SSoT: Which model to use for each document source
           virtual_warehouses: {},   # Phase 4: Virtual File Warehouse - which warehouse types render from DB
