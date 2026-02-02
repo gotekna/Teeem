@@ -115,7 +115,7 @@ class EmailHealthMonitorJob < ApplicationJob
     end
 
     # Check Office 365 accounts
-    MicrosoftCredential.app_credentials.connected.find_each do |credential|
+    MicrosoftCredential.refreshable_app.find_each do |credential|
       next unless stalled?(credential, "ms365")
 
       Rails.logger.warn "[EmailHealthMonitor] Triggering recovery sync for Office 365 org: #{credential.name}"
@@ -151,7 +151,7 @@ class EmailHealthMonitorJob < ApplicationJob
     end
 
     # Check Office 365 accounts
-    MicrosoftCredential.app_credentials.connected.find_each do |credential|
+    MicrosoftCredential.refreshable_app.find_each do |credential|
       if stale?(credential, "ms365")
         Rails.logger.warn "[EmailHealthMonitor] Stale Office 365 sync: #{credential.name} " \
                           "(last sync: #{credential.last_sync_at})"

@@ -18,7 +18,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       ms365_cred_ids = []
       ms365_mailbox_emails = []
       # SSoT: Use MicrosoftCredential
-      MicrosoftCredential.app_credentials.connected.each do |org_cred|
+      MicrosoftCredential.refreshable_app.each do |org_cred|
         user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
         if user_mailboxes.any?
           ms365_cred_ids << org_cred.id
@@ -494,7 +494,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Solution: :default queue = highest priority, processes immediately, non-blocking.
   def sync
     # SSoT: Sync ALL connected MS365 organizations (not just one)
-    connected_orgs = MicrosoftCredential.app_credentials.connected
+    connected_orgs = MicrosoftCredential.refreshable_app
 
     if connected_orgs.empty?
       return render json: {
@@ -552,7 +552,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Admin dashboard showing mailboxes grouped by organization with sync stats
   def sync_dashboard
     # MS365 Organizations
-    ms_credentials = MicrosoftCredential.app_credentials.connected.includes(:organization)
+    ms_credentials = MicrosoftCredential.refreshable_app.includes(:organization)
 
     ms365_orgs = ms_credentials.map do |cred|
       mailboxes = SyncedEmailMailbox
@@ -669,7 +669,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       # Get MS365 org credentials the user has mailbox access to
       ms365_cred_ids = []
       ms365_mailbox_emails = []
-      MicrosoftCredential.app_credentials.connected.each do |org_cred|
+      MicrosoftCredential.refreshable_app.each do |org_cred|
         user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
         if user_mailboxes.any?
           ms365_cred_ids << org_cred.id
@@ -1183,7 +1183,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     credential = if @email.microsoft_credential_id.present?
                    MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
                  else
-                   MicrosoftCredential.app_credentials.connected.first
+                   MicrosoftCredential.refreshable_app.first
                  end
 
     unless credential&.valid_credential?
@@ -1373,7 +1373,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     credential = if @email.microsoft_credential_id.present?
                    MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
                  else
-                   MicrosoftCredential.app_credentials.connected.first
+                   MicrosoftCredential.refreshable_app.first
                  end
 
     return nil unless credential&.valid_credential?
@@ -1740,7 +1740,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       credential = if email.microsoft_credential_id.present?
                      MicrosoftCredential.find_by(id: email.microsoft_credential_id)
                    else
-                     MicrosoftCredential.app_credentials.connected.first
+                     MicrosoftCredential.refreshable_app.first
                    end
 
       return [] unless credential&.valid_credential?

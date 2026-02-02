@@ -132,7 +132,10 @@ class ScheduledEmail < ApplicationRecord
     user = created_by
     raise "No user associated with scheduled email" unless user
 
-    credential = MicrosoftCredential.for_user(user).connected.first
+    # FRC (Feb 2026): Changed from .connected to .refreshable_delegated for 24/7 availability
+    # The .connected scope requires valid token, but token may have expired overnight
+    # valid_access_token below will refresh if needed
+    credential = MicrosoftCredential.for_user(user).refreshable_delegated.first
     raise "No active Microsoft credential for user" unless credential
 
     # Ensure token is fresh

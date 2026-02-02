@@ -178,7 +178,7 @@ module Api
           org_mailboxes = []
 
           # SSoT: Use MicrosoftCredential for app credentials
-          MicrosoftCredential.app_credentials.connected.each do |org_cred|
+          MicrosoftCredential.refreshable_app.each do |org_cred|
             sync_config = org_cred.sync_config || {}
             mailbox_emails = sync_config["mailbox_emails"] || []
 

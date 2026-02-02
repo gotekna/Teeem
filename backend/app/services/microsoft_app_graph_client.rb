@@ -53,13 +53,42 @@ class MicrosoftAppGraphClient
   def initialize(credential = nil)
     @credential = credential || find_active_credential
     raise NotConnectedError, "SharePoint not configured. Please configure in Admin > System > Connections." unless @credential
-    raise NotConnectedError, "SharePoint not connected. Please reconnect in Admin > System > Connections." unless @credential.status == "connected"
 
-    # Check for dead tokens early
+    # Check for dead tokens early - these require re-authentication
     if @credential.respond_to?(:refresh_token_dead?) && @credential.refresh_token_dead?
       reason = @credential.respond_to?(:reconnect_reason) ? @credential.reconnect_reason : "dead token"
       raise DeadTokenError, "SharePoint connection expired (#{reason}). Please reconnect in Admin > System > Connections."
     end
+
+    # FRC (Feb 2026): For credentials with status "error" or expired tokens, try to refresh
+    # immediately rather than failing. This ensures 24/7 availability - if a token expired
+    # overnight, we can still recover by refreshing on-demand.
+    ensure_valid_token! unless @credential.status == "disconnected"
+  end
+
+  # Ensure we have a valid token, refreshing if needed
+  # FRC (Feb 2026): Called during initialization to recover from overnight token expiry
+  def ensure_valid_token!
+    return if @credential.valid_credential?
+
+    Rails.logger.info "[MicrosoftAppGraphClient] Token invalid or expired for #{@credential.name || @credential.id}, attempting refresh..."
+
+    if @credential.app_credential?
+      unless @credential.fetch_app_token!
+        raise NotConnectedError, "SharePoint token refresh failed. Please check connection in Admin > System > Connections."
+      end
+    elsif @credential.delegated_credential?
+      unless @credential.refresh_delegated_token!
+        raise NotConnectedError, "SharePoint token refresh failed. Please reconnect in Admin > System > Connections."
+      end
+    end
+
+    # Reload to get fresh token data
+    @credential.reload
+    Rails.logger.info "[MicrosoftAppGraphClient] Token refreshed successfully for #{@credential.name || @credential.id}"
+  rescue StandardError => e
+    Rails.logger.error "[MicrosoftAppGraphClient] Token refresh failed: #{e.message}"
+    raise NotConnectedError, "SharePoint connection error: #{e.message}"
   end
 
   private
