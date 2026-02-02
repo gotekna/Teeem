@@ -28,9 +28,15 @@ class Api::V1::ImapCredentialsController < ApplicationController
     all_imap = ImapCredential.where(is_active: true, user_id: tenant_user_ids)
 
     # Count by status
+    # FRC (Feb 2026): Only count as connected if password exists AND sync successful
     total_imap = all_imap.count
-    connected_imap = all_imap.where(last_sync_status: 'success').where(last_sync_error: [nil, '']).count
-    error_imap = all_imap.where.not(last_sync_error: [nil, '']).count
+    connected_imap = all_imap.where(last_sync_status: 'success')
+                             .where(last_sync_error: [nil, ''])
+                             .where.not(encrypted_password: [nil, ''])
+                             .count
+    # Missing password counts as error for status purposes
+    missing_password_imap = all_imap.where(encrypted_password: [nil, '']).count
+    error_imap = all_imap.where.not(last_sync_error: [nil, '']).count + missing_password_imap
     syncing_imap = all_imap.where(last_sync_status: 'syncing').count
 
     # Get MS365 org credentials for THIS TENANT's organizations only
@@ -1001,9 +1007,14 @@ class Api::V1::ImapCredentialsController < ApplicationController
       :email_aliases  # Accepts comma-separated string from frontend
     )
 
-    # FRC (Jan 2026): Don't update password if blank - preserves existing password during edits
-    # Frontend sends password: "" for security (doesn't prefill existing password)
-    permitted.delete(:password) if permitted[:password].blank?
+    # FRC (Feb 2026): Only skip password update if:
+    # 1. Incoming password is blank, AND
+    # 2. There IS an existing password to preserve
+    # If existing password is blank, we NEED the new password (fixes bug where
+    # password was lost and user couldn't re-enter it)
+    if permitted[:password].blank? && @credential&.encrypted_password.present?
+      permitted.delete(:password)
+    end
 
     # Convert comma-separated string to array for email_aliases
     if permitted[:email_aliases].is_a?(String)
@@ -1032,6 +1043,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
       last_synced_at: credential.last_synced_at,
       last_sync_status: credential.last_sync_status,
       last_sync_error: credential.last_sync_error,
+      has_password: credential.encrypted_password.present?,  # FRC (Feb 2026): UI shows warning when false
       created_at: credential.created_at,
       email_signature: credential.email_signature,
       email_aliases: credential.email_aliases || [],  # Send-from aliases

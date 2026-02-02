@@ -81,6 +81,7 @@ interface ImapCredential {
   last_synced_at: string | null;
   last_sync_status: string | null;
   last_sync_error: string | null;
+  has_password: boolean; // FRC (Feb 2026): False when password is missing
   created_at: string;
   email_signature: string | null;
   email_aliases: string[]; // Send-from aliases (e.g., demo@, sales@)
@@ -1180,9 +1181,11 @@ export function EmailAccountsTab() {
               <CardContent>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    {/* Sync Status */}
+                    {/* Sync Status - FRC (Feb 2026): Show warning when password missing */}
                     <div className="flex items-center gap-1.5">
-                      {cred.last_sync_status === "success" ? (
+                      {!cred.has_password ? (
+                        <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
+                      ) : cred.last_sync_status === "success" ? (
                         <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                       ) : cred.last_sync_status === "error" ? (
                         <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
@@ -1190,9 +1193,11 @@ export function EmailAccountsTab() {
                         <Clock className="h-4 w-4" />
                       )}
                       <span>
-                        {cred.last_synced_at
-                          ? `Synced ${formatDistanceToNow(new Date(cred.last_synced_at), { addSuffix: true })}`
-                          : "Never synced"}
+                        {!cred.has_password
+                          ? "Password required - click Edit"
+                          : cred.last_synced_at
+                            ? `Synced ${formatDistanceToNow(new Date(cred.last_synced_at), { addSuffix: true })}`
+                            : "Never synced"}
                       </span>
                     </div>
 
