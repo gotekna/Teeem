@@ -231,7 +231,7 @@ interface FolderTreeNode {
 // Note: 'People' merged into 'Contacts'
 // Note: 'Users' added for Teeem Docs (personal user documents - Jan 2026)
 const KNOWN_ROOT_FOLDERS = [
-  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Users', 'Teeem Docs', 'Warehouse', 'Shared', 'System',
+  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Users', 'Teeem Docs', 'Warehouse', 'Warehousing', 'Shared', 'System',
   // Added Jan 2026 - new warehouse scopes
   'Cases', 'Assets', 'Financials', 'Payments', 'ESignatures', 'Templates'
 ];
@@ -248,13 +248,14 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
     .sort(([, a], [, b]) => a.localeCompare(b));
 
   // Filter out paths that shouldn't be at root level:
-  // 1. Paths that start with {{ (placeholder at root level)
+  // 1. Paths that start with {{ or [[ (placeholder at root level)
   // 2. Paths that don't start with a known scope root folder (e.g., "ActiveStorage", "Attachments")
   //    These are tab paths that should be relative to their scope but were stored incorrectly
   const filteredEntries = entries.filter(([key, path]) => {
     if (!path) return false;
-    // Skip paths that start with {{ (placeholder at root level)
-    if (path.startsWith('{{')) return false;
+    // Skip paths that start with {{ or [[ (placeholder/literal at root level)
+    // {{Token}} = dynamic placeholder, [[Token]] = literal folder name placeholder
+    if (path.startsWith('{{') || path.startsWith('[[')) return false;
     // Skip paths whose first segment isn't a known scope root folder
     // This filters out "ActiveStorage", "Attachments", "Documents", "Revit", "Email Body" etc.
     // that should be nested under their scope roots but aren't
@@ -335,10 +336,12 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
     // For main scopes, filter out placeholder parts but KEEP static parts after them
     // e.g., "Jobs/{{JobCode}}/Compliance" → ['Jobs', 'Compliance']
     // This allows compliance and plan scopes to create proper child nodes under Jobs
+    // FRC: Check both {{ (dynamic) and [[ (literal) placeholder syntax
+    const isPlaceholder = (p: string) => p.startsWith('{{') || p.startsWith('[[');
     let parts = allParts;
     if (isMainScope) {
       // Filter out placeholder parts, keep all static parts
-      parts = allParts.filter(p => !p.startsWith('{{'));
+      parts = allParts.filter(p => !isPlaceholder(p));
       if (parts.length === 0) {
         // Path is all placeholders - skip entirely
         return;
@@ -349,11 +352,11 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
     let currentPath = '';
 
     // Track actual static parts for determining leaf
-    const staticParts = parts.filter(p => !p.startsWith('{{'));
+    const staticParts = parts.filter(p => !isPlaceholder(p));
 
     parts.forEach((part, index) => {
       // Skip placeholder parts entirely for tree building
-      if (part.startsWith('{{')) return;
+      if (isPlaceholder(part)) return;
 
       currentPath = currentPath ? `${currentPath}/${part}` : part;
       const staticIndex = staticParts.indexOf(part);
