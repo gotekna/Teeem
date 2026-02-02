@@ -150,10 +150,13 @@ class XeroAttachmentSyncJob < ApplicationJob
       results = smart_batch_sync(options)
 
       # Calculate next sync based on how much work is left
-      remaining = count_remaining_invoices
-      next_sync = if remaining.zero?
+      # FRC (Feb 2026): Use per-tenant count for follow-up decisions, global for status
+      remaining_global = count_remaining_invoices
+      remaining_tenant = tenant_id.present? ? count_remaining_invoices_for_tenant(tenant_id) : remaining_global
+
+      next_sync = if remaining_global.zero?
                     30.minutes.from_now  # Stay near-live when caught up
-      elsif remaining < 100
+      elsif remaining_global < 100
                     10.minutes.from_now  # Almost caught up
       else
                     5.minutes.from_now   # Still catching up - go fast
@@ -177,9 +180,11 @@ class XeroAttachmentSyncJob < ApplicationJob
         )
       end
 
-      # If there's more work and we have rate limit headroom, queue another batch
-      if remaining > 0 && can_continue_syncing?(tenant_id)
-        Rails.logger.info("[XeroAttachmentSync] #{remaining} remaining, queuing next batch")
+      # FRC (Feb 2026): Only queue follow-up if THIS TENANT has remaining work
+      # Previous bug: Used global count, so orgs with 0 remaining kept getting jobs
+      # while orgs with work were starved
+      if remaining_tenant > 0 && can_continue_syncing?(tenant_id)
+        Rails.logger.info("[XeroAttachmentSync] #{remaining_tenant} remaining for tenant, queuing next batch")
         XeroAttachmentSyncJob.set(wait: 1.minute).perform_later(**options)
       end
 
@@ -327,6 +332,33 @@ class XeroAttachmentSyncJob < ApplicationJob
 
     ExternalInvoice
       .active  # Exclude deleted/voided invoices
+      .where.not(external_id: nil)
+      .where.not(tenant_id: nil)
+      .where.not(contact_id: nil)
+      .where.not(id: already_synced_ids)
+      .count
+  end
+
+  # FRC (Feb 2026): Count remaining invoices for a SPECIFIC Xero org
+  # Used to decide whether to queue follow-up jobs for this tenant
+  def count_remaining_invoices_for_tenant(xero_tenant_id)
+    return 0 unless xero_tenant_id.present?
+
+    already_synced_ids = WarehouseDocument
+      .where(source_type: "xero")
+      .where(documentable_type: "ExternalInvoice")
+      .where("metadata->>'is_primary' = ?", "true")
+      .where.not(storage_blob_id: nil)
+      .pluck(:documentable_id)
+
+    # Filter by Xero org via contact's external link
+    contact_ids_for_xero_org = ContactExternalLink
+      .where(source: "xero", tenant_id: xero_tenant_id)
+      .pluck(:contact_id)
+
+    ExternalInvoice
+      .active
+      .where(contact_id: contact_ids_for_xero_org)
       .where.not(external_id: nil)
       .where.not(tenant_id: nil)
       .where.not(contact_id: nil)
