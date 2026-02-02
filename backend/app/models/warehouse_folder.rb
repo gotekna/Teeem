@@ -361,7 +361,7 @@ class WarehouseFolder < ApplicationRecord
         SELECT id, parent_id FROM warehouse_folders WHERE id = ?
         UNION ALL
         SELECT wf.id, wf.parent_id FROM warehouse_folders wf
-        INNER JOIN descendants d ON et.parent_id = d.id
+        INNER JOIN descendants d ON wf.parent_id = d.id
       )
       SELECT id FROM descendants
     SQL

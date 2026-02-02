@@ -370,7 +370,7 @@ class SmTask < ApplicationRecord
         # Jobs where someone IS assigned to this role
         assigned_job_ids = JobContact.where(role: role_name).where.not(user_id: nil).pluck(:job_id)
         # Tasks for this role on jobs where NO ONE is assigned
-        where(assigned_role: role_id, assigned_user_id: nil).where.not(construction_id: assigned_job_ids)
+        where(assigned_role: role_id, assigned_user_id: nil).where.not(job_id: assigned_job_ids)
       end.compact
       fallback = fallback_conditions.any? ? fallback_conditions.reduce(:or) : none
     else
