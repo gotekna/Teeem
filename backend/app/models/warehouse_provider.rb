@@ -412,18 +412,28 @@ class WarehouseProvider < ApplicationRecord
 
   # SSoT (Feb 2026): Get download_name templates from warehouse_folders table per-warehouse_type
   # Returns: { "contact" => "{{CompanyCode}} {{DocType}}", "job" => nil, ... }
+  # First tries root tab (parent_id: nil), then falls back to first folder of that type
   def scope_download_names
-    WarehouseFolder.root_tabs.where(warehouse_type: DEFAULT_WAREHOUSE_FOLDERS.keys)
-      .pluck(:warehouse_type, :download_name)
-      .to_h
+    result = {}
+    DEFAULT_WAREHOUSE_FOLDERS.keys.each do |warehouse_type|
+      folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
+      folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
+      result[warehouse_type] = folder&.download_name
+    end
+    result.compact
   end
 
   # SSoT (Feb 2026): Get ui_name templates from warehouse_folders table per-warehouse_type
   # Returns: { "contact" => "{{DocType}} - {{Date}}", "job" => nil, ... }
+  # First tries root tab (parent_id: nil), then falls back to first folder of that type
   def scope_ui_names
-    WarehouseFolder.root_tabs.where(warehouse_type: DEFAULT_WAREHOUSE_FOLDERS.keys)
-      .pluck(:warehouse_type, :ui_name)
-      .to_h
+    result = {}
+    DEFAULT_WAREHOUSE_FOLDERS.keys.each do |warehouse_type|
+      folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
+      folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
+      result[warehouse_type] = folder&.ui_name
+    end
+    result.compact
   end
 
   # LIM (Jan 2026): Removed effective_scope_folders alias - use scope_root_folders.keys

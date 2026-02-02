@@ -88,18 +88,22 @@ module Api
         # - ui_name_templates column REMOVED - stored per-tab in warehouse_folders.ui_name
 
         # SSoT: Save download_name templates to warehouse_folders table per-warehouse_type
+        # First try root tab (parent_id: nil), then fall back to any folder of that type
         if sp.key?(:download_names)
           sp[:download_names].to_h.each do |warehouse_type, template|
-            folder = WarehouseFolder.root_tabs.find_by(warehouse_type: warehouse_type)
-            folder&.update(download_name: template.presence) if folder
+            folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
+            folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
+            folder&.update(download_name: template.presence)
           end
         end
 
         # SSoT: Save ui_name templates to warehouse_folders table per-warehouse_type
+        # First try root tab (parent_id: nil), then fall back to any folder of that type
         if sp.key?(:ui_name_templates)
           sp[:ui_name_templates].to_h.each do |warehouse_type, template|
-            folder = WarehouseFolder.root_tabs.find_by(warehouse_type: warehouse_type)
-            folder&.update(ui_name: template.presence) if folder
+            folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
+            folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
+            folder&.update(ui_name: template.presence)
           end
         end
 
