@@ -201,8 +201,9 @@ class WarehouseFolderQueryService
       visibility_rule: tab.visibility_rule,
       # New warehouse naming
       warehouse_enabled: tab.warehouse_enabled,
-      # SSoT: Return raw stored warehouse_folder (fallback to display_name), NOT derived path
-      warehouse_folder: tab.warehouse_folder.presence || tab.display_name,
+      # SSoT: Return raw stored warehouse_folder for editing (nil/empty = use display_name default in UI)
+      # ⚠️ DO NOT use .presence here - empty string "" must be preserved (user intentionally cleared it)
+      warehouse_folder: tab.read_attribute(:warehouse_folder),
       full_warehouse_path: warehouse_data[:full_path],
       uses_custom_path: tab.uses_custom_path,
       warehouse_type_override: tab.warehouse_type_override || 'corporate',
