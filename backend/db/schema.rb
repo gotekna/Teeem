@@ -10092,7 +10092,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_110004) do
     t.string "xero_scope"
     t.string "visibility_rule"
     t.bigint "tenant_id"
-    t.string "send_name_template"
+    t.string "download_name"
     t.string "warehouse_folder"
     t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
     t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
