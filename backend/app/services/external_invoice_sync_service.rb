@@ -324,7 +324,9 @@ class ExternalInvoiceSyncService
     external_contact_id = invoice_data.dig("Contact", "ContactID")
 
     # Map Xero data to our normalized format
+    # FRC (Feb 2026): xero_org_id stores Xero UUID for correct API calls and scoping
     invoice.assign_attributes(
+      xero_org_id: xero_tenant_id,
       invoice_number: invoice_data["InvoiceNumber"],
       reference: invoice_data["Reference"],
       invoice_type: ExternalInvoice.normalize_xero_type(invoice_data["Type"]),
@@ -828,7 +830,9 @@ class ExternalInvoiceSyncService
     # LIM (Jan 2026): XeroContact lookup removed - ContactExternalLink is THE ONE SSoT
     external_contact_id = cn_data.dig("Contact", "ContactID")
 
+    # FRC (Feb 2026): xero_org_id stores Xero UUID for correct API calls and scoping
     record.assign_attributes(
+      xero_org_id: xero_tenant_id,
       invoice_number: cn_data["CreditNoteNumber"],
       reference: cn_data["Reference"],
       invoice_type: "credit_note",
@@ -922,7 +926,9 @@ class ExternalInvoiceSyncService
     # LIM (Jan 2026): XeroContact lookup removed - ContactExternalLink is THE ONE SSoT
     external_contact_id = quote_data.dig("Contact", "ContactID")
 
+    # FRC (Feb 2026): xero_org_id stores Xero UUID for correct API calls and scoping
     record.assign_attributes(
+      xero_org_id: xero_tenant_id,
       invoice_number: quote_data["QuoteNumber"],
       reference: quote_data["Reference"] || quote_data["Title"],
       invoice_type: "quote",
