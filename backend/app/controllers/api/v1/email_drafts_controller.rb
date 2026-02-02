@@ -5,9 +5,10 @@ class Api::V1::EmailDraftsController < ApplicationController
 
   # GET /api/v1/email_drafts
   # List all drafts for current user
+  # SSoT (Feb 2026): Uses tenant-scoped lookup
   def index
     drafts = current_user.email_drafts
-      .for_organization(current_organization)
+      .for_tenant(current_tenant)
       .drafts_only
       .recent(params[:limit]&.to_i || 50)
 
@@ -30,9 +31,11 @@ class Api::V1::EmailDraftsController < ApplicationController
 
   # POST /api/v1/email_drafts
   # Create a new draft
+  # SSoT (Feb 2026): Uses tenant-scoped lookup
   def create
     draft = current_user.email_drafts.build(draft_params)
-    draft.organization = current_organization
+    draft.tenant = current_tenant
+    draft.organization = current_organization # DEPRECATED: kept for backwards compat
 
     if draft.save
       render json: {
@@ -88,8 +91,9 @@ class Api::V1::EmailDraftsController < ApplicationController
 
   # DELETE /api/v1/email_drafts
   # Clear all drafts for current user
+  # SSoT (Feb 2026): Uses tenant-scoped lookup
   def destroy_all
-    count = current_user.email_drafts.for_organization(current_organization).destroy_all.count
+    count = current_user.email_drafts.for_tenant(current_tenant).destroy_all.count
 
     render json: {
       success: true,
@@ -100,8 +104,9 @@ class Api::V1::EmailDraftsController < ApplicationController
   private
 
   def set_draft
+    # SSoT (Feb 2026): Uses tenant-scoped lookup
     @draft = current_user.email_drafts
-      .for_organization(current_organization)
+      .for_tenant(current_tenant)
       .find(params[:id])
   end
 

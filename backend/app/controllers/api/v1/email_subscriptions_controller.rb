@@ -35,6 +35,7 @@ module Api
 
       # POST /api/v1/email_subscriptions
       # Create new subscription
+      # SSoT (Feb 2026): Uses tenant-scoped lookup
       def create
         contact = Contact.find(params[:contact_id])
 
@@ -42,7 +43,8 @@ module Api
         # (plan_type, billing_email, notes, created_by) that caused 500 errors
         subscription = EmailSubscription.new(
           contact: contact,
-          organization: current_organization,
+          tenant: current_tenant,
+          organization: current_organization, # DEPRECATED: kept for backwards compat
           domain: params[:domain],
           status: "pending"
         )

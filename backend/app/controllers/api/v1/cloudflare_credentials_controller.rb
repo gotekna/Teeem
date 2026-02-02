@@ -7,8 +7,9 @@ module Api
 
       # GET /api/v1/cloudflare_credentials
       # Get current Cloudflare configuration
+      # SSoT (Feb 2026): Uses tenant-scoped lookup
       def index
-        credential = CloudflareCredential.active_credential(current_organization)
+        credential = CloudflareCredential.active_credential(current_tenant)
 
         if credential
           render json: {
@@ -34,13 +35,15 @@ module Api
 
       # POST /api/v1/cloudflare_credentials
       # Create or update Cloudflare configuration
+      # SSoT (Feb 2026): Uses tenant-scoped lookup
       def create
         # Deactivate existing credential if present
-        existing = CloudflareCredential.active_credential(current_organization)
+        existing = CloudflareCredential.active_credential(current_tenant)
         existing&.deactivate!
 
         credential = CloudflareCredential.new(
-          organization: current_organization,
+          tenant: current_tenant,
+          organization: current_organization, # DEPRECATED: kept for backwards compat
           api_token: params[:api_token],
           account_id: params[:account_id],
           email: params[:email],
@@ -132,8 +135,9 @@ module Api
 
       # GET /api/v1/cloudflare_credentials/zones
       # List available zones (domains) in Cloudflare
+      # SSoT (Feb 2026): Uses tenant-scoped lookup
       def zones
-        credential = CloudflareCredential.active_credential(current_organization)
+        credential = CloudflareCredential.active_credential(current_tenant)
 
         unless credential&.status_connected?
           render json: {
