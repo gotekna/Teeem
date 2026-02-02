@@ -1478,6 +1478,29 @@ function TabNode({
         <div className="flex items-center gap-1 mb-2">
           <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
           <span className="text-sm font-medium">{resolveTemplatePreview(defaultFolderName || tab.display_name || '')}</span>
+          {/* UI/DL badges for this tab */}
+          <span
+            className={cn(
+              "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
+              tab.ui_name
+                ? "bg-green-500 text-white dark:bg-green-600"
+                : "bg-orange-500 text-white dark:bg-orange-600"
+            )}
+            title={`UI Name: ${tab.ui_name || '{{OriginalFileName}} (default)'}`}
+          >
+            UI
+          </span>
+          <span
+            className={cn(
+              "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
+              tab.download_name && tab.download_name !== '{{OriginalFileName}}'
+                ? "bg-green-500 text-white dark:bg-green-600"
+                : "bg-orange-500 text-white dark:bg-orange-600"
+            )}
+            title={`Download Name: ${tab.download_name || '{{OriginalFileName}} (default)'}`}
+          >
+            DL
+          </span>
           {!isEditing && (
             <span className="text-[10px] text-muted-foreground ml-2 opacity-0 group-hover:opacity-100">(click to edit)</span>
           )}
@@ -1658,6 +1681,29 @@ function TabNode({
         <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
         {/* Show folder name (from warehouse_folder), resolved if it contains tokens */}
         <span className="text-sm">{resolveTemplatePreview(folderName || tab.display_name || '')}</span>
+        {/* UI/DL badges for this tab */}
+        <span
+          className={cn(
+            "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
+            tab.ui_name
+              ? "bg-green-500 text-white dark:bg-green-600"
+              : "bg-orange-500 text-white dark:bg-orange-600"
+          )}
+          title={`UI Name: ${tab.ui_name || '{{OriginalFileName}} (default)'}`}
+        >
+          UI
+        </span>
+        <span
+          className={cn(
+            "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
+            tab.download_name && tab.download_name !== '{{OriginalFileName}}'
+              ? "bg-green-500 text-white dark:bg-green-600"
+              : "bg-orange-500 text-white dark:bg-orange-600"
+          )}
+          title={`Download Name: ${tab.download_name || '{{OriginalFileName}} (default)'}`}
+        >
+          DL
+        </span>
         {/* Show document type count if has doc types */}
         {hasDocTypes && (
           <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">
