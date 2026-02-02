@@ -28,11 +28,8 @@ class Organization < ApplicationRecord
   # DEPRECATED (Feb 2026): Use WarehouseProvider.credential instead
   belongs_to :document_provider_credential, class_name: 'S3CompatibleCredential', optional: true
 
-  # SSoT: Storage configuration for document paths and provider settings
-  has_one :warehouse_provider, dependent: :destroy
-
-  # SSoT: Backup configuration for per-tenant backup settings
-  has_one :backup_configuration, dependent: :destroy
+  # NOTE (Feb 2026): warehouse_provider and backup_configuration moved to Tenant level
+  # See WarehouseProvider.for_tenant and BackupConfiguration models
 
   # Validations
   validates :name, presence: true, uniqueness: true
@@ -46,9 +43,9 @@ class Organization < ApplicationRecord
     @document_storage ||= DocumentProviders.for_organization(self)
   end
 
-  # SSoT: Get or create storage configuration for this organization
+  # SSoT: Get storage configuration via tenant (Feb 2026 consolidation)
   def storage_config
-    warehouse_provider || WarehouseProvider.for_organization(self)
+    WarehouseProvider.for_tenant(tenant)
   end
 
   # Check if S3-compatible storage is enabled

@@ -146,6 +146,13 @@ interface ShareableUser {
   tenant_name?: string; // FRC (Feb 2026): Tenant name for cross-tenant users
 }
 
+interface TenantOption {
+  id: number;
+  name: string;
+  user_count: number;
+  is_current: boolean;
+}
+
 // Component for configuring MS365 mailbox access
 function MS365MailboxAccessConfig() {
   const { toast } = useToast();
@@ -633,10 +640,11 @@ export function EmailAccountsTab() {
   const [shareableUsers, setShareableUsers] = useState<ShareableUser[]>([]);
   const [selectedSharedUsers, setSelectedSharedUsers] = useState<number[]>([]);
   const [savingSharing, setSavingSharing] = useState(false);
-  // Cross-tenant search state
-  const [crossTenantSearch, setCrossTenantSearch] = useState("");
-  const [crossTenantResults, setCrossTenantResults] = useState<ShareableUser[]>([]);
-  const [searchingCrossTenant, setSearchingCrossTenant] = useState(false);
+  // Cross-tenant sharing state
+  const [tenantsList, setTenantsList] = useState<TenantOption[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
+  const [tenantUsers, setTenantUsers] = useState<ShareableUser[]>([]);
+  const [loadingTenantUsers, setLoadingTenantUsers] = useState(false);
 
   // Fetch credentials and providers on mount
   useEffect(() => {
@@ -819,14 +827,20 @@ export function EmailAccountsTab() {
     setSharingCredential(cred);
     setSelectedSharedUsers(cred.shared_with_user_ids || []);
     setShareDialogOpen(true);
+    // Reset cross-tenant state
+    setSelectedTenantId(null);
+    setTenantUsers([]);
 
-    // FRC (Feb 2026): Always fetch shareable users with credential_id to include cross-tenant shared users
+    // FRC (Feb 2026): Fetch shareable users and tenants list in parallel
     try {
-      const response = await api.get<{ success: boolean; data: ShareableUser[] }>(
-        `/api/v1/imap_credentials/shareable_users?credential_id=${cred.id}`
-      );
-      if (response.success) {
-        setShareableUsers(response.data);
+      const [usersResponse] = await Promise.all([
+        api.get<{ success: boolean; data: ShareableUser[] }>(
+          `/api/v1/imap_credentials/shareable_users?credential_id=${cred.id}`
+        ),
+        fetchTenantsList()
+      ]);
+      if (usersResponse.success) {
+        setShareableUsers(usersResponse.data);
       }
     } catch (error) {
       console.error("Failed to fetch shareable users:", error);
@@ -869,39 +883,54 @@ export function EmailAccountsTab() {
     }
   };
 
-  // Search for users across all tenants (for cross-tenant sharing)
-  const handleCrossTenantSearch = async (searchTerm: string) => {
-    setCrossTenantSearch(searchTerm);
-
-    if (searchTerm.length < 2) {
-      setCrossTenantResults([]);
-      return;
-    }
-
-    setSearchingCrossTenant(true);
+  // Fetch available tenants for cross-tenant sharing
+  const fetchTenantsList = async () => {
     try {
-      const response = await api.get<{ success: boolean; data: ShareableUser[] }>(
-        `/api/v1/imap_credentials/shareable_users?search=${encodeURIComponent(searchTerm)}&credential_id=${sharingCredential?.id}`
+      const response = await api.get<{ success: boolean; data: TenantOption[] }>(
+        "/api/v1/imap_credentials/tenants_list"
       );
       if (response.success) {
-        // Filter out users already in shareableUsers list
-        const existingIds = shareableUsers.map(u => u.id);
-        const newResults = response.data.filter(u => !existingIds.includes(u.id));
-        setCrossTenantResults(newResults);
+        // Filter out current tenant (we already show those users)
+        setTenantsList(response.data.filter(t => !t.is_current));
       }
     } catch (error) {
-      console.error("Failed to search users:", error);
-    } finally {
-      setSearchingCrossTenant(false);
+      console.error("Failed to fetch tenants:", error);
     }
   };
 
-  // Add a cross-tenant user to the shareable list
+  // Fetch users from selected tenant
+  const handleSelectTenant = async (tenantId: number) => {
+    setSelectedTenantId(tenantId);
+    setLoadingTenantUsers(true);
+    setTenantUsers([]);
+
+    try {
+      const response = await api.get<{ success: boolean; data: ShareableUser[] }>(
+        `/api/v1/imap_credentials/shareable_users?tenant_id=${tenantId}`
+      );
+      if (response.success) {
+        setTenantUsers(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch tenant users:", error);
+    } finally {
+      setLoadingTenantUsers(false);
+    }
+  };
+
+  // Add a cross-tenant user to the shareable list and select them
   const handleAddCrossTenantUser = (user: ShareableUser) => {
-    setShareableUsers(prev => [...prev, user]);
-    setSelectedSharedUsers(prev => [...prev, user.id]);
-    setCrossTenantSearch("");
-    setCrossTenantResults([]);
+    // Add to shareable users if not already there
+    if (!shareableUsers.find(u => u.id === user.id)) {
+      setShareableUsers(prev => [...prev, user]);
+    }
+    // Toggle selection
+    setSelectedSharedUsers(prev => {
+      if (prev.includes(user.id)) {
+        return prev.filter(id => id !== user.id);
+      }
+      return [...prev, user.id];
+    });
   };
 
   if (loading) {
@@ -1405,49 +1434,73 @@ export function EmailAccountsTab() {
           ) : (
             // Owner view - show sharing controls
             <div className="py-4 space-y-4">
-              {/* Cross-tenant search */}
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">
-                  Search users from other organizations
-                </Label>
-                <div className="relative">
-                  <Input
-                    placeholder="Search by name or email..."
-                    value={crossTenantSearch}
-                    onChange={(e) => handleCrossTenantSearch(e.target.value)}
-                    className="pr-8"
-                  />
-                  {searchingCrossTenant && (
-                    <Spinner className="absolute right-2 top-2.5 h-4 w-4" />
+              {/* Cross-tenant sharing - Select tenant first */}
+              {tenantsList.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Add users from other organizations
+                  </Label>
+                  <Select
+                    value={selectedTenantId?.toString() || ""}
+                    onValueChange={(value) => handleSelectTenant(parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select organization..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenantsList.map((tenant) => (
+                        <SelectItem key={tenant.id} value={tenant.id.toString()}>
+                          {tenant.name} ({tenant.user_count} users)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Users from selected tenant */}
+                  {selectedTenantId && (
+                    <div className="border rounded-lg max-h-[150px] overflow-y-auto">
+                      {loadingTenantUsers ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Spinner className="h-4 w-4" />
+                        </div>
+                      ) : tenantUsers.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          No users found in this organization
+                        </p>
+                      ) : (
+                        <div className="divide-y">
+                          {tenantUsers.map((user) => (
+                            <button
+                              key={user.id}
+                              onClick={() => handleAddCrossTenantUser(user)}
+                              className={`w-full flex items-center gap-3 p-2 hover:bg-muted/50 transition-colors text-left ${
+                                selectedSharedUsers.includes(user.id) ? "bg-primary/10" : ""
+                              }`}
+                            >
+                              <Checkbox
+                                checked={selectedSharedUsers.includes(user.id)}
+                                onCheckedChange={() => handleAddCrossTenantUser(user)}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm truncate">{user.name}</div>
+                                <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-                {/* Search results */}
-                {crossTenantResults.length > 0 && (
-                  <div className="border rounded-lg divide-y max-h-[150px] overflow-y-auto">
-                    {crossTenantResults.map((user) => (
-                      <button
-                        key={user.id}
-                        onClick={() => handleAddCrossTenantUser(user)}
-                        className="w-full flex items-center gap-3 p-2 hover:bg-muted/50 transition-colors text-left"
-                      >
-                        <Plus className="h-4 w-4 text-muted-foreground" />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate">{user.name}</div>
-                          <div className="text-xs text-muted-foreground truncate">{user.email}</div>
-                        </div>
-                        {user.tenant_name && (
-                          <Badge variant="outline" className="text-xs">
-                            {user.tenant_name}
-                          </Badge>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
 
               {/* Divider */}
-              <div className="border-t" />
+              {tenantsList.length > 0 && <div className="border-t" />}
+
+              {/* Label for same-tenant users */}
+              <Label className="text-xs text-muted-foreground">
+                Users in your organization
+              </Label>
 
               {/* Team members list */}
               <div className="space-y-3 max-h-[250px] overflow-y-auto">
@@ -1486,6 +1539,7 @@ export function EmailAccountsTab() {
                     </div>
                   ))
               )}
+            </div>
             </div>
           )}
 

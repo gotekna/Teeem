@@ -35,10 +35,8 @@
 #
 class WarehouseProvider < ApplicationRecord
   # Associations
-  # SSoT: WarehouseProvider belongs to TENANT (Jan 2026 fix)
-  # Organization association deprecated but kept for backward compatibility
+  # SSoT: WarehouseProvider belongs to TENANT only (Feb 2026 consolidation)
   belongs_to :tenant
-  belongs_to :organization, optional: true  # DEPRECATED: Use tenant instead
   belongs_to :credential, polymorphic: true, optional: true
 
   # Provider types - what storage backend to use

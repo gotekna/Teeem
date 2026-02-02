@@ -751,7 +751,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
   # List users who can be granted access to email credentials
   # SSoT (Jan 2026): Filter by current tenant for multi-tenancy isolation
   # FRC (Feb 2026): Also include already-shared users (even cross-tenant) so they appear in dialog
-  # FRC (Feb 2026): Support cross-tenant search via ?search= param
+  # FRC (Feb 2026): Support tenant_id param to get users from a specific tenant
   def shareable_users
     tenant_user_ids = current_tenant&.users&.pluck(:id) || []
 
@@ -762,27 +762,30 @@ class Api::V1::ImapCredentialsController < ApplicationController
       already_shared_ids = credential&.shared_with_user_ids || []
     end
 
-    # If search param provided, search ALL tenants (for cross-tenant sharing)
-    if params[:search].present? && params[:search].length >= 2
-      search_term = "%#{params[:search].downcase}%"
-      search_users = User.where("LOWER(name) LIKE ? OR LOWER(email) LIKE ?", search_term, search_term)
-                         .where.not(id: current_user.id) # Exclude current user
-                         .limit(20)
-                         .map do |user|
-        is_cross_tenant = !tenant_user_ids.include?(user.id)
+    # If tenant_id param provided, return users from that specific tenant
+    if params[:tenant_id].present?
+      target_tenant = Tenant.find_by(id: params[:tenant_id])
+      unless target_tenant
+        return render json: { success: false, error: "Tenant not found" }, status: :not_found
+      end
+
+      users = target_tenant.users
+                           .where.not(id: current_user.id)
+                           .order(:name)
+                           .map do |user|
         {
           id: user.id,
           name: user.name,
           email: user.email,
-          is_cross_tenant: is_cross_tenant,
-          tenant_name: user.tenant&.name
+          is_cross_tenant: target_tenant.id != current_tenant&.id,
+          tenant_name: target_tenant.name
         }
       end
 
       return render json: {
         success: true,
-        data: search_users,
-        is_search_result: true
+        data: users,
+        tenant_name: target_tenant.name
       }
     end
 
@@ -803,6 +806,24 @@ class Api::V1::ImapCredentialsController < ApplicationController
     render json: {
       success: true,
       data: users
+    }
+  end
+
+  # GET /api/v1/imap_credentials/tenants_list
+  # List all tenants for cross-tenant sharing dropdown
+  def tenants_list
+    tenants = Tenant.order(:name).map do |tenant|
+      {
+        id: tenant.id,
+        name: tenant.name,
+        user_count: tenant.users.count,
+        is_current: tenant.id == current_tenant&.id
+      }
+    end
+
+    render json: {
+      success: true,
+      data: tenants
     }
   end
 

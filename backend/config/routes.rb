@@ -1522,6 +1522,7 @@ Rails.application.routes.draw do
           post :toggle_mailbox_favorite  # Toggle mailbox as favorite/bookmarked
           post :sync_all  # Sync ALL user's IMAP accounts
           get :shareable_users  # List users who can be granted access
+          get :tenants_list  # List all tenants for cross-tenant sharing
         end
         member do
           post :sync
