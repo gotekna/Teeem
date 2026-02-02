@@ -1443,10 +1443,10 @@ function TabNode({
 
         {isEditing ? (
           <div className="space-y-3 ml-4 border-l-2 border-blue-200 dark:border-blue-800 pl-3">
-            {/* Display Name - what users see in UI */}
+            {/* Document UI Name - what users see in UI */}
             <div className="space-y-1">
               <TokenBuilder
-                label={<span className="text-[11px] font-medium text-muted-foreground">Display Name</span>}
+                label={<span className="text-[11px] font-medium text-muted-foreground">Document UI Name</span>}
                 value={editDisplayName}
                 onChange={setEditDisplayName}
                 scope="storage"
@@ -1491,10 +1491,10 @@ function TabNode({
               </div>
             </div>
 
-            {/* Download filename template */}
+            {/* Document Download Name template */}
             <div className="space-y-1">
               <TokenBuilder
-                label={<span className="text-[11px] font-medium text-muted-foreground">Download Filename</span>}
+                label={<span className="text-[11px] font-medium text-muted-foreground">Document Download Name</span>}
                 value={editSendName}
                 onChange={setEditSendName}
                 scope="storage"
@@ -1530,10 +1530,10 @@ function TabNode({
             </div>
           </div>
         ) : (
-          // Show display name, folder path, and download filename when not editing
+          // Show document UI name, folder path, and download name when not editing
           <div className="ml-4 text-[11px] text-muted-foreground space-y-0.5">
             <div>
-              <span className="font-medium">Display Name: </span>
+              <span className="font-medium">Document UI Name: </span>
               <span>{tab.display_name}</span>
             </div>
             <div>
@@ -1553,7 +1553,7 @@ function TabNode({
               </span>
             </div>
             <div>
-              <span className="font-medium">Download As: </span>
+              <span className="font-medium">Document Download Name: </span>
               <span className="font-mono">{tab.send_name_template || '{{OriginalFileName}}'}</span>
             </div>
           </div>

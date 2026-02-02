@@ -1939,7 +1939,7 @@ export default function DocumentTypeDetailPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="file_name">Download Name</Label>
+                <Label htmlFor="file_name">Document Download Name</Label>
             <div
               className={cn(
                 "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
@@ -2076,7 +2076,7 @@ export default function DocumentTypeDetailPage() {
 
           <div className="space-y-2">
             <div className="flex items-start justify-between gap-4">
-              <Label htmlFor="display_name">Display Name</Label>
+              <Label htmlFor="display_name">Document UI Name</Label>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
@@ -2102,7 +2102,7 @@ export default function DocumentTypeDetailPage() {
                       htmlFor="same-as-file-name"
                       className="text-sm font-normal cursor-pointer text-muted-foreground"
                     >
-                      Same as Download Name
+                      Same as Document Download Name
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">
@@ -2255,7 +2255,7 @@ export default function DocumentTypeDetailPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               {displayNameSameAsFileName
-                ? "Display Name matches Download Name automatically"
+                ? "Document UI Name matches Document Download Name automatically"
                 : "Drag placeholders to customize"}
             </p>
           </div>
