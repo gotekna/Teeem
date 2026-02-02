@@ -445,6 +445,15 @@ export function TokenBuilder({
               <DefaultToken key={token.id} item={token} />
             ))}
             <span className="text-xs text-muted-foreground/60 italic ml-1">(default)</span>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => onChange(defaultValue || "")}
+                className="ml-1 text-xs px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 transition-colors"
+              >
+                Use
+              </button>
+            )}
           </div>
         ) : tokens.length === 0 ? (
           <span className="text-sm text-muted-foreground italic">+ add suffix</span>
