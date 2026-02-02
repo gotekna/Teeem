@@ -431,7 +431,7 @@ class BankStatementReport < ApplicationRecord
     folder_path = WarehouseProvider.instance.resolve_virtual_path(
       :bank_statement,
       {
-        CompanyGroup: corporate_company&.company_group.presence || "Default",
+        CompanyGroup: corporate_company&.company_group&.name.presence || "Default",
         CompanyCode: corporate_company&.company_code
       }
     )

@@ -410,13 +410,9 @@ class Corporate < ApplicationRecord
   end
 
   # Group name for display
+  # SSoT: company_group association is THE ONE source (legacy string column removed Feb 2026)
   def group_name
-    company_group&.name || company_group_legacy
-  end
-
-  # Legacy company_group field (string) - for backwards compatibility
-  def company_group_legacy
-    read_attribute(:company_group)
+    company_group&.name
   end
 
   # Hierarchy methods

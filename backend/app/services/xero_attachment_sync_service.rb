@@ -374,7 +374,7 @@ class XeroAttachmentSyncService
     substitutions = {
       "ContactName" => contact_folder_name,
       "ContactId" => contact&.id,
-      "CompanyGroup" => company&.company_group.presence || "Default",
+      "CompanyGroup" => company&.company_group&.name.presence || "Default",
       "CompanyCode" => company&.company_code.presence || "Unknown",
       "CompanyName" => company&.name,
       "Year" => (external_invoice.invoice_date || Date.current).year,

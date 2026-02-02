@@ -188,7 +188,7 @@ class SendNameResolver
       company = documentable.corporate_company
       context[:company_code] = company.company_code || company.code
       context[:company_name] = company.name
-      context[:company_group] = company.company_group  # String column, not association
+      context[:company_group] = company.company_group&.name  # SSoT: use association
     end
 
     # Document type context

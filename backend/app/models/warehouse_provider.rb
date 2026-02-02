@@ -622,7 +622,7 @@ class WarehouseProvider < ApplicationRecord
     if record.respond_to?(:corporate_company) && record.corporate_company
       tokens[:CompanyCode] = record.corporate_company.company_code
       tokens[:CompanyName] = record.corporate_company.name
-      tokens[:CompanyGroup] = record.corporate_company.company_group.presence || "Default"
+      tokens[:CompanyGroup] = record.corporate_company.company_group&.name.presence || "Default"
     end
 
     # Date tokens - try multiple date fields

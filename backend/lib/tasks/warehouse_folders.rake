@@ -156,7 +156,7 @@ namespace :warehouse do
       if documentable.respond_to?(:corporate_company) && documentable.corporate_company
         cc = documentable.corporate_company
         tokens[:CompanyCode] = cc.company_code
-        tokens[:CompanyGroup] = cc.company_group.presence || "Default"
+        tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
       end
 
       # Case context
