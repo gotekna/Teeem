@@ -65,9 +65,9 @@ class XeroRateLimitTracker
     # cache backend issues. This method now proactively deletes expired entries.
     #
     # FRC (Feb 2026): Xero sometimes returns unreasonable retry-after (1 hour+).
-    # We cap max lockout to 15 minutes - if still rate limited, we'll get another
-    # 429 and wait another 15 min. Better than blocking for hours.
-    MAX_LOCKOUT_AGE = 15.minutes
+    # We cap max lockout to 5 minutes - if still rate limited, we'll get another
+    # 429 and wait another 5 min. More aggressive retry = faster throughput.
+    MAX_LOCKOUT_AGE = 5.minutes
 
     def current_lockout(tenant_id: nil)
       # FRC (Feb 2026): Check tenant-specific lockout FIRST (each org has independent limits)
