@@ -1398,7 +1398,7 @@ function TabNode({
   const defaultFolderName = storedPath ? extractFolderName(storedPath, basePath) : '';
   const [editPath, setEditPath] = React.useState(defaultFolderName);
   const [editDisplayName, setEditDisplayName] = React.useState(tab.display_name || '');
-  const [editSendName, setEditSendName] = React.useState(tab.download_name || '');
+  const [editSendName, setEditSendName] = React.useState(tab.download_name || '{{OriginalFileName}}');
 
   // Track previous isEditing state to only initialize on ENTRY to edit mode
   const wasEditingRef = React.useRef(false);
@@ -1416,7 +1416,7 @@ function TabNode({
       console.log('[TabNode useEffect] Initializing editPath to:', JSON.stringify(folderName));
       setEditPath(folderName);
       setEditDisplayName(tab.display_name || '');
-      setEditSendName(tab.download_name || '');
+      setEditSendName(tab.download_name || '{{OriginalFileName}}');
     }
     wasEditingRef.current = isEditing;
   }, [isEditing, tab.warehouse_folder, tab.storage_folder_path, tab.display_name, tab.download_name, basePath]);
