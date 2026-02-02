@@ -2,8 +2,14 @@
 
 # Performance Observatory - Request Timing
 # Captures backend API request durations for performance analysis
+#
+# SSoT (Feb 2026): Uses Tenant for isolation, Organization deprecated.
+#
 class PerformanceRequest < ApplicationRecord
   belongs_to :user, optional: true
+  # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
+  belongs_to :tenant, optional: true
+  # DEPRECATED: Organization - kept for backwards compatibility
   belongs_to :organization, optional: true
 
   validates :endpoint, presence: true
@@ -32,7 +38,10 @@ class PerformanceRequest < ApplicationRecord
   scope :successful, -> { where("status_code < 400 OR status_code IS NULL") }
   scope :slow, -> { where("duration_ms > ?", THRESHOLD_SLOW) }
   scope :for_user, ->(user) { where(user: user) }
-  scope :for_organization, ->(org) { where(organization: org) }
+  # SSoT (Feb 2026): Tenant-scoped lookup
+  scope :for_tenant, ->(tenant) { where(tenant: tenant) }
+  # DEPRECATED: Use for_tenant instead
+  scope :for_organization, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
 
   # Calculate percentile for a given set of requests
   def self.percentile(p, column: :duration_ms)

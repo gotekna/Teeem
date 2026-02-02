@@ -26,8 +26,12 @@
 # test_connection! reads bucket from WarehouseProvider or accepts a test bucket param.
 # DocumentProviders should NEVER read bucket from credential.
 #
+# SSoT (Feb 2026): Uses Tenant for isolation, Organization deprecated.
+#
 class S3CompatibleCredential < ApplicationRecord
-  # Associations
+  # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
+  belongs_to :tenant, optional: true
+  # DEPRECATED: Organization - kept for backwards compatibility during migration
   belongs_to :organization, optional: true
 
   # Encrypt sensitive credentials
@@ -56,7 +60,10 @@ class S3CompatibleCredential < ApplicationRecord
   # Scopes
   scope :active, -> { where(is_active: true) }
   scope :connected, -> { where(status: "connected") }
-  scope :for_organization, ->(org) { where(organization_id: org.id) }
+  # SSoT (Feb 2026): Tenant-scoped lookup
+  scope :for_tenant, ->(tenant) { where(tenant: tenant) }
+  # DEPRECATED: Use for_tenant instead
+  scope :for_organization, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
   # Filter to only credentials that can be decrypted (used to skip key mismatches)
   scope :decryptable, -> { all.select(&:decryptable?) }
 

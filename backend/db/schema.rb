@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_03_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1213,8 +1213,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["organization_id", "is_active"], name: "idx_cloudflare_creds_org_active"
     t.index ["organization_id"], name: "index_cloudflare_credentials_on_organization_id"
+    t.index ["tenant_id"], name: "index_cloudflare_credentials_on_tenant_id"
   end
 
   create_table "colour_selection_templates", force: :cascade do |t|
@@ -2127,9 +2129,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.jsonb "sync_settings", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["device_code"], name: "index_desktop_clients_on_device_code", unique: true
     t.index ["is_active"], name: "index_desktop_clients_on_is_active"
     t.index ["organization_id"], name: "index_desktop_clients_on_organization_id"
+    t.index ["tenant_id"], name: "index_desktop_clients_on_tenant_id"
     t.index ["user_id", "device_id"], name: "index_desktop_clients_on_user_id_and_device_id", unique: true
     t.index ["user_id"], name: "index_desktop_clients_on_user_id"
   end
@@ -2628,8 +2632,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.string "status", default: "draft", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["imap_credential_id"], name: "index_email_drafts_on_imap_credential_id"
     t.index ["organization_id"], name: "index_email_drafts_on_organization_id"
+    t.index ["tenant_id"], name: "index_email_drafts_on_tenant_id"
     t.index ["user_id", "status"], name: "idx_email_drafts_user_status"
     t.index ["user_id", "updated_at"], name: "idx_email_drafts_user_recent"
     t.index ["user_id"], name: "index_email_drafts_on_user_id"
@@ -2872,6 +2878,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "dns_status", default: "pending"
+    t.bigint "tenant_id"
     t.index ["contact_id", "organization_id"], name: "index_email_subscriptions_on_contact_id_and_organization_id", unique: true
     t.index ["contact_id"], name: "index_email_subscriptions_on_contact_id"
     t.index ["dns_status"], name: "index_email_subscriptions_on_dns_status"
@@ -2879,6 +2886,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.index ["organization_id"], name: "index_email_subscriptions_on_organization_id"
     t.index ["status"], name: "index_email_subscriptions_on_status"
     t.index ["stripe_subscription_id"], name: "index_email_subscriptions_on_stripe_subscription_id", unique: true
+    t.index ["tenant_id"], name: "index_email_subscriptions_on_tenant_id"
   end
 
   create_table "email_sync_statuses", force: :cascade do |t|
@@ -6669,7 +6677,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.string "name"
     t.string "client_id"
     t.text "client_secret"
-    t.string "tenant_id"
+    t.string "azure_tenant_id"
     t.text "access_token"
     t.text "refresh_token"
     t.datetime "token_expires_at"
@@ -6696,6 +6704,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.bigint "organization_id", null: false
     t.integer "lock_version", default: 0, null: false
     t.boolean "is_primary", default: false, null: false
+    t.bigint "tenant_id"
     t.index ["connected_by_id"], name: "index_microsoft_credentials_on_connected_by_id"
     t.index ["credential_type", "is_active"], name: "idx_ms_creds_type_active"
     t.index ["name", "is_active"], name: "idx_ms_creds_name_unique_active", unique: true, where: "((is_active = true) AND (name IS NOT NULL))"
@@ -6707,6 +6716,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.index ["refresh_token_dead"], name: "idx_ms_creds_dead"
     t.index ["setup_by_id"], name: "index_microsoft_credentials_on_setup_by_id"
     t.index ["status"], name: "idx_ms_creds_status"
+    t.index ["tenant_id"], name: "index_microsoft_credentials_on_tenant_id"
     t.index ["token_expires_at"], name: "idx_ms_creds_token_expires"
   end
 
@@ -7150,11 +7160,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["created_at"], name: "index_performance_requests_on_created_at"
     t.index ["endpoint", "created_at"], name: "index_performance_requests_on_endpoint_and_created_at"
     t.index ["endpoint"], name: "index_performance_requests_on_endpoint"
     t.index ["organization_id"], name: "index_performance_requests_on_organization_id"
     t.index ["status_code"], name: "index_performance_requests_on_status_code", where: "(status_code >= 400)"
+    t.index ["tenant_id"], name: "index_performance_requests_on_tenant_id"
     t.index ["user_id"], name: "index_performance_requests_on_user_id"
   end
 
@@ -7416,9 +7428,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["organization_id", "is_active"], name: "idx_polaris_credentials_active_org", unique: true, where: "(is_active = true)"
     t.index ["organization_id"], name: "index_polaris_credentials_on_organization_id"
     t.index ["status"], name: "index_polaris_credentials_on_status"
+    t.index ["tenant_id"], name: "index_polaris_credentials_on_tenant_id"
   end
 
   create_table "portal_access_logs", force: :cascade do |t|
@@ -7999,11 +8013,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["is_active"], name: "index_s3_compatible_credentials_on_is_active"
     t.index ["organization_id", "is_active"], name: "idx_on_organization_id_is_active_359ae937e1"
     t.index ["organization_id"], name: "index_s3_compatible_credentials_on_organization_id"
     t.index ["provider_type"], name: "index_s3_compatible_credentials_on_provider_type"
     t.index ["status"], name: "index_s3_compatible_credentials_on_status"
+    t.index ["tenant_id"], name: "index_s3_compatible_credentials_on_tenant_id"
   end
 
   create_table "saas_billing_records", force: :cascade do |t|
@@ -9077,8 +9093,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["organization_id"], name: "index_stripe_configurations_on_organization_id"
     t.index ["stripe_account_id"], name: "index_stripe_configurations_on_stripe_account_id", unique: true, where: "(stripe_account_id IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_stripe_configurations_on_tenant_id"
   end
 
   create_table "stripe_payments", force: :cascade do |t|
@@ -9215,9 +9233,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.integer "priority", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["is_default"], name: "index_sync_exclusion_rules_on_is_default"
     t.index ["organization_id"], name: "index_sync_exclusion_rules_on_organization_id"
     t.index ["rule_type", "value"], name: "index_sync_exclusion_rules_on_rule_type_and_value"
+    t.index ["tenant_id"], name: "index_sync_exclusion_rules_on_tenant_id"
     t.index ["user_id"], name: "index_sync_exclusion_rules_on_user_id"
   end
 
@@ -10691,6 +10711,33 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
     t.index ["xero_credential_id"], name: "index_xero_sync_events_on_xero_credential_id"
   end
 
+  create_table "xero_sync_sessions", force: :cascade do |t|
+    t.string "tenant_id", null: false
+    t.bigint "teeem_tenant_id"
+    t.string "sync_type", default: "contacts", null: false
+    t.string "status", default: "pending", null: false
+    t.string "sync_mode", default: "full"
+    t.datetime "modified_since"
+    t.integer "total_records", default: 0
+    t.integer "fetched_count", default: 0
+    t.integer "processed_count", default: 0
+    t.integer "created_count", default: 0
+    t.integer "updated_count", default: 0
+    t.integer "skipped_count", default: 0
+    t.integer "error_count", default: 0
+    t.integer "last_page_fetched", default: 0
+    t.jsonb "checkpoint_data", default: {}
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.integer "duration_seconds"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["status", "created_at"], name: "index_xero_sync_sessions_on_status_and_created_at"
+    t.index ["teeem_tenant_id"], name: "index_xero_sync_sessions_on_teeem_tenant_id"
+    t.index ["tenant_id", "sync_type", "status"], name: "index_xero_sync_sessions_on_tenant_id_and_sync_type_and_status"
+  end
+
   create_table "xero_sync_statuses", force: :cascade do |t|
     t.string "sync_type", null: false
     t.string "tenant_id"
@@ -10806,6 +10853,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
   add_foreign_key "chat_messages", "storage_blobs"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "cloudflare_credentials", "organizations"
+  add_foreign_key "cloudflare_credentials", "tenants", on_delete: :cascade
   add_foreign_key "colour_selection_templates", "job_types"
   add_foreign_key "columns", "column_type_definitions"
   add_foreign_key "columns", "foundations"
@@ -10871,6 +10919,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
   add_foreign_key "cost_centres", "cost_centres", column: "parent_id", on_delete: :nullify
   add_foreign_key "custom_pricings", "contacts"
   add_foreign_key "desktop_clients", "organizations"
+  add_foreign_key "desktop_clients", "tenants", on_delete: :cascade
   add_foreign_key "desktop_clients", "users"
   add_foreign_key "director_onboarding_requests", "contacts"
   add_foreign_key "director_onboarding_requests", "corporates", column: "company_id"
@@ -10904,6 +10953,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
   add_foreign_key "email_dns_records", "email_subscriptions"
   add_foreign_key "email_drafts", "imap_credentials"
   add_foreign_key "email_drafts", "organizations"
+  add_foreign_key "email_drafts", "tenants", on_delete: :cascade
   add_foreign_key "email_drafts", "users"
   add_foreign_key "email_folder_preferences", "users"
   add_foreign_key "email_label_assignments", "email_labels"
@@ -10928,6 +10978,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
   add_foreign_key "email_subscription_invoices", "gl_invoices"
   add_foreign_key "email_subscriptions", "contacts"
   add_foreign_key "email_subscriptions", "organizations"
+  add_foreign_key "email_subscriptions", "tenants", on_delete: :cascade
   add_foreign_key "email_templates", "users"
   add_foreign_key "email_user_states", "synced_emails", column: "email_warehouse_id"
   add_foreign_key "email_user_states", "users"
@@ -11328,6 +11379,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
   add_foreign_key "meetings", "tenants"
   add_foreign_key "meetings", "users", column: "created_by_id"
   add_foreign_key "microsoft_credentials", "organizations"
+  add_foreign_key "microsoft_credentials", "tenants", on_delete: :cascade
   add_foreign_key "microsoft_credentials", "users", column: "connected_by_id"
   add_foreign_key "microsoft_credentials", "users", column: "setup_by_id"
   add_foreign_key "navigation_items", "navigation_groups", name: "navigation_items_navigation_group_id_fkey"
@@ -11367,6 +11419,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
   add_foreign_key "people_documents", "storage_blobs"
   add_foreign_key "performance_anomalies", "users", column: "acknowledged_by_id"
   add_foreign_key "performance_requests", "organizations"
+  add_foreign_key "performance_requests", "tenants", on_delete: :cascade
   add_foreign_key "performance_requests", "users"
   add_foreign_key "performance_slo_snapshots", "performance_slos"
   add_foreign_key "performance_slow_queries", "users"
@@ -11386,6 +11439,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
   add_foreign_key "plan_uploads", "jobs"
   add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
   add_foreign_key "polaris_credentials", "organizations"
+  add_foreign_key "polaris_credentials", "tenants", on_delete: :cascade
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"
   add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"
@@ -11436,6 +11490,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
   add_foreign_key "referral_commissions", "saas_billing_records"
   add_foreign_key "role_permissions", "permissions"
   add_foreign_key "s3_compatible_credentials", "organizations"
+  add_foreign_key "s3_compatible_credentials", "tenants", on_delete: :cascade
   add_foreign_key "saas_billing_records", "contacts"
   add_foreign_key "saas_billing_records", "gl_invoices"
   add_foreign_key "scheduled_emails", "imap_credentials"
@@ -11558,6 +11613,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
   add_foreign_key "storage_blobs", "organizations"
   add_foreign_key "storage_blobs", "tenants"
   add_foreign_key "stripe_configurations", "organizations"
+  add_foreign_key "stripe_configurations", "tenants", on_delete: :cascade
   add_foreign_key "stripe_payments", "contacts"
   add_foreign_key "stripe_payments", "external_invoices", column: "invoice_id"
   add_foreign_key "stripe_payments", "payment_links"
@@ -11567,6 +11623,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
   add_foreign_key "sync_exclusion_rules", "organizations"
+  add_foreign_key "sync_exclusion_rules", "tenants", on_delete: :cascade
   add_foreign_key "sync_exclusion_rules", "users"
   add_foreign_key "sync_file_states", "desktop_clients"
   add_foreign_key "sync_file_states", "sync_subscriptions"
@@ -11690,4 +11747,5 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_224436) do
   add_foreign_key "xero_feature_tabs", "document_folders"
   add_foreign_key "xero_health_events", "xero_credentials"
   add_foreign_key "xero_sync_events", "xero_credentials"
+  add_foreign_key "xero_sync_sessions", "tenants", column: "teeem_tenant_id"
 end

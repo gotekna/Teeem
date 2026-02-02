@@ -8,9 +8,14 @@
 # - Updated on auto-save (every 30 seconds)
 # - Deleted when email is sent or user discards
 #
+# SSoT (Feb 2026): Uses Tenant for isolation, Organization deprecated.
+#
 class EmailDraft < ApplicationRecord
   belongs_to :user
-  belongs_to :organization
+  # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
+  belongs_to :tenant
+  # DEPRECATED: Organization - kept for backwards compatibility
+  belongs_to :organization, optional: true
   belongs_to :imap_credential, optional: true
 
   # Drafts can have empty fields - only validate when sending
@@ -27,7 +32,10 @@ class EmailDraft < ApplicationRecord
   scope :recent, ->(limit = 50) { order(updated_at: :desc).limit(limit) }
   scope :for_user, ->(user) { where(user: user) }
   scope :drafts_only, -> { where(status: "draft") }
-  scope :for_organization, ->(org) { where(organization: org) }
+  # SSoT (Feb 2026): Tenant-scoped lookup
+  scope :for_tenant, ->(tenant) { where(tenant: tenant) }
+  # DEPRECATED: Use for_tenant instead
+  scope :for_organization, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
 
   # Parse JSON addresses to array
   def to_list

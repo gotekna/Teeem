@@ -14,10 +14,13 @@
 # - Internal (code): MicrosoftCredential, MicrosoftGraphClient
 # - External (UI/messages): Always say "SharePoint" to users, never "OneDrive"
 #
+# SSoT (Feb 2026): Uses Tenant for isolation, Organization deprecated.
+#
 class MicrosoftCredential < ApplicationRecord
-  # Organization ownership - SSoT for multi-org isolation
-  # Required for proper org isolation (backfill complete as of 2025-12-20)
-  belongs_to :organization
+  # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
+  belongs_to :tenant
+  # DEPRECATED: Organization - kept for backwards compatibility during migration
+  belongs_to :organization, optional: true
 
   # Polymorphic ownership - optional for org-level credentials
   belongs_to :owner, polymorphic: true, optional: true
@@ -77,7 +80,8 @@ class MicrosoftCredential < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :name, uniqueness: { scope: :is_active, conditions: -> { where(is_active: true) } },
                    allow_nil: true
-  validates :client_id, :client_secret, :tenant_id, presence: true, if: :app_credential?
+  # Note: azure_tenant_id is the Microsoft/Azure tenant ID (string), not our internal tenant_id (bigint)
+  validates :client_id, :client_secret, :azure_tenant_id, presence: true, if: :app_credential?
   validates :owner_type, inclusion: { in: ALLOWED_OWNER_TYPES }, allow_nil: true
 
   # Scopes
@@ -101,8 +105,10 @@ class MicrosoftCredential < ApplicationRecord
   # Use WarehouseProvider.instance.connected? instead to check if SharePoint is configured
   # The scope was: where.not(sharepoint_site_id: nil).where.not(sharepoint_drive_id: nil)
 
-  # SSoT: Organization-scoped credential lookup - ALWAYS use these instead of .first
-  scope :for_org, ->(org) { where(organization: org) }
+  # SSoT (Feb 2026): Tenant-scoped credential lookup - ALWAYS use these instead of .first
+  scope :for_tenant, ->(tenant) { where(tenant: tenant) }
+  # DEPRECATED: Use for_tenant instead
+  scope :for_org, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
 
   # Refreshable = can get a valid token (even if current token is expired)
   # - App credentials: always refreshable (just need client_id/secret)
@@ -171,7 +177,7 @@ class MicrosoftCredential < ApplicationRecord
     return false unless app_credential?
 
     response = HTTP.post(
-      "https://login.microsoftonline.com/#{tenant_id}/oauth2/v2.0/token",
+      "https://login.microsoftonline.com/#{azure_tenant_id}/oauth2/v2.0/token",
       form: {
         client_id: client_id,
         client_secret: client_secret,
@@ -225,7 +231,7 @@ class MicrosoftCredential < ApplicationRecord
     return false if refresh_token_dead?
 
     response = HTTP.post(
-      "https://login.microsoftonline.com/#{tenant_id.presence || 'common'}/oauth2/v2.0/token",
+      "https://login.microsoftonline.com/#{azure_tenant_id.presence || 'common'}/oauth2/v2.0/token",
       form: {
         client_id: ENV["OUTLOOK_CLIENT_ID"],
         client_secret: ENV["OUTLOOK_CLIENT_SECRET"],

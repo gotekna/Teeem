@@ -16,9 +16,14 @@
 #     wholesale_cost: 15.00
 #   )
 #
+# SSoT (Feb 2026): Uses Tenant for isolation, Organization deprecated.
+#
 class EmailSubscription < ApplicationRecord
   belongs_to :contact
-  belongs_to :organization
+  # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
+  belongs_to :tenant
+  # DEPRECATED: Organization - kept for backwards compatibility
+  belongs_to :organization, optional: true
 
   has_many :email_mailboxes, dependent: :destroy
   has_many :email_migrations, dependent: :destroy
@@ -33,7 +38,8 @@ class EmailSubscription < ApplicationRecord
 
   # Validations
   validates :domain, presence: true
-  validates :contact_id, uniqueness: { scope: :organization_id }
+  # SSoT (Feb 2026): Uniqueness now scoped to tenant
+  validates :contact_id, uniqueness: { scope: :tenant_id }
   validates :status, inclusion: { in: STATUSES }
   validates :billing_interval, inclusion: { in: BILLING_INTERVALS }
 
@@ -42,6 +48,10 @@ class EmailSubscription < ApplicationRecord
   scope :pending, -> { where(status: "pending") }
   scope :billable, -> { active.where("next_billing_date <= ?", Date.current) }
   scope :for_contact, ->(contact) { where(contact: contact) }
+  # SSoT (Feb 2026): Tenant-scoped lookup
+  scope :for_tenant, ->(tenant) { where(tenant: tenant) }
+  # DEPRECATED: Use for_tenant instead
+  scope :for_organization, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
 
   # Callbacks
   before_validation :set_defaults, on: :create

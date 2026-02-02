@@ -5,9 +5,14 @@
 # Each user can have multiple desktop clients (e.g., work Mac, home Windows)
 # Uses device code flow for authentication (no browser redirect needed)
 #
+# SSoT (Feb 2026): Uses Tenant for isolation, Organization deprecated.
+#
 class DesktopClient < ApplicationRecord
   belongs_to :user
-  belongs_to :organization
+  # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
+  belongs_to :tenant
+  # DEPRECATED: Organization - kept for backwards compatibility
+  belongs_to :organization, optional: true
 
   has_many :sync_subscriptions, dependent: :destroy
   has_many :sync_file_states, dependent: :destroy
@@ -24,7 +29,10 @@ class DesktopClient < ApplicationRecord
   scope :active, -> { where(is_active: true) }
   scope :inactive, -> { where(is_active: false) }
   scope :for_user, ->(user) { where(user: user) }
-  scope :for_organization, ->(org) { where(organization: org) }
+  # SSoT (Feb 2026): Tenant-scoped lookup
+  scope :for_tenant, ->(tenant) { where(tenant: tenant) }
+  # DEPRECATED: Use for_tenant instead
+  scope :for_organization, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
   scope :recently_seen, -> { where("last_seen_at > ?", 7.days.ago) }
   scope :stale, -> { where("last_seen_at < ? OR last_seen_at IS NULL", 30.days.ago) }
 
@@ -40,13 +48,18 @@ class DesktopClient < ApplicationRecord
   end
 
   # Start device code auth flow
-  def self.initiate_device_auth(user:, organization:, device_name:, platform:)
+  # SSoT (Feb 2026): Now uses tenant, accepts organization for backwards compat
+  def self.initiate_device_auth(user:, tenant: nil, organization: nil, device_name:, platform:)
     device_id = SecureRandom.uuid
     device_code = generate_device_code
 
+    # SSoT: Resolve tenant from organization if not provided directly
+    resolved_tenant = tenant || (organization.respond_to?(:tenant) ? organization.tenant : organization)
+
     client = create!(
       user: user,
-      organization: organization,
+      tenant: resolved_tenant,
+      organization: organization,  # Keep for backwards compat
       device_id: device_id,
       device_name: device_name,
       platform: platform,
@@ -96,7 +109,8 @@ class DesktopClient < ApplicationRecord
   def generate_access_token
     payload = {
       sub: user_id,
-      org: organization_id,
+      ten: tenant_id,       # SSoT (Feb 2026): tenant_id is THE ONE
+      org: organization_id, # DEPRECATED: Kept for backwards compat
       dev: device_id,
       exp: 1.hour.from_now.to_i,
       iat: Time.current.to_i,

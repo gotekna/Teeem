@@ -57,6 +57,6 @@ class CreateXeroSyncSessions < ActiveRecord::Migration[8.0]
 
     add_index :xero_sync_sessions, [:tenant_id, :sync_type, :status]
     add_index :xero_sync_sessions, [:status, :created_at]
-    add_index :xero_sync_sessions, :teeem_tenant_id
+    # Note: teeem_tenant_id index is automatically created by t.references
   end
 end

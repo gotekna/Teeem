@@ -12,7 +12,12 @@
 # - size: Match files over a size limit (e.g., "500MB")
 # - pattern: Match filename pattern (e.g., "*.tmp", "~$*")
 #
+# SSoT (Feb 2026): Uses Tenant for isolation, Organization deprecated.
+#
 class SyncExclusionRule < ApplicationRecord
+  # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
+  belongs_to :tenant, optional: true
+  # DEPRECATED: Organization - kept for backwards compatibility
   belongs_to :organization, optional: true
   belongs_to :user, optional: true
 
@@ -24,7 +29,10 @@ class SyncExclusionRule < ApplicationRecord
 
   # Scopes
   scope :defaults, -> { where(is_default: true) }
-  scope :for_organization, ->(org) { where(organization: org) }
+  # SSoT (Feb 2026): Tenant-scoped lookup
+  scope :for_tenant, ->(tenant) { where(tenant: tenant) }
+  # DEPRECATED: Use for_tenant instead
+  scope :for_organization, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
   scope :for_user, ->(user) { where(user: user) }
   scope :skip_rules, -> { where(action: "skip") }
   scope :include_rules, -> { where(action: "include") }
@@ -152,19 +160,23 @@ class SyncExclusionRule < ApplicationRecord
     end
   end
 
-  # Get effective rules for a user (combining defaults, org, and user rules)
-  def self.effective_rules_for(organization:, user: nil)
+  # Get effective rules for a user (combining defaults, tenant, and user rules)
+  # SSoT (Feb 2026): Now uses tenant, accepts organization for backwards compat
+  def self.effective_rules_for(tenant: nil, organization: nil, user: nil)
     rules = []
 
     # Start with system defaults
     rules += defaults.by_priority.to_a
 
-    # Add organization rules (can override defaults)
-    if organization
-      rules += for_organization(organization).by_priority.to_a
+    # Resolve tenant from organization if not provided
+    resolved_tenant = tenant || (organization.respond_to?(:tenant) ? organization.tenant : organization)
+
+    # Add tenant rules (can override defaults)
+    if resolved_tenant
+      rules += for_tenant(resolved_tenant).by_priority.to_a
     end
 
-    # Add user rules (can override org and defaults)
+    # Add user rules (can override tenant and defaults)
     if user
       rules += for_user(user).by_priority.to_a
     end
@@ -393,8 +405,9 @@ class SyncExclusionRule < ApplicationRecord
   private
 
   def must_have_scope
-    if !is_default && organization_id.nil? && user_id.nil?
-      errors.add(:base, "Rule must be a default, org-level, or user-level rule")
+    # SSoT (Feb 2026): Now checks tenant_id instead of organization_id
+    if !is_default && tenant_id.nil? && user_id.nil?
+      errors.add(:base, "Rule must be a default, tenant-level, or user-level rule")
     end
   end
 
@@ -426,8 +439,10 @@ class SyncExclusionRule < ApplicationRecord
       "System default"
     elsif user_id
       "User override"
+    elsif tenant_id
+      "Tenant"
     elsif organization_id
-      "Organization"
+      "Organization (deprecated)"
     else
       "Unknown"
     end
