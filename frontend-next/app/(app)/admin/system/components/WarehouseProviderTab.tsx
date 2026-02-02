@@ -226,7 +226,7 @@ interface FolderTreeNode {
 }
 
 // SSoT: Known scope root folder names (first segment of paths that should appear at root)
-// These match WAREHOUSE_ROOT_DEFAULTS in WarehouseProvider (Jan 2026 consolidation)
+// These match DEFAULT_WAREHOUSE_FOLDERS in WarehouseProvider (Jan 2026 consolidation)
 // Note: 'People' merged into 'Contacts'
 // Note: 'Users' added for Teeem Docs (personal user documents - Jan 2026)
 const KNOWN_ROOT_FOLDERS = [

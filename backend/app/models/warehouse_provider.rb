@@ -181,6 +181,7 @@ class WarehouseProvider < ApplicationRecord
 
   # Create default configuration for a tenant
   # SSoT: Uses tenant.document_provider - no hardcoded fallback
+  # SSoT: Copies DEFAULT_WAREHOUSE_FOLDERS into database (Jan 2026 consolidation)
   def self.create_default_for_tenant(tenant)
     return nil unless tenant
 
@@ -194,11 +195,14 @@ class WarehouseProvider < ApplicationRecord
            else "/" # S3, Wasabi, s3_compatible, local all use bucket/folder root
            end
 
+    # SSoT: Copy full warehouse_folders defaults into database
+    # Database is THE ONE SSoT - no runtime merging after creation
     create!(
       tenant: tenant,
       provider_type: provider,
       status: "disconnected",
-      root_path: root
+      root_path: root,
+      warehouse_folders: DEFAULT_WAREHOUSE_FOLDERS.dup
     )
   rescue ActiveRecord::RecordNotUnique
     # Handle race condition
@@ -217,13 +221,14 @@ class WarehouseProvider < ApplicationRecord
   # Warehouse Root Folders (SSoT: warehouse_folders column ONLY)
   # ========================================
 
-  # Default warehouse root folders - used ONLY for initialization
-  # After init, warehouse_folders column is THE ONE SSoT (no merging)
+  # Default warehouse folder templates - used ONLY when creating new tenants
+  # SSoT: After creation, warehouse_folders column is THE ONE source of truth
+  # Database = truth, no runtime merging (consolidated Jan 2026)
   #
-  # SSoT: These MUST include the root folder prefix (Jobs/, Corporate/, Emails/, etc.)
+  # These MUST include the root folder prefix (Jobs/, Corporate/, Emails/, etc.)
   # Code uses these keys directly - if a key is missing, you get an error (no fallbacks!)
   #
-  WAREHOUSE_ROOT_DEFAULTS = {
+  DEFAULT_WAREHOUSE_FOLDERS = {
     # User personal documents (Teeem Docs feature - Jan 2026)
     'user' => 'Teeem Docs/{{UserName}}/{{Folder}}',
     # Job documents - {{TabName}} resolves to tab's folder name (e.g., "Invoices", "Plans")
@@ -338,17 +343,14 @@ class WarehouseProvider < ApplicationRecord
     WAREHOUSE_LABELS[type] || type.titleize
   end
 
-  # SSoT: Merge warehouse_folders with defaults (adds missing keys)
-  # This ensures new warehouse types get added while preserving customizations
-  after_initialize :ensure_warehouse_folders
-
-  def ensure_warehouse_folders
-    # Merge: defaults first, then existing values override
-    # New types from WAREHOUSE_ROOT_DEFAULTS get added automatically
-    self.warehouse_folders = WAREHOUSE_ROOT_DEFAULTS.merge(warehouse_folders || {})
-  end
-
-  # LIM (Jan 2026): Removed unused legacy alias ensure_scope_root_folders
+  # SSoT (Jan 2026): warehouse_folders column IS THE ONE source of truth
+  # No more runtime merging - database contains full data after migration
+  # New warehouse types added via migration, not code
+  #
+  # REMOVED: after_initialize :ensure_warehouse_folders callback
+  # REMOVED: ensure_warehouse_folders method (was merging WAREHOUSE_ROOT_DEFAULTS)
+  #
+  # See: 20260202110004_populate_warehouse_folders_as_ssot.rb
 
   # Get root folder for a warehouse type
   # Check if a warehouse type is enabled (not "DISABLED")

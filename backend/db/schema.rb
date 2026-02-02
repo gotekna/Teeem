@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_02_110002) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_02_110004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9889,18 +9889,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_110002) do
     t.index ["user_id"], name: "index_user_documents_on_user_id"
   end
 
-  create_table "user_entity_tab_preferences", force: :cascade do |t|
-    t.bigint "user_id", null: false
-    t.string "scope", null: false
-    t.jsonb "hidden_tabs", default: []
-    t.string "default_tab"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.jsonb "tab_order", default: []
-    t.index ["user_id", "scope"], name: "idx_user_entity_tab_prefs_unique", unique: true
-    t.index ["user_id"], name: "index_user_entity_tab_preferences_on_user_id"
-  end
-
   create_table "user_groups", force: :cascade do |t|
     t.string "name"
     t.string "label"
@@ -9953,6 +9941,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_110002) do
     t.index ["role_id"], name: "index_user_roles_on_role_id"
     t.index ["user_id"], name: "index_user_roles_on_user_id"
     t.index ["user_id"], name: "index_user_roles_on_user_id_primary", unique: true, where: "(is_primary = true)"
+  end
+
+  create_table "user_warehouse_folder_preferences", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "scope", null: false
+    t.jsonb "hidden_tabs", default: []
+    t.string "default_tab"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "tab_order", default: []
+    t.index ["user_id", "scope"], name: "idx_user_entity_tab_prefs_unique", unique: true
+    t.index ["user_id"], name: "index_user_warehouse_folder_preferences_on_user_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -11627,7 +11627,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_110002) do
   add_foreign_key "user_documents", "document_types"
   add_foreign_key "user_documents", "storage_blobs"
   add_foreign_key "user_documents", "users"
-  add_foreign_key "user_entity_tab_preferences", "users"
   add_foreign_key "user_job_tab_configs", "job_tabs"
   add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
   add_foreign_key "user_job_tab_configs", "users"
@@ -11637,6 +11636,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_02_110002) do
   add_foreign_key "user_permissions", "users"
   add_foreign_key "user_roles", "roles"
   add_foreign_key "user_roles", "users"
+  add_foreign_key "user_warehouse_folder_preferences", "users"
   add_foreign_key "users", "contacts"
   add_foreign_key "users", "storage_blobs", column: "photo_blob_id"
   add_foreign_key "users", "storage_blobs", column: "signature_blob_id"

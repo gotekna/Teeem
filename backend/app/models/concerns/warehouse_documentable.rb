@@ -19,7 +19,7 @@
 # - Computes folder path from WarehouseProvider templates
 # - Computes display name from model attributes
 #
-# Supported warehouse types (must match WarehouseProvider::WAREHOUSE_ROOT_DEFAULTS keys):
+# Supported warehouse types (must match WarehouseProvider::DEFAULT_WAREHOUSE_FOLDERS keys):
 #   :asset           - Asset expenses, odometer readings, service
 #   :financial       - Financial transactions
 #   :compliance      - Document tasks (permits, certifications)
