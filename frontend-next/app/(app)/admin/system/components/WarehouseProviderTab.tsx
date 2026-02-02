@@ -1392,9 +1392,10 @@ function TabNode({
     return storedPath;
   };
 
-  // Folder name: extract from stored path, or default to display_name
-  const storedPath = tab.warehouse_folder || tab.storage_folder_path;
-  const defaultFolderName = storedPath ? extractFolderName(storedPath, basePath) : (tab.display_name || '');
+  // Folder name: extract from stored path
+  // Use ?? (nullish coalescing) not || so empty string "" is preserved (user intentionally cleared it)
+  const storedPath = tab.warehouse_folder ?? tab.storage_folder_path ?? '';
+  const defaultFolderName = storedPath ? extractFolderName(storedPath, basePath) : '';
   const [editPath, setEditPath] = React.useState(defaultFolderName);
   const [editDisplayName, setEditDisplayName] = React.useState(tab.display_name || '');
   const [editSendName, setEditSendName] = React.useState(tab.send_name_template || '');
@@ -1407,8 +1408,8 @@ function TabNode({
     const shouldInit = isEditing && !wasEditingRef.current;
     console.log('[TabNode useEffect]', { isEditing, wasEditing: wasEditingRef.current, shouldInit, tabId: tab.id });
     if (shouldInit) {
-      const stored = tab.warehouse_folder || tab.storage_folder_path;
-      const folderName = stored ? extractFolderName(stored, basePath) : (tab.display_name || '');
+      const stored = tab.warehouse_folder ?? tab.storage_folder_path ?? '';
+      const folderName = stored ? extractFolderName(stored, basePath) : '';
       console.log('[TabNode useEffect] Initializing editPath to:', folderName);
       setEditPath(folderName);
       setEditDisplayName(tab.display_name || '');
