@@ -209,6 +209,31 @@ class WarehouseProvider < ApplicationRecord
     find_by(tenant: tenant)
   end
 
+  # Sync missing DEFAULT_WAREHOUSE_FOLDERS keys to all existing tenants
+  # SSoT: Call this after adding new keys to DEFAULT_WAREHOUSE_FOLDERS
+  # Returns: { synced: count, keys_added: [...] }
+  def self.sync_missing_defaults!
+    synced = 0
+    all_keys_added = Set.new
+
+    find_each do |wp|
+      folders = wp.warehouse_folders || {}
+      missing_keys = DEFAULT_WAREHOUSE_FOLDERS.keys - folders.keys
+
+      next if missing_keys.empty?
+
+      missing_keys.each do |key|
+        folders[key] = DEFAULT_WAREHOUSE_FOLDERS[key]
+        all_keys_added << key
+      end
+
+      wp.update_column(:warehouse_folders, folders)
+      synced += 1
+    end
+
+    { synced: synced, keys_added: all_keys_added.to_a }
+  end
+
   # DEPRECATED: Use create_default_for_tenant instead
   def self.create_default_for(org)
     Rails.logger.warn "[DEPRECATED] WarehouseProvider.create_default_for(org) - use create_default_for_tenant(tenant) instead"
