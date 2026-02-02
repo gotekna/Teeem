@@ -27,6 +27,10 @@ class XeroRateLimitTracker
     # This is THE SSoT for "is Xero actually blocking us right now"
     # @param retry_after [Integer] Seconds until we can retry (from Xero's Retry-After header)
     # @param tenant_id [String] Optional tenant ID for per-tenant tracking
+    #
+    # FRC (Feb 2026): Each Xero org has its OWN rate limit - don't use global lockout!
+    # Previously wrote to both global and per-tenant keys, which blocked ALL orgs
+    # when any single org hit its limit. Now only writes per-tenant lockouts.
     def record_lockout!(retry_after, tenant_id: nil)
       lockout_until = Time.current + retry_after.seconds
       lockout_data = {
@@ -36,26 +40,35 @@ class XeroRateLimitTracker
         tenant_id: tenant_id
       }
 
-      # Store both global and per-tenant lockout
-      Rails.cache.write(LOCKOUT_KEY, lockout_data, expires_in: retry_after.seconds + 60)
-      Rails.cache.write("#{LOCKOUT_KEY}:#{tenant_id}", lockout_data, expires_in: retry_after.seconds + 60) if tenant_id.present?
+      # FRC (Feb 2026): Only store per-tenant lockout - each Xero org has independent limits
+      # Global lockout was blocking all 10 orgs when only 1 hit its limit
+      if tenant_id.present?
+        Rails.cache.write("#{LOCKOUT_KEY}:#{tenant_id}", lockout_data, expires_in: retry_after.seconds + 60)
+        Rails.logger.warn("[XeroRateLimitTracker] LOCKOUT RECORDED: Tenant #{tenant_id} rate limited for #{retry_after} seconds (until #{lockout_until})")
+      else
+        # Fallback: Only use global if no tenant_id (shouldn't happen in normal operation)
+        Rails.cache.write(LOCKOUT_KEY, lockout_data, expires_in: retry_after.seconds + 60)
+        Rails.logger.warn("[XeroRateLimitTracker] LOCKOUT RECORDED: Global rate limit for #{retry_after} seconds (until #{lockout_until})")
+      end
 
-      Rails.logger.warn("[XeroRateLimitTracker] LOCKOUT RECORDED: Xero rate limited for #{retry_after} seconds (until #{lockout_until})")
       lockout_data
     end
 
     # Check if we're currently locked out by Xero
     # @return [Hash, nil] Lockout data if locked out, nil if OK to proceed
+    #
+    # FRC (Feb 2026): Each Xero org has its OWN rate limit - check per-tenant FIRST
+    # Previously checked global lockout first, which blocked ALL orgs when any hit limit.
     def current_lockout(tenant_id: nil)
-      # Check global lockout first
-      lockout = Rails.cache.read(LOCKOUT_KEY)
-      return lockout if lockout && Time.parse(lockout[:locked_until]) > Time.current
-
-      # Check tenant-specific lockout if provided
+      # FRC (Feb 2026): Check tenant-specific lockout FIRST (each org has independent limits)
       if tenant_id.present?
         tenant_lockout = Rails.cache.read("#{LOCKOUT_KEY}:#{tenant_id}")
         return tenant_lockout if tenant_lockout && Time.parse(tenant_lockout[:locked_until]) > Time.current
       end
+
+      # Only check global lockout if no tenant_id provided (fallback for legacy calls)
+      lockout = Rails.cache.read(LOCKOUT_KEY)
+      return lockout if lockout && Time.parse(lockout[:locked_until]) > Time.current
 
       nil
     end
