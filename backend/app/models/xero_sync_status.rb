@@ -73,12 +73,13 @@ class XeroSyncStatus < ApplicationRecord
       statuses = statuses.order(last_synced_at: :desc)
 
       # SSoT: Per-sync-type thresholds based on ACTUAL schedules from recurring.yml
-      # FRC (Jan 2026): Single 45-min threshold was wrong for pdfs (2hr) and bank_transactions (6hr)
+      # FRC (Feb 2026): Updated contacts threshold - now has 15-min backup schedule
+      # Thresholds = 2x schedule interval (stale) and 3x (critical)
       sync_thresholds = {
-        "invoices" => { stale: 10.minutes, critical: 20.minutes },           # runs every 5 min
-        "contacts" => { stale: 60.minutes, critical: 120.minutes },          # webhook-driven
-        "pdfs" => { stale: 3.hours, critical: 4.hours },                     # runs every 2 hours
-        "bank_transactions" => { stale: 8.hours, critical: 10.hours }        # runs every 6 hours
+        "invoices" => { stale: 10.minutes, critical: 15.minutes },           # runs every 5 min
+        "contacts" => { stale: 30.minutes, critical: 45.minutes },           # runs every 15 min (backup)
+        "pdfs" => { stale: 4.hours, critical: 6.hours },                     # runs every 2 hours
+        "bank_transactions" => { stale: 12.hours, critical: 18.hours }       # runs every 6 hours
       }
 
       result = {}

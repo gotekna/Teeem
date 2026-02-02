@@ -87,19 +87,28 @@ all_orgs_email_sync:
 # URL: https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/xero/webhooks
 # ============================================
 
-# REMOVED (2025-12-18): Scheduled syncs replaced by live webhooks
-# - xero_invoice_incremental_sync (was: every 30 minutes)
-# - xero_contact_sync (was: every 30 minutes)
+# SSoT: Webhooks are PRIMARY for invoice/contact sync
+# But webhooks can fail, so we need scheduled BACKUP syncs
+
+# BACKUP: Contact sync - catches webhook failures
+# FRC (Feb 2026): Webhooks-only left contacts stale for 13+ hours when webhooks failed.
+# This runs every 15 minutes as a safety net. The XeroContactSyncJob is idempotent.
+xero_contact_sync_backup:
+  class: XeroContactSyncJob
+  queue: default
+  schedule: every 15 minutes
 
 # SELF-HEALING: Health monitor catches sync failures and triggers recovery
-# Runs every 15 minutes for responsive self-healing
+# FRC (Feb 2026): Increased frequency from 15 to 5 minutes for faster self-healing
+# Invoices run every 5 min, so health monitor should be at least as frequent
 # - Clears orphaned jobs blocking self-heal
 # - Clears stale batch locks
 # - Triggers stalled syncs (pdfs, invoices, contacts)
+# - Logs comprehensive health metrics for visibility
 xero_health_monitor:
   class: XeroHealthMonitorJob
   queue: default
-  schedule: every 15 minutes
+  schedule: every 5 minutes
 
 # Bank transaction sync (no webhook available for bank transactions)
 xero_bank_transaction_sync:

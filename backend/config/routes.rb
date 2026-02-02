@@ -2375,6 +2375,7 @@ Rails.application.routes.draw do
           get :pdf_sync_status
           get :sync_health
           get :sync_stats
+          post :trigger_sync_all
           get :common_contacts
           get :unlinked_contacts
           get :xero_duplicates

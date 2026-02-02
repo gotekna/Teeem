@@ -17,11 +17,12 @@ class XeroHealthMonitorJob < ApplicationJob
 
   # Expected sync intervals (if no sync in this time, it's stale)
   # SSoT: Must match XeroSyncStatus::SYNC_TYPES ("pdfs" not "attachments")
+  # FRC (Feb 2026): These MUST match the actual recurring.yml schedules!
   EXPECTED_INTERVALS = {
-    "invoices" => 1.hour,
-    "contacts" => 1.hour,
-    "bank_transactions" => 8.hours,
-    "pdfs" => 4.hours
+    "invoices" => 10.minutes,        # recurring.yml: every 5 minutes
+    "contacts" => 30.minutes,        # recurring.yml: every 15 minutes (backup)
+    "bank_transactions" => 8.hours,  # recurring.yml: every 6 hours
+    "pdfs" => 3.hours                # recurring.yml: every 2 hours
   }.freeze
 
   # Maximum failed jobs before alerting
@@ -37,13 +38,16 @@ class XeroHealthMonitorJob < ApplicationJob
   }.freeze
 
   # How long past next_sync_at before we trigger self-heal (grace period)
-  SELF_HEAL_GRACE_PERIOD = 15.minutes
+  # FRC (Feb 2026): Reduced from 15 to 5 minutes to match health monitor frequency
+  SELF_HEAL_GRACE_PERIOD = 5.minutes
 
   # Maximum time a sync can be "in_progress" before we consider it stuck
   MAX_IN_PROGRESS_DURATION = 30.minutes
 
   # Maximum age for a pending job before considering it orphaned
-  MAX_PENDING_JOB_AGE = 2.hours
+  # FRC (Feb 2026): Reduced from 2 hours to 30 minutes for faster recovery
+  # A job pending for 30+ minutes without execution is definitely orphaned
+  MAX_PENDING_JOB_AGE = 30.minutes
 
   def perform
     Rails.logger.info "[XeroHealthMonitor] Starting health check"
@@ -71,11 +75,8 @@ class XeroHealthMonitorJob < ApplicationJob
       issues_found += check_disconnected_credentials
       issues_found += attempt_degraded_recovery
 
-      # Log summary
-      summary = XeroTokenManager.health_summary
-      Rails.logger.info "[XeroHealthMonitor] Complete. Orphans cleaned: #{orphans_cleaned}, Self-healed: #{healed}, Issues: #{issues_found}. " \
-                       "Health: #{summary[:connected]} connected, #{summary[:degraded]} degraded, " \
-                       "#{summary[:disconnected]} disconnected, #{summary[:circuit_open]} circuit open"
+      # Log comprehensive health metrics
+      log_health_metrics(orphans_cleaned: orphans_cleaned, healed: healed, issues_found: issues_found)
 
       event.complete!(records_processed: XeroCredential.count)
     rescue StandardError => e
@@ -155,6 +156,10 @@ class XeroHealthMonitorJob < ApplicationJob
 
   # SELF-HEAL: Check for stalled syncs and trigger them automatically
   # This is the key self-healing mechanism that prevents sync outages
+  #
+  # FRC (Feb 2026): Fixed gap where self-heal trusted `next_sync_at` set by jobs,
+  # but didn't detect when recurring jobs failed to run at all. Now uses
+  # `last_synced_at` + expected interval as the PRIMARY trigger.
   def self_heal_stalled_syncs
     healed = 0
     threshold = Time.current - SELF_HEAL_GRACE_PERIOD
@@ -167,10 +172,19 @@ class XeroHealthMonitorJob < ApplicationJob
       should_heal = false
       reason = nil
 
-      # Case 1: next_sync_at is overdue and status is not in_progress
-      if status.next_sync_at.present? && status.next_sync_at < threshold && status.status != "in_progress"
-        should_heal = true
-        reason = "overdue by #{((Time.current - status.next_sync_at) / 60).round} minutes"
+      # SSoT: Use EXPECTED_INTERVALS to determine staleness thresholds
+      expected_interval = EXPECTED_INTERVALS[status.sync_type] || 1.hour
+      stale_threshold = expected_interval * 2  # Double the expected interval = definitely stale
+
+      # Case 1 (PRIORITY): last_synced_at is stale regardless of next_sync_at
+      # FRC (Feb 2026): This is the PRIMARY self-heal trigger. Don't trust next_sync_at
+      # because jobs may set it incorrectly (e.g., 30 min when schedule is 5 min).
+      if status.status != "in_progress"
+        if status.last_synced_at.nil? || status.last_synced_at < (Time.current - stale_threshold)
+          should_heal = true
+          age_minutes = status.last_synced_at ? ((Time.current - status.last_synced_at) / 60).round : nil
+          reason = "stale: last sync #{age_minutes ? "#{age_minutes}m ago" : 'never'} (threshold: #{(stale_threshold / 60).round}m)"
+        end
       end
 
       # Case 2: Stuck in "in_progress" for too long (job may have crashed)
@@ -181,17 +195,10 @@ class XeroHealthMonitorJob < ApplicationJob
         status.update!(status: "failed", last_error: "Auto-reset: job appeared stuck")
       end
 
-      # Case 3: No next_sync_at but last_synced_at is very stale (sync job never rescheduled)
-      # SSoT: Use EXPECTED_INTERVALS to determine staleness thresholds
-      expected_interval = EXPECTED_INTERVALS[status.sync_type] || 1.hour
-      stale_threshold = expected_interval * 2  # Double the expected interval = definitely stale
-
-      if !should_heal && status.next_sync_at.nil? && status.status != "in_progress"
-        if status.last_synced_at.nil? || status.last_synced_at < (Time.current - stale_threshold)
-          should_heal = true
-          age_hours = status.last_synced_at ? ((Time.current - status.last_synced_at) / 1.hour).round(1) : nil
-          reason = "no scheduled sync, last activity #{age_hours ? "#{age_hours}h ago" : 'never'}"
-        end
+      # Case 3: next_sync_at is overdue (backup check)
+      if !should_heal && status.next_sync_at.present? && status.next_sync_at < threshold && status.status != "in_progress"
+        should_heal = true
+        reason = "next_sync_at overdue by #{((Time.current - status.next_sync_at) / 60).round} minutes"
       end
 
       next unless should_heal
@@ -333,6 +340,54 @@ class XeroHealthMonitorJob < ApplicationJob
     end
 
     recovered
+  end
+
+  # Log comprehensive health metrics for visibility
+  # FRC (Feb 2026): Added detailed metrics to diagnose self-heal failures
+  def log_health_metrics(orphans_cleaned:, healed:, issues_found:)
+    # Token health
+    token_summary = XeroTokenManager.health_summary
+
+    # Sync status health
+    sync_statuses = XeroSyncStatus.all.group_by(&:sync_type).transform_values do |statuses|
+      latest = statuses.max_by { |s| s.last_synced_at || Time.at(0) }
+      age_minutes = latest&.last_synced_at ? ((Time.current - latest.last_synced_at) / 60).round : nil
+      {
+        status: latest&.status,
+        age_minutes: age_minutes,
+        last_error: latest&.last_error&.truncate(100)
+      }
+    end
+
+    # Queue health
+    queue_stats = {
+      pending_xero_jobs: SolidQueue::Job.where(finished_at: nil).where("class_name LIKE 'Xero%'").count,
+      failed_xero_jobs: SolidQueue::FailedExecution.joins(:job).where("solid_queue_jobs.class_name LIKE 'Xero%'").count,
+      total_pending: SolidQueue::Job.where(finished_at: nil).count
+    }
+
+    # Log structured metrics
+    Rails.logger.info "[XeroHealthMonitor] === HEALTH METRICS ==="
+    Rails.logger.info "[XeroHealthMonitor] Actions: orphans_cleaned=#{orphans_cleaned}, self_healed=#{healed}, issues=#{issues_found}"
+    Rails.logger.info "[XeroHealthMonitor] Tokens: connected=#{token_summary[:connected]}, degraded=#{token_summary[:degraded]}, " \
+                      "disconnected=#{token_summary[:disconnected]}, circuit_open=#{token_summary[:circuit_open]}"
+    Rails.logger.info "[XeroHealthMonitor] Queue: pending_xero=#{queue_stats[:pending_xero_jobs]}, " \
+                      "failed_xero=#{queue_stats[:failed_xero_jobs]}, total_pending=#{queue_stats[:total_pending]}"
+
+    sync_statuses.each do |sync_type, stats|
+      status_emoji = case stats[:status]
+                     when "success" then "✅"
+                     when "failed" then "❌"
+                     when "in_progress" then "⏳"
+                     else "❓"
+                     end
+      Rails.logger.info "[XeroHealthMonitor] Sync[#{sync_type}]: #{status_emoji} #{stats[:status] || 'none'}, " \
+                        "age=#{stats[:age_minutes] || '∞'}min#{stats[:last_error] ? ", error=#{stats[:last_error]}" : ''}"
+    end
+
+    Rails.logger.info "[XeroHealthMonitor] === END METRICS ==="
+  rescue StandardError => e
+    Rails.logger.error "[XeroHealthMonitor] Error logging metrics: #{e.message}"
   end
 
   # Create an alert for stale syncs
