@@ -1971,6 +1971,49 @@ module Api
         end
       end
 
+      # POST /api/v1/xero/trigger_sync_all
+      # Manually triggers all Xero sync types for immediate recovery
+      # FRC (Feb 2026): Added to allow UI to trigger syncs when self-heal is too slow
+      # This is safe to call frequently - jobs are idempotent and won't duplicate
+      def trigger_sync_all
+        begin
+          jobs_triggered = []
+
+          # Trigger all sync types
+          XeroInvoiceSyncJob.perform_later
+          jobs_triggered << "invoices"
+
+          XeroContactSyncJob.perform_later
+          jobs_triggered << "contacts"
+
+          XeroAttachmentSyncJob.perform_later
+          jobs_triggered << "pdfs"
+
+          XeroBankTransactionSyncJob.perform_later
+          jobs_triggered << "bank_transactions"
+
+          # Also run health monitor for immediate orphan cleanup
+          XeroHealthMonitorJob.perform_later
+          jobs_triggered << "health_monitor"
+
+          Rails.logger.info("[Xero] Manual sync triggered: #{jobs_triggered.join(', ')}")
+
+          render json: {
+            success: true,
+            data: {
+              jobs_triggered: jobs_triggered,
+              message: "All sync jobs queued. Status will update within minutes."
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero trigger_sync_all error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to trigger sync: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/xero/sync_stats
       # Returns comprehensive sync statistics for the Xero dashboard
       # Includes per-tenant stats, global stats, and cross-tenant matching info

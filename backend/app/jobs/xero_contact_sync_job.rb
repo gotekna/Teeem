@@ -116,12 +116,14 @@ class XeroContactSyncJob < ApplicationJob
     result = service.sync
 
     # Update SSoT with success
+    # FRC (Feb 2026): next_sync_at MUST match recurring.yml schedule (every 15 min backup)
+    # Previous 30-min value caused self-heal gap when webhooks failed
     records_synced = result[:stats][:synced].to_i rescue 0
     XeroSyncStatus.complete_sync!(
       "contacts",
       tenant_id: tenant_id,
       records_synced: records_synced,
-      next_sync_at: 30.minutes.from_now
+      next_sync_at: 15.minutes.from_now
     )
 
     result

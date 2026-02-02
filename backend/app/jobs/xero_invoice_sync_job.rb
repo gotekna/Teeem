@@ -126,12 +126,14 @@ class XeroInvoiceSyncJob < ApplicationJob
     Rails.logger.info("XeroInvoiceSyncJob completed for tenant #{tenant_id}: #{result[:stats].inspect}")
 
     # Update SSoT with success
+    # FRC (Feb 2026): next_sync_at MUST match recurring.yml schedule (every 5 min)
+    # Previous 30-min value caused self-heal to not detect stale syncs in time
     records_synced = result[:stats][:created].to_i + result[:stats][:updated].to_i
     XeroSyncStatus.complete_sync!(
       "invoices",
       tenant_id: tenant_id,
       records_synced: records_synced,
-      next_sync_at: 30.minutes.from_now
+      next_sync_at: 5.minutes.from_now
     )
 
     # Also keep cache for backwards compatibility
