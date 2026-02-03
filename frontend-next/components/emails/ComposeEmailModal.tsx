@@ -406,18 +406,18 @@ export function ComposeEmailModal({
       return;
     }
 
-    // FRC (Feb 2026): For cross-tenant shared accounts, use the credential's signature
-    // instead of generating one from current user (which would show wrong company)
+    // SSoT (Feb 2026): Each mailbox has its own signature
+    // Priority: account.email_signature → generate from user (only if same tenant)
     const selectedAccount = accounts.find((a) => String(a.id) === formData.credential_id);
-    if (selectedAccount?.is_cross_tenant && selectedAccount?.email_signature) {
-      console.log('[ComposeSignature] Using credential signature for cross-tenant account');
+
+    // 1. If account has a custom signature configured, use it
+    if (selectedAccount?.email_signature) {
+      console.log('[ComposeSignature] Using account signature for:', selectedAccount.email_address);
       setSignatureHtml(selectedAccount.email_signature);
       return;
     }
 
-    // FRC (Feb 2026): For cross-tenant accounts without a custom signature,
-    // generate a basic signature using the credential owner's info
-    // User feedback: "it should always show a signature as we preset a default"
+    // 2. For cross-tenant accounts without a signature, generate basic default
     if (selectedAccount?.is_cross_tenant) {
       const ownerName = selectedAccount.owner_name || 'Team';
       const emailAddr = selectedAccount.email_address || '';
@@ -433,11 +433,11 @@ export function ComposeEmailModal({
       return;
     }
 
+    // 3. For same-tenant accounts without a custom signature, generate from current user
+    // (This preserves backwards compatibility - user's signature style from preferences)
     const signature = getUserSignature();
-    console.log('[ComposeSignature] Generated signature length:', signature.length);
-    console.log('[ComposeSignature] Calling setSignatureHtml...');
+    console.log('[ComposeSignature] Generated user signature, length:', signature.length);
     setSignatureHtml(signature);
-    console.log('[ComposeSignature] setSignatureHtml called (state update queued)');
   }, [formData.credential_id, accounts, currentUser, companySettings]);
 
   const fetchAccounts = async () => {

@@ -109,7 +109,11 @@ export function TabbedDetailPage({ children, className }: PageWrapperProps) {
  * Uses default "padded" layout mode - no useSetLayoutMode call needed.
  * Page scrolls naturally with content.
  *
- * Used by: Settings pages, simple forms, static content, etc.
+ * ⚠️ CRITICAL: Children must use `flex flex-col gap-*` NOT `space-y-*`
+ * Block layout (space-y) inside flex parent breaks scrolling!
+ * See lines 276-296 above for full explanation.
+ *
+ * Used by: Settings detail pages, simple forms, static content, etc.
  */
 export function ScrollablePage({ children, className }: PageWrapperProps) {
   // Uses default "padded" mode - no need to call useSetLayoutMode

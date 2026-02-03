@@ -216,12 +216,19 @@ class WarehouseDocument < ApplicationRecord
     end
   end
 
-  # NOTE (Feb 2026 FRC Fix): folder column still exists for subfolder queries
-  # But root-level navigation now uses source_type mapping in documents_controller.rb
-  # The folder column is still useful for:
-  # - Subfolder queries: WHERE folder LIKE 'Corporate/Group/%'
-  # - GROUP BY queries: split_part(folder, '/', N)
-  # Root level duplicates are fixed because we no longer combine extras from folder column
+  # SSoT (Feb 2026): Root folder name from WarehouseFolder path templates
+  # Uses warehouse_type_to_root_folder which extracts first segment of path
+  # e.g., "Jobs/{{JobCode}}/Compliance" → "Jobs"
+  # Fallback to source_type_to_root_folder if WarehouseFolder not configured
+  def folder
+    warehouse_type = source_type_to_warehouse_type
+    # warehouse_type_to_root_folder returns {"job" => "Jobs", "corporate" => "Corporate", ...}
+    WarehouseFolder.warehouse_type_to_root_folder[warehouse_type] || source_type_to_root_folder
+  end
+
+  # NOTE (Feb 2026 FRC Fix): folder column REMOVED from table.
+  # The folder method now computes folder path at RUNTIME by querying WarehouseFolder SSoT.
+  # This ensures folder names always match WarehouseFolder configuration without sync issues.
 
   # ========================================
   # Computed Display Name (Runtime Resolution)
@@ -339,11 +346,11 @@ class WarehouseDocument < ApplicationRecord
     versions.update_all(is_latest_version: false)
 
     # Create new version
+    # NOTE (Feb 2026): folder column removed - folder is computed from source_type at runtime
     new_version = WarehouseDocument.create!(
       attributes.merge(
         display_name: display_name,
         source_type: source_type,
-        folder: folder,
         storage_blob: blob,
         parent_document: self,
         version_group_id: group_id,

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +10,12 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, Mail, Building2, User, Lock, AlertTriangle, Pencil, X, Save } from "lucide-react";
+import { Check, Mail, Building2, User, Lock, AlertTriangle, Pencil, X, Save, Inbox, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import type { EmailAccount } from "@/lib/email-types";
 import {
   SIGNATURE_STYLES,
   generateSignatureByStyle,
@@ -96,6 +97,14 @@ export function EmailSignaturesTab() {
   const [customDraft, setCustomDraft] = useState("");
   const [customNameDraft, setCustomNameDraft] = useState("");
 
+  // SSoT (Feb 2026): Per-account signatures
+  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(false);
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [accountSignatureDraft, setAccountSignatureDraft] = useState("");
+  const [savingAccountSignature, setSavingAccountSignature] = useState(false);
+  const [accountSignaturesExpanded, setAccountSignaturesExpanded] = useState(true);
+
   // Check if user is admin
   const userWithSig = user as UserWithSignature;
   const isAdmin = userWithSig?.permissions?.includes('admin') ||
@@ -145,6 +154,68 @@ export function EmailSignaturesTab() {
       setSelectedStyle(style);
     }
   }, [user]);
+
+  // SSoT (Feb 2026): Fetch email accounts for per-account signature configuration
+  const fetchEmailAccounts = useCallback(async () => {
+    if (!isAdmin) return;
+    setAccountsLoading(true);
+    try {
+      const response = await api.get<{ success: boolean; data: EmailAccount[] }>("/api/v1/imap_credentials/all_accounts");
+      if (response?.success && response.data) {
+        setEmailAccounts(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch email accounts:", error);
+    } finally {
+      setAccountsLoading(false);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchEmailAccounts();
+    }
+  }, [isAdmin, fetchEmailAccounts]);
+
+  // Save signature for a specific account
+  const handleSaveAccountSignature = async (account: EmailAccount) => {
+    setSavingAccountSignature(true);
+    try {
+      const payload: { account_id: string; signature_html: string; mailbox_email?: string } = {
+        account_id: String(account.id),
+        signature_html: accountSignatureDraft,
+      };
+
+      // For MS365 accounts, include the mailbox email
+      if (account.type === "ms365") {
+        payload.mailbox_email = account.email_address;
+      }
+
+      const response = await api.put<{ success: boolean; error?: string }>(
+        "/api/v1/imap_credentials/update_account_signature",
+        payload
+      );
+
+      if (response?.success) {
+        toast.success(`Signature updated for ${account.email_address}`);
+        setEditingAccountId(null);
+        // Refresh accounts to get updated signatures
+        await fetchEmailAccounts();
+      } else {
+        toast.error(response?.error || "Failed to update signature");
+      }
+    } catch (error) {
+      console.error("Failed to save account signature:", error);
+      toast.error("Failed to save signature");
+    } finally {
+      setSavingAccountSignature(false);
+    }
+  };
+
+  const startEditingAccountSignature = (account: EmailAccount) => {
+    setEditingAccountId(String(account.id));
+    setAccountSignatureDraft(account.email_signature || "");
+  };
 
   const getUserData = (): SignatureUserData => {
     if (!user) {
@@ -504,6 +575,184 @@ export function EmailSignaturesTab() {
               )}
             </div>
           </CardContent>
+        </Card>
+      )}
+
+      {/* SSoT (Feb 2026): Per-Account Signatures */}
+      {isAdmin && (
+        <Card className="border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Inbox className="h-4 w-4" />
+                  Per-Account Signatures
+                </CardTitle>
+                <CardDescription>
+                  Configure unique signatures for each email account/mailbox
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setAccountSignaturesExpanded(!accountSignaturesExpanded)}
+              >
+                {accountSignaturesExpanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </CardHeader>
+          {accountSignaturesExpanded && (
+            <CardContent className="space-y-4">
+              {accountsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Spinner size={24} />
+                </div>
+              ) : emailAccounts.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No email accounts configured. Add accounts in System → Email Accounts.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {emailAccounts.map((account) => {
+                    const isEditing = editingAccountId === String(account.id);
+                    const hasSignature = !!account.email_signature;
+
+                    return (
+                      <div
+                        key={account.id}
+                        className={cn(
+                          "p-4 rounded-lg border bg-background",
+                          isEditing && "ring-2 ring-primary"
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm truncate">
+                                {account.email_address}
+                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                {account.type === "ms365" ? "Microsoft 365" : account.type === "imap" ? "IMAP" : account.type}
+                              </Badge>
+                              {account.name && account.name !== account.email_address && (
+                                <span className="text-xs text-muted-foreground">
+                                  ({account.name})
+                                </span>
+                              )}
+                            </div>
+                            {!isEditing && (
+                              <div className="mt-2">
+                                {hasSignature ? (
+                                  <div className="text-xs text-muted-foreground">
+                                    <span className="text-green-600 dark:text-green-400">✓ Custom signature configured</span>
+                                    <div className="mt-1 p-2 bg-white rounded border max-h-24 overflow-hidden">
+                                      <div
+                                        className="transform scale-[0.5] origin-top-left w-[200%]"
+                                        dangerouslySetInnerHTML={{ __html: account.email_signature || "" }}
+                                      />
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-amber-600 dark:text-amber-400">
+                                    No custom signature (will use user default)
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {!isEditing && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => startEditingAccountSignature(account)}
+                            >
+                              <Pencil className="h-3 w-3 mr-1" />
+                              {hasSignature ? "Edit" : "Add"}
+                            </Button>
+                          )}
+                        </div>
+
+                        {isEditing && (
+                          <div className="mt-4 space-y-4">
+                            <div>
+                              <Label className="text-sm">Signature HTML</Label>
+                              <Textarea
+                                value={accountSignatureDraft}
+                                onChange={(e) => setAccountSignatureDraft(e.target.value)}
+                                placeholder={`<div style="font-family: Arial, sans-serif;">
+  <p><strong>Best regards,</strong></p>
+  <p>Name<br>
+  Job Title<br>
+  ${account.email_address}</p>
+</div>`}
+                                className="mt-1 font-mono text-xs h-32"
+                              />
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Enter full HTML for signature. Use inline styles for email compatibility.
+                              </p>
+                            </div>
+
+                            {accountSignatureDraft && (
+                              <div>
+                                <Label className="text-sm">Preview</Label>
+                                <div className="mt-1 p-3 bg-white rounded border">
+                                  <div dangerouslySetInnerHTML={{ __html: accountSignatureDraft }} />
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleSaveAccountSignature(account)}
+                                disabled={savingAccountSignature}
+                              >
+                                {savingAccountSignature ? (
+                                  <Spinner size={14} className="mr-2" />
+                                ) : (
+                                  <Save className="h-3 w-3 mr-1" />
+                                )}
+                                Save
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEditingAccountId(null)}
+                              >
+                                <X className="h-3 w-3 mr-1" />
+                                Cancel
+                              </Button>
+                              {hasSignature && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => {
+                                    setAccountSignatureDraft("");
+                                  }}
+                                >
+                                  Clear
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground pt-2 border-t">
+                <strong>Note:</strong> When composing an email, the signature from the selected account will be used.
+                If an account has no custom signature, the user's default style will be applied.
+              </p>
+            </CardContent>
+          )}
         </Card>
       )}
 

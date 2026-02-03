@@ -1520,6 +1520,7 @@ Rails.application.routes.draw do
           get :folder_order  # Get user's custom folder order
           post :save_folder_order  # Save user's custom folder order
           post :toggle_mailbox_favorite  # Toggle mailbox as favorite/bookmarked
+          put :update_account_signature  # SSoT (Feb 2026): Update signature for any account
           post :sync_all  # Sync ALL user's IMAP accounts
           get :shareable_users  # List users who can be granted access
           get :tenants_list  # List all tenants for cross-tenant sharing

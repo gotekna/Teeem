@@ -77,7 +77,7 @@ class CreateMvXeroSyncStats < ActiveRecord::Migration[8.0]
           MAX(last_synced_at) as last_invoice_sync
         FROM external_invoices
         WHERE source = 'xero' AND xero_org_id = xc.tenant_id
-          AND status != 'draft' AND deleted_at IS NULL
+          AND status NOT IN ('draft', 'voided', 'deleted')
       ) inv ON true
 
       -- Match type breakdown

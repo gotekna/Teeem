@@ -426,6 +426,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
       # Combine auto + configured, remove duplicates
       user_emails = (auto_emails + configured_emails).uniq
 
+      # SSoT (Feb 2026): Per-mailbox signatures stored in sync_config
+      mailbox_signatures = org_cred.sync_config&.dig("mailbox_signatures") || {}
+
       # Add each mailbox the user has access to
       user_emails.each_with_index do |email, index|
         account_id = "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}"
@@ -444,7 +447,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
           position: saved_positions[account_id] || (fallback_position += 1),
           is_favorite: favorite_ids.include?(account_id),
           last_synced_at: org_cred.last_sync_at&.iso8601,
-          last_sync_status: org_cred.status
+          last_sync_status: org_cred.status,
+          # SSoT (Feb 2026): Per-mailbox signature from sync_config
+          email_signature: mailbox_signatures[email]
         }
       end
     end
@@ -934,6 +939,83 @@ class Api::V1::ImapCredentialsController < ApplicationController
         is_favorite: is_favorite
       }
     }
+  end
+
+  # PUT /api/v1/imap_credentials/update_account_signature
+  # Update the signature for any email account (IMAP or MS365 mailbox)
+  # SSoT (Feb 2026): Each mailbox has its own signature
+  def update_account_signature
+    account_id = params[:account_id]
+    signature_html = params[:signature_html]
+
+    if account_id.blank?
+      return render json: {
+        success: false,
+        error: "account_id is required"
+      }, status: :unprocessable_entity
+    end
+
+    case account_id.to_s
+    when /^ms365_(\d+)_/
+      # MS365 mailbox - store in MicrosoftCredential.sync_config.mailbox_signatures
+      org_cred_id = $1.to_i
+      mailbox_email = params[:mailbox_email]
+
+      unless mailbox_email.present?
+        return render json: {
+          success: false,
+          error: "mailbox_email is required for MS365 accounts"
+        }, status: :unprocessable_entity
+      end
+
+      org_cred = MicrosoftCredential.find_by(id: org_cred_id)
+      unless org_cred
+        return render json: {
+          success: false,
+          error: "Microsoft 365 credential not found"
+        }, status: :not_found
+      end
+
+      # Update sync_config with new signature
+      sync_config = org_cred.sync_config || {}
+      sync_config["mailbox_signatures"] ||= {}
+      sync_config["mailbox_signatures"][mailbox_email] = signature_html
+
+      org_cred.update!(sync_config: sync_config)
+
+      render json: {
+        success: true,
+        message: "Signature updated for #{mailbox_email}"
+      }
+    when /^imap_(\d+)$/, /^(\d+)$/
+      # IMAP credential - update email_signature field
+      # SSoT (Feb 2026): Handle both "imap_123" and "123" formats
+      cred_id = $1.to_i
+      credential = ImapCredential.accessible_by(current_user).find_by(id: cred_id)
+      unless credential
+        return render json: {
+          success: false,
+          error: "IMAP credential not found"
+        }, status: :not_found
+      end
+
+      credential.update!(email_signature: signature_html)
+
+      render json: {
+        success: true,
+        message: "Signature updated for #{credential.email_address}"
+      }
+    else
+      render json: {
+        success: false,
+        error: "Unknown account type"
+      }, status: :unprocessable_entity
+    end
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to update signature: #{e.message}"
+    }, status: :unprocessable_entity
   end
 
   private

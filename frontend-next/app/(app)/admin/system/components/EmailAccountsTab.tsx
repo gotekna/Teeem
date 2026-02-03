@@ -50,6 +50,8 @@ import {
   Users,
   Save,
   Share2,
+  FileSignature,
+  Check,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
@@ -63,7 +65,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { EmailSyncDashboardTab } from "./EmailSyncDashboardTab";
+import {
+  SIGNATURE_STYLES,
+  generateSignatureByStyle,
+  type SignatureStyleId,
+  type SignatureUserData,
+  type SignatureCompanyData,
+} from "@/lib/email-signature";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ImapCredential {
   id: number;
@@ -84,6 +95,7 @@ interface ImapCredential {
   has_password: boolean; // FRC (Feb 2026): False when password is missing
   created_at: string;
   email_signature: string | null;
+  signature_style?: SignatureStyleId; // SSoT (Feb 2026): Style ID for signature generation
   email_aliases: string[]; // Send-from aliases (e.g., demo@, sales@)
   shared_with_user_ids: number[];
   shared_with_users: { id: number; name: string; tenant_name?: string; is_cross_tenant?: boolean }[];
@@ -118,7 +130,6 @@ const DEFAULT_FORM = {
   smtp_port: 587,
   username: "",
   password: "",
-  email_signature: "",
   email_aliases: "" as string,  // Comma-separated list
 };
 
@@ -645,10 +656,54 @@ export function EmailAccountsTab() {
   const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
   const [tenantUsers, setTenantUsers] = useState<ShareableUser[]>([]);
   const [loadingTenantUsers, setLoadingTenantUsers] = useState(false);
+  // Signature style selection state (SSoT Feb 2026)
+  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+  const [signatureCredential, setSignatureCredential] = useState<ImapCredential | null>(null);
+  const [selectedStyle, setSelectedStyle] = useState<SignatureStyleId>("modern-dark");
+  const [savingSignature, setSavingSignature] = useState(false);
+  const [companySettings, setCompanySettings] = useState<SignatureCompanyData | null>(null);
+  // Get current user for signature preview
+  const { user: currentUser } = useAuth();
 
   // Fetch credentials and providers on mount
   useEffect(() => {
     fetchData();
+  }, []);
+
+  // Load company settings for signature preview (SSoT Feb 2026)
+  useEffect(() => {
+    const loadCompanySettings = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data?: {
+            company_name?: string;
+            logo_dark?: string;
+            logo_url?: string;
+            address?: string;
+            website?: string;
+            phone?: string;
+            brand_colors?: { primary?: string; primaryForeground?: string };
+          };
+        }>("/api/v1/company_settings");
+        if (response?.success && response.data) {
+          const data = response.data;
+          setCompanySettings({
+            name: data.company_name,
+            logo_dark: data.logo_dark,
+            logo_light: data.logo_url,
+            address: data.address,
+            website: data.website,
+            phone: data.phone,
+            brand_color: data.brand_colors?.primary,
+            brand_color_foreground: data.brand_colors?.primaryForeground,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load company settings:", error);
+      }
+    };
+    loadCompanySettings();
   }, []);
 
   const fetchData = async () => {
@@ -811,7 +866,6 @@ export function EmailAccountsTab() {
       smtp_port: cred.smtp_port,
       username: cred.username || cred.email_address,
       password: "", // Don't prefill password for security
-      email_signature: cred.email_signature || "",
       email_aliases: (cred.email_aliases || []).join(", "),  // Convert array to comma-separated
     });
     setTestResult(null);
@@ -938,6 +992,74 @@ export function EmailAccountsTab() {
     });
   };
 
+  // ============================================================================
+  // Signature Style Dialog (SSoT Feb 2026)
+  // ============================================================================
+
+  const handleOpenSignatureDialog = (cred: ImapCredential) => {
+    setSignatureCredential(cred);
+    // Default to existing style or modern-dark
+    setSelectedStyle((cred.signature_style as SignatureStyleId) || "modern-dark");
+    setSignatureDialogOpen(true);
+  };
+
+  // Build user data for signature preview
+  const getSignatureUserData = (cred: ImapCredential): SignatureUserData => {
+    // For the preview, use credential owner's name if available, otherwise current user
+    // Note: User interface has [key: string]: unknown, so we cast dynamic fields to string
+    return {
+      name: cred.owner_name || currentUser?.name || "Your Name",
+      email: cred.email_address,
+      job_title: (currentUser?.job_title as string) || undefined,
+      mobile_phone: (currentUser?.mobile_phone as string) || undefined,
+    };
+  };
+
+  // Build company data for signature preview
+  // SSoT: companySettings is already in SignatureCompanyData format from useEffect
+  const getSignatureCompanyData = (): SignatureCompanyData | undefined => {
+    return companySettings || undefined;
+  };
+
+  const handleSaveSignature = async () => {
+    if (!signatureCredential) return;
+
+    setSavingSignature(true);
+    try {
+      // Generate the signature HTML from the selected style
+      const userData = getSignatureUserData(signatureCredential);
+      const companyData = getSignatureCompanyData();
+      const signatureHtml = selectedStyle === "none"
+        ? ""
+        : generateSignatureByStyle(selectedStyle, userData, companyData);
+
+      await api.put("/api/v1/imap_credentials/update_account_signature", {
+        account_id: `imap_${signatureCredential.id}`,
+        signature_html: signatureHtml,
+        signature_style: selectedStyle,
+      });
+
+      toast({
+        title: "Signature saved",
+        description: selectedStyle === "none"
+          ? "No signature will be added to emails from this account."
+          : "Your email signature has been updated.",
+      });
+
+      setSignatureDialogOpen(false);
+      fetchData(); // Refresh to show updated signature badge
+    } catch (error) {
+      console.error("Failed to save signature:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save email signature.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingSignature(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -1053,19 +1175,17 @@ export function EmailAccountsTab() {
                 </p>
               </div>
 
-              {/* Email Signature */}
+              {/* Email Signature - Now configured via Signature button */}
               <div className="space-y-2">
                 <Label>Email Signature</Label>
-                <Textarea
-                  placeholder="Your email signature (optional)..."
-                  value={formData.email_signature}
-                  onChange={(e) => setFormData({ ...formData, email_signature: e.target.value })}
-                  rows={4}
-                  className="resize-y font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  This signature will be automatically added to emails sent from this account.
-                </p>
+                <div className="p-3 rounded-md bg-muted/50 border border-dashed">
+                  <p className="text-sm text-muted-foreground">
+                    Email signatures are now configured using the{" "}
+                    <span className="font-medium text-foreground">Signature</span> button
+                    on each account card. This allows you to choose from professional
+                    signature styles with live preview.
+                  </p>
+                </div>
               </div>
 
               {/* Email Aliases */}
@@ -1302,6 +1422,16 @@ export function EmailAccountsTab() {
                     >
                       <Share2 className="h-4 w-4 mr-1" />
                       {cred.shared_with_users?.length > 0 ? `Sharing (${cred.shared_with_users.length})` : "Share"}
+                    </Button>
+                    {/* Signature button (SSoT Feb 2026) */}
+                    <Button
+                      variant={cred.email_signature ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleOpenSignatureDialog(cred)}
+                      className={cred.email_signature ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
+                    >
+                      <FileSignature className="h-4 w-4 mr-1" />
+                      {cred.email_signature ? "Signature ✓" : "Signature"}
                     </Button>
                     <Button
                       variant="outline"
@@ -1591,6 +1721,116 @@ export function EmailAccountsTab() {
                 </Button>
               </>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Signature Style Selection Dialog (SSoT Feb 2026) */}
+      <Dialog open={signatureDialogOpen} onOpenChange={setSignatureDialogOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSignature className="h-5 w-5" />
+              Email Signature Style
+            </DialogTitle>
+            <DialogDescription>
+              {signatureCredential && (
+                <>
+                  Select a signature style for{" "}
+                  <strong>{signatureCredential.email_address}</strong>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+            {/* Style Selection */}
+            <div className="space-y-4">
+              <Label className="text-sm font-medium">Choose Style</Label>
+              <RadioGroup
+                value={selectedStyle}
+                onValueChange={(value) => setSelectedStyle(value as SignatureStyleId)}
+                className="space-y-2"
+              >
+                {SIGNATURE_STYLES.map((style) => (
+                  <div
+                    key={style.id}
+                    className={`flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                      selectedStyle === style.id
+                        ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
+                        : "border-border hover:bg-muted/50"
+                    }`}
+                    onClick={() => setSelectedStyle(style.id as SignatureStyleId)}
+                  >
+                    <RadioGroupItem value={style.id} id={style.id} className="mt-0.5" />
+                    <div className="flex-1">
+                      <label
+                        htmlFor={style.id}
+                        className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                      >
+                        {style.name}
+                        {selectedStyle === style.id && (
+                          <Check className="h-4 w-4 text-emerald-600" />
+                        )}
+                      </label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {style.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+
+            {/* Preview */}
+            <div className="space-y-4">
+              <Label className="text-sm font-medium">Preview</Label>
+              <div className="border rounded-lg p-4 bg-white dark:bg-gray-900 min-h-[300px] overflow-auto">
+                {signatureCredential && selectedStyle !== "none" ? (
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: generateSignatureByStyle(
+                        selectedStyle,
+                        getSignatureUserData(signatureCredential),
+                        getSignatureCompanyData()
+                      ).replace(/<!-- TEEEM-EMAIL-SIGNATURE -->/, ""), // Remove marker for preview
+                    }}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                    No signature will be added
+                  </div>
+                )}
+              </div>
+              {selectedStyle !== "none" && (
+                <p className="text-xs text-muted-foreground">
+                  This signature will be automatically added when composing emails from this account.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSignatureDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveSignature}
+              disabled={savingSignature}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {savingSignature ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Signature
+                </>
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

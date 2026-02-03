@@ -46,8 +46,12 @@ class MvXeroSyncStat < ApplicationRecord
     end
 
     # Check if MV exists (for feature flag/rollout)
+    # Note: table_exists? doesn't work for MVs - must check pg_matviews
     def available?
-      ActiveRecord::Base.connection.table_exists?("mv_xero_sync_stats")
+      result = ActiveRecord::Base.connection.execute(
+        "SELECT EXISTS (SELECT 1 FROM pg_matviews WHERE matviewname = 'mv_xero_sync_stats')"
+      )
+      result.first["exists"] == true
     rescue StandardError
       false
     end
