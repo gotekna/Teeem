@@ -26,9 +26,12 @@ import {
   Smile,
   Target,
   Network,
+  ListTodo,
 } from "lucide-react";
 import FeaturesTrackingTable from "./components/FeaturesTrackingTable";
 import ArchitectureMap from "./components/ArchitectureMap";
+import { TaskHubProvider } from "@/contexts/TaskHubContext";
+import { TaskHub } from "@/components/task-hub";
 
 interface DashboardStats {
   activeJobs: number;
@@ -118,6 +121,10 @@ export default function DashboardPage() {
           <TabsTrigger value="overview" className="gap-2">
             <LayoutDashboard className="h-4 w-4" />
             Overview
+          </TabsTrigger>
+          <TabsTrigger value="task-hub" className="gap-2">
+            <ListTodo className="h-4 w-4" />
+            Task Hub
           </TabsTrigger>
           <TabsTrigger value="competitor" className="gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -362,6 +369,13 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Task Hub Tab */}
+        <TabsContent value="task-hub" className="flex-1 min-h-0">
+          <TaskHubProvider>
+            <TaskHub />
+          </TaskHubProvider>
         </TabsContent>
 
         {/* Competitor Comparison Tab */}
