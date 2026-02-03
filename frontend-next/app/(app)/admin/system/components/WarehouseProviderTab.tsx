@@ -1058,24 +1058,7 @@ function TreeNode({
           </div>
         )}
 
-        {/* Config link - shown when checkbox is enabled and URL is set */}
-        {hasConfigLink && configLinkUrl && !isEditingThisNode && (() => {
-          // Get tab name from URL
-          const getTabName = (url: string) => {
-            if (url.includes('corporate')) return 'Corporate tab';
-            if (url.includes('/job')) return 'Jobs tab';
-            if (url.includes('/contact')) return 'Contacts tab';
-            return 'Configure';
-          };
-          return (
-            <Link
-              href={configLinkUrl}
-              className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-1"
-            >
-              {getTabName(configLinkUrl)} <ExternalLink className="h-3 w-3" />
-            </Link>
-          );
-        })()}
+        {/* SSoT (Feb 2026): Config link buttons removed for consistency - all scopes show tabs */}
 
         {/* Individual tab badges */}
         {hasTabs && (
@@ -1697,8 +1680,12 @@ function TabNode({
   // Folder name: extract from stored path
   // Use ?? (nullish coalescing) not || so empty string "" is preserved (user intentionally cleared it)
   const storedPath = tab.folder_path ?? tab.storage_folder_path ?? '';
-  const defaultFolderName = storedPath ? extractFolderName(storedPath, basePath) : '';
-  const [editPath, setEditPath] = React.useState(defaultFolderName);
+  const extractedFolderName = storedPath ? extractFolderName(storedPath, basePath) : '';
+  // FRC Fix (Feb 2026): If folder_path is empty, use tab's display_name (not basePath segment)
+  // This shows the tab's name instead of deriving from parent path
+  const defaultFolderName = extractedFolderName || tab.display_name || '';
+  // Edit path: only show what was actually stored (empty if folder_path is empty)
+  const [editPath, setEditPath] = React.useState(extractedFolderName);
   const [editDisplayName, setEditDisplayName] = React.useState(tab.display_name || '');
   const [editSendName, setEditSendName] = React.useState(tab.download_name || '{{OriginalFileName}}');
 
@@ -1819,14 +1806,21 @@ function TabNode({
                 placeholder="e.g. TeeemXL"
                 defaultExpanded={false}
               />
-              {/* 4. Full path preview - basePath is the SSoT template with {{TeeemXL}} replaced by folder name */}
+              {/* 4. Full path preview - append editPath to basePath (or replace placeholder if present) */}
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-2 py-1">
                 <span className="text-[10px] text-muted-foreground font-medium">Full Path: </span>
                 <span className="font-mono text-xs text-green-700 dark:text-green-400">
-                  {[rootPath, basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/g, editPath || '...')]
-                    .filter(Boolean)
-                    .join('/')
-                    .replace(/\/+/g, '/') || '/'}
+                  {(() => {
+                    const hasPlaceholder = /\{\{TeeemXL\}\}|\{\{TabName\}\}/i.test(basePath);
+                    const resolvedBase = hasPlaceholder
+                      ? basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/gi, editPath || '...')
+                      : basePath;
+                    // FRC Fix: Always append editPath (even if basePath already has tokens like {{Year}})
+                    const fullPath = hasPlaceholder
+                      ? [rootPath, resolvedBase]  // Placeholder was replaced
+                      : [rootPath, basePath, editPath].filter(Boolean);  // Append editPath
+                    return fullPath.join('/').replace(/\/+/g, '/') || '/';
+                  })()}
                 </span>
               </div>
             </div>
@@ -1842,6 +1836,7 @@ function TabNode({
                 separator=" "
                 placeholder="Name shown in UI..."
                 defaultExpanded={false}
+                defaultValue="{{OriginalFileName}}"
               />
             </div>
 
@@ -1874,13 +1869,20 @@ function TabNode({
                   // Use tab.display_name as fallback if editDisplayName is empty
                   const displayNameToSave = editDisplayName.trim() || tab.display_name || 'Untitled';
 
-                  // FRC Fix: Build full folder_path, not just the folder name
-                  // If basePath contains {{TeeemXL}} or {{TabName}}, replace with editPath
-                  // Otherwise, append editPath to basePath
-                  const hasPlaceholder = /\{\{TeeemXL\}\}|\{\{TabName\}\}/i.test(basePath);
-                  const fullPath = hasPlaceholder
-                    ? basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/gi, editPath)
-                    : [basePath, editPath].filter(Boolean).join('/').replace(/\/+/g, '/');
+                  // FRC Fix (Feb 2026): If folder path is empty, save empty string
+                  // Don't append basePath - empty means "use basePath directly"
+                  // This prevents the loop where {{Year}} gets extracted and re-added
+                  let fullPath: string;
+                  if (!editPath.trim()) {
+                    // Empty folder path = use basePath directly (save as empty)
+                    fullPath = '';
+                  } else {
+                    // Has folder path - build full path
+                    const hasPlaceholder = /\{\{TeeemXL\}\}|\{\{TabName\}\}/i.test(basePath);
+                    fullPath = hasPlaceholder
+                      ? basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/gi, editPath)
+                      : [basePath, editPath].filter(Boolean).join('/').replace(/\/+/g, '/');
+                  }
 
                   console.log('[TabNode Save] Clicked:', { tabId: tab.id, editPath, fullPath, displayNameToSave, editSendName, basePath });
                   onSaveEdit(tab.id, fullPath, displayNameToSave, editSendName);
@@ -2261,10 +2263,9 @@ export function WarehouseProviderTab() {
         }));
     };
 
-    // Scopes that don't use document types - show all warehouse-enabled tabs
-    // SSoT: 'user' added for Teeem Docs (Jan 2026)
-    // SSoT: 'case' added for Case document management (Jan 2026)
-    const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse', 'user', 'case'];
+    // SSoT (Feb 2026): All scopes show warehouse-enabled tabs for consistency
+    // Previously corporate/job/contact required document types - now all show tabs
+    const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse', 'user', 'case', 'corporate', 'job', 'contact'];
 
     // Helper: Filter tabs for scopes without doc types (just warehouse enabled)
     // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)

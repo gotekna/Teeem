@@ -797,7 +797,7 @@ export const SHAREPOINT_PLACEHOLDERS = STORAGE_PLACEHOLDERS;
 
 // Common tokens available to all warehouse types
 const COMMON_WAREHOUSE_TOKENS = STORAGE_PLACEHOLDERS.filter(p =>
-  ["{{Date}}", "{{Year}}", "{{Month}}", "{{Sequence}}", "{{UploadedBy}}", "{{Category}}", "{{Folder}}"].includes(p.code)
+  ["{{OriginalFileName}}", "{{Date}}", "{{Year}}", "{{Month}}", "{{Sequence}}", "{{UploadedBy}}", "{{Category}}", "{{Folder}}"].includes(p.code)
 );
 
 // Task tokens - for Tasks base folder
