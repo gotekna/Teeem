@@ -1189,7 +1189,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       if content.present?
         return send_data(
           content,
-          filename: attachment_doc.original_filename || attachment_doc.display_name,
+          filename: attachment_doc.original_filename || attachment_doc.ui_name,
           type: content_type_hint || "application/octet-stream",
           disposition: "attachment"
         )
@@ -1198,7 +1198,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Priority 2: Search by filename if ID lookup didn't work
     if @email.attachment_documents.any? && filename_hint.present?
-      doc = @email.attachment_documents.find { |d| (d.original_filename || d.display_name) == filename_hint }
+      doc = @email.attachment_documents.find { |d| (d.original_filename || d.ui_name) == filename_hint }
       if doc&.storage_blob.present?
         Rails.logger.info "[SyncedEmail] Downloading attachment from storage by filename: #{filename_hint}"
         content = doc.storage_blob.download
@@ -1275,7 +1275,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Priority 1: Use attachment found by ID if it has storage_blob
     if attachment_doc&.storage_blob.present?
-      filename = attachment_doc.original_filename || attachment_doc.display_name
+      filename = attachment_doc.original_filename || attachment_doc.ui_name
       url = attachment_doc.storage_blob.presigned_url(
         expires_in: 900,  # 15 minutes
         filename: filename
@@ -1292,7 +1292,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Priority 2: Search by filename if ID lookup didn't find a blob
     if @email.attachment_documents.any? && filename_param.present?
-      doc = @email.attachment_documents.find { |d| (d.original_filename || d.display_name) == filename_param && d.storage_blob.present? }
+      doc = @email.attachment_documents.find { |d| (d.original_filename || d.ui_name) == filename_param && d.storage_blob.present? }
       if doc&.storage_blob.present?
         url = doc.storage_blob.presigned_url(
           expires_in: 900,

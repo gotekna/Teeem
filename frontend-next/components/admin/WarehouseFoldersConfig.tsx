@@ -1153,8 +1153,8 @@ export function WarehouseFoldersConfig({
                       .replace(/\{DocTypeName\}/gi, dt.name || 'Document');
                     return result;
                   };
-                  const exampleFileName = applyReplacements(dt.file_name);
-                  const exampleDisplayName = applyReplacements(dt.display_name);
+                  const exampleFileName = applyReplacements(dt.download_name);
+                  const exampleDisplayName = applyReplacements(dt.ui_name);
 
                   return (
                     <React.Fragment key={dt.id}>
@@ -1177,8 +1177,8 @@ export function WarehouseFoldersConfig({
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.file_name || '—'}</TableCell>
-                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.display_name || '—'}</TableCell>
+                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.download_name || '—'}</TableCell>
+                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.ui_name || '—'}</TableCell>
                       </TableRow>
                       {/* Example row with resolved values */}
                       <TableRow

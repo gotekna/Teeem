@@ -81,7 +81,7 @@ interface DocumentItem {
   id: number;
   source: "job" | "corporate" | "people" | "task";
   fileName: string;
-  displayName: string;
+  uiName: string;
   mimeType: string;
   fileSize: number;
   fileUrl: string | null;
@@ -658,7 +658,7 @@ export default function AllDocumentsPage() {
             id: file.id,
             source: scope as "job" | "corporate" | "people",
             fileName: file.name,
-            displayName: file.name,
+            uiName: file.name,
             mimeType: file.content_type || "",
             fileSize: file.size || 0,
             fileUrl: file.url,
@@ -709,7 +709,7 @@ export default function AllDocumentsPage() {
             id: idx + 1,
             source: "corporate" as const, // Generic source for user files
             fileName: file.name,
-            displayName: file.name,
+            uiName: file.name,
             mimeType: file.content_type || "",
             fileSize: file.size || 0,
             fileUrl: file.url,
@@ -800,7 +800,7 @@ export default function AllDocumentsPage() {
           folders: Array<{ name: string; path: string; count: number; [key: string]: unknown }>;
           files: Array<{
             id: number;
-            displayName: string;  // FRC: API returns displayName, not name
+            uiName: string;  // FRC: API returns uiName (renamed from displayName Feb 2026)
             originalFilename?: string;
             type: string;
             mimeType: string;
@@ -826,9 +826,9 @@ export default function AllDocumentsPage() {
                 count: f.count,
               })),
               files: (response.files || []).map(f => ({
-                // FRC (Jan 2026): API returns displayName, not name
-                name: f.displayName || f.originalFilename || 'Unknown',
-                path: relativePath ? `${scopeRootFolder}/${relativePath}/${f.displayName || f.originalFilename}` : `${scopeRootFolder}/${f.displayName || f.originalFilename}`,
+                // FRC (Feb 2026): API returns uiName (renamed from displayName)
+                name: f.uiName || f.originalFilename || 'Unknown',
+                path: relativePath ? `${scopeRootFolder}/${relativePath}/${f.uiName || f.originalFilename}` : `${scopeRootFolder}/${f.uiName || f.originalFilename}`,
                 size: f.fileSize || 0,
                 content_type: f.mimeType || 'application/octet-stream',
                 url: f.fileUrl ?? undefined,  // FRC: API returns fileUrl (null → undefined for type compat)
@@ -1165,22 +1165,22 @@ export default function AllDocumentsPage() {
     return {
       jobs: documents.jobs.filter(d =>
         d.fileName?.toLowerCase().includes(query) ||
-        d.displayName?.toLowerCase().includes(query) ||
+        d.uiName?.toLowerCase().includes(query) ||
         d.jobTitle?.toLowerCase().includes(query)
       ),
       corporate: documents.corporate.filter(d =>
         d.fileName?.toLowerCase().includes(query) ||
-        d.displayName?.toLowerCase().includes(query) ||
+        d.uiName?.toLowerCase().includes(query) ||
         d.companyName?.toLowerCase().includes(query)
       ),
       people: documents.people.filter(d =>
         d.fileName?.toLowerCase().includes(query) ||
-        d.displayName?.toLowerCase().includes(query) ||
+        d.uiName?.toLowerCase().includes(query) ||
         d.contactName?.toLowerCase().includes(query)
       ),
       tasks: documents.tasks.filter(d =>
         d.fileName?.toLowerCase().includes(query) ||
-        d.displayName?.toLowerCase().includes(query) ||
+        d.uiName?.toLowerCase().includes(query) ||
         d.taskName?.toLowerCase().includes(query)
       ),
     };
@@ -1250,7 +1250,7 @@ export default function AllDocumentsPage() {
           id: file.id || file.warehouse_document_id || 0,
           source: "corporate" as const,
           fileName: file.name,
-          displayName: file.name,
+          uiName: file.name,
           mimeType: file.content_type || "",
           fileSize: file.size || 0,
           fileUrl: file.url || null,
@@ -1344,7 +1344,7 @@ export default function AllDocumentsPage() {
   // Start rename mode
   const handleStartRename = useCallback(() => {
     if (!previewDocument) return;
-    setRenameValue(previewDocument.displayName || previewDocument.fileName);
+    setRenameValue(previewDocument.uiName || previewDocument.fileName);
     setIsRenaming(true);
   }, [previewDocument]);
 
@@ -1360,7 +1360,7 @@ export default function AllDocumentsPage() {
 
     const newName = renameValue.trim();
     // Don't save if name didn't change
-    if (newName === previewDocument.displayName || newName === previewDocument.fileName) {
+    if (newName === previewDocument.uiName || newName === previewDocument.fileName) {
       setIsRenaming(false);
       return;
     }
@@ -1407,7 +1407,7 @@ export default function AllDocumentsPage() {
         setPreviewDocument({
           ...previewDocument,
           fileName: response.new_name,
-          displayName: response.new_name,
+          uiName: response.new_name,
           storagePath: response.new_path,  // SSoT: full S3 key
           folderPath: response.new_path,   // Keep for backward compatibility
         });
@@ -1632,7 +1632,7 @@ export default function AllDocumentsPage() {
               {file.fileUrl ? (
                 <img
                   src={file.fileUrl}
-                  alt={file.displayName}
+                  alt={file.uiName}
                   className="w-full h-full object-cover"
                   loading="lazy"
                 />
@@ -1642,7 +1642,7 @@ export default function AllDocumentsPage() {
                 </div>
               )}
             </div>
-            <p className="mt-1 text-xs truncate text-center">{file.displayName}</p>
+            <p className="mt-1 text-xs truncate text-center">{file.uiName}</p>
           </div>
         );
       }
@@ -1840,7 +1840,7 @@ export default function AllDocumentsPage() {
                         {img.fileUrl ? (
                           <img
                             src={img.fileUrl}
-                            alt={img.displayName}
+                            alt={img.uiName}
                             className="w-full h-full object-cover"
                             loading="lazy"
                           />
@@ -1875,7 +1875,7 @@ export default function AllDocumentsPage() {
                 {hasLoadedFiles && loadedFiles.map((file) => {
                   const fileNode: TreeNode = {
                     id: `loaded-${node.id}-${file.fileName}`,
-                    name: file.displayName || file.fileName,
+                    name: file.uiName || file.fileName,
                     type: "file",
                     file,
                   };
@@ -2139,7 +2139,7 @@ export default function AllDocumentsPage() {
                     ) : (
                       <File className="h-4 w-4 text-muted-foreground shrink-0" />
                     )}
-                    <span className="flex-1 truncate">{doc.displayName || doc.fileName}</span>
+                    <span className="flex-1 truncate">{doc.uiName || doc.fileName}</span>
                     <Badge variant="outline" className="text-xs shrink-0">
                       {doc.source === "job" && doc.jobNumber && `Job ${doc.jobNumber}`}
                       {doc.source === "corporate" && doc.companyName}
@@ -2182,7 +2182,7 @@ export default function AllDocumentsPage() {
                         {doc.fileUrl ? (
                           <img
                             src={doc.fileUrl}
-                            alt={doc.displayName}
+                            alt={doc.uiName}
                             className="w-full h-full object-cover"
                             loading="lazy"
                           />
@@ -2192,7 +2192,7 @@ export default function AllDocumentsPage() {
                           </div>
                         )}
                       </div>
-                      <p className="mt-1 text-xs truncate text-center">{doc.displayName}</p>
+                      <p className="mt-1 text-xs truncate text-center">{doc.uiName}</p>
                     </div>
                   ))}
                 </div>
@@ -2251,7 +2251,7 @@ export default function AllDocumentsPage() {
                     // Normal display mode
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-medium truncate">
-                        {previewDocument.displayName || previewDocument.fileName}
+                        {previewDocument.uiName || previewDocument.fileName}
                       </h3>
                       <Button
                         variant="ghost"
@@ -2319,7 +2319,7 @@ export default function AllDocumentsPage() {
                         document={{
                           id: previewDocument.id,
                           fileName: previewDocument.fileName,
-                          displayName: previewDocument.displayName,
+                          uiName: previewDocument.uiName,
                           fileUrl: previewDocument.fileUrl,
                           storagePath: previewDocument.storagePath,
                           mimeType: previewDocument.mimeType,
@@ -2364,33 +2364,33 @@ export default function AllDocumentsPage() {
                   <div className="h-full w-full flex items-center justify-center p-4">
                     <img
                       src={previewDocument.fileUrl}
-                      alt={previewDocument.displayName}
+                      alt={previewDocument.uiName}
                       className="max-h-full max-w-full object-contain"
                     />
                   </div>
                 ) : previewDocument.mimeType?.includes("pdf") ||
                   previewDocument.fileName?.toLowerCase().endsWith(".pdf") ||
-                  previewDocument.displayName?.toLowerCase().endsWith(".pdf") ? (
+                  previewDocument.uiName?.toLowerCase().endsWith(".pdf") ? (
                   // PDF preview (check mime type OR file extension)
                   <PDFViewer url={previewDocument.fileUrl} className="h-full" />
                 ) : previewDocument.mimeType?.includes("wordprocessingml") ||
                   previewDocument.fileName?.toLowerCase().endsWith(".docx") ||
-                  previewDocument.displayName?.toLowerCase().endsWith(".docx") ? (
+                  previewDocument.uiName?.toLowerCase().endsWith(".docx") ? (
                   // Word document preview using TeeemWord's mammoth conversion
                   <WordDocumentPreview url={previewDocument.fileUrl} className="h-full" />
                 ) : previewDocument.mimeType?.includes("spreadsheetml") ||
                   previewDocument.mimeType?.includes("ms-excel") ||
                   previewDocument.fileName?.toLowerCase().endsWith(".xlsx") ||
                   previewDocument.fileName?.toLowerCase().endsWith(".xls") ||
-                  previewDocument.displayName?.toLowerCase().endsWith(".xlsx") ||
-                  previewDocument.displayName?.toLowerCase().endsWith(".xls") ? (
+                  previewDocument.uiName?.toLowerCase().endsWith(".xlsx") ||
+                  previewDocument.uiName?.toLowerCase().endsWith(".xls") ? (
                   // Excel document preview using TeeemXL
                   <ExcelDocumentPreview url={previewDocument.fileUrl} className="h-full" />
                 ) : (
                   // Other file types - show preview placeholder
                   <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                     <File className="h-16 w-16 text-muted-foreground mb-4" />
-                    <p className="text-lg font-medium mb-2">{previewDocument.displayName || previewDocument.fileName}</p>
+                    <p className="text-lg font-medium mb-2">{previewDocument.uiName || previewDocument.fileName}</p>
                     <p className="text-sm text-muted-foreground mb-4">
                       Preview not available for this file type
                     </p>

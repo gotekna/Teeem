@@ -380,14 +380,14 @@ module Api
           # Completion document requirement
           requires_document_to_complete: row.requires_document_to_complete,
           completion_document_type_id: row.completion_document_type_id,
-          completion_document_type_name: row.completion_document_type&.display_name || row.completion_document_type&.name,
+          completion_document_type_name: row.completion_document_type&.ui_name || row.completion_document_type&.name,
           # Document types for GET task spawning
           # PERFORMANCE: document_type already eager loaded via row_json_includes
           document_types: row.sm_schedule_master_document_types.map { |dt|
             {
               id: dt.id,
               document_type_id: dt.document_type_id,
-              document_type_name: dt.document_type&.display_name || dt.document_type&.name,
+              document_type_name: dt.document_type&.ui_name || dt.document_type&.name,
               lag_days: dt.lag_days,
               assigned_role: dt.assigned_role
             }

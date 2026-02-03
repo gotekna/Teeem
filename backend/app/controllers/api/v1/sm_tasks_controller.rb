@@ -1102,7 +1102,7 @@ module Api
       # Update attachment properties (e.g., link to a question via action_item_id)
       #
       # Renaming SSoT:
-      #   - If warehouse_document exists: Update warehouse_document.display_name (Phase 3 SSoT)
+      #   - If warehouse_document exists: Update warehouse_document.ui_name (Phase 3 SSoT)
       #   - Fallback: Update attachment.display_name (for emails or legacy attachments)
       def update_attachment
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
@@ -1118,11 +1118,13 @@ module Api
           Rails.logger.warn "[FRC-DEBUG] Referrer: #{request.referrer}"
         end
 
-        # Handle display_name update - SSoT is warehouse_document.display_name
-        if params[:display_name].present?
+        # Handle display_name update - SSoT is warehouse_document.ui_name
+        # Accept both :display_name (legacy) and :ui_name (new) params
+        new_ui_name = params[:ui_name].presence || params[:display_name].presence
+        if new_ui_name.present?
           if attachment.warehouse_document.present?
             # Phase 3 SSoT: Update warehouse_document directly
-            attachment.warehouse_document.update!(display_name: params[:display_name])
+            attachment.warehouse_document.update!(ui_name: new_ui_name)
             # Clear association cache so attachment.display_name sees updated value
             attachment.reload
           else
@@ -1362,7 +1364,7 @@ module Api
         end
 
         # Get filename and content type from appropriate source
-        filename = document.respond_to?(:display_name) ? document.display_name : (document.respond_to?(:file_name) ? document.file_name : "attachment")
+        filename = document.respond_to?(:ui_name) ? document.ui_name : (document.respond_to?(:file_name) ? document.file_name : "attachment")
         content_type = document.storage_blob&.content_type || "application/octet-stream"
 
         render json: {
@@ -1475,7 +1477,7 @@ module Api
             result = service.download(document)
             next unless result[:success] && result[:content]
 
-            filename = document.file_name || document.display_name || "document_#{att.id}"
+            filename = document.file_name || document.ui_name || "document_#{att.id}"
             # Ensure unique filenames in zip
             zip.put_next_entry(filename)
             zip.write(result[:content])
@@ -2875,7 +2877,7 @@ module Api
               email_attachments: email.attachment_documents.map do |doc|
                 {
                   id: doc.id,
-                  filename: doc.original_filename || doc.display_name,
+                  filename: doc.original_filename || doc.ui_name,
                   content_type: doc.content_type || doc.storage_blob&.content_type,
                   file_size: doc.file_size || doc.storage_blob&.file_size
                 }
@@ -2889,7 +2891,7 @@ module Api
           base.merge(
             document: {
               id: doc.id,
-              file_name: doc.storage_blob&.original_filename || doc.display_name,
+              file_name: doc.storage_blob&.original_filename || doc.ui_name,
               # SSoT: Use attachment.display_name which checks warehouse_document first
               display_name: attachment.display_name,
               document_type: nil,  # WarehouseDocument doesn't have document_type
@@ -3346,7 +3348,7 @@ module Api
           # Completion document requirement
           requires_document_to_complete: task.requires_document_to_complete,
           completion_document_type_id: task.completion_document_type_id,
-          completion_document_type_name: task.completion_document_type&.display_name || task.completion_document_type&.name,
+          completion_document_type_name: task.completion_document_type&.ui_name || task.completion_document_type&.name,
           # Computed
           started_at: task.started_at,
           completed_at: task.completed_at,

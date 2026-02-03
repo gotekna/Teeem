@@ -758,7 +758,7 @@ module Api
             url = doc.download_url rescue nil
 
             {
-              name: doc.display_name || doc.original_filename || "Document #{doc.id}",
+              name: doc.ui_name || doc.original_filename || "Document #{doc.id}",
               path: blob&.storage_path,
               size: doc.file_size || blob&.file_size || 0,
               content_type: doc.content_type || blob&.content_type || "application/octet-stream",
@@ -822,7 +822,7 @@ module Api
             url = doc.download_url rescue nil
 
             {
-              name: doc.display_name || doc.original_filename || "Document #{doc.id}",
+              name: doc.ui_name || doc.original_filename || "Document #{doc.id}",
               path: blob&.storage_path,
               size: doc.file_size || blob&.file_size || 0,
               content_type: doc.content_type || blob&.content_type || "application/octet-stream",
@@ -1110,7 +1110,7 @@ module Api
 
         # Return mock suggestion for now - can integrate with AI service later
         suggestion = {
-          display_title: document.display_name,
+          uiName: document.ui_name,
           document_type_id: document.meta("document_type_id"),
           fiscal_year: document.meta("fiscal_year")&.to_s,
           confidence: 0.85,
@@ -1288,7 +1288,7 @@ module Api
             category: category,
             attachment_type: "document",
             added_by: current_user,
-            display_name: @document.display_name
+            display_name: @document.ui_name
           )
 
           render json: {

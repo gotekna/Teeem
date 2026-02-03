@@ -1857,9 +1857,45 @@ module Api
             Rails.logger.warn("[pdf_sync_status] Could not get SharePoint URL: #{e.message}")
           end
 
+          # ============================================
+          # PER-TENANT STATUS (Feb 2026: Ultra Transparency)
+          # ============================================
+          # Give customers complete visibility into WHY each org is paused
+          per_tenant_status = XeroCredential.where(status: %w[connected degraded disconnected]).map do |cred|
+            usage = XeroRateLimitTracker.usage_for(cred.tenant_id)
+            lockout = XeroRateLimitTracker.current_lockout(tenant_id: cred.tenant_id)
+
+            # Count remaining for this specific tenant (using xero_org_id)
+            tenant_remaining = count_remaining_for_tenant(cred.tenant_id)
+
+            # Determine status and reason
+            status_info = determine_tenant_status(cred, usage, lockout, tenant_remaining)
+
+            {
+              tenant_id: cred.tenant_id,
+              tenant_name: cred.tenant_name,
+              total: tenant_remaining[:total],
+              synced: tenant_remaining[:synced],
+              pending: tenant_remaining[:pending],
+              percentage: tenant_remaining[:percentage],
+              status: status_info[:status],
+              reason: status_info[:reason],
+              detail: status_info[:detail],
+              rate_limit_daily_pct: usage&.dig(:daily, :percentage),
+              lockout_remaining_secs: lockout ? XeroRateLimitTracker.lockout_remaining_seconds(tenant_id: cred.tenant_id) : 0
+            }
+          end
+
+          # Calculate overall ETA based on actual throughput
+          overall_eta = calculate_overall_eta(pdfs_pending, pdfs_last_24h)
+
           render json: {
             success: true,
             data: {
+              # Per-tenant status for Ultra Transparency (Feb 2026)
+              per_tenant_status: per_tenant_status,
+              overall_eta: overall_eta,
+
               # Stage 1: Invoice DATA sync (Xero -> Database)
               stage1_data_sync: {
                 total_in_database: total_invoices_in_db,
@@ -3392,6 +3428,109 @@ module Api
           "Created from Xero"
         else
           "Synced to Xero"
+        end
+      end
+
+      # ============================================
+      # PER-TENANT STATUS HELPERS (Feb 2026: Ultra Transparency)
+      # ============================================
+
+      # Count remaining PDFs for a specific Xero tenant (by xero_org_id)
+      def count_remaining_for_tenant(xero_tenant_id)
+        # Get all invoices for this Xero org via ContactExternalLink
+        contact_ids = ContactExternalLink
+          .where(source: "xero", xero_org_id: xero_tenant_id)
+          .pluck(:contact_id)
+
+        # Total invoices linked to these contacts (excluding drafts, voided, deleted)
+        total_scope = ExternalInvoice.active
+          .where(contact_id: contact_ids)
+          .where.not(status: "draft")
+          .where.not(status: %w[voided deleted])
+
+        total = total_scope.count
+
+        # Count invoices WITH synced PDFs
+        synced = WarehouseDocument
+          .where(source_type: "xero")
+          .where("metadata->>'is_primary' = ?", "true")
+          .where.not(storage_blob_id: nil)
+          .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
+          .where(documentable_type: "ExternalInvoice")
+          .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
+          .where(external_invoices: { contact_id: contact_ids })
+          .where.not(external_invoices: { status: "draft" })
+          .where.not(external_invoices: { status: %w[voided deleted] })
+          .distinct.count(:documentable_id)
+
+        pending = [total - synced, 0].max
+        percentage = total > 0 ? ((synced.to_f / total) * 100).round(1) : 100.0
+
+        { total: total, synced: synced, pending: pending, percentage: percentage }
+      end
+
+      # Determine status and reason for a specific tenant
+      def determine_tenant_status(credential, usage, lockout, remaining)
+        # Priority 1: Disconnected/degraded credentials
+        if credential.status == "disconnected"
+          return { status: "disconnected", reason: "Needs re-auth", detail: "Token expired or revoked" }
+        end
+
+        if credential.status == "degraded"
+          return { status: "degraded", reason: "Token failing", detail: "Refresh attempts failing" }
+        end
+
+        # Priority 2: Rate limited (Xero 429 lockout)
+        if lockout.present?
+          mins = (XeroRateLimitTracker.lockout_remaining_seconds(tenant_id: credential.tenant_id) / 60.0).ceil
+          return { status: "rate_limited", reason: "Paused #{mins}m", detail: "Xero rate limited - auto-resumes" }
+        end
+
+        # Priority 3: Approaching daily limit (>90%)
+        if usage && usage[:daily][:percentage] >= 90
+          return {
+            status: "rate_limited",
+            reason: "Daily limit #{usage[:daily][:percentage].round}%",
+            detail: "Slowing down to stay under limit"
+          }
+        end
+
+        # Priority 4: Complete
+        if remaining[:pending].zero?
+          return { status: "complete", reason: "Done", detail: "All PDFs synced" }
+        end
+
+        # Default: Syncing
+        { status: "syncing", reason: "#{remaining[:pending]} remaining", detail: "Sync in progress" }
+      end
+
+      # Calculate overall ETA based on throughput
+      def calculate_overall_eta(pending_count, synced_last_24h)
+        return nil if pending_count.zero?
+
+        # Use actual throughput if we have data
+        if synced_last_24h > 0
+          # PDFs per hour based on last 24h
+          pdfs_per_hour = synced_last_24h / 24.0
+          hours_remaining = (pending_count / pdfs_per_hour).ceil
+
+          if hours_remaining < 1
+            return "< 1 hour"
+          elsif hours_remaining < 24
+            return "~#{hours_remaining} hour#{'s' if hours_remaining != 1}"
+          else
+            days = (hours_remaining / 24.0).ceil
+            return "~#{days} day#{'s' if days != 1}"
+          end
+        end
+
+        # Fallback: estimate based on typical rate (10s per PDF)
+        minutes = (pending_count * 10) / 60
+        if minutes < 60
+          "~#{minutes} minutes"
+        else
+          hours = (minutes / 60.0).ceil
+          "~#{hours} hour#{'s' if hours != 1}"
         end
       end
 

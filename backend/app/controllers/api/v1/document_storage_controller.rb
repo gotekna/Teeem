@@ -2359,9 +2359,9 @@ module Api
           )
 
           # Update the document record
-          old_name = document.original_filename || document.display_name
+          old_name = document.original_filename || document.ui_name
           document.update!(
-            display_name: new_name,
+            ui_name: new_name,
             original_filename: new_name,
             metadata: (document.metadata || {}).merge(
               "document_type_id" => new_type_id,
@@ -2612,7 +2612,7 @@ module Api
             return render json: { success: false, error: "Unknown storage provider: #{doc_provider}" }, status: :bad_request
           end
 
-          filename = document.original_filename || document.display_name
+          filename = document.original_filename || document.ui_name
           render json: {
             success: true,
             download_url: url,

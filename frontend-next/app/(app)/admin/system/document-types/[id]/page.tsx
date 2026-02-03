@@ -98,9 +98,9 @@ const getBasePlaceholders = (scope: string): PlaceholderToken[] => {
 interface DocumentType {
   id: number;
   name: string;
-  display_name?: string;
+  ui_name?: string;
   abbreviation?: string;
-  file_name?: string;
+  download_name?: string;
   title_preview?: string;
   category?: string;
   folder?: string;
@@ -146,9 +146,9 @@ export default function DocumentTypeDetailPage() {
   const [documentType, setDocumentType] = React.useState<DocumentType | null>(null);
   const [newExtension, setNewExtension] = React.useState("");
   const [draggedPlaceholder, setDraggedPlaceholder] = React.useState<string | null>(null);
-  const [draggedFromField, setDraggedFromField] = React.useState<"file_name" | "display_name" | "source" | null>(null);
+  const [draggedFromField, setDraggedFromField] = React.useState<"download_name" | "ui_name" | "source" | null>(null);
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
-  const [dropTarget, setDropTarget] = React.useState<{ field: "file_name" | "display_name"; index: number } | null>(null);
+  const [dropTarget, setDropTarget] = React.useState<{ field: "download_name" | "ui_name"; index: number } | null>(null);
   const [basicInfoExpanded, setBasicInfoExpanded] = React.useState(false);
   const [namingOrgExpanded, setNamingOrgExpanded] = React.useState(true);
   const [filingOrgExpanded, setFilingOrgExpanded] = React.useState(false);
@@ -411,9 +411,9 @@ export default function DocumentTypeDetailPage() {
       setDocumentType({
         id: 0,
         name: "",
-        display_name: "",
+        ui_name: "",
         abbreviation: "",
-        file_name: getDefaultFileNameForScope(initialScope),
+        download_name: getDefaultFileNameForScope(initialScope),
         category: "", // Deprecated - not used, kept for backwards compatibility
         folder: "GENERAL",
         description: "",
@@ -522,7 +522,7 @@ export default function DocumentTypeDetailPage() {
     return getInitialsSSoT(name) || "";
   };
 
-  // Initialize checkbox state based on whether display_name exists
+  // Initialize checkbox state based on whether ui_name exists
   React.useEffect(() => {
     if (documentType) {
       // Always default all to true - user can uncheck if they want custom display name
@@ -532,7 +532,7 @@ export default function DocumentTypeDetailPage() {
     }
   }, [documentType?.id]); // Only run when document type changes
 
-  // Update file_name template when scope changes (only for new document types or empty file_name)
+  // Update download_name template when scope changes (only for new document types or empty download_name)
   React.useEffect(() => {
     if (documentType && isNew) {
       const scope = documentType.scope || "company";
@@ -545,15 +545,15 @@ export default function DocumentTypeDetailPage() {
         defaultTemplate = "{JobCode} {DocTypeCode} {FY}";
       }
 
-      // Only update if file_name is using a default template pattern
-      const currentFileName = documentType.file_name || "";
+      // Only update if download_name is using a default template pattern
+      const currentFileName = documentType.download_name || "";
       const isDefaultPattern = currentFileName === "" ||
         currentFileName === "{CompanyCode} {DocTypeCode} {FY}" ||
         currentFileName === "{PersonCode} {DocTypeCode} {FY}" ||
         currentFileName === "{JobCode} {DocTypeCode} {FY}";
 
       if (isDefaultPattern && currentFileName !== defaultTemplate) {
-        updateField("file_name", defaultTemplate);
+        updateField("download_name", defaultTemplate);
       }
     }
   }, [documentType?.scope, isNew]);
@@ -577,10 +577,10 @@ export default function DocumentTypeDetailPage() {
     return result;
   };
 
-  // Sync display_name with file_name when checkbox is checked
+  // Sync ui_name with download_name when checkbox is checked
   React.useEffect(() => {
     if (displayNameSameAsFileName && documentType) {
-      let fileName = documentType.file_name || "";
+      let fileName = documentType.download_name || "";
 
       if (showFullDescription) {
         // Convert short codes to long codes
@@ -603,9 +603,9 @@ export default function DocumentTypeDetailPage() {
         }
       }
 
-      updateField("display_name", fileName);
+      updateField("ui_name", fileName);
     }
-  }, [displayNameSameAsFileName, showFullDescription, removeCompanyName, documentType?.file_name, documentType?.scope]);
+  }, [displayNameSameAsFileName, showFullDescription, removeCompanyName, documentType?.download_name, documentType?.scope]);
 
   const loadDocumentType = async () => {
     try {
@@ -640,8 +640,8 @@ export default function DocumentTypeDetailPage() {
 
     // Validate: If {FormNumber} is used in templates, require at least one form number mapping
     const usesFormNumber =
-      documentType.file_name?.includes("{FormNumber}") ||
-      documentType.display_name?.includes("{FormNumber}");
+      documentType.download_name?.includes("{FormNumber}") ||
+      documentType.ui_name?.includes("{FormNumber}");
     const hasFormNumberMappings =
       documentType.form_number_mapping &&
       Object.keys(documentType.form_number_mapping).length > 0;
@@ -831,11 +831,11 @@ export default function DocumentTypeDetailPage() {
     updateField("file_extensions", currentExts.filter(e => e !== ext));
   };
 
-  // Check if a placeholder is used in file name or display name
+  // Check if a placeholder is used in download name or ui name
   const isPlaceholderUsed = (placeholderCode: string): boolean => {
-    const fileName = documentType?.file_name || "";
-    const displayName = documentType?.display_name || "";
-    return fileName.includes(placeholderCode) || displayName.includes(placeholderCode);
+    const fileName = documentType?.download_name || "";
+    const uiName = documentType?.ui_name || "";
+    return fileName.includes(placeholderCode) || uiName.includes(placeholderCode);
   };
 
   // Extract clean name from document type (removes code prefix like "AA - ")
@@ -1014,7 +1014,7 @@ export default function DocumentTypeDetailPage() {
   // Handle drag start from field token
   const handleDragStartFromToken = (
     e: React.DragEvent,
-    field: "file_name" | "display_name",
+    field: "download_name" | "ui_name",
     index: number,
     placeholder: string
   ) => {
@@ -1036,7 +1036,7 @@ export default function DocumentTypeDetailPage() {
   // Handle drop to reorder within field
   const handleDropOnToken = (
     e: React.DragEvent,
-    field: "file_name" | "display_name",
+    field: "download_name" | "ui_name",
     dropIndex: number
   ) => {
     e.preventDefault();
@@ -1090,14 +1090,14 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Handle drag over on a specific position
-  const handleDragOverPosition = (e: React.DragEvent, field: "file_name" | "display_name", index: number) => {
+  const handleDragOverPosition = (e: React.DragEvent, field: "download_name" | "ui_name", index: number) => {
     e.preventDefault();
     e.stopPropagation();
     setDropTarget({ field, index });
   };
 
   // Handle drop on container (append to end)
-  const handleDropOnContainer = (e: React.DragEvent, field: "file_name" | "display_name") => {
+  const handleDropOnContainer = (e: React.DragEvent, field: "download_name" | "ui_name") => {
     e.preventDefault();
     if (!documentType) return;
 
@@ -1127,7 +1127,7 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Remove token from field
-  const removeToken = (field: "file_name" | "display_name", index: number) => {
+  const removeToken = (field: "download_name" | "ui_name", index: number) => {
     if (!documentType) return;
     const tokens = parseTokens(documentType[field] || "");
     const newTokens = tokens.filter((_, i) => i !== index);
@@ -1135,7 +1135,7 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Edit text token
-  const updateTextToken = (field: "file_name" | "display_name", index: number, newValue: string) => {
+  const updateTextToken = (field: "download_name" | "ui_name", index: number, newValue: string) => {
     if (!documentType) return;
     const tokens = parseTokens(documentType[field] || "");
     tokens[index] = { type: "text", value: newValue };
@@ -1143,7 +1143,7 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Click to insert at end
-  const handlePlaceholderClick = (placeholder: string, field: "file_name" | "display_name") => {
+  const handlePlaceholderClick = (placeholder: string, field: "download_name" | "ui_name") => {
     if (!documentType) return;
     const currentValue = documentType[field] || "";
     const newValue = currentValue + (currentValue ? " " : "") + placeholder;
@@ -1232,7 +1232,7 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Add blank text token
-  const addBlankText = (field: "file_name" | "display_name") => {
+  const addBlankText = (field: "download_name" | "ui_name") => {
     if (!documentType) return;
     const tokens = parseTokens(documentType[field] || "");
     tokens.push({ type: "text", value: " " });
@@ -1939,45 +1939,45 @@ export default function DocumentTypeDetailPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="file_name">Document Download Name</Label>
+                <Label htmlFor="download_name">Document Download Name</Label>
             <div
               className={cn(
                 "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
                 draggedFromField && "border-dashed border-2 border-green-400 bg-green-50/50"
               )}
               onDrop={(e) => {
-                const tokens = parseTokens(documentType.file_name || "");
-                handleDropOnToken(e, "file_name", tokens.length);
+                const tokens = parseTokens(documentType.download_name || "");
+                handleDropOnToken(e, "download_name", tokens.length);
               }}
               onDragOver={(e) => {
                 handleDragOver(e);
-                const tokens = parseTokens(documentType.file_name || "");
-                setDropTarget({ field: "file_name", index: tokens.length });
+                const tokens = parseTokens(documentType.download_name || "");
+                setDropTarget({ field: "download_name", index: tokens.length });
               }}
               onDragLeave={() => setDropTarget(null)}
             >
-              {parseTokens(documentType.file_name || "").map((token, index) => (
+              {parseTokens(documentType.download_name || "").map((token, index) => (
                 <React.Fragment key={index}>
                   {/* Drop indicator line - only shows at current drop position */}
-                  {dropTarget?.field === "file_name" && dropTarget.index === index && (
+                  {dropTarget?.field === "download_name" && dropTarget.index === index && (
                     <div className="w-1 h-10 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
                   )}
                   <div
                     draggable={token.type === "placeholder"}
                     onDragStart={(e) =>
                       token.type === "placeholder" &&
-                      handleDragStartFromToken(e, "file_name", index, token.value)
+                      handleDragStartFromToken(e, "download_name", index, token.value)
                     }
                     onDragEnd={handleDragEnd}
                     onDrop={(e) => {
                       e.stopPropagation();
-                      handleDropOnToken(e, "file_name", index);
+                      handleDropOnToken(e, "download_name", index);
                     }}
-                    onDragOver={(e) => handleDragOverPosition(e, "file_name", index)}
+                    onDragOver={(e) => handleDragOverPosition(e, "download_name", index)}
                     className={cn(
                       token.type === "placeholder" &&
                         "cursor-grab active:cursor-grabbing transition-all",
-                      draggedFromField === "file_name" &&
+                      draggedFromField === "download_name" &&
                         draggedIndex === index &&
                         "opacity-30"
                     )}
@@ -1999,7 +1999,7 @@ export default function DocumentTypeDetailPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            removeToken("file_name", index);
+                            removeToken("download_name", index);
                           }}
                           className="ml-2 hover:text-destructive"
                         >
@@ -2016,12 +2016,12 @@ export default function DocumentTypeDetailPage() {
                         <input
                           type="text"
                           value={token.value}
-                          onChange={(e) => updateTextToken("file_name", index, e.target.value)}
+                          onChange={(e) => updateTextToken("download_name", index, e.target.value)}
                           className="bg-transparent border-none outline-none w-auto min-w-[20px] max-w-[100px] text-xs font-mono"
                           style={{ width: `${Math.max(20, token.value.length * 7)}px` }}
                           placeholder="text"
                           ref={(el) => {
-                            if (el && focusTextToken?.field === "file_name" && focusTextToken?.index === index) {
+                            if (el && focusTextToken?.field === "download_name" && focusTextToken?.index === index) {
                               el.focus();
                               el.select();
                               setFocusTextToken(null);
@@ -2031,7 +2031,7 @@ export default function DocumentTypeDetailPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            removeToken("file_name", index);
+                            removeToken("download_name", index);
                           }}
                           className="ml-1 hover:text-destructive text-muted-foreground"
                         >
@@ -2043,15 +2043,15 @@ export default function DocumentTypeDetailPage() {
                 </React.Fragment>
               ))}
               {/* Drop indicator at end */}
-              {dropTarget?.field === "file_name" && dropTarget.index === parseTokens(documentType.file_name || "").length && (
+              {dropTarget?.field === "download_name" && dropTarget.index === parseTokens(documentType.download_name || "").length && (
                 <div className="w-1 h-10 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
               )}
-              {parseTokens(documentType.file_name || "").length === 0 && !draggedFromField && (
+              {parseTokens(documentType.download_name || "").length === 0 && !draggedFromField && (
                 <span className="text-sm text-muted-foreground">
                   Drag placeholders here to build your file name template
                 </span>
               )}
-              {parseTokens(documentType.file_name || "").length === 0 && draggedFromField && (
+              {parseTokens(documentType.download_name || "").length === 0 && draggedFromField && (
                 <span className="text-sm text-green-600 dark:text-green-400 font-medium animate-pulse">
                   Drop here!
                 </span>
@@ -2059,9 +2059,9 @@ export default function DocumentTypeDetailPage() {
             </div>
             <div className="flex items-center gap-2 text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
               <span className="text-muted-foreground font-medium">Preview:</span>
-              {documentType.file_name && generatePreview(documentType.file_name) ? (
+              {documentType.download_name && generatePreview(documentType.download_name) ? (
                 <span className="font-semibold text-green-700 dark:text-green-400 font-mono">
-                  {generatePreview(documentType.file_name)}
+                  {generatePreview(documentType.download_name)}
                 </span>
               ) : (
                 <span className="text-muted-foreground italic">
@@ -2076,7 +2076,7 @@ export default function DocumentTypeDetailPage() {
 
           <div className="space-y-2">
             <div className="flex items-start justify-between gap-4">
-              <Label htmlFor="display_name">Document UI Name</Label>
+              <Label htmlFor="ui_name">Document UI Name</Label>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
@@ -2129,39 +2129,39 @@ export default function DocumentTypeDetailPage() {
               )}
               onDrop={(e) => {
                 if (displayNameSameAsFileName) return;
-                const tokens = parseTokens(documentType.display_name || "");
-                handleDropOnToken(e, "display_name", tokens.length);
+                const tokens = parseTokens(documentType.ui_name || "");
+                handleDropOnToken(e, "ui_name", tokens.length);
               }}
               onDragOver={(e) => {
                 if (displayNameSameAsFileName) return;
                 handleDragOver(e);
-                const tokens = parseTokens(documentType.display_name || "");
-                setDropTarget({ field: "display_name", index: tokens.length });
+                const tokens = parseTokens(documentType.ui_name || "");
+                setDropTarget({ field: "ui_name", index: tokens.length });
               }}
               onDragLeave={() => setDropTarget(null)}
             >
-              {parseTokens(documentType.display_name || "").map((token, index) => (
+              {parseTokens(documentType.ui_name || "").map((token, index) => (
                 <React.Fragment key={index}>
                   {/* Drop indicator line - only shows at current drop position */}
-                  {dropTarget?.field === "display_name" && dropTarget.index === index && (
+                  {dropTarget?.field === "ui_name" && dropTarget.index === index && (
                     <div className="w-1 h-10 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
                   )}
                   <div
                     draggable={token.type === "placeholder"}
                     onDragStart={(e) =>
                       token.type === "placeholder" &&
-                      handleDragStartFromToken(e, "display_name", index, token.value)
+                      handleDragStartFromToken(e, "ui_name", index, token.value)
                     }
                     onDragEnd={handleDragEnd}
                     onDrop={(e) => {
                       e.stopPropagation();
-                      handleDropOnToken(e, "display_name", index);
+                      handleDropOnToken(e, "ui_name", index);
                     }}
-                    onDragOver={(e) => handleDragOverPosition(e, "display_name", index)}
+                    onDragOver={(e) => handleDragOverPosition(e, "ui_name", index)}
                     className={cn(
                       token.type === "placeholder" &&
                         "cursor-grab active:cursor-grabbing transition-all",
-                      draggedFromField === "display_name" &&
+                      draggedFromField === "ui_name" &&
                         draggedIndex === index &&
                         "opacity-30"
                     )}
@@ -2183,7 +2183,7 @@ export default function DocumentTypeDetailPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            removeToken("display_name", index);
+                            removeToken("ui_name", index);
                           }}
                           className="ml-2 hover:text-destructive"
                         >
@@ -2200,12 +2200,12 @@ export default function DocumentTypeDetailPage() {
                         <input
                           type="text"
                           value={token.value}
-                          onChange={(e) => updateTextToken("display_name", index, e.target.value)}
+                          onChange={(e) => updateTextToken("ui_name", index, e.target.value)}
                           className="bg-transparent border-none outline-none w-auto min-w-[20px] max-w-[100px] text-xs font-mono"
                           style={{ width: `${Math.max(20, token.value.length * 7)}px` }}
                           placeholder="text"
                           ref={(el) => {
-                            if (el && focusTextToken?.field === "display_name" && focusTextToken?.index === index) {
+                            if (el && focusTextToken?.field === "ui_name" && focusTextToken?.index === index) {
                               el.focus();
                               el.select();
                               setFocusTextToken(null);
@@ -2215,7 +2215,7 @@ export default function DocumentTypeDetailPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            removeToken("display_name", index);
+                            removeToken("ui_name", index);
                           }}
                           className="ml-1 hover:text-destructive text-muted-foreground"
                         >
@@ -2227,15 +2227,15 @@ export default function DocumentTypeDetailPage() {
                 </React.Fragment>
               ))}
               {/* Drop indicator at end */}
-              {dropTarget?.field === "display_name" && dropTarget.index === parseTokens(documentType.display_name || "").length && (
+              {dropTarget?.field === "ui_name" && dropTarget.index === parseTokens(documentType.ui_name || "").length && (
                 <div className="w-1 h-10 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
               )}
-              {parseTokens(documentType.display_name || "").length === 0 && !draggedFromField && (
+              {parseTokens(documentType.ui_name || "").length === 0 && !draggedFromField && (
                 <span className="text-sm text-muted-foreground">
                   Optional: Leave empty to use Document Type Name, or drag placeholders here
                 </span>
               )}
-              {parseTokens(documentType.display_name || "").length === 0 && !displayNameSameAsFileName && draggedFromField && (
+              {parseTokens(documentType.ui_name || "").length === 0 && !displayNameSameAsFileName && draggedFromField && (
                 <span className="text-sm text-green-600 dark:text-green-400 font-medium animate-pulse">
                   Drop here!
                 </span>
@@ -2243,9 +2243,9 @@ export default function DocumentTypeDetailPage() {
             </div>
             <div className="flex items-center gap-2 text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
               <span className="text-muted-foreground font-medium">Preview:</span>
-              {documentType.display_name && generatePreview(documentType.display_name, showFullDescription) ? (
+              {documentType.ui_name && generatePreview(documentType.ui_name, showFullDescription) ? (
                 <span className="font-semibold text-green-700 dark:text-green-400 font-mono">
-                  {generatePreview(documentType.display_name, showFullDescription)}
+                  {generatePreview(documentType.ui_name, showFullDescription)}
                 </span>
               ) : (
                 <span className="text-muted-foreground italic">

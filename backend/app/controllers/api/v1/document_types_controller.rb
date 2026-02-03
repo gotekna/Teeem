@@ -145,7 +145,7 @@ module Api
         # Duplicate the document type with the new name
         new_doc_type = @document_type.dup
         new_doc_type.name = new_name
-        new_doc_type.display_name = new_name if @document_type.display_name.present?
+        new_doc_type.ui_name = new_name if @document_type.ui_name.present?
 
         if new_doc_type.save
           # Copy warehouse_folder associations using the setter (which calls sync_entity_tab_ids)
@@ -267,7 +267,7 @@ module Api
             {
               id: s[:document_type].id,
               name: s[:document_type].name,
-              display_name: s[:document_type].display_name,
+              uiName: s[:document_type].ui_name,
               folder: s[:document_type].folder,
               confidence: s[:confidence],
               match_type: s[:match_type],
@@ -286,7 +286,7 @@ module Api
       def document_type_params
         params.require(:document_type).permit(
           :name,
-          :display_name,
+          :ui_name,
           :category,
           :folder,
           :description,
@@ -294,7 +294,7 @@ module Api
           :retention_years,
           :active,
           :primary_tab,
-          :file_name,
+          :download_name,
           :abbreviation,
           :scope,
           :target_folder,
@@ -328,9 +328,9 @@ module Api
         {
           id: document_type.id,
           name: document_type.name,
-          display_name: document_type.display_name,
+          uiName: document_type.ui_name,
           abbreviation: document_type.abbreviation,
-          file_name: document_type.file_name,
+          downloadName: document_type.download_name,
           title_preview: document_type.title_preview,
           category: document_type.category,
           folder: document_type.folder,

@@ -59,8 +59,8 @@ interface DocumentTypeFolder {
 interface DocumentType extends TableRow {
   abbreviation?: string;
   name?: string;
-  display_name?: string;
-  file_name?: string;
+  ui_name?: string;
+  download_name?: string;
   title_preview?: string;
   primary_tab?: string;
   folder?: string;
@@ -559,8 +559,8 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
         <span className="font-mono font-bold text-primary">{value}</span>
       );
     }
-    if (columnKey === "file_name") {
-      const value = entry.file_name;
+    if (columnKey === "download_name") {
+      const value = entry.download_name;
       if (!value) return <span className="text-muted-foreground italic">Not set</span>;
       return (
         <span className="font-mono text-xs text-muted-foreground">{value}</span>

@@ -24,6 +24,7 @@ import { api } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { formatDateTimeWithFallback } from "@/utils/formatters";
 import { UnlinkedContactsSheet } from "./UnlinkedContactsSheet";
+import { OrgSyncStatus, TenantSyncStatus } from "./OrgSyncStatus";
 
 // Rate limit types
 interface RateLimitUsage {
@@ -158,6 +159,9 @@ interface PdfSyncStatus {
     message: string;
     color: string;
   };
+  // Feb 2026: Ultra Transparency - Per-org status and ETA
+  per_tenant_status?: TenantSyncStatus[];
+  overall_eta?: string | null;
 }
 
 export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
@@ -524,6 +528,28 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
             </div>
           )}
         </div>
+
+        {/* Overall ETA Banner (Feb 2026: Ultra Transparency) */}
+        {data.overall_eta && data.pending > 0 && (
+          <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center gap-3">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-full">
+              <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                Estimated completion: <strong>{data.overall_eta}</strong>
+              </div>
+              <div className="text-xs text-blue-700 dark:text-blue-300">
+                Based on {data.synced_last_24h.toLocaleString()} PDFs synced in the last 24 hours
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Per-Organization Status (Feb 2026: Ultra Transparency) */}
+        {data.per_tenant_status && data.per_tenant_status.length > 0 && (
+          <OrgSyncStatus orgs={data.per_tenant_status} />
+        )}
 
         {/* Summary Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

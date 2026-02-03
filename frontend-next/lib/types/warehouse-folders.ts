@@ -65,9 +65,9 @@ export interface WarehouseFolder {
 export interface WarehouseFolderDocumentType {
   id: number;
   name: string;
-  display_name: string;
+  ui_name: string;
   abbreviation?: string;
-  file_name?: string;
+  download_name?: string;
   is_primary?: boolean;  // SSoT: true = this tab is the primary home, false = secondary ("also show in")
 }
 

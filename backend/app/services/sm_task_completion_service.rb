@@ -98,7 +98,7 @@ class SmTaskCompletionService
     # Check if required document is attached
     if task.requires_document_to_complete? && task.completion_document_type_id.present?
       unless has_required_document_attached?
-        doc_type_name = task.completion_document_type&.display_name || task.completion_document_type&.name || "required document"
+        doc_type_name = task.completion_document_type&.ui_name || task.completion_document_type&.name || "required document"
         @errors << "Cannot complete task: #{doc_type_name} must be attached"
         return false
       end
@@ -212,8 +212,8 @@ class SmTaskCompletionService
       start_date = calendar.add_working_days(task.completed_at.to_date, lag_days)
 
       spawned = create_spawned_task(
-        name: "GET - #{doc_type.display_name || doc_type.name}",
-        description: "Collect document: #{doc_type.display_name || doc_type.name}",
+        name: "GET - #{doc_type.ui_name || doc_type.name}",
+        description: "Collect document: #{doc_type.ui_name || doc_type.name}",
         spawn_type: "document_get",
         duration_days: 1,
         start_date: start_date,

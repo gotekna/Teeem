@@ -317,12 +317,12 @@ class DocumentStorageService
           return error_result("Document file is unavailable - the file may have been moved or deleted", status: :not_found)
         end
 
-        # SSoT: Get Send Name from warehouse_document (Phase 3)
+        # SSoT: Get Download Name from warehouse_document (Phase 3)
         # This is the filename used when downloading (Content-Disposition header)
-        send_name = resolve_send_name(record)
+        download_name = resolve_download_name(record)
 
-        url = provider.download_url(s3_key, expires_in: expires_in, filename: send_name, disposition: disposition)
-        { success: true, url: url, filename: send_name }
+        url = provider.download_url(s3_key, expires_in: expires_in, filename: download_name, disposition: disposition)
+        { success: true, url: url, filename: download_name }
       rescue DocumentProviders::NotFoundError
         # User-friendly error - don't expose internal paths
         Rails.logger.warn "[DocumentStorage] File not found after URL generation: #{s3_key}"
@@ -502,23 +502,23 @@ class DocumentStorageService
   # SEND NAME RESOLUTION (Phase 3)
   # ============================================================================
 
-  # SSoT: Resolve the Send Name for a document download
+  # SSoT: Resolve the Download Name for a document download
   #
   # Priority:
   #   1. SyncedEmail: Use subject as filename (simple, no date prefix)
-  #   2. record.display_name (user-friendly name, generated from templates)
+  #   2. record.ui_name (user-friendly name, generated from templates)
   #   3. warehouse_document.download_filename (Phase 3 SSoT - sanitized + templated)
   #   4. record.file_name (original filename)
   #   5. storage_blob.original_filename (fallback)
   #   6. "document" (last resort)
   #
-  # Note: display_name is checked FIRST because document models generate
+  # Note: ui_name is checked FIRST because document models generate
   # nice display names (e.g., "Invoice INV-0520") but the warehouse_document may
   # have been created earlier with just the raw file_name.
   #
   # @param record [ActiveRecord::Base] Document model
   # @return [String] The filename to use for download
-  def resolve_send_name(record)
+  def resolve_download_name(record)
     # 0. SyncedEmail: Use subject directly (no date prefix needed for emails)
     if record.is_a?(SyncedEmail)
       subject = record.subject.presence || "Email"

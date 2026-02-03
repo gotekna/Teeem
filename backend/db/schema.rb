@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_03_160001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_03_170001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2287,10 +2287,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_160001) do
     t.boolean "active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "file_name"
+    t.string "download_name"
     t.string "abbreviation"
     t.jsonb "aliases", default: []
-    t.string "display_name"
+    t.string "ui_name"
     t.string "scope", default: "company"
     t.string "file_extensions", default: [], array: true
     t.string "target_folder"
@@ -9986,8 +9986,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_160001) do
     t.string "documentable_type"
     t.bigint "documentable_id"
     t.bigint "storage_blob_id"
-    t.string "display_name", null: false
-    t.string "send_name"
+    t.string "ui_name", null: false
+    t.string "download_name"
     t.string "folder"
     t.string "source_type", null: false
     t.string "original_filename"
@@ -10003,7 +10003,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_160001) do
     t.uuid "version_group_id"
     t.integer "version_number", default: 1
     t.boolean "is_latest_version", default: true
-    t.index ["display_name"], name: "index_warehouse_documents_on_display_name"
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["folder"], name: "index_warehouse_documents_on_folder"
@@ -10017,6 +10016,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_160001) do
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
     t.index ["tenant_id", "source_type", "folder"], name: "idx_warehouse_docs_tenant_scope_folder"
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
+    t.index ["ui_name"], name: "index_warehouse_documents_on_ui_name"
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
   end
 

@@ -197,7 +197,7 @@ module Api
 
         doc = WarehouseDocument.create!(
           source_type: "corporate",
-          display_name: filename,
+          ui_name: filename,
           original_filename: filename,
           folder: metadata[:folder] || metadata["folder"],
           content_type: content_type,
@@ -212,7 +212,7 @@ module Api
           }
         )
 
-        { success: true, document: { id: doc.id, file_name: doc.display_name, display_name: doc.display_name } }
+        { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name } }
       end
 
       def create_user_document(key, filename, content_type, file_size, metadata, provider)
@@ -242,7 +242,7 @@ module Api
 
         doc = WarehouseDocument.create!(
           source_type: "job",
-          display_name: filename,
+          ui_name: filename,
           original_filename: filename,
           folder: metadata[:folder_path] || metadata["folder_path"] || "Uploads",
           content_type: content_type,
@@ -257,7 +257,7 @@ module Api
           }
         )
 
-        { success: true, document: { id: doc.id, file_name: doc.display_name, display_name: doc.display_name } }
+        { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name } }
       end
 
       def find_or_create_blob(temp_key, filename, content_type, file_size, provider)

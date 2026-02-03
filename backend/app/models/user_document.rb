@@ -28,7 +28,7 @@ class UserDocument < ApplicationRecord
   # duplicating storage location. Files now stored via StorageBlob (belongs_to :storage_blob)
   # which deduplicates via content_hash and uses WarehouseProvider for provider-agnostic paths.
 
-  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  # Phase 3: Universal warehouse metadata (SSoT for ui_name, download_name, folder)
   has_one :warehouse_document, as: :documentable, dependent: :destroy
 
   # SSoT: Categories map to storage scopes in WarehouseProvider

@@ -59,7 +59,7 @@ class DocumentTemplate < ApplicationRecord
   LEGAL_SOURCES = %w[qbcc hia].freeze
   LAYOUTS = %w[tekna qbcc_official hia_official none].freeze
 
-  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  # Phase 3: Universal warehouse metadata (SSoT for ui_name, download_name, folder)
   has_one :warehouse_document, as: :documentable, dependent: :destroy
 
   # Validations

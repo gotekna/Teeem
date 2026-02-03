@@ -15,8 +15,8 @@
 #   └── version tracking (version_group_id, version_number, is_latest_version)
 #
 # Two Names:
-#   - display_name: What user SEES in File Warehouse UI ("Tax Return FY2024")
-#   - send_name: What file is CALLED when downloaded/emailed ("TA Tax Return 2024.pdf")
+#   - ui_name: What user SEES in File Warehouse UI ("Tax Return FY2024")
+#   - download_name: What file is CALLED when downloaded/emailed ("TA Tax Return 2024.pdf")
 #
 # Virtual Folders:
 #   - folder: Virtual path, changing is instant (DB update only, no S3 copy)
@@ -65,7 +65,7 @@ class WarehouseDocument < ApplicationRecord
   # Validations
   # ========================================
 
-  validates :display_name, presence: true
+  validates :ui_name, presence: true
   validates :source_type, presence: true, inclusion: {
     in: %w[corporate job email email_attachment task people contact user template warehouse asset financial compliance xero notebook],
     message: "%{value} is not a valid source type"
@@ -108,10 +108,10 @@ class WarehouseDocument < ApplicationRecord
   # Uses SendNameResolver for full template expansion and sanitization
   #
   # Priority (handled by SendNameResolver):
-  #   1. send_name (if already resolved)
-  #   2. DocumentType.file_name template (expanded with context)
+  #   1. download_name (if already resolved)
+  #   2. DocumentType.download_name template (expanded with context)
   #   3. Source-specific defaults (e.g., "{Subject} - {Date}.eml" for emails)
-  #   4. display_name
+  #   4. ui_name
   #   5. original_filename
   #   6. "document" (last resort)
   #
@@ -122,7 +122,7 @@ class WarehouseDocument < ApplicationRecord
   # Legacy method - kept for backwards compatibility
   # Use download_filename instead
   def legacy_download_filename
-    raw_name = send_name.presence || display_name
+    raw_name = download_name.presence || ui_name
     sanitize_filename(raw_name)
   end
 
@@ -232,18 +232,18 @@ class WarehouseDocument < ApplicationRecord
   # This ensures folder names always match WarehouseFolder configuration without sync issues.
 
   # ========================================
-  # Computed Display Name (Runtime Resolution)
+  # Computed UI Name (Runtime Resolution)
   # ========================================
   #
-  # SSoT: Returns the display name computed from documentable attributes.
+  # SSoT: Returns the UI name computed from documentable attributes.
   # Falls back through common naming patterns (title, name, subject, file_name).
-  # Used when display_name column is null or when computing from documentable.
+  # Used when ui_name column is null or when computing from documentable.
   #
-  # @return [String] The display name for this document
+  # @return [String] The UI name for this document
   #
-  def computed_display_name
-    # If display_name is stored, use it
-    return display_name if display_name.present?
+  def computed_ui_name
+    # If ui_name is stored, use it
+    return ui_name if ui_name.present?
 
     # Try to get from documentable using duck typing
     if documentable.present?
@@ -350,7 +350,7 @@ class WarehouseDocument < ApplicationRecord
     # NOTE (Feb 2026): folder column removed - folder is computed from source_type at runtime
     new_version = WarehouseDocument.create!(
       attributes.merge(
-        display_name: display_name,
+        ui_name: ui_name,
         source_type: source_type,
         storage_blob: blob,
         parent_document: self,

@@ -705,8 +705,8 @@ module Api
 
         # Create WarehouseDocument
         warehouse_doc = WarehouseDocument.create!(
-          display_name: "#{po_number} - #{task_name}",
-          send_name: filename,
+          ui_name: "#{po_number} - #{task_name}",
+          download_name: filename,
           source_type: "job",
           storage_blob: storage_blob,
           linkable: job,
@@ -812,8 +812,8 @@ module Api
         document_type = DocumentType.find_by(name: "Purchase Order")
 
         warehouse_doc = WarehouseDocument.create!(
-          display_name: "#{po_number} - #{task_name} (Sent)",
-          send_name: filename,
+          ui_name: "#{po_number} - #{task_name} (Sent)",
+          download_name: filename,
           source_type: "job",
           storage_blob: storage_blob,
           linkable: job,
