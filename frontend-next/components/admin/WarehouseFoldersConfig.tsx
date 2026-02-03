@@ -2493,13 +2493,22 @@ export function WarehouseFoldersConfig({
                   }
                   scope="storage"
                   // SSoT: Show inherited base path as greyed prefix
-                  prefixValue={
-                    scope === "contact"
-                      ? (formData.warehouse_type_override === 'corporate'
-                          ? getBasePath("people")
-                          : getBasePath("contact"))
-                      : (editingTab?.warehouse_base_path || getBasePath(scope))
-                  }
+                  // For ROOT tabs: show just root_path (tab's warehouse_folder IS the full template)
+                  // For CHILD tabs: show parent's path from warehouse_base_path
+                  prefixValue={(() => {
+                    const isRootTab = !editingTab?.parent_id && !formData.parent_id;
+                    if (isRootTab) {
+                      // ROOT tab: prefix is just the storage root path (no duplication)
+                      return storageConfig?.root_path || "";
+                    }
+                    // CHILD tab: use parent's base path
+                    if (scope === "contact") {
+                      return formData.warehouse_type_override === 'corporate'
+                        ? getBasePath("people")
+                        : getBasePath("contact");
+                    }
+                    return editingTab?.warehouse_base_path || getBasePath(scope);
+                  })()}
                   separator="/"
                   // SSoT: Filter placeholders based on tab hierarchy
                   // - Root tabs: show {{TabName}} only (no subtab)
@@ -2521,12 +2530,17 @@ export function WarehouseFoldersConfig({
 
                 {/* Full path preview - uses ACTUAL tab names, not generic examples */}
                 {(() => {
-                  // SSoT: Get base path from WarehouseProvider scope_folders
-                  const basePath = scope === "contact"
-                    ? (formData.warehouse_type_override === 'corporate'
-                        ? getBasePath("people")
-                        : getBasePath("contact"))
-                    : (editingTab?.warehouse_base_path || getBasePath(scope));
+                  // SSoT: Get base path for preview
+                  // For ROOT tabs: use just root_path (tab's warehouse_folder IS the full template)
+                  // For CHILD tabs: use parent's path from warehouse_base_path
+                  const isRootTab = !editingTab?.parent_id && !formData.parent_id;
+                  const basePath = isRootTab
+                    ? (storageConfig?.root_path || "")
+                    : (scope === "contact"
+                        ? (formData.warehouse_type_override === 'corporate'
+                            ? getBasePath("people")
+                            : getBasePath("contact"))
+                        : (editingTab?.warehouse_base_path || getBasePath(scope)));
 
                   // Get actual tab names for preview
                   const parentId = formData.parent_id || editingTab?.parent_id;

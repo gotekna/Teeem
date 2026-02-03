@@ -232,12 +232,17 @@ class WarehouseFolder < ApplicationRecord
   # Get tabs (subfolders) for a root folder
   # @param root_folder [String] The root folder name (e.g., "Jobs", "Contacts")
   # @return [Array<Hash>] Array of {name:, path:, has_children:, etc.}
+  #
+  # SSoT (Feb 2026 FRC Fix): Exclude the root folder itself from subfolders
+  # e.g., "Teeem Docs" is both the root folder AND a root tab for warehouse_type "user"
+  # Without this exclusion, expanding "Teeem Docs" would show "Teeem Docs/Teeem Docs"
   def self.tabs_for_root_folder(root_folder)
     warehouse_type = warehouse_type_for_root_folder(root_folder)
     return [] unless warehouse_type
 
     for_warehouse_type(warehouse_type)
       .where(warehouse_enabled: true)
+      .where.not(display_name: root_folder)  # SSoT: Exclude root folder itself
       .enabled
       .root_tabs
       .includes(:children)
