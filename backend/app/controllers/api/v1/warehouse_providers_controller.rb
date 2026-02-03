@@ -93,8 +93,14 @@ module Api
           sp[:warehouse_folders].to_h.each do |warehouse_type, template|
             folder = WarehouseFolder.base_folder_for(warehouse_type)
             folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
-            folder.update!(folder_path: template.presence)
-            Rails.logger.info "[WarehouseProvider] Saved folder_path for #{warehouse_type}: #{template}"
+            # FRC Guard (Feb 2026): Don't clear folder_path for root scopes
+            # Empty folder_path removes scope from tree and breaks file storage
+            if template.present?
+              folder.update!(folder_path: template)
+              Rails.logger.info "[WarehouseProvider] Saved folder_path for #{warehouse_type}: #{template}"
+            else
+              Rails.logger.warn "[WarehouseProvider] Skipping empty folder_path for #{warehouse_type} - would break storage"
+            end
           end
         end
 

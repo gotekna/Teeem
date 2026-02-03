@@ -1940,13 +1940,35 @@ function TabNode({
   const hasDocTypes = tab.document_types && tab.document_types.length > 0;
   const hasExpandableContent = hasChildren || hasDocTypes;
   const storedFolderPath = tab.folder_path || tab.storage_folder_path;
+
+  // FRC Fix (Feb 2026): Extract parent folder name from basePath (first static segment)
+  // When folder_path is empty/invalid, inherit this instead of showing bad data like {25}
+  const getParentFolderName = (path: string | null | undefined): string => {
+    if (!path) return '';
+    const parts = path.split('/').filter(Boolean);
+    for (const part of parts) {
+      // Return first non-placeholder part
+      if (!part.startsWith('{{') && !part.startsWith('[[')) {
+        return part;
+      }
+    }
+    return '';
+  };
+
+  // Check if storedFolderPath is valid (not empty, not just an ID like {25})
+  const isValidFolderPath = storedFolderPath &&
+    storedFolderPath.trim() !== '' &&
+    !/^\{\d+\}$/.test(storedFolderPath.trim());
+
   // For child tabs (parent_id exists), use display_name as folder name
-  // For root tabs, extract from stored path or fall back to display_name
-  // This ensures child tabs get their OWN name appended, not the parent's folder
+  // For root tabs, extract from stored path or fall back to parent folder name
+  // FRC Fix: If folder_path is empty/invalid, inherit parent folder name from basePath
   const isChildTab = !!tab.parent_id;
   const folderName = isChildTab
     ? (tab.display_name || '')
-    : (storedFolderPath ? extractFolderName(storedFolderPath, basePath) : (tab.display_name || ''));
+    : (isValidFolderPath
+        ? extractFolderName(storedFolderPath, basePath)
+        : (getParentFolderName(basePath) || tab.display_name || ''));
 
   // Compute this tab's full path (for passing to children as their basePath)
   // If basePath has {{TabName}}, replace it with folder name (root tabs)
@@ -2461,6 +2483,17 @@ export function WarehouseProviderTab() {
       }
 
       console.log('🔵 [saveScopeTemplates] Computed warehouseFolderValue:', warehouseFolderValue);
+
+      // FRC Guard (Feb 2026): Prevent saving empty folder_path for root scopes
+      // This would remove the scope from the tree entirely and break folder storage
+      if (!warehouseFolderValue || warehouseFolderValue.trim() === '') {
+        toast({
+          title: "Cannot save",
+          description: "Folder path cannot be empty. The scope needs a base folder path.",
+          variant: "destructive"
+        });
+        return;
+      }
 
       const payload = {
         storage: {
