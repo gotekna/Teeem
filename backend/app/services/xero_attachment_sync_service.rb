@@ -111,6 +111,14 @@ class XeroAttachmentSyncService
       return
     end
 
+    # FRC (Feb 2026): Bills don't have Xero auto-generated PDFs
+    # But they CAN have supplier-uploaded attachments. Create a "bill record"
+    # WarehouseDocument without storage_blob so attachments can be synced.
+    if external_invoice.bill?
+      results[:pdf] = create_bill_record_document(existing)
+      return
+    end
+
     # Download PDF from Xero
     pdf_result = download_invoice_pdf
     unless pdf_result[:success]
@@ -191,6 +199,40 @@ class XeroAttachmentSyncService
   rescue StandardError => e
     results[:errors] << "PDF sync error: #{e.message}"
     Rails.logger.error("[XeroAttachmentSync] PDF sync error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+  end
+
+  # FRC (Feb 2026): Create a "bill record" WarehouseDocument for bills
+  # Bills don't have Xero auto-generated PDFs, but can have supplier attachments.
+  # This creates a primary document (without storage_blob) so attachments can link to it.
+  def create_bill_record_document(existing)
+    document_type = find_document_type_for_invoice
+    folder = document_type ? compute_folder_from_document_type(document_type) : nil
+
+    warehouse_doc = existing || WarehouseDocument.new
+    warehouse_doc.assign_attributes(
+      documentable: external_invoice,
+      storage_blob: nil,  # No auto-generated PDF for bills
+      source_type: "xero",
+      display_name: build_display_name,
+      original_filename: nil,
+      folder: folder,
+      tenant_id: @tenant.id,
+      content_type: nil,
+      file_size: 0,
+      linkable: external_invoice.contact,
+      metadata: build_metadata(document_type).merge("is_bill_record" => true)
+    )
+
+    if warehouse_doc.save
+      Rails.logger.info("[XeroAttachmentSync] Created bill record for attachments: #{external_invoice.invoice_number}")
+      warehouse_doc
+    else
+      results[:errors] << "Failed to save bill record: #{warehouse_doc.errors.full_messages.join(', ')}"
+      nil
+    end
+  rescue ActiveRecord::RecordNotUnique
+    # Another job already created this - find and use it
+    WarehouseDocument.find_by(documentable: external_invoice, source_type: "xero")
   end
 
   def sync_attachments
