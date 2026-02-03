@@ -2864,7 +2864,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     try {
       setPoPdfLoading('preview');
       const baseUrl = getApiBaseUrl();
+      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
+      const headers: HeadersInit = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       const response = await fetch(`${baseUrl}/api/v1/purchase_orders/${task.purchase_order_id}/generate_pdf?format=html`, {
+        headers,
         credentials: 'include',
       });
       const html = await response.text();

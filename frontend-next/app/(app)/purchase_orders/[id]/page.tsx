@@ -71,6 +71,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/formatters";
 
@@ -919,7 +920,13 @@ export default function PurchaseOrderDetailPage() {
     try {
       setLoadingPreview(true);
       const baseUrl = getApiBaseUrl();
+      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
+      const headers: HeadersInit = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       const response = await fetch(`${baseUrl}/api/v1/purchase_orders/${recordId}/generate_pdf?format=html`, {
+        headers,
         credentials: "include",
       });
       const html = await response.text();
