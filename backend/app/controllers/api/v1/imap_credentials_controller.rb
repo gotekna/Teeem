@@ -428,6 +428,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
       # SSoT (Feb 2026): Per-mailbox signatures stored in sync_config
       mailbox_signatures = org_cred.sync_config&.dig("mailbox_signatures") || {}
+      # SSoT (Feb 2026): Per-mailbox branding stored in sync_config
+      mailbox_branding = org_cred.sync_config&.dig("mailbox_branding") || {}
 
       # Add each mailbox the user has access to
       user_emails.each_with_index do |email, index|
@@ -449,7 +451,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
           last_synced_at: org_cred.last_sync_at&.iso8601,
           last_sync_status: org_cred.status,
           # SSoT (Feb 2026): Per-mailbox signature from sync_config
-          email_signature: mailbox_signatures[email]
+          email_signature: mailbox_signatures[email],
+          # SSoT (Feb 2026): Per-mailbox branding from sync_config
+          branding_config: mailbox_branding[email] || { "use_default" => true }
         }
       end
     end
@@ -477,7 +481,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
         position: saved_positions[account_id] || (fallback_position += 1),
         is_favorite: favorite_ids.include?(account_id),
         last_synced_at: cred.last_synced_at&.iso8601,
-        last_sync_status: cred.last_sync_status
+        last_sync_status: cred.last_sync_status,
+        # SSoT (Feb 2026): Per-mailbox branding from branding_config
+        branding_config: cred.branding_config || { "use_default" => true }
       }
     end
 
@@ -1015,6 +1021,108 @@ class Api::V1::ImapCredentialsController < ApplicationController
     render json: {
       success: false,
       error: "Failed to update signature: #{e.message}"
+    }, status: :unprocessable_entity
+  end
+
+  # PUT /api/v1/imap_credentials/update_account_branding
+  # Update the branding config for any email account (IMAP or MS365 mailbox)
+  # SSoT (Feb 2026): Each mailbox can have its own company branding for signatures
+  #
+  # branding_config structure:
+  # {
+  #   "use_default": true/false,
+  #   "company_name": "Company Name",
+  #   "logo_url": "https://...",      # Light logo (for light backgrounds)
+  #   "logo_dark": "https://...",     # Dark logo (for dark backgrounds)
+  #   "address": "123 Street",
+  #   "city_state": "City State 1234",
+  #   "website": "https://example.com",
+  #   "brand_color": "#1a3c34",
+  #   "brand_color_foreground": "#ffffff"
+  # }
+  def update_account_branding
+    account_id = params[:account_id]
+    branding_config = params[:branding_config]
+
+    if account_id.blank?
+      return render json: {
+        success: false,
+        error: "account_id is required"
+      }, status: :unprocessable_entity
+    end
+
+    unless branding_config.is_a?(Hash) || branding_config.is_a?(ActionController::Parameters)
+      return render json: {
+        success: false,
+        error: "branding_config must be an object"
+      }, status: :unprocessable_entity
+    end
+
+    # Sanitize branding config to only allow expected keys
+    allowed_keys = %w[use_default company_name logo_url logo_dark address city_state website brand_color brand_color_foreground]
+    sanitized_config = branding_config.to_unsafe_h.slice(*allowed_keys)
+
+    case account_id.to_s
+    when /^ms365_(\d+)_/
+      # MS365 mailbox - store in MicrosoftCredential.sync_config.mailbox_branding
+      org_cred_id = $1.to_i
+      mailbox_email = params[:mailbox_email]
+
+      unless mailbox_email.present?
+        return render json: {
+          success: false,
+          error: "mailbox_email is required for MS365 accounts"
+        }, status: :unprocessable_entity
+      end
+
+      org_cred = MicrosoftCredential.find_by(id: org_cred_id)
+      unless org_cred
+        return render json: {
+          success: false,
+          error: "Microsoft 365 credential not found"
+        }, status: :not_found
+      end
+
+      # Update sync_config with new branding
+      sync_config = org_cred.sync_config || {}
+      sync_config["mailbox_branding"] ||= {}
+      sync_config["mailbox_branding"][mailbox_email] = sanitized_config
+
+      org_cred.update!(sync_config: sync_config)
+
+      render json: {
+        success: true,
+        message: "Branding updated for #{mailbox_email}",
+        data: { branding_config: sanitized_config }
+      }
+    when /^imap_(\d+)$/, /^(\d+)$/
+      # IMAP credential - update branding_config field
+      cred_id = $1.to_i
+      credential = ImapCredential.accessible_by(current_user).find_by(id: cred_id)
+      unless credential
+        return render json: {
+          success: false,
+          error: "IMAP credential not found"
+        }, status: :not_found
+      end
+
+      credential.update!(branding_config: sanitized_config)
+
+      render json: {
+        success: true,
+        message: "Branding updated for #{credential.email_address}",
+        data: { branding_config: sanitized_config }
+      }
+    else
+      render json: {
+        success: false,
+        error: "Unknown account type"
+      }, status: :unprocessable_entity
+    end
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to update branding: #{e.message}"
     }, status: :unprocessable_entity
   end
 

@@ -232,6 +232,23 @@ class Asset < ApplicationRecord
   end
 
   # ========================================
+  # Virtual Folder Path (for WarehouseDocument)
+  # ========================================
+  #
+  # SSoT: Returns the virtual folder path for documents attached to this asset.
+  # Used by WarehouseDocument#computed_folder_path for folder resolution.
+  #
+  # Format: Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}
+  #
+  def virtual_folder_path
+    company_group_name = corporate&.company_group&.name.presence || "Default"
+    company_code_val = corporate&.company_code.presence || "UNKNOWN"
+    asset_name_val = display_name.presence || name.presence || "Asset-#{id}"
+
+    "Corporate/#{company_group_name}/#{company_code_val}/Assets/#{asset_name_val}"
+  end
+
+  # ========================================
   # StorageBlob Photo Access (SSoT)
   # ========================================
 

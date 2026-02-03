@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_03_120006) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_03_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5582,6 +5582,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120006) do
     t.integer "shared_with_user_ids", default: [], array: true
     t.integer "nav_position", default: 0
     t.boolean "sync_all", default: false, null: false
+    t.jsonb "branding_config", default: {"use_default"=>true}
     t.index ["is_active"], name: "index_imap_credentials_on_is_active"
     t.index ["user_id", "email_address"], name: "index_imap_credentials_on_user_id_and_email_address", unique: true
     t.index ["user_id"], name: "index_imap_credentials_on_user_id"
@@ -10039,10 +10040,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120006) do
     t.string "download_name"
     t.string "warehouse_folder"
     t.string "ui_name"
+    t.string "root_folder"
     t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
     t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_warehouse_folders_on_job_id"
     t.index ["parent_id"], name: "index_warehouse_folders_on_parent_id"
+    t.index ["root_folder"], name: "index_warehouse_folders_on_root_folder"
     t.index ["storage_folder_id"], name: "index_warehouse_folders_on_storage_folder_id"
     t.index ["tenant_id"], name: "index_warehouse_folders_on_tenant_id"
     t.index ["warehouse_type", "enabled"], name: "index_warehouse_folders_on_warehouse_type_and_enabled"

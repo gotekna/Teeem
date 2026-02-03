@@ -686,15 +686,14 @@ class WarehouseFolder < ApplicationRecord
   end
 
   # SSoT (Feb 2026): Map warehouse_type → root folder name
-  # Extracts first segment of path template (e.g., 'Jobs/{{JobCode}}' → 'Jobs')
+  # Uses root_folder column (populated from first segment of warehouse_folder path)
   # Used by: documents_controller, warehouse_provider.as_json
   def self.warehouse_type_to_root_folder
     result = {}
-    WarehouseFolder.where.not(warehouse_folder: [nil, ''])
+    WarehouseFolder.where.not(root_folder: [nil, ''])
                    .distinct
-                   .pluck(:warehouse_type, :warehouse_folder)
-                   .each do |warehouse_type, path|
-      root = path.to_s.split('/').first
+                   .pluck(:warehouse_type, :root_folder)
+                   .each do |warehouse_type, root|
       result[warehouse_type] ||= root if root.present?
     end
     result

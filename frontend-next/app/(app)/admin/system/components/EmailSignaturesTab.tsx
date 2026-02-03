@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, Mail, Building2, User, Lock, AlertTriangle, Pencil, X, Save, Inbox, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, Mail, Building2, User, Lock, AlertTriangle, Pencil, X, Save, Inbox, ChevronDown, ChevronUp, Palette, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
@@ -104,6 +104,31 @@ export function EmailSignaturesTab() {
   const [accountSignatureDraft, setAccountSignatureDraft] = useState("");
   const [savingAccountSignature, setSavingAccountSignature] = useState(false);
   const [accountSignaturesExpanded, setAccountSignaturesExpanded] = useState(true);
+
+  // SSoT (Feb 2026): Per-account branding
+  const [editingBrandingAccountId, setEditingBrandingAccountId] = useState<string | null>(null);
+  const [brandingDraft, setBrandingDraft] = useState<{
+    use_default: boolean;
+    company_name: string;
+    logo_url: string;
+    logo_dark: string;
+    address: string;
+    city_state: string;
+    website: string;
+    brand_color: string;
+    brand_color_foreground: string;
+  }>({
+    use_default: true,
+    company_name: "",
+    logo_url: "",
+    logo_dark: "",
+    address: "",
+    city_state: "",
+    website: "",
+    brand_color: "#1a3c34",
+    brand_color_foreground: "#ffffff",
+  });
+  const [savingBranding, setSavingBranding] = useState(false);
 
   // Check if user is admin
   const userWithSig = user as UserWithSignature;
@@ -215,6 +240,61 @@ export function EmailSignaturesTab() {
   const startEditingAccountSignature = (account: EmailAccount) => {
     setEditingAccountId(String(account.id));
     setAccountSignatureDraft(account.email_signature || "");
+  };
+
+  // SSoT (Feb 2026): Per-account branding handlers
+  const startEditingBranding = (account: EmailAccount) => {
+    setEditingBrandingAccountId(String(account.id));
+    const config = account.branding_config || { use_default: true };
+    setBrandingDraft({
+      use_default: config.use_default !== false,
+      company_name: config.company_name || "",
+      logo_url: config.logo_url || "",
+      logo_dark: config.logo_dark || "",
+      address: config.address || "",
+      city_state: config.city_state || "",
+      website: config.website || "",
+      brand_color: config.brand_color || "#1a3c34",
+      brand_color_foreground: config.brand_color_foreground || "#ffffff",
+    });
+  };
+
+  const handleSaveBranding = async (account: EmailAccount) => {
+    setSavingBranding(true);
+    try {
+      const payload: {
+        account_id: string;
+        branding_config: typeof brandingDraft;
+        mailbox_email?: string;
+      } = {
+        account_id: String(account.id),
+        branding_config: brandingDraft,
+      };
+
+      // For MS365 accounts, include the mailbox email
+      if (account.type === "ms365") {
+        payload.mailbox_email = account.email_address;
+      }
+
+      const response = await api.put<{ success: boolean; error?: string }>(
+        "/api/v1/imap_credentials/update_account_branding",
+        payload
+      );
+
+      if (response?.success) {
+        toast.success(`Branding updated for ${account.email_address}`);
+        setEditingBrandingAccountId(null);
+        // Refresh accounts to get updated branding
+        await fetchEmailAccounts();
+      } else {
+        toast.error(response?.error || "Failed to update branding");
+      }
+    } catch (error) {
+      console.error("Failed to save branding:", error);
+      toast.error("Failed to save branding");
+    } finally {
+      setSavingBranding(false);
+    }
   };
 
   const getUserData = (): SignatureUserData => {
@@ -618,17 +698,20 @@ export function EmailSignaturesTab() {
               ) : (
                 <div className="space-y-3">
                   {emailAccounts.map((account) => {
-                    const isEditing = editingAccountId === String(account.id);
+                    const isEditingSignature = editingAccountId === String(account.id);
+                    const isEditingBranding = editingBrandingAccountId === String(account.id);
                     const hasSignature = !!account.email_signature;
+                    const hasCustomBranding = account.branding_config && account.branding_config.use_default === false;
 
                     return (
                       <div
                         key={account.id}
                         className={cn(
                           "p-4 rounded-lg border bg-background",
-                          isEditing && "ring-2 ring-primary"
+                          (isEditingSignature || isEditingBranding) && "ring-2 ring-primary"
                         )}
                       >
+                        {/* Account Header */}
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
@@ -644,40 +727,274 @@ export function EmailSignaturesTab() {
                                 </span>
                               )}
                             </div>
-                            {!isEditing && (
-                              <div className="mt-2">
-                                {hasSignature ? (
-                                  <div className="text-xs text-muted-foreground">
-                                    <span className="text-green-600 dark:text-green-400">✓ Custom signature configured</span>
-                                    <div className="mt-1 p-2 bg-white rounded border max-h-24 overflow-hidden">
-                                      <div
-                                        className="transform scale-[0.5] origin-top-left w-[200%]"
-                                        dangerouslySetInnerHTML={{ __html: account.email_signature || "" }}
+                          </div>
+                        </div>
+
+                        {/* Status Summary (when not editing) */}
+                        {!isEditingSignature && !isEditingBranding && (
+                          <div className="mt-3 grid grid-cols-2 gap-4">
+                            {/* Branding Status */}
+                            <div className="p-3 rounded-md bg-muted/30 border">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Palette className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-sm font-medium">Branding</span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => startEditingBranding(account)}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <div className="mt-1">
+                                {hasCustomBranding ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-green-600 dark:text-green-400">Custom</span>
+                                    {account.branding_config?.logo_url && (
+                                      <img
+                                        src={account.branding_config.logo_url}
+                                        alt="Logo"
+                                        className="h-4 object-contain"
                                       />
-                                    </div>
+                                    )}
+                                    {account.branding_config?.company_name && (
+                                      <span className="text-xs text-muted-foreground truncate">
+                                        {account.branding_config.company_name}
+                                      </span>
+                                    )}
                                   </div>
                                 ) : (
-                                  <span className="text-xs text-amber-600 dark:text-amber-400">
-                                    No custom signature (will use user default)
+                                  <span className="text-xs text-blue-600 dark:text-blue-400">
+                                    Using default (company)
                                   </span>
                                 )}
                               </div>
-                            )}
-                          </div>
-                          {!isEditing && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => startEditingAccountSignature(account)}
-                            >
-                              <Pencil className="h-3 w-3 mr-1" />
-                              {hasSignature ? "Edit" : "Add"}
-                            </Button>
-                          )}
-                        </div>
+                            </div>
 
-                        {isEditing && (
-                          <div className="mt-4 space-y-4">
+                            {/* Signature Status */}
+                            <div className="p-3 rounded-md bg-muted/30 border">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Mail className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-sm font-medium">Signature</span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => startEditingAccountSignature(account)}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <div className="mt-1">
+                                {hasSignature ? (
+                                  <span className="text-xs text-green-600 dark:text-green-400">
+                                    Custom signature
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-amber-600 dark:text-amber-400">
+                                    Using default style
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Branding Editor */}
+                        {isEditingBranding && (
+                          <div className="mt-4 space-y-4 p-4 bg-muted/20 rounded-lg">
+                            <div className="flex items-center gap-2 mb-4">
+                              <Palette className="h-4 w-4" />
+                              <span className="font-medium">Edit Branding</span>
+                            </div>
+
+                            {/* Use Default Toggle */}
+                            <div className="flex items-center justify-between p-3 rounded-lg border bg-background">
+                              <div>
+                                <Label className="text-sm">Use Default Company Branding</Label>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  When enabled, uses your company's default logo, colors, and info
+                                </p>
+                              </div>
+                              <Switch
+                                checked={brandingDraft.use_default}
+                                onCheckedChange={(checked) =>
+                                  setBrandingDraft((prev) => ({ ...prev, use_default: checked }))
+                                }
+                              />
+                            </div>
+
+                            {/* Custom Branding Fields (only when use_default is false) */}
+                            {!brandingDraft.use_default && (
+                              <div className="space-y-4 pt-2">
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <Label className="text-sm">Company Name</Label>
+                                    <Input
+                                      value={brandingDraft.company_name}
+                                      onChange={(e) =>
+                                        setBrandingDraft((prev) => ({ ...prev, company_name: e.target.value }))
+                                      }
+                                      placeholder="TEEEM"
+                                      className="mt-1"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">Website</Label>
+                                    <Input
+                                      value={brandingDraft.website}
+                                      onChange={(e) =>
+                                        setBrandingDraft((prev) => ({ ...prev, website: e.target.value }))
+                                      }
+                                      placeholder="https://teeem.au"
+                                      className="mt-1"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <Label className="text-sm">Logo (Light Background)</Label>
+                                    <Input
+                                      value={brandingDraft.logo_url}
+                                      onChange={(e) =>
+                                        setBrandingDraft((prev) => ({ ...prev, logo_url: e.target.value }))
+                                      }
+                                      placeholder="https://example.com/logo.png"
+                                      className="mt-1"
+                                    />
+                                    {brandingDraft.logo_url && (
+                                      <div className="mt-2 p-2 bg-white rounded border">
+                                        <img src={brandingDraft.logo_url} alt="Logo preview" className="h-8 object-contain" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">Logo (Dark Background)</Label>
+                                    <Input
+                                      value={brandingDraft.logo_dark}
+                                      onChange={(e) =>
+                                        setBrandingDraft((prev) => ({ ...prev, logo_dark: e.target.value }))
+                                      }
+                                      placeholder="https://example.com/logo-white.png"
+                                      className="mt-1"
+                                    />
+                                    {brandingDraft.logo_dark && (
+                                      <div className="mt-2 p-2 bg-gray-800 rounded border">
+                                        <img src={brandingDraft.logo_dark} alt="Logo preview" className="h-8 object-contain" />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <Label className="text-sm">Address</Label>
+                                    <Input
+                                      value={brandingDraft.address}
+                                      onChange={(e) =>
+                                        setBrandingDraft((prev) => ({ ...prev, address: e.target.value }))
+                                      }
+                                      placeholder="123 Main Street"
+                                      className="mt-1"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">City, State, Postcode</Label>
+                                    <Input
+                                      value={brandingDraft.city_state}
+                                      onChange={(e) =>
+                                        setBrandingDraft((prev) => ({ ...prev, city_state: e.target.value }))
+                                      }
+                                      placeholder="Brisbane QLD 4000"
+                                      className="mt-1"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <Label className="text-sm">Brand Color</Label>
+                                    <div className="flex gap-2 mt-1">
+                                      <Input
+                                        type="color"
+                                        value={brandingDraft.brand_color}
+                                        onChange={(e) =>
+                                          setBrandingDraft((prev) => ({ ...prev, brand_color: e.target.value }))
+                                        }
+                                        className="w-12 h-9 p-1 cursor-pointer"
+                                      />
+                                      <Input
+                                        value={brandingDraft.brand_color}
+                                        onChange={(e) =>
+                                          setBrandingDraft((prev) => ({ ...prev, brand_color: e.target.value }))
+                                        }
+                                        placeholder="#1a3c34"
+                                        className="flex-1"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm">Text Color on Brand</Label>
+                                    <div className="flex gap-2 mt-1">
+                                      <Input
+                                        type="color"
+                                        value={brandingDraft.brand_color_foreground}
+                                        onChange={(e) =>
+                                          setBrandingDraft((prev) => ({ ...prev, brand_color_foreground: e.target.value }))
+                                        }
+                                        className="w-12 h-9 p-1 cursor-pointer"
+                                      />
+                                      <Input
+                                        value={brandingDraft.brand_color_foreground}
+                                        onChange={(e) =>
+                                          setBrandingDraft((prev) => ({ ...prev, brand_color_foreground: e.target.value }))
+                                        }
+                                        placeholder="#ffffff"
+                                        className="flex-1"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex gap-2 pt-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleSaveBranding(account)}
+                                disabled={savingBranding}
+                              >
+                                {savingBranding ? (
+                                  <Spinner size={14} className="mr-2" />
+                                ) : (
+                                  <Save className="h-3 w-3 mr-1" />
+                                )}
+                                Save Branding
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEditingBrandingAccountId(null)}
+                              >
+                                <X className="h-3 w-3 mr-1" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Signature Editor */}
+                        {isEditingSignature && (
+                          <div className="mt-4 space-y-4 p-4 bg-muted/20 rounded-lg">
+                            <div className="flex items-center gap-2 mb-4">
+                              <Mail className="h-4 w-4" />
+                              <span className="font-medium">Edit Signature</span>
+                            </div>
+
                             <div>
                               <Label className="text-sm">Signature HTML</Label>
                               <Textarea

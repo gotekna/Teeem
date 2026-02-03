@@ -503,6 +503,30 @@ class WarehouseDocument < ApplicationRecord
       tokens[:CaseId] = documentable.case_number
     end
 
+    # Asset context (for asset documents: expenses, service, readings)
+    # SSoT: Assets belong to Corporate (company), so we need both asset + corporate tokens
+    if documentable.is_a?(Asset)
+      tokens[:AssetName] = documentable.display_name.presence || documentable.name.presence || "Asset-#{documentable.id}"
+      tokens[:AssetNumber] = documentable.asset_number if documentable.asset_number.present?
+      # Also get corporate context from the asset's company
+      if documentable.corporate
+        cc = documentable.corporate
+        tokens[:CompanyCode] = cc.company_code
+        tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
+      end
+    elsif documentable.respond_to?(:asset) && documentable.asset
+      # For child records like AssetExpense, AssetServiceHistory, etc.
+      asset = documentable.asset
+      tokens[:AssetName] = asset.display_name.presence || asset.name.presence || "Asset-#{asset.id}"
+      tokens[:AssetNumber] = asset.asset_number if asset.asset_number.present?
+      # Also get corporate context from the asset's company
+      if asset.corporate
+        cc = asset.corporate
+        tokens[:CompanyCode] ||= cc.company_code
+        tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
+      end
+    end
+
     # Email context
     if source_type.in?(%w[email email_attachment])
       tokens[:Mailbox] = meta("mailbox") || "Unknown"

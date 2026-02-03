@@ -580,13 +580,13 @@ module Api
         base_scope = base_scope.where.not(source_type: "email") unless include_emails
 
         if path.blank?
-          # SSoT (Feb 2026 FRC Fix): Root folder structure comes ONLY from WarehouseFolder
-          # WarehouseFolder is THE ONE source - no "extras" from document folder column
-          # Counts come from source_type mapping (not parsing folder paths)
+          # SSoT (Feb 2026 FRC Fix): Root folder structure comes from warehouse_type_to_root_folder
+          # This extracts first segment of path templates (e.g., "Jobs/{{JobCode}}" → "Jobs")
+          # NOT from all_root_folders which returns tabs (ADVICE, ASIC, etc.) not conceptual roots
           #
-          # Root cause fix: WarehouseDocument.folder was redundant data that got out of sync.
-          # Instead of fixing sync, we compute from source_type → root folder mapping.
-          root_folders_from_config = WarehouseFolder.all_root_folders
+          # Root cause: all_root_folders queries parent_id: nil folders, which are TABS
+          # SSoT: warehouse_type_to_root_folder extracts roots from path templates
+          root_folders_from_config = WarehouseFolder.warehouse_type_to_root_folder.values.uniq
 
           # SSoT: Map source_type to root folder for counting
           # This eliminates duplicates from legacy folder values (ADVICE, Assets, BANK, etc.)

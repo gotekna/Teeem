@@ -241,12 +241,30 @@ module Api
       end
 
       # GET /api/v1/assets/:id/documents
-      # Note: corporate_company_documents table DROPPED (Jan 2026) - migrated to WarehouseDocument
-      # TODO: Implement WarehouseDocument query for assets
+      # SSoT: WarehouseDocument is THE ONE table for all document metadata (Jan 2026)
+      #
+      # Query for documents linked to this asset via:
+      # 1. documentable (polymorphic: Asset)
+      # 2. linkable (polymorphic: Asset)
+      #
       def documents
+        # Query documents where this asset is either the documentable or linkable
+        documents = WarehouseDocument.where(
+          "(documentable_type = ? AND documentable_id = ?) OR (linkable_type = ? AND linkable_id = ?)",
+          "Asset", @asset.id, "Asset", @asset.id
+        ).includes(:storage_blob).order(created_at: :desc)
+
+        # Optional filtering
+        documents = documents.by_source(params[:source_type]) if params[:source_type].present?
+        documents = documents.limit(params[:limit].to_i) if params[:limit].present?
+
         render json: {
           success: true,
-          documents: []  # Table dropped - use WarehouseDocument
+          documents: documents.map { |doc| document_to_json(doc) },
+          counts: {
+            total: documents.count,
+            by_source: documents.group(:source_type).count
+          }
         }
       end
 
@@ -543,6 +561,23 @@ module Api
         params.require(:odometer_reading).permit(
           :reading_date, :odometer_km, :hours, :reading_type, :notes
         )
+      end
+
+      # SSoT: Serialize WarehouseDocument for API response
+      def document_to_json(doc)
+        {
+          id: doc.id,
+          display_name: doc.computed_display_name,
+          download_filename: doc.download_filename,
+          source_type: doc.source_type,
+          folder: doc.computed_folder_path,
+          content_type: doc.storage_blob&.content_type,
+          file_size: doc.storage_blob&.file_size,
+          download_url: doc.download_url,
+          created_at: doc.created_at,
+          updated_at: doc.updated_at,
+          metadata: doc.metadata
+        }
       end
     end
   end

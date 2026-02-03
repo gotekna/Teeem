@@ -231,7 +231,8 @@ export function ComposeEmailModal({
   }, [contactSearch, ccSearch, bccSearch]);
 
   // Generate signature from current user data (SSoT: uses user's preferred signature style)
-  const getUserSignature = (): string => {
+  // SSoT (Feb 2026): Supports per-account branding - if account has custom branding, use it instead of company settings
+  const getUserSignature = (selectedAccountId?: string): string => {
     if (!currentUser) {
       console.log('[ComposeSignature] getUserSignature: no currentUser');
       return "";
@@ -241,12 +242,40 @@ export function ComposeEmailModal({
     const signatureStyle = ((currentUser as { email_signature_style?: string }).email_signature_style as SignatureStyleId)
       || DEFAULT_SIGNATURE_STYLE;
 
+    // SSoT (Feb 2026): Check if selected account has custom branding
+    const selectedAccount = accounts.find(a => String(a.id) === selectedAccountId);
+    const accountBranding = selectedAccount?.branding_config;
+    const useAccountBranding = accountBranding && accountBranding.use_default === false;
+
     console.log('[ComposeSignature] getUserSignature:', {
       signatureStyle,
       userName: currentUser.name,
       userEmail: currentUser.email,
       companyName: companySettings?.company_name,
+      useAccountBranding,
+      accountBranding: useAccountBranding ? accountBranding : undefined,
     });
+
+    // SSoT (Feb 2026): Use per-account branding if configured, otherwise use company settings
+    const brandingData = useAccountBranding ? {
+      name: accountBranding.company_name,
+      logo_dark: accountBranding.logo_dark,
+      logo_light: accountBranding.logo_url,
+      address: accountBranding.address,
+      city_state: accountBranding.city_state,
+      website: accountBranding.website,
+      brand_color: accountBranding.brand_color,
+      brand_color_foreground: accountBranding.brand_color_foreground,
+    } : companySettings ? {
+      name: companySettings.company_name,
+      logo_dark: companySettings.logo_dark,
+      logo_light: companySettings.logo_url,
+      address: companySettings.address,
+      website: companySettings.website,
+      phone: companySettings.phone,
+      brand_color: companySettings.brand_colors?.primary,
+      brand_color_foreground: companySettings.brand_colors?.primaryForeground,
+    } : undefined;
 
     return generateSignatureByStyle(
       signatureStyle,
@@ -256,16 +285,7 @@ export function ComposeEmailModal({
         mobile_phone: currentUser.mobile_phone as string | undefined,
         job_title: currentUser.job_title as string | undefined,
       },
-      companySettings ? {
-        name: companySettings.company_name,
-        logo_dark: companySettings.logo_dark,
-        logo_light: companySettings.logo_url,
-        address: companySettings.address,
-        website: companySettings.website,
-        phone: companySettings.phone,
-        brand_color: companySettings.brand_colors?.primary,
-        brand_color_foreground: companySettings.brand_colors?.primaryForeground,
-      } : undefined
+      brandingData
     );
   };
 
@@ -435,7 +455,8 @@ export function ComposeEmailModal({
 
     // 3. For same-tenant accounts without a custom signature, generate from current user
     // (This preserves backwards compatibility - user's signature style from preferences)
-    const signature = getUserSignature();
+    // SSoT (Feb 2026): Pass account ID to use per-account branding if configured
+    const signature = getUserSignature(formData.credential_id);
     console.log('[ComposeSignature] Generated user signature, length:', signature.length);
     setSignatureHtml(signature);
   }, [formData.credential_id, accounts, currentUser, companySettings]);
