@@ -1,12 +1,54 @@
 # frozen_string_literal: true
 
-# Fix: Add missing warehouse_folders for asset document types
+# Fix: Add missing warehouse_folders for asset document types AND task types
 #
 # The previous migration only updated existing rows but didn't create them.
-# Staging/Production are missing: asset_expenses, asset_service, asset_readings, task_responses
+# Staging/Production are missing:
+#   - Asset types: asset_expenses, asset_service, asset_readings
+#   - Task types: task, task_attachments, task_responses
 #
 class AddMissingAssetWarehouseFolders < ActiveRecord::Migration[7.1]
   def up
+    # =============================================
+    # TASK FOLDERS (parent first, then children)
+    # =============================================
+
+    # Insert task (parent folder) if not exists
+    unless WarehouseFolder.exists?(warehouse_type: 'task')
+      execute <<~SQL
+        INSERT INTO warehouse_folders (
+          warehouse_type, tab_key, display_name, tab_group, order_position,
+          enabled, is_system_tab, warehouse_enabled, warehouse_folder, root_folder,
+          created_at, updated_at
+        ) VALUES (
+          'task', 'task', 'Tasks', 'tasks', 0,
+          true, true, true, 'Tasks/{{TaskId}}/{{TaskName}}', 'Tasks',
+          NOW(), NOW()
+        )
+      SQL
+      Rails.logger.info "[Migration] Created task warehouse folder"
+    end
+
+    # Insert task_attachments if not exists
+    unless WarehouseFolder.exists?(warehouse_type: 'task_attachments')
+      execute <<~SQL
+        INSERT INTO warehouse_folders (
+          warehouse_type, tab_key, display_name, tab_group, order_position,
+          enabled, is_system_tab, warehouse_enabled, warehouse_folder, root_folder,
+          created_at, updated_at
+        ) VALUES (
+          'task_attachments', 'task-attachments', 'Task Attachments', 'tasks', 2,
+          true, true, true, 'Tasks/{{TaskId}}/{{TaskName}}/Attachments', 'Tasks',
+          NOW(), NOW()
+        )
+      SQL
+      Rails.logger.info "[Migration] Created task_attachments warehouse folder"
+    end
+
+    # =============================================
+    # ASSET FOLDERS
+    # =============================================
+
     # Insert asset_expenses if not exists
     unless WarehouseFolder.exists?(warehouse_type: 'asset_expenses')
       execute <<~SQL
@@ -78,7 +120,7 @@ class AddMissingAssetWarehouseFolders < ActiveRecord::Migration[7.1]
     # Remove the folders we created (only if they match our exact config)
     execute <<~SQL
       DELETE FROM warehouse_folders
-      WHERE warehouse_type IN ('asset_expenses', 'asset_service', 'asset_readings', 'task_responses')
+      WHERE warehouse_type IN ('task', 'task_attachments', 'task_responses', 'asset_expenses', 'asset_service', 'asset_readings')
     SQL
   end
 end
