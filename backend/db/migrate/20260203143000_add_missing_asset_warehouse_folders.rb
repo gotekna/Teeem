@@ -21,7 +21,7 @@ class AddMissingAssetWarehouseFolders < ActiveRecord::Migration[7.1]
           enabled, is_system_tab, warehouse_enabled, warehouse_folder, root_folder,
           created_at, updated_at
         ) VALUES (
-          'task', 'task', 'Tasks', 'tasks', 0,
+          'task', 'task', 'Tasks', 'system', 0,
           true, true, true, 'Tasks/{{TaskId}}/{{TaskName}}', 'Tasks',
           NOW(), NOW()
         )
@@ -37,7 +37,7 @@ class AddMissingAssetWarehouseFolders < ActiveRecord::Migration[7.1]
           enabled, is_system_tab, warehouse_enabled, warehouse_folder, root_folder,
           created_at, updated_at
         ) VALUES (
-          'task_attachments', 'task-attachments', 'Task Attachments', 'tasks', 2,
+          'task_attachments', 'task-attachments', 'Task Attachments', 'system', 2,
           true, true, true, 'Tasks/{{TaskId}}/{{TaskName}}/Attachments', 'Tasks',
           NOW(), NOW()
         )
@@ -57,7 +57,7 @@ class AddMissingAssetWarehouseFolders < ActiveRecord::Migration[7.1]
           enabled, is_system_tab, warehouse_enabled, warehouse_folder, root_folder,
           created_at, updated_at
         ) VALUES (
-          'asset_expenses', 'expenses', 'Asset Expenses', 'corporate', 10,
+          'asset_expenses', 'expenses', 'Asset Expenses', 'documents', 10,
           true, true, true, 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Expenses', 'Corporate',
           NOW(), NOW()
         )
@@ -73,7 +73,7 @@ class AddMissingAssetWarehouseFolders < ActiveRecord::Migration[7.1]
           enabled, is_system_tab, warehouse_enabled, warehouse_folder, root_folder,
           created_at, updated_at
         ) VALUES (
-          'asset_service', 'service', 'Asset Service', 'corporate', 11,
+          'asset_service', 'service', 'Asset Service', 'documents', 11,
           true, true, true, 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Service', 'Corporate',
           NOW(), NOW()
         )
@@ -89,7 +89,7 @@ class AddMissingAssetWarehouseFolders < ActiveRecord::Migration[7.1]
           enabled, is_system_tab, warehouse_enabled, warehouse_folder, root_folder,
           created_at, updated_at
         ) VALUES (
-          'asset_readings', 'readings', 'Asset Readings', 'corporate', 12,
+          'asset_readings', 'readings', 'Asset Readings', 'documents', 12,
           true, true, true, 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Readings', 'Corporate',
           NOW(), NOW()
         )
@@ -105,7 +105,7 @@ class AddMissingAssetWarehouseFolders < ActiveRecord::Migration[7.1]
           enabled, is_system_tab, warehouse_enabled, warehouse_folder, root_folder,
           created_at, updated_at
         ) VALUES (
-          'task_responses', 'responses', 'Task Responses', 'tasks', 3,
+          'task_responses', 'responses', 'Task Responses', 'system', 3,
           true, true, true, 'Tasks/{{TaskId}}/{{TaskName}}/Responses', 'Tasks',
           NOW(), NOW()
         )
