@@ -173,6 +173,7 @@ interface WarehouseTabConfig {
   order_position: number;
   icon_name: string | null;
   folder_path?: string | null;
+  base_folder?: string | null;  // SSoT: First segment of folder_path (from database)
   children?: WarehouseTabConfig[];
   document_types?: DocumentType[];
 }
@@ -1666,6 +1667,11 @@ function TabNode({
   // Extract just the folder name from stored path (strip base path if present)
   const extractFolderName = (storedPath: string | null | undefined, base: string): string => {
     if (!storedPath) return '';
+    // FRC Fix (Feb 2026): If stored path equals base path exactly, return empty (no additional folder)
+    // This happens for root tabs where folder_path IS the scope's full template
+    if (base && storedPath === base) {
+      return '';
+    }
     // If path starts with basePath, strip it to get just the folder name
     if (base && storedPath.startsWith(base + '/')) {
       return storedPath.slice(base.length + 1);
@@ -1961,14 +1967,14 @@ function TabNode({
     !/^\{\d+\}$/.test(storedFolderPath.trim());
 
   // For child tabs (parent_id exists), use display_name as folder name
-  // For root tabs, extract from stored path or fall back to parent folder name
-  // FRC Fix: If folder_path is empty/invalid, inherit parent folder name from basePath
+  // For root tabs, extract from stored path or fall back to base_folder column
+  // FRC Fix: If folder_path is empty/invalid, use base_folder from database (SSoT)
   const isChildTab = !!tab.parent_id;
+  const extractedName = isValidFolderPath ? extractFolderName(storedFolderPath, basePath) : '';
+  // SSoT (Feb 2026): Use tab.base_folder directly instead of extracting from path
   const folderName = isChildTab
     ? (tab.display_name || '')
-    : (isValidFolderPath
-        ? extractFolderName(storedFolderPath, basePath)
-        : (getParentFolderName(basePath) || tab.display_name || ''));
+    : (extractedName || tab.base_folder || tab.display_name || '');
 
   // Compute this tab's full path (for passing to children as their basePath)
   // If basePath has {{TabName}}, replace it with folder name (root tabs)

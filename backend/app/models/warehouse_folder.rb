@@ -90,6 +90,10 @@ class WarehouseFolder < ApplicationRecord
   # SSoT: Auto-sync tab_key from display_name (display_name is the source of truth)
   before_validation :sync_tab_key_from_display_name
 
+  # FRC Guard (Feb 2026): Prevent clearing folder_path on root scopes
+  # Empty folder_path removes scope from warehouse_folders_mapping, breaking the tree
+  before_save :prevent_clearing_root_folder_path
+
   # NOTE (Feb 2026 FRC Fix): Removed after_update :rename_folders_in_database_if_needed
   # WarehouseDocument.folder is now computed from source_type, not stored/synced.
   # Renaming a WarehouseFolder instantly affects File Warehouse display without any sync.
@@ -1310,6 +1314,20 @@ class WarehouseFolder < ApplicationRecord
     if parent&.warehouse_enabled
       self.warehouse_enabled = true
       Rails.logger.info "[WarehouseFolder] Auto-inherited warehouse_enabled from parent '#{parent.display_name}' for tab '#{display_name}'"
+    end
+  end
+
+  # FRC Guard (Feb 2026): Prevent clearing folder_path on root scopes
+  # Root scopes (parent_id: nil) must have a folder_path to appear in the tree
+  # If someone tries to clear it, restore the previous value
+  def prevent_clearing_root_folder_path
+    return unless parent_id.nil?  # Only guard root scopes
+    return unless folder_path_changed?  # Only check if folder_path was changed
+
+    # If new folder_path is blank but old one wasn't, restore the old value
+    if folder_path.blank? && folder_path_was.present?
+      Rails.logger.warn "[WarehouseFolder] BLOCKED clearing folder_path for root scope '#{warehouse_type}'. Restoring: #{folder_path_was}"
+      self.folder_path = folder_path_was
     end
   end
 

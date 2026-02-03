@@ -195,6 +195,9 @@ class WarehouseFolderQueryService
       # SSoT: Return raw stored folder_path for editing (nil/empty = use display_name default in UI)
       # ⚠️ DO NOT use .presence here - empty string "" must be preserved (user intentionally cleared it)
       folder_path: tab.read_attribute(:folder_path),
+      # SSoT (Feb 2026): base_folder = first segment of folder_path (e.g., "Teeem Docs")
+      # Used by frontend to show folder name in tree when folder_path is empty
+      base_folder: tab.read_attribute(:base_folder),
       # SSoT: "Document Download Name" in UI
       download_name: tab.read_attribute(:download_name),
       # SSoT: "Document UI Name" in UI (Feb 2026)
