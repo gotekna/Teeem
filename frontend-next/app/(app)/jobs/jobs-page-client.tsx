@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
 import { TablePage } from "@/components/ui/page-wrappers";
-import { BackButton } from "@/components/ui/back-button";
 import { Plus } from "lucide-react";
 import type { ViewData } from "@/lib/server/foundation-api";
 
@@ -78,15 +77,12 @@ export default function JobsPageClient({
         enableImport
         enableSchemaEditor
         leftActions={
-          <div className="flex items-center gap-2">
-            <BackButton fallbackHref="/dashboard" />
-            <Button variant="default" size="sm" asChild data-tour="jobs-add">
-              <Link href="/jobs/new">
-                <Plus className="h-4 w-4 mr-2" />
-                New Job
-              </Link>
-            </Button>
-          </div>
+          <Button variant="default" size="sm" asChild data-tour="jobs-add">
+            <Link href="/jobs/new">
+              <Plus className="h-4 w-4 mr-2" />
+              New Job
+            </Link>
+          </Button>
         }
         // SSR Props - data pre-fetched on server for fast LCP
         initialColumns={initialColumns}
@@ -103,6 +99,8 @@ export default function JobsPageClient({
         viewSlug={viewSlug}
         // After refresh, autoFetchRecords takes over
         autoFetchRecords
+        // Hide built-in Add Record button (using custom New Job button in leftActions)
+        hideAddRecord
       />
     </TablePage>
   );
