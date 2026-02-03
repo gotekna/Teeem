@@ -77,13 +77,13 @@ class AddXeroSyncStatsIndexes < ActiveRecord::Migration[8.0]
               name: "idx_ext_inv_xero_org_last_synced",
               if_not_exists: true
 
-    # Partial index for active invoices (excludes soft-deleted)
-    # Supports: ExternalInvoice.xero.active.for_xero_org(tenant_id)
+    # Index for xero_org + source filtering
+    # Supports: ExternalInvoice.xero.for_xero_org(tenant_id)
+    # Note: external_invoices does NOT have soft-delete (no deleted_at column)
     add_index :external_invoices,
               [:xero_org_id, :source],
-              where: "deleted_at IS NULL",
               algorithm: :concurrently,
-              name: "idx_ext_inv_xero_org_active",
+              name: "idx_ext_inv_xero_org_source",
               if_not_exists: true
   end
 end
