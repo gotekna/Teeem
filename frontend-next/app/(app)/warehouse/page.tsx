@@ -2094,10 +2094,22 @@ export default function AllDocumentsPage() {
           previewDocument && "max-w-[50%]"
         )} data-tour="warehouse-files">
           {loading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
+            <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-4">
+              <div className="relative">
+                <div className="h-16 w-16 rounded-full border-4 border-muted animate-pulse" />
+                <Loader2 className="h-16 w-16 absolute inset-0 animate-spin text-primary" />
+              </div>
+              <div className="text-center space-y-2">
+                <p className="text-lg font-medium">Loading File Warehouse</p>
+                <p className="text-sm text-muted-foreground">
+                  Fetching {counts.total > 0 ? `${counts.total.toLocaleString()} documents` : 'documents'}...
+                </p>
+                <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                  <span className="inline-block w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <span className="inline-block w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <span className="inline-block w-1.5 h-1.5 bg-primary rounded-full animate-bounce" />
+                </div>
+              </div>
             </div>
           ) : viewMode === "tree" ? (
             // Tree View

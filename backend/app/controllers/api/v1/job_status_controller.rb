@@ -1,12 +1,11 @@
 module Api
   module V1
     class JobStatusController < ApplicationController
-      skip_before_action :authorize_request, only: [ :index ]
       before_action :set_job_status, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/job_statuses
       def index
-        @job_statuses = JobStatus.unscoped.order(:position)
+        @job_statuses = JobStatus.order(:position)
 
         render json: {
           success: true,
@@ -25,7 +24,7 @@ module Api
       # POST /api/v1/job_statuses
       def create
         # Set position to be last if not provided
-        position = job_status_params[:position] || (JobStatus.unscoped.maximum(:position) || 0) + 1
+        position = job_status_params[:position] || (JobStatus.maximum(:position) || 0) + 1
 
         @job_status = JobStatus.new(job_status_params.except(:job_type_ids).merge(position: position))
 
@@ -81,7 +80,7 @@ module Api
 
         render json: {
           success: true,
-          job_statuses: JobStatus.unscoped.order(:position).map { |js| job_status_json(js) }
+          job_statuses: JobStatus.order(:position).map { |js| job_status_json(js) }
         }
       end
 

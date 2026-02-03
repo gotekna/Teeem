@@ -15,7 +15,7 @@ module Api
             .map(&:job_stage)
         else
           # Get all stages
-          @job_stages = JobStage.unscoped.order(:position)
+          @job_stages = JobStage.order(:position)
         end
 
         render json: {
@@ -35,7 +35,7 @@ module Api
       # POST /api/v1/job_stages
       def create
         # Set position to be last if not provided
-        position = job_stage_params[:position] || (JobStage.unscoped.maximum(:position) || 0) + 1
+        position = job_stage_params[:position] || (JobStage.maximum(:position) || 0) + 1
 
         @job_stage = JobStage.new(job_stage_params.merge(position: position))
 
@@ -81,7 +81,7 @@ module Api
 
         render json: {
           success: true,
-          job_stages: JobStage.unscoped.order(:position).map { |js| job_stage_json(js) }
+          job_stages: JobStage.order(:position).map { |js| job_stage_json(js) }
         }
       end
 

@@ -271,7 +271,7 @@ class XeroAttachmentSyncJob < ApplicationJob
 
     if xero_tenant_id.present?
       contact_ids_for_xero_org = ContactExternalLink
-        .where(source: "xero", tenant_id: xero_tenant_id)
+        .where(source: "xero", xero_org_id: xero_tenant_id)
         .pluck(:contact_id)
       query = query.where(contact_id: contact_ids_for_xero_org)
     end
@@ -292,7 +292,7 @@ class XeroAttachmentSyncJob < ApplicationJob
       .pluck(:documentable_id)
 
     contact_ids_for_xero_org = ContactExternalLink
-      .where(source: "xero", tenant_id: xero_tenant_id)
+      .where(source: "xero", xero_org_id: xero_tenant_id)
       .pluck(:contact_id)
 
     ExternalInvoice

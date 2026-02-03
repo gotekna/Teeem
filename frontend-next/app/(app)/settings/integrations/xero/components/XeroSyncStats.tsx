@@ -221,6 +221,18 @@ interface SyncStatsData {
   global: GlobalStats;
 }
 
+// Safe date formatting helper - prevents crashes from invalid dates
+function safeFormatDistance(dateString: string | null | undefined, options?: { addSuffix?: boolean }): string {
+  if (!dateString) return "—";
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "—";
+    return formatDistanceToNow(date, options);
+  } catch {
+    return "—";
+  }
+}
+
 // TenantCard - Extracted for use in virtual scrolling
 // Renders a single tenant organization card with stats
 function TenantCard({ tenant, router, onOpenReviewSheet }: TenantCardProps) {
@@ -352,7 +364,7 @@ function TenantCard({ tenant, router, onOpenReviewSheet }: TenantCardProps) {
               title={tenant.sync_health.contacts.message}
             />
             <Clock className="h-3 w-3" />
-            Synced {formatDistanceToNow(new Date(tenant.sync_health.contacts.last_synced_at), { addSuffix: true })}
+            Synced {safeFormatDistance(tenant.sync_health?.contacts?.last_synced_at, { addSuffix: true })}
           </div>
         )}
       </CardContent>
@@ -534,25 +546,60 @@ export function XeroSyncStats() {
     );
   }
 
-  const { global, tenants } = data;
+  const { global: rawGlobal, tenants } = data;
+
+  // Defensive: ensure tenants is always an array
+  const safeTenants = Array.isArray(tenants) ? tenants : [];
+
+  // Defensive: ensure global has all required properties with safe defaults
+  const global: GlobalStats = {
+    pending_reviews: {
+      count: rawGlobal?.pending_reviews?.count ?? 0,
+      items: Array.isArray(rawGlobal?.pending_reviews?.items) ? rawGlobal.pending_reviews.items : [],
+    },
+    cross_tenant: {
+      contacts_linked_to_multiple_tenants: rawGlobal?.cross_tenant?.contacts_linked_to_multiple_tenants ?? 0,
+      multi_tenant_contact_ids: rawGlobal?.cross_tenant?.multi_tenant_contact_ids ?? [],
+    },
+    match_breakdown: {
+      exact_abn: rawGlobal?.match_breakdown?.exact_abn ?? 0,
+      exact_email: rawGlobal?.match_breakdown?.exact_email ?? 0,
+      fuzzy_name: rawGlobal?.match_breakdown?.fuzzy_name ?? 0,
+      manual: rawGlobal?.match_breakdown?.manual ?? 0,
+      total: rawGlobal?.match_breakdown?.total ?? 0,
+    },
+    totals: {
+      contacts_with_links: rawGlobal?.totals?.contacts_with_links ?? 0,
+      total_links: rawGlobal?.totals?.total_links ?? 0,
+      invoices: rawGlobal?.totals?.invoices ?? 0,
+      bills: rawGlobal?.totals?.bills ?? 0,
+      quotes: rawGlobal?.totals?.quotes ?? 0,
+      credit_notes: rawGlobal?.totals?.credit_notes ?? 0,
+      all_documents: rawGlobal?.totals?.all_documents ?? 0,
+    },
+    recent_activity: {
+      contact_syncs_24h: rawGlobal?.recent_activity?.contact_syncs_24h ?? 0,
+      invoice_syncs_24h: rawGlobal?.recent_activity?.invoice_syncs_24h ?? 0,
+    },
+  };
 
   // Filter tenants by search query (Scale to 15k feature)
   const filteredTenants = React.useMemo(() => {
-    if (!searchQuery.trim()) return tenants;
+    if (!searchQuery.trim()) return safeTenants;
     const query = searchQuery.toLowerCase();
-    return tenants.filter(
+    return safeTenants.filter(
       (t) =>
-        t.tenant_name.toLowerCase().includes(query) ||
-        t.tenant_id.toLowerCase().includes(query)
+        t.tenant_name?.toLowerCase().includes(query) ||
+        t.tenant_id?.toLowerCase().includes(query)
     );
-  }, [tenants, searchQuery]);
+  }, [safeTenants, searchQuery]);
 
   // Sort filtered tenants: primary first, then alphabetically
   const sortedTenants = React.useMemo(() => {
     return [...filteredTenants].sort((a, b) => {
       if (a.is_primary) return -1;
       if (b.is_primary) return 1;
-      return a.tenant_name.localeCompare(b.tenant_name);
+      return (a.tenant_name || "").localeCompare(b.tenant_name || "");
     });
   }, [filteredTenants]);
 
@@ -1049,12 +1096,12 @@ export function XeroSyncStats() {
                         <div className="flex justify-between text-[10px] text-muted-foreground mt-1 pt-1 border-t border-border/50">
                           <span>
                             Last: {tenant.data_sync.last_synced_at
-                              ? formatDistanceToNow(new Date(tenant.data_sync.last_synced_at), { addSuffix: false })
+                              ? safeFormatDistance(tenant.data_sync?.last_synced_at, { addSuffix: false })
                               : "—"}
                           </span>
                           <span>
                             Next: {tenant.data_sync.next_sync_at
-                              ? formatDistanceToNow(new Date(tenant.data_sync.next_sync_at), { addSuffix: false })
+                              ? safeFormatDistance(tenant.data_sync?.next_sync_at, { addSuffix: false })
                               : "—"}
                           </span>
                         </div>
@@ -1081,12 +1128,12 @@ export function XeroSyncStats() {
                         <div className="flex justify-between text-[10px] text-muted-foreground mt-1 pt-1 border-t border-border/50">
                           <span>
                             Last: {tenant.pdf_sync.last_synced_at
-                              ? formatDistanceToNow(new Date(tenant.pdf_sync.last_synced_at), { addSuffix: false })
+                              ? safeFormatDistance(tenant.pdf_sync?.last_synced_at, { addSuffix: false })
                               : "—"}
                           </span>
                           <span>
                             Next: {tenant.pdf_sync.next_sync_at
-                              ? formatDistanceToNow(new Date(tenant.pdf_sync.next_sync_at), { addSuffix: false })
+                              ? safeFormatDistance(tenant.pdf_sync?.next_sync_at, { addSuffix: false })
                               : "—"}
                           </span>
                         </div>
@@ -1242,7 +1289,7 @@ export function XeroSyncStats() {
                         title={tenant.sync_health.contacts.message}
                       />
                       <Clock className="h-3 w-3" />
-                      Synced {formatDistanceToNow(new Date(tenant.sync_health.contacts.last_synced_at), { addSuffix: true })}
+                      Synced {safeFormatDistance(tenant.sync_health?.contacts?.last_synced_at, { addSuffix: true })}
                     </div>
                   )}
                 </CardContent>

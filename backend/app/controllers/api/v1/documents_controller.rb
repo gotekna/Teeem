@@ -574,7 +574,9 @@ module Api
         # This reduces documents from ~150k to ~26k for instant loading
         # Pass ?include_emails=true to include emails (for admin/audit use)
         include_emails = params[:include_emails] == "true"
-        base_scope = WarehouseDocument.where.not(folder: [ nil, "" ])
+        # NOTE (Feb 2026): folder column REMOVED - now computed at runtime from source_type
+        # Base scope includes all documents with valid source_type
+        base_scope = WarehouseDocument.where.not(source_type: [nil, ""])
         base_scope = base_scope.where.not(source_type: "email") unless include_emails
 
         if path.blank?
