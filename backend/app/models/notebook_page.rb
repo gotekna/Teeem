@@ -4,13 +4,18 @@
 #
 # Features:
 # - Tiptap/HTML rich text content
-# - Content metadata (word count, etc.)
+# - Content metadata (word count, positioned boxes, strokes)
 # - Author and edit tracking
 # - Pinning
 # - Soft delete via archived_at
-# - Auto-sync to File Warehouse on save
+# - Auto-sync to File Warehouse on save (via WarehouseSyncable)
 #
 class NotebookPage < ApplicationRecord
+  include WarehouseSyncable
+
+  # Define warehouse type for File Warehouse sync
+  warehouse_type :notebook
+
   # Associations
   belongs_to :section, class_name: "NotebookSection"
   belongs_to :created_by, class_name: "User", optional: true
@@ -36,7 +41,6 @@ class NotebookPage < ApplicationRecord
   # Callbacks
   before_create :set_position
   before_save :update_content_metadata
-  after_save :sync_to_warehouse, if: :should_sync_to_warehouse?
 
   # Soft delete
   def archive!
@@ -106,6 +110,79 @@ class NotebookPage < ApplicationRecord
     end
   end
 
+  # ========================================
+  # WarehouseSyncable Overrides
+  # ========================================
+
+  # Override: Resolve tenant from notebook owner
+  # NotebookPage doesn't have direct tenant association, so derive from notebook.owner
+  def resolved_tenant
+    @resolved_tenant ||= begin
+      # Try notebook owner's tenant
+      if notebook&.owner&.respond_to?(:tenant) && notebook.owner.tenant.present?
+        notebook.owner.tenant
+      # Try created_by user's tenant
+      elsif created_by&.respond_to?(:tenant) && created_by.tenant.present?
+        created_by.tenant
+      # Fall back to ActsAsTenant context
+      elsif ActsAsTenant.current_tenant.present?
+        ActsAsTenant.current_tenant
+      else
+        raise ::TenantNotFoundError, "Cannot resolve tenant for NotebookPage #{id}"
+      end
+    end
+  end
+
+  # Safe filename for warehouse export (required by WarehouseSyncable)
+  def safe_filename
+    return "untitled" if title.blank?
+
+    # Remove invalid filename characters
+    clean = title.to_s.gsub(/[:\/*?"<>|\\]/, " ")
+    clean = clean.gsub(/\s+/, " ").strip
+    clean = clean[0..200] if clean.length > 200
+    clean.presence || "untitled"
+  end
+
+  # Alias for WarehouseSyncable (uses 'name' by default)
+  def name
+    title
+  end
+
+  # Override: Compute virtual folder path for File Warehouse
+  # Format: Notes/NotebookName/Year
+  def compute_virtual_folder_path
+    notebook_name = notebook&.name || "Unnamed"
+    year = (updated_at || Time.current).year.to_s
+
+    # Sanitize notebook name for folder path
+    safe_notebook = notebook_name.to_s.gsub(/[:\/*?"<>|\\]/, " ").gsub(/\s+/, " ").strip
+
+    "Notes/#{safe_notebook}/#{year}"
+  end
+
+  # Override: Source type for WarehouseDocument
+  def compute_source_type
+    "notebook"
+  end
+
+  # Override: Custom metadata for WarehouseDocument
+  def warehouse_metadata
+    {
+      notebook_id: notebook&.id,
+      notebook_name: notebook&.name,
+      section_id: section_id,
+      section_name: section&.name,
+      word_count: word_count,
+      char_count: char_count,
+      is_pinned: is_pinned,
+      created_by_id: created_by_id,
+      created_by_name: created_by&.name,
+      last_edited_by_id: last_edited_by_id,
+      last_edited_by_name: last_edited_by&.name
+    }.compact
+  end
+
   private
 
   def set_position
@@ -124,25 +201,13 @@ class NotebookPage < ApplicationRecord
     )
   end
 
-  # ========================================
-  # File Warehouse Sync
-  # ========================================
-
-  # Queue background job to sync this page to File Warehouse
-  def sync_to_warehouse
-    SyncNotebookToWarehouseJob.perform_later(id)
-  end
-
-  # Determine if this save should trigger warehouse sync
+  # Override: Only sync when content actually changed (not just position changes)
   def should_sync_to_warehouse?
-    # Skip if archived
     return false if archived?
+    return false unless warehouse_document_type.present?
 
-    # Skip if no meaningful content changes
-    return false unless content_changed_for_sync?
-
-    # Check if warehouse sync is enabled (fail gracefully if not configured)
-    warehouse_sync_enabled?
+    # Only sync on content changes, not position/pin changes
+    content_changed_for_sync? && warehouse_sync_enabled?
   end
 
   # Check if any content-related fields changed that warrant a sync
@@ -152,8 +217,7 @@ class NotebookPage < ApplicationRecord
       saved_change_to_title?
   end
 
-  # Check if warehouse sync is enabled for notebooks
-  # Fails gracefully if WarehouseProvider is not configured
+  # Override: Check warehouse sync is enabled
   def warehouse_sync_enabled?
     return false unless defined?(WarehouseProvider)
 

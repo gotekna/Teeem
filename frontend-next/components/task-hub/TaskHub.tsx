@@ -120,7 +120,7 @@ export function TaskHub() {
   };
 
   return (
-    <div className="space-y-3" data-tour="tasks-list">
+    <div className="flex flex-col h-full space-y-3" data-tour="tasks-list">
       {/* Compact Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -296,7 +296,7 @@ export function TaskHub() {
       </div>
 
       {/* View Content */}
-      <div className="mt-3">
+      <div className="flex-1 min-h-0 mt-3">
         {renderView()}
       </div>
 

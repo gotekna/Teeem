@@ -174,7 +174,7 @@ export function KanbanColumn<T extends KanbanItem = KanbanItem>({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col rounded-lg border-t-4 bg-muted/30",
+        "flex flex-col h-full rounded-lg border-t-4 bg-muted/30",
         columnColorClasses[color],
         isOver && !isDragging && "ring-2 ring-primary bg-primary/5",
         className
