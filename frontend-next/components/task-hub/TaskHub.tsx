@@ -120,9 +120,9 @@ export function TaskHub() {
   };
 
   return (
-    <div className="flex flex-col h-full space-y-3" data-tour="tasks-list">
+    <div className="flex flex-col h-full overflow-hidden gap-3" data-tour="tasks-list">
       {/* Compact Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 shrink-0">
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-semibold font-serif">Tasks</h1>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -156,7 +156,7 @@ export function TaskHub() {
 
       {/* Bulk Actions Bar */}
       {selectedTaskIds.size > 0 && (
-        <div className="flex items-center gap-2 px-2 py-1.5 bg-muted/50 rounded text-xs">
+        <div className="flex items-center gap-2 px-2 py-1.5 bg-muted/50 rounded text-xs shrink-0">
           <span className="font-medium">{selectedTaskIds.size} selected</span>
           <Button variant="ghost" size="sm" onClick={deselectAll} className="h-6 px-2 text-xs">
             <X className="h-3 w-3 mr-1" />
@@ -172,7 +172,7 @@ export function TaskHub() {
       )}
 
       {/* Filter & View Mode Controls */}
-      <div className="flex items-center gap-4" data-tour="tasks-filters">
+      <div className="flex items-center gap-4 shrink-0" data-tour="tasks-filters">
         {/* Filter: Mine / All */}
         <div className="flex items-center bg-muted rounded-md p-0.5">
           <button
@@ -296,7 +296,7 @@ export function TaskHub() {
       </div>
 
       {/* View Content */}
-      <div className="flex-1 min-h-0 mt-3">
+      <div className="flex-1 min-h-0 overflow-auto">
         {renderView()}
       </div>
 

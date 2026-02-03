@@ -54,6 +54,8 @@ export interface Attachment {
   // For inline images: content_id matches cid: references in HTML
   content_id?: string;
   inline_url?: string;
+  // Flag: true if this is an inline image (signature) that shouldn't show in attachment list
+  is_inline?: boolean;
 }
 
 interface AttachmentListProps {
@@ -79,10 +81,10 @@ function getFileIcon(contentType?: string, name?: string) {
 }
 
 // Check if attachment is a signature/embedded image that should be hidden
-// Disabled: User wants to see all attachments including signature images
-function isSignatureAttachment(_attachment: Attachment): boolean {
-  // No filtering - show all attachments
-  return false;
+// FRC (Feb 2026): Re-enabled filtering via is_inline flag from backend
+function isSignatureAttachment(attachment: Attachment): boolean {
+  // Backend marks inline signature images with is_inline: true
+  return attachment.is_inline === true;
 }
 
 export function AttachmentList({ attachments, emailId, className }: AttachmentListProps) {

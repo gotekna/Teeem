@@ -515,6 +515,7 @@ export function BoardView() {
 
   return (
     <>
+    <div className="h-full overflow-hidden">
       <KanbanBoard
         columns={columns}
         items={sortedTasks}
@@ -559,6 +560,7 @@ export function BoardView() {
           );
         }}
       />
+    </div>
 
       {/* Task Detail Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
