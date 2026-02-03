@@ -133,7 +133,7 @@ class WarehouseFolderQueryService
         {
           id: dt.id,
           name: dt.name,
-          display_name: dt.display_name,
+          ui_name: dt.ui_name,
           abbreviation: dt.abbreviation,
           file_name: dt.file_name
         }

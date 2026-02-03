@@ -6,23 +6,23 @@ namespace :reports do
     # Find or create the required document types
     pl_type = DocumentType.find_or_create_by!(name: "Profit and Loss") do |dt|
       dt.abbreviation = "P&L"
-      dt.display_name = "{DocTypeName} {MonthYearLong}"
+      dt.ui_name = "{DocTypeName} {MonthYearLong}"
     end
 
     bs_type = DocumentType.find_or_create_by!(name: "Balance Sheet") do |dt|
       dt.abbreviation = "BS"
-      dt.display_name = "{DocTypeName} {MonthYearLong}"
+      dt.ui_name = "{DocTypeName} {MonthYearLong}"
     end
 
     bank_type = DocumentType.find_or_create_by!(name: "Bank Statement") do |dt|
       dt.abbreviation = "BANK"
-      dt.display_name = "{BankCode} {MonthYearLong}"
+      dt.ui_name = "{BankCode} {MonthYearLong}"
     end
 
     puts "Document Types:"
-    puts "  P&L ID: #{pl_type.id}, template: #{pl_type.display_name}"
-    puts "  BS ID: #{bs_type.id}, template: #{bs_type.display_name}"
-    puts "  Bank ID: #{bank_type.id}, template: #{bank_type.display_name}"
+    puts "  P&L ID: #{pl_type.id}, template: #{pl_type.ui_name}"
+    puts "  BS ID: #{bs_type.id}, template: #{bs_type.ui_name}"
+    puts "  Bank ID: #{bank_type.id}, template: #{bank_type.ui_name}"
 
     # Backfill document_type_id on all reports
     pl_count = ProfitLossReport.where(document_type_id: nil).update_all(document_type_id: pl_type.id)

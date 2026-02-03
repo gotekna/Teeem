@@ -190,8 +190,8 @@ class BankStatementReport < ApplicationRecord
 
   # Compute display name from template or fallback
   def computed_display_name
-    if document_type&.display_name.present?
-      expand_display_template(document_type.display_name)
+    if document_type&.ui_name.present?
+      expand_display_template(document_type.ui_name)
     else
       bank_label = bank_code.presence || "Bank Statement"
       if month.present? && year.present?
