@@ -694,9 +694,15 @@ class WarehouseFolder < ApplicationRecord
   # SSoT (Feb 2026): Map warehouse_type → root folder name
   # Uses root_folder column (populated from first segment of warehouse_folder path)
   # Used by: documents_controller, warehouse_provider.as_json
+  #
+  # FRC (Feb 2026): Filter OUT internal/system folders with [[...]] syntax
+  # These are template folders (e.g., [[Email Body]]/{{Subject}}) not user-visible roots
+  # Example: "email" should map to "Emails", not "[[Email Body]]"
   def self.warehouse_type_to_root_folder
     result = {}
+    # First pass: Get user-visible folders (no [[ in root_folder)
     WarehouseFolder.where.not(root_folder: [nil, ''])
+                   .where("root_folder NOT LIKE '%[[%'")
                    .distinct
                    .pluck(:warehouse_type, :root_folder)
                    .each do |warehouse_type, root|
