@@ -341,13 +341,13 @@ export default function XeroIntegrationPage() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs - FRC: Use flex for scroll compatibility */}
       <Tabs
         value={currentTab}
         onValueChange={(value) => {
           setUrlState({ tab: value === "connection" ? null : value });
         }}
-        className="space-y-6"
+        className="flex flex-col gap-6"
       >
         <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="connection">
