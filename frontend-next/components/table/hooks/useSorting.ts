@@ -34,6 +34,8 @@ export interface SortingState {
 export interface SortingActions {
   /** Toggle sort on a column (cycles: none -> asc -> desc -> none) */
   toggleSort: (columnKey: string) => void;
+  /** Single-column sort: replaces all existing sorts with this column (cycles: none -> asc -> desc -> none) */
+  singleSort: (columnKey: string) => void;
   /** Set sort to specific direction */
   setSort: (columnKey: string, direction: 'asc' | 'desc') => void;
   /** Add a column to multi-sort */
@@ -105,6 +107,25 @@ export function useSorting(): UseSortingReturn {
     });
   }, [setSortColumns]);
 
+  // Single-column sort: replaces all existing sorts, cycles: none -> asc -> desc -> none
+  const singleSort = useCallback((columnKey: string) => {
+    setSortColumns((prev) => {
+      const existing = prev.find((s) => s.column === columnKey);
+      if (existing) {
+        if (existing.dir === 'asc') {
+          // asc -> desc (single column only)
+          return [{ column: columnKey, dir: 'desc' as const }];
+        } else {
+          // desc -> remove all sorting
+          return [];
+        }
+      } else {
+        // none -> asc (single column only, clears any other sorts)
+        return [{ column: columnKey, dir: 'asc' as const }];
+      }
+    });
+  }, [setSortColumns]);
+
   const setSort = useCallback((columnKey: string, direction: 'asc' | 'desc') => {
     setSortColumns((prev) => {
       const filtered = prev.filter((s) => s.column !== columnKey);
@@ -146,13 +167,14 @@ export function useSorting(): UseSortingReturn {
 
   const actions = useMemo<SortingActions>(() => ({
     toggleSort,
+    singleSort,
     setSort,
     addSort,
     removeSort,
     clearSort,
     setCustomOrder,
     setSortColumns,
-  }), [toggleSort, setSort, addSort, removeSort, clearSort, setCustomOrder, setSortColumns]);
+  }), [toggleSort, singleSort, setSort, addSort, removeSort, clearSort, setCustomOrder, setSortColumns]);
 
   // ============================================================================
   // APPLY (data transformation using headless core)

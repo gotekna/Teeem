@@ -2616,8 +2616,9 @@ export default function TeeemTableView({
     });
   }, [cacheColumnWidths, autoSaveColumnWidths]);
 
-  // Sort handler - MIGRATION: Now using useSorting hook
-  const handleSort = sorting.actions.toggleSort;
+  // Sort handler - uses singleSort for column header clicks (replaces existing sorts)
+  // Use toggleSort for multi-sort scenarios (shift+click, etc.)
+  const handleSort = sorting.actions.singleSort;
 
   // Filter handlers
   const addFilter = useCallback(() => {
