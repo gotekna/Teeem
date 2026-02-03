@@ -155,7 +155,7 @@ class BillInbox < ApplicationRecord
 
   # Phase 4: Virtual folder path for File Warehouse
   # SSoT: Reads from WarehouseProvider.path_for(:bill_inbox)
-  # Configure at: /settings/company/entity-config → Storage Config
+  # Configure at: /settings/company/warehouse-config → Warehouse Folders
   def virtual_folder_path
     return "Warehousing/BillInbox/Unknown" unless tenant_id
 

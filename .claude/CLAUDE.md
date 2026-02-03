@@ -472,7 +472,7 @@ Use `[id]` pattern for dynamic routes:
 | Holidays | `/settings/company/holidays` | Public holidays |
 | Workflows | `/settings/company/workflows` | Workflow configuration |
 | Job Setup | `/settings/company/job-setup` | Lists (Types/Statuses/Stages/Suburbs), Workflow |
-| Entity Config | `/settings/company/entity-config` | Corporate, Jobs, Contacts, Document Types, Storage Config, Email Config |
+| Warehouse Config | `/settings/company/warehouse-config` | Warehouse Folders, Document Types, Corporate, Jobs, Contacts, Email Config, Config Sync |
 | Offline | `/settings/company/offline` | Offline mode settings |
 
 ### Navigation Patterns
@@ -485,7 +485,7 @@ Use `[id]` pattern for dynamic routes:
 - ❌ `/settings/documents` → Moved to `/settings/company/documents`
 - ❌ `/settings/integrations` → Redirects to `/settings/connections/integrations`
 - ❌ `/settings/company/connections` → Moved to top-level `/settings/connections`
-- ❌ Entity Config in Developer → Moved to `/settings/company/entity-config`
+- ❌ Entity Config in Developer → Moved to `/settings/company/warehouse-config` (renamed Feb 2026)
 - ❌ Workflow Config separate tab → Moved to `/settings/company/job-setup/workflow`
 - ❌ Doc Templates duplicate → Consolidated into Documents > Templates
 

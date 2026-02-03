@@ -851,32 +851,18 @@ module Api
       end
 
       # SSoT (Feb 2026 FRC Fix): Map source_type to root folder
-      # Derives root folder from WarehouseProvider.path_for (database SSoT)
-      # No hardcoding - extracts first path segment from each warehouse type template
+      # Uses WarehouseProvider.scope_root_folders which derives from path templates
+      # No hardcoding - extracts first segment from each warehouse_type's template
       #
       # @return [Hash] { source_type => root_folder_name }
       def source_type_to_root_folder_mapping
         @source_type_to_root_folder_mapping ||= begin
+          # SSoT: WarehouseProvider.scope_root_folders extracts root from path templates
+          # e.g., 'asset' => 'Corporate/...' → 'Corporate'
           config = WarehouseProvider.instance rescue nil
           return {} unless config
 
-          mapping = {}
-
-          # Get all valid source_types from WarehouseDocument
-          source_types = WarehouseDocument.distinct.pluck(:source_type).compact
-
-          source_types.each do |source_type|
-            # SSoT: WarehouseProvider.path_for handles source_type → warehouse_type mapping
-            # and returns the full template path (e.g., "Jobs/{{JobCode}}/{{TabName}}")
-            template = config.path_for(source_type)
-            next unless template.present?
-
-            # Extract root folder (first path segment)
-            root_folder = template.split('/').first
-            mapping[source_type] = root_folder if root_folder.present?
-          end
-
-          mapping
+          config.scope_root_folders
         end
       end
 

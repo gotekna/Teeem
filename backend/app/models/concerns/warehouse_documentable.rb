@@ -19,15 +19,17 @@
 # - Computes folder path from WarehouseProvider templates
 # - Computes display name from model attributes
 #
-# Supported warehouse types (must match WarehouseProvider::DEFAULT_WAREHOUSE_FOLDERS keys):
+# Supported warehouse types (must exist in warehouse_folders table):
 #   :asset           - Asset expenses, odometer readings, service
 #   :financial       - Financial transactions
 #   :compliance      - Document tasks (permits, certifications)
-#   :people          - People documents (identity docs)
+#   :contact         - Contact/people documents
 #   :job             - Job documents
 #   :task            - Task attachments
 #   :corporate       - Corporate documents
 #   :email           - Email warehouse
+#
+# SSoT (Feb 2026): warehouse_folders table is THE ONE source of truth for path templates
 #
 module WarehouseDocumentable
   extend ActiveSupport::Concern

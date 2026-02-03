@@ -429,7 +429,7 @@ class SyncedEmail < ApplicationRecord
 
   # Compute virtual folder path for email attachments
   # SSoT: Now uses same path as email (attachments appear alongside .eml files)
-  # Configure at: /settings/company/entity-config → Storage Config → Emails
+  # Configure at: /settings/company/warehouse-config → Warehouse Folders → Emails
   def virtual_attachments_folder_path
     resolve_virtual_path(:email_attachments)
   end

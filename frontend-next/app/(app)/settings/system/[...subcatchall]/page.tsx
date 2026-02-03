@@ -25,11 +25,10 @@ const VALID_TABS = [
   "inspiring-quotes",
 ];
 
-// Legacy paths that should redirect to admin
-// SSoT (Feb 2026): entity-config renamed to warehouse-config
+// Paths that redirect to admin (where actual components live)
+// SSoT (Feb 2026): entity-config renamed to warehouse-config - NO LEGACY REDIRECTS (fail fast)
 const PATH_REDIRECTS: Record<string, string> = {
   "warehouse-config": "/admin/system/warehouse-config",
-  "entity-config": "/admin/system/warehouse-config",  // Legacy redirect
   "schedule-master": "/admin/system/schedule-master",
 };
 

@@ -406,6 +406,22 @@ export function ComposeEmailModal({
       return;
     }
 
+    // FRC (Feb 2026): For cross-tenant shared accounts, use the credential's signature
+    // instead of generating one from current user (which would show wrong company)
+    const selectedAccount = accounts.find((a) => String(a.id) === formData.credential_id);
+    if (selectedAccount?.is_cross_tenant && selectedAccount?.email_signature) {
+      console.log('[ComposeSignature] Using credential signature for cross-tenant account');
+      setSignatureHtml(selectedAccount.email_signature);
+      return;
+    }
+
+    // For cross-tenant accounts without a signature, don't show current user's company signature
+    if (selectedAccount?.is_cross_tenant) {
+      console.log('[ComposeSignature] Cross-tenant account has no signature, using empty');
+      setSignatureHtml("");
+      return;
+    }
+
     const signature = getUserSignature();
     console.log('[ComposeSignature] Generated signature length:', signature.length);
     console.log('[ComposeSignature] Calling setSignatureHtml...');

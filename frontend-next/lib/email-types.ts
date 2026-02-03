@@ -72,6 +72,11 @@ export interface EmailAccount {
   is_default?: boolean;
   email_signature?: string | null;
   email_aliases?: string[];
+  // FRC (Feb 2026): Cross-tenant sharing fields
+  is_shared?: boolean; // True if current user is not the owner
+  is_cross_tenant?: boolean; // True if credential owner is in a different tenant
+  owner_name?: string; // Name of the credential owner
+  owner_tenant_name?: string; // Tenant name of the credential owner
 }
 
 // =============================================================================

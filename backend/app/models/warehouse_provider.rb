@@ -178,89 +178,13 @@ class WarehouseProvider < ApplicationRecord
   end
 
   # ========================================
-  # Warehouse Root Folders (SSoT: warehouse_folders column ONLY)
+  # Warehouse Root Folders (SSoT: warehouse_folders table ONLY)
   # ========================================
-
-  # Default warehouse folder templates - used ONLY when creating new tenants
-  # SSoT: After creation, warehouse_folders column is THE ONE source of truth
-  # Database = truth, no runtime merging (consolidated Jan 2026)
   #
-  # These MUST include the root folder prefix (Jobs/, Corporate/, Emails/, etc.)
-  # Code uses these keys directly - if a key is missing, you get an error (no fallbacks!)
+  # SSoT (Feb 2026): All path templates are stored in warehouse_folders table
+  # To create a new tenant: copy warehouse_folders from existing tenant
+  # NO hardcoded defaults - database is THE ONE source of truth
   #
-  DEFAULT_WAREHOUSE_FOLDERS = {
-    # User personal documents (Teeem Docs feature - Jan 2026)
-    # Parent type has full path; child types store SUFFIX ONLY - derived from 'user' base
-    'user' => 'Teeem Docs/{{UserName}}/{{Year}}',
-    'user_excel' => 'Excel',           # SSoT: Suffix only - base from 'user'
-    'user_word' => 'Word',             # SSoT: Suffix only - base from 'user'
-    'user_powerpoint' => 'PowerPoint', # SSoT: Suffix only - base from 'user'
-    'user_pdf' => 'PDF',               # SSoT: Suffix only - base from 'user'
-    'user_notes' => 'Notes',           # SSoT: Suffix only - base from 'user'
-    # Job documents - {{TabName}} resolves to tab's folder name (e.g., "Invoices", "Plans")
-    'job' => 'Jobs/{{JobCode}}/{{TabName}}',
-    # Contact documents (SSoT for all individuals - Jan 2026 'people' merged into 'contact')
-    'contact' => 'Contacts/{{ContactName}}/{{TabName}}',
-    # Corporate documents (SSoT: 'corporate' is THE ONE - Jan 2026 consolidation)
-    'corporate' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
-    # Task documents
-    # SSoT: Virtual folder paths for File Warehouse display (SmTaskAttachment.virtual_folder_path)
-    # Actual files stored in Blobs/{hash}.ext - these paths are for UI organization only
-    # Parent type has full path with {{TaskName}}; child types store SUFFIX ONLY - derived from 'task' base
-    'task' => 'Tasks/{{TaskId}}/{{TaskName}}',
-    'task_attachments' => 'Attachments',     # SSoT: Suffix only - base from 'task'
-    'task_responses' => 'Responses',          # SSoT: Suffix only - base from 'task'
-    # Case documents (Jan 2026)
-    # SSoT: Virtual folder paths for File Warehouse - actual files in Blobs/{hash}.ext
-    # Child types store SUFFIX ONLY - derived from 'case' base
-    'case' => 'Cases/{{CaseId}}',
-    'case_documents' => 'Documents',      # SSoT: Suffix only - base from 'case'
-    'case_emails' => 'Emails',            # SSoT: Suffix only - base from 'case'
-    # Asset documents (Jan 2026) - under Corporate since assets belong to corporate entities
-    # For: asset_expense, asset_odometer_reading, asset_service_history
-    # Child types store SUFFIX ONLY - derived from 'asset' base
-    'asset' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}',
-    'asset_expenses' => 'Expenses',       # SSoT: Suffix only - base from 'asset'
-    'asset_service' => 'Service',         # SSoT: Suffix only - base from 'asset'
-    'asset_readings' => 'Readings',       # SSoT: Suffix only - base from 'asset'
-    # Compliance documents (Jan 2026)
-    # For: document_task (job compliance - permits, approvals, certifications)
-    'compliance' => 'Jobs/{{JobCode}}/Compliance',
-    # Bank statement documents (Jan 2026)
-    # For: bank_statement_report (ATO compliance PDFs)
-    'bank_statement' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/XERO/Bank',
-    # Balance sheet documents (Feb 2026)
-    # For: balance_sheet_report (financial statements)
-    'balance_sheet' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/XERO/Balance Sheet',
-    # Document templates (Jan 2026) - internal system files under Warehousing
-    # For: document_template (HTML templates, PDF overlays)
-    'template' => 'Warehousing/Templates/{{TemplateType}}',
-    # Template sub-scopes (Jan 2026) - organized by template type
-    'template_documents' => 'Templates/Documents',
-    'template_bank_statements' => 'Templates/Bank Statements',
-    'template_invoices' => 'Templates/Invoices',
-    'template_email_signatures' => 'Templates/Email Signatures',
-    'template_pdf_fields' => 'Templates/PDF Fields',
-    # E-signature documents (Jan 2026) - internal system files under Warehousing
-    # For: e_signature_request (DocuSign envelopes)
-    'esignature' => 'Warehousing/E-Signatures/{{Year}}/{{Month}}',
-    'esignature_pending' => 'Warehousing/E-Signatures/Pending',
-    'esignature_completed' => 'Warehousing/E-Signatures/Completed',
-    # Construction plans (Jan 2026)
-    # For: job_plan_revision, plan_folder_scan
-    'plan' => 'Jobs/{{JobCode}}/Plans',
-    # Email documents
-    # SSoT: Consistent with Tasks pattern (task/task_responses/task_attachments)
-    # Child types store SUFFIX ONLY - derived from 'email' base
-    'email' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',
-    'email_body' => 'Body',              # SSoT: Suffix only - base from 'email'
-    'email_attachments' => 'Attachments', # SSoT: Suffix only - base from 'email'
-    # Warehousing sub-types (all under Warehousing/ root)
-    'warehouse' => 'Warehousing/{{TabName}}',
-    'chat' => 'Warehousing/Conversations/{{Context}}/{{Year}}/{{Month}}',
-    'bill_inbox' => 'Warehousing/Bill Inbox/{{Status}}/{{Year}}/{{Month}}',
-    'notebook' => 'Warehousing/Notebooks/{{UserName}}/{{NotebookName}}/{{Year}}'
-  }.freeze
 
   # SSoT: Key aliases for warehouse types
   # Maps common variations to canonical warehouse type keys
@@ -366,9 +290,8 @@ class WarehouseProvider < ApplicationRecord
   # @param warehouse_type [String, Symbol] The warehouse type (job, contact, task, etc.)
   # @return [String, nil] Path template like "Jobs/{{JobCode}}" or nil if disabled
   #
-  # NOTE (Feb 2026): SSoT Consolidation
-  # Priority: 1. warehouse_folders.warehouse_folder column (per-tab custom)
-  #           2. DEFAULT_WAREHOUSE_FOLDERS constant (fallback)
+  # SSoT (Feb 2026): Reads ONLY from warehouse_folders table - no hardcoded defaults
+  # Database is THE ONE source of truth for path templates
   #
   # Examples:
   #   path_for(:job)              # => "Jobs/{{JobCode}}/{{TabName}}"
@@ -379,41 +302,29 @@ class WarehouseProvider < ApplicationRecord
     type_key = warehouse_type.to_s
     type_key = WAREHOUSE_KEY_ALIASES[type_key] || type_key
 
-    parent_type = WAREHOUSE_TYPE_PARENTS[type_key]
-    if parent_type
-      parent_path = path_for(parent_type)
-      return nil if parent_path.blank?
+    # SSoT: Read path template from warehouse_folders table
+    folder = WarehouseFolder.find_by(warehouse_type: type_key, parent_id: nil)
+    folder ||= WarehouseFolder.where(warehouse_type: type_key).order(:id).first
+    path = folder&.warehouse_folder
 
-      suffix = DEFAULT_WAREHOUSE_FOLDERS[type_key]
-      return nil if suffix.blank? || suffix == "DISABLED"
-
-      "#{parent_path}/#{suffix}".gsub(%r{//+}, '/')
-    else
-      # SSoT: Check warehouse_folders table first (per-tab custom templates)
-      # Then fall back to DEFAULT_WAREHOUSE_FOLDERS constant
-      folder = WarehouseFolder.find_by(warehouse_type: type_key, parent_id: nil)
-      folder ||= WarehouseFolder.where(warehouse_type: type_key).order(:id).first
-      custom_path = folder&.warehouse_folder
-
-      path = custom_path.presence || DEFAULT_WAREHOUSE_FOLDERS[type_key]
-      return nil if path.blank? || path == "DISABLED"
-      path
-    end
+    return nil if path.blank? || path == "DISABLED"
+    path
   end
 
   # Get all warehouse folders (full templates with tokens)
-  # SSoT (Feb 2026): Merges database values with DEFAULT_WAREHOUSE_FOLDERS
-  # Priority: warehouse_folders.warehouse_folder column > DEFAULT_WAREHOUSE_FOLDERS
+  # SSoT (Feb 2026): Reads ONLY from warehouse_folders table - no hardcoded defaults
+  # Database is THE ONE source of truth for path templates
   def effective_warehouse_folders
-    result = DEFAULT_WAREHOUSE_FOLDERS.dup
+    result = {}
 
-    # Override with any custom values from warehouse_folders table
-    DEFAULT_WAREHOUSE_FOLDERS.keys.each do |warehouse_type|
+    # Read path templates directly from warehouse_folders table
+    # Group by warehouse_type, take the root folder (parent_id: nil) or first folder
+    WarehouseFolder.distinct.pluck(:warehouse_type).each do |warehouse_type|
       folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
       folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
-      if folder&.warehouse_folder.present?
-        result[warehouse_type] = folder.warehouse_folder
-      end
+      next unless folder&.warehouse_folder.present?
+
+      result[warehouse_type] = folder.warehouse_folder
     end
 
     result
@@ -422,8 +333,9 @@ class WarehouseProvider < ApplicationRecord
   # LIM (Jan 2026): Simple root folder mapping for frontend
   # Frontend only needs scope → root folder (e.g., "contact" → "Contacts")
   # Full templates are only used by backend for path resolution
+  # SSoT (Feb 2026): Uses effective_warehouse_folders (includes database overrides)
   def scope_root_folders
-    DEFAULT_WAREHOUSE_FOLDERS.transform_values { |template| template.to_s.split('/').first }
+    effective_warehouse_folders.transform_values { |template| template.to_s.split('/').first }
   end
 
   # Extract folder templates from warehouse_folders (everything after root folder)
@@ -438,33 +350,8 @@ class WarehouseProvider < ApplicationRecord
     end
   end
 
-  # SSoT (Feb 2026): Get download_name templates from warehouse_folders table per-warehouse_type
-  # Returns: { "contact" => "{{CompanyCode}} {{DocType}}", "job" => nil, ... }
-  # First tries root tab (parent_id: nil), then falls back to first folder of that type
-  def scope_download_names
-    result = {}
-    DEFAULT_WAREHOUSE_FOLDERS.keys.each do |warehouse_type|
-      folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
-      folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
-      result[warehouse_type] = folder&.download_name
-    end
-    result.compact
-  end
-
-  # SSoT (Feb 2026): Get ui_name templates from warehouse_folders table per-warehouse_type
-  # Returns: { "contact" => "{{DocType}} - {{Date}}", "job" => nil, ... }
-  # First tries root tab (parent_id: nil), then falls back to first folder of that type
-  def scope_ui_names
-    result = {}
-    DEFAULT_WAREHOUSE_FOLDERS.keys.each do |warehouse_type|
-      folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
-      folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
-      result[warehouse_type] = folder&.ui_name
-    end
-    result.compact
-  end
-
-  # LIM (Jan 2026): Removed effective_scope_folders alias - use scope_root_folders.keys
+  # LIM (Feb 2026): Removed scope_download_names, scope_ui_names - unused dead code
+  # download_name and ui_name are stored per-tab in warehouse_folders table (SSoT)
 
   # ========================================
   # Path Building Helpers
@@ -1041,7 +928,7 @@ class WarehouseProvider < ApplicationRecord
   # - Reorganization is instant (bulk DB update)
   # - Physical storage stays at Blobs/{hash}.ext (never moves)
   #
-  # Configured via admin UI at /settings/company/entity-config/storage_config
+  # Configured via admin UI at /settings/company/warehouse-config/warehouse_folders
   # Stored in virtual_warehouses JSONB column: { "email" => true, "email_attachments" => true }
   #
   # @param warehouse_type [String, Symbol] The warehouse type name (email, task, job, etc.)

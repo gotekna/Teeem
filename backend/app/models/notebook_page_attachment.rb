@@ -95,7 +95,7 @@ class NotebookPageAttachment < ApplicationRecord
 
   # Phase 4: Virtual folder path for File Warehouse
   # SSoT: Reads from WarehouseProvider.path_for(:notebook)
-  # Configure at: /settings/company/entity-config → Storage Config
+  # Configure at: /settings/company/warehouse-config → Warehouse Folders
   # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
     tenant = resolve_tenant_for_config

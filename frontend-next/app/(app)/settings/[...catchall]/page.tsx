@@ -22,11 +22,8 @@ import { redirect } from "next/navigation";
 const PATH_REDIRECTS: Record<string, string> = {
   // Folder Configuration deep links → Admin System (where EntityConfigurationTab lives)
   // These need to go to admin/system, not settings/developer
-  // SSoT (Feb 2026): entity-config renamed to warehouse-config
+  // SSoT (Feb 2026): entity-config renamed to warehouse-config - NO LEGACY REDIRECTS (fail fast)
   "system/warehouse-config": "/admin/system/warehouse-config/corporate",
-  "system/entity-config": "/admin/system/warehouse-config/corporate",  // Legacy redirect
-  "system/entity-configuration": "/admin/system/warehouse-config/corporate",  // Legacy redirect
-  "developer/entity-config": "/admin/system/warehouse-config/corporate",  // Legacy redirect
   "developer/warehouse-config": "/admin/system/warehouse-config/corporate",
 
   // Component deep links → Developer tab (path-based)
@@ -55,8 +52,8 @@ function getRedirectUrl(pathSegments: string[]): string {
 
   // Special handling for warehouse-config deep links (preserve the scope)
   // e.g., system/warehouse-config/warehouse_folders → /admin/system/warehouse-config/warehouse_folders
-  // SSoT (Feb 2026): entity-config renamed to warehouse-config
-  if (fullPath.startsWith("system/warehouse-config/") || fullPath.startsWith("system/entity-config/") || fullPath.startsWith("system/entity-configuration/")) {
+  // SSoT (Feb 2026): entity-config renamed to warehouse-config - NO LEGACY REDIRECTS (fail fast)
+  if (fullPath.startsWith("system/warehouse-config/")) {
     const scope = pathSegments[2] || "corporate";
     return `/admin/system/warehouse-config/${scope}`;
   }

@@ -106,7 +106,7 @@
 | 13.12 | Company - Holidays | `/settings/company/holidays` | ⬜ |
 | 13.13 | Company - Workflows | `/settings/company/workflows` | ⬜ |
 | 13.14 | Company - Job Setup | `/settings/company/job-setup` | ⬜ |
-| 13.15 | Company - Entity Config | `/settings/company/entity-config` | ⬜ |
+| 13.15 | Company - Warehouse Config | `/settings/company/warehouse-config` | ⬜ |
 | 13.16 | Company - Offline | `/settings/company/offline` | ⬜ |
 | 13.17 | Operations | `/settings/operations` | ⬜ |
 | 13.18 | Connections | `/settings/connections` | ⬜ |
@@ -962,7 +962,7 @@ LEFT NAV PROGRESS: 12/15 COMPLETE
 - Holidays: `/settings/company/holidays`
 - Workflows: `/settings/company/workflows`
 - Job Setup: `/settings/company/job-setup`
-- Entity Config: `/settings/company/entity-config`
+- Warehouse Config: `/settings/company/warehouse-config`
 - Offline: `/settings/company/offline`
 - Operations: `/settings/operations`
 - Connections: `/settings/connections`
@@ -1037,7 +1037,7 @@ mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.v
 mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/holidays' })
 mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/workflows' })
 mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/job-setup' })
-mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/entity-config' })
+mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/warehouse-config' })
 mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app/settings/company/offline' })
 ```
 Take snapshot after each, verify loads
