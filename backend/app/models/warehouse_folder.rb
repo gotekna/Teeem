@@ -714,6 +714,62 @@ class WarehouseFolder < ApplicationRecord
       where(warehouse_type: warehouse_type).order(:id).first
   end
 
+  # SSoT (Feb 2026): Map warehouse_type → full warehouse_folder path template
+  # Returns: { "job" => "Jobs/{{JobCode}}/Overview", "email" => "Emails/{{Year}}/{{Month}}", ... }
+  # Used by: warehouse_provider.to_config_hash (frontend needs full paths)
+  # Prefers: tab_key == warehouse_type OR tab_key == 'overview' (the "root" tab for each type)
+  def self.warehouse_folders_mapping
+    result = {}
+
+    # Get root folders - prefer tab_key matching warehouse_type or 'overview'
+    WarehouseFolder.where(parent_id: nil)
+                   .where.not(warehouse_folder: [nil, ''])
+                   .where('tab_key = warehouse_type OR tab_key = ?', 'overview')
+                   .pluck(:warehouse_type, :warehouse_folder)
+                   .each do |warehouse_type, path|
+      result[warehouse_type] = path if path.present?
+    end
+
+    # Fallback: for any warehouse_type not yet in result, use first folder found
+    WarehouseFolder.where(parent_id: nil)
+                   .where.not(warehouse_folder: [nil, ''])
+                   .where.not(warehouse_type: result.keys)
+                   .order(:id)
+                   .pluck(:warehouse_type, :warehouse_folder)
+                   .each do |warehouse_type, path|
+      result[warehouse_type] ||= path if path.present?
+    end
+
+    result
+  end
+
+  # SSoT (Feb 2026): Map warehouse_type → download_name template
+  # Returns: { "email" => "{Subject} - {Date}.eml", ... }
+  # Used by: warehouse_provider.to_config_hash (frontend needs templates)
+  def self.download_names_mapping
+    result = {}
+    WarehouseFolder.where(parent_id: nil)
+                   .where.not(download_name: [nil, ''])
+                   .pluck(:warehouse_type, :download_name)
+                   .each do |warehouse_type, template|
+      result[warehouse_type] = template if template.present?
+    end
+    result
+  end
+
+  # SSoT (Feb 2026): Map warehouse_type → ui_name template
+  # Returns: { "email" => "{Subject}", ... }
+  # Used by: warehouse_provider.to_config_hash (frontend needs templates)
+  def self.ui_names_mapping
+    result = {}
+    WarehouseFolder.where(parent_id: nil)
+                   .where.not(ui_name: [nil, ''])
+                   .pluck(:warehouse_type, :ui_name)
+                   .each do |warehouse_type, template|
+      result[warehouse_type] = template if template.present?
+    end
+    result
+  end
 
   # Seed task tabs only (callable individually)
   def self.seed_task_tabs_only!

@@ -939,7 +939,14 @@ class WarehouseProvider < ApplicationRecord
 
       # LIM (Feb 2026): Frontend gets root folder mapping from warehouse_folders SSoT
       # scope_folders: { contact: "Contacts", job: "Jobs", ... } - NOT full templates
-      scope_folders: WarehouseFolder.warehouse_type_to_root_folder
+      scope_folders: WarehouseFolder.warehouse_type_to_root_folder,
+
+      # SSoT (Feb 2026): Full path templates from warehouse_folders table
+      # Frontend needs these for the Warehouse Folders config UI
+      warehouse_folders: WarehouseFolder.warehouse_folders_mapping,
+      warehouse_folder_templates: WarehouseFolder.warehouse_folders_mapping, # Alias for backwards compat
+      download_names: WarehouseFolder.download_names_mapping,
+      ui_name_templates: WarehouseFolder.ui_names_mapping
     }
   end
 end
