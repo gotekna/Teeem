@@ -246,7 +246,7 @@ class BulkEmailSyncJob < ApplicationJob
           metadata: { 'synced_email_id' => email.id.to_s }
         ) do |doc|
           doc.documentable = email
-          doc.display_name = filename
+          doc.ui_name = filename
           doc.original_filename = filename
           doc.folder = 'Emails/Attachments'
           doc.tenant_id = email.tenant_id

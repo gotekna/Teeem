@@ -1447,7 +1447,7 @@ module Api
           {
             id: doc.id,
             name: doc.original_filename,
-            display_title: doc.display_name,
+            display_title: doc.ui_name,
             source_type: "corporate",
             document_type: doc_type ? {
               id: doc_type.id,
@@ -1495,7 +1495,7 @@ module Api
 
         if search_term.present?
           search_pattern = "%#{search_term.downcase}%"
-          scope = scope.where("LOWER(display_name) LIKE ? OR LOWER(original_filename) LIKE ?",
+          scope = scope.where("LOWER(ui_name) LIKE ? OR LOWER(original_filename) LIKE ?",
                              search_pattern, search_pattern)
         end
 
@@ -1510,8 +1510,8 @@ module Api
 
           {
             id: wd.id,
-            name: wd.original_filename || wd.display_name,
-            display_title: wd.display_name,
+            name: wd.original_filename || wd.ui_name,
+            display_title: wd.ui_name,
             source_type: wd.source_type,
             document_type: nil,
             url: download_url,
@@ -2023,9 +2023,9 @@ module Api
           .limit(500)
           .map do |doc|
             job = doc.linkable if doc.linkable_type == "Job"
-            filename = doc.original_filename || doc.display_name || "Untitled"
+            filename = doc.original_filename || doc.ui_name || "Untitled"
             {
-              name: doc.display_name || filename,
+              name: doc.ui_name || filename,
               path: doc.folder || "",
               size: doc.file_size || doc.storage_blob&.file_size || 0,
               content_type: doc.storage_blob&.content_type || MiniMime.lookup_by_filename(filename)&.content_type || "application/octet-stream",
@@ -2052,9 +2052,9 @@ module Api
           .limit(500)
           .map do |doc|
             company = doc.linkable if doc.linkable_type == "Corporate"
-            filename = doc.original_filename || doc.display_name || "Untitled"
+            filename = doc.original_filename || doc.ui_name || "Untitled"
             {
-              name: doc.display_name || filename,
+              name: doc.ui_name || filename,
               path: doc.folder || "",
               size: doc.file_size || doc.storage_blob&.file_size || 0,
               content_type: doc.storage_blob&.content_type || MiniMime.lookup_by_filename(filename)&.content_type || "application/octet-stream",
@@ -2239,7 +2239,7 @@ module Api
       def document_to_json(doc)
         return {} unless doc.is_a?(WarehouseDocument)
 
-        filename = doc.original_filename || doc.display_name
+        filename = doc.original_filename || doc.ui_name
         blob = doc.storage_blob
         linkable = doc.linkable
 
@@ -2250,7 +2250,7 @@ module Api
         {
           id: doc.id,
           name: filename,
-          display_title: doc.display_name || filename,
+          display_title: doc.ui_name || filename,
           type: doc.content_type || blob&.content_type || "application/octet-stream",
           size: doc.file_size || blob&.file_size || 0,
           url: doc.download_url,
@@ -2310,7 +2310,7 @@ module Api
           documentableType: wd.documentable_type,
           documentableId: wd.documentable_id,
           # Names (SSoT from WarehouseDocument)
-          displayName: wd.display_name,
+          displayName: wd.ui_name,
           sendName: wd.download_filename,  # Resolved via SendNameResolver
           originalFilename: wd.original_filename,
           # File info
@@ -2437,7 +2437,7 @@ module Api
           id: doc.id,
           source: "corporate",
           fileName: doc.file_name,
-          displayName: doc.display_name || doc.file_name,
+          displayName: doc.ui_name || doc.file_name,
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
           fileUrl: generate_download_url(doc),  # S3: presigned URL, SharePoint: file_url
@@ -2495,8 +2495,8 @@ module Api
         {
           id: doc.id,
           source: "task",
-          fileName: doc.original_filename || doc.display_name,
-          displayName: doc.display_name,
+          fileName: doc.original_filename || doc.ui_name,
+          displayName: doc.ui_name,
           mimeType: doc.content_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
           fileUrl: doc.download_url,
@@ -2511,7 +2511,7 @@ module Api
           jobNumber: task&.job&.job_number,
           documentTypeId: doc.meta("document_type_id"),
           documentTypeName: doc.meta("document_type"),
-          isImage: image_file?(doc.original_filename || doc.display_name)
+          isImage: image_file?(doc.original_filename || doc.ui_name)
         }
       end
 
@@ -2522,13 +2522,13 @@ module Api
 
         task_attachment = SmTaskAttachment.find_by(attachable: doc)
         task = task_attachment&.sm_task
-        filename = doc.original_filename || doc.display_name
+        filename = doc.original_filename || doc.ui_name
 
         {
           id: doc.id,
           source: "task",
           fileName: filename,
-          displayName: doc.display_name || filename,
+          displayName: doc.ui_name || filename,
           mimeType: doc.content_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
           fileUrl: doc.download_url,

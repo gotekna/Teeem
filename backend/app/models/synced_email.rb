@@ -893,12 +893,12 @@ class SyncedEmail < ApplicationRecord
         next unless result[:success]
 
         pdf_texts << {
-          filename: doc.original_filename || doc.display_name,
+          filename: doc.original_filename || doc.ui_name,
           text: result[:text],
           pages: result[:page_count]
         }
       rescue StandardError => e
-        Rails.logger.error "Failed to extract PDF text from #{doc.display_name}: #{e.message}"
+        Rails.logger.error "Failed to extract PDF text from #{doc.ui_name}: #{e.message}"
       end
     end
 
@@ -949,7 +949,7 @@ class SyncedEmail < ApplicationRecord
       WarehouseDocument.create!(
         documentable: self,
         storage_blob_id: src_doc.storage_blob_id,
-        display_name: src_doc.display_name,
+        ui_name: src_doc.ui_name,
         original_filename: src_doc.original_filename,
         folder: 'Emails/Attachments',
         source_type: 'email_attachment',
@@ -961,7 +961,7 @@ class SyncedEmail < ApplicationRecord
 
       # Increment blob reference count
       src_doc.storage_blob&.increment!(:reference_count)
-      Rails.logger.debug "[SyncedEmail] Linked attachment: #{src_doc.display_name} → blob #{src_doc.storage_blob_id}"
+      Rails.logger.debug "[SyncedEmail] Linked attachment: #{src_doc.ui_name} → blob #{src_doc.storage_blob_id}"
     end
 
     # Update attachment count

@@ -1679,7 +1679,7 @@ module Api
             {
               id: doc.id.to_s,
               document_id: doc.id,
-              name: doc.display_name || doc.original_filename || "Untitled",
+              name: doc.ui_name || doc.original_filename || "Untitled",
               original_name: doc.original_filename,
               size: doc.file_size || blob&.file_size || 0,
               web_url: nil,
@@ -3366,7 +3366,7 @@ module Api
           # SSoT: Use storage_path from blob (provider-agnostic)
           sharepoint_item_id: doc.storage_blob&.storage_path,
           storage_reference: doc.storage_blob&.storage_path,
-          current_name: doc.display_name || doc.original_filename,
+          current_name: doc.ui_name || doc.original_filename,
           original_name: doc.original_filename,
           proposed_name: doc.meta("ai_proposed_name"),
           folder_path: doc.folder,

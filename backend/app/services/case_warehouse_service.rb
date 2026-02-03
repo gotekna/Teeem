@@ -414,7 +414,7 @@ class CaseWarehouseService
       date: doc.created_at.to_date,
       time: doc.created_at,
       type: "document",
-      title: doc.display_name || doc.original_filename,
+      title: doc.ui_name || doc.original_filename,
       description: "Source: #{doc.source_type}",
       source_type: "WarehouseDocument",
       source_id: doc.id,

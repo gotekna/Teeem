@@ -1559,8 +1559,8 @@ module Api
 
           {
             id: doc.id,
-            name: doc.storage_blob&.original_filename || doc.display_name,
-            displayName: doc.display_name,
+            name: doc.storage_blob&.original_filename || doc.ui_name,
+            displayName: doc.ui_name,
             folder: doc.folder,
             fileSize: doc.storage_blob&.file_size,
             contentType: doc.storage_blob&.content_type,

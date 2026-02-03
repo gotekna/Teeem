@@ -2,10 +2,6 @@ class DocumentType < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
 
-  # Backwards compatibility: display_name was renamed to ui_name (Feb 2026)
-  # TODO: Gradually migrate all callers to use ui_name, then remove this alias
-  alias_attribute :display_name, :ui_name
-
   # Associations
   # Note: corporate_company_documents and job_documents associations REMOVED (Jan 2026) - tables dropped
   # SSoT: WarehouseDocument is now THE ONE table for document metadata
@@ -162,7 +158,7 @@ class DocumentType < ApplicationRecord
   end
 
   # Callbacks
-  # SSoT: WarehouseDocument.display_name is computed dynamically via SendNameResolver
+  # SSoT: WarehouseDocument.ui_name is computed dynamically via SendNameResolver
   # Sync pending warehouse_folder_ids after create (deferred from warehouse_folder_ids= setter)
   after_create :sync_pending_warehouse_folder_ids
   # Track naming format changes for standardization prompts

@@ -741,7 +741,7 @@ module Api
               .includes(:storage_blob)
 
             docs.each do |doc|
-              file_name = doc.display_name || doc.storage_blob&.original_filename
+              file_name = doc.ui_name || doc.storage_blob&.original_filename
               file_size = doc.storage_blob&.file_size
               next unless file_name && subscription.should_sync_file?(file_name, file_size)
 

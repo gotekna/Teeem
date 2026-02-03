@@ -229,7 +229,7 @@ module Api
           folder: metadata[:folder] || metadata["folder"]
         )
 
-        { success: true, document: { id: doc.id, file_name: doc.file_name, display_name: doc.display_name } }
+        { success: true, document: { id: doc.id, file_name: doc.file_name, display_name: doc.ui_name } }
       end
 
       # SSoT (Jan 2026): Uses WarehouseDocument directly (no legacy JobDocument)
@@ -302,7 +302,7 @@ module Api
         {
           id: doc.id,
           file_name: doc.file_name,
-          display_name: doc.display_name || doc.file_name,
+          display_name: doc.ui_name || doc.file_name,
           document_type: doc.document_type,
           file_url: doc.file_url,
           file_size: doc.file_size,

@@ -528,7 +528,7 @@ class DocumentStorageService
     end
 
     # 1. WarehouseDocument: Use download_filename (SSoT via SendNameResolver)
-    # FRC (Jan 2026): Email attachments are WarehouseDocuments with proper display_name.
+    # FRC (Jan 2026): Email attachments are WarehouseDocuments with proper ui_name.
     # The download_filename method handles full resolution with templates.
     if record.is_a?(WarehouseDocument)
       return record.download_filename

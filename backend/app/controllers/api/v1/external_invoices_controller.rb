@@ -566,7 +566,7 @@ module Api
         documents = invoice.warehouse_documents.includes(:storage_blob).map do |doc|
           {
             id: doc.id,
-            title: doc.display_name,
+            title: doc.ui_name,
             file_name: doc.original_filename,
             document_type: doc.metadata&.dig("document_type"),
             folder: doc.folder,

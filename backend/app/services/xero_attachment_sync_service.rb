@@ -105,7 +105,7 @@ class XeroAttachmentSyncService
     )
 
     if existing.present? && existing.storage_blob_id.present?
-      Rails.logger.info("[XeroAttachmentSync] PDF already synced via WarehouseDocument, skipping: #{existing.display_name}")
+      Rails.logger.info("[XeroAttachmentSync] PDF already synced via WarehouseDocument, skipping: #{existing.ui_name}")
       results[:pdf] = existing
       results[:skipped] = true
       return

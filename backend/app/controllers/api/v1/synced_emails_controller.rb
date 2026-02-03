@@ -1176,13 +1176,13 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Try to find WarehouseDocument attachment first
     attachment_doc = @email.attachment_documents.find_by(id: attachment_id)
-    filename_hint = filename_param || attachment_doc&.original_filename || attachment_doc&.display_name
+    filename_hint = filename_param || attachment_doc&.original_filename || attachment_doc&.ui_name
     content_type_hint = attachment_doc&.content_type || attachment_doc&.storage_blob&.content_type
 
     # SSoT: Try WarehouseDocument + StorageBlob first (primary path since Jan 2026)
     # Priority 1: Use attachment found by ID if it has a storage blob
     if attachment_doc&.storage_blob.present?
-      Rails.logger.info "[SyncedEmail] Downloading attachment from storage by ID: #{attachment_doc.id} (#{attachment_doc.display_name})"
+      Rails.logger.info "[SyncedEmail] Downloading attachment from storage by ID: #{attachment_doc.id} (#{attachment_doc.ui_name})"
       content = attachment_doc.storage_blob.download
       # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
       content = content&.b
@@ -1769,7 +1769,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       inline_url = if doc.storage_blob.present? && content_id.present?
                      doc.storage_blob.presigned_url(expires_in: 3600)
                    end
-      filename = doc.original_filename || doc.display_name || "Unknown"
+      filename = doc.original_filename || doc.ui_name || "Unknown"
       synced_filenames << filename.downcase
 
       result << {
