@@ -52,6 +52,9 @@ import {
   Share2,
   FileSignature,
   Check,
+  Palette,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
@@ -105,6 +108,18 @@ interface ImapCredential {
   owner_tenant_name?: string; // Tenant name of the credential owner
   is_shared?: boolean; // True if current user is not the owner
   is_cross_tenant?: boolean; // True if credential owner is in a different tenant
+  // SSoT (Feb 2026): Per-account branding configuration
+  branding_config?: {
+    use_default?: boolean;
+    company_name?: string;
+    logo_url?: string;
+    logo_dark?: string;
+    address?: string;
+    city_state?: string;
+    website?: string;
+    brand_color?: string;
+    brand_color_foreground?: string;
+  };
 }
 
 interface Provider {
@@ -662,6 +677,19 @@ export function EmailAccountsTab() {
   const [selectedStyle, setSelectedStyle] = useState<SignatureStyleId>("modern-dark");
   const [savingSignature, setSavingSignature] = useState(false);
   const [companySettings, setCompanySettings] = useState<SignatureCompanyData | null>(null);
+  // SSoT (Feb 2026): Per-account branding state
+  const [brandingExpanded, setBrandingExpanded] = useState(false);
+  const [brandingDraft, setBrandingDraft] = useState({
+    use_default: true,
+    company_name: "",
+    logo_url: "",
+    logo_dark: "",
+    address: "",
+    city_state: "",
+    website: "",
+    brand_color: "#1a3c34",
+    brand_color_foreground: "#ffffff",
+  });
   // Get current user for signature preview
   const { user: currentUser } = useAuth();
 
@@ -1000,6 +1028,20 @@ export function EmailAccountsTab() {
     setSignatureCredential(cred);
     // Default to existing style or modern-dark
     setSelectedStyle((cred.signature_style as SignatureStyleId) || "modern-dark");
+    // SSoT (Feb 2026): Initialize branding draft from credential's branding_config
+    const bc = cred.branding_config || {};
+    setBrandingDraft({
+      use_default: bc.use_default !== false, // Default to true if not set
+      company_name: bc.company_name || "",
+      logo_url: bc.logo_url || "",
+      logo_dark: bc.logo_dark || "",
+      address: bc.address || "",
+      city_state: bc.city_state || "",
+      website: bc.website || "",
+      brand_color: bc.brand_color || "#1a3c34",
+      brand_color_foreground: bc.brand_color_foreground || "#ffffff",
+    });
+    setBrandingExpanded(bc.use_default === false); // Expand if custom branding is already set
     setSignatureDialogOpen(true);
   };
 
@@ -1016,8 +1058,23 @@ export function EmailAccountsTab() {
   };
 
   // Build company data for signature preview
-  // SSoT: companySettings is already in SignatureCompanyData format from useEffect
+  // SSoT (Feb 2026): Uses per-account branding if custom, otherwise company settings
   const getSignatureCompanyData = (): SignatureCompanyData | undefined => {
+    // If custom branding is enabled (use_default = false), use brandingDraft
+    if (!brandingDraft.use_default) {
+      return {
+        name: brandingDraft.company_name || undefined,
+        logo_dark: brandingDraft.logo_dark || undefined,
+        logo_light: brandingDraft.logo_url || undefined,
+        address: brandingDraft.address && brandingDraft.city_state
+          ? `${brandingDraft.address}, ${brandingDraft.city_state}`
+          : brandingDraft.address || brandingDraft.city_state || undefined,
+        website: brandingDraft.website || undefined,
+        brand_color: brandingDraft.brand_color || undefined,
+        brand_color_foreground: brandingDraft.brand_color_foreground || undefined,
+      };
+    }
+    // Default: use company settings
     return companySettings || undefined;
   };
 
@@ -1033,17 +1090,28 @@ export function EmailAccountsTab() {
         ? ""
         : generateSignatureByStyle(selectedStyle, userData, companyData);
 
-      await api.put("/api/v1/imap_credentials/update_account_signature", {
-        account_id: `imap_${signatureCredential.id}`,
-        signature_html: signatureHtml,
-        signature_style: selectedStyle,
-      });
+      // SSoT (Feb 2026): Save both signature and branding config in parallel
+      const accountId = `imap_${signatureCredential.id}`;
+
+      await Promise.all([
+        // Save signature
+        api.put("/api/v1/imap_credentials/update_account_signature", {
+          account_id: accountId,
+          signature_html: signatureHtml,
+          signature_style: selectedStyle,
+        }),
+        // Save branding config
+        api.put("/api/v1/imap_credentials/update_account_branding", {
+          account_id: accountId,
+          branding_config: brandingDraft,
+        }),
+      ]);
 
       toast({
-        title: "Signature saved",
+        title: "Settings saved",
         description: selectedStyle === "none"
           ? "No signature will be added to emails from this account."
-          : "Your email signature has been updated.",
+          : "Your email signature and branding have been updated.",
       });
 
       setSignatureDialogOpen(false);
@@ -1742,6 +1810,180 @@ export function EmailAccountsTab() {
               )}
             </DialogDescription>
           </DialogHeader>
+
+          {/* SSoT (Feb 2026): Per-Account Branding Configuration */}
+          <div className="border rounded-lg">
+            <button
+              type="button"
+              onClick={() => setBrandingExpanded(!brandingExpanded)}
+              className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Palette className="h-5 w-5 text-muted-foreground" />
+                <div className="text-left">
+                  <div className="font-medium text-sm">Company Branding</div>
+                  <div className="text-xs text-muted-foreground">
+                    {brandingDraft.use_default
+                      ? "Using default company settings"
+                      : `Custom: ${brandingDraft.company_name || "Not configured"}`}
+                  </div>
+                </div>
+              </div>
+              {brandingExpanded ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
+
+            {brandingExpanded && (
+              <div className="px-4 pb-4 space-y-4 border-t">
+                {/* Use Default Toggle */}
+                <div className="flex items-center justify-between pt-4">
+                  <div>
+                    <Label htmlFor="use-default-branding" className="text-sm font-medium">
+                      Use Default Company Branding
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      When enabled, uses your organization&apos;s company settings
+                    </p>
+                  </div>
+                  <Switch
+                    id="use-default-branding"
+                    checked={brandingDraft.use_default}
+                    onCheckedChange={(checked) =>
+                      setBrandingDraft({ ...brandingDraft, use_default: checked })
+                    }
+                  />
+                </div>
+
+                {/* Custom Branding Fields - shown when use_default is false */}
+                {!brandingDraft.use_default && (
+                  <div className="space-y-3 pt-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Company Name</Label>
+                        <Input
+                          value={brandingDraft.company_name}
+                          onChange={(e) =>
+                            setBrandingDraft({ ...brandingDraft, company_name: e.target.value })
+                          }
+                          placeholder="TEEEM"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Website</Label>
+                        <Input
+                          value={brandingDraft.website}
+                          onChange={(e) =>
+                            setBrandingDraft({ ...brandingDraft, website: e.target.value })
+                          }
+                          placeholder="https://teeem.au"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Logo (Dark/Email)</Label>
+                        <Input
+                          value={brandingDraft.logo_dark}
+                          onChange={(e) =>
+                            setBrandingDraft({ ...brandingDraft, logo_dark: e.target.value })
+                          }
+                          placeholder="https://..."
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Logo (Light)</Label>
+                        <Input
+                          value={brandingDraft.logo_url}
+                          onChange={(e) =>
+                            setBrandingDraft({ ...brandingDraft, logo_url: e.target.value })
+                          }
+                          placeholder="https://..."
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Address</Label>
+                        <Input
+                          value={brandingDraft.address}
+                          onChange={(e) =>
+                            setBrandingDraft({ ...brandingDraft, address: e.target.value })
+                          }
+                          placeholder="160 Alperton Road"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">City, State</Label>
+                        <Input
+                          value={brandingDraft.city_state}
+                          onChange={(e) =>
+                            setBrandingDraft({ ...brandingDraft, city_state: e.target.value })
+                          }
+                          placeholder="Burbank QLD 4156"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Brand Color</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="color"
+                            value={brandingDraft.brand_color}
+                            onChange={(e) =>
+                              setBrandingDraft({ ...brandingDraft, brand_color: e.target.value })
+                            }
+                            className="h-8 w-12 p-1"
+                          />
+                          <Input
+                            value={brandingDraft.brand_color}
+                            onChange={(e) =>
+                              setBrandingDraft({ ...brandingDraft, brand_color: e.target.value })
+                            }
+                            placeholder="#1a3c34"
+                            className="h-8 text-sm flex-1"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Text on Brand</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="color"
+                            value={brandingDraft.brand_color_foreground}
+                            onChange={(e) =>
+                              setBrandingDraft({ ...brandingDraft, brand_color_foreground: e.target.value })
+                            }
+                            className="h-8 w-12 p-1"
+                          />
+                          <Input
+                            value={brandingDraft.brand_color_foreground}
+                            onChange={(e) =>
+                              setBrandingDraft({ ...brandingDraft, brand_color_foreground: e.target.value })
+                            }
+                            placeholder="#ffffff"
+                            className="h-8 text-sm flex-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
             {/* Style Selection */}

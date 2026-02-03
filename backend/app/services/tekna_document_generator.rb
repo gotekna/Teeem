@@ -91,7 +91,7 @@ class TeknaDocumentGenerator
       requires: [ :purchase_order ],
       layout: "tekna",
       title: "Purchase Order",
-      output_filename: "{date}_PO_{po_number}_{job_name}"
+      output_filename: "{job_name}_{po_number}_{task_name}"
     },
 
     # QBCC Official documents (PDF overlay - uses official QBCC PDFs)
@@ -624,6 +624,9 @@ class TeknaDocumentGenerator
     filename.gsub!("{job_number}", job&.try(:job_number).to_s)
     filename.gsub!("{variation_number}", extra_data.dig(:variation, :number).to_s)
     filename.gsub!("{po_number}", purchase_order&.purchase_order_number.to_s)
+    # SSoT: Task name from linked SmTask (for Purchase Orders)
+    task_name = purchase_order&.sm_task&.name || extra_data[:task_name] || "General"
+    filename.gsub!("{task_name}", task_name.to_s.parameterize.presence || "general")
 
     "#{filename}.pdf"
   end

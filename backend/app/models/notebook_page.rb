@@ -8,6 +8,7 @@
 # - Author and edit tracking
 # - Pinning
 # - Soft delete via archived_at
+# - Auto-sync to File Warehouse on save
 #
 class NotebookPage < ApplicationRecord
   # Associations
@@ -17,6 +18,9 @@ class NotebookPage < ApplicationRecord
 
   has_one :notebook, through: :section
   has_many :attachments, class_name: "NotebookPageAttachment", foreign_key: "page_id", dependent: :destroy
+
+  # WarehouseDocument link for File Warehouse (Phase 6: Universal Documents)
+  has_one :warehouse_document, as: :documentable, class_name: "WarehouseDocument", dependent: :nullify
 
   # Validations
   validates :title, presence: true, length: { maximum: 255 }
@@ -32,6 +36,7 @@ class NotebookPage < ApplicationRecord
   # Callbacks
   before_create :set_position
   before_save :update_content_metadata
+  after_save :sync_to_warehouse, if: :should_sync_to_warehouse?
 
   # Soft delete
   def archive!
@@ -117,5 +122,45 @@ class NotebookPage < ApplicationRecord
       "char_count" => plain.length,
       "updated_at" => Time.current.iso8601
     )
+  end
+
+  # ========================================
+  # File Warehouse Sync
+  # ========================================
+
+  # Queue background job to sync this page to File Warehouse
+  def sync_to_warehouse
+    SyncNotebookToWarehouseJob.perform_later(id)
+  end
+
+  # Determine if this save should trigger warehouse sync
+  def should_sync_to_warehouse?
+    # Skip if archived
+    return false if archived?
+
+    # Skip if no meaningful content changes
+    return false unless content_changed_for_sync?
+
+    # Check if warehouse sync is enabled (fail gracefully if not configured)
+    warehouse_sync_enabled?
+  end
+
+  # Check if any content-related fields changed that warrant a sync
+  def content_changed_for_sync?
+    saved_change_to_content? ||
+      saved_change_to_content_metadata? ||
+      saved_change_to_title?
+  end
+
+  # Check if warehouse sync is enabled for notebooks
+  # Fails gracefully if WarehouseProvider is not configured
+  def warehouse_sync_enabled?
+    return false unless defined?(WarehouseProvider)
+
+    config = WarehouseProvider.instance rescue nil
+    config&.warehouse_sync_enabled? || false
+  rescue StandardError => e
+    Rails.logger.debug "[NotebookPage] Warehouse sync check failed: #{e.message}"
+    false
   end
 end

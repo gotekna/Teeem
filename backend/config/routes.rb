@@ -844,6 +844,8 @@ Rails.application.routes.draw do
           post :schedule_sync
           post :lock_budget
           post :unlock_budget
+          post :save_pdf
+          post :send_email
         end
         # Payments nested under purchase orders
         resources :payments, only: [ :index, :create ]

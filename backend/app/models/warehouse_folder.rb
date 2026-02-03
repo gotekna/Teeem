@@ -29,6 +29,7 @@ class WarehouseFolder < ApplicationRecord
   # SSoT: 'compliance' added for job compliance docs - permits, approvals (Jan 2026)
   # SSoT: 'payment' added for subcontractor payment docs (Jan 2026)
   # SSoT: 'bank_statement', 'template', 'esignature', 'plan' added (Jan 2026)
+  # SSoT: 'notebook' added for Notebook exports to File Warehouse (Feb 2026)
   WAREHOUSE_TYPES = %w[
     corporate job document contact email email_body email_attachments warehouse
     task task_attachments task_responses
@@ -39,7 +40,7 @@ class WarehouseFolder < ApplicationRecord
     bank_statement balance_sheet template
     template_documents template_bank_statements template_invoices template_email_signatures template_pdf_fields
     esignature esignature_pending esignature_completed
-    plan
+    plan notebook
     xero user user_excel user_word user_powerpoint user_pdf user_notes
   ].freeze
 
