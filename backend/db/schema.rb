@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_03_120006) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_03_120007) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9982,9 +9982,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120006) do
     t.uuid "version_group_id"
     t.integer "version_number", default: 1
     t.boolean "is_latest_version", default: true
+    t.string "folder"
     t.index ["display_name"], name: "index_warehouse_documents_on_display_name"
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
+    t.index ["folder"], name: "idx_warehouse_docs_folder"
     t.index ["linkable_type", "linkable_id"], name: "idx_warehouse_docs_linkable"
     t.index ["metadata"], name: "idx_warehouse_docs_metadata", using: :gin
     t.index ["parent_document_id", "source_type"], name: "idx_warehouse_docs_parent_source", where: "(parent_document_id IS NOT NULL)"
