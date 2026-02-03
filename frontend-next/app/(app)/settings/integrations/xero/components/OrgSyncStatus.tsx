@@ -194,11 +194,11 @@ export function OrgSyncStatus({ orgs, className }: OrgSyncStatusProps) {
             {/* Stats row */}
             <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
               <span>
-                {org.synced.toLocaleString()} / {org.total.toLocaleString()} PDFs
+                {(org.synced ?? 0).toLocaleString()} / {(org.total ?? 0).toLocaleString()} PDFs
               </span>
-              {org.pending > 0 && (
+              {(org.pending ?? 0) > 0 && (
                 <span className="text-amber-600 dark:text-amber-400">
-                  {org.pending.toLocaleString()} pending
+                  {(org.pending ?? 0).toLocaleString()} pending
                 </span>
               )}
             </div>

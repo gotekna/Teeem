@@ -540,7 +540,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
                 Estimated completion: <strong>{data.overall_eta}</strong>
               </div>
               <div className="text-xs text-blue-700 dark:text-blue-300">
-                Based on {data.synced_last_24h.toLocaleString()} PDFs synced in the last 24 hours
+                Based on {(data.synced_last_24h ?? 0).toLocaleString()} PDFs synced in the last 24 hours
               </div>
             </div>
           </div>
@@ -559,7 +559,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
               Total Invoices
             </div>
             <div className="text-lg font-semibold">
-              {data.stage1_data_sync?.total_in_database?.toLocaleString() || data.total_invoices.toLocaleString()}
+              {(data.stage1_data_sync?.total_in_database ?? data.total_invoices ?? 0).toLocaleString()}
             </div>
           </div>
           <div className="p-3 bg-muted/50 rounded-lg">
@@ -568,7 +568,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
               PDFs Downloaded
             </div>
             <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
-              {data.pdfs_synced.toLocaleString()}
+              {(data.pdfs_synced ?? 0).toLocaleString()}
             </div>
           </div>
           <div className="p-3 bg-muted/50 rounded-lg">
@@ -577,7 +577,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
               Uploaded
             </div>
             <div className="text-lg font-semibold text-green-600 dark:text-green-400">
-              {data.sharepoint_uploads.toLocaleString()}
+              {(data.sharepoint_uploads ?? 0).toLocaleString()}
             </div>
           </div>
           <div className="p-3 bg-muted/50 rounded-lg">
@@ -586,7 +586,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
               Pending
             </div>
             <div className="text-lg font-semibold text-amber-600">
-              {data.pending.toLocaleString()}
+              {(data.pending ?? 0).toLocaleString()}
             </div>
           </div>
         </div>
@@ -657,7 +657,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
             </div>
             {rateLimits && (
               <div className="text-sm text-blue-700">
-                <span className="font-semibold">{rateLimits.aggregate.daily_requests.toLocaleString()}</span>
+                <span className="font-semibold">{(rateLimits.aggregate?.daily_requests ?? 0).toLocaleString()}</span>
                 {/* FRC: Show aggregate without per-org limit comparison - limits are PER ORG not aggregate */}
                 <span className="text-blue-500 dark:text-blue-400"> API calls today ({rateLimits.tenants.length} orgs)</span>
               </div>
@@ -705,7 +705,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
                   )}
                 </div>
                 <div className="text-right text-sm">
-                  <div className="font-semibold text-blue-900">{data.pending.toLocaleString()} pending</div>
+                  <div className="font-semibold text-blue-900">{(data.pending ?? 0).toLocaleString()} pending</div>
                   <div className="text-xs text-muted-foreground">
                     {data.stage2_pdf_download?.blocker?.sync_mode === 'rate_limited'
                       ? `Resets at ${data.stage2_pdf_download?.blocker?.resets_at_display || 'midnight'}`
@@ -837,7 +837,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
                   {(tenant.total_7d > 0 || (tenant.daily?.used || 0) > 0) && (
                     <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
                       <span>
-                        {tenant.total_7d > 0 ? `${tenant.total_7d.toLocaleString()} total requests (7 days)` : ''}
+                        {(tenant.total_7d ?? 0) > 0 ? `${(tenant.total_7d ?? 0).toLocaleString()} total requests (7 days)` : ''}
                       </span>
                       {(tenant.daily?.used || 0) > 0 && rateLimits.resets_at_display && (
                         <span>Resets at {rateLimits.resets_at_display}</span>
