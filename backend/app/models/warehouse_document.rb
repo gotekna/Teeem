@@ -37,9 +37,9 @@ class WarehouseDocument < ApplicationRecord
   # This ensures ALL creation points get tenant_id without manual assignment
   before_validation :set_tenant_from_documentable, on: :create
 
-  # SSoT: Auto-compute folder from WarehouseProvider template if not provided
-  # This ensures folder always matches current template configuration
-  before_validation :compute_folder_from_template, on: :create, if: -> { folder.blank? }
+  # NOTE (Feb 2026 FRC Fix): Removed compute_folder_from_template callback
+  # Folder paths are now computed at runtime via computed_folder_path method
+  # This eliminates sync issues between stored folder and WarehouseFolder SSoT
 
   # ========================================
   # Associations
@@ -78,7 +78,8 @@ class WarehouseDocument < ApplicationRecord
 
   # Basic scopes
   scope :by_source, ->(source) { where(source_type: source) }
-  scope :in_folder, ->(folder) { where(folder: folder) }
+  # NOTE (Feb 2026 FRC Fix): Removed in_folder scope - folder column removed
+  # Use computed_folder_path for folder filtering (requires Ruby-side filtering)
   scope :with_blob, -> { where.not(storage_blob_id: nil) }
   scope :without_blob, -> { where(storage_blob_id: nil) }
 
@@ -151,37 +152,76 @@ class WarehouseDocument < ApplicationRecord
     nil
   end
 
-  # Update folder (instant - just DB update, no S3 copy)
-  def move_to_folder(new_folder)
-    update!(folder: new_folder)
-  end
+  # NOTE (Feb 2026 FRC Fix): Removed move_to_folder method
+  # Folder paths are computed from source_type + documentable, not stored
+  # To "move" a document, change its linkable association instead
 
   # ========================================
   # Computed Folder Path (Runtime Resolution)
   # ========================================
   #
-  # SSoT: Returns the folder path computed from CURRENT WarehouseProvider templates.
-  # This ensures folder paths update INSTANTLY when templates change in admin UI,
-  # without needing any background sync jobs.
+  # SSoT (Feb 2026 FRC Fix): Returns the folder path computed at RUNTIME.
+  # This is THE ONE way to get a document's folder path.
   #
-  # Delegates to documentable's virtual_folder_path which reads current templates.
-  # Falls back to stored folder column for documents without a documentable.
+  # Computation sources (in priority order):
+  # 1. documentable.virtual_folder_path (if documentable responds to it)
+  # 2. WarehouseProvider template expansion (from source_type + metadata)
+  # 3. Default path based on source_type (e.g., "Corporate", "Jobs")
   #
-  # @return [String] The folder path computed from current templates
+  # @return [String] The computed folder path
   #
   def computed_folder_path
-    # Try to compute from documentable's current template
+    # Try to compute from documentable's virtual_folder_path
     if documentable.present? && documentable.respond_to?(:virtual_folder_path)
       begin
-        return documentable.virtual_folder_path
+        path = documentable.virtual_folder_path
+        return path if path.present?
       rescue StandardError => e
-        Rails.logger.debug "[WarehouseDocument] computed_folder_path fallback for #{id}: #{e.message}"
+        Rails.logger.debug "[WarehouseDocument] computed_folder_path documentable failed for #{id}: #{e.message}"
       end
     end
 
-    # Fallback to stored folder (for legacy docs or docs without documentable)
-    folder
+    # Compute from WarehouseProvider template
+    begin
+      config = WarehouseProvider.instance rescue nil
+      if config
+        warehouse_type = source_type_to_warehouse_type
+        if warehouse_type
+          tokens = extract_folder_tokens
+          path = config.resolve_virtual_path(warehouse_type.to_sym, tokens)
+          return path if path.present?
+        end
+      end
+    rescue StandardError => e
+      Rails.logger.debug "[WarehouseDocument] computed_folder_path template failed for #{id}: #{e.message}"
+    end
+
+    # Fallback: derive root folder from source_type
+    source_type_to_root_folder
   end
+
+  # SSoT: Map source_type to root folder name
+  # Used as final fallback when template computation fails
+  def source_type_to_root_folder
+    case source_type
+    when "corporate", "xero", "financial", "asset" then "Corporate"
+    when "job", "compliance" then "Jobs"
+    when "contact", "people" then "Contacts"
+    when "task" then "Tasks"
+    when "email", "email_attachment" then "Emails"
+    when "case" then "Cases"
+    when "user" then "Teeem Docs"
+    when "template", "warehouse", "esignature" then "Warehousing"
+    else source_type&.titleize || "Documents"
+    end
+  end
+
+  # NOTE (Feb 2026 FRC Fix): folder column still exists for subfolder queries
+  # But root-level navigation now uses source_type mapping in documents_controller.rb
+  # The folder column is still useful for:
+  # - Subfolder queries: WHERE folder LIKE 'Corporate/Group/%'
+  # - GROUP BY queries: split_part(folder, '/', N)
+  # Root level duplicates are fixed because we no longer combine extras from folder column
 
   # ========================================
   # Computed Display Name (Runtime Resolution)
@@ -400,22 +440,8 @@ class WarehouseDocument < ApplicationRecord
     nil
   end
 
-  # SSoT: Compute folder from WarehouseProvider template
-  # Maps source_type to warehouse_type and expands template with documentable context
-  # Uses resolve_virtual_path (not resolve_path) for UI display folder without root_path prefix
-  def compute_folder_from_template
-    warehouse_type = source_type_to_warehouse_type
-    return unless warehouse_type
-
-    config = WarehouseProvider.instance rescue nil
-    return unless config
-
-    tokens = extract_folder_tokens
-    computed = config.resolve_virtual_path(warehouse_type.to_sym, tokens)
-    self.folder = computed if computed.present?
-  rescue StandardError => e
-    Rails.logger.debug "[WarehouseDocument] Could not compute folder: #{e.message}"
-  end
+  # NOTE (Feb 2026 FRC Fix): Removed compute_folder_from_template method
+  # Folder paths are now computed at runtime by computed_folder_path
 
   # Map source_type to warehouse template key
   def source_type_to_warehouse_type

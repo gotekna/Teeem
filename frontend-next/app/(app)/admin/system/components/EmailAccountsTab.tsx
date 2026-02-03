@@ -658,12 +658,11 @@ export function EmailAccountsTab() {
         api.get<{ success: boolean; data: ImapCredential[] }>("/api/v1/imap_credentials"),
         api.get<{ success: boolean; data: Provider[] }>("/api/v1/imap_credentials/providers"),
       ]);
-      // Debug: Log shared_with_users
-      console.log("[EmailAccounts] Credentials:", credResponse.data?.map(c => ({
-        id: c.id,
-        name: c.name,
-        shared_with_users: c.shared_with_users
-      })));
+      // Debug: Log shared_with_users - stringify to see actual values
+      console.log("[EmailAccounts] Raw response:", JSON.stringify(credResponse, null, 2));
+      console.log("[EmailAccounts] Credentials shared_with_users:", credResponse.data?.map(c =>
+        `${c.name}: ${JSON.stringify(c.shared_with_users)}`
+      ));
       setCredentials(credResponse.data || []);
       setProviders(providerResponse.data || []);
     } catch (error) {

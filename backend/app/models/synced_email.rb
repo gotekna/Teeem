@@ -74,8 +74,8 @@ class SyncedEmail < ApplicationRecord
   after_create_commit :inherit_job_from_thread
   after_create_commit :inherit_task_from_thread
   after_destroy_commit :broadcast_email_deleted
-  # Phase 4: Update warehouse_document.folder on relevant field changes
-  after_save :update_warehouse_document_folder, if: :should_update_virtual_folder?
+  # NOTE (Feb 2026 FRC Fix): Removed update_warehouse_document_folder callback
+  # Folder paths are now computed at runtime - no sync needed
   # Phase 4: Ensure warehouse_document exists when storage_path is set
   after_save :ensure_warehouse_document, if: :saved_change_to_storage_path?
 
@@ -1057,25 +1057,9 @@ class SyncedEmail < ApplicationRecord
 
   # Phase 4: Determine if virtual folder needs updating
   # Returns true if received_at, mailbox_owner_email, or email_mailbox_id changed
-  def should_update_virtual_folder?
-    saved_change_to_received_at? ||
-      saved_change_to_mailbox_owner_email? ||
-      saved_change_to_email_mailbox_id?
-  end
-
-  # Phase 4: Update warehouse_document.folder when virtual folder path changes
-  # This enables instant reorganization - just change the DB, don't move files
-  def update_warehouse_document_folder
-    return unless warehouse_document.present?
-
-    new_folder = virtual_folder_path
-    return if warehouse_document.folder == new_folder
-
-    warehouse_document.update_column(:folder, new_folder)
-    Rails.logger.debug "[SyncedEmail] Updated warehouse_document folder to: #{new_folder}"
-  rescue StandardError => e
-    Rails.logger.error "[SyncedEmail] Failed to update warehouse_document folder: #{e.message}"
-  end
+  # NOTE (Feb 2026 FRC Fix): Removed should_update_virtual_folder? and update_warehouse_document_folder
+  # Folder paths are now computed at runtime via WarehouseDocument#computed_folder_path
+  # No sync needed - renaming a WarehouseFolder instantly affects all documents
 
   # Phase 4: Ensure warehouse_document exists when storage_path is set
   # This is a safety net - EmailStorageUploadService should create it, but if

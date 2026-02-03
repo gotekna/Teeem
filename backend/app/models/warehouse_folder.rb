@@ -89,9 +89,9 @@ class WarehouseFolder < ApplicationRecord
   # SSoT: Auto-sync tab_key from display_name (display_name is the source of truth)
   before_validation :sync_tab_key_from_display_name
 
-  # SSoT: When display_name changes, update virtual folder paths in database
-  # Phase 3 Blob Architecture: No physical file movement, just DB updates (instant)
-  after_update :rename_folders_in_database_if_needed
+  # NOTE (Feb 2026 FRC Fix): Removed after_update :rename_folders_in_database_if_needed
+  # WarehouseDocument.folder is now computed from source_type, not stored/synced.
+  # Renaming a WarehouseFolder instantly affects File Warehouse display without any sync.
 
   # Set document types by IDs
   # SSoT: WarehouseFolder can only add/remove SECONDARY links (is_primary: false)
@@ -1229,24 +1229,9 @@ class WarehouseFolder < ApplicationRecord
       .gsub(/^-|-$/, '')         # Remove leading/trailing hyphens
   end
 
-  # SSoT: When display_name changes, update virtual folder paths in database
-  # Phase 3 Blob Architecture: Files are stored at content-hash paths (Blobs/{hash}/...)
-  # and NEVER physically move. "Folder" is just a virtual path in WarehouseDocument.folder.
-  # This is now a synchronous call since it's just DB updates (instant).
-  def rename_folders_in_database_if_needed
-    return unless warehouse_enabled
-    return unless saved_change_to_display_name?
-
-    old_name, new_name = saved_change_to_display_name
-    return if old_name.blank? || new_name.blank? || old_name == new_name
-
-    # Synchronous call - it's just DB updates, fast enough to run inline
-    WarehouseFolderRenameService.new(
-      warehouse_folder: self,
-      old_display_name: old_name,
-      new_display_name: new_name
-    ).execute
-  end
+  # NOTE (Feb 2026 FRC Fix): Removed rename_folders_in_database_if_needed method
+  # WarehouseDocument.folder is redundant - folder paths are computed from source_type.
+  # See: documents_controller.rb#source_type_to_root_folder_mapping
 
   # SSoT: Root tabs must have unique icons within the same warehouse_type
   # Child tabs can inherit parent's icon OR have their own unique icon

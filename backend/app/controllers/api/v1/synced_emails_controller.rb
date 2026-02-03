@@ -6,14 +6,37 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # GET /api/v1/synced_emails
   # List synced emails with filtering
   def index
-    emails = SyncedEmail.all
+    # FRC (Feb 2026): For cross-tenant email sharing, we need to bypass acts_as_tenant
+    # for IMAP credentials that are shared. The accessible_by scope handles authorization,
+    # so we use unscoped to avoid the tenant filter blocking shared credential emails.
+
+    # Capture tenant ID BEFORE entering without_tenant block (where current_tenant is nil)
+    user_tenant_id = current_tenant&.id
+
+    # SSoT: Use accessible_by scope which includes owned AND shared credentials
+    user_imap_ids = ActsAsTenant.without_tenant { ImapCredential.accessible_by(current_user).pluck(:id) }
+
+    # Check if any IMAP credentials are cross-tenant shared (owned by a different tenant)
+    # If so, we need to bypass acts_as_tenant for the entire email query
+    has_cross_tenant_imap = ActsAsTenant.without_tenant {
+      ImapCredential.where(id: user_imap_ids)
+                    .where.not(user_id: current_user.id)
+                    .joins(:user)
+                    .where.not(users: { tenant_id: user_tenant_id })
+                    .exists?
+    }
+
+    # Start with appropriate scope based on whether cross-tenant access is needed
+    if has_cross_tenant_imap
+      # Bypass tenant scoping - we'll filter explicitly by accessible credential IDs
+      emails = SyncedEmail.unscoped
+    else
+      emails = SyncedEmail.all
+    end
 
     # Filter to only current user's emails (my_emails mode)
     # Skip this filter if microsoft_credential_id is provided (we'll filter by that instead)
     if params[:my_emails] == "true" && params[:microsoft_credential_id].blank?
-      # SSoT: Use accessible_by scope which includes owned AND shared credentials
-      user_imap_ids = ImapCredential.accessible_by(current_user).pluck(:id)
-
       # Get MS365 org credentials the user has mailbox access to
       ms365_cred_ids = []
       ms365_mailbox_emails = []
@@ -29,7 +52,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       conditions = []
       bind_values = []
 
-      # IMAP accounts
+      # IMAP accounts - explicitly filter by accessible credential IDs
       if user_imap_ids.any?
         conditions << "(source_type = 'imap' AND imap_credential_id IN (?))"
         bind_values << user_imap_ids
@@ -652,11 +675,25 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Get unread email counts for the sidebar badge
   def unread_counts
     begin
-      # Get emails user has access to (same logic as index my_emails)
-      emails = SyncedEmail.all
+      # FRC (Feb 2026): Capture tenant ID BEFORE entering without_tenant block
+      user_tenant_id = current_tenant&.id
+
       # SSoT: Use accessible_by scope which includes owned AND shared credentials
-      user_imap_credentials = ImapCredential.accessible_by(current_user)
+      # FRC (Feb 2026): Must bypass acts_as_tenant for cross-tenant IMAP credentials
+      user_imap_credentials = ActsAsTenant.without_tenant { ImapCredential.accessible_by(current_user) }
       user_imap_ids = user_imap_credentials.pluck(:id)
+
+      # Check if any IMAP credentials are cross-tenant shared
+      has_cross_tenant_imap = ActsAsTenant.without_tenant {
+        ImapCredential.where(id: user_imap_ids)
+                      .where.not(user_id: current_user.id)
+                      .joins(:user)
+                      .where.not(users: { tenant_id: user_tenant_id })
+                      .exists?
+      }
+
+      # Get emails user has access to - bypass tenant for cross-tenant sharing
+      emails = has_cross_tenant_imap ? SyncedEmail.unscoped : SyncedEmail.all
 
       # Build list of all email accounts user has access to
       all_accounts = []

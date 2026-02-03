@@ -578,19 +578,29 @@ module Api
         base_scope = base_scope.where.not(source_type: "email") unless include_emails
 
         if path.blank?
-          # SSoT (Jan 2026): Root folder structure comes from WarehouseFolder
-          # WarehouseFolder is THE ONE source for folder hierarchy
-          # Counts come from WarehouseDocument (to show how many files in each folder)
+          # SSoT (Feb 2026 FRC Fix): Root folder structure comes ONLY from WarehouseFolder
+          # WarehouseFolder is THE ONE source - no "extras" from document folder column
+          # Counts come from source_type mapping (not parsing folder paths)
+          #
+          # Root cause fix: WarehouseDocument.folder was redundant data that got out of sync.
+          # Instead of fixing sync, we compute from source_type → root folder mapping.
           root_folders_from_config = WarehouseFolder.all_root_folders
 
-          # Get actual counts from WarehouseDocument for display
-          folder_counts = base_scope
-            .group(Arel.sql("split_part(folder, '/', 1)"))
-            .count
+          # SSoT: Map source_type to root folder for counting
+          # This eliminates duplicates from legacy folder values (ADVICE, Assets, BANK, etc.)
+          source_type_to_root = source_type_to_root_folder_mapping
 
-          # Build folders array: all configured folders (even with 0 count) + any extras from documents
-          all_root_folders = (root_folders_from_config + folder_counts.keys).uniq
-          folders = all_root_folders.map do |name|
+          # Count documents by source_type, then map to root folder
+          source_counts = base_scope.group(:source_type).count
+          folder_counts = Hash.new(0)
+          source_counts.each do |source_type, count|
+            root_folder = source_type_to_root[source_type]
+            next unless root_folder # Skip unknown source types
+            folder_counts[root_folder] += count
+          end
+
+          # Build folders array: ONLY configured folders (no extras from document folder column)
+          folders = root_folders_from_config.map do |name|
             { name: name, path: name, count: folder_counts[name] || 0 }
           end
 
@@ -838,6 +848,36 @@ module Api
       # Helper to escape LIKE wildcards in path
       def sanitize_sql_like(string)
         string.gsub(/[%_\\]/) { |x| "\\#{x}" }
+      end
+
+      # SSoT (Feb 2026 FRC Fix): Map source_type to root folder
+      # Derives root folder from WarehouseProvider.path_for (database SSoT)
+      # No hardcoding - extracts first path segment from each warehouse type template
+      #
+      # @return [Hash] { source_type => root_folder_name }
+      def source_type_to_root_folder_mapping
+        @source_type_to_root_folder_mapping ||= begin
+          config = WarehouseProvider.instance rescue nil
+          return {} unless config
+
+          mapping = {}
+
+          # Get all valid source_types from WarehouseDocument
+          source_types = WarehouseDocument.distinct.pluck(:source_type).compact
+
+          source_types.each do |source_type|
+            # SSoT: WarehouseProvider.path_for handles source_type → warehouse_type mapping
+            # and returns the full template path (e.g., "Jobs/{{JobCode}}/{{TabName}}")
+            template = config.path_for(source_type)
+            next unless template.present?
+
+            # Extract root folder (first path segment)
+            root_folder = template.split('/').first
+            mapping[source_type] = root_folder if root_folder.present?
+          end
+
+          mapping
+        end
       end
 
       # Build a complete folder tree by computing paths for all warehouse documents

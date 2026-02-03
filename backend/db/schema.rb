@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_03_110002) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10014,13 +10014,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_110002) do
     t.index ["user_id"], name: "index_vip_senders_on_user_id"
   end
 
+  create_table "warehouse_document_folder_backup", id: false, force: :cascade do |t|
+    t.bigint "id"
+    t.string "folder"
+    t.string "source_type"
+    t.string "documentable_type"
+    t.bigint "documentable_id"
+    t.datetime "created_at"
+  end
+
   create_table "warehouse_documents", force: :cascade do |t|
     t.string "documentable_type"
     t.bigint "documentable_id"
     t.bigint "storage_blob_id"
     t.string "display_name", null: false
     t.string "send_name"
-    t.string "folder"
     t.string "source_type", null: false
     t.string "original_filename"
     t.bigint "file_size"
@@ -10038,16 +10046,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_110002) do
     t.index ["display_name"], name: "index_warehouse_documents_on_display_name"
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
-    t.index ["folder"], name: "index_warehouse_documents_on_folder"
     t.index ["linkable_type", "linkable_id"], name: "idx_warehouse_docs_linkable"
     t.index ["metadata"], name: "idx_warehouse_docs_metadata", using: :gin
     t.index ["parent_document_id", "source_type"], name: "idx_warehouse_docs_parent_source", where: "(parent_document_id IS NOT NULL)"
     t.index ["parent_document_id"], name: "idx_warehouse_docs_parent"
-    t.index ["source_type", "folder"], name: "idx_warehouse_docs_scope_folder"
     t.index ["source_type"], name: "index_warehouse_documents_on_source_type"
     t.index ["storage_blob_id", "source_type"], name: "idx_warehouse_docs_blob_source"
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
-    t.index ["tenant_id", "source_type", "folder"], name: "idx_warehouse_docs_tenant_scope_folder"
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
   end

@@ -23,6 +23,7 @@ import {
   HardDrive,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { FuzzyMatchReviewModal } from "./FuzzyMatchReviewModal";
 import { FuzzyMatchReviewSheet } from "./FuzzyMatchReviewSheet";
@@ -117,6 +118,21 @@ interface BlobHealth {
   status: "healthy" | "needs_validation" | "files_missing" | "no_blobs";
 }
 
+// SSoT: sync_health comes from XeroSyncStatus.health_summary() - shows when sync JOB ran
+// NOT the same as contacts.last_synced_at which only updates when individual records change
+interface SyncHealthEntry {
+  status: string | null;
+  health_status: "green" | "yellow" | "red";
+  stale: boolean;
+  last_synced_at: string | null;
+  age_seconds: number | null;
+  age_minutes: number | null;
+  next_sync_at: string | null;
+  records_synced: number | null;
+  last_error: string | null;
+  message: string;
+}
+
 interface TenantStats {
   tenant_id: string;
   tenant_name: string;
@@ -130,6 +146,14 @@ interface TenantStats {
   data_sync?: TenantDataSyncStats;
   totals_summary?: TotalsSummary;
   blob_health?: BlobHealth;
+  // SSoT for "Synced X ago" - shows when sync JOB ran (from XeroSyncStatus)
+  sync_health?: {
+    invoices?: SyncHealthEntry;
+    contacts?: SyncHealthEntry;
+    pdfs?: SyncHealthEntry;
+    bank_transactions?: SyncHealthEntry;
+  };
+  overall_sync_health?: "green" | "yellow" | "red";
 }
 
 interface PendingReviewItem {
@@ -938,11 +962,20 @@ export function XeroSyncStats() {
                     </button>
                   )}
 
-                  {/* Last Sync */}
-                  {tenant.contacts.last_synced_at && (
+                  {/* Last Sync - SSoT: sync_health shows when sync JOB ran (not when records changed) */}
+                  {tenant.sync_health?.contacts?.last_synced_at && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <span
+                        className={cn(
+                          "h-2 w-2 rounded-full",
+                          tenant.sync_health.contacts.health_status === "green" && "bg-green-500",
+                          tenant.sync_health.contacts.health_status === "yellow" && "bg-yellow-500",
+                          tenant.sync_health.contacts.health_status === "red" && "bg-red-500"
+                        )}
+                        title={tenant.sync_health.contacts.message}
+                      />
                       <Clock className="h-3 w-3" />
-                      Synced {formatDistanceToNow(new Date(tenant.contacts.last_synced_at), { addSuffix: true })}
+                      Synced {formatDistanceToNow(new Date(tenant.sync_health.contacts.last_synced_at), { addSuffix: true })}
                     </div>
                   )}
                 </CardContent>
