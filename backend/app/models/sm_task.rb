@@ -212,6 +212,9 @@ class SmTask < ApplicationRecord
   # Activity Logs (history of changes)
   has_many :activity_logs, class_name: "TaskActivityLog", dependent: :destroy
 
+  # Task Notes (comments from users with author/date tracking)
+  has_many :notes, class_name: "SmTaskNote", dependent: :destroy
+
   # SaaS Customer association (for tickets and customer-linked tasks)
   belongs_to :saas_customer, class_name: "Contact", optional: true
 

@@ -177,10 +177,11 @@ For EACH nav item:
 2. Click the nav item
 3. Wait for page to load
 4. Take snapshot of the page
-5. Test all tabs, tables, drawers on that page
-6. If nav item has children, expand and test each child
-7. Show progress block
-8. Move to next nav item
+5. **Test scrolling** - verify page scrolls correctly (no layout overflow issues)
+6. Test all tabs, tables, drawers on that page
+7. If nav item has children, expand and test each child
+8. Show progress block
+9. Move to next nav item
 
 ---
 
@@ -1221,6 +1222,7 @@ FINAL TOTALS:
   Rows:         20+ clicked
   Drawers:      10+ opened
   Creates:      2 (Tasks, Contacts)
+  Scrolling:    ✓ All pages scroll correctly
   Errors:       [TOTAL]
 ════════════════════════════════════════════════════════════════════════════════
 ```
@@ -1261,6 +1263,7 @@ After completing all 15 nav items:
 - [ ] All tables tested with row clicks
 - [ ] All drawers opened and closed
 - [ ] Create tests passed (Tasks, Contacts)
+- [ ] **Scrolling verified on every page** (no layout overflow issues)
 - [ ] Report saved to notebook
 
 **DO NOT STOP EARLY.**

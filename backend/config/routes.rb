@@ -1833,6 +1833,10 @@ Rails.application.routes.draw do
           delete "contacts/:contact_id", action: :remove_contact
           # Task history/activity log
           get :history
+          # Task notes (comments with author/date tracking)
+          get :notes
+          post :notes, action: :create_note
+          delete "notes/:note_id", action: :delete_note
           # Action items (checkable items or questions)
           post :action_items, action: :create_action_item
           post "action_items/bulk", action: :bulk_create_action_items

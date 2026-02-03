@@ -2062,6 +2062,50 @@ module Api
       end
 
       # ============================================
+      # Task Notes (comments with author/date)
+      # ============================================
+
+      # GET /api/v1/sm_tasks/:id/notes
+      def notes
+        task_notes = @task.notes.includes(:user)
+
+        render json: {
+          success: true,
+          notes: task_notes.map { |note| note.as_json_with_user }
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/notes
+      def create_note
+        note = @task.notes.create!(
+          user: current_user,
+          content: params[:content]
+        )
+
+        render json: {
+          success: true,
+          note: note.as_json_with_user
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # DELETE /api/v1/sm_tasks/:id/notes/:note_id
+      def delete_note
+        note = @task.notes.find(params[:note_id])
+
+        # Only allow note author or task owner to delete
+        unless note.user_id == current_user.id || @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized to delete this note" }, status: :forbidden
+        end
+
+        note.destroy
+        render json: { success: true }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Note not found" }, status: :not_found
+      end
+
+      # ============================================
       # Action Items Endpoints
       # ============================================
 

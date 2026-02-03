@@ -1066,6 +1066,72 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [duration, setDuration] = useState(task.duration_days);
   const [loading, setLoading] = useState<string | null>(null);
 
+  // Notes state
+  interface TaskNote {
+    id: number;
+    content: string;
+    created_at: string;
+    user: { id: number; name: string; avatar_url?: string };
+  }
+  const [notes, setNotes] = useState<TaskNote[]>([]);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [noteLoading, setNoteLoading] = useState(false);
+
+  // Fetch notes on mount
+  useEffect(() => {
+    const fetchNotes = async () => {
+      try {
+        const response = await api.get<{ success: boolean; notes: TaskNote[] }>(
+          `/api/v1/sm_tasks/${task.id}/notes`
+        );
+        if (response?.success) {
+          setNotes(response.notes);
+        }
+      } catch (err) {
+        console.error('[TaskFullscreenView] Failed to fetch notes:', err);
+      }
+    };
+    fetchNotes();
+  }, [task.id]);
+
+  // Add a new note
+  const handleAddNote = async () => {
+    if (!newNoteText.trim()) return;
+    setNoteLoading(true);
+    try {
+      const response = await api.post<{ success: boolean; note: TaskNote }>(
+        `/api/v1/sm_tasks/${task.id}/notes`,
+        { content: newNoteText.trim() }
+      );
+      if (response?.success && response.note) {
+        setNotes(prev => [response.note, ...prev]);
+        setNewNoteText('');
+        toast.success('Note added');
+      }
+    } catch (err) {
+      console.error('[TaskFullscreenView] Failed to add note:', err);
+      toast.error('Failed to add note');
+    } finally {
+      setNoteLoading(false);
+    }
+  };
+
+  // Delete a note
+  const handleDeleteNote = async (noteId: number) => {
+    try {
+      const response = await api.delete<{ success: boolean }>(
+        `/api/v1/sm_tasks/${task.id}/notes/${noteId}`
+      );
+      if (response?.success) {
+        setNotes(prev => prev.filter(n => n.id !== noteId));
+        toast.success('Note deleted');
+      }
+    } catch (err) {
+      console.error('[TaskFullscreenView] Failed to delete note:', err);
+      toast.error('Failed to delete note');
+    }
+  };
+
   // Cascade completion
   const [showCascadeDialog, setShowCascadeDialog] = useState(false);
   const [linkedTasks, setLinkedTasks] = useState<SmTask[]>([]);
@@ -2797,7 +2863,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     if (!task.purchase_order_id) return;
     try {
       setPoPdfLoading('preview');
-      const response = await fetch(`/api/v1/purchase_orders/${task.purchase_order_id}/generate_pdf?format=html`, {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/v1/purchase_orders/${task.purchase_order_id}/generate_pdf?format=html`, {
         credentials: 'include',
       });
       const html = await response.text();
@@ -5224,6 +5291,71 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       )}
                     </div>
                   ) : null}
+                </div>
+
+                {/* Notes Section */}
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Notes</h4>
+                    <span className="text-xs text-muted-foreground">{notes.length} note{notes.length !== 1 ? 's' : ''}</span>
+                  </div>
+
+                  {/* Add note input */}
+                  <div className="flex gap-2">
+                    <Textarea
+                      placeholder="Add a note..."
+                      value={newNoteText}
+                      onChange={(e) => setNewNoteText(e.target.value)}
+                      className="min-h-[60px] text-sm resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          handleAddNote();
+                        }
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleAddNote}
+                      disabled={noteLoading || !newNoteText.trim()}
+                      className="h-auto px-3"
+                    >
+                      {noteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    </Button>
+                  </div>
+
+                  {/* Notes list - latest first */}
+                  {notes.length > 0 && (
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {notes.map((note) => (
+                        <div
+                          key={note.id}
+                          className="p-3 rounded-md border bg-muted/30 text-sm group"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                                <User className="h-3 w-3" />
+                                <span className="font-medium">{note.user.name}</span>
+                                <span>·</span>
+                                <span>{format(new Date(note.created_at), 'dd MMM yyyy h:mm a')}</span>
+                              </div>
+                              <div className="whitespace-pre-wrap">{note.content}</div>
+                            </div>
+                            {(note.user.id === currentUser?.id) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                onClick={() => handleDeleteNote(note.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-t pt-4 space-y-3">

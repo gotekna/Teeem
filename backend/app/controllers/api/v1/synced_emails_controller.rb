@@ -1802,10 +1802,19 @@ class Api::V1::SyncedEmailsController < ApplicationController
       client = MicrosoftAppGraphClient.new(credential)
       ms_attachments = client.get_email_attachments(mailbox, email.outlook_id)
 
-      # Filter out embedded images/signatures (inline attachments with contentId)
-      # These are typically small signature images that clutter the attachment list
+      # Filter out embedded images/signatures - be conservative to not lose real attachments
+      # Only filter if: isInline=true, OR (has contentId AND is small image = signature)
+      # FRC (Feb 2026): Previous filter was too aggressive - rejected any attachment with contentId
       filtered = ms_attachments.reject do |att|
-        att["isInline"] == true || att["contentId"].present?
+        is_inline = att["isInline"] == true
+        content_type = att["contentType"]&.to_s&.downcase || ""
+        file_size = att["size"].to_i
+        has_content_id = att["contentId"].present?
+        is_image = content_type.start_with?("image/")
+        is_small = file_size < 100_000  # 100KB threshold
+
+        # Reject if explicitly inline, OR if it's a small image with contentId (signature)
+        is_inline || (has_content_id && is_image && is_small)
       end
 
       # Add MS365 attachments that aren't already synced locally

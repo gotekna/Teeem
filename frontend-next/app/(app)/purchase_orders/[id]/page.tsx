@@ -58,6 +58,8 @@ import {
   Eye,
   Save,
   Send,
+  Paperclip,
+  Files,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -68,7 +70,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/formatters";
 
@@ -916,7 +918,8 @@ export default function PurchaseOrderDetailPage() {
 
     try {
       setLoadingPreview(true);
-      const response = await fetch(`/api/v1/purchase_orders/${recordId}/generate_pdf?format=html`, {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/v1/purchase_orders/${recordId}/generate_pdf?format=html`, {
         credentials: "include",
       });
       const html = await response.text();
@@ -2073,14 +2076,50 @@ export default function PurchaseOrderDetailPage() {
               </div>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPreviewModalOpen(false)}>
-              Close
-            </Button>
-            <Button onClick={handlePrint}>
-              <Printer className="h-4 w-4 mr-2" />
-              Print
-            </Button>
+          <DialogFooter className="flex-wrap gap-2 sm:gap-0">
+            <div className="flex-1">
+              <Button variant="outline" onClick={() => setPreviewModalOpen(false)}>
+                Close
+              </Button>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // TODO: Open attach plans modal/picker
+                  toast({ title: "Coming soon", description: "Attach Plans functionality" });
+                }}
+              >
+                <Paperclip className="h-4 w-4 mr-2" />
+                Attach Plans
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // TODO: Open site document picker
+                  toast({ title: "Coming soon", description: "Site Doc functionality" });
+                }}
+              >
+                <Files className="h-4 w-4 mr-2" />
+                Site Doc
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setPreviewModalOpen(false);
+                  setSendModalOpen(true);
+                }}
+                disabled={!canSendEmail}
+                title={!canSendEmail ? "Add line items and supplier email to enable" : "Send PO to supplier"}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Send
+              </Button>
+              <Button onClick={handlePrint}>
+                <Printer className="h-4 w-4 mr-2" />
+                Print
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

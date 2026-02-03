@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_03_160000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_03_160001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8543,6 +8543,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_160000) do
     t.index ["is_active"], name: "index_sm_task_groups_on_is_active"
   end
 
+  create_table "sm_task_notes", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.bigint "user_id", null: false
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["sm_task_id", "created_at"], name: "index_sm_task_notes_on_sm_task_id_and_created_at", order: { created_at: :desc }
+    t.index ["sm_task_id"], name: "index_sm_task_notes_on_sm_task_id"
+    t.index ["user_id"], name: "index_sm_task_notes_on_user_id"
+  end
+
   create_table "sm_task_photos", force: :cascade do |t|
     t.bigint "sm_task_id"
     t.bigint "job_id"
@@ -9694,3 +9705,1965 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_160000) do
     t.index ["tenant_id"], name: "index_trial_invitations_on_tenant_id"
     t.index ["token"], name: "index_trial_invitations_on_token", unique: true
   end
+
+  create_table "trinities", force: :cascade do |t|
+    t.integer "chapter_number", null: false
+    t.string "chapter_name", null: false
+    t.string "component"
+    t.string "title", null: false
+    t.string "status", default: "open"
+    t.string "severity", default: "medium"
+    t.date "first_reported"
+    t.date "last_occurred"
+    t.date "fixed_date"
+    t.text "scenario"
+    t.text "root_cause"
+    t.text "solution"
+    t.text "prevention"
+    t.jsonb "metadata", default: {}
+    t.text "search_text"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "entry_type", default: "bug", null: false
+    t.text "description"
+    t.text "details"
+    t.text "examples"
+    t.text "recommendations"
+    t.string "rule_reference"
+    t.string "section_number"
+    t.string "difficulty"
+    t.text "summary"
+    t.text "code_example"
+    t.text "common_mistakes"
+    t.text "testing_strategy"
+    t.text "related_rules"
+    t.string "category", null: false
+    t.string "created_by"
+    t.string "updated_by"
+    t.boolean "exclude_from_export", default: false, null: false
+    t.text "dense_index"
+    t.index ["category", "chapter_number"], name: "index_trinities_on_category_and_chapter_number"
+    t.index ["category"], name: "index_trinities_on_category"
+    t.index ["chapter_number", "entry_type"], name: "index_trinities_on_chapter_number_and_entry_type"
+    t.index ["chapter_number", "section_number"], name: "index_trinities_on_chapter_number_and_section_number"
+    t.index ["chapter_number", "status"], name: "index_trinities_on_chapter_number_and_status"
+    t.index ["chapter_number"], name: "index_trinities_on_chapter_number"
+    t.index ["dense_index"], name: "index_trinities_on_dense_index"
+    t.index ["entry_type"], name: "index_trinities_on_entry_type"
+    t.index ["exclude_from_export"], name: "index_trinities_on_exclude_from_export"
+    t.index ["search_text"], name: "index_trinities_on_search_text", opclass: :gin_trgm_ops, using: :gin
+    t.index ["section_number"], name: "index_trinities_on_section_number"
+    t.index ["severity"], name: "index_trinities_on_severity"
+    t.index ["status"], name: "index_trinities_on_status"
+  end
+
+  create_table "unreal_measurements", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "job_plan_id"
+    t.bigint "pricebook_item_id"
+    t.bigint "job_colour_selection_id"
+    t.string "session_id", null: false
+    t.string "measurement_type", null: false
+    t.decimal "value", precision: 15, scale: 4, null: false
+    t.string "unit", null: false
+    t.string "category"
+    t.string "subcategory"
+    t.text "notes"
+    t.jsonb "geometry_data", default: {}
+    t.bigint "synced_to_po_id"
+    t.datetime "synced_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_unreal_measurements_on_category"
+    t.index ["job_colour_selection_id"], name: "index_unreal_measurements_on_job_colour_selection_id"
+    t.index ["job_id", "session_id"], name: "index_unreal_measurements_on_job_id_and_session_id"
+    t.index ["job_id"], name: "index_unreal_measurements_on_job_id"
+    t.index ["job_plan_id"], name: "index_unreal_measurements_on_job_plan_id"
+    t.index ["measurement_type"], name: "index_unreal_measurements_on_measurement_type"
+    t.index ["pricebook_item_id"], name: "index_unreal_measurements_on_pricebook_item_id"
+    t.index ["session_id"], name: "index_unreal_measurements_on_session_id"
+    t.index ["synced_to_po_id"], name: "index_unreal_measurements_on_synced_to_po_id"
+  end
+
+  create_table "unreal_variables", force: :cascade do |t|
+    t.string "variable_name", null: false
+    t.decimal "claude_value", precision: 10, scale: 2, default: "0.0"
+    t.boolean "is_active", default: true
+    t.text "variable_rule"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["variable_name"], name: "index_unreal_variables_on_variable_name", unique: true
+  end
+
+  create_table "user_absences", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.date "start_date", null: false
+    t.date "end_date", null: false
+    t.string "absence_type", default: "leave"
+    t.boolean "approved", default: false
+    t.bigint "approved_by_id"
+    t.datetime "approved_at"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_user_absences_on_approved_by_id"
+    t.index ["start_date", "end_date"], name: "index_user_absences_on_start_date_and_end_date"
+    t.index ["user_id", "start_date", "end_date"], name: "index_user_absences_on_user_id_and_start_date_and_end_date"
+    t.index ["user_id"], name: "index_user_absences_on_user_id"
+  end
+
+  create_table "user_dictionary_words", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "word", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "word"], name: "index_user_dictionary_words_on_user_id_and_word", unique: true
+    t.index ["user_id"], name: "index_user_dictionary_words_on_user_id"
+  end
+
+  create_table "user_documents", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "document_type_id"
+    t.string "file_name", null: false
+    t.string "file_extension", limit: 10
+    t.integer "file_size"
+    t.string "content_type"
+    t.string "category", limit: 20
+    t.string "folder"
+    t.string "storage_path"
+    t.string "storage_item_id"
+    t.string "storage_provider", limit: 20
+    t.string "migration_status", limit: 20
+    t.text "migration_error"
+    t.datetime "migration_started_at"
+    t.datetime "migration_completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "storage_blob_id"
+    t.index ["category"], name: "index_user_documents_on_category"
+    t.index ["document_type_id"], name: "index_user_documents_on_document_type_id"
+    t.index ["migration_status"], name: "index_user_documents_on_migration_status"
+    t.index ["storage_blob_id"], name: "index_user_documents_on_storage_blob_id"
+    t.index ["storage_provider"], name: "index_user_documents_on_storage_provider"
+    t.index ["user_id", "category"], name: "index_user_documents_on_user_id_and_category"
+    t.index ["user_id"], name: "index_user_documents_on_user_id"
+  end
+
+  create_table "user_groups", force: :cascade do |t|
+    t.string "name"
+    t.string "label"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_user_groups_on_name", unique: true
+  end
+
+  create_table "user_job_tab_configs", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "job_tab_id", null: false
+    t.integer "position", default: 0, null: false
+    t.integer "parent_job_tab_id"
+    t.boolean "is_hidden", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_tab_id"], name: "index_user_job_tab_configs_on_job_tab_id"
+    t.index ["user_id", "job_tab_id"], name: "idx_user_job_tab_config_unique", unique: true
+    t.index ["user_id", "parent_job_tab_id"], name: "index_user_job_tab_configs_on_user_id_and_parent_job_tab_id"
+    t.index ["user_id", "position"], name: "index_user_job_tab_configs_on_user_id_and_position"
+    t.index ["user_id"], name: "index_user_job_tab_configs_on_user_id"
+  end
+
+  create_table "user_navigation_configs", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "navigation_item_id", null: false
+    t.boolean "is_collapsed", default: true
+    t.datetime "created_at", default: -> { "now()" }, null: false
+    t.datetime "updated_at", default: -> { "now()" }, null: false
+    t.index ["user_id", "navigation_item_id"], name: "idx_user_nav_config_unique", unique: true
+  end
+
+  create_table "user_permissions", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "permission_id", null: false
+    t.boolean "granted", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["permission_id"], name: "index_user_permissions_on_permission_id"
+    t.index ["user_id", "permission_id"], name: "index_user_permissions_on_user_id_and_permission_id", unique: true
+    t.index ["user_id"], name: "index_user_permissions_on_user_id"
+  end
+
+  create_table "user_roles", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "role_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "is_primary", default: false, null: false
+    t.index ["role_id"], name: "index_user_roles_on_role_id"
+    t.index ["user_id"], name: "index_user_roles_on_user_id"
+    t.index ["user_id"], name: "index_user_roles_on_user_id_primary", unique: true, where: "(is_primary = true)"
+  end
+
+  create_table "user_warehouse_folder_preferences", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "scope", null: false
+    t.jsonb "hidden_tabs", default: []
+    t.string "default_tab"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "tab_order", default: []
+    t.index ["user_id", "scope"], name: "idx_user_warehouse_folder_prefs_unique", unique: true
+    t.index ["user_id"], name: "index_user_warehouse_folder_preferences_on_user_id"
+  end
+
+  create_table "users", force: :cascade do |t|
+    t.string "email"
+    t.string "password_digest"
+    t.string "name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "last_chat_read_at"
+    t.string "reset_password_token"
+    t.datetime "reset_password_sent_at"
+    t.datetime "last_login_at"
+    t.string "mobile_phone"
+    t.string "provider"
+    t.string "uid"
+    t.boolean "wphs_appointee", default: false, null: false
+    t.boolean "preload_price_books", default: false, null: false
+    t.bigint "user_group_id"
+    t.datetime "last_seen_at"
+    t.boolean "can_view_confidential_fields", default: false, null: false
+    t.jsonb "email_nav_positions", default: {}
+    t.string "preferred_theme", default: "light"
+    t.bigint "contact_id"
+    t.string "job_title"
+    t.string "qbcc_licence_number"
+    t.string "qbcc_licence_class"
+    t.bigint "tenant_id"
+    t.bigint "signature_blob_id"
+    t.bigint "photo_blob_id"
+    t.boolean "enable_ai_writing_assistant", default: false, null: false
+    t.string "email_signature_style", default: "modern-dark"
+    t.index "lower((email)::text)", name: "idx_users_lower_email"
+    t.index ["contact_id"], name: "index_users_on_contact_id_unique", unique: true, where: "(contact_id IS NOT NULL)"
+    t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["photo_blob_id"], name: "index_users_on_photo_blob_id"
+    t.index ["signature_blob_id"], name: "index_users_on_signature_blob_id"
+    t.index ["tenant_id"], name: "index_users_on_tenant_id"
+    t.index ["user_group_id"], name: "index_users_on_user_group_id"
+    t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
+  end
+
+  create_table "versions", force: :cascade do |t|
+    t.integer "current_version", default: 101, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "vip_senders", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "email_address", null: false
+    t.string "name"
+    t.string "category"
+    t.text "notes"
+    t.boolean "notify_immediately", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email_address"], name: "idx_vip_senders_email"
+    t.index ["user_id", "email_address"], name: "idx_vip_senders_unique", unique: true
+    t.index ["user_id"], name: "index_vip_senders_on_user_id"
+  end
+
+  create_table "warehouse_documents", force: :cascade do |t|
+    t.string "documentable_type"
+    t.bigint "documentable_id"
+    t.bigint "storage_blob_id"
+    t.string "display_name", null: false
+    t.string "send_name"
+    t.string "source_type", null: false
+    t.string "original_filename"
+    t.bigint "file_size"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
+    t.jsonb "metadata", default: {}
+    t.bigint "parent_document_id"
+    t.string "linkable_type"
+    t.bigint "linkable_id"
+    t.uuid "version_group_id"
+    t.integer "version_number", default: 1
+    t.boolean "is_latest_version", default: true
+    t.index ["display_name"], name: "index_warehouse_documents_on_display_name"
+    t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
+    t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
+    t.index ["linkable_type", "linkable_id"], name: "idx_warehouse_docs_linkable"
+    t.index ["metadata"], name: "idx_warehouse_docs_metadata", using: :gin
+    t.index ["parent_document_id", "source_type"], name: "idx_warehouse_docs_parent_source", where: "(parent_document_id IS NOT NULL)"
+    t.index ["parent_document_id"], name: "idx_warehouse_docs_parent"
+    t.index ["source_type"], name: "index_warehouse_documents_on_source_type"
+    t.index ["storage_blob_id", "source_type"], name: "idx_warehouse_docs_blob_source"
+    t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
+    t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
+    t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
+  end
+
+  create_table "warehouse_folder_document_types", force: :cascade do |t|
+    t.bigint "warehouse_folder_id", null: false
+    t.bigint "document_type_id", null: false
+    t.boolean "is_primary", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document_type_id", "is_primary"], name: "idx_warehouse_folder_doc_types_primary"
+    t.index ["document_type_id"], name: "index_warehouse_folder_document_types_on_document_type_id"
+    t.index ["warehouse_folder_id", "document_type_id"], name: "idx_warehouse_folder_doc_types_unique", unique: true
+    t.index ["warehouse_folder_id"], name: "index_warehouse_folder_document_types_on_warehouse_folder_id"
+  end
+
+  create_table "warehouse_folders", force: :cascade do |t|
+    t.string "warehouse_type", null: false
+    t.string "tab_key", null: false
+    t.string "display_name", null: false
+    t.text "description"
+    t.string "tab_group"
+    t.bigint "parent_id"
+    t.bigint "job_id"
+    t.string "entity_filters", default: [], array: true
+    t.integer "order_position", default: 0
+    t.boolean "enabled", default: true
+    t.string "icon_name"
+    t.string "component_name"
+    t.boolean "is_system_tab", default: false
+    t.boolean "warehouse_enabled", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "display_code", limit: 3
+    t.boolean "uses_custom_path", default: false, null: false
+    t.string "warehouse_type_override", default: "corporate"
+    t.boolean "is_photo_category", default: false, null: false
+    t.string "display_mode", default: "both", null: false
+    t.boolean "hidden_by_default", default: false, null: false
+    t.string "storage_folder_id"
+    t.boolean "is_cad_category"
+    t.string "xero_scope"
+    t.string "visibility_rule"
+    t.bigint "tenant_id"
+    t.string "download_name"
+    t.string "warehouse_folder"
+    t.string "ui_name"
+    t.string "root_folder"
+    t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
+    t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
+    t.index ["job_id"], name: "index_warehouse_folders_on_job_id"
+    t.index ["parent_id"], name: "index_warehouse_folders_on_parent_id"
+    t.index ["root_folder"], name: "index_warehouse_folders_on_root_folder"
+    t.index ["storage_folder_id"], name: "index_warehouse_folders_on_storage_folder_id"
+    t.index ["tenant_id"], name: "index_warehouse_folders_on_tenant_id"
+    t.index ["warehouse_type", "enabled"], name: "index_warehouse_folders_on_warehouse_type_and_enabled"
+    t.index ["warehouse_type", "tab_group"], name: "index_warehouse_folders_on_warehouse_type_and_tab_group"
+    t.index ["warehouse_type", "tab_key", "job_id", "parent_id"], name: "idx_warehouse_folders_unique_key", unique: true
+    t.index ["warehouse_type"], name: "index_warehouse_folders_on_warehouse_type"
+  end
+
+  create_table "warehouse_providers", force: :cascade do |t|
+    t.string "provider_type", default: "sharepoint", null: false
+    t.string "status", default: "disconnected", null: false
+    t.jsonb "connection_config", default: {}, null: false
+    t.string "root_path", default: "/Shared Documents", null: false
+    t.string "credential_type"
+    t.bigint "credential_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "config_links", default: {}, null: false
+    t.jsonb "document_routing", default: {}, null: false
+    t.jsonb "virtual_warehouses", default: {}, null: false
+    t.boolean "exclude_sm_tasks", default: false, null: false
+    t.bigint "tenant_id", null: false
+    t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
+    t.index ["tenant_id"], name: "index_storage_configurations_on_tenant_id_unique", unique: true
+    t.index ["tenant_id"], name: "index_warehouse_providers_on_tenant_id"
+  end
+
+  create_table "whs_action_items", force: :cascade do |t|
+    t.string "actionable_type", null: false
+    t.bigint "actionable_id", null: false
+    t.bigint "assigned_to_user_id"
+    t.bigint "created_by_id", null: false
+    t.string "title", null: false
+    t.text "description"
+    t.string "action_type", null: false
+    t.string "priority", default: "medium", null: false
+    t.string "status", default: "open", null: false
+    t.date "due_date"
+    t.datetime "completed_at"
+    t.text "completion_notes"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "sm_task_id"
+    t.index ["actionable_type", "actionable_id"], name: "index_whs_action_items_on_actionable"
+    t.index ["assigned_to_user_id"], name: "index_whs_action_items_on_assigned_to_user_id"
+    t.index ["created_by_id"], name: "index_whs_action_items_on_created_by_id"
+    t.index ["due_date"], name: "index_whs_action_items_on_due_date"
+    t.index ["priority"], name: "index_whs_action_items_on_priority"
+    t.index ["sm_task_id"], name: "index_whs_action_items_on_sm_task_id"
+    t.index ["status"], name: "index_whs_action_items_on_status"
+  end
+
+  create_table "whs_incidents", force: :cascade do |t|
+    t.bigint "job_id"
+    t.bigint "reported_by_user_id", null: false
+    t.bigint "investigated_by_user_id"
+    t.string "incident_number", null: false
+    t.datetime "incident_date", null: false
+    t.datetime "report_date", null: false
+    t.string "location_description"
+    t.string "status", default: "reported", null: false
+    t.string "incident_category", null: false
+    t.string "incident_type"
+    t.string "severity_level", null: false
+    t.text "what_happened", null: false
+    t.string "activity_being_performed"
+    t.string "equipment_involved"
+    t.string "weather_conditions"
+    t.string "time_of_day"
+    t.string "lighting_conditions"
+    t.jsonb "contributing_factors", default: []
+    t.string "injured_person_name"
+    t.string "injured_person_company"
+    t.string "injured_person_role"
+    t.string "injury_type"
+    t.string "body_part_affected"
+    t.boolean "first_aid_given", default: false
+    t.boolean "medical_treatment_required", default: false
+    t.string "hospital_attended"
+    t.integer "time_lost_hours"
+    t.date "likely_return_date"
+    t.jsonb "witnesses", default: []
+    t.text "immediate_actions_taken"
+    t.date "investigation_date"
+    t.text "immediate_cause"
+    t.text "underlying_causes"
+    t.text "recommendations"
+    t.jsonb "photo_urls", default: []
+    t.jsonb "evidence_urls", default: []
+    t.boolean "workcov_notification_required", default: false
+    t.boolean "notifiable_incident", default: false
+    t.date "workcov_notification_date"
+    t.string "workcov_reference_number"
+    t.datetime "closed_at"
+    t.text "closure_notes"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "sm_task_id"
+    t.index ["incident_category"], name: "index_whs_incidents_on_incident_category"
+    t.index ["incident_date"], name: "index_whs_incidents_on_incident_date"
+    t.index ["incident_number"], name: "index_whs_incidents_on_incident_number", unique: true
+    t.index ["investigated_by_user_id"], name: "index_whs_incidents_on_investigated_by_user_id"
+    t.index ["job_id", "status"], name: "index_whs_incidents_on_job_id_and_status"
+    t.index ["job_id"], name: "index_whs_incidents_on_job_id"
+    t.index ["reported_by_user_id"], name: "index_whs_incidents_on_reported_by_user_id"
+    t.index ["severity_level"], name: "index_whs_incidents_on_severity_level"
+    t.index ["sm_task_id"], name: "index_whs_incidents_on_sm_task_id"
+    t.index ["status"], name: "index_whs_incidents_on_status"
+    t.index ["workcov_notification_required"], name: "index_whs_incidents_on_workcov_notification_required"
+  end
+
+  create_table "whs_induction_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "induction_type", null: false
+    t.text "description"
+    t.boolean "active", default: true
+    t.decimal "version", precision: 3, scale: 1, default: "1.0"
+    t.jsonb "content_sections", default: []
+    t.integer "expiry_months"
+    t.boolean "requires_renewal", default: false
+    t.boolean "has_quiz", default: false
+    t.integer "min_passing_score"
+    t.text "acknowledgment_statement"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_whs_induction_templates_on_active"
+    t.index ["induction_type"], name: "index_whs_induction_templates_on_induction_type"
+    t.index ["name"], name: "index_whs_induction_templates_on_name"
+  end
+
+  create_table "whs_inductions", force: :cascade do |t|
+    t.bigint "whs_induction_template_id", null: false
+    t.bigint "job_id"
+    t.bigint "user_id"
+    t.bigint "conducted_by_user_id", null: false
+    t.string "certificate_number", null: false
+    t.string "induction_type", null: false
+    t.string "status", default: "valid", null: false
+    t.string "worker_name", null: false
+    t.string "worker_company"
+    t.string "worker_contact"
+    t.datetime "completion_date", null: false
+    t.date "expiry_date"
+    t.integer "quiz_score"
+    t.boolean "passed", default: true
+    t.text "worker_signature"
+    t.text "supervisor_signature"
+    t.text "acknowledgment_statement"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["certificate_number"], name: "index_whs_inductions_on_certificate_number", unique: true
+    t.index ["conducted_by_user_id"], name: "index_whs_inductions_on_conducted_by_user_id"
+    t.index ["expiry_date"], name: "index_whs_inductions_on_expiry_date"
+    t.index ["job_id"], name: "index_whs_inductions_on_job_id"
+    t.index ["status"], name: "index_whs_inductions_on_status"
+    t.index ["user_id"], name: "index_whs_inductions_on_user_id"
+    t.index ["whs_induction_template_id"], name: "index_whs_inductions_on_whs_induction_template_id"
+    t.index ["worker_name", "induction_type"], name: "index_whs_inductions_on_worker_name_and_induction_type"
+  end
+
+  create_table "whs_inspection_items", force: :cascade do |t|
+    t.bigint "whs_inspection_id", null: false
+    t.string "item_description", null: false
+    t.string "category"
+    t.string "result"
+    t.boolean "photo_required", default: false
+    t.boolean "notes_required", default: false
+    t.integer "weight", default: 1
+    t.integer "position", default: 0
+    t.text "notes"
+    t.jsonb "photo_urls", default: []
+    t.boolean "action_required", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_required"], name: "index_whs_inspection_items_on_action_required"
+    t.index ["result"], name: "index_whs_inspection_items_on_result"
+    t.index ["whs_inspection_id"], name: "index_whs_inspection_items_on_whs_inspection_id"
+  end
+
+  create_table "whs_inspection_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "inspection_type"
+    t.string "category"
+    t.text "description"
+    t.integer "pass_threshold_percentage", default: 80
+    t.boolean "active", default: true
+    t.jsonb "checklist_items", default: []
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_whs_inspection_templates_on_active"
+    t.index ["inspection_type"], name: "index_whs_inspection_templates_on_inspection_type"
+    t.index ["name"], name: "index_whs_inspection_templates_on_name"
+  end
+
+  create_table "whs_inspections", force: :cascade do |t|
+    t.bigint "job_id"
+    t.bigint "whs_inspection_template_id"
+    t.bigint "inspector_user_id"
+    t.bigint "created_by_id", null: false
+    t.bigint "meeting_id"
+    t.string "inspection_number", null: false
+    t.string "inspection_type", null: false
+    t.string "status", default: "scheduled", null: false
+    t.string "title"
+    t.text "description"
+    t.date "scheduled_date"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.string "weather_conditions"
+    t.text "site_conditions"
+    t.integer "total_items", default: 0
+    t.integer "pass_count", default: 0
+    t.integer "fail_count", default: 0
+    t.integer "na_count", default: 0
+    t.decimal "compliance_score", precision: 5, scale: 2
+    t.boolean "overall_pass", default: false
+    t.boolean "critical_issues_found", default: false
+    t.text "inspector_signature"
+    t.text "overall_notes"
+    t.boolean "follow_up_required", default: false
+    t.date "follow_up_date"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_whs_inspections_on_created_by_id"
+    t.index ["critical_issues_found"], name: "index_whs_inspections_on_critical_issues_found"
+    t.index ["inspection_number"], name: "index_whs_inspections_on_inspection_number", unique: true
+    t.index ["inspection_type"], name: "index_whs_inspections_on_inspection_type"
+    t.index ["inspector_user_id"], name: "index_whs_inspections_on_inspector_user_id"
+    t.index ["job_id", "status"], name: "index_whs_inspections_on_job_id_and_status"
+    t.index ["job_id"], name: "index_whs_inspections_on_job_id"
+    t.index ["meeting_id"], name: "index_whs_inspections_on_meeting_id"
+    t.index ["scheduled_date"], name: "index_whs_inspections_on_scheduled_date"
+    t.index ["status"], name: "index_whs_inspections_on_status"
+  end
+
+  create_table "whs_settings", force: :cascade do |t|
+    t.string "setting_key", null: false
+    t.text "setting_value"
+    t.string "setting_type", default: "string"
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["setting_key"], name: "index_whs_settings_on_setting_key", unique: true
+  end
+
+  create_table "whs_swms", force: :cascade do |t|
+    t.bigint "job_id"
+    t.bigint "created_by_id", null: false
+    t.bigint "approved_by_id"
+    t.bigint "superseded_by_id"
+    t.string "swms_number", null: false
+    t.string "title", null: false
+    t.decimal "version", precision: 3, scale: 1, default: "1.0", null: false
+    t.string "status", default: "draft", null: false
+    t.boolean "company_wide", default: false, null: false
+    t.text "activity_description"
+    t.string "location_area"
+    t.string "high_risk_type"
+    t.date "start_date"
+    t.integer "expected_duration_days"
+    t.integer "workers_involved"
+    t.string "supervisor_responsible"
+    t.text "emergency_procedures"
+    t.text "emergency_contact_numbers"
+    t.string "first_aid_location"
+    t.string "fire_extinguisher_location"
+    t.string "emergency_assembly_point"
+    t.text "evacuation_procedures"
+    t.text "legislative_references"
+    t.jsonb "ppe_requirements", default: {}
+    t.jsonb "required_qualifications", default: []
+    t.datetime "approved_at"
+    t.datetime "superseded_at"
+    t.string "rejection_reason"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "sm_task_id"
+    t.index ["approved_by_id"], name: "index_whs_swms_on_approved_by_id"
+    t.index ["company_wide"], name: "index_whs_swms_on_company_wide"
+    t.index ["created_by_id"], name: "index_whs_swms_on_created_by_id"
+    t.index ["high_risk_type"], name: "index_whs_swms_on_high_risk_type"
+    t.index ["job_id", "status"], name: "index_whs_swms_on_job_id_and_status"
+    t.index ["job_id"], name: "index_whs_swms_on_job_id"
+    t.index ["sm_task_id"], name: "index_whs_swms_on_sm_task_id"
+    t.index ["status"], name: "index_whs_swms_on_status"
+    t.index ["superseded_by_id"], name: "index_whs_swms_on_superseded_by_id"
+    t.index ["swms_number"], name: "index_whs_swms_on_swms_number", unique: true
+  end
+
+  create_table "whs_swms_acknowledgments", force: :cascade do |t|
+    t.bigint "whs_swms_id", null: false
+    t.bigint "user_id"
+    t.string "worker_name", null: false
+    t.string "worker_company"
+    t.string "worker_role"
+    t.text "signature_data"
+    t.datetime "acknowledged_at", null: false
+    t.string "ip_address"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["acknowledged_at"], name: "index_whs_swms_acknowledgments_on_acknowledged_at"
+    t.index ["user_id"], name: "index_whs_swms_acknowledgments_on_user_id"
+    t.index ["whs_swms_id"], name: "index_whs_swms_acknowledgments_on_whs_swms_id"
+  end
+
+  create_table "whs_swms_controls", force: :cascade do |t|
+    t.bigint "whs_swms_hazard_id", null: false
+    t.text "control_description", null: false
+    t.string "control_type", null: false
+    t.string "responsibility"
+    t.integer "residual_likelihood"
+    t.integer "residual_consequence"
+    t.integer "residual_risk_score"
+    t.string "residual_risk_level"
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["control_type"], name: "index_whs_swms_controls_on_control_type"
+    t.index ["whs_swms_hazard_id"], name: "index_whs_swms_controls_on_whs_swms_hazard_id"
+  end
+
+  create_table "whs_swms_hazards", force: :cascade do |t|
+    t.bigint "whs_swms_id", null: false
+    t.text "hazard_description", null: false
+    t.integer "likelihood", null: false
+    t.integer "consequence", null: false
+    t.integer "risk_score", null: false
+    t.string "risk_level"
+    t.text "affected_persons"
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["risk_level"], name: "index_whs_swms_hazards_on_risk_level"
+    t.index ["whs_swms_id"], name: "index_whs_swms_hazards_on_whs_swms_id"
+  end
+
+  create_table "worker_profiles", force: :cascade do |t|
+    t.bigint "user_id"
+    t.bigint "contact_id"
+    t.string "worker_type", limit: 20, null: false
+    t.string "name", limit: 100, null: false
+    t.string "profile_photo_url"
+    t.jsonb "face_encoding"
+    t.boolean "face_verified", default: false
+    t.datetime "face_verified_at"
+    t.bigint "cost_centre_id"
+    t.decimal "hourly_rate", precision: 10, scale: 2
+    t.decimal "overtime_rate_1_5x", precision: 10, scale: 2
+    t.decimal "overtime_rate_2x", precision: 10, scale: 2
+    t.decimal "weekend_rate", precision: 10, scale: 2
+    t.decimal "employment_cost_percent", precision: 5, scale: 2, default: "28.5"
+    t.decimal "day_rate", precision: 10, scale: 2
+    t.decimal "call_out_fee", precision: 10, scale: 2
+    t.string "abn", limit: 20
+    t.string "tax_file_number_provided", limit: 10
+    t.boolean "active", default: true
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["abn"], name: "index_worker_profiles_on_abn", unique: true, where: "(abn IS NOT NULL)"
+    t.index ["active"], name: "index_worker_profiles_on_active"
+    t.index ["contact_id"], name: "index_worker_profiles_on_contact_id", unique: true, where: "(contact_id IS NOT NULL)"
+    t.index ["cost_centre_id"], name: "index_worker_profiles_on_cost_centre_id"
+    t.index ["user_id"], name: "index_worker_profiles_on_user_id", unique: true, where: "(user_id IS NOT NULL)"
+    t.index ["worker_type"], name: "index_worker_profiles_on_worker_type"
+  end
+
+  create_table "xero_accounts", force: :cascade do |t|
+    t.string "code", null: false
+    t.string "name", null: false
+    t.string "account_type"
+    t.string "tax_type"
+    t.text "description"
+    t.boolean "active", default: true
+    t.string "account_class"
+    t.boolean "system_account", default: false
+    t.boolean "enable_payments_to_account", default: false
+    t.boolean "show_in_expense_claims", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_type"], name: "index_xero_accounts_on_account_type"
+    t.index ["active"], name: "index_xero_accounts_on_active"
+    t.index ["code"], name: "index_xero_accounts_on_code", unique: true
+  end
+
+  create_table "xero_alerts", force: :cascade do |t|
+    t.bigint "xero_credential_id"
+    t.bigint "company_id"
+    t.string "alert_type", null: false
+    t.string "severity", null: false
+    t.string "title", null: false
+    t.text "message"
+    t.boolean "dismissed", default: false, null: false
+    t.datetime "dismissed_at"
+    t.bigint "dismissed_by_id"
+    t.boolean "auto_resolved", default: false, null: false
+    t.datetime "auto_resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id", "dismissed", "created_at"], name: "idx_xero_alerts_company_active"
+    t.index ["company_id"], name: "index_xero_alerts_on_company_id"
+    t.index ["dismissed_by_id"], name: "index_xero_alerts_on_dismissed_by_id"
+    t.index ["severity", "dismissed"], name: "idx_xero_alerts_severity_active"
+    t.index ["xero_credential_id", "alert_type", "dismissed"], name: "idx_xero_alerts_credential_type"
+    t.index ["xero_credential_id"], name: "index_xero_alerts_on_xero_credential_id"
+  end
+
+  create_table "xero_bank_transactions", force: :cascade do |t|
+    t.string "xero_id", null: false
+    t.string "tenant_id"
+    t.string "source", default: "xero"
+    t.string "bank_account_id"
+    t.string "bank_account_code"
+    t.string "bank_account_name"
+    t.string "transaction_type"
+    t.date "transaction_date", null: false
+    t.string "reference"
+    t.string "status"
+    t.boolean "is_reconciled", default: false
+    t.string "xero_contact_id"
+    t.string "contact_name"
+    t.bigint "contact_id"
+    t.decimal "sub_total", precision: 15, scale: 2
+    t.decimal "total_tax", precision: 15, scale: 2
+    t.decimal "total", precision: 15, scale: 2
+    t.string "currency_code", default: "AUD"
+    t.jsonb "line_items", default: []
+    t.text "description"
+    t.integer "transaction_month"
+    t.integer "transaction_year"
+    t.string "financial_year"
+    t.boolean "has_attachments", default: false
+    t.datetime "last_synced_at"
+    t.datetime "xero_updated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bank_account_id"], name: "index_xero_bank_transactions_on_bank_account_id"
+    t.index ["contact_id"], name: "index_xero_bank_transactions_on_contact_id"
+    t.index ["financial_year"], name: "index_xero_bank_transactions_on_financial_year"
+    t.index ["tenant_id"], name: "index_xero_bank_transactions_on_tenant_id"
+    t.index ["transaction_date"], name: "index_xero_bank_transactions_on_transaction_date"
+    t.index ["transaction_year", "transaction_month"], name: "idx_on_transaction_year_transaction_month_ebe6682705"
+    t.index ["xero_contact_id"], name: "index_xero_bank_transactions_on_xero_contact_id"
+    t.index ["xero_id"], name: "index_xero_bank_transactions_on_xero_id", unique: true
+  end
+
+  create_table "xero_chart_of_accounts", force: :cascade do |t|
+    t.string "account_code", null: false
+    t.string "account_name", null: false
+    t.string "account_type"
+    t.string "tax_type"
+    t.text "description"
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
+    t.index ["account_code"], name: "index_xero_chart_of_accounts_on_account_code"
+    t.index ["account_type"], name: "index_xero_chart_of_accounts_on_account_type"
+    t.index ["active"], name: "index_xero_chart_of_accounts_on_active"
+    t.index ["tenant_id"], name: "index_xero_chart_of_accounts_on_tenant_id"
+  end
+
+  create_table "xero_credentials", force: :cascade do |t|
+    t.string "access_token", null: false
+    t.string "refresh_token", null: false
+    t.datetime "expires_at", null: false
+    t.string "tenant_id", null: false
+    t.string "tenant_name"
+    t.string "tenant_type"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "is_primary", default: false, null: false
+    t.string "status", default: "connected", null: false
+    t.datetime "refresh_token_expires_at"
+    t.datetime "last_refresh_at"
+    t.text "last_refresh_error"
+    t.integer "refresh_failure_count", default: 0, null: false
+    t.datetime "last_successful_api_call_at"
+    t.string "circuit_state", default: "closed", null: false
+    t.datetime "circuit_opened_at"
+    t.integer "circuit_failure_count", default: 0, null: false
+    t.string "granted_scopes"
+    t.datetime "token_poisoned_at"
+    t.string "poisoned_reason"
+    t.integer "lock_version", default: 0, null: false
+    t.bigint "teeem_tenant_id"
+    t.index ["circuit_state"], name: "index_xero_credentials_on_circuit_state"
+    t.index ["is_primary"], name: "index_xero_credentials_on_is_primary"
+    t.index ["last_successful_api_call_at"], name: "index_xero_credentials_on_last_successful_api_call_at"
+    t.index ["status"], name: "index_xero_credentials_on_status"
+    t.index ["teeem_tenant_id"], name: "index_xero_credentials_on_teeem_tenant_id"
+    t.index ["tenant_id"], name: "index_xero_credentials_on_tenant_id"
+  end
+
+  create_table "xero_duplicate_groups", force: :cascade do |t|
+    t.string "group_key", null: false
+    t.string "match_type", null: false
+    t.decimal "confidence_score", precision: 5, scale: 2
+    t.string "status", default: "pending"
+    t.integer "merge_target_id"
+    t.datetime "reviewed_at"
+    t.string "reviewed_by"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["group_key"], name: "index_xero_duplicate_groups_on_group_key", unique: true
+    t.index ["status"], name: "index_xero_duplicate_groups_on_status"
+  end
+
+  create_table "xero_duplicate_items", force: :cascade do |t|
+    t.bigint "duplicate_group_id", null: false
+    t.bigint "contact_id", null: false
+    t.boolean "is_merge_target", default: false
+    t.jsonb "data_snapshot"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_xero_duplicate_items_on_contact_id"
+    t.index ["duplicate_group_id", "contact_id"], name: "idx_on_duplicate_group_id_contact_id_22d95f474a", unique: true
+    t.index ["duplicate_group_id"], name: "index_xero_duplicate_items_on_duplicate_group_id"
+  end
+
+  create_table "xero_feature_tabs", force: :cascade do |t|
+    t.string "tab_key", null: false
+    t.string "display_name", null: false
+    t.string "tab_group", default: "data"
+    t.integer "order_position", default: 0
+    t.boolean "enabled", default: true
+    t.string "component_name"
+    t.string "icon_name"
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "group_member", default: false, null: false
+    t.string "parent_key"
+    t.boolean "visible", default: true, null: false
+    t.index ["enabled"], name: "index_xero_feature_tabs_on_enabled"
+    t.index ["order_position"], name: "index_xero_feature_tabs_on_order_position"
+    t.index ["tab_key"], name: "index_xero_feature_tabs_on_tab_key", unique: true
+  end
+
+  create_table "xero_health_events", force: :cascade do |t|
+    t.bigint "xero_credential_id"
+    t.string "event_type", null: false
+    t.string "from_status"
+    t.string "to_status"
+    t.string "trigger"
+    t.text "message"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["event_type", "created_at"], name: "index_xero_health_events_on_event_type_and_created_at"
+    t.index ["from_status", "to_status"], name: "index_xero_health_events_on_from_status_and_to_status"
+    t.index ["xero_credential_id", "created_at"], name: "index_xero_health_events_on_xero_credential_id_and_created_at"
+    t.index ["xero_credential_id"], name: "index_xero_health_events_on_xero_credential_id"
+  end
+
+  create_table "xero_sync_events", force: :cascade do |t|
+    t.bigint "xero_credential_id"
+    t.string "sync_type", null: false
+    t.string "event_type", null: false
+    t.string "trigger", null: false
+    t.integer "records_processed", default: 0, null: false
+    t.integer "records_created", default: 0, null: false
+    t.integer "records_updated", default: 0, null: false
+    t.integer "records_skipped", default: 0, null: false
+    t.integer "records_failed", default: 0, null: false
+    t.text "error_message"
+    t.string "error_class"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.integer "duration_ms"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_xero_sync_events_on_created_at"
+    t.index ["sync_type", "event_type", "created_at"], name: "idx_xero_sync_events_type_status"
+    t.index ["xero_credential_id", "sync_type", "created_at"], name: "idx_xero_sync_events_cred_type_time"
+    t.index ["xero_credential_id"], name: "index_xero_sync_events_on_xero_credential_id"
+  end
+
+  create_table "xero_sync_sessions", force: :cascade do |t|
+    t.string "tenant_id", null: false
+    t.bigint "teeem_tenant_id"
+    t.string "sync_type", default: "contacts", null: false
+    t.string "status", default: "pending", null: false
+    t.string "sync_mode", default: "full"
+    t.datetime "modified_since"
+    t.integer "total_records", default: 0
+    t.integer "fetched_count", default: 0
+    t.integer "processed_count", default: 0
+    t.integer "created_count", default: 0
+    t.integer "updated_count", default: 0
+    t.integer "skipped_count", default: 0
+    t.integer "error_count", default: 0
+    t.integer "last_page_fetched", default: 0
+    t.jsonb "checkpoint_data", default: {}
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.integer "duration_seconds"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["status", "created_at"], name: "index_xero_sync_sessions_on_status_and_created_at"
+    t.index ["teeem_tenant_id"], name: "index_xero_sync_sessions_on_teeem_tenant_id"
+    t.index ["tenant_id", "sync_type", "status"], name: "index_xero_sync_sessions_on_tenant_id_and_sync_type_and_status"
+  end
+
+  create_table "xero_sync_statuses", force: :cascade do |t|
+    t.string "sync_type", null: false
+    t.string "tenant_id"
+    t.datetime "last_synced_at"
+    t.datetime "next_sync_at"
+    t.string "status"
+    t.integer "records_synced"
+    t.text "last_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["sync_type", "tenant_id"], name: "index_xero_sync_statuses_on_sync_type_and_tenant_id", unique: true
+  end
+
+  add_foreign_key "account_mappings", "accounting_integrations"
+  add_foreign_key "accounting_integrations", "contacts"
+  add_foreign_key "agent_definitions", "users", column: "created_by_id"
+  add_foreign_key "agent_definitions", "users", column: "last_run_by_id", on_delete: :nullify
+  add_foreign_key "agent_definitions", "users", column: "updated_by_id"
+  add_foreign_key "ai_processing_logs", "users", column: "corrected_by_id"
+  add_foreign_key "ai_timesheet_suggestions", "jobs"
+  add_foreign_key "ai_timesheet_suggestions", "labour_cost_entries", on_delete: :nullify
+  add_foreign_key "ai_timesheet_suggestions", "users", column: "actioned_by_id", on_delete: :nullify
+  add_foreign_key "ai_timesheet_suggestions", "worker_profiles"
+  add_foreign_key "asset_depreciation_profiles", "assets"
+  add_foreign_key "asset_depreciation_schedules", "assets"
+  add_foreign_key "asset_depreciation_schedules", "users", column: "finalized_by_id"
+  add_foreign_key "asset_disposals", "assets"
+  add_foreign_key "asset_disposals", "assets", column: "replacement_asset_id"
+  add_foreign_key "asset_disposals", "users"
+  add_foreign_key "asset_expenses", "assets"
+  add_foreign_key "asset_expenses", "financial_transactions"
+  add_foreign_key "asset_expenses", "storage_blobs"
+  add_foreign_key "asset_expenses", "users"
+  add_foreign_key "asset_insurances", "assets"
+  add_foreign_key "asset_odometer_readings", "assets"
+  add_foreign_key "asset_odometer_readings", "storage_blobs"
+  add_foreign_key "asset_odometer_readings", "users"
+  add_foreign_key "asset_service_histories", "assets"
+  add_foreign_key "asset_service_histories", "storage_blobs", column: "document_blob_id"
+  add_foreign_key "asset_service_histories", "storage_blobs", column: "invoice_blob_id"
+  add_foreign_key "asset_service_histories", "users"
+  add_foreign_key "assets", "corporates", column: "company_id"
+  add_foreign_key "assets", "tenants"
+  add_foreign_key "assets", "users", column: "assigned_user_id"
+  add_foreign_key "ato_effective_life_rates", "ato_effective_life_categories"
+  add_foreign_key "backup_configurations", "s3_compatible_credentials", column: "primary_credential_id"
+  add_foreign_key "backup_configurations", "s3_compatible_credentials", column: "secondary_credential_id"
+  add_foreign_key "backup_configurations", "tenants"
+  add_foreign_key "backup_logs", "backup_configurations"
+  add_foreign_key "balance_sheet_reports", "corporates", column: "company_id"
+  add_foreign_key "balance_sheet_reports", "document_types"
+  add_foreign_key "bank_accounts", "corporates", column: "company_id"
+  add_foreign_key "bank_accounts", "tenants"
+  add_foreign_key "bank_statement_reports", "document_types"
+  add_foreign_key "bank_transactions", "bank_accounts"
+  add_foreign_key "bank_transactions", "corporates", column: "company_id"
+  add_foreign_key "bank_transactions", "tenants"
+  add_foreign_key "batch_operations", "jobs"
+  add_foreign_key "batch_operations", "users"
+  add_foreign_key "bill_inboxes", "bpmn_process_instances"
+  add_foreign_key "bill_inboxes", "contacts", column: "supplier_id"
+  add_foreign_key "bill_inboxes", "corporates", column: "company_id"
+  add_foreign_key "bill_inboxes", "corporates", column: "detected_company_id"
+  add_foreign_key "bill_inboxes", "external_invoices"
+  add_foreign_key "bill_inboxes", "purchase_orders", column: "matched_purchase_order_id"
+  add_foreign_key "bill_inboxes", "storage_blobs"
+  add_foreign_key "bill_inboxes", "tenants"
+  add_foreign_key "bill_inboxes", "users", column: "approved_by_id"
+  add_foreign_key "bill_payment_batches", "bank_accounts"
+  add_foreign_key "bill_payment_batches", "bpmn_process_instances"
+  add_foreign_key "bill_payment_batches", "corporates", column: "company_id"
+  add_foreign_key "bill_payment_batches", "tenants"
+  add_foreign_key "bill_payment_batches", "users", column: "approved_by_id"
+  add_foreign_key "bill_payment_batches", "users", column: "created_by_id"
+  add_foreign_key "bill_payments", "bill_inboxes"
+  add_foreign_key "bill_payments", "bill_payment_batches"
+  add_foreign_key "bill_payments", "purchase_orders"
+  add_foreign_key "bill_payments", "tenants"
+  add_foreign_key "bpmn_edges", "bpmn_nodes", column: "source_node_id", on_delete: :cascade
+  add_foreign_key "bpmn_edges", "bpmn_nodes", column: "target_node_id", on_delete: :cascade
+  add_foreign_key "bpmn_edges", "bpmn_processes", on_delete: :cascade
+  add_foreign_key "bpmn_nodes", "bpmn_processes", on_delete: :cascade
+  add_foreign_key "bpmn_process_instances", "bpmn_processes"
+  add_foreign_key "bpmn_task_instances", "bpmn_nodes"
+  add_foreign_key "bpmn_task_instances", "bpmn_tokens", on_delete: :cascade
+  add_foreign_key "bpmn_tokens", "bpmn_nodes", column: "current_node_id"
+  add_foreign_key "bpmn_tokens", "bpmn_process_instances", on_delete: :cascade
+  add_foreign_key "bpmn_tokens", "bpmn_tokens", column: "parent_token_id"
+  add_foreign_key "bpmn_triggers", "bpmn_processes", on_delete: :cascade
+  add_foreign_key "case_actions", "cases"
+  add_foreign_key "case_actions", "users", column: "created_by_id"
+  add_foreign_key "case_companies", "cases"
+  add_foreign_key "case_companies", "corporates", column: "company_id"
+  add_foreign_key "case_contacts", "cases"
+  add_foreign_key "case_contacts", "contacts"
+  add_foreign_key "case_contacts", "users", column: "added_by_id"
+  add_foreign_key "case_documents", "cases"
+  add_foreign_key "case_documents", "users", column: "added_by_id"
+  add_foreign_key "case_jobs", "cases"
+  add_foreign_key "case_jobs", "jobs"
+  add_foreign_key "case_timeline_events", "cases"
+  add_foreign_key "case_timeline_events", "contacts"
+  add_foreign_key "case_timeline_events", "corporates", column: "company_id"
+  add_foreign_key "case_timeline_events", "jobs"
+  add_foreign_key "cases", "cases", column: "parent_case_id"
+  add_foreign_key "cases", "contacts"
+  add_foreign_key "cases", "corporates", column: "company_id"
+  add_foreign_key "cases", "tenants"
+  add_foreign_key "cases", "users", column: "assigned_to_id"
+  add_foreign_key "cases", "users", column: "created_by_id"
+  add_foreign_key "chat_messages", "jobs"
+  add_foreign_key "chat_messages", "projects"
+  add_foreign_key "chat_messages", "storage_blobs"
+  add_foreign_key "chat_messages", "users"
+  add_foreign_key "cloudflare_credentials", "tenants", on_delete: :cascade
+  add_foreign_key "colour_selection_templates", "job_types"
+  add_foreign_key "columns", "column_type_definitions"
+  add_foreign_key "columns", "foundations"
+  add_foreign_key "company_approval_rules", "bpmn_processes"
+  add_foreign_key "company_approval_rules", "corporates", column: "company_id"
+  add_foreign_key "company_approval_rules", "users", column: "approver_id"
+  add_foreign_key "company_approval_rules", "users", column: "escalation_to_user_id"
+  add_foreign_key "company_groups", "tenants"
+  add_foreign_key "contact_activities", "contacts"
+  add_foreign_key "contact_addresses", "contacts"
+  add_foreign_key "contact_company_group_memberships", "company_groups"
+  add_foreign_key "contact_company_group_memberships", "contacts"
+  add_foreign_key "contact_company_group_memberships", "corporates", column: "company_id"
+  add_foreign_key "contact_company_group_memberships", "tenants"
+  add_foreign_key "contact_documents", "contacts"
+  add_foreign_key "contact_documents", "document_types"
+  add_foreign_key "contact_documents", "storage_blobs"
+  add_foreign_key "contact_documents", "users", column: "uploaded_by_id"
+  add_foreign_key "contact_external_links", "contacts"
+  add_foreign_key "contact_group_memberships", "contact_groups"
+  add_foreign_key "contact_group_memberships", "contacts"
+  add_foreign_key "contact_persons", "contacts"
+  add_foreign_key "contact_phones", "contacts"
+  add_foreign_key "contact_quality_reviews", "contacts"
+  add_foreign_key "contact_quality_reviews", "contacts", column: "suggested_company_id"
+  add_foreign_key "contact_quality_reviews", "users", column: "reviewed_by_id"
+  add_foreign_key "contact_relationships", "contacts", column: "related_contact_id"
+  add_foreign_key "contact_relationships", "contacts", column: "source_contact_id"
+  add_foreign_key "contact_types", "tenants"
+  add_foreign_key "contacts", "contacts", column: "parent_company_contact_id"
+  add_foreign_key "contacts", "contacts", column: "primary_company_id"
+  add_foreign_key "contacts", "tenants"
+  add_foreign_key "corporate_activities", "corporates", column: "company_id"
+  add_foreign_key "corporate_activities", "tenants"
+  add_foreign_key "corporate_activities", "users"
+  add_foreign_key "corporate_compliance_items", "corporates", column: "company_id"
+  add_foreign_key "corporate_compliance_items", "tenants"
+  add_foreign_key "corporate_directors", "contacts"
+  add_foreign_key "corporate_directors", "corporates", column: "company_id"
+  add_foreign_key "corporate_directors", "tenants"
+  add_foreign_key "corporate_loans", "corporates", column: "borrower_company_id"
+  add_foreign_key "corporate_loans", "corporates", column: "lender_company_id"
+  add_foreign_key "corporate_loans", "tenants"
+  add_foreign_key "corporate_minutes", "corporates", column: "company_id"
+  add_foreign_key "corporate_minutes", "minute_templates"
+  add_foreign_key "corporate_minutes", "tenants"
+  add_foreign_key "corporate_monthly_pls", "corporates"
+  add_foreign_key "corporate_monthly_pls", "tenants"
+  add_foreign_key "corporate_shareholdings", "corporates", column: "company_id"
+  add_foreign_key "corporate_shareholdings", "tenants"
+  add_foreign_key "corporate_xero_accounts", "corporate_xero_connections"
+  add_foreign_key "corporate_xero_accounts", "tenants"
+  add_foreign_key "corporate_xero_connections", "corporates", column: "company_id"
+  add_foreign_key "corporate_xero_connections", "tenants"
+  add_foreign_key "corporate_xero_connections", "xero_credentials"
+  add_foreign_key "corporates", "company_groups"
+  add_foreign_key "corporates", "contacts"
+  add_foreign_key "corporates", "corporates", column: "consolidation_parent_id", on_delete: :nullify
+  add_foreign_key "corporates", "corporates", column: "parent_company_id"
+  add_foreign_key "corporates", "tenants"
+  add_foreign_key "cost_centres", "cost_centres", column: "parent_id", on_delete: :nullify
+  add_foreign_key "custom_pricings", "contacts"
+  add_foreign_key "desktop_clients", "tenants", on_delete: :cascade
+  add_foreign_key "desktop_clients", "users"
+  add_foreign_key "director_onboarding_requests", "contacts"
+  add_foreign_key "director_onboarding_requests", "corporates", column: "company_id"
+  add_foreign_key "director_onboarding_requests", "users", column: "invited_by_id"
+  add_foreign_key "director_onboarding_requests", "users", column: "reviewed_by_id"
+  add_foreign_key "dividend_payments", "contacts", column: "shareholder_id"
+  add_foreign_key "dividend_payments", "dividends"
+  add_foreign_key "dividends", "corporates", column: "company_id"
+  add_foreign_key "document_activities", "users"
+  add_foreign_key "document_duplicate_reviews", "cases"
+  add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
+  add_foreign_key "document_tasks", "jobs"
+  add_foreign_key "document_tasks", "storage_blobs"
+  add_foreign_key "document_templates", "tenants"
+  add_foreign_key "document_types", "tenants"
+  add_foreign_key "document_verification_feedbacks", "users"
+  add_foreign_key "e_signature_certificates", "e_signature_requests"
+  add_foreign_key "e_signature_events", "e_signature_requests"
+  add_foreign_key "e_signature_events", "e_signature_signers"
+  add_foreign_key "e_signature_events", "users", column: "actor_user_id"
+  add_foreign_key "e_signature_fields", "e_signature_requests"
+  add_foreign_key "e_signature_fields", "e_signature_signers"
+  add_foreign_key "e_signature_requests", "users", column: "created_by_id"
+  add_foreign_key "e_signature_signers", "contacts"
+  add_foreign_key "e_signature_signers", "e_signature_requests"
+  add_foreign_key "email_aliases", "email_subscriptions"
+  add_foreign_key "email_attachments", "storage_blobs"
+  add_foreign_key "email_dns_records", "email_subscriptions"
+  add_foreign_key "email_drafts", "imap_credentials"
+  add_foreign_key "email_drafts", "tenants", on_delete: :cascade
+  add_foreign_key "email_drafts", "users"
+  add_foreign_key "email_folder_preferences", "users"
+  add_foreign_key "email_label_assignments", "email_labels"
+  add_foreign_key "email_label_assignments", "synced_emails", column: "email_warehouse_id"
+  add_foreign_key "email_labels", "users"
+  add_foreign_key "email_mailbox_favorites", "users"
+  add_foreign_key "email_mailboxes", "contacts"
+  add_foreign_key "email_mailboxes", "email_subscriptions"
+  add_foreign_key "email_migration_invites", "contacts"
+  add_foreign_key "email_migration_invites", "email_subscriptions"
+  add_foreign_key "email_migration_invites", "users", column: "created_by_id"
+  add_foreign_key "email_migrations", "email_mailboxes"
+  add_foreign_key "email_migrations", "email_subscriptions"
+  add_foreign_key "email_migrations", "microsoft_credentials"
+  add_foreign_key "email_migrations", "users", column: "initiated_by_id"
+  add_foreign_key "email_rules", "imap_credentials"
+  add_foreign_key "email_rules", "microsoft_credentials", on_delete: :cascade
+  add_foreign_key "email_rules", "users"
+  add_foreign_key "email_snoozes", "synced_emails", column: "email_warehouse_id"
+  add_foreign_key "email_snoozes", "users"
+  add_foreign_key "email_subscription_invoices", "email_subscriptions"
+  add_foreign_key "email_subscription_invoices", "gl_invoices"
+  add_foreign_key "email_subscriptions", "contacts"
+  add_foreign_key "email_subscriptions", "tenants", on_delete: :cascade
+  add_foreign_key "email_templates", "users"
+  add_foreign_key "email_user_states", "synced_emails", column: "email_warehouse_id"
+  add_foreign_key "email_user_states", "users"
+  add_foreign_key "estimate_line_items", "estimates"
+  add_foreign_key "estimate_reviews", "estimates"
+  add_foreign_key "estimates", "jobs"
+  add_foreign_key "estimates", "tenants"
+  add_foreign_key "external_invoices", "contacts"
+  add_foreign_key "external_invoices", "jobs"
+  add_foreign_key "external_invoices", "tenants"
+  add_foreign_key "fact_job_daily_snapshots", "jobs"
+  add_foreign_key "feature_trackers", "feature_chapters"
+  add_foreign_key "financial_transactions", "corporates", column: "company_id"
+  add_foreign_key "financial_transactions", "jobs"
+  add_foreign_key "financial_transactions", "storage_blobs"
+  add_foreign_key "financial_transactions", "users"
+  add_foreign_key "folder_template_items", "folder_template_items", column: "parent_id"
+  add_foreign_key "folder_template_items", "folder_templates"
+  add_foreign_key "folder_templates", "users", column: "created_by_id"
+  add_foreign_key "geofence_events", "jobs"
+  add_foreign_key "geofence_events", "site_presence_sessions"
+  add_foreign_key "geofence_events", "users", column: "acknowledged_by_id"
+  add_foreign_key "geofence_events", "worker_profiles"
+  add_foreign_key "gl_account_balances", "gl_accounts"
+  add_foreign_key "gl_account_balances", "gl_periods"
+  add_foreign_key "gl_accounts", "corporates", column: "company_id"
+  add_foreign_key "gl_accounts", "gl_accounts", column: "parent_account_id"
+  add_foreign_key "gl_ai_categorization_attempts", "corporates", column: "company_id"
+  add_foreign_key "gl_ai_categorization_attempts", "gl_accounts", column: "suggested_account_id"
+  add_foreign_key "gl_ai_categorization_learnings", "corporates", column: "company_id"
+  add_foreign_key "gl_ai_categorization_learnings", "gl_accounts", column: "ai_suggested_account_id"
+  add_foreign_key "gl_ai_categorization_learnings", "gl_accounts", column: "user_chosen_account_id"
+  add_foreign_key "gl_ai_po_match_attempts", "bill_inboxes"
+  add_foreign_key "gl_ai_po_match_attempts", "corporates", column: "company_id"
+  add_foreign_key "gl_ai_po_match_attempts", "purchase_orders", column: "matched_po_id"
+  add_foreign_key "gl_ai_po_match_learnings", "bill_inboxes"
+  add_foreign_key "gl_ai_po_match_learnings", "corporates", column: "company_id"
+  add_foreign_key "gl_ai_po_match_learnings", "purchase_orders"
+  add_foreign_key "gl_ai_po_match_learnings", "users"
+  add_foreign_key "gl_anomalies", "corporates", column: "company_id"
+  add_foreign_key "gl_anomalies", "users", column: "assigned_to_id"
+  add_foreign_key "gl_anomalies", "users", column: "resolved_by_id"
+  add_foreign_key "gl_anomaly_reviews", "corporates", column: "company_id"
+  add_foreign_key "gl_anomaly_reviews", "users", column: "reviewed_by_id"
+  add_foreign_key "gl_anomaly_rules", "corporates", column: "company_id"
+  add_foreign_key "gl_approval_actions", "gl_approval_requests", column: "approval_request_id"
+  add_foreign_key "gl_approval_actions", "gl_approval_workflow_steps", column: "workflow_step_id"
+  add_foreign_key "gl_approval_actions", "users"
+  add_foreign_key "gl_approval_actions", "users", column: "delegated_to_id"
+  add_foreign_key "gl_approval_requests", "corporates", column: "company_id"
+  add_foreign_key "gl_approval_requests", "gl_approval_workflows", column: "workflow_id"
+  add_foreign_key "gl_approval_requests", "users", column: "requested_by_id"
+  add_foreign_key "gl_approval_workflow_steps", "gl_approval_workflows", column: "workflow_id"
+  add_foreign_key "gl_approval_workflow_steps", "users", column: "approver_id"
+  add_foreign_key "gl_approval_workflows", "corporates", column: "company_id"
+  add_foreign_key "gl_approval_workflows", "users", column: "created_by_id"
+  add_foreign_key "gl_audit_logs", "corporates", column: "company_id"
+  add_foreign_key "gl_audit_logs", "users"
+  add_foreign_key "gl_audit_snapshots", "corporates", column: "company_id"
+  add_foreign_key "gl_audit_snapshots", "users", column: "created_by_id"
+  add_foreign_key "gl_bank_reconciliations", "corporates", column: "company_id"
+  add_foreign_key "gl_bank_reconciliations", "gl_accounts"
+  add_foreign_key "gl_bank_reconciliations", "users", column: "completed_by_id"
+  add_foreign_key "gl_bank_rule_learnings", "corporates", column: "company_id"
+  add_foreign_key "gl_bank_rule_learnings", "gl_accounts"
+  add_foreign_key "gl_bank_rule_learnings", "users"
+  add_foreign_key "gl_bas_lodgements", "corporates", column: "company_id"
+  add_foreign_key "gl_bas_lodgements", "users", column: "lodged_by_id"
+  add_foreign_key "gl_billable_expenses", "contacts"
+  add_foreign_key "gl_billable_expenses", "corporates", column: "company_id"
+  add_foreign_key "gl_billable_expenses", "gl_invoices", column: "billed_invoice_id"
+  add_foreign_key "gl_billable_expenses", "gl_invoices", column: "source_invoice_id"
+  add_foreign_key "gl_billable_expenses", "jobs"
+  add_foreign_key "gl_billable_expenses", "users"
+  add_foreign_key "gl_billable_rates", "contacts"
+  add_foreign_key "gl_billable_rates", "corporates", column: "company_id"
+  add_foreign_key "gl_billable_rates", "jobs"
+  add_foreign_key "gl_billable_rates", "users"
+  add_foreign_key "gl_billable_time_entries", "corporates", column: "company_id"
+  add_foreign_key "gl_billable_time_entries", "gl_billable_rates", column: "billable_rate_id"
+  add_foreign_key "gl_billable_time_entries", "gl_invoices", column: "invoice_id"
+  add_foreign_key "gl_billable_time_entries", "jobs"
+  add_foreign_key "gl_billable_time_entries", "users"
+  add_foreign_key "gl_billable_time_entries", "users", column: "approved_by_id"
+  add_foreign_key "gl_billing_milestones", "contacts"
+  add_foreign_key "gl_billing_milestones", "corporates", column: "company_id"
+  add_foreign_key "gl_billing_milestones", "gl_invoices", column: "invoice_id"
+  add_foreign_key "gl_billing_milestones", "jobs"
+  add_foreign_key "gl_billing_milestones", "users", column: "completed_by_id"
+  add_foreign_key "gl_budget_scenarios", "corporates", column: "company_id"
+  add_foreign_key "gl_budget_scenarios", "users", column: "created_by_id"
+  add_foreign_key "gl_budgets", "corporates", column: "company_id"
+  add_foreign_key "gl_budgets", "gl_accounts"
+  add_foreign_key "gl_budgets", "gl_periods"
+  add_foreign_key "gl_budgets", "jobs"
+  add_foreign_key "gl_categorization_predictions", "corporates", column: "company_id"
+  add_foreign_key "gl_categorization_predictions", "gl_accounts", column: "actual_account_id"
+  add_foreign_key "gl_categorization_predictions", "gl_accounts", column: "predicted_account_id"
+  add_foreign_key "gl_categorization_predictions", "gl_transaction_categories", column: "actual_category_id"
+  add_foreign_key "gl_categorization_predictions", "gl_transaction_categories", column: "predicted_category_id"
+  add_foreign_key "gl_categorization_predictions", "users", column: "reviewed_by_id"
+  add_foreign_key "gl_change_order_lines", "gl_change_orders", column: "change_order_id"
+  add_foreign_key "gl_change_orders", "contacts"
+  add_foreign_key "gl_change_orders", "corporates", column: "company_id"
+  add_foreign_key "gl_change_orders", "jobs"
+  add_foreign_key "gl_change_orders", "users", column: "approved_by_id"
+  add_foreign_key "gl_change_orders", "users", column: "requested_by_id"
+  add_foreign_key "gl_class_assignments", "gl_tracking_classes", column: "tracking_class_id"
+  add_foreign_key "gl_currencies", "corporates", column: "company_id"
+  add_foreign_key "gl_custom_reports", "corporates", column: "company_id"
+  add_foreign_key "gl_custom_reports", "users", column: "created_by_id"
+  add_foreign_key "gl_customer_payment_stats", "contacts"
+  add_foreign_key "gl_customer_payment_stats", "corporates", column: "company_id"
+  add_foreign_key "gl_customer_statement_lines", "gl_customer_statements", column: "statement_id"
+  add_foreign_key "gl_customer_statement_lines", "gl_invoices", column: "invoice_id"
+  add_foreign_key "gl_customer_statement_lines", "gl_payments", column: "payment_id"
+  add_foreign_key "gl_customer_statements", "contacts"
+  add_foreign_key "gl_customer_statements", "corporates", column: "company_id"
+  add_foreign_key "gl_customer_statements", "users", column: "generated_by_id"
+  add_foreign_key "gl_dashboard_widgets", "gl_custom_reports", column: "custom_report_id"
+  add_foreign_key "gl_dashboard_widgets", "gl_report_dashboards", column: "dashboard_id"
+  add_foreign_key "gl_departments", "corporates", column: "company_id"
+  add_foreign_key "gl_departments", "gl_departments", column: "parent_id"
+  add_foreign_key "gl_departments", "users", column: "manager_id"
+  add_foreign_key "gl_deposit_allocations", "gl_deposits", column: "deposit_id"
+  add_foreign_key "gl_deposit_allocations", "gl_invoices", column: "invoice_id"
+  add_foreign_key "gl_deposit_allocations", "users", column: "allocated_by_id"
+  add_foreign_key "gl_deposits", "contacts"
+  add_foreign_key "gl_deposits", "corporates", column: "company_id"
+  add_foreign_key "gl_deposits", "gl_accounts", column: "bank_account_id"
+  add_foreign_key "gl_deposits", "jobs"
+  add_foreign_key "gl_deposits", "users", column: "received_by_id"
+  add_foreign_key "gl_direct_debit_mandates", "contacts"
+  add_foreign_key "gl_direct_debit_mandates", "corporates", column: "company_id"
+  add_foreign_key "gl_document_requests", "contacts"
+  add_foreign_key "gl_document_requests", "corporates", column: "company_id"
+  add_foreign_key "gl_document_requests", "jobs"
+  add_foreign_key "gl_document_requests", "users", column: "created_by_id"
+  add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "bill1_id"
+  add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "bill2_id"
+  add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "kept_bill_id"
+  add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "voided_bill_id"
+  add_foreign_key "gl_duplicate_bill_reviews", "users", column: "reviewed_by_id"
+  add_foreign_key "gl_duplicate_groups", "corporates", column: "company_id"
+  add_foreign_key "gl_duplicate_groups", "users", column: "reviewed_by_id"
+  add_foreign_key "gl_duplicate_members", "gl_duplicate_groups", column: "duplicate_group_id"
+  add_foreign_key "gl_equipment", "corporates", column: "company_id"
+  add_foreign_key "gl_equipment_usages", "gl_equipment", column: "equipment_id"
+  add_foreign_key "gl_equipment_usages", "jobs"
+  add_foreign_key "gl_equipment_usages", "users"
+  add_foreign_key "gl_exchange_rates", "corporates", column: "company_id"
+  add_foreign_key "gl_exchange_rates", "gl_currencies"
+  add_foreign_key "gl_inventory_items", "corporates", column: "company_id"
+  add_foreign_key "gl_inventory_items", "gl_accounts", column: "cogs_account_id"
+  add_foreign_key "gl_inventory_items", "gl_accounts", column: "income_account_id"
+  add_foreign_key "gl_inventory_items", "gl_accounts", column: "inventory_account_id"
+  add_foreign_key "gl_inventory_items", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "gl_inventory_transactions", "gl_inventory_items", column: "inventory_item_id"
+  add_foreign_key "gl_inventory_transactions", "users"
+  add_foreign_key "gl_invoice_lines", "gl_accounts"
+  add_foreign_key "gl_invoice_lines", "gl_invoices"
+  add_foreign_key "gl_invoice_lines", "gl_tax_rates"
+  add_foreign_key "gl_invoice_lines", "jobs"
+  add_foreign_key "gl_invoices", "contacts"
+  add_foreign_key "gl_invoices", "corporates", column: "company_id"
+  add_foreign_key "gl_invoices", "gl_departments", column: "department_id"
+  add_foreign_key "gl_invoices", "gl_journal_entries"
+  add_foreign_key "gl_invoices", "gl_recurring_invoices", column: "recurring_invoice_id"
+  add_foreign_key "gl_invoices", "jobs"
+  add_foreign_key "gl_invoices", "users", column: "approved_by_id"
+  add_foreign_key "gl_journal_entries", "corporates", column: "company_id"
+  add_foreign_key "gl_journal_entries", "gl_departments", column: "department_id"
+  add_foreign_key "gl_journal_entries", "gl_periods"
+  add_foreign_key "gl_journal_entries", "jobs"
+  add_foreign_key "gl_journal_entries", "users", column: "created_by_id"
+  add_foreign_key "gl_kpi_definitions", "corporates", column: "company_id"
+  add_foreign_key "gl_ledger_lines", "contacts"
+  add_foreign_key "gl_ledger_lines", "gl_accounts"
+  add_foreign_key "gl_ledger_lines", "gl_journal_entries"
+  add_foreign_key "gl_ledger_lines", "jobs"
+  add_foreign_key "gl_lien_waivers", "contacts"
+  add_foreign_key "gl_lien_waivers", "corporates", column: "company_id"
+  add_foreign_key "gl_lien_waivers", "gl_progress_claims", column: "progress_claim_id"
+  add_foreign_key "gl_lien_waivers", "jobs"
+  add_foreign_key "gl_opening_balances", "corporates", column: "company_id"
+  add_foreign_key "gl_opening_balances", "gl_accounts"
+  add_foreign_key "gl_payment_allocations", "gl_invoices"
+  add_foreign_key "gl_payment_allocations", "gl_payments"
+  add_foreign_key "gl_payment_batch_items", "contacts"
+  add_foreign_key "gl_payment_batch_items", "gl_invoices", column: "invoice_id"
+  add_foreign_key "gl_payment_batch_items", "gl_payment_batches", column: "payment_batch_id"
+  add_foreign_key "gl_payment_batches", "corporates", column: "company_id"
+  add_foreign_key "gl_payment_batches", "gl_accounts", column: "bank_account_id"
+  add_foreign_key "gl_payment_batches", "users", column: "approved_by_id"
+  add_foreign_key "gl_payment_batches", "users", column: "created_by_id"
+  add_foreign_key "gl_payment_predictions", "contacts"
+  add_foreign_key "gl_payment_predictions", "corporates", column: "company_id"
+  add_foreign_key "gl_payment_predictions", "gl_invoices", column: "invoice_id"
+  add_foreign_key "gl_payments", "contacts"
+  add_foreign_key "gl_payments", "corporates", column: "company_id"
+  add_foreign_key "gl_payments", "gl_accounts"
+  add_foreign_key "gl_payments", "gl_journal_entries"
+  add_foreign_key "gl_period_locks", "corporates", column: "company_id"
+  add_foreign_key "gl_period_locks", "users", column: "locked_by_id"
+  add_foreign_key "gl_period_locks", "users", column: "unlocked_by_id"
+  add_foreign_key "gl_period_snapshots", "corporates", column: "company_id"
+  add_foreign_key "gl_periods", "corporates", column: "company_id"
+  add_foreign_key "gl_periods", "users", column: "closed_by_id"
+  add_foreign_key "gl_portal_sessions", "contacts"
+  add_foreign_key "gl_portal_sessions", "gl_portal_tokens", column: "portal_token_id"
+  add_foreign_key "gl_portal_tokens", "contacts"
+  add_foreign_key "gl_portal_tokens", "corporates", column: "company_id"
+  add_foreign_key "gl_progress_claim_lines", "gl_progress_claims", column: "progress_claim_id"
+  add_foreign_key "gl_progress_claims", "contacts"
+  add_foreign_key "gl_progress_claims", "corporates", column: "company_id"
+  add_foreign_key "gl_progress_claims", "gl_invoices", column: "invoice_id"
+  add_foreign_key "gl_progress_claims", "jobs"
+  add_foreign_key "gl_progress_claims", "users", column: "approved_by_id"
+  add_foreign_key "gl_progress_claims", "users", column: "created_by_id"
+  add_foreign_key "gl_provider_credentials", "corporates", column: "company_id"
+  add_foreign_key "gl_quote_lines", "gl_quotes", column: "quote_id"
+  add_foreign_key "gl_quote_lines", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "gl_quote_versions", "gl_quotes", column: "quote_id"
+  add_foreign_key "gl_quote_versions", "users", column: "created_by_id"
+  add_foreign_key "gl_quotes", "contacts"
+  add_foreign_key "gl_quotes", "corporates", column: "company_id"
+  add_foreign_key "gl_quotes", "gl_invoices", column: "invoice_id"
+  add_foreign_key "gl_quotes", "jobs"
+  add_foreign_key "gl_quotes", "users", column: "created_by_id"
+  add_foreign_key "gl_reconciliation_lines", "gl_accounts"
+  add_foreign_key "gl_reconciliation_lines", "gl_bank_reconciliations"
+  add_foreign_key "gl_reconciliation_lines", "gl_ledger_lines"
+  add_foreign_key "gl_reconciliation_rules", "corporates", column: "company_id"
+  add_foreign_key "gl_reconciliation_rules", "gl_accounts"
+  add_foreign_key "gl_reconciliation_rules", "gl_accounts", column: "target_account_id"
+  add_foreign_key "gl_recurring_invoices", "contacts"
+  add_foreign_key "gl_recurring_invoices", "jobs"
+  add_foreign_key "gl_recurring_invoices", "users", column: "created_by_id"
+  add_foreign_key "gl_recurring_invoices", "users", column: "updated_by_id"
+  add_foreign_key "gl_report_columns", "gl_custom_reports", column: "custom_report_id"
+  add_foreign_key "gl_report_dashboards", "corporates", column: "company_id"
+  add_foreign_key "gl_report_dashboards", "users", column: "created_by_id"
+  add_foreign_key "gl_report_favorites", "gl_custom_reports", column: "custom_report_id"
+  add_foreign_key "gl_report_favorites", "users"
+  add_foreign_key "gl_report_filters", "gl_custom_reports", column: "custom_report_id"
+  add_foreign_key "gl_report_runs", "gl_custom_reports", column: "custom_report_id"
+  add_foreign_key "gl_report_runs", "users", column: "run_by_id"
+  add_foreign_key "gl_requested_documents", "gl_document_requests", column: "document_request_id"
+  add_foreign_key "gl_requested_documents", "users", column: "reviewed_by_id"
+  add_foreign_key "gl_retainage_releases", "corporates", column: "company_id"
+  add_foreign_key "gl_retainage_releases", "gl_invoices", column: "invoice_id"
+  add_foreign_key "gl_retainage_releases", "gl_progress_claims", column: "progress_claim_id"
+  add_foreign_key "gl_retainage_releases", "jobs"
+  add_foreign_key "gl_retainage_releases", "users", column: "approved_by_id"
+  add_foreign_key "gl_scheduled_invoices", "corporates", column: "company_id"
+  add_foreign_key "gl_scheduled_invoices", "gl_invoices", column: "invoice_id"
+  add_foreign_key "gl_scheduled_invoices", "users", column: "created_by_id"
+  add_foreign_key "gl_scheduled_reports", "corporates", column: "company_id"
+  add_foreign_key "gl_scheduled_reports", "users", column: "created_by_id"
+  add_foreign_key "gl_split_lines", "gl_accounts", column: "account_id"
+  add_foreign_key "gl_split_lines", "gl_departments", column: "department_id"
+  add_foreign_key "gl_split_lines", "gl_split_transactions", column: "split_transaction_id"
+  add_foreign_key "gl_split_lines", "gl_tax_rates", column: "tax_rate_id"
+  add_foreign_key "gl_split_lines", "jobs"
+  add_foreign_key "gl_split_transactions", "corporates", column: "company_id"
+  add_foreign_key "gl_split_transactions", "users", column: "approved_by_id"
+  add_foreign_key "gl_split_transactions", "users", column: "created_by_id"
+  add_foreign_key "gl_stock_count_lines", "gl_inventory_items", column: "inventory_item_id"
+  add_foreign_key "gl_stock_count_lines", "gl_stock_counts", column: "stock_count_id"
+  add_foreign_key "gl_stock_counts", "corporates", column: "company_id"
+  add_foreign_key "gl_stock_counts", "users", column: "approved_by_id"
+  add_foreign_key "gl_stock_counts", "users", column: "created_by_id"
+  add_foreign_key "gl_sync_logs", "corporates", column: "company_id"
+  add_foreign_key "gl_sync_logs", "gl_provider_credentials"
+  add_foreign_key "gl_sync_logs", "users", column: "triggered_by_id"
+  add_foreign_key "gl_tax_rates", "corporates", column: "company_id"
+  add_foreign_key "gl_tax_rates", "gl_accounts"
+  add_foreign_key "gl_time_billing_batches", "contacts"
+  add_foreign_key "gl_time_billing_batches", "corporates", column: "company_id"
+  add_foreign_key "gl_time_billing_batches", "gl_invoices", column: "invoice_id"
+  add_foreign_key "gl_time_billing_batches", "jobs"
+  add_foreign_key "gl_time_billing_batches", "users", column: "created_by_id"
+  add_foreign_key "gl_tpar_payees", "contacts"
+  add_foreign_key "gl_tpar_payees", "gl_tpar_reports", column: "tpar_report_id"
+  add_foreign_key "gl_tpar_reports", "corporates", column: "company_id"
+  add_foreign_key "gl_tpar_reports", "users", column: "created_by_id"
+  add_foreign_key "gl_tracking_classes", "corporates", column: "company_id"
+  add_foreign_key "gl_tracking_classes", "gl_tracking_classes", column: "parent_id"
+  add_foreign_key "gl_transaction_categories", "corporates", column: "company_id"
+  add_foreign_key "gl_transaction_categories", "gl_accounts", column: "default_account_id"
+  add_foreign_key "gl_transaction_categories", "gl_tax_rates", column: "default_tax_rate_id"
+  add_foreign_key "gl_wip_report_jobs", "gl_wip_reports", column: "wip_report_id"
+  add_foreign_key "gl_wip_report_jobs", "jobs"
+  add_foreign_key "gl_wip_reports", "corporates", column: "company_id"
+  add_foreign_key "gl_wip_reports", "users", column: "created_by_id"
+  add_foreign_key "grok_plans", "users"
+  add_foreign_key "health_kudos_events", "users", on_delete: :nullify
+  add_foreign_key "imap_credentials", "users"
+  add_foreign_key "import_audit_logs", "tenants"
+  add_foreign_key "import_audit_logs", "users"
+  add_foreign_key "insurance_policies", "corporates", column: "company_id"
+  add_foreign_key "intercompany_balances", "corporates", column: "company_id"
+  add_foreign_key "intercompany_balances", "corporates", column: "related_company_id"
+  add_foreign_key "job_activities", "jobs"
+  add_foreign_key "job_activities", "users"
+  add_foreign_key "job_address_searches", "jobs"
+  add_foreign_key "job_claim_stages", "external_invoices"
+  add_foreign_key "job_claim_stages", "gl_invoices", column: "retainage_release_invoice_id"
+  add_foreign_key "job_claim_stages", "jobs"
+  add_foreign_key "job_claims", "contacts"
+  add_foreign_key "job_claims", "jobs"
+  add_foreign_key "job_colour_selections", "jobs"
+  add_foreign_key "job_colour_selections", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "job_contacts", "contacts"
+  add_foreign_key "job_contacts", "jobs"
+  add_foreign_key "job_contacts", "users"
+  add_foreign_key "job_cost_budgets", "cost_centres"
+  add_foreign_key "job_cost_budgets", "jobs"
+  add_foreign_key "job_cost_budgets", "users", column: "alert_acknowledged_by_id", on_delete: :nullify
+  add_foreign_key "job_documentation_tabs", "job_documentation_tabs", column: "parent_id", on_delete: :cascade
+  add_foreign_key "job_documentation_tabs", "jobs"
+  add_foreign_key "job_documents", "document_types"
+  add_foreign_key "job_documents", "document_types", column: "ai_suggested_type_id", on_delete: :nullify
+  add_foreign_key "job_documents", "job_documents", column: "parent_document_id"
+  add_foreign_key "job_documents", "jobs"
+  add_foreign_key "job_documents", "storage_blobs"
+  add_foreign_key "job_documents", "users", column: "rename_approved_by_id", on_delete: :nullify
+  add_foreign_key "job_documents", "users", column: "signed_by_id"
+  add_foreign_key "job_people", "contacts"
+  add_foreign_key "job_people", "jobs"
+  add_foreign_key "job_plan_revisions", "job_plans"
+  add_foreign_key "job_plan_revisions", "users", column: "issued_by_id"
+  add_foreign_key "job_plan_tabs", "job_plan_tabs", column: "parent_id"
+  add_foreign_key "job_plan_tabs", "jobs"
+  add_foreign_key "job_plan_tabs", "plan_categories"
+  add_foreign_key "job_plans", "job_plan_revisions", column: "current_revision_id"
+  add_foreign_key "job_plans", "job_plan_tabs"
+  add_foreign_key "job_plans", "jobs"
+  add_foreign_key "job_plans", "plan_types"
+  add_foreign_key "job_quantity_variables", "jobs"
+  add_foreign_key "job_quantity_variables", "quantity_variables"
+  add_foreign_key "job_quantity_variables", "users", column: "updated_by_id"
+  add_foreign_key "job_recipes", "jobs"
+  add_foreign_key "job_recipes", "recipes"
+  add_foreign_key "job_recipes", "users", column: "applied_by_id"
+  add_foreign_key "job_specifications", "jobs"
+  add_foreign_key "job_specifications", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "job_stages", "tenants"
+  add_foreign_key "job_status_stages", "job_stages"
+  add_foreign_key "job_status_stages", "job_statuses"
+  add_foreign_key "job_status_stages", "job_types"
+  add_foreign_key "job_status_stages", "tenants"
+  add_foreign_key "job_statuses", "tenants"
+  add_foreign_key "job_tabs", "tenants"
+  add_foreign_key "job_type_statuses", "job_statuses"
+  add_foreign_key "job_type_statuses", "job_types"
+  add_foreign_key "job_type_statuses", "tenants"
+  add_foreign_key "job_types", "sm_schedule_master_templates"
+  add_foreign_key "job_types", "tenants"
+  add_foreign_key "jobs", "cost_centres", on_delete: :nullify
+  add_foreign_key "jobs", "job_stages", on_delete: :nullify
+  add_foreign_key "jobs", "job_statuses", on_delete: :nullify
+  add_foreign_key "jobs", "job_types", on_delete: :nullify
+  add_foreign_key "jobs", "tenants"
+  add_foreign_key "jobs", "users", column: "archived_by_id", on_delete: :nullify
+  add_foreign_key "jobs", "users", column: "client_coordinator_id", on_delete: :nullify
+  add_foreign_key "jobs", "users", column: "estimator_id", on_delete: :nullify
+  add_foreign_key "jobs", "users", column: "internal_sales_id", on_delete: :nullify
+  add_foreign_key "jobs", "users", column: "site_coordinator_id", on_delete: :nullify
+  add_foreign_key "jobs", "users", column: "supervisor_id", on_delete: :nullify
+  add_foreign_key "known_parties", "contacts"
+  add_foreign_key "kudos_events", "purchase_orders"
+  add_foreign_key "kudos_events", "quote_responses"
+  add_foreign_key "kudos_events", "subcontractor_accounts"
+  add_foreign_key "labour_cost_entries", "cost_centres"
+  add_foreign_key "labour_cost_entries", "jobs"
+  add_foreign_key "labour_cost_entries", "purchase_orders"
+  add_foreign_key "labour_cost_entries", "site_presence_sessions", on_delete: :nullify
+  add_foreign_key "labour_cost_entries", "sm_tasks"
+  add_foreign_key "labour_cost_entries", "worker_profiles"
+  add_foreign_key "leads", "jobs"
+  add_foreign_key "location_pings", "jobs"
+  add_foreign_key "location_pings", "site_presence_sessions"
+  add_foreign_key "location_pings", "worker_profiles"
+  add_foreign_key "maintenance_requests", "contacts", column: "supplier_contact_id"
+  add_foreign_key "maintenance_requests", "jobs"
+  add_foreign_key "maintenance_requests", "purchase_orders"
+  add_foreign_key "maintenance_requests", "users", column: "reported_by_user_id"
+  add_foreign_key "meeting_agenda_items", "meetings"
+  add_foreign_key "meeting_agenda_items", "sm_tasks"
+  add_foreign_key "meeting_agenda_items", "users", column: "presenter_id"
+  add_foreign_key "meeting_participants", "contacts"
+  add_foreign_key "meeting_participants", "meetings"
+  add_foreign_key "meeting_participants", "users"
+  add_foreign_key "meeting_types", "tenants"
+  add_foreign_key "meetings", "jobs"
+  add_foreign_key "meetings", "meeting_types"
+  add_foreign_key "meetings", "tenants"
+  add_foreign_key "meetings", "users", column: "created_by_id"
+  add_foreign_key "microsoft_credentials", "organizations"
+  add_foreign_key "microsoft_credentials", "tenants", on_delete: :cascade
+  add_foreign_key "microsoft_credentials", "users", column: "connected_by_id"
+  add_foreign_key "microsoft_credentials", "users", column: "setup_by_id"
+  add_foreign_key "navigation_items", "navigation_groups", name: "navigation_items_navigation_group_id_fkey"
+  add_foreign_key "navigation_items", "navigation_items", column: "parent_id", name: "fk_navigation_items_parent"
+  add_foreign_key "notebook_activities", "notebook_pages", column: "page_id"
+  add_foreign_key "notebook_activities", "notebook_sections", column: "section_id"
+  add_foreign_key "notebook_activities", "notebooks"
+  add_foreign_key "notebook_activities", "users"
+  add_foreign_key "notebook_page_attachments", "notebook_pages", column: "page_id"
+  add_foreign_key "notebook_page_attachments", "storage_blobs"
+  add_foreign_key "notebook_page_attachments", "users", column: "uploaded_by_id"
+  add_foreign_key "notebook_pages", "notebook_sections", column: "section_id"
+  add_foreign_key "notebook_pages", "users", column: "created_by_id"
+  add_foreign_key "notebook_pages", "users", column: "last_edited_by_id"
+  add_foreign_key "notebook_sections", "notebooks"
+  add_foreign_key "notebook_shares", "notebooks"
+  add_foreign_key "notebook_shares", "users"
+  add_foreign_key "notebook_shares", "users", column: "granted_by_id"
+  add_foreign_key "notebooks", "users", column: "owner_id"
+  add_foreign_key "notifications", "users"
+  add_foreign_key "organizations", "corporates", column: "company_id"
+  add_foreign_key "organizations", "tenants"
+  add_foreign_key "page_help_contents", "users", column: "last_updated_by_id"
+  add_foreign_key "pay_now_requests", "contacts"
+  add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
+  add_foreign_key "pay_now_requests", "payments"
+  add_foreign_key "pay_now_requests", "portal_users", column: "requested_by_portal_user_id"
+  add_foreign_key "pay_now_requests", "purchase_orders"
+  add_foreign_key "pay_now_requests", "storage_blobs", column: "invoice_blob_id"
+  add_foreign_key "pay_now_requests", "users", column: "approved_by_builder_id"
+  add_foreign_key "pay_now_requests", "users", column: "reviewed_by_supervisor_id"
+  add_foreign_key "pay_now_weekly_limits", "users", column: "set_by_id"
+  add_foreign_key "payment_links", "contacts"
+  add_foreign_key "payment_links", "external_invoices", column: "invoice_id"
+  add_foreign_key "payments", "purchase_orders"
+  add_foreign_key "payments", "users", column: "created_by_id"
+  add_foreign_key "people_documents", "storage_blobs"
+  add_foreign_key "performance_anomalies", "users", column: "acknowledged_by_id"
+  add_foreign_key "performance_requests", "tenants", on_delete: :cascade
+  add_foreign_key "performance_requests", "users"
+  add_foreign_key "performance_slo_snapshots", "performance_slos"
+  add_foreign_key "performance_slow_queries", "users"
+  add_foreign_key "performance_vitals", "users"
+  add_foreign_key "plan_category_plan_types", "plan_categories"
+  add_foreign_key "plan_category_plan_types", "plan_types"
+  add_foreign_key "plan_folder_scans", "job_plans"
+  add_foreign_key "plan_folder_scans", "jobs"
+  add_foreign_key "plan_identification_rules", "plan_types"
+  add_foreign_key "plan_identification_rules", "users", column: "created_by_id"
+  add_foreign_key "plan_identifications", "job_plans"
+  add_foreign_key "plan_identifications", "plan_categories", column: "identified_plan_category_id"
+  add_foreign_key "plan_identifications", "plan_types", column: "identified_plan_type_id"
+  add_foreign_key "plan_identifications", "users", column: "reviewed_by_id"
+  add_foreign_key "plan_reextractions", "jobs"
+  add_foreign_key "plan_uploads", "job_plan_tabs"
+  add_foreign_key "plan_uploads", "jobs"
+  add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
+  add_foreign_key "polaris_credentials", "tenants", on_delete: :cascade
+  add_foreign_key "portal_access_logs", "portal_users"
+  add_foreign_key "portal_users", "contacts"
+  add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"
+  add_foreign_key "price_histories", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "price_histories", "tenants"
+  add_foreign_key "pricebook_categories", "tenants"
+  add_foreign_key "pricebooks", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
+  add_foreign_key "pricebooks", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
+  add_foreign_key "pricebooks", "pricebook_categories", column: "category_id"
+  add_foreign_key "pricebooks", "tenants"
+  add_foreign_key "profit_loss_reports", "corporates", column: "company_id"
+  add_foreign_key "profit_loss_reports", "document_types"
+  add_foreign_key "projects", "jobs"
+  add_foreign_key "projects", "users", column: "project_manager_id"
+  add_foreign_key "public_holidays", "tenants"
+  add_foreign_key "purchase_order_documents", "document_tasks"
+  add_foreign_key "purchase_order_documents", "purchase_orders"
+  add_foreign_key "purchase_order_line_items", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "purchase_order_line_items", "purchase_orders"
+  add_foreign_key "purchase_orders", "bill_inboxes", column: "last_bill_inbox_id"
+  add_foreign_key "purchase_orders", "contacts", column: "supplier_id", name: "fk_rails_purchase_orders_contact"
+  add_foreign_key "purchase_orders", "estimates"
+  add_foreign_key "purchase_orders", "jobs"
+  add_foreign_key "purchase_orders", "quote_responses"
+  add_foreign_key "purchase_orders", "tenants"
+  add_foreign_key "purchase_orders", "users", column: "budget_locked_by_id"
+  add_foreign_key "purchase_orders", "users", column: "budget_unlocked_by_id"
+  add_foreign_key "quote_request_contacts", "contacts"
+  add_foreign_key "quote_request_contacts", "quote_requests"
+  add_foreign_key "quote_requests", "jobs"
+  add_foreign_key "quote_requests", "quote_responses", column: "selected_quote_response_id"
+  add_foreign_key "quote_requests", "users", column: "created_by_id"
+  add_foreign_key "quote_responses", "contacts"
+  add_foreign_key "quote_responses", "portal_users", column: "responded_by_portal_user_id"
+  add_foreign_key "quote_responses", "quote_requests"
+  add_foreign_key "rain_logs", "jobs"
+  add_foreign_key "rain_logs", "users", column: "created_by_user_id"
+  add_foreign_key "recipe_categories", "recipe_categories", column: "parent_id"
+  add_foreign_key "recipe_items", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "recipe_items", "recipes"
+  add_foreign_key "recipe_versions", "recipes"
+  add_foreign_key "recipe_versions", "users", column: "created_by_id"
+  add_foreign_key "recipes", "contacts", column: "default_supplier_id"
+  add_foreign_key "recipes", "recipe_categories"
+  add_foreign_key "reconciliation_reports", "tenants"
+  add_foreign_key "referral_commissions", "contacts", column: "customer_contact_id"
+  add_foreign_key "referral_commissions", "contacts", column: "referrer_contact_id"
+  add_foreign_key "referral_commissions", "saas_billing_records"
+  add_foreign_key "role_permissions", "permissions"
+  add_foreign_key "s3_compatible_credentials", "organizations"
+  add_foreign_key "s3_compatible_credentials", "tenants", on_delete: :cascade
+  add_foreign_key "saas_billing_records", "contacts"
+  add_foreign_key "saas_billing_records", "gl_invoices"
+  add_foreign_key "scheduled_emails", "imap_credentials"
+  add_foreign_key "scheduled_emails", "users", column: "created_by_id"
+  add_foreign_key "share_transfers", "contacts", column: "from_shareholder_id"
+  add_foreign_key "share_transfers", "contacts", column: "to_shareholder_id"
+  add_foreign_key "share_transfers", "corporates", column: "company_id"
+  add_foreign_key "signature_usages", "document_types"
+  add_foreign_key "signature_usages", "job_documents"
+  add_foreign_key "signature_usages", "jobs"
+  add_foreign_key "signature_usages", "users"
+  add_foreign_key "site_presence_sessions", "cost_centres"
+  add_foreign_key "site_presence_sessions", "jobs"
+  add_foreign_key "site_presence_sessions", "sm_task_photos", column: "checkin_photo_id", on_delete: :nullify
+  add_foreign_key "site_presence_sessions", "sm_task_photos", column: "checkout_photo_id", on_delete: :nullify
+  add_foreign_key "site_presence_sessions", "sm_tasks"
+  add_foreign_key "site_presence_sessions", "users", column: "approved_by_id", on_delete: :nullify
+  add_foreign_key "site_presence_sessions", "worker_profiles"
+  add_foreign_key "sm_activities", "jobs"
+  add_foreign_key "sm_activities", "sm_resources", column: "resource_id"
+  add_foreign_key "sm_activities", "sm_tasks", on_delete: :nullify
+  add_foreign_key "sm_activities", "users"
+  add_foreign_key "sm_comment_mentions", "sm_comments"
+  add_foreign_key "sm_comment_mentions", "sm_resources", column: "resource_id"
+  add_foreign_key "sm_comment_mentions", "users"
+  add_foreign_key "sm_comments", "sm_comments", column: "parent_id"
+  add_foreign_key "sm_comments", "sm_resources", column: "resource_id"
+  add_foreign_key "sm_comments", "sm_tasks"
+  add_foreign_key "sm_comments", "users", column: "author_id"
+  add_foreign_key "sm_dependencies", "sm_tasks", column: "predecessor_task_id", on_delete: :cascade
+  add_foreign_key "sm_dependencies", "sm_tasks", column: "successor_task_id", on_delete: :cascade
+  add_foreign_key "sm_dependencies", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "sm_dependencies", "users", column: "deleted_by_id", on_delete: :nullify
+  add_foreign_key "sm_hold_logs", "jobs", on_delete: :cascade
+  add_foreign_key "sm_hold_logs", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
+  add_foreign_key "sm_hold_logs", "sm_tasks", column: "hold_task_id", on_delete: :cascade
+  add_foreign_key "sm_hold_logs", "users", column: "hold_released_by_id", on_delete: :nullify
+  add_foreign_key "sm_hold_logs", "users", column: "hold_started_by_id", on_delete: :nullify
+  add_foreign_key "sm_recurring_task_definitions", "jobs"
+  add_foreign_key "sm_recurring_task_definitions", "users", column: "assigned_user_id"
+  add_foreign_key "sm_recurring_task_definitions", "users", column: "created_by_id"
+  add_foreign_key "sm_recurring_task_definitions", "users", column: "updated_by_id"
+  add_foreign_key "sm_resource_allocations", "sm_resources", column: "resource_id", on_delete: :cascade
+  add_foreign_key "sm_resource_allocations", "sm_tasks", column: "task_id", on_delete: :cascade
+  add_foreign_key "sm_resources", "contacts", on_delete: :nullify
+  add_foreign_key "sm_resources", "users", on_delete: :nullify
+  add_foreign_key "sm_rollover_logs", "jobs", on_delete: :cascade
+  add_foreign_key "sm_rollover_logs", "sm_tasks", column: "task_id", on_delete: :cascade
+  add_foreign_key "sm_schedule_master_document_types", "document_types"
+  add_foreign_key "sm_schedule_master_document_types", "sm_schedule_masters"
+  add_foreign_key "sm_schedule_master_related_pos", "sm_schedule_masters"
+  add_foreign_key "sm_schedule_master_related_pos", "sm_schedule_masters", column: "related_sm_schedule_master_id"
+  add_foreign_key "sm_schedule_master_templates", "sm_schedule_master_templates", column: "copied_from_id"
+  add_foreign_key "sm_schedule_master_templates", "tenants"
+  add_foreign_key "sm_schedule_master_templates", "users", column: "created_by_id"
+  add_foreign_key "sm_schedule_master_templates", "users", column: "updated_by_id"
+  add_foreign_key "sm_schedule_masters", "bpmn_processes", column: "complete_workflow_id"
+  add_foreign_key "sm_schedule_masters", "bpmn_processes", column: "start_workflow_id"
+  add_foreign_key "sm_schedule_masters", "claim_invoice_templates"
+  add_foreign_key "sm_schedule_masters", "document_types", column: "completion_document_type_id"
+  add_foreign_key "sm_schedule_masters", "sm_schedule_masters", column: "spawn_scan_task_id", on_delete: :nullify
+  add_foreign_key "sm_schedule_masters", "sm_task_groups"
+  add_foreign_key "sm_schedule_masters", "supervisor_checklist_templates", column: "checklist_id"
+  add_foreign_key "sm_schedule_masters", "tenants"
+  add_foreign_key "sm_schedule_masters", "users", column: "created_by_id"
+  add_foreign_key "sm_schedule_masters", "users", column: "updated_by_id"
+  add_foreign_key "sm_spawn_logs", "sm_tasks", column: "parent_task_id", on_delete: :cascade
+  add_foreign_key "sm_spawn_logs", "sm_tasks", column: "spawned_task_id", on_delete: :cascade
+  add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
+  add_foreign_key "sm_task_attachments", "sm_tasks", on_delete: :cascade
+  add_foreign_key "sm_task_attachments", "task_action_items", column: "action_item_id"
+  add_foreign_key "sm_task_attachments", "users", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "sm_task_attachments", "users", column: "deleted_by_id", on_delete: :nullify
+  add_foreign_key "sm_task_document_types", "document_types"
+  add_foreign_key "sm_task_document_types", "sm_tasks"
+  add_foreign_key "sm_task_notes", "sm_tasks"
+  add_foreign_key "sm_task_notes", "users"
+  add_foreign_key "sm_task_photos", "document_types"
+  add_foreign_key "sm_task_photos", "jobs", on_delete: :cascade
+  add_foreign_key "sm_task_photos", "sm_resources", column: "resource_id", on_delete: :nullify
+  add_foreign_key "sm_task_photos", "sm_tasks", on_delete: :cascade
+  add_foreign_key "sm_task_photos", "users", column: "uploaded_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "bpmn_processes", column: "complete_workflow_id"
+  add_foreign_key "sm_tasks", "bpmn_processes", column: "start_workflow_id"
+  add_foreign_key "sm_tasks", "cases"
+  add_foreign_key "sm_tasks", "contacts", column: "supplier_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "document_types", column: "completion_document_type_id"
+  add_foreign_key "sm_tasks", "job_claim_stages"
+  add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
+  add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "sm_recurring_task_definitions", column: "recurring_task_definition_id"
+  add_foreign_key "sm_tasks", "sm_schedule_masters"
+  add_foreign_key "sm_tasks", "sm_schedule_masters", column: "spawn_scan_task_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "sm_tasks", column: "parent_task_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "supervisor_checklist_templates", column: "checklist_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "tenants"
+  add_foreign_key "sm_tasks", "users", column: "assigned_user_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "hold_released_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "hold_started_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "supplier_confirmed_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "updated_by_id", on_delete: :nullify
+  add_foreign_key "sm_time_entries", "sm_resource_allocations", column: "allocation_id", on_delete: :nullify
+  add_foreign_key "sm_time_entries", "sm_resources", column: "resource_id", on_delete: :cascade
+  add_foreign_key "sm_time_entries", "sm_tasks", column: "task_id", on_delete: :cascade
+  add_foreign_key "sm_time_entries", "users", column: "approved_by_id", on_delete: :nullify
+  add_foreign_key "sm_time_entries", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "sm_trades", "tenants"
+  add_foreign_key "sm_voice_notes", "sm_resources", column: "resource_id"
+  add_foreign_key "sm_voice_notes", "sm_tasks"
+  add_foreign_key "sm_voice_notes", "users", column: "recorded_by_id"
+  add_foreign_key "sm_working_drawing_pages", "sm_tasks", column: "task_id", on_delete: :cascade
+  add_foreign_key "sms_messages", "contacts"
+  add_foreign_key "sms_messages", "users"
+  add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_failed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "specification_templates", "job_types"
+  add_foreign_key "storage_blobs", "tenants"
+  add_foreign_key "stripe_configurations", "tenants", on_delete: :cascade
+  add_foreign_key "stripe_payments", "contacts"
+  add_foreign_key "stripe_payments", "external_invoices", column: "invoice_id"
+  add_foreign_key "stripe_payments", "payment_links"
+  add_foreign_key "subcontractor_accounts", "contacts", column: "invited_by_contact_id"
+  add_foreign_key "subcontractor_accounts", "portal_users"
+  add_foreign_key "subcontractor_invoices", "accounting_integrations"
+  add_foreign_key "subcontractor_invoices", "contacts"
+  add_foreign_key "subcontractor_invoices", "purchase_orders"
+  add_foreign_key "sync_exclusion_rules", "tenants", on_delete: :cascade
+  add_foreign_key "sync_exclusion_rules", "users"
+  add_foreign_key "sync_file_states", "desktop_clients"
+  add_foreign_key "sync_file_states", "sync_subscriptions"
+  add_foreign_key "sync_subscriptions", "desktop_clients"
+  add_foreign_key "synced_email_mailboxes", "imap_credentials"
+  add_foreign_key "synced_email_mailboxes", "microsoft_credentials"
+  add_foreign_key "synced_email_mailboxes", "synced_emails"
+  add_foreign_key "synced_emails", "email_mailboxes"
+  add_foreign_key "synced_emails", "tenants"
+  add_foreign_key "table_health_checks", "foundations"
+  add_foreign_key "task_action_items", "sm_tasks"
+  add_foreign_key "task_action_items", "sm_tasks", column: "delegated_task_id"
+  add_foreign_key "task_action_items", "task_action_items", column: "parent_item_id"
+  add_foreign_key "task_action_items", "users", column: "checked_by_id"
+  add_foreign_key "task_action_items", "users", column: "responded_by_id"
+  add_foreign_key "task_activity_logs", "sm_tasks"
+  add_foreign_key "task_activity_logs", "users"
+  add_foreign_key "task_contacts", "contacts", on_delete: :cascade
+  add_foreign_key "task_contacts", "sm_tasks", on_delete: :cascade
+  add_foreign_key "task_contacts", "users", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "task_contacts", "users", on_delete: :cascade
+  add_foreign_key "task_followers", "sm_tasks", on_delete: :cascade
+  add_foreign_key "task_followers", "users", on_delete: :cascade
+  add_foreign_key "task_viewers", "sm_tasks"
+  add_foreign_key "task_viewers", "users"
+  add_foreign_key "teeem_documents", "jobs"
+  add_foreign_key "teeem_documents", "storage_blobs"
+  add_foreign_key "teeem_documents", "users"
+  add_foreign_key "teeem_pdfs", "jobs"
+  add_foreign_key "teeem_pdfs", "storage_blobs"
+  add_foreign_key "teeem_pdfs", "users"
+  add_foreign_key "teeem_presentations", "jobs"
+  add_foreign_key "teeem_presentations", "storage_blobs"
+  add_foreign_key "teeem_presentations", "users"
+  add_foreign_key "teeem_spreadsheets", "jobs"
+  add_foreign_key "teeem_spreadsheets", "storage_blobs"
+  add_foreign_key "teeem_spreadsheets", "users"
+  add_foreign_key "template_pack_items", "template_packs"
+  add_foreign_key "template_packs", "company_groups", column: "source_tenant_id"
+  add_foreign_key "template_packs", "users", column: "created_by_id"
+  add_foreign_key "tenant_settings", "company_groups"
+  add_foreign_key "tenant_settings", "contacts", column: "saas_customer_contact_id"
+  add_foreign_key "tenant_settings", "tenants"
+  add_foreign_key "tenant_sync_preferences", "tenants"
+  add_foreign_key "tenants", "corporates", column: "billing_company_id"
+  add_foreign_key "tenants", "jobs", column: "onboarding_job_id", on_delete: :nullify
+  add_foreign_key "trial_invitations", "tenants", on_delete: :nullify
+  add_foreign_key "trial_invitations", "users", column: "invited_by_user_id", on_delete: :nullify
+  add_foreign_key "trial_invitations", "users", column: "sent_from_user_id", on_delete: :nullify
+  add_foreign_key "unreal_measurements", "job_colour_selections"
+  add_foreign_key "unreal_measurements", "job_plans"
+  add_foreign_key "unreal_measurements", "jobs"
+  add_foreign_key "unreal_measurements", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "unreal_measurements", "purchase_orders", column: "synced_to_po_id"
+  add_foreign_key "user_absences", "users"
+  add_foreign_key "user_absences", "users", column: "approved_by_id"
+  add_foreign_key "user_dictionary_words", "users"
+  add_foreign_key "user_documents", "document_types"
+  add_foreign_key "user_documents", "storage_blobs"
+  add_foreign_key "user_documents", "users"
+  add_foreign_key "user_job_tab_configs", "job_tabs"
+  add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
+  add_foreign_key "user_job_tab_configs", "users"
+  add_foreign_key "user_navigation_configs", "navigation_items", name: "user_navigation_configs_navigation_item_id_fkey"
+  add_foreign_key "user_navigation_configs", "users", name: "user_navigation_configs_user_id_fkey"
+  add_foreign_key "user_permissions", "permissions"
+  add_foreign_key "user_permissions", "users"
+  add_foreign_key "user_roles", "roles"
+  add_foreign_key "user_roles", "users"
+  add_foreign_key "user_warehouse_folder_preferences", "users"
+  add_foreign_key "users", "contacts"
+  add_foreign_key "users", "storage_blobs", column: "photo_blob_id"
+  add_foreign_key "users", "storage_blobs", column: "signature_blob_id"
+  add_foreign_key "users", "tenants"
+  add_foreign_key "users", "user_groups"
+  add_foreign_key "vip_senders", "users"
+  add_foreign_key "warehouse_documents", "storage_blobs"
+  add_foreign_key "warehouse_documents", "warehouse_documents", column: "parent_document_id", on_delete: :nullify, validate: false
+  add_foreign_key "warehouse_folder_document_types", "document_types"
+  add_foreign_key "warehouse_folder_document_types", "warehouse_folders"
+  add_foreign_key "warehouse_folders", "jobs"
+  add_foreign_key "warehouse_folders", "tenants"
+  add_foreign_key "warehouse_folders", "warehouse_folders", column: "parent_id"
+  add_foreign_key "warehouse_providers", "tenants"
+  add_foreign_key "whs_action_items", "sm_tasks"
+  add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
+  add_foreign_key "whs_action_items", "users", column: "created_by_id"
+  add_foreign_key "whs_incidents", "jobs"
+  add_foreign_key "whs_incidents", "sm_tasks"
+  add_foreign_key "whs_incidents", "users", column: "investigated_by_user_id"
+  add_foreign_key "whs_incidents", "users", column: "reported_by_user_id"
+  add_foreign_key "whs_inductions", "jobs"
+  add_foreign_key "whs_inductions", "users"
+  add_foreign_key "whs_inductions", "users", column: "conducted_by_user_id"
+  add_foreign_key "whs_inspection_items", "whs_inspections"
+  add_foreign_key "whs_inspections", "jobs"
+  add_foreign_key "whs_inspections", "meetings"
+  add_foreign_key "whs_inspections", "users", column: "created_by_id"
+  add_foreign_key "whs_inspections", "users", column: "inspector_user_id"
+  add_foreign_key "whs_swms", "jobs"
+  add_foreign_key "whs_swms", "sm_tasks"
+  add_foreign_key "whs_swms", "users", column: "approved_by_id"
+  add_foreign_key "whs_swms", "users", column: "created_by_id"
+  add_foreign_key "whs_swms", "whs_swms", column: "superseded_by_id"
+  add_foreign_key "whs_swms_acknowledgments", "users"
+  add_foreign_key "whs_swms_acknowledgments", "whs_swms"
+  add_foreign_key "whs_swms_controls", "whs_swms_hazards"
+  add_foreign_key "whs_swms_hazards", "whs_swms"
+  add_foreign_key "worker_profiles", "contacts", on_delete: :nullify
+  add_foreign_key "worker_profiles", "cost_centres", on_delete: :nullify
+  add_foreign_key "worker_profiles", "users", on_delete: :nullify
+  add_foreign_key "xero_alerts", "corporates", column: "company_id"
+  add_foreign_key "xero_alerts", "users", column: "dismissed_by_id"
+  add_foreign_key "xero_alerts", "xero_credentials"
+  add_foreign_key "xero_bank_transactions", "contacts"
+  add_foreign_key "xero_chart_of_accounts", "tenants"
+  add_foreign_key "xero_credentials", "tenants", column: "teeem_tenant_id"
+  add_foreign_key "xero_duplicate_items", "contacts"
+  add_foreign_key "xero_duplicate_items", "xero_duplicate_groups", column: "duplicate_group_id"
+  add_foreign_key "xero_health_events", "xero_credentials"
+  add_foreign_key "xero_sync_events", "xero_credentials"
+  add_foreign_key "xero_sync_sessions", "tenants", column: "teeem_tenant_id"
+end
