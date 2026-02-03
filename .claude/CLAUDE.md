@@ -643,7 +643,8 @@ staging → beta → production
 ```bash
 cd /Users/robertharder/GitHub/teeem
 DEPLOY_DIR=$(mktemp -d)
-cp -r backend/* "$DEPLOY_DIR/"
+# Use rsync to include hidden files like .slugignore
+rsync -a --exclude='.git' backend/ "$DEPLOY_DIR/"
 cd "$DEPLOY_DIR" && git init && git add . && git commit -m "Fix deploy"
 git remote add heroku https://git.heroku.com/teeem-production.git
 git push heroku HEAD:main --force

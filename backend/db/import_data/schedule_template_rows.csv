@@ -1,6 +1,0 @@
-schedule_template_id,name,supplier_id,assigned_user_id,predecessor_ids,po_required,create_po_on_job_start,critical_po,price_book_item_ids,documentation_category_ids,supervisor_checklist_template_ids,tags,require_photo,require_certificate,cert_lag_days,require_supervisor_check,auto_complete_predecessors,has_subtasks,subtask_count,subtask_names,sequence_order,linked_task_ids,linked_template_id
-1,Test Update,491,,"[{""id"":2,""lag"":1,""type"":""FS""},{""id"":3,""lag"":3,""type"":""FS""}]",true,true,false,[],"[6,7]",[],[],true,true,10,true,false,false,0,[],0,[2],
-1,Req Fascia and Gutter,491,,"[{""id"":3,""lag"":1,""type"":""SS""}]",true,true,true,"[10973,11697]",[],[],[],false,false,10,false,true,false,0,[],1,[],
-1,Send Quote to Client,,,[],true,false,false,[],[],[],[],false,false,10,false,true,false,0,[],2,[],
-1,FS days,,admin,"[{""id"":1,""lag"":5,""type"":""FS""}]",false,false,false,[],"[4,5]",[],[],false,true,10,false,true,false,0,[],3,[],
-1,FS 2 ,,,"[{""id"":1,""lag"":2,""type"":""FS""}]",false,false,false,[],[],[],[],false,false,10,false,false,false,0,[],3,[],

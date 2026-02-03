@@ -1,8 +1,0 @@
-email,name,role,password
-user@example.com,Default User,admin,changeme123
-robert@tekna.com.au,Robert Harder,admin,changeme123
-sophie@tekna.com.au,Sophie Harder,admin,changeme123
-rachel@tekna.com.au,Rachel Harder,admin,changeme123
-sam@tekna.com.au,Sam Harder,product_owner,changeme123
-andrew@tekna.com.au,Andrew Clement,supervisor,changeme123
-jake@tekna.com.au,Jake Harder,product_owner,changeme123

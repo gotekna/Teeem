@@ -138,7 +138,8 @@ sleep 1
 
 # Create SINGLE temp directory (reused for all 3 environments)
 DEPLOY_DIR=$(mktemp -d)
-cp -R backend/* "$DEPLOY_DIR/"
+# FIX (Feb 2026): Use rsync to copy ALL files including hidden (.slugignore)
+rsync -a --exclude='.git' backend/ "$DEPLOY_DIR/"
 
 cd "$DEPLOY_DIR"
 git init
