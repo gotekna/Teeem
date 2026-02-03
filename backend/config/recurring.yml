@@ -138,6 +138,22 @@ gl_sync_backup:
   queue: low
   schedule: every 6 hours at minute 15
 
+# Pre-warm Xero sync stats cache for dashboard performance
+# Part of "Scale Xero Sync to 15k" plan (Phase 3)
+# Runs every 5 minutes to keep cache fresh for instant page loads
+refresh_xero_stats_cache:
+  class: RefreshXeroStatsCacheJob
+  queue: low
+  schedule: every 5 minutes
+
+# Refresh mv_xero_sync_stats materialized view for O(1) queries
+# Part of "Scale Xero Sync to 15k" plan (Phase 4)
+# Uses CONCURRENTLY to avoid locking during refresh
+refresh_xero_stats_mv:
+  class: RefreshXeroStatsMvJob
+  queue: low
+  schedule: every 5 minutes
+
 # ============================================
 # CORPORATE FINANCIAL REPORTS
 # ============================================

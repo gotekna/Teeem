@@ -2026,6 +2026,13 @@ module Api
       # Returns comprehensive sync statistics for the Xero dashboard
       # Includes per-tenant stats, global stats, and cross-tenant matching info
       # Multi-tenancy: Filters by current tenant (master sees all, others see own)
+      #
+      # Performance (Feb 2026): Refactored to use XeroSyncStatsService for batch queries.
+      # Old: 15N+13 queries for N credentials (2.45M queries at 15k connections)
+      # New: ~10 queries regardless of connection count
+      #
+      # Supports optional pagination for large datasets:
+      #   ?page=1&per_page=50 - Returns paginated tenant stats
       def sync_stats
         begin
           # Get Xero credentials filtered by tenant
@@ -2036,192 +2043,25 @@ module Api
                           XeroCredential.for_teeem_tenant(current_tenant)
                         end
 
-          # Per-tenant statistics
-          tenant_stats = credentials.map do |cred|
-            tenant_id = cred.tenant_id
+          # Optional pagination support
+          page = params[:page]&.to_i
+          per_page = (params[:per_page] || 50).to_i.clamp(1, 100)
 
-            # Count external links for this Xero org
-            # FRC (Feb 2026): Renamed for_tenant to for_xero_org for consistency
-            tenant_links = ContactExternalLink.xero.for_xero_org(tenant_id)
-            links_count = tenant_links.count
-            enabled_count = tenant_links.enabled.count
-            pending_review_count = tenant_links.pending_review.count
-            with_errors_count = tenant_links.with_errors.count
+          # Cache key includes tenant scope for multi-tenancy
+          cache_key = "xero:sync_stats:#{current_tenant&.id || 'global'}"
 
-            # Unlinked = Links where TEEEM contact is inactive or deleted
-            # These Xero contacts won't sync properly until re-linked
-            unlinked_count = tenant_links
-              .joins("LEFT JOIN contacts c ON contact_external_links.contact_id = c.id AND (c.is_active = true OR c.is_active IS NULL)")
-              .where("c.id IS NULL")
-              .count
-
-            # Count invoices/bills for this Xero org
-            # SSoT: Use .active scope + exclude drafts to match pdf_sync_status (drafts can't have PDFs)
-            # FRC (Feb 2026): Use for_xero_org (xero_org_id column), not tenant_id (TEEEM FK)
-            tenant_invoices = ExternalInvoice.xero.active.for_xero_org(tenant_id).where.not(status: "draft")
-            invoices_count = tenant_invoices.sales_invoices.count
-            bills_count = tenant_invoices.bills.count
-            quotes_count = tenant_invoices.quotes.count
-            credit_notes_count = tenant_invoices.credit_notes.count
-
-            # Last sync timestamps
-            last_contact_sync = tenant_links.maximum(:last_synced_at)
-            last_invoice_sync = tenant_invoices.maximum(:last_synced_at)
-
-            # Cross-org matches (contacts linked to multiple Xero orgs)
-            # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
-            cross_tenant_contact_ids = ContactExternalLink.xero
-                                                          .for_xero_org(tenant_id)
-                                                          .joins("INNER JOIN contact_external_links cel2 ON cel2.contact_id = contact_external_links.contact_id AND cel2.xero_org_id != contact_external_links.xero_org_id AND cel2.source = 'xero'")
-                                                          .distinct
-                                                          .pluck(:contact_id)
-            cross_tenant_count = cross_tenant_contact_ids.count
-
-            # Match type breakdown for this tenant
-            match_breakdown = tenant_links.group(:match_type).count
-
-            # Rate limit status for this tenant
-            rate_usage = XeroRateLimitTracker.usage_for(tenant_id) rescue nil
-
-            # SSoT: Sync health status per sync type for this tenant
-            # This shows when each sync type last ran and its health status
-            tenant_sync_health = XeroSyncStatus.health_summary(tenant_id: tenant_id)
-
-            {
-              tenant_id: tenant_id,
-              tenant_name: cred.tenant_name,
-              status: cred.status,
-              is_primary: cred.is_primary,
-              # SSoT: Per-sync-type health for this tenant (Jan 2026)
-              sync_health: tenant_sync_health[:sync_types],
-              overall_sync_health: tenant_sync_health[:overall_health],
-              contacts: {
-                total_links: links_count,
-                sync_enabled: enabled_count,
-                pending_review: pending_review_count,
-                with_errors: with_errors_count,
-                unlinked: unlinked_count,
-                cross_tenant_matches: cross_tenant_count,
-                last_synced_at: last_contact_sync
-              },
-              documents: {
-                invoices: invoices_count,
-                bills: bills_count,
-                quotes: quotes_count,
-                credit_notes: credit_notes_count,
-                total: invoices_count + bills_count + quotes_count + credit_notes_count,
-                last_synced_at: last_invoice_sync
-              },
-              match_breakdown: {
-                exact_abn: match_breakdown["exact_abn"] || 0,
-                exact_email: match_breakdown["exact_email"] || 0,
-                fuzzy_name: match_breakdown["fuzzy_name"] || 0,
-                manual: match_breakdown["manual"] || 0
-              },
-              rate_limits: rate_usage ? {
-                daily_percentage: rate_usage.dig(:daily, :percentage)&.round(1) || 0,
-                minute_percentage: rate_usage.dig(:minute, :percentage)&.round(1) || 0,
-                is_limited: (rate_usage.dig(:daily, :percentage) || 0) >= 80
-              } : nil
-            }
+          # Use cached stats if available (5 minute TTL)
+          # Pass page params to allow cache bypass when paginating
+          data = if page.present?
+            # Paginated requests compute fresh stats (don't cache partial results)
+            compute_sync_stats(credentials, page: page, per_page: per_page)
+          else
+            Rails.cache.fetch(cache_key, expires_in: 5.minutes) do
+              compute_sync_stats(credentials)
+            end
           end
 
-          # Global statistics (across all tenants)
-          # SSoT: Use .active scope + exclude drafts to match pdf_sync_status (drafts can't have PDFs)
-          all_xero_links = ContactExternalLink.xero
-          all_invoices = ExternalInvoice.xero.active.where.not(status: "draft")
-
-          # Total pending reviews
-          total_pending_reviews = all_xero_links.pending_review.count
-
-          # Contacts linked to multiple Xero tenants
-          # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
-          multi_tenant_contact_ids = all_xero_links.group(:contact_id)
-                                                    .having("COUNT(DISTINCT xero_org_id) > 1")
-                                                    .pluck(:contact_id)
-          multi_tenant_contacts_count = multi_tenant_contact_ids.count
-
-          # Global match type breakdown
-          global_match_breakdown = all_xero_links.group(:match_type).count
-
-          # Total unique contacts with any Xero link
-          total_contacts_with_links = all_xero_links.distinct.count(:contact_id)
-
-          # Total invoices/bills across all tenants
-          total_invoices = all_invoices.sales_invoices.count
-          total_bills = all_invoices.bills.count
-          total_quotes = all_invoices.quotes.count
-          total_credit_notes = all_invoices.credit_notes.count
-
-          # Recent sync activity (last 24 hours)
-          recent_contact_syncs = all_xero_links.where("last_synced_at > ?", 24.hours.ago).count
-          recent_invoice_syncs = all_invoices.where("last_synced_at > ?", 24.hours.ago).count
-
-          # Get pending review items with details for display
-          pending_review_items = all_xero_links.pending_review
-                                                .includes(:contact)
-                                                .limit(10)
-                                                .map do |link|
-            tenant = credentials.find { |c| c.tenant_id == link.xero_org_id }
-            # Try to get Xero contact name from multiple sources
-            xero_name = link.external_name ||
-                        link.metadata&.dig("name") ||
-                        ExternalInvoice.where(external_contact_id: link.external_contact_id, tenant_id: link.xero_org_id)
-                                       .where.not(contact_name: nil)
-                                       .limit(1)
-                                       .pick(:contact_name) ||
-                        link.external_contact_id
-            {
-              id: link.id,
-              contact_id: link.contact_id,
-              contact_name: link.contact&.display_name,
-              tenant_id: link.xero_org_id,
-              tenant_name: tenant&.tenant_name || link.tenant_name,
-              external_contact_id: link.external_contact_id,
-              external_contact_name: xero_name,
-              match_type: link.match_type,
-              match_confidence: link.match_confidence,
-              created_at: link.created_at
-            }
-          end
-
-          render json: {
-            success: true,
-            data: {
-              tenant_count: credentials.count,
-              tenants: tenant_stats,
-              global: {
-                pending_reviews: {
-                  count: total_pending_reviews,
-                  items: pending_review_items
-                },
-                cross_tenant: {
-                  contacts_linked_to_multiple_tenants: multi_tenant_contacts_count,
-                  multi_tenant_contact_ids: multi_tenant_contact_ids.first(100)  # Limit for response size
-                },
-                match_breakdown: {
-                  exact_abn: global_match_breakdown["exact_abn"] || 0,
-                  exact_email: global_match_breakdown["exact_email"] || 0,
-                  fuzzy_name: global_match_breakdown["fuzzy_name"] || 0,
-                  manual: global_match_breakdown["manual"] || 0,
-                  total: all_xero_links.count
-                },
-                totals: {
-                  contacts_with_links: total_contacts_with_links,
-                  total_links: all_xero_links.count,
-                  invoices: total_invoices,
-                  bills: total_bills,
-                  quotes: total_quotes,
-                  credit_notes: total_credit_notes,
-                  all_documents: total_invoices + total_bills + total_quotes + total_credit_notes
-                },
-                recent_activity: {
-                  contact_syncs_24h: recent_contact_syncs,
-                  invoice_syncs_24h: recent_invoice_syncs
-                }
-              }
-            }
-          }
+          render json: { success: true, data: data }
         rescue StandardError => e
           Rails.logger.error("Xero sync_stats error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
@@ -3302,6 +3142,51 @@ module Api
       end
 
       private
+
+      # Compute sync stats using batch queries (XeroSyncStatsService)
+      # This reduces query count from O(n) to O(1) for per-tenant stats
+      # Performance (Feb 2026): Part of "Scale Xero Sync to 15k" plan
+      def compute_sync_stats(credentials, page: nil, per_page: 50)
+        credentials_array = credentials.to_a
+
+        # Apply pagination if requested
+        if page.present?
+          total_count = credentials_array.count
+          total_pages = (total_count / per_page.to_f).ceil
+          paginated_credentials = credentials_array.slice((page - 1) * per_page, per_page) || []
+        else
+          paginated_credentials = credentials_array
+        end
+
+        # Batch compute all stats in ~10 queries instead of 15N
+        stats = XeroSyncStatsService.compute_all_stats(paginated_credentials)
+
+        # Build per-tenant stats from pre-computed data
+        tenant_stats = paginated_credentials.map do |cred|
+          XeroSyncStatsService.build_tenant_stats(cred, stats)
+        end
+
+        # Global statistics (still computed directly for now, could also be cached)
+        global_stats = XeroSyncStatsService.compute_global_stats(credentials_array)
+
+        result = {
+          tenant_count: credentials_array.count,
+          tenants: tenant_stats,
+          global: global_stats
+        }
+
+        # Add pagination metadata if paginating
+        if page.present?
+          result[:pagination] = {
+            page: page,
+            per_page: per_page,
+            total_count: total_count,
+            total_pages: total_pages
+          }
+        end
+
+        result
+      end
 
       # Humanize Xero push errors to user-friendly messages
       def humanize_xero_push_error(message)

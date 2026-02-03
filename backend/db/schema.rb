@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_03_120006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1809,31 +1809,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
     t.index ["tenant_id"], name: "index_corporate_directors_on_tenant_id"
   end
 
-  create_table "corporate_entity_tabs", force: :cascade do |t|
-    t.string "tab_key", null: false
-    t.string "display_name", null: false
-    t.string "tab_group", default: "documents"
-    t.string "entity_types", default: [], array: true
-    t.integer "order_position", default: 0
-    t.boolean "enabled", default: true
-    t.string "icon_name"
-    t.text "description"
-    t.string "component_name"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "has_storage_folder", default: false
-    t.string "storage_folder_path"
-    t.jsonb "sub_tabs", default: []
-    t.bigint "company_group_id"
-    t.bigint "tenant_id"
-    t.index ["company_group_id"], name: "index_corporate_entity_tabs_on_company_group_id"
-    t.index ["enabled"], name: "index_corporate_entity_tabs_on_enabled"
-    t.index ["order_position"], name: "index_corporate_entity_tabs_on_order_position"
-    t.index ["tab_group"], name: "index_corporate_entity_tabs_on_tab_group"
-    t.index ["tab_key"], name: "index_corporate_entity_tabs_on_tab_key", unique: true
-    t.index ["tenant_id"], name: "index_corporate_entity_tabs_on_tenant_id"
-  end
-
   create_table "corporate_loans", force: :cascade do |t|
     t.bigint "lender_company_id", null: false
     t.bigint "borrower_company_id", null: false
@@ -2251,22 +2226,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
     t.index ["resolved_by_id"], name: "index_document_duplicate_reviews_on_resolved_by_id"
   end
 
-  create_table "document_folders", force: :cascade do |t|
-    t.string "name", null: false
-    t.text "description"
-    t.integer "order_position", default: 0, null: false
-    t.jsonb "entity_types", default: [], null: false
-    t.boolean "active", default: true, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "storage_path"
-    t.integer "parent_id"
-    t.index ["entity_types"], name: "index_document_folders_on_entity_types", using: :gin
-    t.index ["name"], name: "index_document_folders_on_name", unique: true
-    t.index ["order_position"], name: "index_document_folders_on_order_position"
-    t.index ["parent_id"], name: "index_document_folders_on_parent_id"
-  end
-
   create_table "document_tasks", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.string "category"
@@ -2312,17 +2271,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
     t.index ["is_legal_format"], name: "index_document_templates_on_is_legal_format"
     t.index ["template_type"], name: "index_document_templates_on_template_type"
     t.index ["tenant_id"], name: "index_document_templates_on_tenant_id"
-  end
-
-  create_table "document_type_folders", force: :cascade do |t|
-    t.bigint "document_type_id", null: false
-    t.bigint "document_folder_id", null: false
-    t.boolean "is_primary", default: false, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["document_folder_id"], name: "index_document_type_folders_on_document_folder_id"
-    t.index ["document_type_id", "document_folder_id"], name: "idx_doc_type_folders_unique", unique: true
-    t.index ["document_type_id"], name: "index_document_type_folders_on_document_type_id"
   end
 
   create_table "document_types", force: :cascade do |t|
@@ -9951,7 +9899,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "tab_order", default: []
-    t.index ["user_id", "scope"], name: "idx_user_entity_tab_prefs_unique", unique: true
+    t.index ["user_id", "scope"], name: "idx_user_warehouse_folder_prefs_unique", unique: true
     t.index ["user_id"], name: "index_user_warehouse_folder_preferences_on_user_id"
   end
 
@@ -10014,15 +9962,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
     t.index ["user_id"], name: "index_vip_senders_on_user_id"
   end
 
-  create_table "warehouse_document_folder_backup", id: false, force: :cascade do |t|
-    t.bigint "id"
-    t.string "folder"
-    t.string "source_type"
-    t.string "documentable_type"
-    t.bigint "documentable_id"
-    t.datetime "created_at"
-  end
-
   create_table "warehouse_documents", force: :cascade do |t|
     t.string "documentable_type"
     t.bigint "documentable_id"
@@ -10063,9 +10002,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
     t.boolean "is_primary", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["document_type_id", "is_primary"], name: "idx_entity_tab_doc_types_primary"
+    t.index ["document_type_id", "is_primary"], name: "idx_warehouse_folder_doc_types_primary"
     t.index ["document_type_id"], name: "index_warehouse_folder_document_types_on_document_type_id"
-    t.index ["warehouse_folder_id", "document_type_id"], name: "idx_entity_tab_doc_types_unique", unique: true
+    t.index ["warehouse_folder_id", "document_type_id"], name: "idx_warehouse_folder_doc_types_unique", unique: true
     t.index ["warehouse_folder_id"], name: "index_warehouse_folder_document_types_on_warehouse_folder_id"
   end
 
@@ -10108,7 +10047,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
     t.index ["tenant_id"], name: "index_warehouse_folders_on_tenant_id"
     t.index ["warehouse_type", "enabled"], name: "index_warehouse_folders_on_warehouse_type_and_enabled"
     t.index ["warehouse_type", "tab_group"], name: "index_warehouse_folders_on_warehouse_type_and_tab_group"
-    t.index ["warehouse_type", "tab_key", "job_id", "parent_id"], name: "idx_entity_tabs_unique_key", unique: true
+    t.index ["warehouse_type", "tab_key", "job_id", "parent_id"], name: "idx_warehouse_folders_unique_key", unique: true
     t.index ["warehouse_type"], name: "index_warehouse_folders_on_warehouse_type"
   end
 
@@ -10638,7 +10577,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
     t.integer "order_position", default: 0
     t.boolean "enabled", default: true
     t.string "component_name"
-    t.bigint "document_folder_id"
     t.string "icon_name"
     t.text "description"
     t.datetime "created_at", null: false
@@ -10646,7 +10584,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
     t.boolean "group_member", default: false, null: false
     t.string "parent_key"
     t.boolean "visible", default: true, null: false
-    t.index ["document_folder_id"], name: "index_xero_feature_tabs_on_document_folder_id"
     t.index ["enabled"], name: "index_xero_feature_tabs_on_enabled"
     t.index ["order_position"], name: "index_xero_feature_tabs_on_order_position"
     t.index ["tab_key"], name: "index_xero_feature_tabs_on_tab_key", unique: true
@@ -10874,8 +10811,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
   add_foreign_key "corporate_directors", "contacts"
   add_foreign_key "corporate_directors", "corporates", column: "company_id"
   add_foreign_key "corporate_directors", "tenants"
-  add_foreign_key "corporate_entity_tabs", "company_groups"
-  add_foreign_key "corporate_entity_tabs", "tenants"
   add_foreign_key "corporate_loans", "corporates", column: "borrower_company_id"
   add_foreign_key "corporate_loans", "corporates", column: "lender_company_id"
   add_foreign_key "corporate_loans", "tenants"
@@ -10910,12 +10845,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
   add_foreign_key "document_activities", "users"
   add_foreign_key "document_duplicate_reviews", "cases"
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
-  add_foreign_key "document_folders", "document_folders", column: "parent_id"
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "document_tasks", "storage_blobs"
   add_foreign_key "document_templates", "tenants"
-  add_foreign_key "document_type_folders", "document_folders"
-  add_foreign_key "document_type_folders", "document_types"
   add_foreign_key "document_types", "tenants"
   add_foreign_key "document_verification_feedbacks", "users"
   add_foreign_key "e_signature_certificates", "e_signature_requests"
@@ -11715,7 +11647,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_120000) do
   add_foreign_key "xero_credentials", "tenants", column: "teeem_tenant_id"
   add_foreign_key "xero_duplicate_items", "contacts"
   add_foreign_key "xero_duplicate_items", "xero_duplicate_groups", column: "duplicate_group_id"
-  add_foreign_key "xero_feature_tabs", "document_folders"
   add_foreign_key "xero_health_events", "xero_credentials"
   add_foreign_key "xero_sync_events", "xero_credentials"
   add_foreign_key "xero_sync_sessions", "tenants", column: "teeem_tenant_id"

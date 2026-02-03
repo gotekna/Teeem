@@ -415,10 +415,21 @@ export function ComposeEmailModal({
       return;
     }
 
-    // For cross-tenant accounts without a signature, don't show current user's company signature
+    // FRC (Feb 2026): For cross-tenant accounts without a custom signature,
+    // generate a basic signature using the credential owner's info
+    // User feedback: "it should always show a signature as we preset a default"
     if (selectedAccount?.is_cross_tenant) {
-      console.log('[ComposeSignature] Cross-tenant account has no signature, using empty');
-      setSignatureHtml("");
+      const ownerName = selectedAccount.owner_name || 'Team';
+      const emailAddr = selectedAccount.email_address || '';
+      console.log('[ComposeSignature] Cross-tenant account - generating default signature for:', ownerName);
+      const defaultSignature = `
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+          <p style="margin: 0; font-size: 14px;">Best regards,</p>
+          <p style="margin: 4px 0 0 0; font-weight: 600; font-size: 14px;">${ownerName}</p>
+          <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 13px;">${emailAddr}</p>
+        </div>
+      `.trim();
+      setSignatureHtml(defaultSignature);
       return;
     }
 

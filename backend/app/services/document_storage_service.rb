@@ -217,7 +217,7 @@ class DocumentStorageService
       provider: @storage_config.provider_type,
       connected: @storage_config.connected?,
       root_path: @storage_config.root_path,
-      available_scopes: @storage_config.scope_root_folders.keys
+      available_scopes: WarehouseFolder.available_warehouse_types
     }
   end
 

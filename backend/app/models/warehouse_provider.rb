@@ -303,55 +303,15 @@ class WarehouseProvider < ApplicationRecord
     type_key = WAREHOUSE_KEY_ALIASES[type_key] || type_key
 
     # SSoT: Read path template from warehouse_folders table
-    folder = WarehouseFolder.find_by(warehouse_type: type_key, parent_id: nil)
-    folder ||= WarehouseFolder.where(warehouse_type: type_key).order(:id).first
+    folder = WarehouseFolder.root_folder_for(type_key)
     path = folder&.warehouse_folder
 
     return nil if path.blank? || path == "DISABLED"
     path
   end
 
-  # Get all warehouse folders (full templates with tokens)
-  # SSoT (Feb 2026): Reads ONLY from warehouse_folders table - no hardcoded defaults
-  # Database is THE ONE source of truth for path templates
-  def effective_warehouse_folders
-    result = {}
-
-    # Read path templates directly from warehouse_folders table
-    # Group by warehouse_type, take the root folder (parent_id: nil) or first folder
-    WarehouseFolder.distinct.pluck(:warehouse_type).each do |warehouse_type|
-      folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
-      folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
-      next unless folder&.warehouse_folder.present?
-
-      result[warehouse_type] = folder.warehouse_folder
-    end
-
-    result
-  end
-
-  # LIM (Jan 2026): Simple root folder mapping for frontend
-  # Frontend only needs scope → root folder (e.g., "contact" → "Contacts")
-  # Full templates are only used by backend for path resolution
-  # SSoT (Feb 2026): Uses effective_warehouse_folders (includes database overrides)
-  def scope_root_folders
-    effective_warehouse_folders.transform_values { |template| template.to_s.split('/').first }
-  end
-
-  # Extract folder templates from warehouse_folders (everything after root folder)
-  # e.g., "Teeem Docs/{{UserName}}/{{Year}}" → "{{UserName}}/{{Year}}"
-  # e.g., "Jobs/{{JobCode}}" → "{{JobCode}}"
-  # e.g., "Contacts" → "" (no template)
-  # SSoT (Feb 2026): Uses effective_warehouse_folders (includes database overrides)
-  def scope_folder_templates
-    effective_warehouse_folders.transform_values do |full_path|
-      parts = full_path.to_s.split('/')
-      parts.length > 1 ? parts[1..].join('/') : ''
-    end
-  end
-
-  # LIM (Feb 2026): Removed scope_download_names, scope_ui_names - unused dead code
-  # download_name and ui_name are stored per-tab in warehouse_folders table (SSoT)
+  # LIM (Feb 2026): Removed effective_warehouse_folders, scope_root_folders, scope_folder_templates,
+  # scope_download_names, scope_ui_names - all read directly from warehouse_folders table (SSoT)
 
   # ========================================
   # Path Building Helpers
@@ -961,16 +921,10 @@ class WarehouseProvider < ApplicationRecord
       endpoint: endpoint,
       bucket: bucket,
       region: region,
-      # Root path and warehouse folders
+      # Root path
       root_path: root_path,
-      # SSoT: warehouse_folders is THE ONE place for warehouse roots (includes identifier patterns)
-      warehouse_folders: effective_warehouse_folders,
-      # Computed from warehouse_folders: extracts template portion for frontend Full Path preview
-      # e.g., "Teeem Docs/{{UserName}}/{{Year}}" → "{{UserName}}/{{Year}}"
-      warehouse_folder_templates: scope_folder_templates,
-      # SSoT: download_name and ui_name are now per-tab in warehouse_folders table
-      download_names: scope_download_names,
-      ui_name_templates: scope_ui_names,
+      # LIM (Feb 2026): warehouse_folders, download_names, ui_name_templates removed from as_json
+      # Frontend reads directly from warehouse_folders table via API
       # Config links for warehouse folders (URL to external config page)
       config_links: config_links || {},
       # Document routing configuration (SSoT for model selection)
@@ -983,9 +937,9 @@ class WarehouseProvider < ApplicationRecord
       # Link expiry days for presigned URLs (from TenantSetting - SSoT)
       link_expiry_days: TenantSetting.link_expiry_days,
 
-      # LIM (Jan 2026): Frontend only needs simple root folder mapping
+      # LIM (Feb 2026): Frontend gets root folder mapping from warehouse_folders SSoT
       # scope_folders: { contact: "Contacts", job: "Jobs", ... } - NOT full templates
-      scope_folders: scope_root_folders
+      scope_folders: WarehouseFolder.warehouse_type_to_root_folder
     }
   end
 end

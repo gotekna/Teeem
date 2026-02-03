@@ -89,38 +89,30 @@ module Api
 
         # SSoT: Save warehouse_folder path templates to warehouse_folders table per-warehouse_type
         # This is THE ONE place where custom folder templates (like {{Year}}) are stored
-        # FRC: Use find_or_create_by to ensure record exists - find_by returns nil if no record
         if sp.key?(:warehouse_folders)
           sp[:warehouse_folders].to_h.each do |warehouse_type, template|
-            folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
-            folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
-            folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, display_name: warehouse_type.titleize)
+            folder = WarehouseFolder.root_folder_for(warehouse_type)
+            folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
             folder.update!(warehouse_folder: template.presence)
             Rails.logger.info "[WarehouseProvider] Saved warehouse_folder for #{warehouse_type}: #{template}"
           end
         end
 
         # SSoT: Save download_name templates to warehouse_folders table per-warehouse_type
-        # First try root tab (parent_id: nil), then fall back to any folder of that type
-        # FRC: Use find_or_create_by to ensure record exists
         if sp.key?(:download_names)
           sp[:download_names].to_h.each do |warehouse_type, template|
-            folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
-            folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
-            folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, display_name: warehouse_type.titleize)
+            folder = WarehouseFolder.root_folder_for(warehouse_type)
+            folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
             folder.update!(download_name: template.presence)
             Rails.logger.info "[WarehouseProvider] Saved download_name for #{warehouse_type}: #{template}"
           end
         end
 
         # SSoT: Save ui_name templates to warehouse_folders table per-warehouse_type
-        # First try root tab (parent_id: nil), then fall back to any folder of that type
-        # FRC: Use find_or_create_by to ensure record exists
         if sp.key?(:ui_name_templates)
           sp[:ui_name_templates].to_h.each do |warehouse_type, template|
-            folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
-            folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
-            folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, display_name: warehouse_type.titleize)
+            folder = WarehouseFolder.root_folder_for(warehouse_type)
+            folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
             folder.update!(ui_name: template.presence)
             Rails.logger.info "[WarehouseProvider] Saved ui_name for #{warehouse_type}: #{template}"
           end

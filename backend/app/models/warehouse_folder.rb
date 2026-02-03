@@ -674,12 +674,44 @@ class WarehouseFolder < ApplicationRecord
   # This method adds both underscore and hyphen versions for backward compatibility.
   #
   def self.warehouse_base_folders
-    # SSoT: Delegate to WarehouseProvider.warehouse_folders
-    # Legacy warehouse_folder is DEPRECATED - all paths now derived from SSoT
-    WarehouseProvider.instance.effective_warehouse_folders
-  rescue StandardError => e
-    Rails.logger.warn "[WarehouseFolder.warehouse_base_folders] Error fetching from SSoT: #{e.message}"
-    {}
+    # SSoT (Feb 2026): Read directly from warehouse_folders table
+    result = {}
+    WarehouseFolder.where.not(warehouse_folder: [nil, ''])
+                   .distinct
+                   .pluck(:warehouse_type, :warehouse_folder)
+                   .each do |warehouse_type, path|
+      result[warehouse_type] ||= path
+    end
+    result
+  end
+
+  # SSoT (Feb 2026): Map warehouse_type → root folder name
+  # Extracts first segment of path template (e.g., 'Jobs/{{JobCode}}' → 'Jobs')
+  # Used by: documents_controller, warehouse_provider.as_json
+  def self.warehouse_type_to_root_folder
+    result = {}
+    WarehouseFolder.where.not(warehouse_folder: [nil, ''])
+                   .distinct
+                   .pluck(:warehouse_type, :warehouse_folder)
+                   .each do |warehouse_type, path|
+      root = path.to_s.split('/').first
+      result[warehouse_type] ||= root if root.present?
+    end
+    result
+  end
+
+  # SSoT (Feb 2026): List all available warehouse_types
+  # Used by: document_storage_service
+  def self.available_warehouse_types
+    WarehouseFolder.distinct.pluck(:warehouse_type)
+  end
+
+  # SSoT (Feb 2026): Get root folder for a warehouse_type
+  # Prefers parent_id: nil, falls back to first folder of that type
+  # Used by: warehouse_provider.path_for, warehouse_providers_controller
+  def self.root_folder_for(warehouse_type)
+    find_by(warehouse_type: warehouse_type, parent_id: nil) ||
+      where(warehouse_type: warehouse_type).order(:id).first
   end
 
 
