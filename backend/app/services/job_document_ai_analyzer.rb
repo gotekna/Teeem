@@ -32,7 +32,7 @@ class JobDocumentAiAnalyzer
     end
 
     # Generate proposed name using the document type's naming format
-    proposed_name = if suggested_type&.file_name.present?
+    proposed_name = if suggested_type&.download_name.present?
       generate_proposed_name(suggested_type, analysis)
     else
       analysis[:proposed_name]
@@ -173,7 +173,7 @@ class JobDocumentAiAnalyzer
         lines << "### #{folder || 'GENERAL'}"
         types.each do |dt|
           abbrev = dt.abbreviation.present? ? " (#{dt.abbreviation})" : ""
-          format = dt.file_name.present? ? " - Format: #{dt.file_name}" : ""
+          format = dt.download_name.present? ? " - Format: #{dt.download_name}" : ""
           extensions = dt.file_extensions.present? ? " [#{dt.file_extensions.join(', ')}]" : ""
           lines << "- ID #{dt.id}: #{dt.name}#{abbrev}#{format}#{extensions}"
         end
@@ -187,7 +187,7 @@ class JobDocumentAiAnalyzer
   end
 
   def generate_proposed_name(doc_type, analysis)
-    format = doc_type.file_name.dup
+    format = doc_type.download_name.dup
     return analysis[:proposed_name] if format.blank?
 
     # Australian date format

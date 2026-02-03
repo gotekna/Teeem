@@ -796,7 +796,7 @@ class DocumentVerificationService
         lines << "### #{folder || 'GENERAL'}"
         types.each do |dt|
           abbrev = dt.abbreviation.present? ? " (#{dt.abbreviation})" : ""
-          format = dt.file_name.present? ? " - Format: #{dt.file_name}" : ""
+          format = dt.download_name.present? ? " - Format: #{dt.download_name}" : ""
           # Include all aliases (database + defaults) so AI knows alternative names
           all_aliases = dt.all_terms - [ dt.name ]
           aliases_info = all_aliases.any? ? " [Also known as: #{all_aliases.first(5).join(', ')}]" : ""

@@ -642,7 +642,7 @@ class WarehouseFolder < ApplicationRecord
           name: dt.name,
           ui_name: dt.ui_name,
           abbreviation: dt.abbreviation,
-          file_name: dt.file_name,
+          download_name: dt.download_name,
           is_primary: join&.is_primary || false  # SSoT: Include primary/secondary flag
         }
       },

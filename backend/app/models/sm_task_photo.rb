@@ -161,14 +161,14 @@ class SmTaskPhoto < ApplicationRecord
     effective_warehouse_folder&.storage_folder_path
   end
 
-  # SSoT: Filename from DocumentType.file_name template
+  # SSoT: Filename from DocumentType.download_name template
   # Falls back to "{DocTypeCode} {JobCode} {Date}" if no template
   def storage_filename
     doc_type = effective_document_type
     tokens = default_storage_tokens
 
-    base_name = if doc_type&.file_name.present?
-      expand_filename_template(doc_type.file_name, tokens)
+    base_name = if doc_type&.download_name.present?
+      expand_filename_template(doc_type.download_name, tokens)
     else
       # Fallback: use tokens directly
       [tokens[:DocTypeCode], tokens[:JobCode], tokens[:Date]].compact.join(" ")

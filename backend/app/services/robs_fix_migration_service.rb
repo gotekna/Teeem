@@ -399,7 +399,7 @@ class RobsFixMigrationService
   def generate_standard_name(doc_type_name, job, file_ext, original_name)
     doc_type = DocumentType.find_by(name: doc_type_name)
 
-    if doc_type&.file_name.present?
+    if doc_type&.download_name.present?
       # Use the DocumentType template
       base_name = doc_type.generate_proposed_name(
         job: job,

@@ -251,8 +251,8 @@ class BalanceSheetReport < ApplicationRecord
 
   # Generate filename using DocumentType template (SSoT)
   def generate_file_name
-    if document_type&.file_name.present?
-      expand_filename_template(document_type.file_name)
+    if document_type&.download_name.present?
+      expand_filename_template(document_type.download_name)
     else
       nil  # Let service use its existing logic
     end
