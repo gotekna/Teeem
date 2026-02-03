@@ -20,6 +20,7 @@ import {
   User,
   Users,
   X,
+  Printer,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -250,6 +251,80 @@ export function EmailDetailDialog({
     setReplyOpen(true);
   };
 
+  // Print handler - opens email in new window for printing
+  const handlePrint = () => {
+    if (!email) return;
+
+    // Create a printable HTML document
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const formattedDate = email.received_at
+      ? format(new Date(email.received_at), "MMM d, yyyy, h:mm:ss a")
+      : "";
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${email.subject || "Email"}</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.5;
+          }
+          .header {
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+          }
+          .subject {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+          }
+          .meta {
+            font-size: 0.875rem;
+            color: #6b7280;
+          }
+          .meta-row {
+            margin-bottom: 4px;
+          }
+          .meta-label {
+            display: inline-block;
+            width: 50px;
+            color: #9ca3af;
+          }
+          .body {
+            white-space: pre-wrap;
+          }
+          @media print {
+            body { margin: 20px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="subject">${email.subject || "(No Subject)"}</div>
+          <div class="meta">
+            <div class="meta-row"><span class="meta-label">From</span> ${email.from_name ? `${email.from_name} <${email.from_email}>` : email.from_email}</div>
+            <div class="meta-row"><span class="meta-label">To</span> ${email.to_emails?.join(", ") || ""}</div>
+            ${email.cc_emails?.length ? `<div class="meta-row"><span class="meta-label">Cc</span> ${email.cc_emails.join(", ")}</div>` : ""}
+            <div class="meta-row"><span class="meta-label">Date</span> ${formattedDate}</div>
+          </div>
+        </div>
+        <div class="body">${email.body_html || email.body_text || ""}</div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
   // Get reply defaults
   const getReplyDefaults = () => {
     if (!email) return {};
@@ -381,6 +456,15 @@ export function EmailDetailDialog({
                 >
                   <Forward className="h-4 w-4 mr-2" />
                   Forward
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrint}
+                  title="Print email"
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print
                 </Button>
 
                 {/* Job Assignment / View - right aligned */}
