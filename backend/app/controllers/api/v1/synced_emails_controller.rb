@@ -1745,33 +1745,47 @@ class Api::V1::SyncedEmailsController < ApplicationController
     json
   end
 
-  # Build attachments list - use synced records (WarehouseDocument) or fetch from MS365
+  # Build attachments list - merge synced records (WarehouseDocument) with MS365
   # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+  # FRC (Feb 2026): Fixed to always check MS365 for missing attachments
+  # Previously only showed synced attachments, missing real PDFs while showing signature images
   def build_attachments_list(email)
-    # First try local attachment_documents (already synced via WarehouseDocument)
+    result = []
+    synced_filenames = Set.new
+
+    # First add local attachment_documents (already synced via WarehouseDocument)
     synced = email.attachment_documents.includes(:storage_blob)
-    if synced.any?
-      return synced.map do |doc|
-        # For inline images: content_id matches cid: references in HTML
-        content_id = doc.metadata&.dig('content_id')
-        # Generate presigned URL for inline images (to replace cid: references)
-        inline_url = if doc.storage_blob.present? && content_id.present?
-                       doc.storage_blob.presigned_url(expires_in: 3600)
-                     end
-        {
-          id: doc.id,
-          name: doc.original_filename || doc.display_name || "Unknown",
-          content_type: doc.content_type || doc.storage_blob&.content_type,
-          size: doc.file_size || doc.storage_blob&.file_size,
-          outlook_attachment_id: nil,  # Not stored in WarehouseDocument
-          content_id: content_id,
-          inline_url: inline_url
-        }
-      end
+    synced.each do |doc|
+      # For inline images: content_id matches cid: references in HTML
+      content_id = doc.metadata&.dig('content_id')
+      content_type = doc.content_type || doc.storage_blob&.content_type
+      file_size = doc.file_size || doc.storage_blob&.file_size || 0
+
+      # Mark inline images (signature logos) - they're embedded in the body via cid:
+      # Keep large images (>100KB) as they're likely real photos, not signatures
+      is_inline_signature = content_id.present? && content_type&.start_with?('image/') && file_size < 100_000
+
+      # Generate presigned URL for inline images (to replace cid: references)
+      inline_url = if doc.storage_blob.present? && content_id.present?
+                     doc.storage_blob.presigned_url(expires_in: 3600)
+                   end
+      filename = doc.original_filename || doc.display_name || "Unknown"
+      synced_filenames << filename.downcase
+
+      result << {
+        id: doc.id,
+        name: filename,
+        content_type: content_type,
+        size: file_size,
+        outlook_attachment_id: nil,
+        content_id: content_id,
+        inline_url: inline_url,
+        is_inline: is_inline_signature  # Flag for frontend to hide from attachment list
+      }
     end
 
-    # If no synced attachments but email has attachments, fetch from MS365
-    return [] unless email.has_attachments && email.outlook_id.present?
+    # Also fetch from MS365 to find any attachments not yet synced (e.g., large PDFs)
+    return result unless email.has_attachments && email.outlook_id.present?
 
     begin
       credential = if email.microsoft_credential_id.present?
@@ -1780,10 +1794,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
                      MicrosoftCredential.refreshable_app.first
                    end
 
-      return [] unless credential&.valid_credential?
+      return result unless credential&.valid_credential?
 
       mailbox = email.mailbox_owner_email
-      return [] unless mailbox.present?
+      return result unless mailbox.present?
 
       client = MicrosoftAppGraphClient.new(credential)
       ms_attachments = client.get_email_attachments(mailbox, email.outlook_id)
@@ -1794,25 +1808,31 @@ class Api::V1::SyncedEmailsController < ApplicationController
         att["isInline"] == true || att["contentId"].present?
       end
 
-      # SSoT: Update attachment_count when we discover actual count from Outlook
-      # This ensures the count is accurate for future list views
-      if filtered.any? && email.attachment_count.to_i != filtered.size
-        email.update_column(:attachment_count, filtered.size)
-      end
+      # Add MS365 attachments that aren't already synced locally
+      filtered.each do |att|
+        filename = att["name"] || "attachment"
+        next if synced_filenames.include?(filename.downcase)
 
-      filtered.map do |att|
-        {
-          id: nil,  # No local ID yet
-          name: att["name"] || "attachment",
+        result << {
+          id: nil,  # No local ID yet - needs to be fetched on download
+          name: filename,
           content_type: att["contentType"],
           size: att["size"],
           outlook_attachment_id: att["id"]
         }
       end
+
+      # SSoT: Update attachment_count when we discover actual count from Outlook
+      # Count non-inline attachments (real documents)
+      real_attachment_count = result.reject { |a| a[:content_id].present? }.size
+      if real_attachment_count > 0 && email.attachment_count.to_i != real_attachment_count
+        email.update_column(:attachment_count, real_attachment_count)
+      end
     rescue StandardError => e
       Rails.logger.warn "[SyncedEmail] Failed to fetch attachments from MS365: #{e.message}"
-      []
     end
+
+    result
   end
 
   def suggestion_json(suggestion)
