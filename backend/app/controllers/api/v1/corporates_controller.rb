@@ -65,7 +65,7 @@ module Api
             corporate_xero_connection: {},
             consolidation_parent: {},
             contact: {}, # Include contact with ABN verification fields
-            corporate_group: {} # Include company group for display
+            company_group: {} # Include company group for display
           },
           methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :sharepoint_folder_url, :has_consolidated_children? ]
           # Note: total_asset_value removed - depends on assets table
@@ -325,8 +325,8 @@ module Api
 
           {
             id: doc.id,
-            name: doc.storage_blob&.original_filename || doc.display_name,
-            displayName: doc.display_name,
+            name: doc.storage_blob&.original_filename || doc.ui_name,
+            displayName: doc.ui_name,
             folder: doc.folder,
             fileSize: doc.storage_blob&.file_size,
             contentType: doc.storage_blob&.content_type,
@@ -428,7 +428,7 @@ module Api
       # GET /api/v1/companies/:id/investments
       # Returns companies that this company owns shares in
       def investments
-        investments = @company.investments.includes(:corporate_company)
+        investments = @company.investments.includes(:corporate)
 
         render json: {
           success: true,
@@ -476,9 +476,9 @@ module Api
           trust = Corporate.find_by(name: @company.trust_name)
         end
 
-        # Get trust roles from ContactCorporateGroupMemberships
+        # Get trust roles from ContactCompanyGroupMemberships
         trust_group_id = trust&.company_group_id || @company.company_group_id
-        memberships = ContactCorporateGroupMembership
+        memberships = ContactCompanyGroupMembership
           .where(company_group_id: trust_group_id, membership_type: [ "beneficiary", "appointor", "trustee" ])
           .includes(:contact)
 
@@ -608,7 +608,7 @@ module Api
         }
 
         # Xero connection stats - SSoT: Use XeroConnectionHealth
-        xero_connection = @company.corporate_company_xero_connection
+        xero_connection = @company.corporate_xero_connection
         xero_stats = if xero_connection
           health = xero_connection.health_status
           {
@@ -703,7 +703,7 @@ module Api
         }
 
         # 4. Xero Connection - SSoT: Use connected? which delegates to XeroConnectionHealth
-        xero = @company.corporate_company_xero_connection
+        xero = @company.corporate_xero_connection
         xero_connected = xero&.connected?
         xero_last_sync = xero&.last_sync_at
         xero_stale = xero_last_sync.nil? || xero_last_sync < 24.hours.ago
@@ -840,7 +840,7 @@ module Api
 
         # Pre-fetch contact link counts by tenant_id for efficiency
         tenant_ids = companies
-          .filter_map { |c| c.corporate_company_xero_connection&.xero_tenant_id }
+          .filter_map { |c| c.corporate_xero_connection&.xero_tenant_id }
           .compact
 
         contacts_by_tenant = ContactExternalLink
@@ -851,15 +851,15 @@ module Api
         # Pre-fetch bank account counts by company_id (avoids N+1)
         # Performance: 1 query instead of N queries for N companies
         bank_accounts_by_company = BankAccount
-          .where(corporate_company_id: company_ids)
+          .where(company_id: company_ids)
           .where.not(xero_account_id: nil)
-          .group(:corporate_company_id)
+          .group(:corporate_id)
           .count
 
         render json: {
           success: true,
           companies: companies.map do |company|
-            connection = company.corporate_company_xero_connection
+            connection = company.corporate_xero_connection
             connected = connection&.connected? || false
             tenant_id = connection&.xero_tenant_id
 
@@ -894,7 +894,7 @@ module Api
           end,
           summary: {
             total: companies.size,
-            connected: companies.count { |c| c.corporate_company_xero_connection&.connected? },
+            connected: companies.count { |c| c.corporate_xero_connection&.connected? },
             with_bank_accounts: bank_accounts_by_company.keys.size,
             with_contacts: contacts_by_tenant.values.count { |v| v > 0 }
           }
@@ -905,9 +905,9 @@ module Api
       # Returns all companies' ASIC login credentials for table view
       # Only shows entity_type = Company (excludes Person, Trust, Superfund)
       def asic_logins
-        # Performance: includes :corporate_group to avoid N+1 when accessing company_group_name
+        # Performance: includes :company_group to avoid N+1 when accessing company_group_name
         @companies = Corporate.where(entity_type: [ "Company", "company" ])
-                                     .includes(:corporate_group)
+                                     .includes(:company_group)
                                      .order(:name)
 
         # Filter by company group
@@ -929,7 +929,7 @@ module Api
               acn: company.acn,
               formatted_acn: company.formatted_acn,
               company_group_id: company.company_group_id,
-              company_group_name: company.corporate_group&.name,
+              company_group_name: company.company_group&.name,
               corporate_key: company.corporate_key,
               asic_username: company.asic_username,
               asic_password: company.encrypted_asic_password,

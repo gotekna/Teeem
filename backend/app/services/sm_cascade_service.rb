@@ -21,7 +21,7 @@ class SmCascadeService
 
   def initialize(task, options = {})
     @task = task
-    @construction = task.construction
+    @construction = task.job
     @options = options
     # SSoT: TenantSetting.instance for all working days calculations
     # (consistent with GanttDateCalculationService, SmTaskCompletionService)

@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :gl_account, class_name: 'Gl::Account'
     belongs_to :completed_by, class_name: 'User', optional: true
 
@@ -54,7 +54,7 @@ module Gl
 
         # Get GL balances
         calculator = Gl::BalanceCalculator.new(
-          account.corporate_company,
+          account.corporate,
           provider: account.external_provider,
           tenant_id: account.external_tenant_id
         )
@@ -64,7 +64,7 @@ module Gl
         period_start = previous_recon&.statement_date&.+ 1.day || account.created_at.to_date
 
         create!(
-          corporate_company: account.corporate_company,
+          corporate: account.corporate,
           gl_account: account,
           external_provider: account.external_provider,
           external_tenant_id: account.external_tenant_id,

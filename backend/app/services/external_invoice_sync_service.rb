@@ -5,7 +5,8 @@ class ExternalInvoiceSyncService
 
   def initialize(source: "xero", tenant_id: nil)
     @source = source
-    @tenant_id = tenant_id
+    @xero_tenant_id = tenant_id  # Xero org UUID (used for API calls)
+    @teeem_tenant_id_cache = {}  # Cache: Xero tenant_id → TEEEM tenant_id
     @stats = {
       created: 0,
       updated: 0,
@@ -29,12 +30,31 @@ class ExternalInvoiceSyncService
     end
   end
 
+  # FRC (Feb 2026): Resolve TEEEM tenant_id from Xero tenant_id
+  # Root cause: ExternalInvoice.tenant_id is an integer FK to TEEEM's tenants table,
+  # but @xero_tenant_id is a UUID (Xero org ID). Using the wrong one causes
+  # "Validation failed: Tenant must exist" errors.
+  # Solution: Look up XeroCredential.teeem_tenant_id for the mapping.
+  def teeem_tenant_id_for(xero_tenant_id)
+    return nil if xero_tenant_id.blank?
+
+    @teeem_tenant_id_cache[xero_tenant_id] ||= begin
+      credential = XeroCredential.find_by(tenant_id: xero_tenant_id)
+      if credential&.teeem_tenant_id.present?
+        credential.teeem_tenant_id
+      else
+        Rails.logger.warn("[ExternalInvoiceSyncService] No TEEEM tenant mapping for Xero tenant #{xero_tenant_id}")
+        nil
+      end
+    end
+  end
+
   # Main sync method - syncs all invoices
   # @param fetch_details [Boolean] - If true, fetches full invoice details including line items
   def sync(fetch_details: false)
     @fetch_details = fetch_details
-    if @tenant_id
-      sync_tenant(@tenant_id)
+    if @xero_tenant_id
+      sync_tenant(@xero_tenant_id)
     else
       sync_all_tenants
     end
@@ -70,45 +90,47 @@ class ExternalInvoiceSyncService
     }
   end
 
-  # Sync invoices for a specific tenant
-  def sync_tenant(tenant_id)
-    Rails.logger.info("Starting #{@source} invoice sync for tenant #{tenant_id}")
+  # Sync invoices for a specific Xero tenant
+  # @param xero_tenant_id [String] The Xero organization's tenant UUID
+  def sync_tenant(xero_tenant_id)
+    Rails.logger.info("Starting #{@source} invoice sync for Xero tenant #{xero_tenant_id}")
 
-    @tenant_id = tenant_id
+    @xero_tenant_id = xero_tenant_id
+    @current_teeem_tenant_id = teeem_tenant_id_for(xero_tenant_id)
 
     begin
       # Fetch all invoices with pagination
       # If @fetch_details is true, also fetch full details including line items
-      all_invoices = fetch_all_invoices(tenant_id, fetch_details: @fetch_details)
+      all_invoices = fetch_all_invoices(xero_tenant_id, fetch_details: @fetch_details)
       @stats[:total_invoices] = all_invoices.length
 
       Rails.logger.info("Fetched #{all_invoices.length} invoices from #{@source}#{@fetch_details ? ' (with full details)' : ''}")
 
       # Process each invoice
       all_invoices.each do |invoice_data|
-        process_invoice(invoice_data, tenant_id)
+        process_invoice(invoice_data, xero_tenant_id)
       end
 
       # Fetch all credit notes
-      all_credit_notes = fetch_all_credit_notes(tenant_id)
+      all_credit_notes = fetch_all_credit_notes(xero_tenant_id)
       @stats[:total_credit_notes] = all_credit_notes.length
 
       Rails.logger.info("Fetched #{all_credit_notes.length} credit notes from #{@source}")
 
       # Process each credit note
       all_credit_notes.each do |cn_data|
-        process_credit_note(cn_data, tenant_id)
+        process_credit_note(cn_data, xero_tenant_id)
       end
 
       # Fetch all quotes
-      all_quotes = fetch_all_quotes(tenant_id)
+      all_quotes = fetch_all_quotes(xero_tenant_id)
       @stats[:total_quotes] = all_quotes.length
 
       Rails.logger.info("Fetched #{all_quotes.length} quotes from #{@source}")
 
       # Process each quote
       all_quotes.each do |quote_data|
-        process_quote(quote_data, tenant_id)
+        process_quote(quote_data, xero_tenant_id)
       end
 
       Rails.logger.info("Full sync completed: #{@stats.inspect}")
@@ -137,8 +159,8 @@ class ExternalInvoiceSyncService
 
     Rails.logger.info("Starting incremental sync since #{since}")
 
-    if @tenant_id
-      sync_tenant_incremental(@tenant_id, since)
+    if @xero_tenant_id
+      sync_tenant_incremental(@xero_tenant_id, since)
     else
       sync_all_tenants_incremental(since)
     end
@@ -147,7 +169,8 @@ class ExternalInvoiceSyncService
   # Push pending invoices created in TEEEM to Xero
   def push_pending
     pending = ExternalInvoice.pending_push.where(source: @source)
-    pending = pending.for_tenant(@tenant_id) if @tenant_id
+    # FRC (Feb 2026): Filter by TEEEM tenant, not Xero tenant
+    pending = pending.where(tenant_id: teeem_tenant_id_for(@xero_tenant_id)) if @xero_tenant_id
 
     Rails.logger.info("Found #{pending.count} invoices pending push to #{@source}")
 
@@ -272,13 +295,25 @@ class ExternalInvoiceSyncService
     sleep(RATE_LIMIT_SLEEP / 1000.0)
   end
 
-  def process_invoice(invoice_data, tenant_id)
+  # FRC (Feb 2026): Fixed tenant_id confusion
+  # - xero_tenant_id: Xero org UUID (used for API calls, stored in raw_data for reference)
+  # - @current_teeem_tenant_id: TEEEM Tenant FK (resolved via teeem_tenant_id_for)
+  def process_invoice(invoice_data, xero_tenant_id)
     external_id = invoice_data["InvoiceID"]
+    teeem_tenant_id = @current_teeem_tenant_id || teeem_tenant_id_for(xero_tenant_id)
+
+    unless teeem_tenant_id
+      error_msg = "Error processing invoice #{invoice_data['InvoiceNumber']}: No TEEEM tenant mapping for Xero org #{xero_tenant_id}"
+      Rails.logger.error(error_msg)
+      @stats[:errors] << error_msg
+      return
+    end
 
     # Find or create the external invoice record
+    # Uses TEEEM tenant_id (integer FK) not Xero tenant_id (UUID)
     invoice = ExternalInvoice.find_or_initialize_by(
       source: @source,
-      tenant_id: tenant_id,
+      tenant_id: teeem_tenant_id,
       external_id: external_id
     )
 
@@ -289,7 +324,9 @@ class ExternalInvoiceSyncService
     external_contact_id = invoice_data.dig("Contact", "ContactID")
 
     # Map Xero data to our normalized format
+    # FRC (Feb 2026): xero_org_id stores Xero UUID for correct API calls and scoping
     invoice.assign_attributes(
+      xero_org_id: xero_tenant_id,
       invoice_number: invoice_data["InvoiceNumber"],
       reference: invoice_data["Reference"],
       invoice_type: ExternalInvoice.normalize_xero_type(invoice_data["Type"]),
@@ -417,9 +454,10 @@ class ExternalInvoiceSyncService
 
     # LIM (Jan 2026): XeroContact lookup removed - ContactExternalLink is THE ONE SSoT
     # Find via ContactExternalLink (1,018 records linking Xero contacts to TEEEM contacts)
+    # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
     link = ContactExternalLink.find_by(
       source: @source,
-      tenant_id: @tenant_id,
+      xero_org_id: @xero_tenant_id,
       external_contact_id: invoice.external_contact_id
     )
 
@@ -458,22 +496,25 @@ class ExternalInvoiceSyncService
     Rails.logger.info("Auto-creating contact for Xero contact: #{invoice.contact_name}")
 
     begin
-      # SSoT: Multi-tenancy - set tenant_id from service context
+      # SSoT: Multi-tenancy - Contact uses TEEEM tenant_id (integer)
+      # FRC (Feb 2026): Fixed to use resolved TEEEM tenant, not Xero UUID
+      teeem_tid = @current_teeem_tenant_id || teeem_tenant_id_for(@xero_tenant_id)
       contact = Contact.new(
         display_name: invoice.contact_name,
         company_name_or_trust: invoice.contact_name,
         entity_type: "company",
         sync_with_xero: true,
-        tenant_id: @tenant_id
+        tenant_id: teeem_tid
       )
 
       if contact.save
         # Create ContactExternalLink for the new TEEEM Contact (SSoT)
+        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
         if invoice.external_contact_id.present?
           ContactExternalLink.find_or_create_by!(
             contact: contact,
             source: @source,
-            tenant_id: @tenant_id,
+            xero_org_id: @xero_tenant_id,
             external_contact_id: invoice.external_contact_id
           )
           Rails.logger.info("Created ContactExternalLink for contact #{contact.id}")
@@ -590,13 +631,14 @@ class ExternalInvoiceSyncService
 
   # Link an existing contact to XeroContact/ExternalLink (used when duplicate detected)
   # LIM (Jan 2026): Simplified - ContactExternalLink is THE ONE SSoT for Xero contact linking
+  # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
   def link_existing_contact(contact, invoice)
     return if invoice.external_contact_id.blank?
 
     # Create ContactExternalLink if it doesn't exist
     link = ContactExternalLink.find_or_initialize_by(
       source: @source,
-      tenant_id: @tenant_id,
+      xero_org_id: @xero_tenant_id,
       external_contact_id: invoice.external_contact_id
     )
     if link.new_record? || link.contact_id.nil?
@@ -765,12 +807,21 @@ class ExternalInvoiceSyncService
   end
 
   # Process a single credit note
-  def process_credit_note(cn_data, tenant_id)
+  # FRC (Feb 2026): Fixed tenant_id confusion - uses TEEEM tenant_id, not Xero UUID
+  def process_credit_note(cn_data, xero_tenant_id)
     external_id = cn_data["CreditNoteID"]
+    teeem_tenant_id = @current_teeem_tenant_id || teeem_tenant_id_for(xero_tenant_id)
+
+    unless teeem_tenant_id
+      error_msg = "Error processing credit note #{cn_data['CreditNoteNumber']}: No TEEEM tenant mapping for Xero org #{xero_tenant_id}"
+      Rails.logger.error(error_msg)
+      @stats[:errors] << error_msg
+      return
+    end
 
     record = ExternalInvoice.find_or_initialize_by(
       source: @source,
-      tenant_id: tenant_id,
+      tenant_id: teeem_tenant_id,
       external_id: external_id
     )
 
@@ -779,7 +830,9 @@ class ExternalInvoiceSyncService
     # LIM (Jan 2026): XeroContact lookup removed - ContactExternalLink is THE ONE SSoT
     external_contact_id = cn_data.dig("Contact", "ContactID")
 
+    # FRC (Feb 2026): xero_org_id stores Xero UUID for correct API calls and scoping
     record.assign_attributes(
+      xero_org_id: xero_tenant_id,
       invoice_number: cn_data["CreditNoteNumber"],
       reference: cn_data["Reference"],
       invoice_type: "credit_note",
@@ -850,12 +903,21 @@ class ExternalInvoiceSyncService
   end
 
   # Process a single quote
-  def process_quote(quote_data, tenant_id)
+  # FRC (Feb 2026): Fixed tenant_id confusion - uses TEEEM tenant_id, not Xero UUID
+  def process_quote(quote_data, xero_tenant_id)
     external_id = quote_data["QuoteID"]
+    teeem_tenant_id = @current_teeem_tenant_id || teeem_tenant_id_for(xero_tenant_id)
+
+    unless teeem_tenant_id
+      error_msg = "Error processing quote #{quote_data['QuoteNumber']}: No TEEEM tenant mapping for Xero org #{xero_tenant_id}"
+      Rails.logger.error(error_msg)
+      @stats[:errors] << error_msg
+      return
+    end
 
     record = ExternalInvoice.find_or_initialize_by(
       source: @source,
-      tenant_id: tenant_id,
+      tenant_id: teeem_tenant_id,
       external_id: external_id
     )
 
@@ -864,7 +926,9 @@ class ExternalInvoiceSyncService
     # LIM (Jan 2026): XeroContact lookup removed - ContactExternalLink is THE ONE SSoT
     external_contact_id = quote_data.dig("Contact", "ContactID")
 
+    # FRC (Feb 2026): xero_org_id stores Xero UUID for correct API calls and scoping
     record.assign_attributes(
+      xero_org_id: xero_tenant_id,
       invoice_number: quote_data["QuoteNumber"],
       reference: quote_data["Reference"] || quote_data["Title"],
       invoice_type: "quote",

@@ -128,7 +128,7 @@ interface Asset {
     full_name: string;
     email?: string;
   };
-  corporate_company?: {
+  corporate?: {
     id: number;
     name: string;
     code?: string;
@@ -240,6 +240,20 @@ interface AssetExpense {
   };
 }
 
+interface AssetDocument {
+  id: number;
+  display_name: string;
+  download_filename: string;
+  source_type: string;
+  folder: string;
+  content_type?: string;
+  file_size?: number;
+  download_url?: string;
+  created_at: string;
+  updated_at: string;
+  metadata?: Record<string, unknown>;
+}
+
 export default function AssetDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -273,6 +287,8 @@ export default function AssetDetailPage() {
   const [odometerReadings, setOdometerReadings] = React.useState<OdometerReading[]>([]);
   const [expenses, setExpenses] = React.useState<AssetExpense[]>([]);
   const [expenseTotals, setExpenseTotals] = React.useState<{ total: number; by_type: Record<string, number> }>({ total: 0, by_type: {} });
+  const [documents, setDocuments] = React.useState<AssetDocument[]>([]);
+  const [documentCounts, setDocumentCounts] = React.useState<{ total: number; by_source: Record<string, number> }>({ total: 0, by_source: {} });
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [calculating, setCalculating] = React.useState(false);
@@ -345,6 +361,8 @@ export default function AssetDetailPage() {
       loadOdometerData();
     } else if (activeTab === "expenses") {
       loadExpensesData();
+    } else if (activeTab === "documents") {
+      loadDocumentsData();
     }
   }, [activeTab, asset?.id]);
 
@@ -413,6 +431,18 @@ export default function AssetDetailPage() {
       setExpenseTotals(response.totals || { total: 0, by_type: {} });
     } catch (err) {
       console.error("Failed to load expenses data:", err);
+    }
+  };
+
+  const loadDocumentsData = async () => {
+    try {
+      const response = await api.get<{ documents: AssetDocument[]; counts: { total: number; by_source: Record<string, number> } }>(
+        `/api/v1/assets/${assetId}/documents`
+      );
+      setDocuments(response.documents || []);
+      setDocumentCounts(response.counts || { total: 0, by_source: {} });
+    } catch (err) {
+      console.error("Failed to load documents data:", err);
     }
   };
 
@@ -894,14 +924,76 @@ export default function AssetDetailPage() {
       {activeTab === "documents" && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Documents</CardTitle>
-            <Button size="sm">Upload Document</Button>
+            <CardTitle className="text-lg">
+              Documents {documentCounts.total > 0 ? `(${documentCounts.total})` : ""}
+            </CardTitle>
+            <Button size="sm">
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Document
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No documents attached to this asset</p>
-            </div>
+            {documents.length > 0 ? (
+              <div className="space-y-4">
+                {/* Source type summary */}
+                {Object.keys(documentCounts.by_source).length > 1 && (
+                  <div className="flex flex-wrap gap-2 pb-4 border-b">
+                    {Object.entries(documentCounts.by_source).map(([source, count]) => (
+                      <Badge key={source} variant="outline" className="capitalize">
+                        {source}: {count}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {/* Document list */}
+                <div className="space-y-2">
+                  {documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
+                          <FileText className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{doc.display_name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {doc.folder}
+                            {doc.file_size && (
+                              <> • {(doc.file_size / 1024).toFixed(0)} KB</>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="capitalize">
+                          {doc.source_type}
+                        </Badge>
+                        {doc.download_url && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => window.open(doc.download_url, "_blank")}
+                          >
+                            Download
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No documents attached to this asset</p>
+                <p className="text-sm mt-2">
+                  Documents will appear here when uploaded via Service, Expenses, or Readings
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

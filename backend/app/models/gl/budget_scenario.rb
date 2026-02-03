@@ -8,7 +8,7 @@ module Gl
     SCENARIO_TYPES = %w[base optimistic pessimistic stretch custom].freeze
     STATUSES = %w[draft active archived].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :created_by, class_name: "User", optional: true
 
     validates :name, presence: true
@@ -23,7 +23,7 @@ module Gl
     # Get budgets for this scenario
     def budgets
       Gl::Budget.where(
-        corporate_company_id: corporate_company_id,
+        company_id: company_id,
         scenario: scenario_type
       ).for_financial_year(fiscal_year)
     end
@@ -31,7 +31,7 @@ module Gl
     # Apply adjustments to base scenario to create this scenario
     def apply_from_base!
       base_budgets = Gl::Budget.where(
-        corporate_company_id: corporate_company_id,
+        company_id: company_id,
         scenario: "base"
       ).for_financial_year(fiscal_year)
 
@@ -90,7 +90,7 @@ module Gl
     def set_as_default!
       transaction do
         self.class.where(
-          corporate_company_id: corporate_company_id,
+          company_id: company_id,
           fiscal_year: fiscal_year
         ).update_all(is_default: false)
 

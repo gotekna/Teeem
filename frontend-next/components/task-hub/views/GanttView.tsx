@@ -47,7 +47,7 @@ export function GanttView() {
         assigned_user_id: task.assigned_user_id,
         assigned_user_name: task.assigned_user_name,
         assigned_role: task.assigned_role,
-        construction_id: task.construction_id,
+        job_id: task.job_id,
         job_name: task.job_name,
         predecessor_ids: task.predecessor_ids,
       } as any,
@@ -71,10 +71,10 @@ export function GanttView() {
           // Find the predecessor task
           let predecessorTask: SmTask | undefined;
 
-          if (task.construction_id > 0) {
+          if (task.job_id > 0) {
             // Job task - find by task_number within same job
             predecessorTask = filteredTasks.find(t =>
-              t.construction_id === task.construction_id && t.task_number === predId
+              t.job_id === task.job_id && t.task_number === predId
             );
           } else {
             // Non-job task - find by task id directly
@@ -123,7 +123,7 @@ export function GanttView() {
     // Add the new predecessor to the successor's predecessor_ids
     const currentPredecessors = successorTask.predecessor_ids || [];
     const newPredecessor = {
-      id: predecessorTask.construction_id > 0 ? predecessorTask.task_number : predecessorTask.id,
+      id: predecessorTask.job_id > 0 ? predecessorTask.task_number : predecessorTask.id,
       type: type || 'FS',
       lag: 0,
     };
@@ -153,7 +153,7 @@ export function GanttView() {
     if (!successorTask || !predecessorTask) return;
 
     const currentPredecessors = successorTask.predecessor_ids || [];
-    const predIdToRemove = predecessorTask.construction_id > 0
+    const predIdToRemove = predecessorTask.job_id > 0
       ? predecessorTask.task_number
       : predecessorTask.id;
 

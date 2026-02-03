@@ -166,7 +166,7 @@ module Api
             job: event.purchase_order ? {
               id: event.purchase_order.id,
               po_number: event.purchase_order.po_number,
-              construction_name: event.purchase_order.construction.job_name
+              construction_name: event.purchase_order.job.job_name
             } : nil,
             quote: event.quote_response ? {
               id: event.quote_response.id,

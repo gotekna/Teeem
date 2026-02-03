@@ -5,11 +5,11 @@ module Api
     module Gl
       # Controller for billable expenses
       class ExpensesController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
 
         # GET /api/v1/gl/expenses
         def index
-          expenses = @corporate_company.gl_billable_expenses
+          expenses = @corporate.gl_billable_expenses
                                        .includes(:job, :contact, :user)
                                        .order(expense_date: :desc)
 
@@ -22,13 +22,13 @@ module Api
 
         # GET /api/v1/gl/expenses/:id
         def show
-          expense = @corporate_company.gl_billable_expenses.find(params[:id])
+          expense = @corporate.gl_billable_expenses.find(params[:id])
           render json: { success: true, data: expense.as_json(include: [:job, :contact, :user]) }
         end
 
         # POST /api/v1/gl/expenses
         def create
-          expense = @corporate_company.gl_billable_expenses.build(expense_params)
+          expense = @corporate.gl_billable_expenses.build(expense_params)
           expense.user = current_user unless expense.user_id
 
           if expense.save
@@ -41,7 +41,7 @@ module Api
 
         # PATCH /api/v1/gl/expenses/:id
         def update
-          expense = @corporate_company.gl_billable_expenses.find(params[:id])
+          expense = @corporate.gl_billable_expenses.find(params[:id])
 
           if expense.update(expense_params)
             render json: { success: true, data: expense }
@@ -53,7 +53,7 @@ module Api
 
         # POST /api/v1/gl/expenses/:id/approve
         def approve
-          expense = @corporate_company.gl_billable_expenses.find(params[:id])
+          expense = @corporate.gl_billable_expenses.find(params[:id])
 
           if expense.approve!
             render json: { success: true, data: expense }
@@ -64,7 +64,7 @@ module Api
 
         # POST /api/v1/gl/expenses/batch_approve
         def batch_approve
-          expenses = @corporate_company.gl_billable_expenses
+          expenses = @corporate.gl_billable_expenses
                                        .where(id: params[:expense_ids])
                                        .where(status: "pending")
 
@@ -74,7 +74,7 @@ module Api
 
         # POST /api/v1/gl/expenses/create_invoice
         def create_invoice
-          expenses = @corporate_company.gl_billable_expenses
+          expenses = @corporate.gl_billable_expenses
                                        .where(id: params[:expense_ids])
                                        .where(status: "approved")
 
@@ -84,7 +84,7 @@ module Api
           contact = job.contact
 
           invoice = Gl::Invoice.create!(
-            corporate_company: @corporate_company,
+            corporate: @corporate,
             contact: contact,
             job: job,
             invoice_type: "sales",
@@ -107,7 +107,7 @@ module Api
 
         # GET /api/v1/gl/expenses/summary
         def summary
-          expenses = @corporate_company.gl_billable_expenses
+          expenses = @corporate.gl_billable_expenses
 
           render json: {
             success: true,
@@ -126,8 +126,8 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id])
         end
 
         def expense_params

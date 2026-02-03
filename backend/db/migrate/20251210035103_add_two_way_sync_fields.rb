@@ -11,12 +11,12 @@ class AddTwoWaySyncFields < ActiveRecord::Migration[8.0]
     add_column :external_invoices, :sync_conflict, :boolean, default: false, null: false
 
     # CorporateCompanyDocument: Track Xero attachment sync
-    add_column :corporate_company_documents, :synced_to_xero_at, :datetime
-    add_column :corporate_company_documents, :xero_attachment_id, :string
-    add_column :corporate_company_documents, :sync_to_xero, :boolean, default: false, null: false
+    add_column :corporate_documents, :synced_to_xero_at, :datetime
+    add_column :corporate_documents, :xero_attachment_id, :string
+    add_column :corporate_documents, :sync_to_xero, :boolean, default: false, null: false
 
     add_index :external_invoices, :sync_conflict, where: 'sync_conflict = true', name: 'idx_external_invoices_conflicts'
     add_index :external_invoices, [ :sync_to_xero, :synced_to_xero_at ], name: 'idx_external_invoices_pending_sync'
-    add_index :corporate_company_documents, [ :sync_to_xero, :synced_to_xero_at ], name: 'idx_corp_docs_pending_xero_sync'
+    add_index :corporate_documents, [ :sync_to_xero, :synced_to_xero_at ], name: 'idx_corp_docs_pending_xero_sync'
   end
 end

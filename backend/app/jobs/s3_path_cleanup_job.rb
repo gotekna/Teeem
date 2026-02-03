@@ -158,7 +158,7 @@ class S3PathCleanupJob < ApplicationJob
     raise ArgumentError, "WarehouseProvider required for path generation" unless config
 
     source_type = document.source_type
-    filename = clean_filename(document.original_filename || document.display_name || "untitled")
+    filename = clean_filename(document.original_filename || document.ui_name || "untitled")
     subfolder = clean_subfolder(document.folder.presence || "Documents")
 
     case source_type

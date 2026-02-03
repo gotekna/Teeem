@@ -5,7 +5,7 @@
  * This ensures consistent behavior and enables dynamic rendering.
  */
 
-import type { EntityTab, EntityTabScope } from "@/lib/types/entity-tabs";
+import type { WarehouseFolder, WarehouseFolderScope } from "@/lib/types/warehouse-folders";
 
 /**
  * TabComponentProps - Standard props for all tab components
@@ -40,10 +40,10 @@ export interface TabComponentProps {
   entityData?: Record<string, unknown>;
 
   /**
-   * The EntityTab configuration from the database
+   * The WarehouseFolder configuration from the database
    * Contains: tab_key, display_name, component_name, parent_id, etc.
    */
-  tabConfig?: EntityTab;
+  tabConfig?: WarehouseFolder;
 
   /**
    * Callback to refresh the parent data
@@ -88,9 +88,9 @@ export interface TabRenderContext {
   entityData?: Record<string, unknown>;
 
   /**
-   * Tab scope for useEntityTabs hook
+   * Tab scope for useWarehouseFolders hook
    */
-  scope: EntityTabScope;
+  scope: WarehouseFolderScope;
 
   /**
    * Parent callbacks
@@ -113,18 +113,18 @@ export interface TabRenderContext {
  */
 export interface TabHierarchy {
   /** Level 1 tabs (top-level navigation) */
-  l1Tabs: EntityTab[];
+  l1Tabs: WarehouseFolder[];
 
   /** Level 2 tabs (children of active L1) */
-  l2Tabs: EntityTab[];
+  l2Tabs: WarehouseFolder[];
 
   /** Level 3 tabs (children of active L2, used by Xero) */
-  l3Tabs: EntityTab[];
+  l3Tabs: WarehouseFolder[];
 
   /** Currently active tab at each level */
-  activeL1: EntityTab | null;
-  activeL2: EntityTab | null;
-  activeL3: EntityTab | null;
+  activeL1: WarehouseFolder | null;
+  activeL2: WarehouseFolder | null;
+  activeL3: WarehouseFolder | null;
 }
 
 /**

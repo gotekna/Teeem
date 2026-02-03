@@ -22,7 +22,7 @@ class Corporate < ApplicationRecord
 
   # Associations
   belongs_to :tenant, optional: true
-  belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
+  belongs_to :company_group, optional: true, foreign_key: "company_group_id"
   belongs_to :contact  # REQUIRED - SSoT identity link (Contact is THE ONE)
 
   # Organization - for credential isolation (optional link to Organization)
@@ -268,14 +268,14 @@ class Corporate < ApplicationRecord
   # SharePoint folder URL for this company's root folder (SSoT: from TenantSetting)
   # Structure: [company_path] / [Group Name] / [Company Name]
   def sharepoint_folder_url
-    return nil unless corporate_group.present?
+    return nil unless company_group.present?
 
     # SSoT: Use MicrosoftCredential
     credential = MicrosoftCredential.sharepoint_credential
     return nil unless credential&.metadata&.dig("site_web_url")
 
     base_url = credential.metadata["site_web_url"]
-    group_name = corporate_group.name
+    group_name = company_group.name
     company_folder_name = "#{code.presence || name[0..2].upcase} - #{name}"
 
     # SSoT: Get paths from WarehouseProvider (Jan 2026)
@@ -410,13 +410,9 @@ class Corporate < ApplicationRecord
   end
 
   # Group name for display
+  # SSoT: company_group association is THE ONE source (legacy string column removed Feb 2026)
   def group_name
-    corporate_group&.name || company_group_legacy
-  end
-
-  # Legacy company_group field (string) - for backwards compatibility
-  def company_group_legacy
-    read_attribute(:company_group)
+    company_group&.name
   end
 
   # Hierarchy methods
@@ -567,7 +563,7 @@ class Corporate < ApplicationRecord
     )
   end
 
-  # SSoT: Automatically create Contact and ContactCorporateGroupMembership for new companies
+  # SSoT: Automatically create Contact and ContactCompanyGroupMembership for new companies
   def ensure_ssot_contact_and_membership
     # 1. Create Contact for this company (SSoT identity)
     # DB index idx_contacts_unique_company_name prevents duplicates for active companies
@@ -607,7 +603,7 @@ class Corporate < ApplicationRecord
 
   def create_ssot_membership(contact_record)
     membership_type = trust_name.present? ? "trust_entity" : "company_entity"
-    ContactCorporateGroupMembership.find_or_create_by!(
+    ContactCompanyGroupMembership.find_or_create_by!(
       contact_id: contact_record.id,
       company_group_id: company_group_id,
       membership_type: membership_type

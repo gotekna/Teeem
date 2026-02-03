@@ -57,7 +57,7 @@ import type { Contact } from "../types";
 interface ContactDocument {
   id: number;
   name: string;
-  displayName: string;
+  uiName: string;
   folder: string | null;
   fileSize: number | null;
   contentType: string | null;
@@ -673,11 +673,11 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
                                                           <span
                                                             className="truncate max-w-[300px]"
                                                             title={
-                                                              doc.displayName ||
+                                                              doc.uiName ||
                                                               doc.name
                                                             }
                                                           >
-                                                            {doc.displayName ||
+                                                            {doc.uiName ||
                                                               doc.name}
                                                           </span>
                                                         </div>
@@ -753,7 +753,7 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
               <SheetTitle className="flex items-center gap-2 truncate pr-4">
                 {selectedDoc && getFileIcon(selectedDoc.contentType)}
                 <span className="truncate">
-                  {selectedDoc?.displayName || selectedDoc?.name || "Document"}
+                  {selectedDoc?.uiName || selectedDoc?.name || "Document"}
                 </span>
               </SheetTitle>
               <div className="flex items-center gap-2 flex-shrink-0">
@@ -791,7 +791,7 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
               <iframe
                 src={selectedDoc.downloadUrl}
                 className="w-full h-full border-0"
-                title={selectedDoc.displayName || selectedDoc.name}
+                title={selectedDoc.uiName || selectedDoc.name}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -815,7 +815,7 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
               <DialogTitle className="flex items-center gap-2">
                 {selectedDoc && getFileIcon(selectedDoc.contentType)}
                 <span className="truncate max-w-[600px]">
-                  {selectedDoc?.displayName || selectedDoc?.name || "Document"}
+                  {selectedDoc?.uiName || selectedDoc?.name || "Document"}
                 </span>
                 {invoiceData && (
                   <Badge variant="outline" className="ml-2">
@@ -1005,7 +1005,7 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
                 <iframe
                   src={selectedDoc.downloadUrl}
                   className="w-full h-full border-0"
-                  title={selectedDoc.displayName || selectedDoc.name}
+                  title={selectedDoc.uiName || selectedDoc.name}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">

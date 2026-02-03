@@ -33,7 +33,7 @@ class MaintenanceRequest < ApplicationRecord
   scope :active, -> { where(status: %w[open in_progress]) }
   scope :completed, -> { where(status: %w[resolved closed]) }
   scope :assigned_to_supplier, ->(supplier_id) { where(supplier_contact_id: supplier_id) }
-  scope :by_construction, ->(construction_id) { where(construction_id: construction_id) }
+  scope :by_construction, ->(construction_id) { where(job_id: construction_id) }
   scope :by_priority, ->(priority) { where(priority: priority) }
   scope :warranty_claims, -> { where(warranty_claim: true) }
   scope :overdue, -> { where("due_date < ? AND status NOT IN (?)", TenantSetting.today, %w[resolved closed]) }

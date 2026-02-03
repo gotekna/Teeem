@@ -28,9 +28,15 @@ class Api::V1::ImapCredentialsController < ApplicationController
     all_imap = ImapCredential.where(is_active: true, user_id: tenant_user_ids)
 
     # Count by status
+    # FRC (Feb 2026): Only count as connected if password exists AND sync successful
     total_imap = all_imap.count
-    connected_imap = all_imap.where(last_sync_status: 'success').where(last_sync_error: [nil, '']).count
-    error_imap = all_imap.where.not(last_sync_error: [nil, '']).count
+    connected_imap = all_imap.where(last_sync_status: 'success')
+                             .where(last_sync_error: [nil, ''])
+                             .where.not(encrypted_password: [nil, ''])
+                             .count
+    # Missing password counts as error for status purposes
+    missing_password_imap = all_imap.where(encrypted_password: [nil, '']).count
+    error_imap = all_imap.where.not(last_sync_error: [nil, '']).count + missing_password_imap
     syncing_imap = all_imap.where(last_sync_status: 'syncing').count
 
     # Get MS365 org credentials for THIS TENANT's organizations only
@@ -286,7 +292,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       org_cred_id = parts[1].to_i
 
       # SSoT: Use MicrosoftCredential
-      org_cred = MicrosoftCredential.app_credentials.connected.find_by(id: org_cred_id)
+      # FRC (Feb 2026): Changed from .connected to .refreshable_app for 24/7 availability
+      org_cred = MicrosoftCredential.refreshable_app.find_by(id: org_cred_id)
       unless org_cred
         return render json: {
           success: false,
@@ -419,6 +426,11 @@ class Api::V1::ImapCredentialsController < ApplicationController
       # Combine auto + configured, remove duplicates
       user_emails = (auto_emails + configured_emails).uniq
 
+      # SSoT (Feb 2026): Per-mailbox signatures stored in sync_config
+      mailbox_signatures = org_cred.sync_config&.dig("mailbox_signatures") || {}
+      # SSoT (Feb 2026): Per-mailbox branding stored in sync_config
+      mailbox_branding = org_cred.sync_config&.dig("mailbox_branding") || {}
+
       # Add each mailbox the user has access to
       user_emails.each_with_index do |email, index|
         account_id = "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}"
@@ -437,7 +449,11 @@ class Api::V1::ImapCredentialsController < ApplicationController
           position: saved_positions[account_id] || (fallback_position += 1),
           is_favorite: favorite_ids.include?(account_id),
           last_synced_at: org_cred.last_sync_at&.iso8601,
-          last_sync_status: org_cred.status
+          last_sync_status: org_cred.status,
+          # SSoT (Feb 2026): Per-mailbox signature from sync_config
+          email_signature: mailbox_signatures[email],
+          # SSoT (Feb 2026): Per-mailbox branding from sync_config
+          branding_config: mailbox_branding[email] || { "use_default" => true }
         }
       end
     end
@@ -447,6 +463,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     ImapCredential.accessible_by(current_user).where(is_active: true).each do |cred|
       account_id = cred.id.to_s
       is_shared = cred.user_id != current_user.id
+      is_cross_tenant = cred.user&.tenant_id != current_user&.tenant_id
       accounts << {
         id: cred.id,
         type: "imap",
@@ -456,13 +473,17 @@ class Api::V1::ImapCredentialsController < ApplicationController
         is_active: cred.is_active,
         is_default: false,
         is_shared: is_shared,
+        is_cross_tenant: is_cross_tenant,
         owner_name: is_shared ? cred.user&.name : nil,
+        owner_tenant_name: is_cross_tenant ? cred.user&.tenant&.name : nil,
         email_signature: cred.email_signature,
         email_aliases: cred.email_aliases || [],
         position: saved_positions[account_id] || (fallback_position += 1),
         is_favorite: favorite_ids.include?(account_id),
         last_synced_at: cred.last_synced_at&.iso8601,
-        last_sync_status: cred.last_sync_status
+        last_sync_status: cred.last_sync_status,
+        # SSoT (Feb 2026): Per-mailbox branding from branding_config
+        branding_config: cred.branding_config || { "use_default" => true }
       }
     end
 
@@ -740,19 +761,80 @@ class Api::V1::ImapCredentialsController < ApplicationController
   # GET /api/v1/imap_credentials/shareable_users
   # List users who can be granted access to email credentials
   # SSoT (Jan 2026): Filter by current tenant for multi-tenancy isolation
+  # FRC (Feb 2026): Also include already-shared users (even cross-tenant) so they appear in dialog
+  # FRC (Feb 2026): Support tenant_id param to get users from a specific tenant
   def shareable_users
     tenant_user_ids = current_tenant&.users&.pluck(:id) || []
-    users = User.where(id: tenant_user_ids).order(:name).map do |user|
+
+    # Include users already shared with this credential (for cross-tenant visibility)
+    already_shared_ids = []
+    if params[:credential_id].present?
+      credential = ImapCredential.find_by(id: params[:credential_id])
+      already_shared_ids = credential&.shared_with_user_ids || []
+    end
+
+    # If tenant_id param provided, return users from that specific tenant
+    if params[:tenant_id].present?
+      target_tenant = Tenant.find_by(id: params[:tenant_id])
+      unless target_tenant
+        return render json: { success: false, error: "Tenant not found" }, status: :not_found
+      end
+
+      users = target_tenant.users
+                           .where.not(id: current_user.id)
+                           .order(:name)
+                           .map do |user|
+        {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          is_cross_tenant: target_tenant.id != current_tenant&.id,
+          tenant_name: target_tenant.name
+        }
+      end
+
+      return render json: {
+        success: true,
+        data: users,
+        tenant_name: target_tenant.name
+      }
+    end
+
+    # Default: Combine tenant users + already shared users (deduped)
+    all_user_ids = (tenant_user_ids + already_shared_ids).uniq
+
+    users = User.where(id: all_user_ids).order(:name).map do |user|
+      is_cross_tenant = !tenant_user_ids.include?(user.id)
       {
         id: user.id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        is_cross_tenant: is_cross_tenant,
+        tenant_name: is_cross_tenant ? user.tenant&.name : nil
       }
     end
 
     render json: {
       success: true,
       data: users
+    }
+  end
+
+  # GET /api/v1/imap_credentials/tenants_list
+  # List all tenants for cross-tenant sharing dropdown
+  def tenants_list
+    tenants = Tenant.order(:name).map do |tenant|
+      {
+        id: tenant.id,
+        name: tenant.name,
+        user_count: tenant.users.count,
+        is_current: tenant.id == current_tenant&.id
+      }
+    end
+
+    render json: {
+      success: true,
+      data: tenants
     }
   end
 
@@ -863,6 +945,185 @@ class Api::V1::ImapCredentialsController < ApplicationController
         is_favorite: is_favorite
       }
     }
+  end
+
+  # PUT /api/v1/imap_credentials/update_account_signature
+  # Update the signature for any email account (IMAP or MS365 mailbox)
+  # SSoT (Feb 2026): Each mailbox has its own signature
+  def update_account_signature
+    account_id = params[:account_id]
+    signature_html = params[:signature_html]
+
+    if account_id.blank?
+      return render json: {
+        success: false,
+        error: "account_id is required"
+      }, status: :unprocessable_entity
+    end
+
+    case account_id.to_s
+    when /^ms365_(\d+)_/
+      # MS365 mailbox - store in MicrosoftCredential.sync_config.mailbox_signatures
+      org_cred_id = $1.to_i
+      mailbox_email = params[:mailbox_email]
+
+      unless mailbox_email.present?
+        return render json: {
+          success: false,
+          error: "mailbox_email is required for MS365 accounts"
+        }, status: :unprocessable_entity
+      end
+
+      org_cred = MicrosoftCredential.find_by(id: org_cred_id)
+      unless org_cred
+        return render json: {
+          success: false,
+          error: "Microsoft 365 credential not found"
+        }, status: :not_found
+      end
+
+      # Update sync_config with new signature
+      sync_config = org_cred.sync_config || {}
+      sync_config["mailbox_signatures"] ||= {}
+      sync_config["mailbox_signatures"][mailbox_email] = signature_html
+
+      org_cred.update!(sync_config: sync_config)
+
+      render json: {
+        success: true,
+        message: "Signature updated for #{mailbox_email}"
+      }
+    when /^imap_(\d+)$/, /^(\d+)$/
+      # IMAP credential - update email_signature field
+      # SSoT (Feb 2026): Handle both "imap_123" and "123" formats
+      cred_id = $1.to_i
+      credential = ImapCredential.accessible_by(current_user).find_by(id: cred_id)
+      unless credential
+        return render json: {
+          success: false,
+          error: "IMAP credential not found"
+        }, status: :not_found
+      end
+
+      credential.update!(email_signature: signature_html)
+
+      render json: {
+        success: true,
+        message: "Signature updated for #{credential.email_address}"
+      }
+    else
+      render json: {
+        success: false,
+        error: "Unknown account type"
+      }, status: :unprocessable_entity
+    end
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to update signature: #{e.message}"
+    }, status: :unprocessable_entity
+  end
+
+  # PUT /api/v1/imap_credentials/update_account_branding
+  # Update the branding config for any email account (IMAP or MS365 mailbox)
+  # SSoT (Feb 2026): Each mailbox can have its own company branding for signatures
+  #
+  # branding_config structure:
+  # {
+  #   "use_default": true/false,
+  #   "company_name": "Company Name",
+  #   "logo_url": "https://...",      # Light logo (for light backgrounds)
+  #   "logo_dark": "https://...",     # Dark logo (for dark backgrounds)
+  #   "address": "123 Street",
+  #   "city_state": "City State 1234",
+  #   "website": "https://example.com",
+  #   "brand_color": "#1a3c34",
+  #   "brand_color_foreground": "#ffffff"
+  # }
+  def update_account_branding
+    account_id = params[:account_id]
+    branding_config = params[:branding_config]
+
+    if account_id.blank?
+      return render json: {
+        success: false,
+        error: "account_id is required"
+      }, status: :unprocessable_entity
+    end
+
+    unless branding_config.is_a?(Hash) || branding_config.is_a?(ActionController::Parameters)
+      return render json: {
+        success: false,
+        error: "branding_config must be an object"
+      }, status: :unprocessable_entity
+    end
+
+    # Sanitize branding config to only allow expected keys
+    allowed_keys = %w[use_default company_name logo_url logo_dark address city_state website brand_color brand_color_foreground]
+    sanitized_config = branding_config.to_unsafe_h.slice(*allowed_keys)
+
+    case account_id.to_s
+    when /^ms365_(\d+)_/
+      # MS365 mailbox - store in MicrosoftCredential.sync_config.mailbox_branding
+      org_cred_id = $1.to_i
+      mailbox_email = params[:mailbox_email]
+
+      unless mailbox_email.present?
+        return render json: {
+          success: false,
+          error: "mailbox_email is required for MS365 accounts"
+        }, status: :unprocessable_entity
+      end
+
+      org_cred = MicrosoftCredential.find_by(id: org_cred_id)
+      unless org_cred
+        return render json: {
+          success: false,
+          error: "Microsoft 365 credential not found"
+        }, status: :not_found
+      end
+
+      # Update sync_config with new branding
+      sync_config = org_cred.sync_config || {}
+      sync_config["mailbox_branding"] ||= {}
+      sync_config["mailbox_branding"][mailbox_email] = sanitized_config
+
+      org_cred.update!(sync_config: sync_config)
+
+      render json: {
+        success: true,
+        message: "Branding updated for #{mailbox_email}",
+        data: { branding_config: sanitized_config }
+      }
+    when /^imap_(\d+)$/, /^(\d+)$/
+      # IMAP credential - update branding_config field
+      cred_id = $1.to_i
+      credential = ImapCredential.accessible_by(current_user).find_by(id: cred_id)
+      unless credential
+        return render json: {
+          success: false,
+          error: "IMAP credential not found"
+        }, status: :not_found
+      end
+
+      credential.update!(branding_config: sanitized_config)
+
+      render json: {
+        success: true,
+        message: "Branding updated for #{credential.email_address}",
+        data: { branding_config: sanitized_config }
+      }
+    else
+      render json: {
+        success: false,
+        error: "Unknown account type"
+      }, status: :unprocessable_entity
+    end
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to update branding: #{e.message}"
+    }, status: :unprocessable_entity
   end
 
   private
@@ -997,9 +1258,14 @@ class Api::V1::ImapCredentialsController < ApplicationController
       :email_aliases  # Accepts comma-separated string from frontend
     )
 
-    # FRC (Jan 2026): Don't update password if blank - preserves existing password during edits
-    # Frontend sends password: "" for security (doesn't prefill existing password)
-    permitted.delete(:password) if permitted[:password].blank?
+    # FRC (Feb 2026): Only skip password update if:
+    # 1. Incoming password is blank, AND
+    # 2. There IS an existing password to preserve
+    # If existing password is blank, we NEED the new password (fixes bug where
+    # password was lost and user couldn't re-enter it)
+    if permitted[:password].blank? && @credential&.encrypted_password.present?
+      permitted.delete(:password)
+    end
 
     # Convert comma-separated string to array for email_aliases
     if permitted[:email_aliases].is_a?(String)
@@ -1028,15 +1294,30 @@ class Api::V1::ImapCredentialsController < ApplicationController
       last_synced_at: credential.last_synced_at,
       last_sync_status: credential.last_sync_status,
       last_sync_error: credential.last_sync_error,
+      has_password: credential.encrypted_password.present?,  # FRC (Feb 2026): UI shows warning when false
       created_at: credential.created_at,
       email_signature: credential.email_signature,
       email_aliases: credential.email_aliases || [],  # Send-from aliases
       # Sharing fields
       user_id: credential.user_id,
       owner_name: credential.user&.name,
+      owner_tenant_id: credential.user&.tenant_id,
+      owner_tenant_name: credential.user&.tenant&.name,
       is_shared: credential.user_id != current_user.id,
+      is_cross_tenant: credential.user&.tenant_id != current_user&.tenant_id,
       shared_with_user_ids: credential.shared_with_user_ids || [],
-      shared_with_users: User.where(id: credential.shared_with_user_ids || []).map { |u| { id: u.id, name: u.name } }
+      # FRC (Feb 2026): Must bypass acts_as_tenant to look up cross-tenant shared users
+      shared_with_users: ActsAsTenant.without_tenant {
+        User.where(id: credential.shared_with_user_ids || []).includes(:tenant).map { |u|
+          is_cross_tenant = u.tenant_id != credential.user&.tenant_id
+          {
+            id: u.id,
+            name: u.name,
+            tenant_name: is_cross_tenant ? u.tenant&.name : nil,
+            is_cross_tenant: is_cross_tenant
+          }
+        }
+      }
     }
 
     if include_folders

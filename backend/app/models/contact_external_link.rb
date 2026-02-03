@@ -14,16 +14,19 @@ class ContactExternalLink < ApplicationRecord
 
   validates :source, presence: true, inclusion: { in: ACCOUNTING_SYSTEMS }
   validates :xero_contact_status, inclusion: { in: XERO_STATUSES }, allow_nil: true
-  validates :tenant_id, presence: true
+  # FRC (Feb 2026): Renamed from tenant_id to xero_org_id for consistency
+  # xero_org_id stores the Xero organization UUID, not TEEEM tenant FK
+  validates :xero_org_id, presence: true
   validates :external_contact_id, presence: true
   validates :sync_direction, inclusion: { in: RECORD_SYNC_DIRECTIONS }
   # NOTE: Removed contact_id uniqueness validation to support merged Xero contacts
   # One TEEEM contact CAN have multiple Xero links (e.g., "Bunnings" and "Bunnings Group Limited" after merge)
-  validates :external_contact_id, uniqueness: { scope: [ :source, :tenant_id ], message: "already linked to another contact" }
+  validates :external_contact_id, uniqueness: { scope: [ :source, :xero_org_id ], message: "already linked to another contact" }
 
   scope :enabled, -> { where(sync_enabled: true) }
   # SSoT: source scopes (xero, myob, quickbooks, for_source) defined in ExternalSyncConstants
-  scope :for_tenant, ->(tenant_id) { where(tenant_id: tenant_id) }
+  # FRC (Feb 2026): Renamed from for_tenant to for_xero_org for consistency
+  scope :for_xero_org, ->(xero_org_id) { where(xero_org_id: xero_org_id) }
   scope :with_errors, -> { where.not(sync_error: nil) }
   scope :with_conflicts, -> { where("conflict_fields != '{}'") }
   scope :pending_review, -> { where(needs_review: true) }

@@ -589,12 +589,13 @@ module HealthChecks
 
     # Person contacts linked to multiple Xero tenants - unusual for individuals
     def check_person_multiple_xero_tenants
+      # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
       contacts = Contact.where(entity_type: "person")
                         .joins(:external_links)
                         .where(contact_external_links: { source: "xero" })
                         .group("contacts.id")
-                        .having("COUNT(DISTINCT contact_external_links.tenant_id) > 1")
-                        .select("contacts.*, COUNT(DISTINCT contact_external_links.tenant_id) as xero_tenant_count")
+                        .having("COUNT(DISTINCT contact_external_links.xero_org_id) > 1")
+                        .select("contacts.*, COUNT(DISTINCT contact_external_links.xero_org_id) as xero_tenant_count")
                         .limit(50)
 
       items = contacts.map do |c|

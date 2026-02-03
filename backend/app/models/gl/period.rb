@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :closed_by, class_name: 'User', optional: true
 
     has_many :journal_entries, class_name: 'Gl::JournalEntry', foreign_key: 'gl_period_id', dependent: :restrict_with_error
@@ -36,7 +36,7 @@ module Gl
     validates :status, inclusion: { in: STATUSES }
     validates :external_provider, inclusion: { in: PROVIDERS }, allow_blank: true
     validates :period_number, uniqueness: {
-      scope: [:corporate_company_id, :external_provider, :external_tenant_id, :financial_year],
+      scope: [:corporate_id, :external_provider, :external_tenant_id, :financial_year],
       message: 'must be unique per financial year'
     }
     validate :period_end_after_start
@@ -74,12 +74,12 @@ module Gl
       end
 
       # Find or create period for a given date
-      def for_date(corporate_company, date, provider: nil, tenant_id: nil)
+      def for_date(corporate, date, provider: nil, tenant_id: nil)
         fy = financial_year_for(date)
         period_num = period_number_for(date)
 
         find_or_create_by!(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: provider,
           external_tenant_id: tenant_id,
           financial_year: fy,
@@ -92,7 +92,7 @@ module Gl
       end
 
       # Generate all periods for a financial year
-      def generate_for_year(corporate_company, fy_year, provider: nil, tenant_id: nil)
+      def generate_for_year(corporate, fy_year, provider: nil, tenant_id: nil)
         # FY2025 = July 2024 to June 2025
         start_year = fy_year.to_s.gsub('FY', '').to_i - 1
 
@@ -100,7 +100,7 @@ module Gl
           month = ((i + 6) % 12) + 1
           year = month >= 7 ? start_year : start_year + 1
           date = Date.new(year, month, 1)
-          for_date(corporate_company, date, provider: provider, tenant_id: tenant_id)
+          for_date(corporate, date, provider: provider, tenant_id: tenant_id)
         end
       end
     end
@@ -157,7 +157,7 @@ module Gl
         # Go to period 12 of previous FY
         prev_fy = "FY#{financial_year.gsub('FY', '').to_i - 1}"
         self.class.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: external_provider,
           external_tenant_id: external_tenant_id,
           financial_year: prev_fy,
@@ -165,7 +165,7 @@ module Gl
         )
       else
         self.class.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: external_provider,
           external_tenant_id: external_tenant_id,
           financial_year: financial_year,
@@ -180,7 +180,7 @@ module Gl
         # Go to period 1 of next FY
         next_fy = "FY#{financial_year.gsub('FY', '').to_i + 1}"
         self.class.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: external_provider,
           external_tenant_id: external_tenant_id,
           financial_year: next_fy,
@@ -188,7 +188,7 @@ module Gl
         )
       else
         self.class.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: external_provider,
           external_tenant_id: external_tenant_id,
           financial_year: financial_year,

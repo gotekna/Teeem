@@ -10,7 +10,7 @@ module Api
       # GET /api/v1/director_onboarding_requests
       # Admin view - list all requests
       def index
-        requests = DirectorOnboardingRequest.includes(:contact, :corporate_company, :reviewed_by, :invited_by)
+        requests = DirectorOnboardingRequest.includes(:contact, :corporate, :reviewed_by, :invited_by)
 
         # Filter by status
         if params[:status].present?

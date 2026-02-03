@@ -2,9 +2,13 @@
 
 # Performance Observatory - Request Timing
 # Captures backend API request durations for performance analysis
+#
+# SSoT (Feb 2026): Uses Tenant for isolation, Organization deprecated.
+#
 class PerformanceRequest < ApplicationRecord
   belongs_to :user, optional: true
-  belongs_to :organization, optional: true
+  # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
+  belongs_to :tenant, optional: true
 
   validates :endpoint, presence: true
   validates :method, presence: true
@@ -23,12 +27,17 @@ class PerformanceRequest < ApplicationRecord
   scope :since, ->(time) { where("created_at > ?", time) }
   scope :for_endpoint, ->(endpoint) { where(endpoint: endpoint) }
   scope :for_method, ->(method) { where(method: method.upcase) }
-  scope :errors, -> { where("status_code >= 400") }
-  scope :server_errors, -> { where("status_code >= 500") }
+  # SSoT: Error scopes - use server_errors for dashboard "error rate"
+  # Client errors (401, 404, etc.) are often expected behavior, not failures
+  scope :errors, -> { where("status_code >= 400") }  # All errors (for backwards compat)
+  scope :server_errors, -> { where("status_code >= 500") }  # Actual failures
+  scope :client_errors, -> { where("status_code >= 400 AND status_code < 500") }  # 4xx only
+  scope :auth_errors, -> { where(status_code: 401) }  # Unauthorized (often expected)
   scope :successful, -> { where("status_code < 400 OR status_code IS NULL") }
   scope :slow, -> { where("duration_ms > ?", THRESHOLD_SLOW) }
   scope :for_user, ->(user) { where(user: user) }
-  scope :for_organization, ->(org) { where(organization: org) }
+  # SSoT (Feb 2026): Tenant-scoped lookup
+  scope :for_tenant, ->(tenant) { where(tenant: tenant) }
 
   # Calculate percentile for a given set of requests
   def self.percentile(p, column: :duration_ms)

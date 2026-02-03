@@ -494,7 +494,7 @@ module DocumentProviders
     # ====================
 
     # Create job folder structure (TEEEM-specific)
-    # SSoT: Uses EntityTab hierarchy for folder names (no longer uses FolderTemplate)
+    # SSoT: Uses WarehouseFolder hierarchy for folder names (no longer uses FolderTemplate)
     # @param job [Job] The job to create folders for
     # @param _template [deprecated] No longer used, kept for API compatibility
     # @return [Hash] The created job folder
@@ -505,15 +505,15 @@ module DocumentProviders
       # Create main job folder
       job_folder = create_folder(job_folder_path)
 
-      # SSoT: Create subfolders from EntityTab hierarchy
-      create_subfolders_from_entity_tabs(job_folder_path)
+      # SSoT: Create subfolders from WarehouseFolder hierarchy
+      create_subfolders_from_warehouse_folders(job_folder_path)
 
       job_folder
     end
 
-    # SSoT: Create subfolders from EntityTab hierarchy
-    def create_subfolders_from_entity_tabs(parent_path)
-      root_tabs = EntityTab.for_jobs
+    # SSoT: Create subfolders from WarehouseFolder hierarchy
+    def create_subfolders_from_warehouse_folders(parent_path)
+      root_tabs = WarehouseFolder.for_jobs
                            .where(warehouse_enabled: true)
                            .enabled
                            .root_tabs
@@ -521,19 +521,19 @@ module DocumentProviders
                            .includes(children: { children: :children })
 
       root_tabs.each do |tab|
-        create_entity_tab_folder_recursive(tab, parent_path)
+        create_warehouse_folder_recursive(tab, parent_path)
       end
     end
 
-    # Recursively create folders for an EntityTab and its children
-    def create_entity_tab_folder_recursive(tab, parent_path)
+    # Recursively create folders for a WarehouseFolder and its children
+    def create_warehouse_folder_recursive(tab, parent_path)
       folder_path = "#{parent_path}/#{tab.display_name}"
       create_folder(folder_path)
 
-      Rails.logger.info "[EntityTab SSoT] Created S3 folder: #{folder_path}"
+      Rails.logger.info "[WarehouseFolder SSoT] Created S3 folder: #{folder_path}"
 
       tab.children.where(warehouse_enabled: true).enabled.ordered.each do |child|
-        create_entity_tab_folder_recursive(child, folder_path)
+        create_warehouse_folder_recursive(child, folder_path)
       end
     end
 
@@ -692,7 +692,7 @@ module DocumentProviders
     end
 
     # NOTE: default_subfolders and create_template_folders removed
-    # SSoT: EntityTab is now the source of truth for folder structure
+    # SSoT: WarehouseFolder is now the source of truth for folder structure
 
     # Sanitize filename for S3 (remove special characters)
     def sanitize_filename(filename)

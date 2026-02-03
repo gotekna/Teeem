@@ -45,7 +45,7 @@ class DropLegacyDocumentTables < ActiveRecord::Migration[8.0]
     drop_table :case_documents if table_exists?(:case_documents)
 
     # Drop the main legacy tables
-    drop_table :corporate_company_documents if table_exists?(:corporate_company_documents)
+    drop_table :corporate_documents if table_exists?(:corporate_documents)
     drop_table :contact_documents if table_exists?(:contact_documents)
   end
 

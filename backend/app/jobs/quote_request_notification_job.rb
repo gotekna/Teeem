@@ -43,8 +43,8 @@ class QuoteRequestNotificationJob < ApplicationJob
   end
 
   def send_sms_notification(quote_request, contact)
-    message = "New Quote Request from #{quote_request.construction.business_name || 'Builder'}\n" \
-              "Job: #{quote_request.construction.job_name}\n" \
+    message = "New Quote Request from #{quote_request.job.business_name || 'Builder'}\n" \
+              "Job: #{quote_request.job.job_name}\n" \
               "Trade: #{quote_request.trade_category}\n" \
               "Login to view details: #{portal_url}"
 

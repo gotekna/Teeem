@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_03_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -677,7 +677,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "source", default: "email", null: false
     t.string "email_message_id"
     t.bigint "email_warehouse_id"
-    t.bigint "corporate_company_id"
+    t.bigint "company_id"
     t.bigint "detected_company_id"
     t.bigint "supplier_id"
     t.string "supplier_name_raw"
@@ -720,8 +720,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.bigint "storage_blob_id"
     t.bigint "tenant_id", null: false
     t.index ["approved_by_id"], name: "index_bill_inboxes_on_approved_by_id"
-    t.index ["corporate_company_id", "status"], name: "index_bill_inboxes_on_corporate_company_id_and_status"
-    t.index ["corporate_company_id"], name: "index_bill_inboxes_on_corporate_company_id"
+    t.index ["company_id", "status"], name: "index_bill_inboxes_on_company_id_and_status"
+    t.index ["company_id"], name: "index_bill_inboxes_on_company_id"
     t.index ["email_message_id"], name: "index_bill_inboxes_on_email_message_id", unique: true, where: "(email_message_id IS NOT NULL)"
     t.index ["external_invoice_id"], name: "index_bill_inboxes_on_external_invoice_id"
     t.index ["match_source"], name: "index_bill_inboxes_on_match_source"
@@ -737,7 +737,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "bill_payment_batches", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "bank_account_id", null: false
     t.string "batch_reference", null: false
     t.string "status", default: "draft", null: false
@@ -764,8 +764,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["approved_by_id"], name: "index_bill_payment_batches_on_approved_by_id"
     t.index ["bank_account_id"], name: "index_bill_payment_batches_on_bank_account_id"
     t.index ["batch_reference"], name: "index_bill_payment_batches_on_batch_reference", unique: true
-    t.index ["corporate_company_id", "status"], name: "index_bill_payment_batches_on_corporate_company_id_and_status"
-    t.index ["corporate_company_id"], name: "index_bill_payment_batches_on_corporate_company_id"
+    t.index ["company_id", "status"], name: "index_bill_payment_batches_on_company_id_and_status"
+    t.index ["company_id"], name: "index_bill_payment_batches_on_company_id"
     t.index ["created_by_id"], name: "index_bill_payment_batches_on_created_by_id"
     t.index ["payment_date"], name: "index_bill_payment_batches_on_payment_date"
     t.index ["status"], name: "index_bill_payment_batches_on_status"
@@ -1201,7 +1201,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "cloudflare_credentials", force: :cascade do |t|
-    t.bigint "organization_id", null: false
     t.string "api_token", null: false
     t.string "account_id", null: false
     t.string "email"
@@ -1213,8 +1212,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["organization_id", "is_active"], name: "idx_cloudflare_creds_org_active"
-    t.index ["organization_id"], name: "index_cloudflare_credentials_on_organization_id"
+    t.bigint "tenant_id"
+    t.index ["tenant_id"], name: "index_cloudflare_credentials_on_tenant_id"
   end
 
   create_table "colour_selection_templates", force: :cascade do |t|
@@ -1311,7 +1310,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "company_approval_rules", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "rule_type", null: false
     t.string "name", null: false
     t.text "description"
@@ -1332,9 +1331,37 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["bpmn_process_id"], name: "index_company_approval_rules_on_bpmn_process_id"
-    t.index ["corporate_company_id", "rule_type", "is_active"], name: "idx_approval_rules_company_type_active"
-    t.index ["corporate_company_id"], name: "index_company_approval_rules_on_corporate_company_id"
+    t.index ["company_id", "rule_type", "is_active"], name: "idx_approval_rules_company_type_active"
+    t.index ["company_id"], name: "index_company_approval_rules_on_company_id"
     t.index ["priority"], name: "index_company_approval_rules_on_priority"
+  end
+
+  create_table "company_groups", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.string "default_registered_office"
+    t.string "default_principal_place"
+    t.string "default_accountant"
+    t.string "default_accountant_contact"
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "code"
+    t.string "slug"
+    t.integer "tier", default: 0
+    t.integer "environment", default: 0
+    t.boolean "is_master_tenant", default: false
+    t.string "website"
+    t.string "logo_url"
+    t.string "primary_color"
+    t.string "secondary_color"
+    t.bigint "tenant_id"
+    t.index ["environment"], name: "index_company_groups_on_environment"
+    t.index ["is_master_tenant"], name: "index_company_groups_on_is_master_tenant"
+    t.index ["name"], name: "index_company_groups_on_name", unique: true
+    t.index ["slug"], name: "index_company_groups_on_slug", unique: true
+    t.index ["tenant_id"], name: "index_company_groups_on_tenant_id"
+    t.index ["tier"], name: "index_company_groups_on_tier"
   end
 
   create_table "contact_activities", force: :cascade do |t|
@@ -1372,7 +1399,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["contact_id"], name: "index_contact_addresses_on_contact_id"
   end
 
-  create_table "contact_corporate_group_memberships", force: :cascade do |t|
+  create_table "contact_company_group_memberships", force: :cascade do |t|
     t.bigint "contact_id", null: false
     t.bigint "company_group_id", null: false
     t.string "membership_type"
@@ -1385,11 +1412,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "beneficiary_type"
     t.string "class_description"
     t.bigint "tenant_id"
-    t.index ["company_group_id"], name: "index_contact_corporate_group_memberships_on_company_group_id"
-    t.index ["company_id"], name: "index_contact_corporate_group_memberships_on_company_id"
+    t.index ["company_group_id"], name: "index_contact_company_group_memberships_on_company_group_id"
+    t.index ["company_id"], name: "index_contact_company_group_memberships_on_company_id"
     t.index ["contact_id", "company_group_id", "membership_type"], name: "idx_contact_group_membership_unique", unique: true
-    t.index ["contact_id"], name: "index_contact_corporate_group_memberships_on_contact_id"
-    t.index ["tenant_id"], name: "index_contact_corporate_group_memberships_on_tenant_id"
+    t.index ["contact_id"], name: "index_contact_company_group_memberships_on_contact_id"
+    t.index ["tenant_id"], name: "index_contact_company_group_memberships_on_tenant_id"
   end
 
   create_table "contact_documents", force: :cascade do |t|
@@ -1438,7 +1465,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
 
   create_table "contact_external_links", force: :cascade do |t|
     t.bigint "contact_id", null: false
-    t.string "tenant_id", null: false
+    t.string "xero_org_id", null: false
     t.string "tenant_name"
     t.string "external_contact_id", null: false
     t.boolean "sync_enabled", default: true
@@ -1463,11 +1490,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["contact_id"], name: "index_contact_external_links_on_contact_id"
     t.index ["last_verified_at"], name: "index_contact_external_links_on_last_verified_at"
     t.index ["needs_review"], name: "idx_contact_external_links_needs_review", where: "(needs_review = true)"
-    t.index ["source", "tenant_id", "external_contact_id"], name: "idx_contact_external_links_external", unique: true
+    t.index ["source", "xero_org_id", "external_contact_id"], name: "idx_contact_external_links_unique", unique: true
     t.index ["source"], name: "index_contact_external_links_on_source"
     t.index ["sync_enabled"], name: "index_contact_external_links_on_sync_enabled"
-    t.index ["tenant_id"], name: "index_contact_external_links_on_tenant_id"
     t.index ["xero_contact_status"], name: "index_contact_external_links_on_xero_contact_status"
+    t.index ["xero_org_id", "last_synced_at"], name: "idx_cel_xero_org_last_synced"
+    t.index ["xero_org_id", "match_type"], name: "idx_cel_xero_org_match_type"
+    t.index ["xero_org_id", "needs_review"], name: "idx_cel_xero_org_needs_review"
+    t.index ["xero_org_id", "sync_enabled"], name: "idx_cel_xero_org_sync_enabled"
+    t.index ["xero_org_id", "sync_error"], name: "idx_cel_xero_org_sync_error"
+    t.index ["xero_org_id"], name: "index_contact_external_links_on_xero_org_id"
   end
 
   create_table "contact_group_memberships", force: :cascade do |t|
@@ -1782,59 +1814,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["tenant_id"], name: "index_corporate_directors_on_tenant_id"
   end
 
-  create_table "corporate_entity_tabs", force: :cascade do |t|
-    t.string "tab_key", null: false
-    t.string "display_name", null: false
-    t.string "tab_group", default: "documents"
-    t.string "entity_types", default: [], array: true
-    t.integer "order_position", default: 0
-    t.boolean "enabled", default: true
-    t.string "icon_name"
-    t.text "description"
-    t.string "component_name"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "has_storage_folder", default: false
-    t.string "storage_folder_path"
-    t.jsonb "sub_tabs", default: []
-    t.bigint "company_group_id"
-    t.bigint "tenant_id"
-    t.index ["company_group_id"], name: "index_corporate_entity_tabs_on_company_group_id"
-    t.index ["enabled"], name: "index_corporate_entity_tabs_on_enabled"
-    t.index ["order_position"], name: "index_corporate_entity_tabs_on_order_position"
-    t.index ["tab_group"], name: "index_corporate_entity_tabs_on_tab_group"
-    t.index ["tab_key"], name: "index_corporate_entity_tabs_on_tab_key", unique: true
-    t.index ["tenant_id"], name: "index_corporate_entity_tabs_on_tenant_id"
-  end
-
-  create_table "corporate_groups", force: :cascade do |t|
-    t.string "name", null: false
-    t.text "description"
-    t.string "default_registered_office"
-    t.string "default_principal_place"
-    t.string "default_accountant"
-    t.string "default_accountant_contact"
-    t.boolean "active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "code"
-    t.string "slug"
-    t.integer "tier", default: 0
-    t.integer "environment", default: 0
-    t.boolean "is_master_tenant", default: false
-    t.string "website"
-    t.string "logo_url"
-    t.string "primary_color"
-    t.string "secondary_color"
-    t.bigint "tenant_id"
-    t.index ["environment"], name: "index_corporate_groups_on_environment"
-    t.index ["is_master_tenant"], name: "index_corporate_groups_on_is_master_tenant"
-    t.index ["name"], name: "index_corporate_groups_on_name", unique: true
-    t.index ["slug"], name: "index_corporate_groups_on_slug", unique: true
-    t.index ["tenant_id"], name: "index_corporate_groups_on_tenant_id"
-    t.index ["tier"], name: "index_corporate_groups_on_tier"
-  end
-
   create_table "corporate_loans", force: :cascade do |t|
     t.bigint "lender_company_id", null: false
     t.bigint "borrower_company_id", null: false
@@ -1975,7 +1954,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
 
   create_table "corporates", force: :cascade do |t|
     t.string "name", null: false
-    t.string "company_group"
     t.string "acn"
     t.string "abn"
     t.string "tfn"
@@ -2007,11 +1985,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "health_status"
     t.boolean "has_loans", default: false
     t.boolean "loan_documents_in_place", default: false
-    t.string "storage_folder_id"
-    t.string "storage_folder_path"
     t.string "code"
-    t.string "storage_folder_url"
-    t.string "storage_folder_name"
     t.string "entity_type", default: "company"
     t.bigint "parent_company_id"
     t.integer "hierarchy_level", default: 0
@@ -2033,7 +2007,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["abn"], name: "index_corporates_on_abn", unique: true, where: "(abn IS NOT NULL)"
     t.index ["acn"], name: "index_corporates_on_acn", unique: true, where: "(acn IS NOT NULL)"
     t.index ["code"], name: "index_corporates_on_code", unique: true
-    t.index ["company_group"], name: "index_corporates_on_company_group"
     t.index ["company_group_id", "parent_company_id"], name: "index_companies_on_group_and_parent"
     t.index ["company_group_id"], name: "index_corporates_on_company_group_id"
     t.index ["consolidation_parent_id"], name: "index_corporates_on_consolidation_parent_id"
@@ -2043,7 +2016,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["review_date"], name: "index_corporates_on_review_date"
     t.index ["slug"], name: "index_corporates_on_slug", unique: true
     t.index ["status"], name: "index_corporates_on_status"
-    t.index ["storage_folder_id"], name: "index_corporates_on_storage_folder_id"
     t.index ["tenant_id"], name: "index_corporates_on_tenant_id"
     t.index ["trading_names"], name: "index_corporates_on_trading_names", using: :gin
   end
@@ -2118,7 +2090,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
 
   create_table "desktop_clients", force: :cascade do |t|
     t.bigint "user_id", null: false
-    t.bigint "organization_id", null: false
     t.string "device_id", null: false
     t.string "device_name", null: false
     t.string "platform"
@@ -2134,9 +2105,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.jsonb "sync_settings", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["device_code"], name: "index_desktop_clients_on_device_code", unique: true
     t.index ["is_active"], name: "index_desktop_clients_on_is_active"
-    t.index ["organization_id"], name: "index_desktop_clients_on_organization_id"
+    t.index ["tenant_id"], name: "index_desktop_clients_on_tenant_id"
     t.index ["user_id", "device_id"], name: "index_desktop_clients_on_user_id_and_device_id", unique: true
     t.index ["user_id"], name: "index_desktop_clients_on_user_id"
   end
@@ -2259,22 +2231,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["resolved_by_id"], name: "index_document_duplicate_reviews_on_resolved_by_id"
   end
 
-  create_table "document_folders", force: :cascade do |t|
-    t.string "name", null: false
-    t.text "description"
-    t.integer "order_position", default: 0, null: false
-    t.jsonb "entity_types", default: [], null: false
-    t.boolean "active", default: true, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "storage_path"
-    t.integer "parent_id"
-    t.index ["entity_types"], name: "index_document_folders_on_entity_types", using: :gin
-    t.index ["name"], name: "index_document_folders_on_name", unique: true
-    t.index ["order_position"], name: "index_document_folders_on_order_position"
-    t.index ["parent_id"], name: "index_document_folders_on_parent_id"
-  end
-
   create_table "document_tasks", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.string "category"
@@ -2322,17 +2278,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["tenant_id"], name: "index_document_templates_on_tenant_id"
   end
 
-  create_table "document_type_folders", force: :cascade do |t|
-    t.bigint "document_type_id", null: false
-    t.bigint "document_folder_id", null: false
-    t.boolean "is_primary", default: false, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["document_folder_id"], name: "index_document_type_folders_on_document_folder_id"
-    t.index ["document_type_id", "document_folder_id"], name: "idx_doc_type_folders_unique", unique: true
-    t.index ["document_type_id"], name: "index_document_type_folders_on_document_type_id"
-  end
-
   create_table "document_types", force: :cascade do |t|
     t.string "name", null: false
     t.string "folder"
@@ -2342,10 +2287,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.boolean "active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "file_name"
+    t.string "download_name"
     t.string "abbreviation"
     t.jsonb "aliases", default: []
-    t.string "display_name"
+    t.string "ui_name"
     t.string "scope", default: "company"
     t.string "file_extensions", default: [], array: true
     t.string "target_folder"
@@ -2622,7 +2567,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
 
   create_table "email_drafts", force: :cascade do |t|
     t.bigint "user_id", null: false
-    t.bigint "organization_id", null: false
     t.bigint "imap_credential_id"
     t.string "from_address"
     t.text "to_addresses"
@@ -2635,8 +2579,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "status", default: "draft", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["imap_credential_id"], name: "index_email_drafts_on_imap_credential_id"
-    t.index ["organization_id"], name: "index_email_drafts_on_organization_id"
+    t.index ["tenant_id"], name: "index_email_drafts_on_tenant_id"
     t.index ["user_id", "status"], name: "idx_email_drafts_user_status"
     t.index ["user_id", "updated_at"], name: "idx_email_drafts_user_recent"
     t.index ["user_id"], name: "index_email_drafts_on_user_id"
@@ -2857,7 +2802,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
 
   create_table "email_subscriptions", force: :cascade do |t|
     t.bigint "contact_id", null: false
-    t.bigint "organization_id", null: false
     t.string "polaris_account_id"
     t.string "domain", null: false
     t.string "status", default: "pending", null: false
@@ -2879,13 +2823,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "dns_status", default: "pending"
-    t.index ["contact_id", "organization_id"], name: "index_email_subscriptions_on_contact_id_and_organization_id", unique: true
+    t.bigint "tenant_id"
     t.index ["contact_id"], name: "index_email_subscriptions_on_contact_id"
     t.index ["dns_status"], name: "index_email_subscriptions_on_dns_status"
     t.index ["domain"], name: "index_email_subscriptions_on_domain"
-    t.index ["organization_id"], name: "index_email_subscriptions_on_organization_id"
     t.index ["status"], name: "index_email_subscriptions_on_status"
     t.index ["stripe_subscription_id"], name: "index_email_subscriptions_on_stripe_subscription_id", unique: true
+    t.index ["tenant_id"], name: "index_email_subscriptions_on_tenant_id"
   end
 
   create_table "email_sync_statuses", force: :cascade do |t|
@@ -3056,6 +3000,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.boolean "payment_portal_enabled", default: true
     t.datetime "last_payment_reminder_at"
     t.integer "payment_reminder_count", default: 0
+    t.string "xero_org_id"
     t.index ["contact_id"], name: "index_external_invoices_on_contact_id"
     t.index ["created_in_teeem"], name: "index_external_invoices_on_created_in_teeem"
     t.index ["external_contact_id"], name: "index_external_invoices_on_external_contact_id"
@@ -3074,6 +3019,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_external_invoices_pending_sync"
     t.index ["tenant_id"], name: "index_external_invoices_on_tenant_id"
     t.index ["tracking_data"], name: "index_external_invoices_on_tracking_data", using: :gin
+    t.index ["xero_org_id", "invoice_type", "status"], name: "idx_ext_inv_xero_org_type_status"
+    t.index ["xero_org_id", "last_synced_at"], name: "idx_ext_inv_xero_org_last_synced"
+    t.index ["xero_org_id", "source"], name: "idx_ext_inv_xero_org_source"
+    t.index ["xero_org_id"], name: "index_external_invoices_on_xero_org_id"
   end
 
   create_table "fact_job_daily_snapshots", force: :cascade do |t|
@@ -3333,7 +3282,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   create_table "gl_accounts", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "external_provider"
     t.string "external_tenant_id"
     t.string "external_account_id"
@@ -3355,14 +3304,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["account_class"], name: "index_gl_accounts_on_account_class"
     t.index ["account_type"], name: "index_gl_accounts_on_account_type"
     t.index ["active"], name: "index_gl_accounts_on_active"
-    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "code"], name: "idx_gl_accounts_unique_code", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_accounts_on_corporate_company_id"
+    t.index ["company_id", "external_provider", "external_tenant_id", "code"], name: "idx_gl_accounts_unique_code", unique: true
+    t.index ["company_id"], name: "index_gl_accounts_on_company_id"
     t.index ["is_bank_account"], name: "index_gl_accounts_on_is_bank_account"
     t.index ["parent_account_id"], name: "index_gl_accounts_on_parent_account_id"
   end
 
   create_table "gl_ai_categorization_attempts", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "transaction_description", limit: 500, null: false
     t.decimal "transaction_amount", precision: 15, scale: 2
     t.bigint "suggested_account_id"
@@ -3370,13 +3319,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.boolean "was_successful", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "created_at"], name: "idx_ai_attempts_rate_limit"
-    t.index ["corporate_company_id"], name: "index_gl_ai_categorization_attempts_on_corporate_company_id"
+    t.index ["company_id", "created_at"], name: "idx_ai_attempts_rate_limit"
+    t.index ["company_id"], name: "index_gl_ai_categorization_attempts_on_company_id"
     t.index ["suggested_account_id"], name: "index_gl_ai_categorization_attempts_on_suggested_account_id"
   end
 
   create_table "gl_ai_categorization_learnings", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "transaction_description", limit: 500, null: false
     t.string "transaction_amount_type", limit: 10, null: false
     t.string "transaction_reference", limit: 255
@@ -3388,14 +3337,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["ai_suggested_account_id"], name: "idx_on_ai_suggested_account_id_62739666b6"
-    t.index ["corporate_company_id", "transaction_amount_type", "was_accepted"], name: "idx_ai_learning_similar"
-    t.index ["corporate_company_id"], name: "index_gl_ai_categorization_learnings_on_corporate_company_id"
+    t.index ["company_id", "transaction_amount_type", "was_accepted"], name: "idx_ai_learning_similar"
+    t.index ["company_id"], name: "index_gl_ai_categorization_learnings_on_company_id"
     t.index ["transaction_description"], name: "idx_ai_learning_description_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["user_chosen_account_id"], name: "index_gl_ai_categorization_learnings_on_user_chosen_account_id"
   end
 
   create_table "gl_ai_po_match_attempts", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "bill_inbox_id"
     t.bigint "matched_po_id"
     t.boolean "successful", default: false
@@ -3404,13 +3353,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["bill_inbox_id"], name: "index_gl_ai_po_match_attempts_on_bill_inbox_id"
-    t.index ["corporate_company_id", "created_at"], name: "idx_ai_po_attempts_rate_limit"
-    t.index ["corporate_company_id"], name: "index_gl_ai_po_match_attempts_on_corporate_company_id"
+    t.index ["company_id", "created_at"], name: "idx_ai_po_attempts_rate_limit"
+    t.index ["company_id"], name: "index_gl_ai_po_match_attempts_on_company_id"
     t.index ["matched_po_id"], name: "index_gl_ai_po_match_attempts_on_matched_po_id"
   end
 
   create_table "gl_ai_po_match_learnings", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "bill_inbox_id", null: false
     t.bigint "purchase_order_id", null: false
     t.bigint "user_id"
@@ -3424,14 +3373,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "updated_at", null: false
     t.index ["bill_inbox_id"], name: "index_gl_ai_po_match_learnings_on_bill_inbox_id"
     t.index ["bill_supplier_name"], name: "idx_ai_po_learnings_supplier_trgm", opclass: :gin_trgm_ops, using: :gin
-    t.index ["corporate_company_id", "was_accepted"], name: "idx_ai_po_learnings_acceptance"
-    t.index ["corporate_company_id"], name: "index_gl_ai_po_match_learnings_on_corporate_company_id"
+    t.index ["company_id", "was_accepted"], name: "idx_ai_po_learnings_acceptance"
+    t.index ["company_id"], name: "index_gl_ai_po_match_learnings_on_company_id"
     t.index ["purchase_order_id"], name: "index_gl_ai_po_match_learnings_on_purchase_order_id"
     t.index ["user_id"], name: "index_gl_ai_po_match_learnings_on_user_id"
   end
 
   create_table "gl_anomalies", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "anomalable_type"
     t.bigint "anomalable_id"
     t.string "anomaly_type", null: false
@@ -3450,7 +3399,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["anomalable_type", "anomalable_id"], name: "index_gl_anomalies_on_anomalable"
     t.index ["anomaly_type"], name: "index_gl_anomalies_on_anomaly_type"
     t.index ["assigned_to_id"], name: "index_gl_anomalies_on_assigned_to_id"
-    t.index ["corporate_company_id"], name: "index_gl_anomalies_on_corporate_company_id"
+    t.index ["company_id"], name: "index_gl_anomalies_on_company_id"
     t.index ["created_at"], name: "index_gl_anomalies_on_created_at"
     t.index ["resolved_by_id"], name: "index_gl_anomalies_on_resolved_by_id"
     t.index ["severity"], name: "index_gl_anomalies_on_severity"
@@ -3458,7 +3407,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_anomaly_reviews", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "transaction_type", limit: 50, null: false
     t.bigint "transaction_id", null: false
     t.string "status", limit: 30, default: "acknowledged", null: false
@@ -3468,14 +3417,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "reviewed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "transaction_type", "transaction_id"], name: "idx_anomaly_reviews_transaction", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_anomaly_reviews_on_corporate_company_id"
+    t.index ["company_id", "transaction_type", "transaction_id"], name: "idx_anomaly_reviews_transaction", unique: true
+    t.index ["company_id"], name: "index_gl_anomaly_reviews_on_company_id"
     t.index ["reviewed_by_id"], name: "index_gl_anomaly_reviews_on_reviewed_by_id"
     t.index ["status"], name: "index_gl_anomaly_reviews_on_status"
   end
 
   create_table "gl_anomaly_rules", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "name", null: false
     t.string "rule_type", null: false
     t.string "entity_type", null: false
@@ -3486,7 +3435,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["active"], name: "index_gl_anomaly_rules_on_active"
-    t.index ["corporate_company_id"], name: "index_gl_anomaly_rules_on_corporate_company_id"
+    t.index ["company_id"], name: "index_gl_anomaly_rules_on_company_id"
     t.index ["entity_type"], name: "index_gl_anomaly_rules_on_entity_type"
     t.index ["rule_type"], name: "index_gl_anomaly_rules_on_rule_type"
   end
@@ -3510,7 +3459,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_approval_requests", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "workflow_id"
     t.bigint "requested_by_id"
     t.string "approvable_type", null: false
@@ -3525,8 +3474,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["approvable_type", "approvable_id"], name: "idx_approval_requests_approvable"
-    t.index ["corporate_company_id", "status"], name: "idx_approval_requests_status"
-    t.index ["corporate_company_id"], name: "index_gl_approval_requests_on_corporate_company_id"
+    t.index ["company_id", "status"], name: "idx_approval_requests_status"
+    t.index ["company_id"], name: "index_gl_approval_requests_on_company_id"
     t.index ["requested_by_id"], name: "index_gl_approval_requests_on_requested_by_id"
     t.index ["workflow_id"], name: "index_gl_approval_requests_on_workflow_id"
   end
@@ -3548,7 +3497,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_approval_workflows", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "created_by_id"
     t.string "name", null: false
     t.string "document_type", limit: 30, null: false
@@ -3560,13 +3509,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.integer "priority", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "document_type", "active"], name: "idx_approval_workflows_type"
-    t.index ["corporate_company_id"], name: "index_gl_approval_workflows_on_corporate_company_id"
+    t.index ["company_id", "document_type", "active"], name: "idx_approval_workflows_type"
+    t.index ["company_id"], name: "index_gl_approval_workflows_on_company_id"
     t.index ["created_by_id"], name: "index_gl_approval_workflows_on_created_by_id"
   end
 
   create_table "gl_audit_logs", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "user_id"
     t.string "auditable_type", null: false
     t.bigint "auditable_id", null: false
@@ -3583,14 +3532,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "updated_at", null: false
     t.index ["action"], name: "idx_audit_logs_action"
     t.index ["auditable_type", "auditable_id"], name: "idx_audit_logs_auditable"
-    t.index ["corporate_company_id", "created_at"], name: "idx_audit_logs_date"
-    t.index ["corporate_company_id"], name: "index_gl_audit_logs_on_corporate_company_id"
+    t.index ["company_id", "created_at"], name: "idx_audit_logs_date"
+    t.index ["company_id"], name: "index_gl_audit_logs_on_company_id"
     t.index ["user_id", "created_at"], name: "idx_audit_logs_user"
     t.index ["user_id"], name: "index_gl_audit_logs_on_user_id"
   end
 
   create_table "gl_audit_snapshots", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "created_by_id"
     t.string "snapshot_type", limit: 30, null: false
     t.date "snapshot_date", null: false
@@ -3606,14 +3555,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "checksum"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "snapshot_date"], name: "idx_audit_snapshots_date"
-    t.index ["corporate_company_id"], name: "index_gl_audit_snapshots_on_corporate_company_id"
+    t.index ["company_id", "snapshot_date"], name: "idx_audit_snapshots_date"
+    t.index ["company_id"], name: "index_gl_audit_snapshots_on_company_id"
     t.index ["created_by_id"], name: "index_gl_audit_snapshots_on_created_by_id"
     t.index ["snapshot_type"], name: "idx_audit_snapshots_type"
   end
 
   create_table "gl_bank_reconciliations", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "gl_account_id", null: false
     t.string "external_provider"
     t.string "external_tenant_id"
@@ -3635,15 +3584,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["company_id", "status"], name: "idx_gl_recon_company_status"
+    t.index ["company_id"], name: "index_gl_bank_reconciliations_on_company_id"
     t.index ["completed_by_id"], name: "index_gl_bank_reconciliations_on_completed_by_id"
-    t.index ["corporate_company_id", "status"], name: "idx_gl_recon_company_status"
-    t.index ["corporate_company_id"], name: "index_gl_bank_reconciliations_on_corporate_company_id"
     t.index ["gl_account_id", "statement_date"], name: "idx_gl_recon_account_date", unique: true
     t.index ["gl_account_id"], name: "index_gl_bank_reconciliations_on_gl_account_id"
   end
 
   create_table "gl_bank_rule_learnings", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "gl_account_id", null: false
     t.bigint "user_id"
     t.bigint "bank_line_id"
@@ -3654,14 +3603,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "learned_at", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "transaction_description", "gl_account_id"], name: "idx_bank_rule_learnings_pattern"
-    t.index ["corporate_company_id"], name: "index_gl_bank_rule_learnings_on_corporate_company_id"
+    t.index ["company_id", "transaction_description", "gl_account_id"], name: "idx_bank_rule_learnings_pattern"
+    t.index ["company_id"], name: "index_gl_bank_rule_learnings_on_company_id"
     t.index ["gl_account_id"], name: "index_gl_bank_rule_learnings_on_gl_account_id"
     t.index ["user_id"], name: "index_gl_bank_rule_learnings_on_user_id"
   end
 
   create_table "gl_bas_lodgements", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "period_code", limit: 10, null: false
     t.integer "period_year", null: false
     t.string "status", limit: 20, default: "pending", null: false
@@ -3674,8 +3623,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.bigint "lodged_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "period_code", "period_year", "is_amendment", "created_at"], name: "idx_bas_lodgements_period"
-    t.index ["corporate_company_id"], name: "index_gl_bas_lodgements_on_corporate_company_id"
+    t.index ["company_id", "period_code", "period_year", "is_amendment", "created_at"], name: "idx_bas_lodgements_period"
+    t.index ["company_id"], name: "index_gl_bas_lodgements_on_company_id"
     t.index ["lodged_by_id"], name: "index_gl_bas_lodgements_on_lodged_by_id"
     t.index ["lodgement_reference"], name: "index_gl_bas_lodgements_on_lodgement_reference", unique: true, where: "(lodgement_reference IS NOT NULL)"
     t.index ["status"], name: "index_gl_bas_lodgements_on_status"
@@ -3697,7 +3646,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_billable_expenses", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "job_id", null: false
     t.bigint "contact_id"
     t.bigint "user_id"
@@ -3720,9 +3669,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["billed_invoice_id"], name: "index_gl_billable_expenses_on_billed_invoice_id"
+    t.index ["company_id", "job_id", "status"], name: "idx_billable_expenses_job"
+    t.index ["company_id"], name: "index_gl_billable_expenses_on_company_id"
     t.index ["contact_id"], name: "index_gl_billable_expenses_on_contact_id"
-    t.index ["corporate_company_id", "job_id", "status"], name: "idx_billable_expenses_job"
-    t.index ["corporate_company_id"], name: "index_gl_billable_expenses_on_corporate_company_id"
     t.index ["job_id"], name: "index_gl_billable_expenses_on_job_id"
     t.index ["source_invoice_id"], name: "index_gl_billable_expenses_on_source_invoice_id"
     t.index ["status"], name: "idx_billable_expenses_status"
@@ -3730,7 +3679,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_billable_rates", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "user_id"
     t.bigint "job_id"
     t.bigint "contact_id"
@@ -3744,16 +3693,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.boolean "active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["company_id", "rate_type"], name: "idx_billable_rates_type"
+    t.index ["company_id", "user_id", "job_id"], name: "idx_billable_rates_user_job"
+    t.index ["company_id"], name: "index_gl_billable_rates_on_company_id"
     t.index ["contact_id"], name: "index_gl_billable_rates_on_contact_id"
-    t.index ["corporate_company_id", "rate_type"], name: "idx_billable_rates_type"
-    t.index ["corporate_company_id", "user_id", "job_id"], name: "idx_billable_rates_user_job"
-    t.index ["corporate_company_id"], name: "index_gl_billable_rates_on_corporate_company_id"
     t.index ["job_id"], name: "index_gl_billable_rates_on_job_id"
     t.index ["user_id"], name: "index_gl_billable_rates_on_user_id"
   end
 
   create_table "gl_billable_time_entries", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "time_entry_id", null: false
     t.bigint "job_id"
     t.bigint "user_id", null: false
@@ -3776,9 +3725,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "updated_at", null: false
     t.index ["approved_by_id"], name: "index_gl_billable_time_entries_on_approved_by_id"
     t.index ["billable_rate_id"], name: "index_gl_billable_time_entries_on_billable_rate_id"
-    t.index ["corporate_company_id", "job_id", "entry_date"], name: "idx_billable_time_job_date"
-    t.index ["corporate_company_id", "status"], name: "idx_billable_time_status"
-    t.index ["corporate_company_id"], name: "index_gl_billable_time_entries_on_corporate_company_id"
+    t.index ["company_id", "job_id", "entry_date"], name: "idx_billable_time_job_date"
+    t.index ["company_id", "status"], name: "idx_billable_time_status"
+    t.index ["company_id"], name: "index_gl_billable_time_entries_on_company_id"
     t.index ["invoice_id"], name: "idx_billable_time_invoice"
     t.index ["invoice_id"], name: "index_gl_billable_time_entries_on_invoice_id"
     t.index ["job_id"], name: "index_gl_billable_time_entries_on_job_id"
@@ -3787,7 +3736,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_billing_milestones", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "job_id", null: false
     t.bigint "contact_id", null: false
     t.bigint "invoice_id"
@@ -3807,17 +3756,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.text "deliverables"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["company_id", "job_id", "sort_order"], name: "idx_billing_milestones_order"
+    t.index ["company_id"], name: "index_gl_billing_milestones_on_company_id"
     t.index ["completed_by_id"], name: "index_gl_billing_milestones_on_completed_by_id"
     t.index ["contact_id"], name: "index_gl_billing_milestones_on_contact_id"
-    t.index ["corporate_company_id", "job_id", "sort_order"], name: "idx_billing_milestones_order"
-    t.index ["corporate_company_id"], name: "index_gl_billing_milestones_on_corporate_company_id"
     t.index ["invoice_id"], name: "index_gl_billing_milestones_on_invoice_id"
     t.index ["job_id"], name: "index_gl_billing_milestones_on_job_id"
     t.index ["status"], name: "idx_billing_milestones_status"
   end
 
   create_table "gl_budget_scenarios", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "created_by_id"
     t.string "name", null: false
     t.string "scenario_type", limit: 30, default: "base", null: false
@@ -3830,13 +3779,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.boolean "is_default", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "fiscal_year", "scenario_type"], name: "idx_budget_scenarios_year"
-    t.index ["corporate_company_id"], name: "index_gl_budget_scenarios_on_corporate_company_id"
+    t.index ["company_id", "fiscal_year", "scenario_type"], name: "idx_budget_scenarios_year"
+    t.index ["company_id"], name: "index_gl_budget_scenarios_on_company_id"
     t.index ["created_by_id"], name: "index_gl_budget_scenarios_on_created_by_id"
   end
 
   create_table "gl_budgets", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "gl_account_id", null: false
     t.bigint "gl_period_id", null: false
     t.string "external_provider"
@@ -3852,8 +3801,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "scenario", limit: 30, default: "base"
     t.text "scenario_assumptions"
     t.index ["budget_type"], name: "index_gl_budgets_on_budget_type"
-    t.index ["corporate_company_id", "gl_period_id", "scenario"], name: "idx_budgets_period_scenario"
-    t.index ["corporate_company_id"], name: "index_gl_budgets_on_corporate_company_id"
+    t.index ["company_id", "gl_period_id", "scenario"], name: "idx_budgets_period_scenario"
+    t.index ["company_id"], name: "index_gl_budgets_on_company_id"
     t.index ["gl_account_id", "gl_period_id", "tracking_category", "tracking_option", "job_id"], name: "idx_gl_budgets_unique", unique: true
     t.index ["gl_account_id"], name: "index_gl_budgets_on_gl_account_id"
     t.index ["gl_period_id"], name: "index_gl_budgets_on_gl_period_id"
@@ -3861,7 +3810,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_categorization_predictions", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "bank_transaction_id"
     t.bigint "predicted_category_id"
     t.bigint "predicted_account_id"
@@ -3878,8 +3827,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["actual_account_id"], name: "index_gl_categorization_predictions_on_actual_account_id"
     t.index ["actual_category_id"], name: "index_gl_categorization_predictions_on_actual_category_id"
     t.index ["bank_transaction_id"], name: "index_gl_categorization_predictions_on_bank_transaction_id"
+    t.index ["company_id"], name: "index_gl_categorization_predictions_on_company_id"
     t.index ["confidence_score"], name: "index_gl_categorization_predictions_on_confidence_score"
-    t.index ["corporate_company_id"], name: "index_gl_categorization_predictions_on_corporate_company_id"
     t.index ["created_at"], name: "index_gl_categorization_predictions_on_created_at"
     t.index ["predicted_account_id"], name: "index_gl_categorization_predictions_on_predicted_account_id"
     t.index ["predicted_category_id"], name: "index_gl_categorization_predictions_on_predicted_category_id"
@@ -3903,7 +3852,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_change_orders", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "job_id", null: false
     t.bigint "contact_id"
     t.bigint "requested_by_id"
@@ -3927,9 +3876,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["approved_by_id"], name: "index_gl_change_orders_on_approved_by_id"
+    t.index ["company_id", "job_id", "change_order_number"], name: "idx_change_orders_number", unique: true
+    t.index ["company_id"], name: "index_gl_change_orders_on_company_id"
     t.index ["contact_id"], name: "index_gl_change_orders_on_contact_id"
-    t.index ["corporate_company_id", "job_id", "change_order_number"], name: "idx_change_orders_number", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_change_orders_on_corporate_company_id"
     t.index ["job_id"], name: "index_gl_change_orders_on_job_id"
     t.index ["requested_by_id"], name: "index_gl_change_orders_on_requested_by_id"
     t.index ["status"], name: "idx_change_orders_status"
@@ -3948,7 +3897,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_currencies", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "code", null: false
     t.string "name", null: false
     t.string "symbol"
@@ -3957,13 +3906,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.integer "decimal_places", default: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "code"], name: "index_gl_currencies_on_corporate_company_id_and_code", unique: true
-    t.index ["corporate_company_id", "is_base_currency"], name: "idx_gl_currencies_base_currency", unique: true, where: "(is_base_currency = true)"
-    t.index ["corporate_company_id"], name: "index_gl_currencies_on_corporate_company_id"
+    t.index ["company_id", "code"], name: "index_gl_currencies_on_company_id_and_code", unique: true
+    t.index ["company_id", "is_base_currency"], name: "idx_gl_currencies_base_currency", unique: true, where: "(is_base_currency = true)"
+    t.index ["company_id"], name: "index_gl_currencies_on_company_id"
   end
 
   create_table "gl_custom_reports", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "created_by_id"
     t.string "name", null: false
     t.text "description"
@@ -3984,7 +3933,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["base_entity"], name: "index_gl_custom_reports_on_base_entity"
-    t.index ["corporate_company_id"], name: "index_gl_custom_reports_on_corporate_company_id"
+    t.index ["company_id"], name: "index_gl_custom_reports_on_company_id"
     t.index ["created_by_id"], name: "index_gl_custom_reports_on_created_by_id"
     t.index ["is_public"], name: "index_gl_custom_reports_on_is_public"
     t.index ["is_template"], name: "index_gl_custom_reports_on_is_template"
@@ -3993,7 +3942,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_customer_payment_stats", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "contact_id", null: false
     t.integer "total_invoices", default: 0
     t.integer "paid_on_time", default: 0
@@ -4008,9 +3957,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.float "payment_reliability_score"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["company_id", "contact_id"], name: "index_gl_customer_payment_stats_on_company_id_and_contact_id", unique: true
+    t.index ["company_id"], name: "index_gl_customer_payment_stats_on_company_id"
     t.index ["contact_id"], name: "index_gl_customer_payment_stats_on_contact_id"
-    t.index ["corporate_company_id", "contact_id"], name: "idx_on_corporate_company_id_contact_id_8943f46fe3", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_customer_payment_stats_on_corporate_company_id"
     t.index ["payment_reliability_score"], name: "index_gl_customer_payment_stats_on_payment_reliability_score"
   end
 
@@ -4032,7 +3981,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_customer_statements", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "contact_id", null: false
     t.bigint "generated_by_id"
     t.string "reference", null: false
@@ -4055,9 +4004,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["company_id", "contact_id", "statement_date"], name: "idx_statements_contact_date"
+    t.index ["company_id"], name: "index_gl_customer_statements_on_company_id"
     t.index ["contact_id"], name: "index_gl_customer_statements_on_contact_id"
-    t.index ["corporate_company_id", "contact_id", "statement_date"], name: "idx_statements_contact_date"
-    t.index ["corporate_company_id"], name: "index_gl_customer_statements_on_corporate_company_id"
     t.index ["generated_by_id"], name: "index_gl_customer_statements_on_generated_by_id"
   end
 
@@ -4080,7 +4029,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_departments", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "name", null: false
     t.string "code"
     t.bigint "parent_id"
@@ -4092,8 +4041,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["active"], name: "index_gl_departments_on_active"
-    t.index ["corporate_company_id", "code"], name: "index_gl_departments_on_corporate_company_id_and_code", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_departments_on_corporate_company_id"
+    t.index ["company_id", "code"], name: "index_gl_departments_on_company_id_and_code", unique: true
+    t.index ["company_id"], name: "index_gl_departments_on_company_id"
     t.index ["manager_id"], name: "index_gl_departments_on_manager_id"
     t.index ["parent_id"], name: "index_gl_departments_on_parent_id"
   end
@@ -4113,7 +4062,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_deposits", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "contact_id", null: false
     t.bigint "job_id"
     t.bigint "received_by_id"
@@ -4133,16 +4082,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["bank_account_id"], name: "index_gl_deposits_on_bank_account_id"
+    t.index ["company_id", "contact_id", "status"], name: "idx_deposits_contact_status"
+    t.index ["company_id", "reference"], name: "idx_deposits_reference", unique: true
+    t.index ["company_id"], name: "index_gl_deposits_on_company_id"
     t.index ["contact_id"], name: "index_gl_deposits_on_contact_id"
-    t.index ["corporate_company_id", "contact_id", "status"], name: "idx_deposits_contact_status"
-    t.index ["corporate_company_id", "reference"], name: "idx_deposits_reference", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_deposits_on_corporate_company_id"
     t.index ["job_id"], name: "index_gl_deposits_on_job_id"
     t.index ["received_by_id"], name: "index_gl_deposits_on_received_by_id"
   end
 
   create_table "gl_direct_debit_mandates", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "contact_id", null: false
     t.string "mandate_reference", null: false
     t.string "status", limit: 20, default: "pending"
@@ -4161,14 +4110,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "cancellation_reason"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["company_id", "mandate_reference"], name: "idx_dd_mandates_ref", unique: true
+    t.index ["company_id"], name: "index_gl_direct_debit_mandates_on_company_id"
     t.index ["contact_id", "status"], name: "idx_dd_mandates_contact"
     t.index ["contact_id"], name: "index_gl_direct_debit_mandates_on_contact_id"
-    t.index ["corporate_company_id", "mandate_reference"], name: "idx_dd_mandates_ref", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_direct_debit_mandates_on_corporate_company_id"
   end
 
   create_table "gl_document_requests", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "contact_id", null: false
     t.bigint "job_id"
     t.bigint "created_by_id"
@@ -4185,8 +4134,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["access_token"], name: "index_gl_document_requests_on_access_token", unique: true
+    t.index ["company_id"], name: "index_gl_document_requests_on_company_id"
     t.index ["contact_id"], name: "index_gl_document_requests_on_contact_id"
-    t.index ["corporate_company_id"], name: "index_gl_document_requests_on_corporate_company_id"
     t.index ["created_by_id"], name: "index_gl_document_requests_on_created_by_id"
     t.index ["due_date"], name: "index_gl_document_requests_on_due_date"
     t.index ["job_id"], name: "index_gl_document_requests_on_job_id"
@@ -4218,7 +4167,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_duplicate_groups", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "entity_type", null: false
     t.string "status", default: "pending"
     t.float "similarity_score"
@@ -4228,7 +4177,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "resolution"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id"], name: "index_gl_duplicate_groups_on_corporate_company_id"
+    t.index ["company_id"], name: "index_gl_duplicate_groups_on_company_id"
     t.index ["created_at"], name: "index_gl_duplicate_groups_on_created_at"
     t.index ["entity_type"], name: "index_gl_duplicate_groups_on_entity_type"
     t.index ["reviewed_by_id"], name: "index_gl_duplicate_groups_on_reviewed_by_id"
@@ -4250,7 +4199,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_equipment", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "equipment_number", null: false
     t.string "name", null: false
     t.text "description"
@@ -4271,8 +4220,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "last_used_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "equipment_number"], name: "idx_equipment_number", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_equipment_on_corporate_company_id"
+    t.index ["company_id", "equipment_number"], name: "idx_equipment_number", unique: true
+    t.index ["company_id"], name: "index_gl_equipment_on_company_id"
     t.index ["status"], name: "idx_equipment_status"
   end
 
@@ -4298,21 +4247,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_exchange_rates", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "gl_currency_id", null: false
     t.date "effective_date", null: false
     t.decimal "rate", precision: 15, scale: 6, null: false
     t.string "source"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "gl_currency_id", "effective_date"], name: "idx_gl_exchange_rates_unique", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_exchange_rates_on_corporate_company_id"
+    t.index ["company_id", "gl_currency_id", "effective_date"], name: "idx_gl_exchange_rates_unique", unique: true
+    t.index ["company_id"], name: "index_gl_exchange_rates_on_company_id"
     t.index ["gl_currency_id", "effective_date"], name: "index_gl_exchange_rates_on_gl_currency_id_and_effective_date"
     t.index ["gl_currency_id"], name: "index_gl_exchange_rates_on_gl_currency_id"
   end
 
   create_table "gl_inventory_items", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "pricebook_item_id"
     t.bigint "cogs_account_id"
     t.bigint "inventory_account_id"
@@ -4341,9 +4290,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["cogs_account_id"], name: "index_gl_inventory_items_on_cogs_account_id"
-    t.index ["corporate_company_id", "category"], name: "idx_inventory_items_category"
-    t.index ["corporate_company_id", "sku"], name: "idx_inventory_items_sku", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_inventory_items_on_corporate_company_id"
+    t.index ["company_id", "category"], name: "idx_inventory_items_category"
+    t.index ["company_id", "sku"], name: "idx_inventory_items_sku", unique: true
+    t.index ["company_id"], name: "index_gl_inventory_items_on_company_id"
     t.index ["income_account_id"], name: "index_gl_inventory_items_on_income_account_id"
     t.index ["inventory_account_id"], name: "index_gl_inventory_items_on_inventory_account_id"
     t.index ["pricebook_item_id"], name: "index_gl_inventory_items_on_pricebook_item_id"
@@ -4401,7 +4350,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_invoices", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "external_provider"
     t.string "external_tenant_id"
     t.string "external_invoice_id"
@@ -4447,11 +4396,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "payment_token_expires_at"
     t.bigint "department_id"
     t.index ["approved_by_id"], name: "index_gl_invoices_on_approved_by_id"
+    t.index ["company_id", "invoice_date"], name: "idx_gl_inv_company_date"
+    t.index ["company_id", "invoice_type", "status"], name: "idx_gl_inv_company_type_status"
+    t.index ["company_id"], name: "index_gl_invoices_on_company_id"
     t.index ["contact_id", "invoice_type"], name: "idx_gl_inv_contact_type"
     t.index ["contact_id"], name: "index_gl_invoices_on_contact_id"
-    t.index ["corporate_company_id", "invoice_date"], name: "idx_gl_inv_company_date"
-    t.index ["corporate_company_id", "invoice_type", "status"], name: "idx_gl_inv_company_type_status"
-    t.index ["corporate_company_id"], name: "index_gl_invoices_on_corporate_company_id"
     t.index ["department_id"], name: "index_gl_invoices_on_department_id"
     t.index ["external_provider", "external_tenant_id", "external_invoice_id"], name: "idx_gl_invoices_external", unique: true
     t.index ["gl_journal_entry_id"], name: "idx_gl_invoices_journal"
@@ -4461,7 +4410,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_journal_entries", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "gl_period_id", null: false
     t.string "external_provider"
     t.string "external_tenant_id"
@@ -4486,9 +4435,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "department_id"
-    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "entry_date"], name: "idx_gl_journal_entries_date_lookup"
-    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "source_type", "external_source_id"], name: "idx_gl_journal_entries_unique_external", unique: true, where: "(external_source_id IS NOT NULL)"
-    t.index ["corporate_company_id"], name: "index_gl_journal_entries_on_corporate_company_id"
+    t.index ["company_id", "external_provider", "external_tenant_id", "entry_date"], name: "idx_gl_journal_entries_date_lookup"
+    t.index ["company_id", "external_provider", "external_tenant_id", "source_type", "external_source_id"], name: "idx_gl_journal_entries_unique_external", unique: true, where: "(external_source_id IS NOT NULL)"
+    t.index ["company_id"], name: "index_gl_journal_entries_on_company_id"
     t.index ["created_by_id"], name: "index_gl_journal_entries_on_created_by_id"
     t.index ["department_id"], name: "index_gl_journal_entries_on_department_id"
     t.index ["entry_date"], name: "index_gl_journal_entries_on_entry_date"
@@ -4500,7 +4449,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_kpi_definitions", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "name", null: false
     t.string "code", null: false
     t.string "category"
@@ -4517,8 +4466,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["category"], name: "index_gl_kpi_definitions_on_category"
-    t.index ["corporate_company_id", "code"], name: "index_gl_kpi_definitions_on_corporate_company_id_and_code", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_kpi_definitions_on_corporate_company_id"
+    t.index ["company_id", "code"], name: "index_gl_kpi_definitions_on_company_id_and_code", unique: true
+    t.index ["company_id"], name: "index_gl_kpi_definitions_on_company_id"
     t.index ["show_on_dashboard"], name: "index_gl_kpi_definitions_on_show_on_dashboard"
   end
 
@@ -4549,7 +4498,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_lien_waivers", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "job_id", null: false
     t.bigint "contact_id", null: false
     t.bigint "progress_claim_id"
@@ -4564,16 +4513,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["company_id", "job_id", "contact_id"], name: "idx_lien_waivers_job_contact"
+    t.index ["company_id"], name: "index_gl_lien_waivers_on_company_id"
     t.index ["contact_id"], name: "index_gl_lien_waivers_on_contact_id"
-    t.index ["corporate_company_id", "job_id", "contact_id"], name: "idx_lien_waivers_job_contact"
-    t.index ["corporate_company_id"], name: "index_gl_lien_waivers_on_corporate_company_id"
     t.index ["job_id"], name: "index_gl_lien_waivers_on_job_id"
     t.index ["progress_claim_id"], name: "index_gl_lien_waivers_on_progress_claim_id"
     t.index ["status"], name: "idx_lien_waivers_status"
   end
 
   create_table "gl_opening_balances", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "gl_account_id", null: false
     t.string "external_provider"
     t.string "external_tenant_id"
@@ -4585,7 +4534,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.date "reconciled_date"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id"], name: "index_gl_opening_balances_on_corporate_company_id"
+    t.index ["company_id"], name: "index_gl_opening_balances_on_company_id"
     t.index ["effective_date"], name: "index_gl_opening_balances_on_effective_date"
     t.index ["financial_year"], name: "index_gl_opening_balances_on_financial_year"
     t.index ["gl_account_id", "effective_date"], name: "index_gl_opening_balances_on_gl_account_id_and_effective_date", unique: true
@@ -4625,7 +4574,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_payment_batches", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "bank_account_id"
     t.bigint "created_by_id"
     t.bigint "approved_by_id"
@@ -4645,14 +4594,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "updated_at", null: false
     t.index ["approved_by_id"], name: "index_gl_payment_batches_on_approved_by_id"
     t.index ["bank_account_id"], name: "index_gl_payment_batches_on_bank_account_id"
-    t.index ["corporate_company_id", "reference"], name: "idx_payment_batches_ref", unique: true
-    t.index ["corporate_company_id", "status"], name: "idx_payment_batches_status"
-    t.index ["corporate_company_id"], name: "index_gl_payment_batches_on_corporate_company_id"
+    t.index ["company_id", "reference"], name: "idx_payment_batches_ref", unique: true
+    t.index ["company_id", "status"], name: "idx_payment_batches_status"
+    t.index ["company_id"], name: "index_gl_payment_batches_on_company_id"
     t.index ["created_by_id"], name: "index_gl_payment_batches_on_created_by_id"
   end
 
   create_table "gl_payment_predictions", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "invoice_id", null: false
     t.bigint "contact_id"
     t.float "probability_late", null: false
@@ -4664,8 +4613,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.date "actual_payment_date"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["company_id"], name: "index_gl_payment_predictions_on_company_id"
     t.index ["contact_id"], name: "index_gl_payment_predictions_on_contact_id"
-    t.index ["corporate_company_id"], name: "index_gl_payment_predictions_on_corporate_company_id"
     t.index ["created_at"], name: "index_gl_payment_predictions_on_created_at"
     t.index ["invoice_id"], name: "index_gl_payment_predictions_on_invoice_id"
     t.index ["probability_late"], name: "index_gl_payment_predictions_on_probability_late"
@@ -4673,7 +4622,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_payments", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "external_provider"
     t.string "external_tenant_id"
     t.string "external_payment_id"
@@ -4700,10 +4649,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.boolean "created_in_teeem", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["company_id", "payment_type", "payment_date"], name: "idx_gl_pay_company_type_date"
+    t.index ["company_id"], name: "index_gl_payments_on_company_id"
     t.index ["contact_id"], name: "idx_gl_pay_contact"
     t.index ["contact_id"], name: "index_gl_payments_on_contact_id"
-    t.index ["corporate_company_id", "payment_type", "payment_date"], name: "idx_gl_pay_company_type_date"
-    t.index ["corporate_company_id"], name: "index_gl_payments_on_corporate_company_id"
     t.index ["external_provider", "external_tenant_id", "external_payment_id"], name: "idx_gl_payments_external", unique: true
     t.index ["gl_account_id"], name: "index_gl_payments_on_gl_account_id"
     t.index ["gl_journal_entry_id"], name: "idx_gl_pay_journal"
@@ -4711,7 +4660,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_period_locks", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "locked_by_id"
     t.bigint "unlocked_by_id"
     t.date "period_start", null: false
@@ -4726,15 +4675,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.decimal "balance_at_lock", precision: 15, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "period_end"], name: "idx_period_locks_unique", unique: true
-    t.index ["corporate_company_id", "status"], name: "idx_period_locks_status"
-    t.index ["corporate_company_id"], name: "index_gl_period_locks_on_corporate_company_id"
+    t.index ["company_id", "period_end"], name: "idx_period_locks_unique", unique: true
+    t.index ["company_id", "status"], name: "idx_period_locks_status"
+    t.index ["company_id"], name: "index_gl_period_locks_on_company_id"
     t.index ["locked_by_id"], name: "index_gl_period_locks_on_locked_by_id"
     t.index ["unlocked_by_id"], name: "index_gl_period_locks_on_unlocked_by_id"
   end
 
   create_table "gl_period_snapshots", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "period_type", null: false
     t.date "period_start", null: false
     t.date "period_end", null: false
@@ -4746,14 +4695,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.boolean "finalized", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "period_type", "period_start"], name: "idx_on_corporate_company_id_period_type_period_star_c030f81621", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_period_snapshots_on_corporate_company_id"
+    t.index ["company_id", "period_type", "period_start"], name: "idx_on_company_id_period_type_period_start_4c20d8323a", unique: true
+    t.index ["company_id"], name: "index_gl_period_snapshots_on_company_id"
     t.index ["finalized"], name: "index_gl_period_snapshots_on_finalized"
     t.index ["period_type"], name: "index_gl_period_snapshots_on_period_type"
   end
 
   create_table "gl_periods", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "external_provider"
     t.string "external_tenant_id"
     t.string "financial_year", null: false
@@ -4767,8 +4716,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["closed_by_id"], name: "index_gl_periods_on_closed_by_id"
-    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "financial_year", "period_number"], name: "idx_gl_periods_unique", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_periods_on_corporate_company_id"
+    t.index ["company_id", "external_provider", "external_tenant_id", "financial_year", "period_number"], name: "idx_gl_periods_unique", unique: true
+    t.index ["company_id"], name: "index_gl_periods_on_company_id"
     t.index ["financial_year"], name: "index_gl_periods_on_financial_year"
     t.index ["period_start", "period_end"], name: "index_gl_periods_on_period_start_and_period_end"
     t.index ["status"], name: "index_gl_periods_on_status"
@@ -4790,7 +4739,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_portal_tokens", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "contact_id", null: false
     t.string "token", null: false
     t.string "token_type", limit: 20, default: "invoice"
@@ -4801,9 +4750,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.boolean "active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["company_id"], name: "index_gl_portal_tokens_on_company_id"
     t.index ["contact_id", "token_type"], name: "idx_portal_tokens_contact"
     t.index ["contact_id"], name: "index_gl_portal_tokens_on_contact_id"
-    t.index ["corporate_company_id"], name: "index_gl_portal_tokens_on_corporate_company_id"
     t.index ["token"], name: "idx_portal_tokens_token", unique: true
   end
 
@@ -4824,7 +4773,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_progress_claims", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "job_id", null: false
     t.bigint "contact_id", null: false
     t.bigint "invoice_id"
@@ -4858,10 +4807,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["approved_by_id"], name: "index_gl_progress_claims_on_approved_by_id"
+    t.index ["company_id", "claim_number"], name: "idx_progress_claims_number", unique: true
+    t.index ["company_id", "job_id", "claim_sequence"], name: "idx_progress_claims_sequence", unique: true
+    t.index ["company_id"], name: "index_gl_progress_claims_on_company_id"
     t.index ["contact_id"], name: "index_gl_progress_claims_on_contact_id"
-    t.index ["corporate_company_id", "claim_number"], name: "idx_progress_claims_number", unique: true
-    t.index ["corporate_company_id", "job_id", "claim_sequence"], name: "idx_progress_claims_sequence", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_progress_claims_on_corporate_company_id"
     t.index ["created_by_id"], name: "index_gl_progress_claims_on_created_by_id"
     t.index ["invoice_id"], name: "index_gl_progress_claims_on_invoice_id"
     t.index ["job_id"], name: "index_gl_progress_claims_on_job_id"
@@ -4869,7 +4818,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_provider_credentials", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "provider", null: false
     t.string "tenant_id", null: false
     t.string "tenant_name"
@@ -4888,8 +4837,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.jsonb "sync_settings", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "provider", "tenant_id"], name: "idx_gl_provider_credentials_unique", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_provider_credentials_on_corporate_company_id"
+    t.index ["company_id", "provider", "tenant_id"], name: "idx_gl_provider_credentials_unique", unique: true
+    t.index ["company_id"], name: "index_gl_provider_credentials_on_company_id"
     t.index ["provider"], name: "index_gl_provider_credentials_on_provider"
     t.index ["status"], name: "index_gl_provider_credentials_on_status"
     t.index ["sync_enabled"], name: "index_gl_provider_credentials_on_sync_enabled"
@@ -4932,7 +4881,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_quotes", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "contact_id", null: false
     t.bigint "job_id"
     t.bigint "created_by_id"
@@ -4961,11 +4910,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "signature_ip"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["company_id", "contact_id"], name: "idx_quotes_contact"
+    t.index ["company_id", "quote_number"], name: "idx_quotes_number", unique: true
+    t.index ["company_id", "status"], name: "idx_quotes_status"
+    t.index ["company_id"], name: "index_gl_quotes_on_company_id"
     t.index ["contact_id"], name: "index_gl_quotes_on_contact_id"
-    t.index ["corporate_company_id", "contact_id"], name: "idx_quotes_contact"
-    t.index ["corporate_company_id", "quote_number"], name: "idx_quotes_number", unique: true
-    t.index ["corporate_company_id", "status"], name: "idx_quotes_status"
-    t.index ["corporate_company_id"], name: "index_gl_quotes_on_corporate_company_id"
     t.index ["created_by_id"], name: "index_gl_quotes_on_created_by_id"
     t.index ["invoice_id"], name: "index_gl_quotes_on_invoice_id"
     t.index ["job_id"], name: "index_gl_quotes_on_job_id"
@@ -4995,7 +4944,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_reconciliation_rules", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "gl_account_id"
     t.string "name", null: false
     t.string "rule_type", null: false
@@ -5015,8 +4964,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.boolean "auto_created", default: false
     t.decimal "confidence", precision: 5, scale: 2
     t.integer "pattern_count"
-    t.index ["corporate_company_id", "active", "priority"], name: "idx_gl_recon_rules_active"
-    t.index ["corporate_company_id"], name: "index_gl_reconciliation_rules_on_corporate_company_id"
+    t.index ["company_id", "active", "priority"], name: "idx_gl_recon_rules_active"
+    t.index ["company_id"], name: "index_gl_reconciliation_rules_on_company_id"
     t.index ["gl_account_id"], name: "index_gl_reconciliation_rules_on_gl_account_id"
     t.index ["target_account_id"], name: "index_gl_reconciliation_rules_on_target_account_id"
   end
@@ -5084,7 +5033,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_report_dashboards", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "created_by_id"
     t.string "name", null: false
     t.text "description"
@@ -5093,7 +5042,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.jsonb "layout", default: []
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id"], name: "index_gl_report_dashboards_on_corporate_company_id"
+    t.index ["company_id"], name: "index_gl_report_dashboards_on_company_id"
     t.index ["created_by_id"], name: "index_gl_report_dashboards_on_created_by_id"
     t.index ["is_default"], name: "index_gl_report_dashboards_on_is_default"
     t.index ["is_public"], name: "index_gl_report_dashboards_on_is_public"
@@ -5183,7 +5132,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_retainage_releases", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "job_id", null: false
     t.bigint "progress_claim_id"
     t.bigint "invoice_id"
@@ -5198,8 +5147,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["approved_by_id"], name: "index_gl_retainage_releases_on_approved_by_id"
-    t.index ["corporate_company_id", "job_id"], name: "idx_retainage_releases_job"
-    t.index ["corporate_company_id"], name: "index_gl_retainage_releases_on_corporate_company_id"
+    t.index ["company_id", "job_id"], name: "idx_retainage_releases_job"
+    t.index ["company_id"], name: "index_gl_retainage_releases_on_company_id"
     t.index ["invoice_id"], name: "index_gl_retainage_releases_on_invoice_id"
     t.index ["job_id"], name: "index_gl_retainage_releases_on_job_id"
     t.index ["progress_claim_id"], name: "index_gl_retainage_releases_on_progress_claim_id"
@@ -5207,7 +5156,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_scheduled_invoices", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "invoice_id", null: false
     t.bigint "created_by_id"
     t.datetime "scheduled_for", null: false
@@ -5218,14 +5167,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.text "error_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id"], name: "index_gl_scheduled_invoices_on_corporate_company_id"
+    t.index ["company_id"], name: "index_gl_scheduled_invoices_on_company_id"
     t.index ["created_by_id"], name: "index_gl_scheduled_invoices_on_created_by_id"
     t.index ["invoice_id"], name: "index_gl_scheduled_invoices_on_invoice_id"
     t.index ["status", "scheduled_for"], name: "idx_scheduled_invoices_due"
   end
 
   create_table "gl_scheduled_reports", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "created_by_id"
     t.string "name", null: false
     t.string "report_type", limit: 50, null: false
@@ -5246,8 +5195,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["active", "next_send_at"], name: "idx_scheduled_reports_due"
-    t.index ["corporate_company_id", "report_type"], name: "idx_scheduled_reports_type"
-    t.index ["corporate_company_id"], name: "index_gl_scheduled_reports_on_corporate_company_id"
+    t.index ["company_id", "report_type"], name: "idx_scheduled_reports_type"
+    t.index ["company_id"], name: "index_gl_scheduled_reports_on_company_id"
     t.index ["created_by_id"], name: "index_gl_scheduled_reports_on_created_by_id"
   end
 
@@ -5270,7 +5219,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_split_transactions", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "original_transaction_type"
     t.bigint "original_transaction_id"
     t.decimal "original_amount", precision: 15, scale: 2, null: false
@@ -5282,7 +5231,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["approved_by_id"], name: "index_gl_split_transactions_on_approved_by_id"
-    t.index ["corporate_company_id"], name: "index_gl_split_transactions_on_corporate_company_id"
+    t.index ["company_id"], name: "index_gl_split_transactions_on_company_id"
     t.index ["created_by_id"], name: "index_gl_split_transactions_on_created_by_id"
     t.index ["original_transaction_type", "original_transaction_id"], name: "index_gl_split_transactions_on_original_transaction"
     t.index ["status"], name: "index_gl_split_transactions_on_status"
@@ -5304,7 +5253,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_stock_counts", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "created_by_id"
     t.bigint "approved_by_id"
     t.string "reference", null: false
@@ -5316,13 +5265,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["approved_by_id"], name: "index_gl_stock_counts_on_approved_by_id"
-    t.index ["corporate_company_id", "reference"], name: "idx_stock_counts_ref", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_stock_counts_on_corporate_company_id"
+    t.index ["company_id", "reference"], name: "idx_stock_counts_ref", unique: true
+    t.index ["company_id"], name: "index_gl_stock_counts_on_company_id"
     t.index ["created_by_id"], name: "index_gl_stock_counts_on_created_by_id"
   end
 
   create_table "gl_sync_logs", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "gl_provider_credential_id"
     t.string "external_provider", null: false
     t.string "external_tenant_id", null: false
@@ -5345,8 +5294,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.bigint "triggered_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "created_at"], name: "idx_gl_sync_logs_lookup"
-    t.index ["corporate_company_id"], name: "index_gl_sync_logs_on_corporate_company_id"
+    t.index ["company_id", "external_provider", "external_tenant_id", "created_at"], name: "idx_gl_sync_logs_lookup"
+    t.index ["company_id"], name: "index_gl_sync_logs_on_company_id"
     t.index ["gl_provider_credential_id"], name: "index_gl_sync_logs_on_gl_provider_credential_id"
     t.index ["started_at"], name: "index_gl_sync_logs_on_started_at"
     t.index ["status"], name: "index_gl_sync_logs_on_status"
@@ -5355,7 +5304,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_tax_rates", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "external_provider"
     t.string "external_tenant_id"
     t.string "external_tax_type"
@@ -5370,14 +5319,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["active"], name: "index_gl_tax_rates_on_active"
-    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "code"], name: "idx_gl_tax_rates_unique", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_tax_rates_on_corporate_company_id"
+    t.index ["company_id", "external_provider", "external_tenant_id", "code"], name: "idx_gl_tax_rates_unique", unique: true
+    t.index ["company_id"], name: "index_gl_tax_rates_on_company_id"
     t.index ["gl_account_id"], name: "index_gl_tax_rates_on_gl_account_id"
     t.index ["tax_type"], name: "index_gl_tax_rates_on_tax_type"
   end
 
   create_table "gl_time_billing_batches", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "contact_id", null: false
     t.bigint "job_id"
     t.bigint "invoice_id"
@@ -5391,10 +5340,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["company_id", "contact_id", "status"], name: "idx_time_batches_client"
+    t.index ["company_id", "reference"], name: "idx_time_batches_ref", unique: true
+    t.index ["company_id"], name: "index_gl_time_billing_batches_on_company_id"
     t.index ["contact_id"], name: "index_gl_time_billing_batches_on_contact_id"
-    t.index ["corporate_company_id", "contact_id", "status"], name: "idx_time_batches_client"
-    t.index ["corporate_company_id", "reference"], name: "idx_time_batches_ref", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_time_billing_batches_on_corporate_company_id"
     t.index ["created_by_id"], name: "index_gl_time_billing_batches_on_created_by_id"
     t.index ["invoice_id"], name: "index_gl_time_billing_batches_on_invoice_id"
     t.index ["job_id"], name: "index_gl_time_billing_batches_on_job_id"
@@ -5423,7 +5372,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_tpar_reports", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "created_by_id"
     t.string "financial_year", limit: 10, null: false
     t.date "period_start", null: false
@@ -5438,13 +5387,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.text "lodgement_response"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "financial_year"], name: "idx_tpar_reports_year", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_tpar_reports_on_corporate_company_id"
+    t.index ["company_id", "financial_year"], name: "idx_tpar_reports_year", unique: true
+    t.index ["company_id"], name: "index_gl_tpar_reports_on_company_id"
     t.index ["created_by_id"], name: "index_gl_tpar_reports_on_created_by_id"
   end
 
   create_table "gl_tracking_classes", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "name", null: false
     t.string "class_type", null: false
     t.string "code"
@@ -5455,13 +5404,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "updated_at", null: false
     t.index ["active"], name: "index_gl_tracking_classes_on_active"
     t.index ["class_type"], name: "index_gl_tracking_classes_on_class_type"
-    t.index ["corporate_company_id", "class_type", "code"], name: "idx_on_corporate_company_id_class_type_code_9ac3c99c17", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_tracking_classes_on_corporate_company_id"
+    t.index ["company_id", "class_type", "code"], name: "idx_on_company_id_class_type_code_23f78dd415", unique: true
+    t.index ["company_id"], name: "index_gl_tracking_classes_on_company_id"
     t.index ["parent_id"], name: "index_gl_tracking_classes_on_parent_id"
   end
 
   create_table "gl_transaction_categories", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.string "name", null: false
     t.string "category_type"
     t.bigint "default_account_id"
@@ -5475,8 +5424,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "updated_at", null: false
     t.index ["active"], name: "index_gl_transaction_categories_on_active"
     t.index ["category_type"], name: "index_gl_transaction_categories_on_category_type"
-    t.index ["corporate_company_id", "name"], name: "idx_on_corporate_company_id_name_463f27cd4a", unique: true
-    t.index ["corporate_company_id"], name: "index_gl_transaction_categories_on_corporate_company_id"
+    t.index ["company_id", "name"], name: "index_gl_transaction_categories_on_company_id_and_name", unique: true
+    t.index ["company_id"], name: "index_gl_transaction_categories_on_company_id"
     t.index ["default_account_id"], name: "index_gl_transaction_categories_on_default_account_id"
     t.index ["default_tax_rate_id"], name: "index_gl_transaction_categories_on_default_tax_rate_id"
   end
@@ -5512,7 +5461,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "gl_wip_reports", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
+    t.bigint "company_id", null: false
     t.bigint "created_by_id"
     t.string "reference", null: false
     t.date "report_date", null: false
@@ -5529,9 +5478,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "reference"], name: "idx_wip_reports_ref", unique: true
-    t.index ["corporate_company_id", "report_date"], name: "idx_wip_reports_date"
-    t.index ["corporate_company_id"], name: "index_gl_wip_reports_on_corporate_company_id"
+    t.index ["company_id", "reference"], name: "idx_wip_reports_ref", unique: true
+    t.index ["company_id", "report_date"], name: "idx_wip_reports_date"
+    t.index ["company_id"], name: "index_gl_wip_reports_on_company_id"
     t.index ["created_by_id"], name: "index_gl_wip_reports_on_created_by_id"
   end
 
@@ -5641,6 +5590,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.integer "shared_with_user_ids", default: [], array: true
     t.integer "nav_position", default: 0
     t.boolean "sync_all", default: false, null: false
+    t.jsonb "branding_config", default: {"use_default"=>true}
     t.index ["is_active"], name: "index_imap_credentials_on_is_active"
     t.index ["user_id", "email_address"], name: "index_imap_credentials_on_user_id_and_email_address", unique: true
     t.index ["user_id"], name: "index_imap_credentials_on_user_id"
@@ -6674,7 +6624,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "name"
     t.string "client_id"
     t.text "client_secret"
-    t.string "tenant_id"
+    t.string "azure_tenant_id"
     t.text "access_token"
     t.text "refresh_token"
     t.datetime "token_expires_at"
@@ -6701,6 +6651,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.bigint "organization_id", null: false
     t.integer "lock_version", default: 0, null: false
     t.boolean "is_primary", default: false, null: false
+    t.bigint "tenant_id"
     t.index ["connected_by_id"], name: "index_microsoft_credentials_on_connected_by_id"
     t.index ["credential_type", "is_active"], name: "idx_ms_creds_type_active"
     t.index ["name", "is_active"], name: "idx_ms_creds_name_unique_active", unique: true, where: "((is_active = true) AND (name IS NOT NULL))"
@@ -6712,6 +6663,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["refresh_token_dead"], name: "idx_ms_creds_dead"
     t.index ["setup_by_id"], name: "index_microsoft_credentials_on_setup_by_id"
     t.index ["status"], name: "idx_ms_creds_status"
+    t.index ["tenant_id"], name: "index_microsoft_credentials_on_tenant_id"
     t.index ["token_expires_at"], name: "idx_ms_creds_token_expires"
   end
 
@@ -6914,8 +6866,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "document_provider", default: "sharepoint", null: false
     t.bigint "document_provider_credential_id"
     t.bigint "tenant_id"
-    t.bigint "corporate_company_id"
-    t.index ["corporate_company_id"], name: "index_organizations_on_corporate_company_id"
+    t.bigint "company_id"
+    t.index ["company_id"], name: "index_organizations_on_company_id"
     t.index ["document_provider"], name: "index_organizations_on_document_provider"
     t.index ["document_provider_credential_id"], name: "index_organizations_on_document_provider_credential_id"
     t.index ["name"], name: "index_organizations_on_name", unique: true
@@ -7150,16 +7102,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.integer "view_time_ms"
     t.integer "status_code"
     t.bigint "user_id"
-    t.bigint "organization_id"
     t.string "controller_action"
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["created_at"], name: "index_performance_requests_on_created_at"
     t.index ["endpoint", "created_at"], name: "index_performance_requests_on_endpoint_and_created_at"
     t.index ["endpoint"], name: "index_performance_requests_on_endpoint"
-    t.index ["organization_id"], name: "index_performance_requests_on_organization_id"
     t.index ["status_code"], name: "index_performance_requests_on_status_code", where: "(status_code >= 400)"
+    t.index ["tenant_id"], name: "index_performance_requests_on_tenant_id"
     t.index ["user_id"], name: "index_performance_requests_on_user_id"
   end
 
@@ -7409,7 +7361,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "polaris_credentials", force: :cascade do |t|
-    t.bigint "organization_id", null: false
     t.text "api_key"
     t.text "api_secret"
     t.string "reseller_id"
@@ -7421,9 +7372,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["organization_id", "is_active"], name: "idx_polaris_credentials_active_org", unique: true, where: "(is_active = true)"
-    t.index ["organization_id"], name: "index_polaris_credentials_on_organization_id"
+    t.bigint "tenant_id"
     t.index ["status"], name: "index_polaris_credentials_on_status"
+    t.index ["tenant_id"], name: "index_polaris_credentials_on_tenant_id"
   end
 
   create_table "portal_access_logs", force: :cascade do |t|
@@ -8004,11 +7955,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["is_active"], name: "index_s3_compatible_credentials_on_is_active"
     t.index ["organization_id", "is_active"], name: "idx_on_organization_id_is_active_359ae937e1"
     t.index ["organization_id"], name: "index_s3_compatible_credentials_on_organization_id"
     t.index ["provider_type"], name: "index_s3_compatible_credentials_on_provider_type"
     t.index ["status"], name: "index_s3_compatible_credentials_on_status"
+    t.index ["tenant_id"], name: "index_s3_compatible_credentials_on_tenant_id"
   end
 
   create_table "saas_billing_records", force: :cascade do |t|
@@ -8598,6 +8551,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["is_active"], name: "index_sm_task_groups_on_is_active"
   end
 
+  create_table "sm_task_notes", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.bigint "user_id", null: false
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["sm_task_id", "created_at"], name: "index_sm_task_notes_on_sm_task_id_and_created_at", order: { created_at: :desc }
+    t.index ["sm_task_id"], name: "index_sm_task_notes_on_sm_task_id"
+    t.index ["user_id"], name: "index_sm_task_notes_on_user_id"
+  end
+
   create_table "sm_task_photos", force: :cascade do |t|
     t.bigint "sm_task_id"
     t.bigint "job_id"
@@ -9057,21 +9021,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "updated_at", null: false
     t.datetime "verified_at"
     t.bigint "tenant_id", null: false
-    t.bigint "organization_id"
     t.boolean "needs_migration", default: false, null: false
     t.boolean "file_missing", default: false, null: false
     t.index ["content_hash"], name: "index_storage_blobs_on_content_hash", unique: true
     t.index ["file_missing"], name: "idx_storage_blobs_file_missing", where: "(file_missing = true)"
     t.index ["needs_migration"], name: "idx_storage_blobs_needs_migration", where: "(needs_migration = true)"
-    t.index ["organization_id"], name: "index_storage_blobs_on_organization_id"
     t.index ["storage_path"], name: "index_storage_blobs_on_storage_path"
-    t.index ["tenant_id", "organization_id"], name: "idx_storage_blobs_tenant_org"
     t.index ["tenant_id"], name: "index_storage_blobs_on_tenant_id"
     t.index ["verified_at"], name: "index_storage_blobs_on_verified_at"
   end
 
   create_table "stripe_configurations", force: :cascade do |t|
-    t.bigint "organization_id"
     t.boolean "enabled", default: false, null: false
     t.string "stripe_account_id"
     t.string "webhook_endpoint_id"
@@ -9082,8 +9042,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["organization_id"], name: "index_stripe_configurations_on_organization_id"
+    t.bigint "tenant_id"
     t.index ["stripe_account_id"], name: "index_stripe_configurations_on_stripe_account_id", unique: true, where: "(stripe_account_id IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_stripe_configurations_on_tenant_id"
   end
 
   create_table "stripe_payments", force: :cascade do |t|
@@ -9210,7 +9171,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "sync_exclusion_rules", force: :cascade do |t|
-    t.bigint "organization_id"
     t.bigint "user_id"
     t.string "rule_type", null: false
     t.string "value", null: false
@@ -9220,9 +9180,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.integer "priority", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["is_default"], name: "index_sync_exclusion_rules_on_is_default"
-    t.index ["organization_id"], name: "index_sync_exclusion_rules_on_organization_id"
     t.index ["rule_type", "value"], name: "index_sync_exclusion_rules_on_rule_type_and_value"
+    t.index ["tenant_id"], name: "index_sync_exclusion_rules_on_tenant_id"
     t.index ["user_id"], name: "index_sync_exclusion_rules_on_user_id"
   end
 
@@ -9613,7 +9574,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   end
 
   create_table "tenant_settings", force: :cascade do |t|
-    t.bigint "corporate_group_id"
+    t.bigint "company_group_id"
     t.string "company_name"
     t.string "abn"
     t.string "acn"
@@ -9674,7 +9635,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "custom_email_signature_name", default: "Company Custom"
     t.boolean "force_email_signature", default: false
     t.string "forced_signature_style"
-    t.index ["corporate_group_id"], name: "index_tenant_settings_on_corporate_group_id", unique: true
+    t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"
     t.index ["tenant_id"], name: "index_tenant_settings_on_tenant_id"
@@ -9896,18 +9857,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["user_id"], name: "index_user_documents_on_user_id"
   end
 
-  create_table "user_entity_tab_preferences", force: :cascade do |t|
-    t.bigint "user_id", null: false
-    t.string "scope", null: false
-    t.jsonb "hidden_tabs", default: []
-    t.string "default_tab"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.jsonb "tab_order", default: []
-    t.index ["user_id", "scope"], name: "idx_user_entity_tab_prefs_unique", unique: true
-    t.index ["user_id"], name: "index_user_entity_tab_preferences_on_user_id"
-  end
-
   create_table "user_groups", force: :cascade do |t|
     t.string "name"
     t.string "label"
@@ -9960,6 +9909,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["role_id"], name: "index_user_roles_on_role_id"
     t.index ["user_id"], name: "index_user_roles_on_user_id"
     t.index ["user_id"], name: "index_user_roles_on_user_id_primary", unique: true, where: "(is_primary = true)"
+  end
+
+  create_table "user_warehouse_folder_preferences", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "scope", null: false
+    t.jsonb "hidden_tabs", default: []
+    t.string "default_tab"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "tab_order", default: []
+    t.index ["user_id", "scope"], name: "idx_user_warehouse_folder_prefs_unique", unique: true
+    t.index ["user_id"], name: "index_user_warehouse_folder_preferences_on_user_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -10025,8 +9986,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "documentable_type"
     t.bigint "documentable_id"
     t.bigint "storage_blob_id"
-    t.string "display_name", null: false
-    t.string "send_name"
+    t.string "ui_name", null: false
+    t.string "download_name"
     t.string "folder"
     t.string "source_type", null: false
     t.string "original_filename"
@@ -10042,7 +10003,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.uuid "version_group_id"
     t.integer "version_number", default: 1
     t.boolean "is_latest_version", default: true
-    t.index ["display_name"], name: "index_warehouse_documents_on_display_name"
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["folder"], name: "index_warehouse_documents_on_folder"
@@ -10056,6 +10016,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
     t.index ["tenant_id", "source_type", "folder"], name: "idx_warehouse_docs_tenant_scope_folder"
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
+    t.index ["ui_name"], name: "index_warehouse_documents_on_ui_name"
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
   end
 
@@ -10065,9 +10026,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.boolean "is_primary", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["document_type_id", "is_primary"], name: "idx_entity_tab_doc_types_primary"
+    t.index ["document_type_id", "is_primary"], name: "idx_warehouse_folder_doc_types_primary"
     t.index ["document_type_id"], name: "index_warehouse_folder_document_types_on_document_type_id"
-    t.index ["warehouse_folder_id", "document_type_id"], name: "idx_entity_tab_doc_types_unique", unique: true
+    t.index ["warehouse_folder_id", "document_type_id"], name: "idx_warehouse_folder_doc_types_unique", unique: true
     t.index ["warehouse_folder_id"], name: "index_warehouse_folder_document_types_on_warehouse_folder_id"
   end
 
@@ -10099,8 +10060,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.string "xero_scope"
     t.string "visibility_rule"
     t.bigint "tenant_id"
-    t.string "send_name_template"
-    t.string "warehouse_folder"
+    t.string "download_name"
+    t.string "folder_path"
+    t.string "ui_name"
+    t.string "base_folder"
+    t.index ["base_folder"], name: "index_warehouse_folders_on_base_folder"
     t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
     t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_warehouse_folders_on_job_id"
@@ -10109,12 +10073,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["tenant_id"], name: "index_warehouse_folders_on_tenant_id"
     t.index ["warehouse_type", "enabled"], name: "index_warehouse_folders_on_warehouse_type_and_enabled"
     t.index ["warehouse_type", "tab_group"], name: "index_warehouse_folders_on_warehouse_type_and_tab_group"
-    t.index ["warehouse_type", "tab_key", "job_id", "parent_id"], name: "idx_entity_tabs_unique_key", unique: true
+    t.index ["warehouse_type", "tab_key", "job_id", "parent_id"], name: "idx_warehouse_folders_unique_key", unique: true
     t.index ["warehouse_type"], name: "index_warehouse_folders_on_warehouse_type"
   end
 
   create_table "warehouse_providers", force: :cascade do |t|
-    t.bigint "organization_id"
     t.string "provider_type", default: "sharepoint", null: false
     t.string "status", default: "disconnected", null: false
     t.jsonb "connection_config", default: {}, null: false
@@ -10123,16 +10086,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.bigint "credential_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.jsonb "file_name_templates", default: {}, null: false
     t.jsonb "config_links", default: {}, null: false
     t.jsonb "document_routing", default: {}, null: false
     t.jsonb "virtual_warehouses", default: {}, null: false
-    t.jsonb "warehouse_folders", default: {}, null: false
     t.boolean "exclude_sm_tasks", default: false, null: false
     t.bigint "tenant_id", null: false
-    t.jsonb "display_name_templates", default: {}
     t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
-    t.index ["organization_id"], name: "index_warehouse_providers_on_organization_id", unique: true
     t.index ["tenant_id"], name: "index_storage_configurations_on_tenant_id_unique", unique: true
     t.index ["tenant_id"], name: "index_warehouse_providers_on_tenant_id"
   end
@@ -10504,7 +10463,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
 
   create_table "xero_alerts", force: :cascade do |t|
     t.bigint "xero_credential_id"
-    t.bigint "corporate_company_id"
+    t.bigint "company_id"
     t.string "alert_type", null: false
     t.string "severity", null: false
     t.string "title", null: false
@@ -10516,8 +10475,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.datetime "auto_resolved_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "dismissed", "created_at"], name: "idx_xero_alerts_company_active"
-    t.index ["corporate_company_id"], name: "index_xero_alerts_on_corporate_company_id"
+    t.index ["company_id", "dismissed", "created_at"], name: "idx_xero_alerts_company_active"
+    t.index ["company_id"], name: "index_xero_alerts_on_company_id"
     t.index ["dismissed_by_id"], name: "index_xero_alerts_on_dismissed_by_id"
     t.index ["severity", "dismissed"], name: "idx_xero_alerts_severity_active"
     t.index ["xero_credential_id", "alert_type", "dismissed"], name: "idx_xero_alerts_credential_type"
@@ -10644,7 +10603,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.integer "order_position", default: 0
     t.boolean "enabled", default: true
     t.string "component_name"
-    t.bigint "document_folder_id"
     t.string "icon_name"
     t.text "description"
     t.datetime "created_at", null: false
@@ -10652,7 +10610,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.boolean "group_member", default: false, null: false
     t.string "parent_key"
     t.boolean "visible", default: true, null: false
-    t.index ["document_folder_id"], name: "index_xero_feature_tabs_on_document_folder_id"
     t.index ["enabled"], name: "index_xero_feature_tabs_on_enabled"
     t.index ["order_position"], name: "index_xero_feature_tabs_on_order_position"
     t.index ["tab_key"], name: "index_xero_feature_tabs_on_tab_key", unique: true
@@ -10696,6 +10653,33 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
     t.index ["sync_type", "event_type", "created_at"], name: "idx_xero_sync_events_type_status"
     t.index ["xero_credential_id", "sync_type", "created_at"], name: "idx_xero_sync_events_cred_type_time"
     t.index ["xero_credential_id"], name: "index_xero_sync_events_on_xero_credential_id"
+  end
+
+  create_table "xero_sync_sessions", force: :cascade do |t|
+    t.string "tenant_id", null: false
+    t.bigint "teeem_tenant_id"
+    t.string "sync_type", default: "contacts", null: false
+    t.string "status", default: "pending", null: false
+    t.string "sync_mode", default: "full"
+    t.datetime "modified_since"
+    t.integer "total_records", default: 0
+    t.integer "fetched_count", default: 0
+    t.integer "processed_count", default: 0
+    t.integer "created_count", default: 0
+    t.integer "updated_count", default: 0
+    t.integer "skipped_count", default: 0
+    t.integer "error_count", default: 0
+    t.integer "last_page_fetched", default: 0
+    t.jsonb "checkpoint_data", default: {}
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.integer "duration_seconds"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["status", "created_at"], name: "index_xero_sync_sessions_on_status_and_created_at"
+    t.index ["teeem_tenant_id"], name: "index_xero_sync_sessions_on_teeem_tenant_id"
+    t.index ["tenant_id", "sync_type", "status"], name: "index_xero_sync_sessions_on_tenant_id_and_sync_type_and_status"
   end
 
   create_table "xero_sync_statuses", force: :cascade do |t|
@@ -10759,7 +10743,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "batch_operations", "users"
   add_foreign_key "bill_inboxes", "bpmn_process_instances"
   add_foreign_key "bill_inboxes", "contacts", column: "supplier_id"
-  add_foreign_key "bill_inboxes", "corporates", column: "corporate_company_id"
+  add_foreign_key "bill_inboxes", "corporates", column: "company_id"
   add_foreign_key "bill_inboxes", "corporates", column: "detected_company_id"
   add_foreign_key "bill_inboxes", "external_invoices"
   add_foreign_key "bill_inboxes", "purchase_orders", column: "matched_purchase_order_id"
@@ -10768,7 +10752,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "bill_inboxes", "users", column: "approved_by_id"
   add_foreign_key "bill_payment_batches", "bank_accounts"
   add_foreign_key "bill_payment_batches", "bpmn_process_instances"
-  add_foreign_key "bill_payment_batches", "corporates", column: "corporate_company_id"
+  add_foreign_key "bill_payment_batches", "corporates", column: "company_id"
   add_foreign_key "bill_payment_batches", "tenants"
   add_foreign_key "bill_payment_batches", "users", column: "approved_by_id"
   add_foreign_key "bill_payment_batches", "users", column: "created_by_id"
@@ -10812,20 +10796,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "chat_messages", "projects"
   add_foreign_key "chat_messages", "storage_blobs"
   add_foreign_key "chat_messages", "users"
-  add_foreign_key "cloudflare_credentials", "organizations"
+  add_foreign_key "cloudflare_credentials", "tenants", on_delete: :cascade
   add_foreign_key "colour_selection_templates", "job_types"
   add_foreign_key "columns", "column_type_definitions"
   add_foreign_key "columns", "foundations"
   add_foreign_key "company_approval_rules", "bpmn_processes"
-  add_foreign_key "company_approval_rules", "corporates", column: "corporate_company_id"
+  add_foreign_key "company_approval_rules", "corporates", column: "company_id"
   add_foreign_key "company_approval_rules", "users", column: "approver_id"
   add_foreign_key "company_approval_rules", "users", column: "escalation_to_user_id"
+  add_foreign_key "company_groups", "tenants"
   add_foreign_key "contact_activities", "contacts"
   add_foreign_key "contact_addresses", "contacts"
-  add_foreign_key "contact_corporate_group_memberships", "contacts"
-  add_foreign_key "contact_corporate_group_memberships", "corporate_groups", column: "company_group_id"
-  add_foreign_key "contact_corporate_group_memberships", "corporates", column: "company_id"
-  add_foreign_key "contact_corporate_group_memberships", "tenants"
+  add_foreign_key "contact_company_group_memberships", "company_groups"
+  add_foreign_key "contact_company_group_memberships", "contacts"
+  add_foreign_key "contact_company_group_memberships", "corporates", column: "company_id"
+  add_foreign_key "contact_company_group_memberships", "tenants"
   add_foreign_key "contact_documents", "contacts"
   add_foreign_key "contact_documents", "document_types"
   add_foreign_key "contact_documents", "storage_blobs"
@@ -10852,9 +10837,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "corporate_directors", "contacts"
   add_foreign_key "corporate_directors", "corporates", column: "company_id"
   add_foreign_key "corporate_directors", "tenants"
-  add_foreign_key "corporate_entity_tabs", "corporate_groups", column: "company_group_id"
-  add_foreign_key "corporate_entity_tabs", "tenants"
-  add_foreign_key "corporate_groups", "tenants"
   add_foreign_key "corporate_loans", "corporates", column: "borrower_company_id"
   add_foreign_key "corporate_loans", "corporates", column: "lender_company_id"
   add_foreign_key "corporate_loans", "tenants"
@@ -10870,14 +10852,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "corporate_xero_connections", "corporates", column: "company_id"
   add_foreign_key "corporate_xero_connections", "tenants"
   add_foreign_key "corporate_xero_connections", "xero_credentials"
+  add_foreign_key "corporates", "company_groups"
   add_foreign_key "corporates", "contacts"
-  add_foreign_key "corporates", "corporate_groups", column: "company_group_id"
   add_foreign_key "corporates", "corporates", column: "consolidation_parent_id", on_delete: :nullify
   add_foreign_key "corporates", "corporates", column: "parent_company_id"
   add_foreign_key "corporates", "tenants"
   add_foreign_key "cost_centres", "cost_centres", column: "parent_id", on_delete: :nullify
   add_foreign_key "custom_pricings", "contacts"
-  add_foreign_key "desktop_clients", "organizations"
+  add_foreign_key "desktop_clients", "tenants", on_delete: :cascade
   add_foreign_key "desktop_clients", "users"
   add_foreign_key "director_onboarding_requests", "contacts"
   add_foreign_key "director_onboarding_requests", "corporates", column: "company_id"
@@ -10889,12 +10871,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "document_activities", "users"
   add_foreign_key "document_duplicate_reviews", "cases"
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
-  add_foreign_key "document_folders", "document_folders", column: "parent_id"
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "document_tasks", "storage_blobs"
   add_foreign_key "document_templates", "tenants"
-  add_foreign_key "document_type_folders", "document_folders"
-  add_foreign_key "document_type_folders", "document_types"
   add_foreign_key "document_types", "tenants"
   add_foreign_key "document_verification_feedbacks", "users"
   add_foreign_key "e_signature_certificates", "e_signature_requests"
@@ -10910,7 +10889,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "email_attachments", "storage_blobs"
   add_foreign_key "email_dns_records", "email_subscriptions"
   add_foreign_key "email_drafts", "imap_credentials"
-  add_foreign_key "email_drafts", "organizations"
+  add_foreign_key "email_drafts", "tenants", on_delete: :cascade
   add_foreign_key "email_drafts", "users"
   add_foreign_key "email_folder_preferences", "users"
   add_foreign_key "email_label_assignments", "email_labels"
@@ -10934,7 +10913,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "email_subscription_invoices", "email_subscriptions"
   add_foreign_key "email_subscription_invoices", "gl_invoices"
   add_foreign_key "email_subscriptions", "contacts"
-  add_foreign_key "email_subscriptions", "organizations"
+  add_foreign_key "email_subscriptions", "tenants", on_delete: :cascade
   add_foreign_key "email_templates", "users"
   add_foreign_key "email_user_states", "synced_emails", column: "email_warehouse_id"
   add_foreign_key "email_user_states", "users"
@@ -10960,77 +10939,77 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "geofence_events", "worker_profiles"
   add_foreign_key "gl_account_balances", "gl_accounts"
   add_foreign_key "gl_account_balances", "gl_periods"
-  add_foreign_key "gl_accounts", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_accounts", "corporates", column: "company_id"
   add_foreign_key "gl_accounts", "gl_accounts", column: "parent_account_id"
-  add_foreign_key "gl_ai_categorization_attempts", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_ai_categorization_attempts", "corporates", column: "company_id"
   add_foreign_key "gl_ai_categorization_attempts", "gl_accounts", column: "suggested_account_id"
-  add_foreign_key "gl_ai_categorization_learnings", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_ai_categorization_learnings", "corporates", column: "company_id"
   add_foreign_key "gl_ai_categorization_learnings", "gl_accounts", column: "ai_suggested_account_id"
   add_foreign_key "gl_ai_categorization_learnings", "gl_accounts", column: "user_chosen_account_id"
   add_foreign_key "gl_ai_po_match_attempts", "bill_inboxes"
-  add_foreign_key "gl_ai_po_match_attempts", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_ai_po_match_attempts", "corporates", column: "company_id"
   add_foreign_key "gl_ai_po_match_attempts", "purchase_orders", column: "matched_po_id"
   add_foreign_key "gl_ai_po_match_learnings", "bill_inboxes"
-  add_foreign_key "gl_ai_po_match_learnings", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_ai_po_match_learnings", "corporates", column: "company_id"
   add_foreign_key "gl_ai_po_match_learnings", "purchase_orders"
   add_foreign_key "gl_ai_po_match_learnings", "users"
-  add_foreign_key "gl_anomalies", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_anomalies", "corporates", column: "company_id"
   add_foreign_key "gl_anomalies", "users", column: "assigned_to_id"
   add_foreign_key "gl_anomalies", "users", column: "resolved_by_id"
-  add_foreign_key "gl_anomaly_reviews", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_anomaly_reviews", "corporates", column: "company_id"
   add_foreign_key "gl_anomaly_reviews", "users", column: "reviewed_by_id"
-  add_foreign_key "gl_anomaly_rules", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_anomaly_rules", "corporates", column: "company_id"
   add_foreign_key "gl_approval_actions", "gl_approval_requests", column: "approval_request_id"
   add_foreign_key "gl_approval_actions", "gl_approval_workflow_steps", column: "workflow_step_id"
   add_foreign_key "gl_approval_actions", "users"
   add_foreign_key "gl_approval_actions", "users", column: "delegated_to_id"
-  add_foreign_key "gl_approval_requests", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_approval_requests", "corporates", column: "company_id"
   add_foreign_key "gl_approval_requests", "gl_approval_workflows", column: "workflow_id"
   add_foreign_key "gl_approval_requests", "users", column: "requested_by_id"
   add_foreign_key "gl_approval_workflow_steps", "gl_approval_workflows", column: "workflow_id"
   add_foreign_key "gl_approval_workflow_steps", "users", column: "approver_id"
-  add_foreign_key "gl_approval_workflows", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_approval_workflows", "corporates", column: "company_id"
   add_foreign_key "gl_approval_workflows", "users", column: "created_by_id"
-  add_foreign_key "gl_audit_logs", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_audit_logs", "corporates", column: "company_id"
   add_foreign_key "gl_audit_logs", "users"
-  add_foreign_key "gl_audit_snapshots", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_audit_snapshots", "corporates", column: "company_id"
   add_foreign_key "gl_audit_snapshots", "users", column: "created_by_id"
-  add_foreign_key "gl_bank_reconciliations", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_bank_reconciliations", "corporates", column: "company_id"
   add_foreign_key "gl_bank_reconciliations", "gl_accounts"
   add_foreign_key "gl_bank_reconciliations", "users", column: "completed_by_id"
-  add_foreign_key "gl_bank_rule_learnings", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_bank_rule_learnings", "corporates", column: "company_id"
   add_foreign_key "gl_bank_rule_learnings", "gl_accounts"
   add_foreign_key "gl_bank_rule_learnings", "users"
-  add_foreign_key "gl_bas_lodgements", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_bas_lodgements", "corporates", column: "company_id"
   add_foreign_key "gl_bas_lodgements", "users", column: "lodged_by_id"
   add_foreign_key "gl_billable_expenses", "contacts"
-  add_foreign_key "gl_billable_expenses", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_billable_expenses", "corporates", column: "company_id"
   add_foreign_key "gl_billable_expenses", "gl_invoices", column: "billed_invoice_id"
   add_foreign_key "gl_billable_expenses", "gl_invoices", column: "source_invoice_id"
   add_foreign_key "gl_billable_expenses", "jobs"
   add_foreign_key "gl_billable_expenses", "users"
   add_foreign_key "gl_billable_rates", "contacts"
-  add_foreign_key "gl_billable_rates", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_billable_rates", "corporates", column: "company_id"
   add_foreign_key "gl_billable_rates", "jobs"
   add_foreign_key "gl_billable_rates", "users"
-  add_foreign_key "gl_billable_time_entries", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_billable_time_entries", "corporates", column: "company_id"
   add_foreign_key "gl_billable_time_entries", "gl_billable_rates", column: "billable_rate_id"
   add_foreign_key "gl_billable_time_entries", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_billable_time_entries", "jobs"
   add_foreign_key "gl_billable_time_entries", "users"
   add_foreign_key "gl_billable_time_entries", "users", column: "approved_by_id"
   add_foreign_key "gl_billing_milestones", "contacts"
-  add_foreign_key "gl_billing_milestones", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_billing_milestones", "corporates", column: "company_id"
   add_foreign_key "gl_billing_milestones", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_billing_milestones", "jobs"
   add_foreign_key "gl_billing_milestones", "users", column: "completed_by_id"
-  add_foreign_key "gl_budget_scenarios", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_budget_scenarios", "corporates", column: "company_id"
   add_foreign_key "gl_budget_scenarios", "users", column: "created_by_id"
-  add_foreign_key "gl_budgets", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_budgets", "corporates", column: "company_id"
   add_foreign_key "gl_budgets", "gl_accounts"
   add_foreign_key "gl_budgets", "gl_periods"
   add_foreign_key "gl_budgets", "jobs"
-  add_foreign_key "gl_categorization_predictions", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_categorization_predictions", "corporates", column: "company_id"
   add_foreign_key "gl_categorization_predictions", "gl_accounts", column: "actual_account_id"
   add_foreign_key "gl_categorization_predictions", "gl_accounts", column: "predicted_account_id"
   add_foreign_key "gl_categorization_predictions", "gl_transaction_categories", column: "actual_category_id"
@@ -11038,39 +11017,39 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "gl_categorization_predictions", "users", column: "reviewed_by_id"
   add_foreign_key "gl_change_order_lines", "gl_change_orders", column: "change_order_id"
   add_foreign_key "gl_change_orders", "contacts"
-  add_foreign_key "gl_change_orders", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_change_orders", "corporates", column: "company_id"
   add_foreign_key "gl_change_orders", "jobs"
   add_foreign_key "gl_change_orders", "users", column: "approved_by_id"
   add_foreign_key "gl_change_orders", "users", column: "requested_by_id"
   add_foreign_key "gl_class_assignments", "gl_tracking_classes", column: "tracking_class_id"
-  add_foreign_key "gl_currencies", "corporates", column: "corporate_company_id"
-  add_foreign_key "gl_custom_reports", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_currencies", "corporates", column: "company_id"
+  add_foreign_key "gl_custom_reports", "corporates", column: "company_id"
   add_foreign_key "gl_custom_reports", "users", column: "created_by_id"
   add_foreign_key "gl_customer_payment_stats", "contacts"
-  add_foreign_key "gl_customer_payment_stats", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_customer_payment_stats", "corporates", column: "company_id"
   add_foreign_key "gl_customer_statement_lines", "gl_customer_statements", column: "statement_id"
   add_foreign_key "gl_customer_statement_lines", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_customer_statement_lines", "gl_payments", column: "payment_id"
   add_foreign_key "gl_customer_statements", "contacts"
-  add_foreign_key "gl_customer_statements", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_customer_statements", "corporates", column: "company_id"
   add_foreign_key "gl_customer_statements", "users", column: "generated_by_id"
   add_foreign_key "gl_dashboard_widgets", "gl_custom_reports", column: "custom_report_id"
   add_foreign_key "gl_dashboard_widgets", "gl_report_dashboards", column: "dashboard_id"
-  add_foreign_key "gl_departments", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_departments", "corporates", column: "company_id"
   add_foreign_key "gl_departments", "gl_departments", column: "parent_id"
   add_foreign_key "gl_departments", "users", column: "manager_id"
   add_foreign_key "gl_deposit_allocations", "gl_deposits", column: "deposit_id"
   add_foreign_key "gl_deposit_allocations", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_deposit_allocations", "users", column: "allocated_by_id"
   add_foreign_key "gl_deposits", "contacts"
-  add_foreign_key "gl_deposits", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_deposits", "corporates", column: "company_id"
   add_foreign_key "gl_deposits", "gl_accounts", column: "bank_account_id"
   add_foreign_key "gl_deposits", "jobs"
   add_foreign_key "gl_deposits", "users", column: "received_by_id"
   add_foreign_key "gl_direct_debit_mandates", "contacts"
-  add_foreign_key "gl_direct_debit_mandates", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_direct_debit_mandates", "corporates", column: "company_id"
   add_foreign_key "gl_document_requests", "contacts"
-  add_foreign_key "gl_document_requests", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_document_requests", "corporates", column: "company_id"
   add_foreign_key "gl_document_requests", "jobs"
   add_foreign_key "gl_document_requests", "users", column: "created_by_id"
   add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "bill1_id"
@@ -11078,16 +11057,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "kept_bill_id"
   add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "voided_bill_id"
   add_foreign_key "gl_duplicate_bill_reviews", "users", column: "reviewed_by_id"
-  add_foreign_key "gl_duplicate_groups", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_duplicate_groups", "corporates", column: "company_id"
   add_foreign_key "gl_duplicate_groups", "users", column: "reviewed_by_id"
   add_foreign_key "gl_duplicate_members", "gl_duplicate_groups", column: "duplicate_group_id"
-  add_foreign_key "gl_equipment", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_equipment", "corporates", column: "company_id"
   add_foreign_key "gl_equipment_usages", "gl_equipment", column: "equipment_id"
   add_foreign_key "gl_equipment_usages", "jobs"
   add_foreign_key "gl_equipment_usages", "users"
-  add_foreign_key "gl_exchange_rates", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_exchange_rates", "corporates", column: "company_id"
   add_foreign_key "gl_exchange_rates", "gl_currencies"
-  add_foreign_key "gl_inventory_items", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_inventory_items", "corporates", column: "company_id"
   add_foreign_key "gl_inventory_items", "gl_accounts", column: "cogs_account_id"
   add_foreign_key "gl_inventory_items", "gl_accounts", column: "income_account_id"
   add_foreign_key "gl_inventory_items", "gl_accounts", column: "inventory_account_id"
@@ -11099,75 +11078,75 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "gl_invoice_lines", "gl_tax_rates"
   add_foreign_key "gl_invoice_lines", "jobs"
   add_foreign_key "gl_invoices", "contacts"
-  add_foreign_key "gl_invoices", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_invoices", "corporates", column: "company_id"
   add_foreign_key "gl_invoices", "gl_departments", column: "department_id"
   add_foreign_key "gl_invoices", "gl_journal_entries"
   add_foreign_key "gl_invoices", "gl_recurring_invoices", column: "recurring_invoice_id"
   add_foreign_key "gl_invoices", "jobs"
   add_foreign_key "gl_invoices", "users", column: "approved_by_id"
-  add_foreign_key "gl_journal_entries", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_journal_entries", "corporates", column: "company_id"
   add_foreign_key "gl_journal_entries", "gl_departments", column: "department_id"
   add_foreign_key "gl_journal_entries", "gl_periods"
   add_foreign_key "gl_journal_entries", "jobs"
   add_foreign_key "gl_journal_entries", "users", column: "created_by_id"
-  add_foreign_key "gl_kpi_definitions", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_kpi_definitions", "corporates", column: "company_id"
   add_foreign_key "gl_ledger_lines", "contacts"
   add_foreign_key "gl_ledger_lines", "gl_accounts"
   add_foreign_key "gl_ledger_lines", "gl_journal_entries"
   add_foreign_key "gl_ledger_lines", "jobs"
   add_foreign_key "gl_lien_waivers", "contacts"
-  add_foreign_key "gl_lien_waivers", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_lien_waivers", "corporates", column: "company_id"
   add_foreign_key "gl_lien_waivers", "gl_progress_claims", column: "progress_claim_id"
   add_foreign_key "gl_lien_waivers", "jobs"
-  add_foreign_key "gl_opening_balances", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_opening_balances", "corporates", column: "company_id"
   add_foreign_key "gl_opening_balances", "gl_accounts"
   add_foreign_key "gl_payment_allocations", "gl_invoices"
   add_foreign_key "gl_payment_allocations", "gl_payments"
   add_foreign_key "gl_payment_batch_items", "contacts"
   add_foreign_key "gl_payment_batch_items", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_payment_batch_items", "gl_payment_batches", column: "payment_batch_id"
-  add_foreign_key "gl_payment_batches", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_payment_batches", "corporates", column: "company_id"
   add_foreign_key "gl_payment_batches", "gl_accounts", column: "bank_account_id"
   add_foreign_key "gl_payment_batches", "users", column: "approved_by_id"
   add_foreign_key "gl_payment_batches", "users", column: "created_by_id"
   add_foreign_key "gl_payment_predictions", "contacts"
-  add_foreign_key "gl_payment_predictions", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_payment_predictions", "corporates", column: "company_id"
   add_foreign_key "gl_payment_predictions", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_payments", "contacts"
-  add_foreign_key "gl_payments", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_payments", "corporates", column: "company_id"
   add_foreign_key "gl_payments", "gl_accounts"
   add_foreign_key "gl_payments", "gl_journal_entries"
-  add_foreign_key "gl_period_locks", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_period_locks", "corporates", column: "company_id"
   add_foreign_key "gl_period_locks", "users", column: "locked_by_id"
   add_foreign_key "gl_period_locks", "users", column: "unlocked_by_id"
-  add_foreign_key "gl_period_snapshots", "corporates", column: "corporate_company_id"
-  add_foreign_key "gl_periods", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_period_snapshots", "corporates", column: "company_id"
+  add_foreign_key "gl_periods", "corporates", column: "company_id"
   add_foreign_key "gl_periods", "users", column: "closed_by_id"
   add_foreign_key "gl_portal_sessions", "contacts"
   add_foreign_key "gl_portal_sessions", "gl_portal_tokens", column: "portal_token_id"
   add_foreign_key "gl_portal_tokens", "contacts"
-  add_foreign_key "gl_portal_tokens", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_portal_tokens", "corporates", column: "company_id"
   add_foreign_key "gl_progress_claim_lines", "gl_progress_claims", column: "progress_claim_id"
   add_foreign_key "gl_progress_claims", "contacts"
-  add_foreign_key "gl_progress_claims", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_progress_claims", "corporates", column: "company_id"
   add_foreign_key "gl_progress_claims", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_progress_claims", "jobs"
   add_foreign_key "gl_progress_claims", "users", column: "approved_by_id"
   add_foreign_key "gl_progress_claims", "users", column: "created_by_id"
-  add_foreign_key "gl_provider_credentials", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_provider_credentials", "corporates", column: "company_id"
   add_foreign_key "gl_quote_lines", "gl_quotes", column: "quote_id"
   add_foreign_key "gl_quote_lines", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "gl_quote_versions", "gl_quotes", column: "quote_id"
   add_foreign_key "gl_quote_versions", "users", column: "created_by_id"
   add_foreign_key "gl_quotes", "contacts"
-  add_foreign_key "gl_quotes", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_quotes", "corporates", column: "company_id"
   add_foreign_key "gl_quotes", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_quotes", "jobs"
   add_foreign_key "gl_quotes", "users", column: "created_by_id"
   add_foreign_key "gl_reconciliation_lines", "gl_accounts"
   add_foreign_key "gl_reconciliation_lines", "gl_bank_reconciliations"
   add_foreign_key "gl_reconciliation_lines", "gl_ledger_lines"
-  add_foreign_key "gl_reconciliation_rules", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_reconciliation_rules", "corporates", column: "company_id"
   add_foreign_key "gl_reconciliation_rules", "gl_accounts"
   add_foreign_key "gl_reconciliation_rules", "gl_accounts", column: "target_account_id"
   add_foreign_key "gl_recurring_invoices", "contacts"
@@ -11175,7 +11154,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "gl_recurring_invoices", "users", column: "created_by_id"
   add_foreign_key "gl_recurring_invoices", "users", column: "updated_by_id"
   add_foreign_key "gl_report_columns", "gl_custom_reports", column: "custom_report_id"
-  add_foreign_key "gl_report_dashboards", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_report_dashboards", "corporates", column: "company_id"
   add_foreign_key "gl_report_dashboards", "users", column: "created_by_id"
   add_foreign_key "gl_report_favorites", "gl_custom_reports", column: "custom_report_id"
   add_foreign_key "gl_report_favorites", "users"
@@ -11184,51 +11163,51 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "gl_report_runs", "users", column: "run_by_id"
   add_foreign_key "gl_requested_documents", "gl_document_requests", column: "document_request_id"
   add_foreign_key "gl_requested_documents", "users", column: "reviewed_by_id"
-  add_foreign_key "gl_retainage_releases", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_retainage_releases", "corporates", column: "company_id"
   add_foreign_key "gl_retainage_releases", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_retainage_releases", "gl_progress_claims", column: "progress_claim_id"
   add_foreign_key "gl_retainage_releases", "jobs"
   add_foreign_key "gl_retainage_releases", "users", column: "approved_by_id"
-  add_foreign_key "gl_scheduled_invoices", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_scheduled_invoices", "corporates", column: "company_id"
   add_foreign_key "gl_scheduled_invoices", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_scheduled_invoices", "users", column: "created_by_id"
-  add_foreign_key "gl_scheduled_reports", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_scheduled_reports", "corporates", column: "company_id"
   add_foreign_key "gl_scheduled_reports", "users", column: "created_by_id"
   add_foreign_key "gl_split_lines", "gl_accounts", column: "account_id"
   add_foreign_key "gl_split_lines", "gl_departments", column: "department_id"
   add_foreign_key "gl_split_lines", "gl_split_transactions", column: "split_transaction_id"
   add_foreign_key "gl_split_lines", "gl_tax_rates", column: "tax_rate_id"
   add_foreign_key "gl_split_lines", "jobs"
-  add_foreign_key "gl_split_transactions", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_split_transactions", "corporates", column: "company_id"
   add_foreign_key "gl_split_transactions", "users", column: "approved_by_id"
   add_foreign_key "gl_split_transactions", "users", column: "created_by_id"
   add_foreign_key "gl_stock_count_lines", "gl_inventory_items", column: "inventory_item_id"
   add_foreign_key "gl_stock_count_lines", "gl_stock_counts", column: "stock_count_id"
-  add_foreign_key "gl_stock_counts", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_stock_counts", "corporates", column: "company_id"
   add_foreign_key "gl_stock_counts", "users", column: "approved_by_id"
   add_foreign_key "gl_stock_counts", "users", column: "created_by_id"
-  add_foreign_key "gl_sync_logs", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_sync_logs", "corporates", column: "company_id"
   add_foreign_key "gl_sync_logs", "gl_provider_credentials"
   add_foreign_key "gl_sync_logs", "users", column: "triggered_by_id"
-  add_foreign_key "gl_tax_rates", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_tax_rates", "corporates", column: "company_id"
   add_foreign_key "gl_tax_rates", "gl_accounts"
   add_foreign_key "gl_time_billing_batches", "contacts"
-  add_foreign_key "gl_time_billing_batches", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_time_billing_batches", "corporates", column: "company_id"
   add_foreign_key "gl_time_billing_batches", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_time_billing_batches", "jobs"
   add_foreign_key "gl_time_billing_batches", "users", column: "created_by_id"
   add_foreign_key "gl_tpar_payees", "contacts"
   add_foreign_key "gl_tpar_payees", "gl_tpar_reports", column: "tpar_report_id"
-  add_foreign_key "gl_tpar_reports", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_tpar_reports", "corporates", column: "company_id"
   add_foreign_key "gl_tpar_reports", "users", column: "created_by_id"
-  add_foreign_key "gl_tracking_classes", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_tracking_classes", "corporates", column: "company_id"
   add_foreign_key "gl_tracking_classes", "gl_tracking_classes", column: "parent_id"
-  add_foreign_key "gl_transaction_categories", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_transaction_categories", "corporates", column: "company_id"
   add_foreign_key "gl_transaction_categories", "gl_accounts", column: "default_account_id"
   add_foreign_key "gl_transaction_categories", "gl_tax_rates", column: "default_tax_rate_id"
   add_foreign_key "gl_wip_report_jobs", "gl_wip_reports", column: "wip_report_id"
   add_foreign_key "gl_wip_report_jobs", "jobs"
-  add_foreign_key "gl_wip_reports", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_wip_reports", "corporates", column: "company_id"
   add_foreign_key "gl_wip_reports", "users", column: "created_by_id"
   add_foreign_key "grok_plans", "users"
   add_foreign_key "health_kudos_events", "users", on_delete: :nullify
@@ -11335,6 +11314,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "meetings", "tenants"
   add_foreign_key "meetings", "users", column: "created_by_id"
   add_foreign_key "microsoft_credentials", "organizations"
+  add_foreign_key "microsoft_credentials", "tenants", on_delete: :cascade
   add_foreign_key "microsoft_credentials", "users", column: "connected_by_id"
   add_foreign_key "microsoft_credentials", "users", column: "setup_by_id"
   add_foreign_key "navigation_items", "navigation_groups", name: "navigation_items_navigation_group_id_fkey"
@@ -11355,7 +11335,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "notebook_shares", "users", column: "granted_by_id"
   add_foreign_key "notebooks", "users", column: "owner_id"
   add_foreign_key "notifications", "users"
-  add_foreign_key "organizations", "corporates", column: "corporate_company_id"
+  add_foreign_key "organizations", "corporates", column: "company_id"
   add_foreign_key "organizations", "tenants"
   add_foreign_key "page_help_contents", "users", column: "last_updated_by_id"
   add_foreign_key "pay_now_requests", "contacts"
@@ -11373,7 +11353,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "payments", "users", column: "created_by_id"
   add_foreign_key "people_documents", "storage_blobs"
   add_foreign_key "performance_anomalies", "users", column: "acknowledged_by_id"
-  add_foreign_key "performance_requests", "organizations"
+  add_foreign_key "performance_requests", "tenants", on_delete: :cascade
   add_foreign_key "performance_requests", "users"
   add_foreign_key "performance_slo_snapshots", "performance_slos"
   add_foreign_key "performance_slow_queries", "users"
@@ -11392,7 +11372,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "plan_uploads", "job_plan_tabs"
   add_foreign_key "plan_uploads", "jobs"
   add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
-  add_foreign_key "polaris_credentials", "organizations"
+  add_foreign_key "polaris_credentials", "tenants", on_delete: :cascade
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"
   add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"
@@ -11443,6 +11423,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "referral_commissions", "saas_billing_records"
   add_foreign_key "role_permissions", "permissions"
   add_foreign_key "s3_compatible_credentials", "organizations"
+  add_foreign_key "s3_compatible_credentials", "tenants", on_delete: :cascade
   add_foreign_key "saas_billing_records", "contacts"
   add_foreign_key "saas_billing_records", "gl_invoices"
   add_foreign_key "scheduled_emails", "imap_credentials"
@@ -11518,6 +11499,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "sm_task_attachments", "users", column: "deleted_by_id", on_delete: :nullify
   add_foreign_key "sm_task_document_types", "document_types"
   add_foreign_key "sm_task_document_types", "sm_tasks"
+  add_foreign_key "sm_task_notes", "sm_tasks"
+  add_foreign_key "sm_task_notes", "users"
   add_foreign_key "sm_task_photos", "document_types"
   add_foreign_key "sm_task_photos", "jobs", on_delete: :cascade
   add_foreign_key "sm_task_photos", "sm_resources", column: "resource_id", on_delete: :nullify
@@ -11562,9 +11545,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "specification_templates", "job_types"
-  add_foreign_key "storage_blobs", "organizations"
   add_foreign_key "storage_blobs", "tenants"
-  add_foreign_key "stripe_configurations", "organizations"
+  add_foreign_key "stripe_configurations", "tenants", on_delete: :cascade
   add_foreign_key "stripe_payments", "contacts"
   add_foreign_key "stripe_payments", "external_invoices", column: "invoice_id"
   add_foreign_key "stripe_payments", "payment_links"
@@ -11573,7 +11555,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "subcontractor_invoices", "accounting_integrations"
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
-  add_foreign_key "sync_exclusion_rules", "organizations"
+  add_foreign_key "sync_exclusion_rules", "tenants", on_delete: :cascade
   add_foreign_key "sync_exclusion_rules", "users"
   add_foreign_key "sync_file_states", "desktop_clients"
   add_foreign_key "sync_file_states", "sync_subscriptions"
@@ -11612,10 +11594,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "teeem_spreadsheets", "storage_blobs"
   add_foreign_key "teeem_spreadsheets", "users"
   add_foreign_key "template_pack_items", "template_packs"
-  add_foreign_key "template_packs", "corporate_groups", column: "source_tenant_id"
+  add_foreign_key "template_packs", "company_groups", column: "source_tenant_id"
   add_foreign_key "template_packs", "users", column: "created_by_id"
+  add_foreign_key "tenant_settings", "company_groups"
   add_foreign_key "tenant_settings", "contacts", column: "saas_customer_contact_id"
-  add_foreign_key "tenant_settings", "corporate_groups"
   add_foreign_key "tenant_settings", "tenants"
   add_foreign_key "tenant_sync_preferences", "tenants"
   add_foreign_key "tenants", "corporates", column: "billing_company_id"
@@ -11634,7 +11616,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "user_documents", "document_types"
   add_foreign_key "user_documents", "storage_blobs"
   add_foreign_key "user_documents", "users"
-  add_foreign_key "user_entity_tab_preferences", "users"
   add_foreign_key "user_job_tab_configs", "job_tabs"
   add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
   add_foreign_key "user_job_tab_configs", "users"
@@ -11644,6 +11625,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "user_permissions", "users"
   add_foreign_key "user_roles", "roles"
   add_foreign_key "user_roles", "users"
+  add_foreign_key "user_warehouse_folder_preferences", "users"
   add_foreign_key "users", "contacts"
   add_foreign_key "users", "storage_blobs", column: "photo_blob_id"
   add_foreign_key "users", "storage_blobs", column: "signature_blob_id"
@@ -11657,7 +11639,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "warehouse_folders", "jobs"
   add_foreign_key "warehouse_folders", "tenants"
   add_foreign_key "warehouse_folders", "warehouse_folders", column: "parent_id"
-  add_foreign_key "warehouse_providers", "organizations"
   add_foreign_key "warehouse_providers", "tenants"
   add_foreign_key "whs_action_items", "sm_tasks"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
@@ -11686,7 +11667,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "worker_profiles", "contacts", on_delete: :nullify
   add_foreign_key "worker_profiles", "cost_centres", on_delete: :nullify
   add_foreign_key "worker_profiles", "users", on_delete: :nullify
-  add_foreign_key "xero_alerts", "corporates", column: "corporate_company_id"
+  add_foreign_key "xero_alerts", "corporates", column: "company_id"
   add_foreign_key "xero_alerts", "users", column: "dismissed_by_id"
   add_foreign_key "xero_alerts", "xero_credentials"
   add_foreign_key "xero_bank_transactions", "contacts"
@@ -11694,7 +11675,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   add_foreign_key "xero_credentials", "tenants", column: "teeem_tenant_id"
   add_foreign_key "xero_duplicate_items", "contacts"
   add_foreign_key "xero_duplicate_items", "xero_duplicate_groups", column: "duplicate_group_id"
-  add_foreign_key "xero_feature_tabs", "document_folders"
   add_foreign_key "xero_health_events", "xero_credentials"
   add_foreign_key "xero_sync_events", "xero_credentials"
+  add_foreign_key "xero_sync_sessions", "tenants", column: "teeem_tenant_id"
 end

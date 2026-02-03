@@ -1,6 +1,6 @@
 class AddPostcodeToCorporateCompanySetting < ActiveRecord::Migration[8.0]
   def up
-    add_column :corporate_company_settings, :postcode, :string
+    add_column :corporate_settings, :postcode, :string
 
     # Migrate existing postcode from address (Australian postcodes are 4 digits at end)
     execute <<-SQL
@@ -11,6 +11,6 @@ class AddPostcodeToCorporateCompanySetting < ActiveRecord::Migration[8.0]
   end
 
   def down
-    remove_column :corporate_company_settings, :postcode
+    remove_column :corporate_settings, :postcode
   end
 end

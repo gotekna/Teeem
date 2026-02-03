@@ -294,7 +294,7 @@ module Gl
     def ar_entries
       @ar_entries ||= begin
         ar_account = Gl::Account.find_by(
-          corporate_company: company,
+          corporate: company,
           system_account: 'accounts_receivable'
         )
         return [] unless ar_account
@@ -310,7 +310,7 @@ module Gl
     def ap_entries
       @ap_entries ||= begin
         ap_account = Gl::Account.find_by(
-          corporate_company: company,
+          corporate: company,
           system_account: 'accounts_payable'
         )
         return [] unless ap_account

@@ -19,17 +19,17 @@ class DropCorporateCompanyDocumentsTable < ActiveRecord::Migration[8.0]
     execute "DROP VIEW IF EXISTS xero_sync_contacts_view CASCADE"
 
     # Drop FKs from dependent tables
-    if foreign_key_exists?(:document_verification_feedbacks, :corporate_company_documents)
-      remove_foreign_key :document_verification_feedbacks, :corporate_company_documents
+    if foreign_key_exists?(:document_verification_feedbacks, :corporate_documents)
+      remove_foreign_key :document_verification_feedbacks, :corporate_documents
     end
-    if foreign_key_exists?(:document_duplicate_reviews, :corporate_company_documents)
-      remove_foreign_key :document_duplicate_reviews, :corporate_company_documents
+    if foreign_key_exists?(:document_duplicate_reviews, :corporate_documents)
+      remove_foreign_key :document_duplicate_reviews, :corporate_documents
     end
-    if foreign_key_exists?(:document_activities, :corporate_company_documents)
-      remove_foreign_key :document_activities, :corporate_company_documents
+    if foreign_key_exists?(:document_activities, :corporate_documents)
+      remove_foreign_key :document_activities, :corporate_documents
     end
-    if foreign_key_exists?(:case_documents, :corporate_company_documents)
-      remove_foreign_key :case_documents, :corporate_company_documents
+    if foreign_key_exists?(:case_documents, :corporate_documents)
+      remove_foreign_key :case_documents, :corporate_documents
     end
 
     # Drop any remaining FKs from document_duplicate_reviews (has 2 FKs)
@@ -50,23 +50,23 @@ class DropCorporateCompanyDocumentsTable < ActiveRecord::Migration[8.0]
     execute "DROP TABLE IF EXISTS corporate_company_documents CASCADE"
 
     # Clean up orphaned records and drop FK columns (only if they exist)
-    if column_exists?(:document_verification_feedbacks, :corporate_company_document_id)
+    if column_exists?(:document_verification_feedbacks, :corporate_document_id)
       execute "DELETE FROM document_verification_feedbacks WHERE corporate_company_document_id IS NOT NULL"
-      remove_column :document_verification_feedbacks, :corporate_company_document_id
+      remove_column :document_verification_feedbacks, :corporate_document_id
     end
 
-    if column_exists?(:document_activities, :corporate_company_document_id)
+    if column_exists?(:document_activities, :corporate_document_id)
       execute "DELETE FROM document_activities WHERE corporate_company_document_id IS NOT NULL"
-      remove_column :document_activities, :corporate_company_document_id
+      remove_column :document_activities, :corporate_document_id
     end
 
-    if column_exists?(:case_documents, :corporate_company_document_id)
+    if column_exists?(:case_documents, :corporate_document_id)
       execute "DELETE FROM case_documents WHERE corporate_company_document_id IS NOT NULL"
-      remove_column :case_documents, :corporate_company_document_id
+      remove_column :case_documents, :corporate_document_id
     end
 
-    if column_exists?(:document_duplicate_reviews, :corporate_company_document_id)
-      remove_column :document_duplicate_reviews, :corporate_company_document_id
+    if column_exists?(:document_duplicate_reviews, :corporate_document_id)
+      remove_column :document_duplicate_reviews, :corporate_document_id
     end
     if column_exists?(:document_duplicate_reviews, :duplicate_corporate_company_document_id)
       remove_column :document_duplicate_reviews, :duplicate_corporate_company_document_id

@@ -17,7 +17,7 @@
 #
 class TenantSetting < ApplicationRecord
   belongs_to :tenant
-  belongs_to :corporate_group, optional: true  # DEPRECATED: Use tenant instead
+  belongs_to :company_group, optional: true  # DEPRECATED: Use tenant instead
 
   # SaaS customer contact linkage (for billing via existing SaaS infrastructure)
   belongs_to :saas_customer_contact, class_name: "Contact", optional: true
@@ -64,7 +64,7 @@ class TenantSetting < ApplicationRecord
       setting.locale ||= "en-AU"
       setting.currency ||= "AUD"
       # corporate_group_id is NOT NULL in schema, derive from tenant
-      setting.corporate_group_id ||= tenant.corporate_groups.first&.id
+      setting.company_group_id ||= tenant.company_groups.first&.id
     end
   end
 
@@ -79,8 +79,8 @@ class TenantSetting < ApplicationRecord
       first_or_create! do |setting|
         fallback_tenant = Tenant.first
         setting.tenant_id ||= fallback_tenant&.id
-        # corporate_group_id is NOT NULL in schema
-        setting.corporate_group_id ||= fallback_tenant&.corporate_groups&.first&.id || CorporateGroup.first&.id
+        # company_group_id is NOT NULL in schema
+        setting.company_group_id ||= fallback_tenant&.company_groups&.first&.id || CompanyGroup.first&.id
         setting.timezone ||= "Australia/Brisbane"
         setting.locale ||= "en-AU"
         setting.currency ||= "AUD"
@@ -171,7 +171,7 @@ class TenantSetting < ApplicationRecord
   # =============================================================================
 
   # Resolve template placeholders with provided values
-  # Used by EntityTab and DocumentMigrationJob
+  # Used by WarehouseFolder and DocumentMigrationJob
   def self.resolve_template(template, values)
     result = template.dup
     values.each do |key, value|

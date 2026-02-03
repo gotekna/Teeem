@@ -131,7 +131,7 @@ interface PlanType {
   display_name: string;
 }
 
-interface EntityTab {
+interface JobDocTab {
   id: number;
   tab_key: string;
   display_name: string;
@@ -246,7 +246,7 @@ export default function ScheduleTemplateDetailPage() {
   const [template, setTemplate] = React.useState<SmScheduleMasterTemplate | null>(null);
   const [rows, setRows] = React.useState<SmScheduleMaster[]>([]);
   const [planTypes, setPlanTypes] = React.useState<PlanType[]>([]);
-  const [entityTabs, setEntityTabs] = React.useState<EntityTab[]>([]);
+  const [entityTabs, setJobDocTabs] = React.useState<JobDocTab[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
 
@@ -303,7 +303,7 @@ export default function ScheduleTemplateDetailPage() {
         api.get<{ success: boolean; sm_schedule_master_template: SmScheduleMasterTemplate }>(`/api/v1/sm_schedule_master_templates/${templateId}`),
         api.get<{ success: boolean; rows: SmScheduleMaster[] }>(`/api/v1/sm_schedule_master_templates/${templateId}/rows`),
         api.get<{ success: boolean; data: PlanType[] }>("/api/v1/plan_types"),
-        api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs/for_scope/job"),
+        api.get<{ success: boolean; data: { tabs: JobDocTab[] } }>("/api/v1/warehouse_folders/for_scope/job"),
         api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades"),
         api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/foundations/sm_stages"),
         api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/bpmn_processes?status=published"),
@@ -313,7 +313,7 @@ export default function ScheduleTemplateDetailPage() {
       setTemplate(templateData.sm_schedule_master_template);
       setRows(rowsData.rows || []);
       setPlanTypes(planTypesData.data || []);
-      setEntityTabs(entityTabsData.data?.tabs || []);
+      setJobDocTabs(entityTabsData.data?.tabs || []);
       setTrades(tradesData.data || []);
       setStages(stagesData.data || []);
       setWorkflows(workflowsData.data || []);

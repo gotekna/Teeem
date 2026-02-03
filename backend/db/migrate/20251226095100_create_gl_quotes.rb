@@ -4,7 +4,7 @@ class CreateGlQuotes < ActiveRecord::Migration[7.1]
   def change
     # Sales quotes (customer-facing)
     create_table :gl_quotes do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :contact, null: false, foreign_key: true  # Customer
       t.references :job, foreign_key: true
       t.references :created_by, foreign_key: { to_table: :users }
@@ -47,11 +47,11 @@ class CreateGlQuotes < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_quotes, [:corporate_company_id, :quote_number],
+    add_index :gl_quotes, [:corporate_id, :quote_number],
               unique: true, name: "idx_quotes_number"
-    add_index :gl_quotes, [:corporate_company_id, :status],
+    add_index :gl_quotes, [:corporate_id, :status],
               name: "idx_quotes_status"
-    add_index :gl_quotes, [:corporate_company_id, :contact_id],
+    add_index :gl_quotes, [:corporate_id, :contact_id],
               name: "idx_quotes_contact"
 
     # Quote line items

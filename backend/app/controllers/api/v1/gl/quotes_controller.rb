@@ -5,12 +5,12 @@ module Api
     module Gl
       # Controller for sales quotes
       class QuotesController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
         before_action :set_quote, only: [:show, :update, :destroy, :send_quote, :accept, :reject, :convert, :duplicate]
 
         # GET /api/v1/gl/quotes
         def index
-          quotes = @corporate_company.gl_quotes
+          quotes = @corporate.gl_quotes
                                      .includes(:contact, :job, :lines)
                                      .order(created_at: :desc)
 
@@ -37,7 +37,7 @@ module Api
 
         # POST /api/v1/gl/quotes
         def create
-          @quote = @corporate_company.gl_quotes.build(quote_params)
+          @quote = @corporate.gl_quotes.build(quote_params)
           @quote.created_by = current_user
           @quote.quote_date ||= Date.current
           @quote.expiry_date ||= Date.current + 30.days
@@ -131,7 +131,7 @@ module Api
 
         # POST /api/v1/gl/quotes/:id/add_line
         def add_line
-          @quote = @corporate_company.gl_quotes.find(params[:id])
+          @quote = @corporate.gl_quotes.find(params[:id])
           line = @quote.lines.build(line_params)
           line.sort_order = @quote.lines.maximum(:sort_order).to_i + 1
 
@@ -147,7 +147,7 @@ module Api
 
         # POST /api/v1/gl/quotes/:id/add_from_pricebook
         def add_from_pricebook
-          @quote = @corporate_company.gl_quotes.find(params[:id])
+          @quote = @corporate.gl_quotes.find(params[:id])
           item = Pricebook.find(params[:pricebook_item_id])
           quantity = params[:quantity]&.to_d || 1
 
@@ -167,7 +167,7 @@ module Api
 
         # POST /api/v1/gl/quotes/:id/toggle_line/:line_id
         def toggle_line
-          @quote = @corporate_company.gl_quotes.find(params[:id])
+          @quote = @corporate.gl_quotes.find(params[:id])
           line = @quote.lines.find(params[:line_id])
 
           if line.toggle_selection!
@@ -179,7 +179,7 @@ module Api
 
         # GET /api/v1/gl/quotes/summary
         def summary
-          quotes = @corporate_company.gl_quotes
+          quotes = @corporate.gl_quotes
 
           render json: {
             success: true,
@@ -194,7 +194,7 @@ module Api
               totals: {
                 pending_value: quotes.pending.sum(:total),
                 accepted_value: quotes.accepted.sum(:total),
-                win_rate: ::Gl::Quote.win_rate(@corporate_company)
+                win_rate: ::Gl::Quote.win_rate(@corporate)
               },
               recent: quotes.order(created_at: :desc).limit(5).as_json(include: :contact)
             }
@@ -204,19 +204,19 @@ module Api
         # POST /api/v1/gl/quotes/check_expired
         def check_expired
           ::Gl::Quote.mark_expired!
-          expired_count = @corporate_company.gl_quotes.expired.count
+          expired_count = @corporate.gl_quotes.expired.count
 
           render json: { success: true, message: "#{expired_count} quotes are expired" }
         end
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id])
         end
 
         def set_quote
-          @quote = @corporate_company.gl_quotes.find(params[:id])
+          @quote = @corporate.gl_quotes.find(params[:id])
         end
 
         def quote_params

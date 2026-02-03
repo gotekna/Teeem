@@ -8,14 +8,14 @@ module Gl
     # This is THE IMMEDIATE WIN - accurate historical running balances.
     #
     # Usage:
-    #   report = Gl::Reports::BankStatement.new(corporate_company, provider: 'xero', tenant_id: 'abc')
+    #   report = Gl::Reports::BankStatement.new(corporate, provider: 'xero', tenant_id: 'abc')
     #   result = report.generate(account: bank_account, from_date: 30.days.ago, to_date: Date.current)
     #
     class BankStatement
-      attr_reader :corporate_company, :external_provider, :external_tenant_id
+      attr_reader :corporate, :external_provider, :external_tenant_id
 
-      def initialize(corporate_company, provider: nil, tenant_id: nil)
-        @corporate_company = corporate_company
+      def initialize(corporate, provider: nil, tenant_id: nil)
+        @corporate = corporate
         @external_provider = provider
         @external_tenant_id = tenant_id
       end
@@ -27,7 +27,7 @@ module Gl
         end
 
         calculator = Gl::BalanceCalculator.new(
-          corporate_company,
+          corporate,
           provider: external_provider,
           tenant_id: external_tenant_id
         )
@@ -102,7 +102,7 @@ module Gl
       # Generate monthly statements for a bank account
       def generate_monthly(account:, financial_year:)
         periods = Gl::Period
-          .where(corporate_company: corporate_company)
+          .where(corporate: corporate)
           .where(financial_year: financial_year)
           .order(:period_start)
 
@@ -140,7 +140,7 @@ module Gl
       # Get balance at a specific point in time (quick lookup)
       def balance_at(account:, as_of_date:)
         calculator = Gl::BalanceCalculator.new(
-          corporate_company,
+          corporate,
           provider: external_provider,
           tenant_id: external_tenant_id
         )
@@ -189,7 +189,7 @@ module Gl
       end
 
       def scoped_accounts
-        scope = Gl::Account.where(corporate_company: corporate_company)
+        scope = Gl::Account.where(corporate: corporate)
         if external_provider
           scope = scope.where(external_provider: external_provider, external_tenant_id: external_tenant_id)
         else

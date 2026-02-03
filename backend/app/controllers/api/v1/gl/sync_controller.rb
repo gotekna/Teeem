@@ -4,7 +4,7 @@ module Api
   module V1
     module Gl
       class SyncController < ApplicationController
-        before_action :set_corporate_company, except: [:providers, :logs]
+        before_action :set_corporate, except: [:providers, :logs]
 
         # GET /api/v1/gl/sync/status
         def status
@@ -26,7 +26,7 @@ module Api
 
           # Run in background if requested
           if params[:background] == 'true'
-            GlSyncJob.perform_later(@corporate_company.id, params[:provider], params[:tenant_id], 'full')
+            GlSyncJob.perform_later(@corporate.id, params[:provider], params[:tenant_id], 'full')
 
             render json: {
               success: true,
@@ -57,7 +57,7 @@ module Api
           service = ::Gl::SyncService.new(adapter)
 
           if params[:background] == 'true'
-            GlSyncJob.perform_later(@corporate_company.id, params[:provider], params[:tenant_id], 'incremental')
+            GlSyncJob.perform_later(@corporate.id, params[:provider], params[:tenant_id], 'incremental')
 
             render json: {
               success: true,
@@ -197,10 +197,10 @@ module Api
 
           # Get ALL Xero credentials with their associated company connections
           # This allows syncing any company's Xero data, not just the current user's company
-          XeroCredential.includes(:corporate_company_xero_connections).order(:tenant_name).each do |xc|
+          XeroCredential.includes(:corporate_xero_connections).order(:tenant_name).each do |xc|
             # Find associated company through connection
-            connection = xc.corporate_company_xero_connections.first
-            company = connection&.corporate_company
+            connection = xc.corporate_xero_connections.first
+            company = connection&.corporate
 
             # Count synced GL accounts for this tenant
             # Note: GL accounts table may not have external_provider/tenant columns yet
@@ -257,8 +257,8 @@ module Api
               sync_enabled: cred.sync_enabled,
               two_way_sync: cred.two_way_sync,
               source: 'gl_provider_credential',
-              company_id: cred.corporate_company_id,
-              company_name: cred.corporate_company&.name,
+              company_id: cred.corporate_id,
+              company_name: cred.corporate&.name,
               account_count: 0
             }
           end
@@ -268,10 +268,10 @@ module Api
 
         private
 
-        def set_corporate_company
+        def set_corporate
           # Try to find by explicit param first
-          if params[:corporate_company_id].present?
-            @corporate_company = Corporate.find(params[:corporate_company_id])
+          if params[:corporate_id].present?
+            @corporate = Corporate.find(params[:corporate_id])
             return
           end
 
@@ -279,14 +279,14 @@ module Api
           if params[:tenant_id].present?
             xero_cred = XeroCredential.find_by(tenant_id: params[:tenant_id])
             if xero_cred
-              connection = xero_cred.corporate_company_xero_connections.first
-              @corporate_company = connection&.corporate_company
-              return if @corporate_company
+              connection = xero_cred.corporate_xero_connections.first
+              @corporate = connection&.corporate
+              return if @corporate
             end
           end
 
           # Fallback to current_user's company
-          @corporate_company = Corporate.find(current_user&.corporate_company_id)
+          @corporate = Corporate.find(current_user&.corporate_id)
         rescue ActiveRecord::RecordNotFound
           render json: { success: false, error: 'Company not found' }, status: :not_found
         end
@@ -295,26 +295,26 @@ module Api
           if params[:provider].present? && params[:provider] != 'standalone'
             # First try GL::ProviderCredential
             credential = ::Gl::ProviderCredential.find_by(
-              corporate_company: @corporate_company,
+              corporate: @corporate,
               provider: params[:provider],
               tenant_id: params[:tenant_id]
             )
 
             if credential
-              ::Gl::Adapters.for(@corporate_company, credential: credential)
+              ::Gl::Adapters.for(@corporate, credential: credential)
             elsif params[:provider] == 'xero'
               # Fallback: Use existing XeroCredential via CorporateXeroConnection
               xero_credential = find_xero_credential
               if xero_credential
-                ::Gl::Adapters::Xero.new(@corporate_company, xero_credential: xero_credential)
+                ::Gl::Adapters::Xero.new(@corporate, xero_credential: xero_credential)
               else
-                ::Gl::Adapters::Standalone.new(@corporate_company)
+                ::Gl::Adapters::Standalone.new(@corporate)
               end
             else
-              ::Gl::Adapters::Standalone.new(@corporate_company)
+              ::Gl::Adapters::Standalone.new(@corporate)
             end
           else
-            ::Gl::Adapters::Standalone.new(@corporate_company)
+            ::Gl::Adapters::Standalone.new(@corporate)
           end
         end
 
@@ -322,7 +322,7 @@ module Api
           # Find XeroCredential for this company via CorporateXeroConnection
           connection = CorporateXeroConnection
             .joins(:xero_credential)
-            .where(corporate_company: @corporate_company)
+            .where(corporate: @corporate)
             .first
 
           xc = connection&.xero_credential

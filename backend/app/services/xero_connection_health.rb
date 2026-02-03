@@ -159,7 +159,7 @@ class XeroConnectionHealth
     # Compute health for a company's Xero connection
     # This is THE SSoT for company Xero health - replaces connection.connected?
     def for_company(company)
-      connection = company.corporate_company_xero_connection
+      connection = company.corporate_xero_connection
       return disconnected_status("Not connected to Xero") unless connection
 
       credential = connection.xero_credential

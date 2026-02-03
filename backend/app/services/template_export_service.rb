@@ -23,7 +23,7 @@ class TemplateExportService
     document_types
     sm_schedule_master_templates
     public_holidays
-    entity_tabs
+    warehouse_folders
   ].freeze
 
   def initialize(tenant, created_by: nil)
@@ -209,8 +209,8 @@ class TemplateExportService
     end
   end
 
-  def export_entity_tabs
-    @tenant.entity_tabs.order(:entity_type, :position).map do |record|
+  def export_warehouse_folders
+    @tenant.warehouse_folders.order(:entity_type, :position).map do |record|
       {
         entity_type: record.entity_type,
         name: record.name,

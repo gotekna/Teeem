@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
+import { WarehouseFoldersConfig } from "@/components/admin/WarehouseFoldersConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { EmailConfigTab } from "./EmailConfigTab";
@@ -26,7 +26,7 @@ import { useSidebar } from "@/contexts/SidebarContext";
  *
  * Uses the unified EntityTabsConfig component with different scope props.
  */
-const DEFAULT_ENTITY_CONFIG_BASE_PATH = "/admin/system/entity-config";
+const DEFAULT_ENTITY_CONFIG_BASE_PATH = "/admin/system/warehouse-config";
 
 interface EntityConfigurationTabProps {
   onClose?: () => void;  // Called when user exits fullscreen
@@ -37,8 +37,8 @@ interface EntityConfigurationTabProps {
 
 const scopes = [
   {
-    id: "storage_config",  // SSoT: Provider-agnostic URL - FIRST for quick access
-    label: "Storage Config",  // SSoT: Provider-agnostic label
+    id: "warehouse_folders",  // SSoT: Matches warehouse_folders table - FIRST for quick access
+    label: "Warehouse Folders",  // SSoT: Matches warehouse_folders table name
     icon: Settings,
     showEntityFilters: false,
     showSharePointPaths: false,
@@ -114,7 +114,7 @@ const SCOPE_LABELS: Record<string, string> = {
   job: "Jobs",
   contact: "Contacts",
   document_types: "Document Types",
-  storage_config: "Storage Config",
+  warehouse_folders: "Warehouse Folders",
   email_config: "Email Config",
   sync: "Sync",
 };
@@ -126,13 +126,13 @@ function buildBreadcrumbs(basePath: string, activeScope: string): Array<{ label:
   if (basePath.startsWith("/settings/company")) {
     crumbs.push({ label: "Settings", path: "/settings" });
     crumbs.push({ label: "Company", path: "/settings/company" });
-    crumbs.push({ label: "Folder Config", path: "/settings/company/entity-config" });
+    crumbs.push({ label: "Warehouse Config", path: "/settings/company/warehouse-config" });
   } else if (basePath.startsWith("/admin/system")) {
     crumbs.push({ label: "Admin", path: "/admin" });
     crumbs.push({ label: "System", path: "/admin/system" });
-    crumbs.push({ label: "Folder Config", path: "/admin/system/entity-config" });
+    crumbs.push({ label: "Warehouse Config", path: "/admin/system/warehouse-config" });
   } else {
-    crumbs.push({ label: "Folder Config", path: basePath });
+    crumbs.push({ label: "Warehouse Config", path: basePath });
   }
 
   // Add active scope as final breadcrumb
@@ -146,7 +146,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
   const router = useRouter();
   const { sidebarWidth } = useSidebar();
   // Support both scope and subTab props (subTab for consistency with other tabs)
-  const activeScope = scope || subTab || "storage_config";
+  const activeScope = scope || subTab || "warehouse_folders";
 
   // Build breadcrumbs from basePath and active scope
   const breadcrumbs = React.useMemo(() => buildBreadcrumbs(basePath, activeScope), [basePath, activeScope]);
@@ -161,7 +161,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
     const fetchCounts = async () => {
       try {
         const response = await api.get<{ success: boolean; data: { counts: Record<string, number> } }>(
-          "/api/v1/entity_tabs/document_type_counts"
+          "/api/v1/warehouse_folders/document_type_counts"
         );
         if (response?.success) {
           setScopeCounts(response.data.counts);
@@ -212,7 +212,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
           {scopes.map((scope) => (
             <TabsContent key={scope.id} value={scope.id} className="mt-0 h-full">
               {scope.isEntityTab ? (
-                <EntityTabsConfig
+                <WarehouseFoldersConfig
                   scope={scope.id as "corporate" | "job" | "contact" | "email" | "warehouse" | "task"}
                   showEntityFilters={scope.showEntityFilters}
                   showSharePointPaths={scope.showSharePointPaths}

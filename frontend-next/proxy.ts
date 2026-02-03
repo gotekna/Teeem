@@ -596,19 +596,19 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // EntityConfigurationTab (/admin/system/entity-config?scope=xxx or ?group=xxx)
-  if (pathname === "/admin/system/entity-config") {
+  // FolderConfigurationTab (/admin/system/warehouse-config?scope=xxx or ?group=xxx)
+  // SSoT (Feb 2026): Convert query params to path-based URLs - NO LEGACY SCOPE MAPPING (fail fast)
+  if (pathname === "/admin/system/warehouse-config") {
     const scope = searchParams.get("scope") || searchParams.get("group");
     if (scope) {
-      // Map legacy "documents" to "document_types"
-      const mappedScope = scope === "documents" ? "document_types" : scope;
-      redirectPath = `/admin/system/entity-config/${mappedScope}`;
+      // Convert query param to path-based URL (no legacy scope name mapping)
+      redirectPath = `/admin/system/warehouse-config/${scope}`;
     }
   }
 
-  // EntityConfigurationTab with scope in path - strip any query params (e.g., ?view=tabs)
-  const entityConfigMatch = pathname.match(/^\/admin\/system\/entity-config\/([^/]+)$/);
-  if (entityConfigMatch && searchParams.toString()) {
+  // FolderConfigurationTab with scope in path - strip any query params (e.g., ?view=tabs)
+  const folderConfigMatch = pathname.match(/^\/admin\/system\/warehouse-config\/([^/]+)$/);
+  if (folderConfigMatch && searchParams.toString()) {
     // Redirect to clean URL without query params
     redirectPath = pathname;
   }

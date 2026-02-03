@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :gl_account, class_name: 'Gl::Account', optional: true
 
     # ═══════════════════════════════════════════════════════════════
@@ -35,7 +35,7 @@ module Gl
     validates :tax_type, inclusion: { in: TAX_TYPES }, allow_blank: true
     validates :external_provider, inclusion: { in: PROVIDERS }, allow_blank: true
     validates :code, uniqueness: {
-      scope: [:corporate_company_id, :external_provider, :external_tenant_id],
+      scope: [:corporate_id, :external_provider, :external_tenant_id],
       message: 'must be unique per company and provider'
     }
 
@@ -61,11 +61,11 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     class << self
       # Set up Australian GST defaults
-      def setup_australian_defaults(corporate_company)
+      def setup_australian_defaults(corporate)
         AUSTRALIAN_TAX_RATES.each do |attrs|
           create_with(attrs.except(:code))
             .find_or_create_by!(
-              corporate_company: corporate_company,
+              corporate: corporate,
               code: attrs[:code],
               tax_type: attrs[:tax_type]
             )
@@ -73,8 +73,8 @@ module Gl
       end
 
       # Find the default GST rate for expenses
-      def default_expense_gst(corporate_company)
-        where(corporate_company: corporate_company)
+      def default_expense_gst(corporate)
+        where(corporate: corporate)
           .active
           .for_expenses
           .input_taxes
@@ -83,8 +83,8 @@ module Gl
       end
 
       # Find the default GST rate for revenue
-      def default_revenue_gst(corporate_company)
-        where(corporate_company: corporate_company)
+      def default_revenue_gst(corporate)
+        where(corporate: corporate)
           .active
           .for_revenue
           .output_taxes

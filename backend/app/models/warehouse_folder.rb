@@ -29,17 +29,19 @@ class WarehouseFolder < ApplicationRecord
   # SSoT: 'compliance' added for job compliance docs - permits, approvals (Jan 2026)
   # SSoT: 'payment' added for subcontractor payment docs (Jan 2026)
   # SSoT: 'bank_statement', 'template', 'esignature', 'plan' added (Jan 2026)
+  # SSoT: 'notebook' added for Notebook exports to File Warehouse (Feb 2026)
   WAREHOUSE_TYPES = %w[
-    corporate job document contact email warehouse
+    corporate job document contact email email_body email_attachments warehouse
     task task_attachments task_responses
     case case_documents case_emails
     asset asset_expenses asset_service asset_readings
     financial financial_transactions
     compliance payment payment_invoices payment_proof
-    bank_statement template
+    bank_statement balance_sheet template
+    template_documents template_bank_statements template_invoices template_email_signatures template_pdf_fields
     esignature esignature_pending esignature_completed
-    plan
-    xero user
+    plan notebook
+    xero user user_excel user_word user_powerpoint user_pdf user_notes
   ].freeze
 
   # Legacy alias for backward compatibility
@@ -88,9 +90,13 @@ class WarehouseFolder < ApplicationRecord
   # SSoT: Auto-sync tab_key from display_name (display_name is the source of truth)
   before_validation :sync_tab_key_from_display_name
 
-  # SSoT: When display_name changes, update virtual folder paths in database
-  # Phase 3 Blob Architecture: No physical file movement, just DB updates (instant)
-  after_update :rename_folders_in_database_if_needed
+  # FRC Guard (Feb 2026): Prevent clearing folder_path on root scopes
+  # Empty folder_path removes scope from warehouse_folders_mapping, breaking the tree
+  before_save :prevent_clearing_root_folder_path
+
+  # NOTE (Feb 2026 FRC Fix): Removed after_update :rename_folders_in_database_if_needed
+  # WarehouseDocument.folder is now computed from source_type, not stored/synced.
+  # Renaming a WarehouseFolder instantly affects File Warehouse display without any sync.
 
   # Set document types by IDs
   # SSoT: WarehouseFolder can only add/remove SECONDARY links (is_primary: false)
@@ -189,9 +195,10 @@ class WarehouseFolder < ApplicationRecord
   # These methods define the folder hierarchy for File Warehouse
   # ════════════════════════════════════════════════════════════════════════════════
 
-  # SSoT: Map root folder names to warehouse_type
-  # Derived from warehouse_type naming convention
-  ROOT_FOLDER_TO_WAREHOUSE_TYPE = {
+  # REMOVED (Feb 2026): SSoT is now warehouse_folders table.
+  # This constant is kept ONLY as documentation of expected values.
+  # DO NOT use this constant - use the methods below which query the database.
+  ROOT_FOLDER_TO_WAREHOUSE_TYPE_REFERENCE = {
     'Jobs' => 'job',
     'Contacts' => 'contact',
     'Corporate' => 'corporate',
@@ -203,32 +210,43 @@ class WarehouseFolder < ApplicationRecord
     'Templates' => 'template'
   }.freeze
 
-  # Get warehouse_type for a root folder
-  def self.warehouse_type_for_root_folder(root_folder)
-    ROOT_FOLDER_TO_WAREHOUSE_TYPE[root_folder]
+  # Get warehouse_type for a base folder
+  # SSoT: Reads from warehouse_folders table (Feb 2026)
+  def self.warehouse_type_for_base_folder(base_folder)
+    find_by(parent_id: nil, display_name: base_folder, warehouse_enabled: true)&.warehouse_type
   end
 
-  # Get root folder for a warehouse_type (inverse lookup)
+  # Get base folder for a warehouse_type (inverse lookup)
+  # SSoT: Reads from warehouse_folders table (Feb 2026)
   # @param warehouse_type [String] e.g., "job", "contact", "corporate"
   # @return [String, nil] e.g., "Jobs", "Contacts", "Corporate"
-  def self.root_folder_for_warehouse_type(warehouse_type)
-    ROOT_FOLDER_TO_WAREHOUSE_TYPE.key(warehouse_type.to_s)
+  def self.base_folder_for_warehouse_type(warehouse_type)
+    find_by(parent_id: nil, warehouse_type: warehouse_type.to_s, warehouse_enabled: true)&.display_name
   end
 
-  # Get all root folders (for File Warehouse root level)
-  def self.all_root_folders
-    ROOT_FOLDER_TO_WAREHOUSE_TYPE.keys
+  # Get all base folders (for File Warehouse root level)
+  # SSoT: Reads from warehouse_folders table (Feb 2026)
+  def self.all_base_folders
+    where(parent_id: nil, warehouse_enabled: true)
+      .distinct
+      .pluck(:display_name)
+      .compact
   end
 
-  # Get tabs (subfolders) for a root folder
-  # @param root_folder [String] The root folder name (e.g., "Jobs", "Contacts")
+  # Get tabs (subfolders) for a base folder
+  # @param base_folder [String] The base folder name (e.g., "Jobs", "Contacts")
   # @return [Array<Hash>] Array of {name:, path:, has_children:, etc.}
-  def self.tabs_for_root_folder(root_folder)
-    warehouse_type = warehouse_type_for_root_folder(root_folder)
+  #
+  # SSoT (Feb 2026 FRC Fix): Exclude the base folder itself from subfolders
+  # e.g., "Teeem Docs" is both the base folder AND a root tab for warehouse_type "user"
+  # Without this exclusion, expanding "Teeem Docs" would show "Teeem Docs/Teeem Docs"
+  def self.tabs_for_base_folder(base_folder)
+    warehouse_type = warehouse_type_for_base_folder(base_folder)
     return [] unless warehouse_type
 
     for_warehouse_type(warehouse_type)
       .where(warehouse_enabled: true)
+      .where.not(display_name: base_folder)  # SSoT: Exclude base folder itself
       .enabled
       .root_tabs
       .includes(:children)
@@ -237,7 +255,7 @@ class WarehouseFolder < ApplicationRecord
         has_children = tab.children.where(warehouse_enabled: true).exists?
         {
           name: tab.display_name,
-          path: "#{root_folder}/#{tab.display_name}",
+          path: "#{base_folder}/#{tab.display_name}",
           tab_key: tab.tab_key,
           icon: tab.icon_name,
           warehouse_type: warehouse_type,
@@ -255,8 +273,8 @@ class WarehouseFolder < ApplicationRecord
     parts = path.split('/')
     return [] if parts.length < 2
 
-    root_folder = parts[0]
-    warehouse_type = warehouse_type_for_root_folder(root_folder)
+    base_folder = parts[0]
+    warehouse_type = warehouse_type_for_base_folder(base_folder)
     return [] unless warehouse_type
 
     # Walk the path to find the parent tab
@@ -361,7 +379,7 @@ class WarehouseFolder < ApplicationRecord
         SELECT id, parent_id FROM warehouse_folders WHERE id = ?
         UNION ALL
         SELECT wf.id, wf.parent_id FROM warehouse_folders wf
-        INNER JOIN descendants d ON et.parent_id = d.id
+        INNER JOIN descendants d ON wf.parent_id = d.id
       )
       SELECT id FROM descendants
     SQL
@@ -431,35 +449,15 @@ class WarehouseFolder < ApplicationRecord
 
   public
 
-  # SSoT: Get the full warehouse path by substituting folder name into template
-  # Template comes from WarehouseProvider.warehouse_folders (e.g., "Jobs/{{JobCode}}/{{TabName}}")
-  # Folder name comes from: warehouse_folder column (if set) OR display_name (default)
+  # SSoT: Get the full warehouse path template for this tab
+  # The folder_path column stores the COMPLETE path template (Feb 2026 consolidation)
+  # No derivation needed - warehouse_folders table is THE ONE SSoT
   def resolved_warehouse_path
     return nil unless warehouse_enabled
 
-    # Handle missing tenant context gracefully (e.g., background jobs, serialization)
-    config = begin
-      WarehouseProvider.instance
-    rescue TenantNotFoundError
-      return nil
-    end
-
-    wt = warehouse_type || 'corporate'
-    # SSoT: Normalize aliased keys (legacy 'corporate_entity' → 'corporate')
-    wt = WarehouseProvider::WAREHOUSE_KEY_ALIASES[wt] || wt
-    template = config.warehouse_folders&.dig(wt)
-    return nil unless template.present?
-
-    # Use stored warehouse_folder if set, otherwise default to display_name
-    raw_folder = read_attribute(:warehouse_folder).presence || display_name.to_s
-
-    # SSoT: Resolve folder tokens to actual folder names (Jan 2026)
-    # Tokens in warehouse_folder map to physical folder names in storage
-    folder_name = resolve_folder_token(raw_folder)
-
-    # SSoT: {{TabName}} is the placeholder for folder name (Jan 2026)
-    # Also support legacy {{TeeemXL}} for backwards compatibility
-    template.gsub('{{TabName}}', folder_name).gsub('{{TeeemXL}}', folder_name)
+    # SSoT: folder_path column stores complete path template
+    # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Documents"
+    read_attribute(:folder_path)
   end
 
   # Get the full storage path for this tab
@@ -624,14 +622,16 @@ class WarehouseFolder < ApplicationRecord
       xero_scope: xero_scope,
       xero_account_name: xero_account_name,  # Resolved name (e.g., "Tekna Homes")
       warehouse_enabled: warehouse_enabled,
-      warehouse_folder: read_attribute(:warehouse_folder).presence || display_name,  # SSoT: Custom folder path, falls back to display_name
+      folder_path: read_attribute(:folder_path),  # SSoT: Raw value for editing (nil = use display_name default)
+      download_name: read_attribute(:download_name),  # SSoT: "Document Download Name" in UI
+      ui_name: read_attribute(:ui_name),  # SSoT: "Document UI Name" in UI
       full_warehouse_path: full_warehouse_path,
       # SSoT: Template inheritance fields
       uses_custom_path: uses_custom_path,
       warehouse_type_override: warehouse_type_override || 'corporate',
       warehouse_base_path: warehouse_base_path,
       effective_warehouse_path: effective_warehouse_path,  # For UI display (keeps {{JobCode}})
-      folder_path: upload_folder_path,  # For uploads (strips {{JobCode}} for job-warehouse_type tabs)
+      upload_path: upload_folder_path,  # For uploads (derived from effective_warehouse_path)
       inherited_template: inherited_template,
       hierarchy_path: hierarchy_path,
       document_count: document_count,
@@ -644,9 +644,9 @@ class WarehouseFolder < ApplicationRecord
         {
           id: dt.id,
           name: dt.name,
-          display_name: dt.display_name,
+          ui_name: dt.ui_name,
           abbreviation: dt.abbreviation,
-          file_name: dt.file_name,
+          download_name: dt.download_name,
           is_primary: join&.is_primary || false  # SSoT: Include primary/secondary flag
         }
       },
@@ -684,14 +684,107 @@ class WarehouseFolder < ApplicationRecord
   # This method adds both underscore and hyphen versions for backward compatibility.
   #
   def self.warehouse_base_folders
-    # SSoT: Delegate to WarehouseProvider.warehouse_folders
-    # EntityTab.warehouse_folder is DEPRECATED - all paths now derived from SSoT
-    WarehouseProvider.instance.effective_warehouse_folders
-  rescue StandardError => e
-    Rails.logger.warn "[WarehouseFolder.warehouse_base_folders] Error fetching from SSoT: #{e.message}"
-    {}
+    # SSoT (Feb 2026): Read directly from warehouse_folders table
+    result = {}
+    WarehouseFolder.where.not(folder_path: [nil, ''])
+                   .distinct
+                   .pluck(:warehouse_type, :folder_path)
+                   .each do |warehouse_type, path|
+      result[warehouse_type] ||= path
+    end
+    result
   end
 
+  # SSoT (Feb 2026): Map warehouse_type → base folder name
+  # Uses base_folder column (populated from first segment of folder_path)
+  # Used by: documents_controller, warehouse_provider.as_json
+  #
+  # FRC (Feb 2026): Filter OUT internal/system folders with [[...]] syntax
+  # These are template folders (e.g., [[Email Body]]/{{Subject}}) not user-visible roots
+  # Example: "email" should map to "Emails", not "[[Email Body]]"
+  def self.warehouse_type_to_base_folder
+    result = {}
+    # First pass: Get user-visible folders (no [[ in base_folder)
+    WarehouseFolder.where.not(base_folder: [nil, ''])
+                   .where("base_folder NOT LIKE '%[[%'")
+                   .distinct
+                   .pluck(:warehouse_type, :base_folder)
+                   .each do |warehouse_type, base|
+      result[warehouse_type] ||= base if base.present?
+    end
+    result
+  end
+
+  # SSoT (Feb 2026): List all available warehouse_types
+  # Used by: document_storage_service
+  def self.available_warehouse_types
+    WarehouseFolder.distinct.pluck(:warehouse_type)
+  end
+
+  # SSoT (Feb 2026): Get base folder for a warehouse_type
+  # Prefers parent_id: nil, falls back to first folder of that type
+  # Used by: warehouse_provider.path_for, warehouse_providers_controller
+  def self.base_folder_for(warehouse_type)
+    find_by(warehouse_type: warehouse_type, parent_id: nil) ||
+      where(warehouse_type: warehouse_type).order(:id).first
+  end
+
+  # SSoT (Feb 2026): Map warehouse_type → full folder_path template
+  # Returns: { "job" => "Jobs/{{JobCode}}/Overview", "email" => "Emails/{{Year}}/{{Month}}", ... }
+  # Used by: warehouse_provider.to_config_hash (frontend needs full paths)
+  # Prefers: tab_key == warehouse_type OR tab_key == 'overview' (the "root" tab for each type)
+  def self.warehouse_folders_mapping
+    result = {}
+
+    # Get root folders - prefer tab_key matching warehouse_type or 'overview'
+    WarehouseFolder.where(parent_id: nil)
+                   .where.not(folder_path: [nil, ''])
+                   .where('tab_key = warehouse_type OR tab_key = ?', 'overview')
+                   .pluck(:warehouse_type, :folder_path)
+                   .each do |warehouse_type, path|
+      result[warehouse_type] = path if path.present?
+    end
+
+    # Fallback: for any warehouse_type not yet in result, use first folder found
+    WarehouseFolder.where(parent_id: nil)
+                   .where.not(folder_path: [nil, ''])
+                   .where.not(warehouse_type: result.keys)
+                   .order(:id)
+                   .pluck(:warehouse_type, :folder_path)
+                   .each do |warehouse_type, path|
+      result[warehouse_type] ||= path if path.present?
+    end
+
+    result
+  end
+
+  # SSoT (Feb 2026): Map warehouse_type → download_name template
+  # Returns: { "email" => "{Subject} - {Date}.eml", ... }
+  # Used by: warehouse_provider.to_config_hash (frontend needs templates)
+  def self.download_names_mapping
+    result = {}
+    WarehouseFolder.where(parent_id: nil)
+                   .where.not(download_name: [nil, ''])
+                   .pluck(:warehouse_type, :download_name)
+                   .each do |warehouse_type, template|
+      result[warehouse_type] = template if template.present?
+    end
+    result
+  end
+
+  # SSoT (Feb 2026): Map warehouse_type → ui_name template
+  # Returns: { "email" => "{Subject}", ... }
+  # Used by: warehouse_provider.to_config_hash (frontend needs templates)
+  def self.ui_names_mapping
+    result = {}
+    WarehouseFolder.where(parent_id: nil)
+                   .where.not(ui_name: [nil, ''])
+                   .pluck(:warehouse_type, :ui_name)
+                   .each do |warehouse_type, template|
+      result[warehouse_type] = template if template.present?
+    end
+    result
+  end
 
   # Seed task tabs only (callable individually)
   def self.seed_task_tabs_only!
@@ -1224,6 +1317,20 @@ class WarehouseFolder < ApplicationRecord
     end
   end
 
+  # FRC Guard (Feb 2026): Prevent clearing folder_path on root scopes
+  # Root scopes (parent_id: nil) must have a folder_path to appear in the tree
+  # If someone tries to clear it, restore the previous value
+  def prevent_clearing_root_folder_path
+    return unless parent_id.nil?  # Only guard root scopes
+    return unless folder_path_changed?  # Only check if folder_path was changed
+
+    # If new folder_path is blank but old one wasn't, restore the old value
+    if folder_path.blank? && folder_path_was.present?
+      Rails.logger.warn "[WarehouseFolder] BLOCKED clearing folder_path for root scope '#{warehouse_type}'. Restoring: #{folder_path_was}"
+      self.folder_path = folder_path_was
+    end
+  end
+
   # SSoT: Only auto-generate tab_key for NEW records when tab_key is blank
   # display_name is now used for file display name templates (e.g., {{OriginalFileName}})
   # NOT for deriving tab_key - tab_key should remain stable once set
@@ -1239,24 +1346,9 @@ class WarehouseFolder < ApplicationRecord
       .gsub(/^-|-$/, '')         # Remove leading/trailing hyphens
   end
 
-  # SSoT: When display_name changes, update virtual folder paths in database
-  # Phase 3 Blob Architecture: Files are stored at content-hash paths (Blobs/{hash}/...)
-  # and NEVER physically move. "Folder" is just a virtual path in WarehouseDocument.folder.
-  # This is now a synchronous call since it's just DB updates (instant).
-  def rename_folders_in_database_if_needed
-    return unless warehouse_enabled
-    return unless saved_change_to_display_name?
-
-    old_name, new_name = saved_change_to_display_name
-    return if old_name.blank? || new_name.blank? || old_name == new_name
-
-    # Synchronous call - it's just DB updates, fast enough to run inline
-    EntityTabFolderRenameService.new(
-      entity_tab: self,
-      old_display_name: old_name,
-      new_display_name: new_name
-    ).execute
-  end
+  # NOTE (Feb 2026 FRC Fix): Removed rename_folders_in_database_if_needed method
+  # WarehouseDocument.folder is redundant - folder paths are computed from source_type.
+  # See: documents_controller.rb#source_type_to_base_folder_mapping
 
   # SSoT: Root tabs must have unique icons within the same warehouse_type
   # Child tabs can inherit parent's icon OR have their own unique icon

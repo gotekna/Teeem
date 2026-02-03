@@ -12,10 +12,10 @@ class RemoveDuplicateWebsiteUrlFromCorporateCompanySettings < ActiveRecord::Migr
     SQL
 
     # Remove the duplicate column
-    remove_column :corporate_company_settings, :website_url
+    remove_column :corporate_settings, :website_url
   end
 
   def down
-    add_column :corporate_company_settings, :website_url, :string
+    add_column :corporate_settings, :website_url, :string
   end
 end

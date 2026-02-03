@@ -82,27 +82,46 @@ module Api
           status: new_status
         }
         update_attrs[:root_path] = sp[:root_path] if sp.key?(:root_path)
-        # NOTE: scope_folders column was removed - EntityTab is now SSoT for tab paths
-        # Only warehouse_folders is stored on WarehouseProvider
+        # NOTE (Feb 2026): SSoT Consolidation
+        # - warehouse_folders column REMOVED - paths stored per-tab in warehouse_folders table
+        # - download_name_templates column REMOVED - stored per-tab in warehouse_folders.download_name
+        # - ui_name_templates column REMOVED - stored per-tab in warehouse_folders.ui_name
 
-        # SSoT: warehouse_folders column is THE ONE source (no merging, just replace)
-        # Accept both old and new param names for backwards compatibility
+        # SSoT: Save folder_path templates to warehouse_folders table per-warehouse_type
+        # This is THE ONE place where custom folder templates (like {{Year}}) are stored
         if sp.key?(:warehouse_folders)
-          update_attrs[:warehouse_folders] = sp[:warehouse_folders].to_h
-        elsif sp.key?(:scope_root_folders)
-          update_attrs[:warehouse_folders] = sp[:scope_root_folders].to_h
+          sp[:warehouse_folders].to_h.each do |warehouse_type, template|
+            folder = WarehouseFolder.base_folder_for(warehouse_type)
+            folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
+            # FRC Guard (Feb 2026): Don't clear folder_path for root scopes
+            # Empty folder_path removes scope from tree and breaks file storage
+            if template.present?
+              folder.update!(folder_path: template)
+              Rails.logger.info "[WarehouseProvider] Saved folder_path for #{warehouse_type}: #{template}"
+            else
+              Rails.logger.warn "[WarehouseProvider] Skipping empty folder_path for #{warehouse_type} - would break storage"
+            end
+          end
         end
 
-        # File name templates (for document downloads)
-        if sp.key?(:file_name_templates)
-          existing_file_templates = storage_config.file_name_templates || {}
-          update_attrs[:file_name_templates] = existing_file_templates.merge(sp[:file_name_templates].to_h)
+        # SSoT: Save download_name templates to warehouse_folders table per-warehouse_type
+        if sp.key?(:download_names)
+          sp[:download_names].to_h.each do |warehouse_type, template|
+            folder = WarehouseFolder.base_folder_for(warehouse_type)
+            folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
+            folder.update!(download_name: template.presence)
+            Rails.logger.info "[WarehouseProvider] Saved download_name for #{warehouse_type}: #{template}"
+          end
         end
 
-        # Display name templates (for document display in UI)
-        if sp.key?(:display_name_templates)
-          existing_display_templates = storage_config.display_name_templates || {}
-          update_attrs[:display_name_templates] = existing_display_templates.merge(sp[:display_name_templates].to_h)
+        # SSoT: Save ui_name templates to warehouse_folders table per-warehouse_type
+        if sp.key?(:ui_name_templates)
+          sp[:ui_name_templates].to_h.each do |warehouse_type, template|
+            folder = WarehouseFolder.base_folder_for(warehouse_type)
+            folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
+            folder.update!(ui_name: template.presence)
+            Rails.logger.info "[WarehouseProvider] Saved ui_name for #{warehouse_type}: #{template}"
+          end
         end
 
         if sp.key?(:config_links)
@@ -188,8 +207,8 @@ module Api
       private
 
       def storage_params
-        # Get permitted warehouse folder keys - safely handle nil instance
-        warehouse_folder_keys = WarehouseProvider.instance&.effective_warehouse_folders&.keys&.map(&:to_sym) || []
+        # NOTE (Feb 2026): warehouse_folders column removed from warehouse_providers
+        # Folder paths are now stored per-tab in warehouse_folders table (SSoT)
 
         params.require(:storage).permit(
           :provider_type,
@@ -200,11 +219,13 @@ module Api
           :root_path,
           :exclude_sm_tasks,  # SM task exclusion setting (replaces scope_options)
           :link_expiry_days,  # Link expiry for presigned URLs (saved to TenantSetting)
-          # SSoT: warehouse_folders is THE ONE place for warehouse type roots (includes identifier patterns)
-          warehouse_folders: {},
-          scope_root_folders: {},  # Legacy backwards compat
-          file_name_templates: {},
-          display_name_templates: {},
+          # NOTE (Feb 2026): SSoT Consolidation - columns REMOVED from warehouse_providers:
+          # - warehouse_folders, scope_base_folders (paths now per-tab in warehouse_folders table)
+          # - download_name_templates, ui_name_templates (now per-tab in warehouse_folders)
+          # These params are still accepted but saved to warehouse_folders table per-warehouse_type:
+          warehouse_folders: {},      # Path templates (e.g., "Teeem Docs/{{UserName}}/{{Year}}")
+          download_names: {},         # Download filename templates
+          ui_name_templates: {},      # UI display name templates
           config_links: {},
           document_routing: {},  # SSoT: Which model to use for each document source
           virtual_warehouses: {},   # Phase 4: Virtual File Warehouse - which warehouse types render from DB

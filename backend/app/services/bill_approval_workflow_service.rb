@@ -29,10 +29,10 @@ class BillApprovalWorkflowService
   private
 
   def find_applicable_rule
-    return nil unless @bill.corporate_company
+    return nil unless @bill.corporate
 
     CompanyApprovalRule.find_for_bill(
-      company: @bill.corporate_company,
+      company: @bill.corporate,
       amount: @bill.total_amount.to_d,
       variance_percent: variance_percent
     )
@@ -58,7 +58,7 @@ class BillApprovalWorkflowService
         invoice_number: @bill.invoice_number,
         variance_amount: @bill.variance_amount,
         variance_percent: variance_percent,
-        company_id: @bill.corporate_company_id,
+        company_id: @bill.corporate_id,
         match_status: @bill.match_status,
         po_id: @bill.matched_purchase_order_id,
         po_number: @bill.matched_purchase_order&.purchase_order_number
@@ -75,7 +75,7 @@ class BillApprovalWorkflowService
 
   def create_approval_task(rule)
     # Determine approval level based on amount thresholds
-    config = CompanyApprovalRule.default_bill_config(@bill.corporate_company)
+    config = CompanyApprovalRule.default_bill_config(@bill.corporate)
 
     amount = @bill.total_amount.to_d
     approver_role = determine_approver_role(amount, config)

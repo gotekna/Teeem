@@ -4,7 +4,7 @@ class CreateGlPaymentBatches < ActiveRecord::Migration[7.1]
   def change
     # Payment batches (for batch payments to suppliers)
     create_table :gl_payment_batches do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :bank_account, foreign_key: { to_table: :gl_accounts }
       t.references :created_by, foreign_key: { to_table: :users }
       t.references :approved_by, foreign_key: { to_table: :users }
@@ -32,9 +32,9 @@ class CreateGlPaymentBatches < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_payment_batches, [:corporate_company_id, :reference],
+    add_index :gl_payment_batches, [:corporate_id, :reference],
               unique: true, name: "idx_payment_batches_ref"
-    add_index :gl_payment_batches, [:corporate_company_id, :status],
+    add_index :gl_payment_batches, [:corporate_id, :status],
               name: "idx_payment_batches_status"
 
     # Individual payments in a batch

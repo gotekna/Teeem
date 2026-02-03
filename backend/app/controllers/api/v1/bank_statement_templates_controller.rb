@@ -115,7 +115,7 @@ module Api
         ]
 
         # Generate PDF using the template
-        account_name = sample_account&.corporate_company&.name || sample_account&.account_name || @template.bank_name
+        account_name = sample_account&.corporate&.name || sample_account&.account_name || @template.bank_name
 
         service = BankTransactionReportService.new(
           bank_account: sample_account,
@@ -280,7 +280,7 @@ module Api
       def find_sample_bank_account
         # First try to find by matching bank_code
         if @template.bank_code.present? && @template.bank_code != "default"
-          account = BankAccount.joins(:corporate_company)
+          account = BankAccount.joins(:corporate)
                                .where(bank_code: @template.bank_code)
                                .where.not(corporate_companies: { registered_office_address: [ nil, "" ] })
                                .first
@@ -288,7 +288,7 @@ module Api
         end
 
         # Fall back to any account with good address data
-        BankAccount.joins(:corporate_company)
+        BankAccount.joins(:corporate)
                    .where.not(corporate_companies: { registered_office_address: [ nil, "" ] })
                    .where.not(bsb: [ nil, "" ])
                    .where.not(account_number: [ nil, "" ])

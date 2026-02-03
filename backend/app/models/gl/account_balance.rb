@@ -11,7 +11,7 @@ module Gl
     belongs_to :gl_period, class_name: 'Gl::Period'
 
     # Delegate
-    delegate :corporate_company, to: :gl_account
+    delegate :corporate, to: :gl_account
     delegate :account_type, :code, :name, to: :gl_account, prefix: :account
     delegate :financial_year, :period_number, :period_name, to: :gl_period, prefix: :period
 

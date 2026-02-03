@@ -8,7 +8,7 @@ module Gl
     PERIOD_TYPES = %w[month quarter year].freeze
     STATUSES = %w[locked unlocked soft_locked].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :locked_by, class_name: "User", optional: true
     belongs_to :unlocked_by, class_name: "User", optional: true
 
@@ -28,19 +28,19 @@ module Gl
     # Check if a date is locked for a company
     def self.date_locked?(company, date)
       company_id = company.is_a?(Corporate) ? company.id : company
-      active.where(corporate_company_id: company_id).for_date(date).exists?
+      active.where(company_id: company_id).for_date(date).exists?
     end
 
     # Check if a date is hard locked (no exceptions)
     def self.date_hard_locked?(company, date)
       company_id = company.is_a?(Corporate) ? company.id : company
-      locked.where(corporate_company_id: company_id).for_date(date).exists?
+      locked.where(company_id: company_id).for_date(date).exists?
     end
 
     # Get the lock for a specific date
     def self.lock_for_date(company, date)
       company_id = company.is_a?(Corporate) ? company.id : company
-      active.where(corporate_company_id: company_id).for_date(date).first
+      active.where(company_id: company_id).for_date(date).first
     end
 
     # Lock a period
@@ -51,12 +51,12 @@ module Gl
 
       # Calculate audit info
       transactions_count = Gl::JournalEntry
-                           .where(corporate_company_id: company_id)
+                           .where(company_id: company_id)
                            .where(date: period_start..period_end)
                            .count
 
       lock = create!(
-        corporate_company_id: company_id,
+        company_id: company_id,
         period_type: period_type,
         period_start: period_start,
         period_end: period_end,
@@ -68,7 +68,7 @@ module Gl
       )
 
       # Update company setting for quick lookup
-      TenantSetting.find_or_create_by(corporate_company_id: company_id).update!(
+      TenantSetting.find_or_create_by(company_id: company_id).update!(
         gl_lock_date: period_end
       )
 
@@ -135,10 +135,10 @@ module Gl
     end
 
     def no_overlapping_locks
-      return unless corporate_company_id && period_start && period_end
+      return unless company_id && period_start && period_end
 
       overlapping = self.class
-                        .where(corporate_company_id: corporate_company_id)
+                        .where(company_id: company_id)
                         .where(status: %w[locked soft_locked])
                         .where.not(id: id)
                         .where("period_start <= ? AND period_end >= ?", period_end, period_start)
@@ -148,12 +148,12 @@ module Gl
 
     def recalculate_company_lock_date!
       latest_lock = self.class
-                        .where(corporate_company_id: corporate_company_id)
+                        .where(company_id: company_id)
                         .locked
                         .order(period_end: :desc)
                         .first
 
-      TenantSetting.find_by(corporate_company_id: corporate_company_id)&.update!(
+      TenantSetting.find_by(company_id: company_id)&.update!(
         gl_lock_date: latest_lock&.period_end
       )
     end

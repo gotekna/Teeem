@@ -34,7 +34,18 @@ namespace :deploy do
       puts "   (Deployment will continue, but run 'rails foundation:sync' manually)"
     end
 
-    # 3. Sync recurring jobs from config/recurring.yml (SolidQueue)
+    # 3. Ensure required warehouse_folders exist
+    # SSoT: Auto-seed missing warehouse_folder entries on every deploy
+    # This prevents "missing folder" issues when new warehouse_types are added
+    puts "\n📁 Checking warehouse folders..."
+    begin
+      Rake::Task["warehouse:ensure_folders"].invoke
+      puts "✅ Warehouse folders verified"
+    rescue => e
+      puts "⚠️  Warehouse folder check warning: #{e.message}"
+    end
+
+    # 4. Sync recurring jobs from config/recurring.yml (SolidQueue)
     if defined?(SolidQueue)
       puts "\n♻️  Syncing recurring jobs from config/recurring.yml..."
       begin

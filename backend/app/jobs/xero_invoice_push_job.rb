@@ -168,7 +168,7 @@ class XeroInvoicePushJob < ApplicationJob
 
     XeroAlert.create!(
       xero_credential: credential,
-      corporate_company: find_company_for_invoice(invoice),
+      corporate: find_company_for_invoice(invoice),
       alert_type: "sync_stale",
       severity: "warning",
       title: "Invoice sync conflict",
@@ -179,10 +179,10 @@ class XeroInvoicePushJob < ApplicationJob
 
   def find_company_for_invoice(invoice)
     # Try to find company via contact
-    return invoice.contact&.corporate_company if invoice.contact.present?
+    return invoice.contact&.corporate if invoice.contact.present?
 
     # Try to find company via job
-    return invoice.job&.corporate_company if invoice.respond_to?(:job) && invoice.job.present?
+    return invoice.job&.corporate if invoice.respond_to?(:job) && invoice.job.present?
 
     nil
   end

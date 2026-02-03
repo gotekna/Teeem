@@ -46,7 +46,7 @@ module Api
         # GET /api/v1/contacts/:contact_id/corporate/directors
         # Returns all directors for this corporate contact
         def directors
-          directors = @corporate_details.corporate_company_directors
+          directors = @corporate_details.corporate_directors
             .includes(:contact)
             .order(is_current: :desc, appointment_date: :desc)
 
@@ -64,7 +64,7 @@ module Api
         # GET /api/v1/contacts/:contact_id/corporate/shareholders
         # Returns all shareholders for this corporate contact
         def shareholders
-          shareholdings = @corporate_details.corporate_company_shareholdings
+          shareholdings = @corporate_details.corporate_shareholdings
             .includes(:shareholder)
             .order(created_at: :desc)
 
@@ -82,7 +82,7 @@ module Api
         # GET /api/v1/contacts/:contact_id/corporate/compliance
         # Returns compliance items for this corporate contact
         def compliance
-          compliance_items = @corporate_details.corporate_company_compliance_items
+          compliance_items = @corporate_details.corporate_compliance_items
             .order(due_date: :asc)
 
           render json: {
@@ -128,6 +128,11 @@ module Api
 
         # POST /api/v1/contacts/:contact_id/corporate/enable
         # Enable corporate management for this contact
+        #
+        # Required params:
+        #   - company_group_id: ID of the CompanyGroup to assign this corporate to
+        #
+        # FRC (Feb 2026): company_group_id is now REQUIRED to prevent orphan Corporate records.
         def enable
           unless @contact.can_be_corporate_managed?
             return render json: {
@@ -136,13 +141,24 @@ module Api
             }, status: :unprocessable_entity
           end
 
-          if @contact.enable_corporate_management!
+          # FRC: Require company_group_id to prevent orphan Corporates
+          company_group = CompanyGroup.find_by(id: params[:company_group_id])
+          unless company_group
+            return render json: {
+              success: false,
+              error: "company_group_id is required. Please select which company group this corporate belongs to."
+            }, status: :unprocessable_entity
+          end
+
+          if @contact.enable_corporate_management!(company_group: company_group)
             render json: {
               success: true,
               data: {
                 contact_id: @contact.id,
                 is_corporate_managed: @contact.is_corporate_managed,
-                corporate_details_id: @contact.corporate_details&.id
+                corporate_details_id: @contact.corporate_details&.id,
+                company_group_id: company_group.id,
+                company_group_name: company_group.name
               }
             }
           else

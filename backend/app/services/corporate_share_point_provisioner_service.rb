@@ -56,7 +56,7 @@ class CorporateSharePointProvisionerService
   end
 
   # Create standard folder structure for a company
-  # SSoT: Uses EntityTab for folder structure, falls back to FOLDER_STRUCTURE constant
+  # SSoT: Uses WarehouseFolder for folder structure, falls back to FOLDER_STRUCTURE constant
   def create_company_folders(company)
     folder_name = company_folder_name(company)
     Rails.logger.info "Creating folder structure for: #{folder_name}"
@@ -66,8 +66,8 @@ class CorporateSharePointProvisionerService
       root_folder = create_or_find_folder(folder_name)
       company_folder_id = root_folder["id"]
 
-      # SSoT: Get folder structure from EntityTab (falls back to FOLDER_STRUCTURE constant)
-      folder_structure = self.class.folder_structure_from_entity_tabs("corporate")
+      # SSoT: Get folder structure from WarehouseFolder (falls back to FOLDER_STRUCTURE constant)
+      folder_structure = self.class.folder_structure_from_warehouse_folders("corporate")
 
       # Create subfolders
       folder_structure.each do |parent_folder, subfolders|
@@ -146,7 +146,7 @@ class CorporateSharePointProvisionerService
       groups: []
     }
 
-    CorporateGroup.includes(:companies).order(:name).each do |group|
+    CompanyGroup.includes(:companies).order(:name).each do |group|
       group_info = {
         name: group.name,
         folder_path: "#{base_path}/#{group.name}",
@@ -201,7 +201,7 @@ class CorporateSharePointProvisionerService
       stats: @stats
     }
 
-    CorporateGroup.includes(:companies).order(:name).each do |group|
+    CompanyGroup.includes(:companies).order(:name).each do |group|
       Rails.logger.info "Creating folder for group: #{group.name}"
 
       # Create group folder
@@ -544,10 +544,10 @@ class CorporateSharePointProvisionerService
     { date: nil, type: nil, description: filename, extension: "" }
   end
 
-  # SSoT: Get folder structure from EntityTab instead of hardcoded constant
+  # SSoT: Get folder structure from WarehouseFolder instead of hardcoded constant
   # Returns hash of { folder_name => [subfolders] } for tabs with storage folders
-  def self.folder_structure_from_entity_tabs(scope = "corporate")
-    tabs = EntityTab.where(warehouse_type: scope, warehouse_enabled: true, parent_id: nil)
+  def self.folder_structure_from_warehouse_folders(scope = "corporate")
+    tabs = WarehouseFolder.where(warehouse_type: scope, warehouse_enabled: true, parent_id: nil)
     structure = {}
 
     tabs.each do |tab|
@@ -557,7 +557,7 @@ class CorporateSharePointProvisionerService
       structure[folder_name] = children
     end
 
-    # Fall back to FOLDER_STRUCTURE if no EntityTabs configured
+    # Fall back to FOLDER_STRUCTURE if no WarehouseFolders configured
     structure.empty? ? FOLDER_STRUCTURE : structure
   end
 end

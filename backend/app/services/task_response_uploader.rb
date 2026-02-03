@@ -107,7 +107,7 @@ class TaskResponseUploader
                   Marcel::MimeType.for(name: upload_result[:filename])
                 end
 
-    # SSoT: Resolve display_name from EntityTab template (e.g., {{OriginalFileName}})
+    # SSoT: Resolve display_name from WarehouseFolder template (e.g., {{OriginalFileName}})
     resolved_display_name = resolve_display_name(upload_result[:filename])
 
     # Create or find StorageBlob for the file
@@ -195,21 +195,21 @@ class TaskResponseUploader
     provider.create_folder(folder_path, create_parents: true)
   end
 
-  # SSoT: Resolve display_name from EntityTab template using SendNameResolver
-  # EntityTab.display_name can contain tokens like {{OriginalFileName}}, {{TaskName}}, {{Subject}}, etc.
-  # Falls back to original filename if no template or EntityTab not found
+  # SSoT: Resolve display_name from WarehouseFolder template using SendNameResolver
+  # WarehouseFolder.display_name can contain tokens like {{OriginalFileName}}, {{TaskName}}, {{Subject}}, etc.
+  # Falls back to original filename if no template or WarehouseFolder not found
   def resolve_display_name(original_filename)
-    # Find the EntityTab for this storage scope (task_responses or task_attachments)
+    # Find the WarehouseFolder for this storage scope (task_responses or task_attachments)
     # The folder_name method returns "Responses" or "Attachments"
-    entity_tab = EntityTab.find_by(
+    warehouse_folder = WarehouseFolder.find_by(
       warehouse_type: storage_scope.to_s,
-      warehouse_folder: folder_name
+      display_name: folder_name
     )
 
-    # Fall back to original filename if no EntityTab or no template
-    return original_filename unless entity_tab&.display_name.present?
+    # Fall back to original filename if no WarehouseFolder or no template
+    return original_filename unless warehouse_folder&.display_name.present?
 
-    template = entity_tab.display_name
+    template = warehouse_folder.display_name
 
     # If template has no tokens, use it as-is (it's a static name)
     return template unless template.include?("{")

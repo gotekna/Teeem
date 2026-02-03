@@ -5,7 +5,7 @@ module Api
 
       # GET /api/v1/xero_chart_of_accounts
       def index
-        @accounts = XeroChartOfAccount.includes(:corporate_group)
+        @accounts = XeroChartOfAccount.includes(:company_group)
 
         # Filter by company group
         if params[:company_group_id].present?
@@ -88,7 +88,7 @@ module Api
           company: {
             id: company.id,
             name: company.name,
-            company_group: company.corporate_group&.name
+            company_group: company.company_group&.name
           }
         }
       end
@@ -126,7 +126,7 @@ module Api
           connection = nil
           if company_id.present?
             company = Corporate.find_by(id: company_id)
-            connection = company&.corporate_company_xero_connection
+            connection = company&.corporate_xero_connection
           end
 
           accounts.each do |xero_account|
@@ -260,25 +260,25 @@ module Api
       # Required: company_id param to determine the company group
       def with_company_presence
         company = Corporate.find(params[:company_id])
-        group = company.corporate_group
+        group = company.company_group
 
         # Get all companies in the group that have Xero connected
         companies_with_xero = if group
           group.corporate_companies
-               .includes(:corporate_company_xero_connection)
-               .select { |c| c.corporate_company_xero_connection&.connected? }
+               .includes(:corporate_xero_connection)
+               .select { |c| c.corporate_xero_connection&.connected? }
         else
-          [ company ].select { |c| c.corporate_company_xero_connection&.connected? }
+          [ company ].select { |c| c.corporate_xero_connection&.connected? }
         end
 
         # Build map of account_code -> { account_data, company_ids }
         # Aggregates all unique accounts from all companies in the group
         accounts_map = {}
         companies_with_xero.each do |c|
-          conn = c.corporate_company_xero_connection
+          conn = c.corporate_xero_connection
           next unless conn
 
-          scope = conn.corporate_company_xero_accounts
+          scope = conn.corporate_xero_accounts
           scope = scope.where(status: "ACTIVE") unless params[:include_inactive] == "true"
 
           scope.each do |acct|
@@ -355,7 +355,7 @@ module Api
       # Returns per-company Xero accounts with consolidated_account_code mapping
       def company_accounts
         company = Corporate.find(params[:company_id])
-        connection = company.corporate_company_xero_connection
+        connection = company.corporate_xero_connection
 
         unless connection
           return render json: {
@@ -364,7 +364,7 @@ module Api
           }, status: :not_found
         end
 
-        @accounts = connection.corporate_company_xero_accounts
+        @accounts = connection.corporate_xero_accounts
         @accounts = @accounts.where(status: "ACTIVE") unless params[:include_inactive] == "true"
         @accounts = @accounts.order(:account_code)
 
@@ -393,7 +393,7 @@ module Api
       def build_company_accounts_map(companies)
         client = XeroApiClient.new
         companies.each_with_object({}) do |company, map|
-          connection = company.corporate_company_xero_connection
+          connection = company.corporate_xero_connection
           next unless connection&.connected?
 
           begin
@@ -436,7 +436,7 @@ module Api
         {
           id: account.id,
           company_group_id: account.company_group_id,
-          company_group_name: account.corporate_group&.name,
+          company_group_name: account.company_group&.name,
           account_code: account.account_code,
           account_name: account.account_name,
           display_name: account.display_name,
@@ -478,7 +478,7 @@ module Api
         {
           total_accounts: @accounts.count,
           by_type: @accounts.group(:account_type).count,
-          groups: CorporateGroup.all.map { |g|
+          groups: CompanyGroup.all.map { |g|
             { id: g.id, name: g.name, accounts_count: g.xero_chart_of_accounts.count }
           }
         }

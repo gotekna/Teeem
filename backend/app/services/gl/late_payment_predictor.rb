@@ -17,8 +17,8 @@ module Gl
     # Minimum history for reliable predictions
     MIN_INVOICE_HISTORY = 3
 
-    def initialize(corporate_company)
-      @company = corporate_company
+    def initialize(corporate)
+      @company = corporate
     end
 
     # Get risk assessment for a single invoice
@@ -269,12 +269,12 @@ module Gl
 
     def unpaid_invoices
       gl_unpaid = Gl::Invoice
-        .where(corporate_company: @company, invoice_type: "sales_invoice")
+        .where(corporate: @company, invoice_type: "sales_invoice")
         .where.not(status: %w[paid voided deleted draft])
         .includes(:contact)
 
       external_unpaid = ExternalInvoice
-        .where(corporate_company: @company, invoice_type: "invoice")
+        .where(corporate: @company, invoice_type: "invoice")
         .where.not(status: %w[paid voided deleted draft])
         .includes(:contact)
 
@@ -284,12 +284,12 @@ module Gl
     def contacts_with_history
       # Get contacts that have paid invoices (for behavior analysis)
       contact_ids = Gl::Invoice
-        .where(corporate_company: @company, invoice_type: "sales_invoice", status: "paid")
+        .where(corporate: @company, invoice_type: "sales_invoice", status: "paid")
         .distinct
         .pluck(:contact_id)
 
       contact_ids += ExternalInvoice
-        .where(corporate_company: @company, invoice_type: "invoice", status: "paid")
+        .where(corporate: @company, invoice_type: "invoice", status: "paid")
         .distinct
         .pluck(:contact_id)
 

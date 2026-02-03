@@ -28,7 +28,6 @@ class StorageBlob < ApplicationRecord
 
   # Multi-tenancy (Jan 2026)
   acts_as_tenant :tenant
-  belongs_to :organization, optional: true  # Optional for tenant-shared blobs
 
   # Associations
   # Note: email_attachments and corporate_company_documents tables DROPPED (Jan 2026)

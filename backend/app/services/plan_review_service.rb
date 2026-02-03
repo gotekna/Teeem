@@ -95,11 +95,11 @@ class PlanReviewService
   private
 
   def validate_estimate_matched!
-    raise NoConstructionError, "Estimate must be matched to a construction" unless @estimate.construction
+    raise NoConstructionError, "Estimate must be matched to a construction" unless @estimate.job
   end
 
   def fetch_pdf_plans_from_storage
-    construction = @estimate.construction
+    construction = @estimate.job
 
     # Setup provider-agnostic storage
     begin

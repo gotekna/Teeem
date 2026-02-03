@@ -28,7 +28,7 @@ module Gl
       end
 
       def tenant_name
-        corporate_company.name
+        corporate.name
       end
 
       def connected?
@@ -163,20 +163,20 @@ module Gl
       private
 
       def setup_default_tax_rates
-        Gl::TaxRate.setup_australian_defaults(corporate_company)
+        Gl::TaxRate.setup_australian_defaults(corporate)
       end
 
       def setup_default_currencies
-        Gl::Currency.setup_defaults_for(corporate_company, base_code: 'AUD')
+        Gl::Currency.setup_defaults_for(corporate, base_code: 'AUD')
       end
 
       def setup_default_accounts
         # Create a basic chart of accounts if none exist
-        return if Gl::Account.where(corporate_company: corporate_company, external_provider: nil).exists?
+        return if Gl::Account.where(corporate: corporate, external_provider: nil).exists?
 
         default_accounts.each do |account_data|
           Gl::Account.create!(
-            corporate_company: corporate_company,
+            corporate: corporate,
             external_provider: nil,
             **account_data
           )

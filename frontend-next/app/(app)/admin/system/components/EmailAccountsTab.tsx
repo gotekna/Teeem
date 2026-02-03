@@ -50,6 +50,11 @@ import {
   Users,
   Save,
   Share2,
+  FileSignature,
+  Check,
+  Palette,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
@@ -63,7 +68,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { EmailSyncDashboardTab } from "./EmailSyncDashboardTab";
+import {
+  SIGNATURE_STYLES,
+  generateSignatureByStyle,
+  type SignatureStyleId,
+  type SignatureUserData,
+  type SignatureCompanyData,
+} from "@/lib/email-signature";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ImapCredential {
   id: number;
@@ -81,14 +95,31 @@ interface ImapCredential {
   last_synced_at: string | null;
   last_sync_status: string | null;
   last_sync_error: string | null;
+  has_password: boolean; // FRC (Feb 2026): False when password is missing
   created_at: string;
   email_signature: string | null;
+  signature_style?: SignatureStyleId; // SSoT (Feb 2026): Style ID for signature generation
   email_aliases: string[]; // Send-from aliases (e.g., demo@, sales@)
   shared_with_user_ids: number[];
-  shared_with_users: { id: number; name: string }[];
+  shared_with_users: { id: number; name: string; tenant_name?: string; is_cross_tenant?: boolean }[];
   user_id: number;
   owner_name?: string; // Name of the credential owner
+  owner_tenant_id?: number; // Tenant ID of the credential owner
+  owner_tenant_name?: string; // Tenant name of the credential owner
   is_shared?: boolean; // True if current user is not the owner
+  is_cross_tenant?: boolean; // True if credential owner is in a different tenant
+  // SSoT (Feb 2026): Per-account branding configuration
+  branding_config?: {
+    use_default?: boolean;
+    company_name?: string;
+    logo_url?: string;
+    logo_dark?: string;
+    address?: string;
+    city_state?: string;
+    website?: string;
+    brand_color?: string;
+    brand_color_foreground?: string;
+  };
 }
 
 interface Provider {
@@ -114,7 +145,6 @@ const DEFAULT_FORM = {
   smtp_port: 587,
   username: "",
   password: "",
-  email_signature: "",
   email_aliases: "" as string,  // Comma-separated list
 };
 
@@ -138,6 +168,15 @@ interface ShareableUser {
   id: number;
   name: string;
   email: string;
+  is_cross_tenant?: boolean; // FRC (Feb 2026): True if user is from different tenant
+  tenant_name?: string; // FRC (Feb 2026): Tenant name for cross-tenant users
+}
+
+interface TenantOption {
+  id: number;
+  name: string;
+  user_count: number;
+  is_current: boolean;
 }
 
 // Component for configuring MS365 mailbox access
@@ -627,10 +666,72 @@ export function EmailAccountsTab() {
   const [shareableUsers, setShareableUsers] = useState<ShareableUser[]>([]);
   const [selectedSharedUsers, setSelectedSharedUsers] = useState<number[]>([]);
   const [savingSharing, setSavingSharing] = useState(false);
+  // Cross-tenant sharing state
+  const [tenantsList, setTenantsList] = useState<TenantOption[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
+  const [tenantUsers, setTenantUsers] = useState<ShareableUser[]>([]);
+  const [loadingTenantUsers, setLoadingTenantUsers] = useState(false);
+  // Signature style selection state (SSoT Feb 2026)
+  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+  const [signatureCredential, setSignatureCredential] = useState<ImapCredential | null>(null);
+  const [selectedStyle, setSelectedStyle] = useState<SignatureStyleId>("modern-dark");
+  const [savingSignature, setSavingSignature] = useState(false);
+  const [companySettings, setCompanySettings] = useState<SignatureCompanyData | null>(null);
+  // SSoT (Feb 2026): Per-account branding state
+  const [brandingExpanded, setBrandingExpanded] = useState(false);
+  const [brandingDraft, setBrandingDraft] = useState({
+    use_default: true,
+    company_name: "",
+    logo_url: "",
+    logo_dark: "",
+    address: "",
+    city_state: "",
+    website: "",
+    brand_color: "#1a3c34",
+    brand_color_foreground: "#ffffff",
+  });
+  // Get current user for signature preview
+  const { user: currentUser } = useAuth();
 
   // Fetch credentials and providers on mount
   useEffect(() => {
     fetchData();
+  }, []);
+
+  // Load company settings for signature preview (SSoT Feb 2026)
+  useEffect(() => {
+    const loadCompanySettings = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data?: {
+            company_name?: string;
+            logo_dark?: string;
+            logo_url?: string;
+            address?: string;
+            website?: string;
+            phone?: string;
+            brand_colors?: { primary?: string; primaryForeground?: string };
+          };
+        }>("/api/v1/company_settings");
+        if (response?.success && response.data) {
+          const data = response.data;
+          setCompanySettings({
+            name: data.company_name,
+            logo_dark: data.logo_dark,
+            logo_light: data.logo_url,
+            address: data.address,
+            website: data.website,
+            phone: data.phone,
+            brand_color: data.brand_colors?.primary,
+            brand_color_foreground: data.brand_colors?.primaryForeground,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load company settings:", error);
+      }
+    };
+    loadCompanySettings();
   }, []);
 
   const fetchData = async () => {
@@ -640,6 +741,11 @@ export function EmailAccountsTab() {
         api.get<{ success: boolean; data: ImapCredential[] }>("/api/v1/imap_credentials"),
         api.get<{ success: boolean; data: Provider[] }>("/api/v1/imap_credentials/providers"),
       ]);
+      // Debug: Log shared_with_users - stringify to see actual values
+      console.log("[EmailAccounts] Raw response:", JSON.stringify(credResponse, null, 2));
+      console.log("[EmailAccounts] Credentials shared_with_users:", credResponse.data?.map(c =>
+        `${c.name}: ${JSON.stringify(c.shared_with_users)}`
+      ));
       setCredentials(credResponse.data || []);
       setProviders(providerResponse.data || []);
     } catch (error) {
@@ -788,7 +894,6 @@ export function EmailAccountsTab() {
       smtp_port: cred.smtp_port,
       username: cred.username || cred.email_address,
       password: "", // Don't prefill password for security
-      email_signature: cred.email_signature || "",
       email_aliases: (cred.email_aliases || []).join(", "),  // Convert array to comma-separated
     });
     setTestResult(null);
@@ -809,19 +914,23 @@ export function EmailAccountsTab() {
     setSharingCredential(cred);
     setSelectedSharedUsers(cred.shared_with_user_ids || []);
     setShareDialogOpen(true);
+    // Reset cross-tenant state
+    setSelectedTenantId(null);
+    setTenantUsers([]);
 
-    // Fetch shareable users if not already loaded
-    if (shareableUsers.length === 0) {
-      try {
-        const response = await api.get<{ success: boolean; data: ShareableUser[] }>(
-          "/api/v1/imap_credentials/shareable_users"
-        );
-        if (response.success) {
-          setShareableUsers(response.data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch shareable users:", error);
+    // FRC (Feb 2026): Fetch shareable users and tenants list in parallel
+    try {
+      const [usersResponse] = await Promise.all([
+        api.get<{ success: boolean; data: ShareableUser[] }>(
+          `/api/v1/imap_credentials/shareable_users?credential_id=${cred.id}`
+        ),
+        fetchTenantsList()
+      ]);
+      if (usersResponse.success) {
+        setShareableUsers(usersResponse.data);
       }
+    } catch (error) {
+      console.error("Failed to fetch shareable users:", error);
     }
   };
 
@@ -858,6 +967,164 @@ export function EmailAccountsTab() {
       });
     } finally {
       setSavingSharing(false);
+    }
+  };
+
+  // Fetch available tenants for cross-tenant sharing
+  const fetchTenantsList = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: TenantOption[] }>(
+        "/api/v1/imap_credentials/tenants_list"
+      );
+      if (response.success) {
+        // Filter out current tenant (we already show those users)
+        setTenantsList(response.data.filter(t => !t.is_current));
+      }
+    } catch (error) {
+      console.error("Failed to fetch tenants:", error);
+    }
+  };
+
+  // Fetch users from selected tenant
+  const handleSelectTenant = async (tenantId: number) => {
+    setSelectedTenantId(tenantId);
+    setLoadingTenantUsers(true);
+    setTenantUsers([]);
+
+    try {
+      const response = await api.get<{ success: boolean; data: ShareableUser[] }>(
+        `/api/v1/imap_credentials/shareable_users?tenant_id=${tenantId}`
+      );
+      if (response.success) {
+        setTenantUsers(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch tenant users:", error);
+    } finally {
+      setLoadingTenantUsers(false);
+    }
+  };
+
+  // Add a cross-tenant user to the shareable list and select them
+  const handleAddCrossTenantUser = (user: ShareableUser) => {
+    // Add to shareable users if not already there
+    if (!shareableUsers.find(u => u.id === user.id)) {
+      setShareableUsers(prev => [...prev, user]);
+    }
+    // Toggle selection
+    setSelectedSharedUsers(prev => {
+      if (prev.includes(user.id)) {
+        return prev.filter(id => id !== user.id);
+      }
+      return [...prev, user.id];
+    });
+  };
+
+  // ============================================================================
+  // Signature Style Dialog (SSoT Feb 2026)
+  // ============================================================================
+
+  const handleOpenSignatureDialog = (cred: ImapCredential) => {
+    setSignatureCredential(cred);
+    // Default to existing style or modern-dark
+    setSelectedStyle((cred.signature_style as SignatureStyleId) || "modern-dark");
+    // SSoT (Feb 2026): Initialize branding draft from credential's branding_config
+    const bc = cred.branding_config || {};
+    setBrandingDraft({
+      use_default: bc.use_default !== false, // Default to true if not set
+      company_name: bc.company_name || "",
+      logo_url: bc.logo_url || "",
+      logo_dark: bc.logo_dark || "",
+      address: bc.address || "",
+      city_state: bc.city_state || "",
+      website: bc.website || "",
+      brand_color: bc.brand_color || "#1a3c34",
+      brand_color_foreground: bc.brand_color_foreground || "#ffffff",
+    });
+    setBrandingExpanded(bc.use_default === false); // Expand if custom branding is already set
+    setSignatureDialogOpen(true);
+  };
+
+  // Build user data for signature preview
+  const getSignatureUserData = (cred: ImapCredential): SignatureUserData => {
+    // For the preview, use credential owner's name if available, otherwise current user
+    // Note: User interface has [key: string]: unknown, so we cast dynamic fields to string
+    return {
+      name: cred.owner_name || currentUser?.name || "Your Name",
+      email: cred.email_address,
+      job_title: (currentUser?.job_title as string) || undefined,
+      mobile_phone: (currentUser?.mobile_phone as string) || undefined,
+    };
+  };
+
+  // Build company data for signature preview
+  // SSoT (Feb 2026): Uses per-account branding if custom, otherwise company settings
+  const getSignatureCompanyData = (): SignatureCompanyData | undefined => {
+    // If custom branding is enabled (use_default = false), use brandingDraft
+    if (!brandingDraft.use_default) {
+      return {
+        name: brandingDraft.company_name || undefined,
+        logo_dark: brandingDraft.logo_dark || undefined,
+        logo_light: brandingDraft.logo_url || undefined,
+        address: brandingDraft.address && brandingDraft.city_state
+          ? `${brandingDraft.address}, ${brandingDraft.city_state}`
+          : brandingDraft.address || brandingDraft.city_state || undefined,
+        website: brandingDraft.website || undefined,
+        brand_color: brandingDraft.brand_color || undefined,
+        brand_color_foreground: brandingDraft.brand_color_foreground || undefined,
+      };
+    }
+    // Default: use company settings
+    return companySettings || undefined;
+  };
+
+  const handleSaveSignature = async () => {
+    if (!signatureCredential) return;
+
+    setSavingSignature(true);
+    try {
+      // Generate the signature HTML from the selected style
+      const userData = getSignatureUserData(signatureCredential);
+      const companyData = getSignatureCompanyData();
+      const signatureHtml = selectedStyle === "none"
+        ? ""
+        : generateSignatureByStyle(selectedStyle, userData, companyData);
+
+      // SSoT (Feb 2026): Save both signature and branding config in parallel
+      const accountId = `imap_${signatureCredential.id}`;
+
+      await Promise.all([
+        // Save signature
+        api.put("/api/v1/imap_credentials/update_account_signature", {
+          account_id: accountId,
+          signature_html: signatureHtml,
+          signature_style: selectedStyle,
+        }),
+        // Save branding config
+        api.put("/api/v1/imap_credentials/update_account_branding", {
+          account_id: accountId,
+          branding_config: brandingDraft,
+        }),
+      ]);
+
+      toast({
+        title: "Settings saved",
+        description: selectedStyle === "none"
+          ? "No signature will be added to emails from this account."
+          : "Your email signature and branding have been updated.",
+      });
+
+      setSignatureDialogOpen(false);
+      fetchData(); // Refresh to show updated signature badge
+    } catch (error) {
+      console.error("Failed to save signature:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save email signature.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingSignature(false);
     }
   };
 
@@ -976,19 +1243,17 @@ export function EmailAccountsTab() {
                 </p>
               </div>
 
-              {/* Email Signature */}
+              {/* Email Signature - Now configured via Signature button */}
               <div className="space-y-2">
                 <Label>Email Signature</Label>
-                <Textarea
-                  placeholder="Your email signature (optional)..."
-                  value={formData.email_signature}
-                  onChange={(e) => setFormData({ ...formData, email_signature: e.target.value })}
-                  rows={4}
-                  className="resize-y font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  This signature will be automatically added to emails sent from this account.
-                </p>
+                <div className="p-3 rounded-md bg-muted/50 border border-dashed">
+                  <p className="text-sm text-muted-foreground">
+                    Email signatures are now configured using the{" "}
+                    <span className="font-medium text-foreground">Signature</span> button
+                    on each account card. This allows you to choose from professional
+                    signature styles with live preview.
+                  </p>
+                </div>
               </div>
 
               {/* Email Aliases */}
@@ -1174,12 +1439,14 @@ export function EmailAccountsTab() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    {/* Sync Status */}
+                    {/* Sync Status - FRC (Feb 2026): Show warning when password missing */}
                     <div className="flex items-center gap-1.5">
-                      {cred.last_sync_status === "success" ? (
+                      {!cred.has_password ? (
+                        <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
+                      ) : cred.last_sync_status === "success" ? (
                         <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                       ) : cred.last_sync_status === "error" ? (
                         <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
@@ -1187,9 +1454,11 @@ export function EmailAccountsTab() {
                         <Clock className="h-4 w-4" />
                       )}
                       <span>
-                        {cred.last_synced_at
-                          ? `Synced ${formatDistanceToNow(new Date(cred.last_synced_at), { addSuffix: true })}`
-                          : "Never synced"}
+                        {!cred.has_password
+                          ? "Password required - click Edit"
+                          : cred.last_synced_at
+                            ? `Synced ${formatDistanceToNow(new Date(cred.last_synced_at), { addSuffix: true })}`
+                            : "Never synced"}
                       </span>
                     </div>
 
@@ -1197,18 +1466,20 @@ export function EmailAccountsTab() {
                     <span className="hidden sm:inline">
                       IMAP: {cred.imap_host}:{cred.imap_port}
                     </span>
-                  </div>
 
-                  {/* Sharing Info */}
-                  {cred.shared_with_users?.length > 0 && (
-                    <button
-                      onClick={() => handleOpenShareDialog(cred)}
-                      className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                    >
-                      <Users className="h-4 w-4" />
-                      <span>Shared with {cred.shared_with_users.map(u => u.name).join(", ")}</span>
-                    </button>
-                  )}
+                    {/* Sharing Info - inline with status */}
+                    {cred.shared_with_users?.length > 0 && (
+                      <button
+                        onClick={() => handleOpenShareDialog(cred)}
+                        className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                      >
+                        <Users className="h-4 w-4" />
+                        <span>Shared with {cred.shared_with_users.map(u =>
+                          u.tenant_name ? `${u.name} (${u.tenant_name})` : u.name
+                        ).join(", ")}</span>
+                      </button>
+                    )}
+                  </div>
 
                   {/* Actions */}
                   <div className="flex items-center gap-2">
@@ -1219,6 +1490,16 @@ export function EmailAccountsTab() {
                     >
                       <Share2 className="h-4 w-4 mr-1" />
                       {cred.shared_with_users?.length > 0 ? `Sharing (${cred.shared_with_users.length})` : "Share"}
+                    </Button>
+                    {/* Signature button (SSoT Feb 2026) */}
+                    <Button
+                      variant={cred.email_signature ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleOpenSignatureDialog(cred)}
+                      className={cred.email_signature ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
+                    >
+                      <FileSignature className="h-4 w-4 mr-1" />
+                      {cred.email_signature ? "Signature ✓" : "Signature"}
                     </Button>
                     <Button
                       variant="outline"
@@ -1320,6 +1601,11 @@ export function EmailAccountsTab() {
                       <span className="font-medium text-foreground">
                         {sharingCredential.owner_name || "Unknown"}
                       </span>
+                      {sharingCredential.is_cross_tenant && sharingCredential.owner_tenant_name && (
+                        <span className="text-muted-foreground">
+                          {" "}from <span className="font-medium">{sharingCredential.owner_tenant_name}</span>
+                        </span>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -1340,41 +1626,141 @@ export function EmailAccountsTab() {
                   You have been granted access to view emails from this account.
                   Only the owner can modify sharing settings.
                 </p>
+                {sharingCredential.is_cross_tenant && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    This is a cross-organization shared account from{" "}
+                    <span className="font-medium text-foreground">
+                      {sharingCredential.owner_tenant_name}
+                    </span>.
+                  </p>
+                )}
               </div>
             </div>
           ) : (
             // Owner view - show sharing controls
-            <div className="py-4 space-y-3 max-h-[400px] overflow-y-auto">
-              {shareableUsers.length === 0 ? (
-                <div className="flex items-center justify-center py-8">
-                  <Spinner />
-                </div>
-              ) : (
-                shareableUsers
-                  .filter((user) => user.id !== sharingCredential?.user_id) // Exclude owner
-                  .map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
-                    >
-                      <Checkbox
-                        checked={selectedSharedUsers.includes(user.id)}
-                        onCheckedChange={() => handleToggleUserAccess(user.id)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{user.name}</div>
-                        <div className="text-sm text-muted-foreground truncate">
-                          {user.email}
+            <div className="py-4 space-y-4">
+              {/* Cross-tenant sharing - Select tenant first */}
+              {tenantsList.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Add users from other organizations
+                  </Label>
+                  <Select
+                    value={selectedTenantId?.toString() || ""}
+                    onValueChange={(value) => handleSelectTenant(parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select organization..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenantsList.map((tenant) => (
+                        <SelectItem key={tenant.id} value={tenant.id.toString()}>
+                          {tenant.name} ({tenant.user_count} users)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Users from selected tenant */}
+                  {selectedTenantId && (
+                    <div className="border rounded-lg max-h-[150px] overflow-y-auto">
+                      {loadingTenantUsers ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Spinner className="h-4 w-4" />
                         </div>
-                      </div>
-                      {user.email === sharingCredential?.email_address && (
-                        <Badge variant="secondary" className="text-xs">
-                          Email owner
-                        </Badge>
+                      ) : tenantUsers.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          No users found in this organization
+                        </p>
+                      ) : (
+                        <div className="divide-y">
+                          {tenantUsers.map((user) => {
+                            const isCurrentlyShared = sharingCredential?.shared_with_user_ids?.includes(user.id);
+                            return (
+                              <button
+                                key={user.id}
+                                onClick={() => handleAddCrossTenantUser(user)}
+                                className={`w-full flex items-center gap-3 p-2 hover:bg-muted/50 transition-colors text-left ${
+                                  selectedSharedUsers.includes(user.id) ? "bg-primary/10" : ""
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={selectedSharedUsers.includes(user.id)}
+                                  onCheckedChange={() => handleAddCrossTenantUser(user)}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm truncate">{user.name}</div>
+                                  <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                                </div>
+                                {isCurrentlyShared && (
+                                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                                    Shared
+                                  </Badge>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
-                  ))
+                  )}
+                </div>
               )}
+
+              {/* Divider */}
+              {tenantsList.length > 0 && <div className="border-t" />}
+
+              {/* Label for same-tenant users */}
+              <Label className="text-xs text-muted-foreground">
+                Users in your organization
+              </Label>
+
+              {/* Team members list */}
+              <div className="space-y-3 max-h-[250px] overflow-y-auto">
+                {shareableUsers.length === 0 ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Spinner />
+                  </div>
+                ) : (
+                  shareableUsers
+                    .filter((user) => user.id !== sharingCredential?.user_id) // Exclude owner
+                    .map((user) => {
+                      const isCurrentlyShared = sharingCredential?.shared_with_user_ids?.includes(user.id);
+                      return (
+                        <div
+                          key={user.id}
+                          className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                        >
+                          <Checkbox
+                            checked={selectedSharedUsers.includes(user.id)}
+                            onCheckedChange={() => handleToggleUserAccess(user.id)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{user.name}</div>
+                            <div className="text-sm text-muted-foreground truncate">
+                              {user.email}
+                            </div>
+                          </div>
+                          {isCurrentlyShared && (
+                            <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                              Shared
+                            </Badge>
+                          )}
+                          {user.is_cross_tenant && user.tenant_name && (
+                            <Badge variant="outline" className="text-xs">
+                              {user.tenant_name}
+                            </Badge>
+                          )}
+                          {user.email === sharingCredential?.email_address && (
+                            <Badge variant="secondary" className="text-xs">
+                              Email owner
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })
+              )}
+            </div>
             </div>
           )}
 
@@ -1403,6 +1789,290 @@ export function EmailAccountsTab() {
                 </Button>
               </>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Signature Style Selection Dialog (SSoT Feb 2026) */}
+      <Dialog open={signatureDialogOpen} onOpenChange={setSignatureDialogOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSignature className="h-5 w-5" />
+              Email Signature Style
+            </DialogTitle>
+            <DialogDescription>
+              {signatureCredential && (
+                <>
+                  Select a signature style for{" "}
+                  <strong>{signatureCredential.email_address}</strong>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* SSoT (Feb 2026): Per-Account Branding Configuration */}
+          <div className="border rounded-lg">
+            <button
+              type="button"
+              onClick={() => setBrandingExpanded(!brandingExpanded)}
+              className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Palette className="h-5 w-5 text-muted-foreground" />
+                <div className="text-left">
+                  <div className="font-medium text-sm">Company Branding</div>
+                  <div className="text-xs text-muted-foreground">
+                    {brandingDraft.use_default
+                      ? "Using default company settings"
+                      : `Custom: ${brandingDraft.company_name || "Not configured"}`}
+                  </div>
+                </div>
+              </div>
+              {brandingExpanded ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
+
+            {brandingExpanded && (
+              <div className="px-4 pb-4 space-y-4 border-t">
+                {/* Use Default Toggle */}
+                <div className="flex items-center justify-between pt-4">
+                  <div>
+                    <Label htmlFor="use-default-branding" className="text-sm font-medium">
+                      Use Default Company Branding
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      When enabled, uses your organization&apos;s company settings
+                    </p>
+                  </div>
+                  <Switch
+                    id="use-default-branding"
+                    checked={brandingDraft.use_default}
+                    onCheckedChange={(checked) =>
+                      setBrandingDraft({ ...brandingDraft, use_default: checked })
+                    }
+                  />
+                </div>
+
+                {/* Custom Branding Fields - shown when use_default is false */}
+                {!brandingDraft.use_default && (
+                  <div className="space-y-3 pt-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Company Name</Label>
+                        <Input
+                          value={brandingDraft.company_name}
+                          onChange={(e) =>
+                            setBrandingDraft({ ...brandingDraft, company_name: e.target.value })
+                          }
+                          placeholder="TEEEM"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Website</Label>
+                        <Input
+                          value={brandingDraft.website}
+                          onChange={(e) =>
+                            setBrandingDraft({ ...brandingDraft, website: e.target.value })
+                          }
+                          placeholder="https://teeem.au"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Logo (Dark/Email)</Label>
+                        <Input
+                          value={brandingDraft.logo_dark}
+                          onChange={(e) =>
+                            setBrandingDraft({ ...brandingDraft, logo_dark: e.target.value })
+                          }
+                          placeholder="https://..."
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Logo (Light)</Label>
+                        <Input
+                          value={brandingDraft.logo_url}
+                          onChange={(e) =>
+                            setBrandingDraft({ ...brandingDraft, logo_url: e.target.value })
+                          }
+                          placeholder="https://..."
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Address</Label>
+                        <Input
+                          value={brandingDraft.address}
+                          onChange={(e) =>
+                            setBrandingDraft({ ...brandingDraft, address: e.target.value })
+                          }
+                          placeholder="160 Alperton Road"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">City, State</Label>
+                        <Input
+                          value={brandingDraft.city_state}
+                          onChange={(e) =>
+                            setBrandingDraft({ ...brandingDraft, city_state: e.target.value })
+                          }
+                          placeholder="Burbank QLD 4156"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Brand Color</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="color"
+                            value={brandingDraft.brand_color}
+                            onChange={(e) =>
+                              setBrandingDraft({ ...brandingDraft, brand_color: e.target.value })
+                            }
+                            className="h-8 w-12 p-1"
+                          />
+                          <Input
+                            value={brandingDraft.brand_color}
+                            onChange={(e) =>
+                              setBrandingDraft({ ...brandingDraft, brand_color: e.target.value })
+                            }
+                            placeholder="#1a3c34"
+                            className="h-8 text-sm flex-1"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Text on Brand</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="color"
+                            value={brandingDraft.brand_color_foreground}
+                            onChange={(e) =>
+                              setBrandingDraft({ ...brandingDraft, brand_color_foreground: e.target.value })
+                            }
+                            className="h-8 w-12 p-1"
+                          />
+                          <Input
+                            value={brandingDraft.brand_color_foreground}
+                            onChange={(e) =>
+                              setBrandingDraft({ ...brandingDraft, brand_color_foreground: e.target.value })
+                            }
+                            placeholder="#ffffff"
+                            className="h-8 text-sm flex-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+            {/* Style Selection */}
+            <div className="space-y-4">
+              <Label className="text-sm font-medium">Choose Style</Label>
+              <RadioGroup
+                value={selectedStyle}
+                onValueChange={(value) => setSelectedStyle(value as SignatureStyleId)}
+                className="space-y-2"
+              >
+                {SIGNATURE_STYLES.map((style) => (
+                  <div
+                    key={style.id}
+                    className={`flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                      selectedStyle === style.id
+                        ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20"
+                        : "border-border hover:bg-muted/50"
+                    }`}
+                    onClick={() => setSelectedStyle(style.id as SignatureStyleId)}
+                  >
+                    <RadioGroupItem value={style.id} id={style.id} className="mt-0.5" />
+                    <div className="flex-1">
+                      <label
+                        htmlFor={style.id}
+                        className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                      >
+                        {style.name}
+                        {selectedStyle === style.id && (
+                          <Check className="h-4 w-4 text-emerald-600" />
+                        )}
+                      </label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {style.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+
+            {/* Preview */}
+            <div className="space-y-4">
+              <Label className="text-sm font-medium">Preview</Label>
+              <div className="border rounded-lg p-4 bg-white dark:bg-gray-900 min-h-[300px] overflow-auto">
+                {signatureCredential && selectedStyle !== "none" ? (
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: generateSignatureByStyle(
+                        selectedStyle,
+                        getSignatureUserData(signatureCredential),
+                        getSignatureCompanyData()
+                      ).replace(/<!-- TEEEM-EMAIL-SIGNATURE -->/, ""), // Remove marker for preview
+                    }}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                    No signature will be added
+                  </div>
+                )}
+              </div>
+              {selectedStyle !== "none" && (
+                <p className="text-xs text-muted-foreground">
+                  This signature will be automatically added when composing emails from this account.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSignatureDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveSignature}
+              disabled={savingSignature}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {savingSignature ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Signature
+                </>
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -6,7 +6,7 @@ module Sbr
   # SSoT: This is THE service for BAS lodgement
   #
   # Usage:
-  #   lodger = Sbr::BasLodger.new(corporate_company)
+  #   lodger = Sbr::BasLodger.new(corporate)
   #   result = lodger.lodge(period: "2024-Q1")
   #
   class BasLodger
@@ -17,8 +17,8 @@ module Sbr
     QUARTERLY_PERIODS = %w[Q1 Q2 Q3 Q4].freeze
     MONTHLY_PERIODS = (1..12).map { |m| "M#{m.to_s.rjust(2, '0')}" }.freeze
 
-    def initialize(corporate_company)
-      @company = corporate_company
+    def initialize(corporate)
+      @company = corporate
       @client = Client.new if Client.configured?
     end
 
@@ -45,7 +45,7 @@ module Sbr
 
       # Create lodgement record
       lodgement = Gl::BasLodgement.create!(
-        corporate_company: @company,
+        corporate: @company,
         period_code: period,
         period_year: year,
         status: "pending",
@@ -111,7 +111,7 @@ module Sbr
       raise ValidationError, "Company ABN required" unless @company.abn.present?
 
       existing = Gl::BasLodgement.where(
-        corporate_company: @company,
+        corporate: @company,
         period_code: period,
         period_year: year,
         status: "lodged"
@@ -127,7 +127,7 @@ module Sbr
       return false unless @company.abn.present?
 
       !Gl::BasLodgement.where(
-        corporate_company: @company,
+        corporate: @company,
         period_code: period,
         period_year: year,
         status: "lodged"
@@ -220,7 +220,7 @@ module Sbr
 
     def gst_account(type)
       Gl::Account.find_by(
-        corporate_company: @company,
+        corporate: @company,
         account_type: "gst",
         sub_type: type
       )
@@ -228,7 +228,7 @@ module Sbr
 
     def liability_account(sub_type)
       Gl::Account.find_by(
-        corporate_company: @company,
+        corporate: @company,
         account_type: "liability",
         sub_type: sub_type
       )
@@ -256,7 +256,7 @@ module Sbr
 
     def sum_revenue(date_range)
       revenue_accounts = Gl::Account.where(
-        corporate_company: @company,
+        corporate: @company,
         account_type: "revenue"
       )
 

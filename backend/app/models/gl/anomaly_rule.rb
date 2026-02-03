@@ -8,7 +8,7 @@ module Gl
     RULE_TYPES = %w[threshold pattern statistical timing].freeze
     ENTITY_TYPES = %w[invoice payment journal bank_transaction expense].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
 
     validates :name, presence: true
     validates :rule_type, presence: true, inclusion: { in: RULE_TYPES }
@@ -115,7 +115,7 @@ module Gl
       ]
 
       defaults.each do |rule|
-        find_or_create_by!(corporate_company: company, name: rule[:name]) do |r|
+        find_or_create_by!(corporate: company, name: rule[:name]) do |r|
           r.assign_attributes(rule)
         end
       end
@@ -165,7 +165,7 @@ module Gl
 
       # Count similar records in the window
       model = record.class
-      count = model.where(corporate_company_id: corporate_company_id)
+      count = model.where(company_id: company_id)
                    .where("created_at >= ?", record.created_at - count_window)
                    .where("created_at <= ?", record.created_at)
                    .count

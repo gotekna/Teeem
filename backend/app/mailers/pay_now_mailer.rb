@@ -7,7 +7,7 @@ class PayNowMailer < ApplicationMailer
     @supervisor = supervisor
     @purchase_order = request.purchase_order
     @supplier = request.contact
-    @construction = @purchase_order.construction
+    @construction = @purchase_order.job
 
     mail(
       to: supervisor.email,

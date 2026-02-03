@@ -5,7 +5,7 @@ class SmNotificationMailer < ApplicationMailer
 
   def task_reminder(to:, task:)
     @task = task
-    @construction = task.construction
+    @construction = task.job
 
     mail(
       to: to,
@@ -15,7 +15,7 @@ class SmNotificationMailer < ApplicationMailer
 
   def schedule_update(to:, task:)
     @task = task
-    @construction = task.construction
+    @construction = task.job
 
     mail(
       to: to,
@@ -25,7 +25,7 @@ class SmNotificationMailer < ApplicationMailer
 
   def delay_alert(to:, task:)
     @task = task
-    @construction = task.construction
+    @construction = task.job
 
     mail(
       to: to,
@@ -35,7 +35,7 @@ class SmNotificationMailer < ApplicationMailer
 
   def completion_notice(to:, task:)
     @task = task
-    @construction = task.construction
+    @construction = task.job
 
     mail(
       to: to,
@@ -46,7 +46,7 @@ class SmNotificationMailer < ApplicationMailer
   def daily_digest(to:, user:, constructions:)
     @user = user
     @constructions = constructions
-    @tasks_due_today = SmTask.where(construction_id: constructions.pluck(:id))
+    @tasks_due_today = SmTask.where(job_id: constructions.pluck(:id))
                              .where(start_date: Date.current)
                              .where.not(status: "completed")
 
@@ -59,7 +59,7 @@ class SmNotificationMailer < ApplicationMailer
   # Email supplier about task confirmation or schedule update
   def supplier_notification(to:, task:, message:, sender:)
     @task = task
-    @construction = task.construction
+    @construction = task.job
     @message = message
     @sender = sender
     @supplier = task.supplier

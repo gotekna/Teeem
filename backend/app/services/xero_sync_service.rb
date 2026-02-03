@@ -52,7 +52,7 @@ class XeroSyncService
       {
         success: true,
         synced_count: synced_count,
-        total_accounts: @connection.corporate_company_xero_accounts.count
+        total_accounts: @connection.corporate_xero_accounts.count
       }
     rescue XeroAuthService::AuthenticationError => e
       @connection.mark_error!(e.message)
@@ -174,7 +174,7 @@ class XeroSyncService
   private
 
   def sync_account(account_data)
-    account = @connection.corporate_company_xero_accounts.find_or_initialize_by(
+    account = @connection.corporate_xero_accounts.find_or_initialize_by(
       xero_account_id: account_data["AccountID"]
     )
 

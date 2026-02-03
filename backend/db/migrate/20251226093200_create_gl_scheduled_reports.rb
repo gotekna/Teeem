@@ -3,7 +3,7 @@
 class CreateGlScheduledReports < ActiveRecord::Migration[7.1]
   def change
     create_table :gl_scheduled_reports do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :created_by, foreign_key: { to_table: :users }
 
       t.string :name, null: false
@@ -35,6 +35,6 @@ class CreateGlScheduledReports < ActiveRecord::Migration[7.1]
     end
 
     add_index :gl_scheduled_reports, [:active, :next_send_at], name: "idx_scheduled_reports_due"
-    add_index :gl_scheduled_reports, [:corporate_company_id, :report_type], name: "idx_scheduled_reports_type"
+    add_index :gl_scheduled_reports, [:corporate_id, :report_type], name: "idx_scheduled_reports_type"
   end
 end

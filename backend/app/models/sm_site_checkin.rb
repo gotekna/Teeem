@@ -35,10 +35,10 @@ class SmSiteCheckin < ApplicationRecord
   after_create :calculate_distance_from_site
 
   # Class methods
-  def self.check_in(resource:, construction:, latitude:, longitude:, checkin_type: "arrival", user: nil, task: nil)
+  def self.check_in(resource:, job:, latitude:, longitude:, checkin_type: "arrival", user: nil, task: nil)
     create!(
       resource: resource,
-      construction: construction,
+      job: job,
       latitude: latitude,
       longitude: longitude,
       checkin_type: checkin_type,
@@ -59,8 +59,8 @@ class SmSiteCheckin < ApplicationRecord
   end
 
   def allowed_radius
-    # Default 100 meters, can be configured per construction
-    construction&.site_radius_meters || 100
+    # Default 100 meters, can be configured per job
+    job&.site_radius_meters || 100
   end
 
   def duration_on_site
@@ -69,7 +69,7 @@ class SmSiteCheckin < ApplicationRecord
     # Find matching departure
     departure = SmSiteCheckin.where(
       resource_id: resource_id,
-      construction_id: construction_id,
+      job_id: job_id,
       checkin_type: "departure"
     ).where("checked_in_at > ?", checked_in_at).order(:checked_in_at).first
 

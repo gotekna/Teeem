@@ -129,7 +129,7 @@ namespace :tenants do
     # Check config tables have company_group_id
     config_models = [
       JobType, JobStatus, JobStage, ContactType, DocumentType,
-      SmScheduleMasterTemplate, PublicHoliday, EntityTab
+      SmScheduleMasterTemplate, PublicHoliday, WarehouseFolder
     ]
 
     puts "\nConfiguration tables:"
@@ -309,7 +309,7 @@ namespace :tenants do
     assign_to_tenant(DocumentType, tenant, :company_group_id)
     assign_to_tenant(SmScheduleMasterTemplate, tenant, :company_group_id)
     assign_to_tenant(PublicHoliday, tenant, :company_group_id)
-    assign_to_tenant(EntityTab, tenant, :company_group_id)
+    assign_to_tenant(WarehouseFolder, tenant, :company_group_id)
   end
 
   def assign_business_data_to_tenant(tenant)

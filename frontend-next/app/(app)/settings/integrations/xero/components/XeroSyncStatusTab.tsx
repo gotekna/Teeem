@@ -302,9 +302,22 @@ export function XeroSyncStatusTab() {
     fetchData();
   }, [fetchData]);
 
-  const handleRefresh = () => {
+  // FRC (Feb 2026): Refresh now triggers actual sync, not just refetch
+  // This ensures clicking Refresh actually triggers recovery when syncs are stale
+  const handleRefresh = async () => {
     setRefreshing(true);
-    fetchData();
+    try {
+      // First trigger all sync jobs
+      await api.post("/api/v1/xero/trigger_sync_all");
+      // Then refetch status after a short delay to show jobs were queued
+      setTimeout(() => {
+        fetchData();
+      }, 1000);
+    } catch (err) {
+      console.error("Failed to trigger sync:", err);
+      // Still refetch data even if trigger fails
+      fetchData();
+    }
   };
 
   // Calculate overall stats

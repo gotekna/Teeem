@@ -297,7 +297,7 @@ module Api
           # TEEEM staff (teeem.com.au) can see all users, others only see their tenant
           if model.table_name == "users" && current_user.present?
             unless current_user.teeem_staff?
-              query = query.where(corporate_group_id: current_user.corporate_group_id)
+              query = query.where(company_group_id: current_user.company_group_id)
             end
           end
 
@@ -573,7 +573,7 @@ module Api
         # Key tables that the frontend needs to know about
         # Map frontend key -> database slug (MUST match actual Foundation.slug in database!)
         key_mapping = {
-          "gold-standard" => "gold_standard_table",
+          "gold-standard" => "gold-standard",
           "jobs" => "jobs",
           "tasks" => "sm-tasks",
           "pricebook" => "pricebook-items",

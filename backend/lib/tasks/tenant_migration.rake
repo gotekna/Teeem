@@ -3,7 +3,7 @@
 namespace :tenant do
   desc "Assign all NULL tenant data to Tekna (for local dev after /h database pull)"
   task assign_null_to_tekna: :environment do
-    tekna = CorporateGroup.find_by(slug: "tekna") || CorporateGroup.find(1)
+    tekna = CompanyGroup.find_by(slug: "tekna") || CompanyGroup.find(1)
 
     unless tekna
       puts "ERROR: Tekna tenant not found!"
@@ -31,7 +31,7 @@ namespace :tenant do
       SmScheduleMaster,
       SmScheduleMasterTemplate,
       SyncedEmail,
-      EntityTab
+      WarehouseFolder
     ]
 
     total_updated = 0
@@ -65,19 +65,19 @@ namespace :tenant do
     puts "=== Checking user tenant assignments ==="
 
     # Tekna employees (email ends with @tekna.com.au)
-    tekna_users = User.where("email LIKE ?", "%@tekna.com.au").where(corporate_group_id: nil)
+    tekna_users = User.where("email LIKE ?", "%@tekna.com.au").where(tenant_id: nil)
     if tekna_users.any?
-      tekna_users.update_all(corporate_group_id: tekna.id)
+      tekna_users.update_all(tenant_id: tekna.id)
       puts "  Assigned #{tekna_users.count} @tekna.com.au users to Tekna"
     end
 
     # TEEEM staff (email ends with @teeem.com.au) - they should stay NULL for multi-tenant access
     # OR be assigned to TEEEM tenant for proper identification
-    teeem = CorporateGroup.find_by(slug: "teeem")
+    teeem = CompanyGroup.find_by(slug: "teeem")
     if teeem
-      teeem_users = User.where("email LIKE ?", "%@teeem.com.au").where(corporate_group_id: nil)
+      teeem_users = User.where("email LIKE ?", "%@teeem.com.au").where(tenant_id: nil)
       if teeem_users.any?
-        teeem_users.update_all(corporate_group_id: teeem.id)
+        teeem_users.update_all(tenant_id: teeem.id)
         puts "  Assigned #{teeem_users.count} @teeem.com.au users to TEEEM"
       end
     end
@@ -92,10 +92,10 @@ namespace :tenant do
     puts ""
 
     # Check each tenant's data
-    CorporateGroup.where.not(slug: [nil, ""]).order(:name).each do |tenant|
+    CompanyGroup.where.not(slug: [nil, ""]).order(:name).each do |tenant|
       jobs_count = Job.unscoped.where(company_group_id: tenant.id).count
       contacts_count = Contact.unscoped.where(company_group_id: tenant.id).count
-      users_count = User.where(corporate_group_id: tenant.id).count
+      users_count = User.where(tenant_id: tenant.id).count
 
       next if jobs_count == 0 && contacts_count == 0 && users_count == 0
 
@@ -110,7 +110,7 @@ namespace :tenant do
     puts "=== Records with NULL tenant ==="
     null_jobs = Job.unscoped.where(company_group_id: nil).count
     null_contacts = Contact.unscoped.where(company_group_id: nil).count
-    null_users = User.where(corporate_group_id: nil).count
+    null_users = User.where(tenant_id: nil).count
 
     puts "  Jobs: #{null_jobs}"
     puts "  Contacts: #{null_contacts}"

@@ -1,45 +1,87 @@
 # frozen_string_literal: true
 
-# XeroContactSyncJob - Syncs contacts from Xero to TEEEM
+# XeroContactSyncJob - Entry point for Xero contact sync operations
 #
-# Rate Limit Handling (Jan 2026):
-# - Pre-flight lockout check before processing
-# - Catches XeroApiClient::RateLimitError and records lockout
-# - Schedules retry after lockout expires
+# This job has been refactored as part of the Ultra-Scale Xero Sync Architecture (Feb 2026).
+# For bulk tenant syncs, it delegates to XeroContactSyncOrchestratorJob which uses:
+#   - Fan-out pattern: orchestrator -> batch fetchers -> batch processors
+#   - O(1) contact matching (vs O(n²) previously)
+#   - Bulk database operations (vs individual inserts/updates)
+#   - Adaptive rate limiting (vs hardcoded 1.2s delays)
+#
+# Individual contact syncs (webhook-triggered) still use XeroContactSyncService
+# for real-time responsiveness.
 #
 class XeroContactSyncJob < ApplicationJob
   include XeroJobBase
   queue_as :default
 
   # Perform can accept different actions:
-  # - No args: Full sync all tenants
-  # - tenant_id: Sync specific tenant
-  # - contact_id + tenant_id + action: Sync specific contact
-  # - xero_contact_id + tenant_id + action: Import from Xero
+  # - No args: Full sync all tenants (delegates to orchestrator)
+  # - tenant_id: Sync specific tenant (delegates to orchestrator)
+  # - contact_id + tenant_id + action: Sync specific contact (uses service)
+  # - xero_contact_id + tenant_id + action: Import from Xero (uses service)
   #
-  # All syncing uses XeroContactSyncService which manages contact_external_links (SSoT)
+  # Bulk syncs: XeroContactSyncOrchestratorJob (new, Feb 2026)
+  # Single contact: XeroContactSyncService (existing, for webhooks)
   def perform(options = {})
     options = options.with_indifferent_access if options.is_a?(Hash)
 
     # Route to appropriate handler based on options
     if options[:action] == "sync_from_xero" && options[:contact_id]
+      # Single contact sync (webhook-triggered) - use service for speed
       sync_contact_from_xero(options[:contact_id], options[:tenant_id])
     elsif options[:action] == "import_from_xero" && options[:xero_contact_id]
+      # Import single contact from Xero - use service
       import_contact_from_xero(options[:xero_contact_id], options[:tenant_id])
-    elsif options[:tenant_id]
+    elsif options[:use_legacy_sync]
+      # Escape hatch: force legacy sync if new architecture has issues
+      # Remove this option after new architecture is validated
+      legacy_sync(options)
+    else
+      # Bulk sync - delegate to orchestrator (new architecture)
+      delegate_to_orchestrator(options)
+    end
+  end
+
+  private
+
+  # Delegate bulk syncs to the new orchestrator-based architecture
+  # This provides: O(1) matching, bulk DB operations, adaptive rate limiting
+  def delegate_to_orchestrator(options)
+    if options[:tenant_id]
+      # Specific tenant - still use orchestrator but pass the tenant filter
+      Rails.logger.info("[XeroContactSyncJob] Delegating tenant #{options[:tenant_id]} to orchestrator")
+      XeroContactSyncOrchestratorJob.perform_later(
+        tenant_filter: options[:tenant_id],
+        force_full: options[:force_full]
+      )
+    else
+      # All tenants
+      Rails.logger.info("[XeroContactSyncJob] Delegating all tenants to orchestrator")
+      XeroContactSyncOrchestratorJob.perform_later(
+        force_full: options[:force_full]
+      )
+    end
+  end
+
+  # ============================================
+  # LEGACY SYNC (escape hatch)
+  # ============================================
+  # Remove after new architecture is validated
+
+  def legacy_sync(options)
+    if options[:tenant_id]
       sync_tenant_with_rate_limiting(options[:tenant_id], options)
     else
       sync_all_tenants_with_rate_limiting(options)
     end
   end
 
-  private
-
   # SSoT: Rate-limited sync for all tenants
   def sync_all_tenants_with_rate_limiting(options)
-    Rails.logger.info("XeroContactSyncJob: Syncing all tenants with rate limiting")
+    Rails.logger.info("XeroContactSyncJob: Syncing all tenants with rate limiting (LEGACY MODE)")
 
-    # Get all connected credentials
     credentials = XeroCredential.where(status: %w[connected degraded])
 
     if credentials.empty?
@@ -55,12 +97,11 @@ class XeroContactSyncJob < ApplicationJob
     }
 
     credentials.find_each do |credential|
-      # Check for lockout before each tenant
       lockout = XeroRateLimitTracker.current_lockout(tenant_id: credential.tenant_id)
       if lockout
         lockout_remaining = XeroRateLimitTracker.lockout_remaining_seconds(tenant_id: credential.tenant_id)
         Rails.logger.warn("XeroContactSyncJob: Tenant #{credential.tenant_name} locked out for #{lockout_remaining}s, scheduling retry")
-        self.class.set(wait: (lockout_remaining + 60).seconds).perform_later(options.merge(tenant_id: credential.tenant_id))
+        self.class.set(wait: (lockout_remaining + 60).seconds).perform_later(options.merge(tenant_id: credential.tenant_id, use_legacy_sync: true))
         combined_result[:errors] << { tenant_id: credential.tenant_id, error: "Rate limited, scheduled retry" }
         next
       end
@@ -73,9 +114,6 @@ class XeroContactSyncJob < ApplicationJob
         handle_rate_limit_error(credential.tenant_id, e, options)
         combined_result[:success] = false
         combined_result[:errors] << { tenant_id: credential.tenant_id, error: "Rate limited" }
-        # FRC (Jan 2026): Changed break→next for multi-tenant SaaS scaling
-        # Xero rate limits are per-connection, not global. If tenant A is rate-limited,
-        # tenants B-Z should still sync. Critical for 10-15K connection scaling.
         next
       rescue StandardError => e
         combined_result[:errors] << { tenant_id: credential.tenant_id, error: e.message }
@@ -87,13 +125,11 @@ class XeroContactSyncJob < ApplicationJob
 
   # SSoT: Rate-limited sync for specific tenant
   def sync_tenant_with_rate_limiting(tenant_id, options)
-    # Pre-flight lockout check
     lockout = XeroRateLimitTracker.current_lockout(tenant_id: tenant_id)
     if lockout
       lockout_remaining = XeroRateLimitTracker.lockout_remaining_seconds(tenant_id: tenant_id)
       Rails.logger.warn("XeroContactSyncJob: BLOCKED - Xero rate limit lockout for #{lockout_remaining}s")
-      # Schedule retry after lockout expires
-      self.class.set(wait: (lockout_remaining + 60).seconds).perform_later(options.merge(tenant_id: tenant_id))
+      self.class.set(wait: (lockout_remaining + 60).seconds).perform_later(options.merge(tenant_id: tenant_id, use_legacy_sync: true))
       return { success: false, blocked_by_lockout: true, retry_in_seconds: lockout_remaining + 60 }
     end
 
@@ -107,21 +143,19 @@ class XeroContactSyncJob < ApplicationJob
 
   # Internal sync logic (without rate limit wrapper)
   def sync_tenant_internal(tenant_id)
-    Rails.logger.info("XeroContactSyncJob: Syncing tenant #{tenant_id}")
+    Rails.logger.info("XeroContactSyncJob: Syncing tenant #{tenant_id} (LEGACY MODE)")
 
-    # Mark sync as in progress
     XeroSyncStatus.start_sync!("contacts", tenant_id: tenant_id)
 
     service = XeroContactSyncService.new(tenant_id: tenant_id)
     result = service.sync
 
-    # Update SSoT with success
     records_synced = result[:stats][:synced].to_i rescue 0
     XeroSyncStatus.complete_sync!(
       "contacts",
       tenant_id: tenant_id,
       records_synced: records_synced,
-      next_sync_at: 30.minutes.from_now
+      next_sync_at: 15.minutes.from_now
     )
 
     result
@@ -131,7 +165,6 @@ class XeroContactSyncJob < ApplicationJob
     raise
   end
 
-  # Handle rate limit errors by recording lockout and scheduling retry
   def handle_rate_limit_error(tenant_id, error, options)
     retry_after = extract_retry_after(error.message)
     XeroRateLimitTracker.record_lockout!(retry_after, tenant_id: tenant_id)
@@ -139,20 +172,24 @@ class XeroContactSyncJob < ApplicationJob
     Rails.logger.warn("XeroContactSyncJob: RATE LIMITED - Scheduling retry in #{retry_after + 60}s")
     XeroSyncStatus.fail_sync!("contacts", tenant_id: tenant_id, error: "Rate limited by Xero - retry in #{retry_after}s")
 
-    # Schedule retry after lockout expires
-    self.class.set(wait: (retry_after + 60).seconds).perform_later(options.merge(tenant_id: tenant_id))
+    self.class.set(wait: (retry_after + 60).seconds).perform_later(options.merge(tenant_id: tenant_id, use_legacy_sync: true))
   end
 
-  # Extract retry_after seconds from RateLimitError message
   def extract_retry_after(message)
     match = message.to_s.match(/retry after (\d+)/i)
-    match ? match[1].to_i : 3600  # Default 1 hour if not parseable
+    match ? match[1].to_i : 3600
   end
+
+  # ============================================
+  # SINGLE CONTACT SYNC (for webhooks)
+  # ============================================
+  # These still use XeroContactSyncService for real-time responsiveness
 
   def sync_contact_from_xero(contact_id, tenant_id)
     Rails.logger.info("XeroContactSyncJob: Syncing contact #{contact_id} from Xero tenant #{tenant_id}")
     contact = Contact.find(contact_id)
-    link = contact.xero_links.find_by(tenant_id: tenant_id)
+    # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
+    link = contact.xero_links.find_by(xero_org_id: tenant_id)
 
     if link
       service = XeroContactSyncService.new(tenant_id: tenant_id)

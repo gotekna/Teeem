@@ -63,7 +63,7 @@ class Notification < ApplicationRecord
                 when "EmailSnooze"
                   # Link to email page - find the email ID from the snooze
                   snooze = EmailSnooze.find_by(id: notifiable_id)
-                  snooze&.synced_email_id ? "/email?id=#{snooze.synced_email_id}" : nil
+                  snooze&.email_warehouse_id ? "/email?id=#{snooze.email_warehouse_id}" : nil
                 end
   end
 end

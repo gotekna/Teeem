@@ -7,7 +7,7 @@ module Gl
 
     SNAPSHOT_TYPES = %w[daily monthly quarterly annual eofy].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :created_by, class_name: "User", optional: true
 
     validates :snapshot_type, presence: true, inclusion: { in: SNAPSHOT_TYPES }
@@ -22,7 +22,7 @@ module Gl
     # Create daily snapshot
     def self.daily_snapshot!(company, date: Date.current, user: nil)
       create!(
-        corporate_company: company,
+        corporate: company,
         snapshot_type: "daily",
         snapshot_date: date,
         created_by: user
@@ -32,7 +32,7 @@ module Gl
     # Create monthly snapshot
     def self.monthly_snapshot!(company, month_end: Date.current.end_of_month, user: nil)
       create!(
-        corporate_company: company,
+        corporate: company,
         snapshot_type: "monthly",
         snapshot_date: month_end,
         created_by: user
@@ -42,7 +42,7 @@ module Gl
     # Create EOFY snapshot
     def self.eofy_snapshot!(company, fy_end: Date.new(Date.current.year, 6, 30), user: nil)
       create!(
-        corporate_company: company,
+        corporate: company,
         snapshot_type: "eofy",
         snapshot_date: fy_end,
         created_by: user
@@ -78,38 +78,38 @@ module Gl
     end
 
     def capture_totals
-      self.invoice_count = corporate_company.gl_invoices.where("date <= ?", snapshot_date).count
-      self.payment_count = corporate_company.gl_payments.where("date <= ?", snapshot_date).count
-      self.journal_count = corporate_company.gl_journal_entries.where("date <= ?", snapshot_date).count
+      self.invoice_count = corporate.gl_invoices.where("date <= ?", snapshot_date).count
+      self.payment_count = corporate.gl_payments.where("date <= ?", snapshot_date).count
+      self.journal_count = corporate.gl_journal_entries.where("date <= ?", snapshot_date).count
 
       # Calculate totals from trial balance
       # This is simplified - would need proper implementation
-      self.total_revenue = corporate_company.gl_accounts.where(account_type: "revenue").sum(:balance).abs
-      self.total_expenses = corporate_company.gl_accounts.where(account_type: "expense").sum(:balance)
-      self.total_assets = corporate_company.gl_accounts.where(account_type: "asset").sum(:balance)
-      self.total_liabilities = corporate_company.gl_accounts.where(account_type: "liability").sum(:balance).abs
+      self.total_revenue = corporate.gl_accounts.where(account_type: "revenue").sum(:balance).abs
+      self.total_expenses = corporate.gl_accounts.where(account_type: "expense").sum(:balance)
+      self.total_assets = corporate.gl_accounts.where(account_type: "asset").sum(:balance)
+      self.total_liabilities = corporate.gl_accounts.where(account_type: "liability").sum(:balance).abs
     end
 
     def export_accounts
-      corporate_company.gl_accounts.order(:code).as_json
+      corporate.gl_accounts.order(:code).as_json
     end
 
     def export_trial_balance
-      corporate_company.gl_accounts.map do |a|
+      corporate.gl_accounts.map do |a|
         { code: a.code, name: a.name, debit: a.balance.positive? ? a.balance : 0, credit: a.balance.negative? ? a.balance.abs : 0 }
       end
     end
 
     def export_invoices
-      corporate_company.gl_invoices.where("date <= ?", snapshot_date).as_json
+      corporate.gl_invoices.where("date <= ?", snapshot_date).as_json
     end
 
     def export_payments
-      corporate_company.gl_payments.where("date <= ?", snapshot_date).as_json
+      corporate.gl_payments.where("date <= ?", snapshot_date).as_json
     end
 
     def export_journals
-      corporate_company.gl_journal_entries.where("date <= ?", snapshot_date).as_json
+      corporate.gl_journal_entries.where("date <= ?", snapshot_date).as_json
     end
   end
 end

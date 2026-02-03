@@ -63,9 +63,9 @@ module Gl
       field = config["field"]
 
       base_query = case entity
-                   when "invoices" then Gl::Invoice.where(corporate_company: dashboard.corporate_company)
-                   when "payments" then Gl::Payment.where(corporate_company: dashboard.corporate_company)
-                   when "jobs" then Job.where(corporate_company: dashboard.corporate_company)
+                   when "invoices" then Gl::Invoice.where(corporate: dashboard.corporate)
+                   when "payments" then Gl::Payment.where(corporate: dashboard.corporate)
+                   when "jobs" then Job.where(corporate: dashboard.corporate)
                    else return {}
                    end
 

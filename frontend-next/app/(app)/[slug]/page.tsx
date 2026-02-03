@@ -22,8 +22,8 @@ import { notFound } from "next/navigation";
  * elsewhere and this catch-all shouldn't handle it).
  *
  * Why: Next.js routing can fall through to [slug] when deep paths under
- * static routes don't exist (e.g., /settings/system/entity-config/foo
- * matches [slug]=settings when /settings/system/entity-config/ doesn't exist).
+ * static routes don't exist (e.g., /settings/system/warehouse-config/foo
+ * matches [slug]=settings when /settings/system/warehouse-config/ doesn't exist).
  */
 const STATIC_ROUTE_PREFIXES = [
   "settings",

@@ -13,7 +13,7 @@ namespace :bills do
     bill.reload
 
     puts "Done!"
-    puts "  corporate_company_id: #{bill.corporate_company_id}"
+    puts "  corporate_company_id: #{bill.corporate_id}"
     puts "  billing_company_name: #{result['billing_company_name']}"
     puts "  field_locations present: #{result['field_locations'].present?}"
     puts "  field_locations keys: #{result['field_locations']&.keys&.join(', ')}"

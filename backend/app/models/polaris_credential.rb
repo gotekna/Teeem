@@ -6,12 +6,15 @@
 # API endpoint: https://cfcp.emailarray.com/admin/json.php
 #
 # Usage:
-#   credential = PolarisCredential.active_for_org(organization)
+#   credential = PolarisCredential.active_for_tenant(tenant)
 #   service = PolarisMailService.new(credential)
 #   service.create_mailbox(domain: "example.com", username: "john", ...)
 #
+# SSoT (Feb 2026): Uses Tenant for isolation, Organization deprecated.
+#
 class PolarisCredential < ApplicationRecord
-  belongs_to :organization
+  # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
+  belongs_to :tenant
 
   # Encrypt credentials (stored as api_key/api_secret for DB compatibility)
   encrypts :api_key      # Admin username
@@ -26,18 +29,20 @@ class PolarisCredential < ApplicationRecord
 
   # Validations
   validates :api_key, :api_secret, presence: true
-  validates :organization_id, uniqueness: { conditions: -> { where(is_active: true) } }
+  validates :tenant_id, uniqueness: { conditions: -> { where(is_active: true) } }
   validates :status, inclusion: { in: STATUSES }
 
   # Scopes
   scope :active, -> { where(is_active: true) }
   scope :connected, -> { active.where(status: "connected") }
-  scope :for_org, ->(org) { where(organization: org) }
+  # SSoT (Feb 2026): Tenant-scoped lookup
+  scope :for_tenant, ->(tenant) { where(tenant: tenant) }
 
-  # SSoT: Organization-scoped lookup
-  def self.active_for_org(organization)
-    for_org(organization).active.connected.first
+  # SSoT (Feb 2026): Tenant-scoped lookup
+  def self.active_for_tenant(tenant)
+    for_tenant(tenant).active.connected.first
   end
+
 
   # Connection testing
   def test_connection!

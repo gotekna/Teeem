@@ -3,7 +3,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,7 +38,6 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
-  useSetLayoutMode("full-height");
   const { user } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
@@ -105,7 +103,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 -mt-2"> {/* -mt-2 adjusts for pt-6 vs pt-4 difference */}
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight font-serif">Dashboard</h1>

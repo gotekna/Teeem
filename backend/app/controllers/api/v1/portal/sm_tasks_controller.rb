@@ -17,7 +17,7 @@ module Api
           tasks = tasks.where(status: params[:status]) if params[:status].present?
 
           # Filter by construction
-          tasks = tasks.where(construction_id: params[:job_id]) if params[:job_id].present?
+          tasks = tasks.where(job_id: params[:job_id]) if params[:job_id].present?
 
           # Categorize
           render json: {
@@ -58,7 +58,7 @@ module Api
             task.supplier_confirmed_at = Time.current
             SmActivity.track(
               "task_updated",
-              construction: task.construction,
+              construction: task.job,
               task: task,
               metadata: {
                 task_name: task.name,
@@ -92,7 +92,7 @@ module Api
           if comment.save
             SmActivity.track(
               "comment_added",
-              construction: task.construction,
+              construction: task.job,
               task: task,
               trackable: comment,
               metadata: {
@@ -217,9 +217,9 @@ module Api
             photos_count: task.task_photos.size,
             comments_count: task.comments.not_deleted.size,
             construction: {
-              id: task.construction_id,
-              name: task.construction.name,
-              address: task.construction.street_address
+              id: task.job_id,
+              name: task.job.name,
+              address: task.job.street_address
             }
           }
         end

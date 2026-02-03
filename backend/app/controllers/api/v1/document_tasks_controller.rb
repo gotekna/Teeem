@@ -32,8 +32,8 @@ module Api
           blob = doc.storage_blob
           {
             id: doc.id,
-            name: doc.display_name || doc.original_filename || "Untitled",
-            file_name: doc.original_filename || doc.display_name,
+            name: doc.ui_name || doc.original_filename || "Untitled",
+            file_name: doc.original_filename || doc.ui_name,
             file_size: doc.file_size || blob&.file_size || 0,
             content_type: blob&.content_type || doc.content_type,
             folder_path: doc.folder,

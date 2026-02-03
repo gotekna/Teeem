@@ -13,7 +13,7 @@
 class AddStorageBlobToDocuments < ActiveRecord::Migration[8.0]
   def change
     # CorporateCompanyDocument - main document storage (12,783+ records)
-    add_reference :corporate_company_documents, :storage_blob, foreign_key: true, index: true
+    add_reference :corporate_documents, :storage_blob, foreign_key: true, index: true
 
     # ChatMessage - chat attachments (5 records)
     add_reference :chat_messages, :storage_blob, foreign_key: true, index: true
@@ -22,8 +22,8 @@ class AddStorageBlobToDocuments < ActiveRecord::Migration[8.0]
     add_reference :bill_inboxes, :storage_blob, foreign_key: true, index: true
 
     # Add index on content_hash for deduplication lookups (if not exists)
-    unless index_exists?(:corporate_company_documents, :content_hash)
-      add_index :corporate_company_documents, :content_hash, where: "content_hash IS NOT NULL"
+    unless index_exists?(:corporate_documents, :content_hash)
+      add_index :corporate_documents, :content_hash, where: "content_hash IS NOT NULL"
     end
   end
 end

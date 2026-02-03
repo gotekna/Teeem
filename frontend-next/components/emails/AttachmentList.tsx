@@ -8,6 +8,8 @@ import {
   FileSpreadsheet,
   File,
   Download,
+  Eye,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -54,6 +56,8 @@ export interface Attachment {
   // For inline images: content_id matches cid: references in HTML
   content_id?: string;
   inline_url?: string;
+  // Flag: true if this is an inline image (signature) that shouldn't show in attachment list
+  is_inline?: boolean;
 }
 
 interface AttachmentListProps {
@@ -79,10 +83,10 @@ function getFileIcon(contentType?: string, name?: string) {
 }
 
 // Check if attachment is a signature/embedded image that should be hidden
-// Disabled: User wants to see all attachments including signature images
-function isSignatureAttachment(_attachment: Attachment): boolean {
-  // No filtering - show all attachments
-  return false;
+// FRC (Feb 2026): Re-enabled filtering via is_inline flag from backend
+function isSignatureAttachment(attachment: Attachment): boolean {
+  // Backend marks inline signature images with is_inline: true
+  return attachment.is_inline === true;
 }
 
 export function AttachmentList({ attachments, emailId, className }: AttachmentListProps) {
@@ -417,7 +421,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           </Button>
         )}
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
         {visibleAttachments.map((attachment, idx) => {
           const Icon = getFileIcon(attachment.content_type, attachment.name);
           const isLoading = loading === attachment.name;
@@ -426,38 +430,41 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           return (
             <div
               key={attachment.id || idx}
-              className="flex items-center gap-1 text-sm group"
+              className="flex items-center gap-1.5 text-sm"
             >
               <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-              <button
-                onClick={hasId ? () => handlePreviewInPopup(attachment) : undefined}
-                onDoubleClick={hasId ? (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleOpenInNewWindow(attachment);
-                } : undefined}
+              <span
                 className={cn(
-                  "truncate text-left max-w-[200px]",
-                  hasId && "text-primary hover:underline cursor-pointer",
-                  !hasId && "text-foreground",
+                  "truncate max-w-[200px]",
                   isLoading && "opacity-50"
                 )}
-                title="Click to preview, double-click to open in new tab"
-                disabled={!hasId}
+                title={attachment.name}
               >
                 {attachment.name}
-              </button>
+              </span>
               {hasId && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => { e.stopPropagation(); handleDownload(attachment, e); }}
-                  disabled={isLoading}
-                  title="Download"
-                >
-                  <Download className={cn("h-3 w-3", isLoading && "animate-spin")} />
-                </Button>
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 w-5 p-0"
+                    onClick={() => handlePreviewInPopup(attachment)}
+                    disabled={isLoading}
+                    title="Preview"
+                  >
+                    <Eye className={cn("h-3.5 w-3.5 text-muted-foreground hover:text-foreground", isLoading && "animate-pulse")} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 w-5 p-0"
+                    onClick={(e) => handleDownload(attachment, e)}
+                    disabled={isLoading}
+                    title="Download"
+                  >
+                    <Download className={cn("h-3.5 w-3.5 text-muted-foreground hover:text-foreground", isLoading && "animate-spin")} />
+                  </Button>
+                </>
               )}
               {attachment.size && (
                 <span className="text-xs text-muted-foreground">

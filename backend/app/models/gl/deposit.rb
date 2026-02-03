@@ -9,7 +9,7 @@ module Gl
     STATUSES = %w[received partially_applied fully_applied refunded].freeze
     PAYMENT_METHODS = %w[cash check eft credit_card other].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :contact
     belongs_to :job, optional: true
     belongs_to :received_by, class_name: "User", optional: true
@@ -18,7 +18,7 @@ module Gl
     has_many :allocations, class_name: "Gl::DepositAllocation", foreign_key: "deposit_id", dependent: :destroy
     has_many :invoices, through: :allocations
 
-    validates :reference, presence: true, uniqueness: { scope: :corporate_company_id }
+    validates :reference, presence: true, uniqueness: { scope: :corporate_id }
     validates :received_date, presence: true
     validates :amount, presence: true, numericality: { greater_than: 0 }
     validates :deposit_type, presence: true, inclusion: { in: DEPOSIT_TYPES }
@@ -135,7 +135,7 @@ module Gl
                end
 
       year = Date.current.year.to_s[-2..]
-      sequence = self.class.where(corporate_company_id: corporate_company_id)
+      sequence = self.class.where(company_id: company_id)
                            .where("reference LIKE ?", "#{prefix}#{year}%")
                            .count + 1
 

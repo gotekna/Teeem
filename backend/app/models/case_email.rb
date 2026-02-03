@@ -5,8 +5,7 @@ class CaseEmail < ApplicationRecord
   belongs_to :email_warehouse, class_name: "SyncedEmail"
   belongs_to :added_by, class_name: "User", optional: true
 
-  # Alias for legacy column name (EmailWarehouse was renamed to SyncedEmail)
-  alias_attribute :synced_email_id, :email_warehouse_id
+  # Alias for legacy association name (EmailWarehouse was renamed to SyncedEmail)
   # Use alias_method for associations (alias_attribute only works for columns in Rails 8)
   alias_method :synced_email, :email_warehouse
   alias_method :synced_email=, :email_warehouse=

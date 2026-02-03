@@ -9,7 +9,7 @@ module Gl
     SEVERITIES = %w[low medium high critical].freeze
     STATUSES = %w[open investigating resolved dismissed].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :anomalable, polymorphic: true, optional: true
     belongs_to :assigned_to, class_name: "User", optional: true
     belongs_to :resolved_by, class_name: "User", optional: true
@@ -59,7 +59,7 @@ module Gl
       rules.each do |rule|
         if rule.matches?(record)
           anomalies << create!(
-            corporate_company: company,
+            corporate: company,
             anomalable: record,
             anomaly_type: rule.rule_type,
             severity: rule.severity,
@@ -86,7 +86,7 @@ module Gl
         avg_invoice = company.gl_invoices.where(invoice_type: record.invoice_type).average(:total) || 0
         if record.total > avg_invoice * 3 && avg_invoice > 0
           anomalies << create!(
-            corporate_company: company,
+            corporate: company,
             anomalable: record,
             anomaly_type: "unusual_amount",
             severity: "high",
@@ -100,7 +100,7 @@ module Gl
         # Payment without invoice
         if record.allocations.empty? && record.amount > 1000
           anomalies << create!(
-            corporate_company: company,
+            corporate: company,
             anomalable: record,
             anomaly_type: "pattern_break",
             severity: "medium",
@@ -115,7 +115,7 @@ module Gl
 
     # Summary stats
     def self.summary(company)
-      base = where(corporate_company: company)
+      base = where(corporate: company)
 
       {
         total_open: base.open.count,

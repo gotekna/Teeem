@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :gl_account, class_name: 'Gl::Account', optional: true  # Specific bank or all
     belongs_to :target_account, class_name: 'Gl::Account', optional: true
 

@@ -88,7 +88,7 @@ class AssetServiceHistory < ApplicationRecord
   private
 
   def create_activity
-    asset.company.corporate_company_activities.create!(
+    asset.company.corporate_activities.create!(
       activity_type: "asset_service_recorded",
       description: "Service recorded for #{asset.display_name}: #{formatted_service_type}",
       metadata: {

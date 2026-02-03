@@ -41,8 +41,8 @@ class SmScheduleMaster < ApplicationRecord
   # SmTasks created from this template - nullify on delete so tasks remain but lose template link
   has_many :sm_tasks, dependent: :nullify
 
-  # Photo storage EntityTab
-  belongs_to :photo_entity_tab, class_name: "EntityTab", optional: true
+  # Photo storage WarehouseFolder
+  belongs_to :photo_entity_tab, class_name: "WarehouseFolder", optional: true
 
   # Auto-PO supplier - for create_po_on_job_start feature
   belongs_to :po_supplier, class_name: "Contact", optional: true
@@ -174,22 +174,29 @@ class SmScheduleMaster < ApplicationRecord
     plan_type_ids || []
   end
 
-  # EntityTabs for documents sent on START
-  def start_entity_tabs
+  # WarehouseFolders for documents sent on START
+  def start_warehouse_folders
     return [] if start_entity_tab_ids.blank?
-    EntityTab.where(id: start_entity_tab_ids)
+    WarehouseFolder.where(id: start_entity_tab_ids)
   end
 
-  # EntityTabs for documents received on COMPLETE
-  def complete_entity_tabs
+  # WarehouseFolders for documents received on COMPLETE
+  def complete_warehouse_folders
     return [] if complete_entity_tab_ids.blank?
-    EntityTab.where(id: complete_entity_tab_ids)
+    WarehouseFolder.where(id: complete_entity_tab_ids)
   end
 
-  # All linked EntityTab IDs (start + complete)
-  def all_entity_tab_ids
+  # All linked WarehouseFolder IDs (start + complete)
+  def all_warehouse_folder_ids
     (start_entity_tab_ids || []) + (complete_entity_tab_ids || [])
   end
+
+  # DEPRECATED: Use start_warehouse_folders (Jan 2026)
+  alias_method :start_entity_tabs, :start_warehouse_folders
+  # DEPRECATED: Use complete_warehouse_folders (Jan 2026)
+  alias_method :complete_entity_tabs, :complete_warehouse_folders
+  # DEPRECATED: Use all_warehouse_folder_ids (Jan 2026)
+  alias_method :all_entity_tab_ids, :all_warehouse_folder_ids
 
   # Multi-template management methods
 

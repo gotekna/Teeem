@@ -102,6 +102,8 @@ import {
   Users,
   X,
   RefreshCw,
+  Printer,
+  Save,
 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -1064,6 +1066,72 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [duration, setDuration] = useState(task.duration_days);
   const [loading, setLoading] = useState<string | null>(null);
 
+  // Notes state
+  interface TaskNote {
+    id: number;
+    content: string;
+    created_at: string;
+    user: { id: number; name: string; avatar_url?: string };
+  }
+  const [notes, setNotes] = useState<TaskNote[]>([]);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [noteLoading, setNoteLoading] = useState(false);
+
+  // Fetch notes on mount
+  useEffect(() => {
+    const fetchNotes = async () => {
+      try {
+        const response = await api.get<{ success: boolean; notes: TaskNote[] }>(
+          `/api/v1/sm_tasks/${task.id}/notes`
+        );
+        if (response?.success) {
+          setNotes(response.notes);
+        }
+      } catch (err) {
+        console.error('[TaskFullscreenView] Failed to fetch notes:', err);
+      }
+    };
+    fetchNotes();
+  }, [task.id]);
+
+  // Add a new note
+  const handleAddNote = async () => {
+    if (!newNoteText.trim()) return;
+    setNoteLoading(true);
+    try {
+      const response = await api.post<{ success: boolean; note: TaskNote }>(
+        `/api/v1/sm_tasks/${task.id}/notes`,
+        { content: newNoteText.trim() }
+      );
+      if (response?.success && response.note) {
+        setNotes(prev => [response.note, ...prev]);
+        setNewNoteText('');
+        toast.success('Note added');
+      }
+    } catch (err) {
+      console.error('[TaskFullscreenView] Failed to add note:', err);
+      toast.error('Failed to add note');
+    } finally {
+      setNoteLoading(false);
+    }
+  };
+
+  // Delete a note
+  const handleDeleteNote = async (noteId: number) => {
+    try {
+      const response = await api.delete<{ success: boolean }>(
+        `/api/v1/sm_tasks/${task.id}/notes/${noteId}`
+      );
+      if (response?.success) {
+        setNotes(prev => prev.filter(n => n.id !== noteId));
+        toast.success('Note deleted');
+      }
+    } catch (err) {
+      console.error('[TaskFullscreenView] Failed to delete note:', err);
+      toast.error('Failed to delete note');
+    }
+  };
+
   // Cascade completion
   const [showCascadeDialog, setShowCascadeDialog] = useState(false);
   const [linkedTasks, setLinkedTasks] = useState<SmTask[]>([]);
@@ -1119,6 +1187,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Email-to-document highlighting state
   const [selectedEmailForHighlight, setSelectedEmailForHighlight] = useState<number | null>(null);
   const [highlightedDocHashes, setHighlightedDocHashes] = useState<Set<string>>(new Set());
+
+  // PO PDF action states (for tasks with linked purchase orders)
+  const [poPdfLoading, setPoPdfLoading] = useState<'preview' | 'save' | 'send' | null>(null);
+  const [poPreviewModalOpen, setPoPreviewModalOpen] = useState(false);
+  const [poPreviewHtml, setPoPreviewHtml] = useState('');
+  const [poSendModalOpen, setPoSendModalOpen] = useState(false);
 
   // Email source filter - filter emails by which source they came from
   const [emailSourceFilter, setEmailSourceFilter] = useState<{
@@ -2221,8 +2295,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   const handleJobChange = async (jobId: number | null) => {
     setLoading('job');
-    // Backend permits job_id, not construction_id. Also update construction_id for optimistic UI.
-    await updateTask(task.id, { job_id: jobId || 0, construction_id: jobId || 0 } as Partial<SmTask>);
+    await updateTask(task.id, { job_id: jobId || 0 } as Partial<SmTask>);
     setLoading(null);
   };
 
@@ -2775,6 +2848,89 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       }
       return next;
     });
+  };
+
+  // ============================================================================
+  // PO PDF ACTIONS (for tasks with linked purchase orders)
+  // ============================================================================
+
+  const handlePoPrint = () => {
+    if (!task.purchase_order_id) return;
+    window.open(`/api/v1/purchase_orders/${task.purchase_order_id}/generate_pdf`, '_blank');
+  };
+
+  const handlePoPreview = async () => {
+    if (!task.purchase_order_id) return;
+    try {
+      setPoPdfLoading('preview');
+      const baseUrl = getApiBaseUrl();
+      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
+      const headers: HeadersInit = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${baseUrl}/api/v1/purchase_orders/${task.purchase_order_id}/generate_pdf?format=html`, {
+        headers,
+        credentials: 'include',
+      });
+      const html = await response.text();
+      setPoPreviewHtml(html);
+      setPoPreviewModalOpen(true);
+    } catch (err) {
+      console.error('Failed to load PO preview:', err);
+      toast.error('Could not load PO preview');
+    } finally {
+      setPoPdfLoading(null);
+    }
+  };
+
+  const handlePoSavePdf = async () => {
+    if (!task.purchase_order_id) return;
+    try {
+      setPoPdfLoading('save');
+      const response = await api.post<{
+        success: boolean;
+        filename: string;
+        message: string;
+        error?: string;
+      }>(`/api/v1/purchase_orders/${task.purchase_order_id}/save_pdf`);
+
+      if (response?.success) {
+        toast.success(response.message || `Saved as ${response.filename}`);
+      } else {
+        toast.error(response?.error || 'Failed to save PDF');
+      }
+    } catch (err) {
+      console.error('Failed to save PO PDF:', err);
+      toast.error('Could not save PDF to warehouse');
+    } finally {
+      setPoPdfLoading(null);
+    }
+  };
+
+  const handlePoSendEmail = async () => {
+    if (!task.purchase_order_id) return;
+    try {
+      setPoPdfLoading('send');
+      const response = await api.post<{
+        success: boolean;
+        message: string;
+        error?: string;
+      }>(`/api/v1/purchase_orders/${task.purchase_order_id}/send_email`);
+
+      if (response?.success) {
+        toast.success(response.message);
+        setPoSendModalOpen(false);
+        await refresh();
+      } else {
+        toast.error(response?.error || 'Failed to send email');
+      }
+    } catch (err) {
+      console.error('Failed to send PO email:', err);
+      toast.error('Could not send email to supplier');
+    } finally {
+      setPoPdfLoading(null);
+    }
   };
 
   // Download an attachment document
@@ -5143,6 +5299,71 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   ) : null}
                 </div>
 
+                {/* Notes Section */}
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Notes</h4>
+                    <span className="text-xs text-muted-foreground">{notes.length} note{notes.length !== 1 ? 's' : ''}</span>
+                  </div>
+
+                  {/* Add note input */}
+                  <div className="flex gap-2">
+                    <Textarea
+                      placeholder="Add a note..."
+                      value={newNoteText}
+                      onChange={(e) => setNewNoteText(e.target.value)}
+                      className="min-h-[60px] text-sm resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          handleAddNote();
+                        }
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleAddNote}
+                      disabled={noteLoading || !newNoteText.trim()}
+                      className="h-auto px-3"
+                    >
+                      {noteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    </Button>
+                  </div>
+
+                  {/* Notes list - latest first */}
+                  {notes.length > 0 && (
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {notes.map((note) => (
+                        <div
+                          key={note.id}
+                          className="p-3 rounded-md border bg-muted/30 text-sm group"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                                <User className="h-3 w-3" />
+                                <span className="font-medium">{note.user.name}</span>
+                                <span>·</span>
+                                <span>{format(new Date(note.created_at), 'dd MMM yyyy h:mm a')}</span>
+                              </div>
+                              <div className="whitespace-pre-wrap">{note.content}</div>
+                            </div>
+                            {(note.user.id === currentUser?.id) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                onClick={() => handleDeleteNote(note.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="border-t pt-4 space-y-3">
               {/* Duration */}
               <div className="flex items-center gap-2">
@@ -5164,8 +5385,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 <div className="flex-1">
                   <ComboboxDropdown
                     items={jobItems}
-                    selectedItem={task.construction_id > 0 ? {
-                      id: task.construction_id.toString(),
+                    selectedItem={task.job_id > 0 ? {
+                      id: task.job_id.toString(),
                       label: task.job_name || 'Unknown Job'
                     } : undefined}
                     onSelect={(item) => handleJobChange(parseInt(item.id))}
@@ -5305,25 +5526,68 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
             {/* Quick Links */}
             <div className="border-t pt-4 flex flex-wrap gap-2">
-              {task.construction_id > 0 && (
+              {task.job_id > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => window.open(`/jobs/${task.construction_id}`, '_blank')}
+                  onClick={() => window.open(`/jobs/${task.job_id}`, '_blank')}
                 >
                   <ExternalLink className="h-3 w-3 mr-1" />
                   Open Job
                 </Button>
               )}
               {task.purchase_order_id && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(`/purchase_orders/${task.purchase_order_id}`, '_blank')}
-                >
-                  <ExternalLink className="h-3 w-3 mr-1" />
-                  Open PO
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(`/purchase_orders/${task.purchase_order_id}`, '_blank')}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Open PO
+                  </Button>
+                  <div className="w-px h-5 bg-border" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePoPrint}
+                    disabled={!!poPdfLoading}
+                    title="Print PO PDF"
+                  >
+                    <Printer className="h-3 w-3 mr-1" />
+                    Print
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePoPreview}
+                    disabled={!!poPdfLoading}
+                    title="Preview PO PDF"
+                  >
+                    <Eye className={cn("h-3 w-3 mr-1", poPdfLoading === 'preview' && "animate-pulse")} />
+                    Preview
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePoSavePdf}
+                    disabled={!!poPdfLoading}
+                    title="Save PO PDF to warehouse"
+                  >
+                    <Save className={cn("h-3 w-3 mr-1", poPdfLoading === 'save' && "animate-pulse")} />
+                    {poPdfLoading === 'save' ? 'Saving...' : 'Save PDF'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPoSendModalOpen(true)}
+                    disabled={!!poPdfLoading}
+                    title="Send PO to supplier via email"
+                  >
+                    <Send className="h-3 w-3 mr-1" />
+                    Send
+                  </Button>
+                </>
               )}
             </div>
               </div>
@@ -5981,7 +6245,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   attachments={pendingAttachments}
                   onAdd={handleAddAttachment}
                   onRemove={handleRemovePendingAttachment}
-                  jobId={task.construction_id > 0 ? String(task.construction_id) : undefined}
+                  jobId={task.job_id > 0 ? String(task.job_id) : undefined}
                 />
               </div>
             )}
@@ -8389,6 +8653,88 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         enableWritingChecker={true}
         writingContext="notes"
       />
+
+      {/* PO Preview Modal */}
+      <Dialog open={poPreviewModalOpen} onOpenChange={setPoPreviewModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Purchase Order Preview
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto border rounded-lg bg-white">
+            {poPreviewHtml ? (
+              <iframe
+                srcDoc={poPreviewHtml}
+                className="w-full h-full min-h-[60vh]"
+                title="PO Preview"
+              />
+            ) : (
+              <div className="flex items-center justify-center py-12">
+                <Spinner className="h-8 w-8" />
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setPoPreviewModalOpen(false)}>
+              Close
+            </Button>
+            <Button onClick={handlePoPrint}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* PO Send Confirmation Modal */}
+      <Dialog open={poSendModalOpen} onOpenChange={setPoSendModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5" />
+              Send Purchase Order
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              This will email the purchase order PDF to the supplier.
+            </p>
+
+            <div className="text-sm text-muted-foreground space-y-2">
+              <p>The following will happen:</p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>PDF will be generated with current line items</li>
+                <li>Email will be sent to supplier</li>
+                <li>PO status will change to &quot;Sent&quot;</li>
+                <li>Ordered date will be set to today</li>
+                <li>PDF copy saved to warehouse</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setPoSendModalOpen(false)} disabled={poPdfLoading === 'send'}>
+              Cancel
+            </Button>
+            <Button onClick={handlePoSendEmail} disabled={poPdfLoading === 'send'}>
+              {poPdfLoading === 'send' ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Email
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

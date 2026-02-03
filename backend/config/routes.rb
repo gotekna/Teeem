@@ -457,7 +457,7 @@ Rails.application.routes.draw do
 
       # User files from S3 (must be before resources :documents to avoid :id match)
       get "documents/user_files", to: "documents#user_files"
-      # SSoT: Unified endpoint for EntityTab folder files (job, corporate, contact)
+      # SSoT: Unified endpoint for WarehouseFolder folder files (job, corporate, contact)
       get "documents/folder_files", to: "documents#folder_files"
       # Legacy alias for corporate folders
       get "documents/corporate_folder_files", to: "documents#folder_files"
@@ -844,6 +844,8 @@ Rails.application.routes.draw do
           post :schedule_sync
           post :lock_budget
           post :unlock_budget
+          post :save_pdf
+          post :send_email
         end
         # Payments nested under purchase orders
         resources :payments, only: [ :index, :create ]
@@ -1520,8 +1522,11 @@ Rails.application.routes.draw do
           get :folder_order  # Get user's custom folder order
           post :save_folder_order  # Save user's custom folder order
           post :toggle_mailbox_favorite  # Toggle mailbox as favorite/bookmarked
+          put :update_account_signature  # SSoT (Feb 2026): Update signature for any account
+          put :update_account_branding   # SSoT (Feb 2026): Update branding for any account
           post :sync_all  # Sync ALL user's IMAP accounts
           get :shareable_users  # List users who can be granted access
+          get :tenants_list  # List all tenants for cross-tenant sharing
         end
         member do
           post :sync
@@ -1632,7 +1637,7 @@ Rails.application.routes.draw do
         end
       end
 
-      # NOTE: folder_templates routes removed - SSoT: EntityTab is now the source of truth for folder structure
+      # NOTE: folder_templates routes removed - SSoT: WarehouseFolder is now the source of truth for folder structure
 
       # Setup data management
       post "setup/pull_from_local", to: "setup#pull_from_local"
@@ -1828,6 +1833,10 @@ Rails.application.routes.draw do
           delete "contacts/:contact_id", action: :remove_contact
           # Task history/activity log
           get :history
+          # Task notes (comments with author/date tracking)
+          get :notes
+          post :notes, action: :create_note
+          delete "notes/:note_id", action: :delete_note
           # Action items (checkable items or questions)
           post :action_items, action: :create_action_item
           post "action_items/bulk", action: :bulk_create_action_items
@@ -2375,6 +2384,7 @@ Rails.application.routes.draw do
           get :pdf_sync_status
           get :sync_health
           get :sync_stats
+          post :trigger_sync_all
           get :common_contacts
           get :unlinked_contacts
           get :xero_duplicates
@@ -2885,7 +2895,7 @@ Rails.application.routes.draw do
       end
 
       # Company Groups
-      resources :company_groups, controller: "corporate_groups" do
+      resources :company_groups do
         member do
           get :companies
           get :structure
@@ -3029,9 +3039,9 @@ Rails.application.routes.draw do
         end
       end
 
-      # Entity Tabs (SSoT: Unified tab configuration)
-      # Replaces: corporate_entity_tabs, job_tabs, document_folders config
-      resources :entity_tabs do
+      # Warehouse Folders (SSoT: Unified tab configuration)
+      # Replaces: legacy tab configuration (Jan 2026)
+      resources :warehouse_folders do
         collection do
           post :reorder
           post :reset_paths
@@ -3047,8 +3057,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # User Entity Tab Preferences (per-user tab visibility, order, and defaults)
-      resources :user_entity_tab_preferences, only: [], param: :scope do
+      # User Warehouse Folder Preferences (per-user tab visibility, order, and defaults)
+      resources :user_warehouse_folder_preferences, only: [], param: :scope do
         member do
           get '/', action: :show
           patch '/', action: :update

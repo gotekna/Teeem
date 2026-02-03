@@ -30,8 +30,8 @@ class ConsolidateRootPathToStorageConfiguration < ActiveRecord::Migration[8.0]
       remove_column :s3_compatible_credentials, :root_path
     end
 
-    if column_exists?(:corporate_company_settings, :sharepoint_root_path)
-      remove_column :corporate_company_settings, :sharepoint_root_path
+    if column_exists?(:corporate_settings, :sharepoint_root_path)
+      remove_column :corporate_settings, :sharepoint_root_path
     end
 
     Rails.logger.info "[SSoT] Consolidated root_path to StorageConfiguration - deleted duplicate columns"
@@ -43,8 +43,8 @@ class ConsolidateRootPathToStorageConfiguration < ActiveRecord::Migration[8.0]
       add_column :s3_compatible_credentials, :root_path, :string, default: ""
     end
 
-    unless column_exists?(:corporate_company_settings, :sharepoint_root_path)
-      add_column :corporate_company_settings, :sharepoint_root_path, :string, default: "/Shared Documents"
+    unless column_exists?(:corporate_settings, :sharepoint_root_path)
+      add_column :corporate_settings, :sharepoint_root_path, :string, default: "/Shared Documents"
     end
   end
 end

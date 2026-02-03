@@ -11,7 +11,7 @@ class SmActivityService
     def task_created(task, user:)
       SmActivity.track(
         "task_created",
-        construction: task.construction,
+        construction: task.job,
         user: user,
         task: task,
         trackable: task,
@@ -36,7 +36,7 @@ class SmActivityService
 
       SmActivity.track(
         activity_type,
-        construction: task.construction,
+        construction: task.job,
         user: user,
         task: task,
         trackable: task,
@@ -57,7 +57,7 @@ class SmActivityService
     def task_deleted(task, user:)
       SmActivity.track(
         "task_deleted",
-        construction: task.construction,
+        construction: task.job,
         user: user,
         task: task,
         metadata: {
@@ -70,7 +70,7 @@ class SmActivityService
     def task_assigned(task, assignee:, user:)
       SmActivity.track(
         "task_assigned",
-        construction: task.construction,
+        construction: task.job,
         user: user,
         task: task,
         trackable: task,
@@ -86,7 +86,7 @@ class SmActivityService
     def resource_assigned(task, resource:, user:)
       SmActivity.track(
         "resource_assigned",
-        construction: task.construction,
+        construction: task.job,
         user: user,
         resource: resource,
         task: task,
@@ -102,7 +102,7 @@ class SmActivityService
     def resource_removed(task, resource:, user:)
       SmActivity.track(
         "resource_removed",
-        construction: task.construction,
+        construction: task.job,
         user: user,
         resource: resource,
         task: task,
@@ -118,7 +118,7 @@ class SmActivityService
       task = photo.task
       SmActivity.track(
         "photo_uploaded",
-        construction: task.construction,
+        construction: task.job,
         user: user,
         task: task,
         trackable: photo,
@@ -134,7 +134,7 @@ class SmActivityService
       task = photo.task
       SmActivity.track(
         "photo_deleted",
-        construction: task.construction,
+        construction: task.job,
         user: user,
         task: task,
         metadata: {
@@ -149,7 +149,7 @@ class SmActivityService
       task = voice_note.task
       SmActivity.track(
         "voice_note_added",
-        construction: task.construction,
+        construction: task.job,
         user: user,
         task: task,
         trackable: voice_note,
@@ -166,13 +166,13 @@ class SmActivityService
 
       SmActivity.track(
         activity_type,
-        construction: checkin.construction,
+        construction: checkin.job,
         user: user,
         resource: checkin.resource,
         task: checkin.task,
         trackable: checkin,
         metadata: {
-          construction_name: checkin.construction.name,
+          construction_name: checkin.job.name,
           resource_name: checkin.resource&.name,
           on_site: checkin.on_site?,
           distance: checkin.distance_from_site
@@ -198,7 +198,7 @@ class SmActivityService
     def dependency_added(task, predecessor:, user:)
       SmActivity.track(
         "dependency_added",
-        construction: task.construction,
+        construction: task.job,
         user: user,
         task: task,
         metadata: {
@@ -212,7 +212,7 @@ class SmActivityService
     def dependency_removed(task, predecessor:, user:)
       SmActivity.track(
         "dependency_removed",
-        construction: task.construction,
+        construction: task.job,
         user: user,
         task: task,
         metadata: {
@@ -226,7 +226,7 @@ class SmActivityService
     def milestone_reached(task, user:)
       SmActivity.track(
         "milestone_reached",
-        construction: task.construction,
+        construction: task.job,
         user: user,
         task: task,
         trackable: task,

@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :gl_provider_credential, class_name: 'Gl::ProviderCredential', optional: true
     belongs_to :triggered_by, class_name: 'User', optional: true
 
@@ -61,9 +61,9 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     class << self
       # Start a new sync
-      def start!(corporate_company:, provider:, tenant_id:, sync_type:, trigger: 'manual', user: nil, credential: nil)
+      def start!(corporate:, provider:, tenant_id:, sync_type:, trigger: 'manual', user: nil, credential: nil)
         create!(
-          corporate_company: corporate_company,
+          corporate: corporate,
           gl_provider_credential: credential,
           external_provider: provider,
           external_tenant_id: tenant_id,

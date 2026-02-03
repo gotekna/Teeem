@@ -12,7 +12,7 @@ module Gl
 
     def initialize(payment_batch)
       @batch = payment_batch
-      @company = payment_batch.corporate_company
+      @company = payment_batch.corporate
       @settings = TenantSetting.instance
     end
 

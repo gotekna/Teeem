@@ -346,21 +346,21 @@ module Api
         def currency_in_use?(currency)
           # Check if currency is used in any accounts, invoices, etc.
           Gl::Account.where(
-            corporate_company: current_company,
+            corporate: current_company,
             currency_code: currency.code
           ).exists? ||
           Gl::Invoice.where(
-            corporate_company: current_company,
+            corporate: current_company,
             currency_code: currency.code
           ).exists? ||
           Gl::JournalEntry.where(
-            corporate_company: current_company,
+            corporate: current_company,
             currency_code: currency.code
           ).exists?
         end
 
         def current_company
-          @current_company ||= Corporate.find(params[:corporate_company_id] || current_user.corporate_company_id)
+          @current_company ||= Corporate.find(params[:corporate_id] || current_user.corporate_id)
         end
       end
     end

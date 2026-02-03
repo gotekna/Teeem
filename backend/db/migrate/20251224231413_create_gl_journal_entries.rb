@@ -3,7 +3,7 @@
 class CreateGlJournalEntries < ActiveRecord::Migration[8.0]
   def change
     create_table :gl_journal_entries do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :gl_period, null: false, foreign_key: true
 
       # External provider linking
@@ -47,7 +47,7 @@ class CreateGlJournalEntries < ActiveRecord::Migration[8.0]
     end
 
     # Unique constraint: one entry per source document per provider
-    add_index :gl_journal_entries, [:corporate_company_id, :external_provider, :external_tenant_id, :source_type, :external_source_id],
+    add_index :gl_journal_entries, [:corporate_id, :external_provider, :external_tenant_id, :source_type, :external_source_id],
               unique: true, name: 'idx_gl_journal_entries_unique_external',
               where: 'external_source_id IS NOT NULL'
 
@@ -56,7 +56,7 @@ class CreateGlJournalEntries < ActiveRecord::Migration[8.0]
     add_index :gl_journal_entries, :entry_number
     add_index :gl_journal_entries, :source_type
     add_index :gl_journal_entries, :status
-    add_index :gl_journal_entries, [:corporate_company_id, :external_provider, :external_tenant_id, :entry_date],
+    add_index :gl_journal_entries, [:corporate_id, :external_provider, :external_tenant_id, :entry_date],
               name: 'idx_gl_journal_entries_date_lookup'
   end
 end

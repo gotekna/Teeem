@@ -4,20 +4,20 @@
 #
 # SSoT Architecture (Jan 2026):
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ EntityTab (SSoT for folder structure)                           │
+# │ WarehouseFolder (SSoT for folder structure)                           │
 # │ ├── warehouse_type: "contact"                                   │
 # │ ├── warehouse_folder: "{{ContactName}}/Bills"                   │
 # │     ↓ links via                                                 │
-# │ EntityTabDocumentType (join table, is_primary: true)            │
+# │ WarehouseFolderDocumentType (join table, is_primary: true)            │
 # │     ↓ to                                                        │
 # │ DocumentType (classification)                                   │
 # │ ├── name: "Xero Bill"                                           │
-# │ ├── derived_scope: computed from EntityTab.warehouse_type       │
+# │ ├── derived_scope: computed from WarehouseFolder.warehouse_type       │
 # │     ↓ used by                                                   │
 # │ WarehouseDocument (universal metadata)                          │
 # │ ├── documentable: ExternalInvoice                               │
 # │ ├── storage_blob_id: → StorageBlob                              │
-# │ ├── folder: computed from EntityTab template                    │
+# │ ├── folder: computed from WarehouseFolder template                    │
 # │ ├── source_type: "xero"                                         │
 # │     ↓ links to                                                  │
 # │ StorageBlob (flat storage, deduplication)                       │
@@ -26,7 +26,7 @@
 # └─────────────────────────────────────────────────────────────────┘
 #
 # Physical Storage: s3://bucket/Blobs/{hash_prefix}/{hash}.pdf
-# Virtual Folders: Computed from EntityTab.warehouse_folder, stored in warehouse_documents.folder
+# Virtual Folders: Computed from WarehouseFolder.display_name, stored in warehouse_documents.folder
 #
 class XeroAttachmentSyncService
   include DocumentProviderAware
@@ -36,34 +36,32 @@ class XeroAttachmentSyncService
     @external_invoice = external_invoice
     @xero_client = XeroApiClient.new
     @skip_storage_upload = skip_storage_upload
-    # SSoT: Derive TEEEM tenant from Xero tenant_id
-    # ExternalInvoice.tenant_id is Xero tenant UUID, not TEEEM Tenant.id
-    @xero_tenant_id = external_invoice.tenant_id  # Xero org UUID
-    @xero_credential = XeroCredential.find_by(tenant_id: @xero_tenant_id)
-    @xero_tenant_name = @xero_credential&.tenant_name  # Xero org name (e.g., "Tekna Homes")
-    @tenant = find_teeem_tenant_from_xero_tenant_id(external_invoice.tenant_id)
+
+    # FRC (Feb 2026): Fixed tenant_id confusion
+    # ExternalInvoice.tenant_id is NOW the TEEEM Tenant.id (integer FK)
+    # Xero org UUID is stored in raw_data or looked up via XeroCredential
+    @tenant = Tenant.find_by(id: external_invoice.tenant_id)
+
+    # Get Xero tenant UUID for API calls (from raw_data or credential lookup)
+    @xero_tenant_id = find_xero_tenant_id_for_invoice
+    @xero_credential = XeroCredential.find_by(tenant_id: @xero_tenant_id) if @xero_tenant_id
+    @xero_tenant_name = @xero_credential&.tenant_name
+
     @organization = @tenant&.organizations&.where(is_active: true)&.first
     @storage_config = @tenant ? WarehouseProvider.for_tenant(@tenant) : nil
     @results = { pdf: nil, attachments: [], errors: [], skipped: false }
   end
 
-  # Map Xero tenant_id (UUID) to TEEEM Tenant
-  # SSoT Chain: XeroCredential → CorporateXeroConnection → Corporate → Tenant
-  def find_teeem_tenant_from_xero_tenant_id(xero_tenant_id)
-    return nil unless xero_tenant_id.present?
+  # FRC (Feb 2026): Get Xero tenant UUID for API calls
+  # ExternalInvoice.tenant_id is TEEEM integer, need Xero UUID for API
+  def find_xero_tenant_id_for_invoice
+    # First try raw_data (if stored during sync)
+    xero_tid = external_invoice.raw_data&.dig("TenantId")
+    return xero_tid if xero_tid.present?
 
-    xero_credential = XeroCredential.find_by(tenant_id: xero_tenant_id)
-    return nil unless xero_credential
-
-    # Find Corporate linked to this XeroCredential via connection table
-    connection = CorporateXeroConnection.find_by(xero_credential_id: xero_credential.id)
-    return nil unless connection
-
-    corporate_company = Corporate.find_by(id: connection.company_id)
-    return nil unless corporate_company
-
-    # Get the TEEEM Tenant from the Corporate
-    Tenant.find_by(id: corporate_company.tenant_id)
+    # Fallback: Look up via XeroCredential.teeem_tenant_id
+    credential = XeroCredential.find_by(teeem_tenant_id: external_invoice.tenant_id)
+    credential&.tenant_id
   end
 
   # Sync all attachments for this invoice
@@ -107,9 +105,17 @@ class XeroAttachmentSyncService
     )
 
     if existing.present? && existing.storage_blob_id.present?
-      Rails.logger.info("[XeroAttachmentSync] PDF already synced via WarehouseDocument, skipping: #{existing.display_name}")
+      Rails.logger.info("[XeroAttachmentSync] PDF already synced via WarehouseDocument, skipping: #{existing.ui_name}")
       results[:pdf] = existing
       results[:skipped] = true
+      return
+    end
+
+    # FRC (Feb 2026): Bills don't have Xero auto-generated PDFs
+    # But they CAN have supplier-uploaded attachments. Create a "bill record"
+    # WarehouseDocument without storage_blob so attachments can be synced.
+    if external_invoice.bill?
+      results[:pdf] = create_bill_record_document(existing)
       return
     end
 
@@ -130,7 +136,7 @@ class XeroAttachmentSyncService
       return
     end
 
-    # SSoT: Get folder path from EntityTab (no hardcoding)
+    # SSoT: Get folder path from WarehouseFolder (no hardcoding)
     folder = compute_folder_from_document_type(document_type)
 
     # ========================================
@@ -195,13 +201,48 @@ class XeroAttachmentSyncService
     Rails.logger.error("[XeroAttachmentSync] PDF sync error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
   end
 
+  # FRC (Feb 2026): Create a "bill record" WarehouseDocument for bills
+  # Bills don't have Xero auto-generated PDFs, but can have supplier attachments.
+  # This creates a primary document (without storage_blob) so attachments can link to it.
+  def create_bill_record_document(existing)
+    document_type = find_document_type_for_invoice
+    folder = document_type ? compute_folder_from_document_type(document_type) : nil
+
+    warehouse_doc = existing || WarehouseDocument.new
+    warehouse_doc.assign_attributes(
+      documentable: external_invoice,
+      storage_blob: nil,  # No auto-generated PDF for bills
+      source_type: "xero",
+      display_name: build_display_name,
+      original_filename: nil,
+      folder: folder,
+      tenant_id: @tenant.id,
+      content_type: nil,
+      file_size: 0,
+      linkable: external_invoice.contact,
+      metadata: build_metadata(document_type).merge("is_bill_record" => true)
+    )
+
+    if warehouse_doc.save
+      Rails.logger.info("[XeroAttachmentSync] Created bill record for attachments: #{external_invoice.invoice_number}")
+      warehouse_doc
+    else
+      results[:errors] << "Failed to save bill record: #{warehouse_doc.errors.full_messages.join(', ')}"
+      nil
+    end
+  rescue ActiveRecord::RecordNotUnique
+    # Another job already created this - find and use it
+    WarehouseDocument.find_by(documentable: external_invoice, source_type: "xero")
+  end
+
   def sync_attachments
     entity_type = external_invoice.quote? ? "Quotes" : "Invoices"
 
+    # FRC (Feb 2026): Use @xero_tenant_id (Xero UUID), NOT external_invoice.tenant_id (TEEEM integer)
     attachments_result = xero_client.get_attachments(
       entity_type,
       external_invoice.external_id,
-      tenant_id: external_invoice.tenant_id
+      tenant_id: @xero_tenant_id
     )
 
     unless attachments_result[:success]
@@ -249,11 +290,12 @@ class XeroAttachmentSyncService
     end
 
     # Download the attachment
+    # FRC (Feb 2026): Use @xero_tenant_id (Xero UUID), NOT external_invoice.tenant_id (TEEEM integer)
     download_result = xero_client.download_attachment(
       entity_type,
       external_invoice.external_id,
       filename,
-      tenant_id: external_invoice.tenant_id
+      tenant_id: @xero_tenant_id
     )
 
     unless download_result[:success]
@@ -342,25 +384,19 @@ class XeroAttachmentSyncService
   end
 
   # ========================================
-  # SSoT: Folder Computation from EntityTab
+  # SSoT: Folder Computation from WarehouseFolder
   # ========================================
 
-  # Compute folder path from DocumentType's primary EntityTab
-  # SSoT: Derives folder from WarehouseProvider.warehouse_folders (not EntityTab.warehouse_folder)
+  # Compute folder path from DocumentType's primary WarehouseFolder
+  # SSoT: Uses warehouse_folder column directly (Feb 2026 consolidation)
   def compute_folder_from_document_type(document_type)
-    entity_tab = document_type.primary_entity_tab
-    return nil unless entity_tab
+    wf = document_type.primary_warehouse_folder
+    return nil unless wf
 
-    # SSoT: Derive template from WarehouseProvider.warehouse_folders
-    # path_for already handles alias normalization (e.g., 'corporate_entity' → 'corporate')
-    warehouse_type = entity_tab.warehouse_type || 'corporate'
-    config = WarehouseProvider.instance
-    template = config.path_for(warehouse_type)
+    # SSoT: warehouse_folder column stores complete path template
+    # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Invoices & Credit Notes"
+    template = wf.warehouse_folder
     return nil unless template.present?
-
-    # SSoT: {{TeeemXL}} is the UI placeholder for tab/folder name (Jan 2026)
-    # Support both {{TeeemXL}} and legacy {{TabName}} for backwards compatibility
-    template = template.gsub('{{TeeemXL}}', entity_tab.display_name.to_s).gsub('{{TabName}}', entity_tab.display_name.to_s)
 
     # Expand template with context from invoice/contact
     expand_folder_template(template)
@@ -376,7 +412,7 @@ class XeroAttachmentSyncService
     substitutions = {
       "ContactName" => contact_folder_name,
       "ContactId" => contact&.id,
-      "CompanyGroup" => company&.company_group.presence || "Default",
+      "CompanyGroup" => company&.company_group&.name.presence || "Default",
       "CompanyCode" => company&.company_code.presence || "Unknown",
       "CompanyName" => company&.name,
       "Year" => (external_invoice.invoice_date || Date.current).year,
@@ -489,13 +525,16 @@ class XeroAttachmentSyncService
   # ========================================
 
   def download_invoice_pdf
+    # FRC (Feb 2026): Use @xero_tenant_id (Xero UUID), NOT external_invoice.tenant_id (TEEEM integer)
+    # The tenant_id on ExternalInvoice is the TEEEM Tenant.id FK, not the Xero org UUID.
+    # This bug caused all API calls to fail or hit the wrong org's rate limits.
     case external_invoice.invoice_type
     when "quote"
-      xero_client.get_quote_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
+      xero_client.get_quote_pdf(external_invoice.external_id, tenant_id: @xero_tenant_id)
     when "credit_note"
-      xero_client.get_credit_note_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
+      xero_client.get_credit_note_pdf(external_invoice.external_id, tenant_id: @xero_tenant_id)
     else
-      xero_client.get_invoice_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
+      xero_client.get_invoice_pdf(external_invoice.external_id, tenant_id: @xero_tenant_id)
     end
   end
 

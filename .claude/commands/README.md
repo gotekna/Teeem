@@ -62,6 +62,8 @@ These commands map to the 6 specialized agents. **Each shortcut automatically sa
 | `/p` | Commit THIS chat + full pipeline to Production | Push current work all the way to production |
 | `/pa` | Commit ALL changes + full pipeline to Production | Deploy everything to production |
 | `/live` | **True sync** - merge ALL branches together | Branches diverged, make all identical |
+| `/sd` | Merge Sam-Dev → Staging | Merge Sam's development branch into staging |
+| `/ss` | Merge SamTestMerge → Staging | Merge Sam's test branch into staging |
 | `/ma` | Back-merge Live → Beta → Staging | After hotfixes, sync changes back |
 | `/mp` | Deploy Staging backend to Beta + Production | Backend-only deployment |
 

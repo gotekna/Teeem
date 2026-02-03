@@ -272,7 +272,7 @@ namespace :xero do
           docs = WarehouseDocument.joins(:storage_blob).where(storage_blobs: { content_hash: hash })
           puts "\n  Content hash: #{hash[0..15]}... (#{count} documents)"
           docs.each do |doc|
-            puts "    - ID: #{doc.id}, Display: #{doc.display_name[0..40]}..."
+            puts "    - ID: #{doc.id}, Display: #{doc.ui_name[0..40]}..."
             puts "      Documentable: #{doc.documentable_type}##{doc.documentable_id}"
           end
         end

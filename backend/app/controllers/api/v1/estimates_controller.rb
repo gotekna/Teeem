@@ -24,35 +24,35 @@ module Api
       end
 
       def match
-        construction_id = params[:job_id]
+        job_id = params[:job_id]
 
-        if construction_id.blank?
+        if job_id.blank?
           render json: {
             success: false,
-            error: "construction_id is required"
+            error: "job_id is required"
           }, status: :unprocessable_entity
           return
         end
 
-        construction = Job.find_by(id: construction_id)
+        job = Job.find_by(id: job_id)
 
-        if construction.nil?
+        if job.nil?
           render json: {
             success: false,
-            error: "Construction job with ID #{construction_id} not found"
+            error: "Job with ID #{job_id} not found"
           }, status: :not_found
           return
         end
 
-        @estimate.match_to_construction!(construction, nil)
+        @estimate.match_to_job!(job, nil)
 
         # Trigger OneDrive folder creation if not already created
-        construction.create_folders_if_needed!
+        job.create_folders_if_needed!
 
         render json: {
           success: true,
           data: estimate_json(@estimate),
-          message: "Estimate matched to #{construction.title}"
+          message: "Estimate matched to #{job.title}"
         }
 
       rescue ActiveRecord::RecordInvalid => e
@@ -109,10 +109,10 @@ module Api
           updated_at: estimate.updated_at
         }
 
-        if estimate.construction.present?
+        if estimate.job.present?
           json[:construction] = {
-            id: estimate.construction.id,
-            title: estimate.construction.title
+            id: estimate.job.id,
+            title: estimate.job.title
           }
         end
 

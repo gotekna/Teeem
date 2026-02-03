@@ -188,9 +188,9 @@ module Api
         # Filter by resource if specified
         entries = entries.where(resource_id: params[:resource_id]) if params[:resource_id].present?
 
-        # Filter by construction if specified
+        # Filter by job if specified
         if params[:job_id].present?
-          entries = entries.joins(:task).where(sm_tasks: { construction_id: params[:job_id] })
+          entries = entries.joins(:task).where(sm_tasks: { job_id: params[:job_id] })
         end
 
         # Group by date
@@ -415,7 +415,7 @@ module Api
           json[:task] = {
             id: entry.task_id,
             name: entry.task.name,
-            construction_id: entry.task.construction_id,
+            construction_id: entry.task.job_id,
             start_date: entry.task.start_date,
             end_date: entry.task.end_date
           }

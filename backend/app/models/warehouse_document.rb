@@ -15,8 +15,8 @@
 #   └── version tracking (version_group_id, version_number, is_latest_version)
 #
 # Two Names:
-#   - display_name: What user SEES in File Warehouse UI ("Tax Return FY2024")
-#   - send_name: What file is CALLED when downloaded/emailed ("TA Tax Return 2024.pdf")
+#   - ui_name: What user SEES in File Warehouse UI ("Tax Return FY2024")
+#   - download_name: What file is CALLED when downloaded/emailed ("TA Tax Return 2024.pdf")
 #
 # Virtual Folders:
 #   - folder: Virtual path, changing is instant (DB update only, no S3 copy)
@@ -37,9 +37,9 @@ class WarehouseDocument < ApplicationRecord
   # This ensures ALL creation points get tenant_id without manual assignment
   before_validation :set_tenant_from_documentable, on: :create
 
-  # SSoT: Auto-compute folder from WarehouseProvider template if not provided
-  # This ensures folder always matches current template configuration
-  before_validation :compute_folder_from_template, on: :create, if: -> { folder.blank? }
+  # NOTE (Feb 2026 FRC Fix): Removed compute_folder_from_template callback
+  # Folder paths are now computed at runtime via computed_folder_path method
+  # This eliminates sync issues between stored folder and WarehouseFolder SSoT
 
   # ========================================
   # Associations
@@ -65,9 +65,9 @@ class WarehouseDocument < ApplicationRecord
   # Validations
   # ========================================
 
-  validates :display_name, presence: true
+  validates :ui_name, presence: true
   validates :source_type, presence: true, inclusion: {
-    in: %w[corporate job email email_attachment task people contact user template warehouse asset financial compliance xero],
+    in: %w[corporate job email email_attachment task people contact user template warehouse asset financial compliance xero notebook],
     message: "%{value} is not a valid source type"
   }
   validates :version_number, numericality: { greater_than: 0 }, allow_nil: true
@@ -78,7 +78,8 @@ class WarehouseDocument < ApplicationRecord
 
   # Basic scopes
   scope :by_source, ->(source) { where(source_type: source) }
-  scope :in_folder, ->(folder) { where(folder: folder) }
+  # NOTE (Feb 2026 FRC Fix): Removed in_folder scope - folder column removed
+  # Use computed_folder_path for folder filtering (requires Ruby-side filtering)
   scope :with_blob, -> { where.not(storage_blob_id: nil) }
   scope :without_blob, -> { where(storage_blob_id: nil) }
 
@@ -107,10 +108,10 @@ class WarehouseDocument < ApplicationRecord
   # Uses SendNameResolver for full template expansion and sanitization
   #
   # Priority (handled by SendNameResolver):
-  #   1. send_name (if already resolved)
-  #   2. DocumentType.file_name template (expanded with context)
+  #   1. download_name (if already resolved)
+  #   2. DocumentType.download_name template (expanded with context)
   #   3. Source-specific defaults (e.g., "{Subject} - {Date}.eml" for emails)
-  #   4. display_name
+  #   4. ui_name
   #   5. original_filename
   #   6. "document" (last resort)
   #
@@ -121,7 +122,7 @@ class WarehouseDocument < ApplicationRecord
   # Legacy method - kept for backwards compatibility
   # Use download_filename instead
   def legacy_download_filename
-    raw_name = send_name.presence || display_name
+    raw_name = download_name.presence || ui_name
     sanitize_filename(raw_name)
   end
 
@@ -151,51 +152,98 @@ class WarehouseDocument < ApplicationRecord
     nil
   end
 
-  # Update folder (instant - just DB update, no S3 copy)
-  def move_to_folder(new_folder)
-    update!(folder: new_folder)
-  end
+  # NOTE (Feb 2026 FRC Fix): Removed move_to_folder method
+  # Folder paths are computed from source_type + documentable, not stored
+  # To "move" a document, change its linkable association instead
 
   # ========================================
   # Computed Folder Path (Runtime Resolution)
   # ========================================
   #
-  # SSoT: Returns the folder path computed from CURRENT WarehouseProvider templates.
-  # This ensures folder paths update INSTANTLY when templates change in admin UI,
-  # without needing any background sync jobs.
+  # SSoT (Feb 2026 FRC Fix): Returns the folder path computed at RUNTIME.
+  # This is THE ONE way to get a document's folder path.
   #
-  # Delegates to documentable's virtual_folder_path which reads current templates.
-  # Falls back to stored folder column for documents without a documentable.
+  # Computation sources (in priority order):
+  # 1. documentable.virtual_folder_path (if documentable responds to it)
+  # 2. WarehouseProvider template expansion (from source_type + metadata)
+  # 3. Default path based on source_type (e.g., "Corporate", "Jobs")
   #
-  # @return [String] The folder path computed from current templates
+  # @return [String] The computed folder path
   #
   def computed_folder_path
-    # Try to compute from documentable's current template
+    # Try to compute from documentable's virtual_folder_path
     if documentable.present? && documentable.respond_to?(:virtual_folder_path)
       begin
-        return documentable.virtual_folder_path
+        path = documentable.virtual_folder_path
+        return path if path.present?
       rescue StandardError => e
-        Rails.logger.debug "[WarehouseDocument] computed_folder_path fallback for #{id}: #{e.message}"
+        Rails.logger.debug "[WarehouseDocument] computed_folder_path documentable failed for #{id}: #{e.message}"
       end
     end
 
-    # Fallback to stored folder (for legacy docs or docs without documentable)
-    folder
+    # Compute from WarehouseProvider template
+    begin
+      config = WarehouseProvider.instance rescue nil
+      if config
+        warehouse_type = source_type_to_warehouse_type
+        if warehouse_type
+          tokens = extract_folder_tokens
+          path = config.resolve_virtual_path(warehouse_type.to_sym, tokens)
+          return path if path.present?
+        end
+      end
+    rescue StandardError => e
+      Rails.logger.debug "[WarehouseDocument] computed_folder_path template failed for #{id}: #{e.message}"
+    end
+
+    # Fallback: derive base folder from source_type
+    source_type_to_base_folder
   end
 
+  # SSoT: Map source_type to base folder name
+  # Used as final fallback when template computation fails
+  def source_type_to_base_folder
+    case source_type
+    when "corporate", "xero", "financial", "asset" then "Corporate"
+    when "job", "compliance" then "Jobs"
+    when "contact", "people" then "Contacts"
+    when "task" then "Tasks"
+    when "email", "email_attachment" then "Emails"
+    when "case" then "Cases"
+    when "user" then "Teeem Docs"
+    when "template", "warehouse", "esignature" then "Warehousing"
+    when "notebook" then "Notes"
+    else source_type&.titleize || "Documents"
+    end
+  end
+
+  # SSoT (Feb 2026): Base folder name from WarehouseFolder path templates
+  # Uses warehouse_type_to_base_folder which extracts first segment of path
+  # e.g., "Jobs/{{JobCode}}/Compliance" → "Jobs"
+  # Fallback to source_type_to_base_folder if WarehouseFolder not configured
+  def folder
+    warehouse_type = source_type_to_warehouse_type
+    # warehouse_type_to_base_folder returns {"job" => "Jobs", "corporate" => "Corporate", ...}
+    WarehouseFolder.warehouse_type_to_base_folder[warehouse_type] || source_type_to_base_folder
+  end
+
+  # NOTE (Feb 2026 FRC Fix): folder column REMOVED from table.
+  # The folder method now computes folder path at RUNTIME by querying WarehouseFolder SSoT.
+  # This ensures folder names always match WarehouseFolder configuration without sync issues.
+
   # ========================================
-  # Computed Display Name (Runtime Resolution)
+  # Computed UI Name (Runtime Resolution)
   # ========================================
   #
-  # SSoT: Returns the display name computed from documentable attributes.
+  # SSoT: Returns the UI name computed from documentable attributes.
   # Falls back through common naming patterns (title, name, subject, file_name).
-  # Used when display_name column is null or when computing from documentable.
+  # Used when ui_name column is null or when computing from documentable.
   #
-  # @return [String] The display name for this document
+  # @return [String] The UI name for this document
   #
-  def computed_display_name
-    # If display_name is stored, use it
-    return display_name if display_name.present?
+  def computed_ui_name
+    # If ui_name is stored, use it
+    return ui_name if ui_name.present?
 
     # Try to get from documentable using duck typing
     if documentable.present?
@@ -299,11 +347,11 @@ class WarehouseDocument < ApplicationRecord
     versions.update_all(is_latest_version: false)
 
     # Create new version
+    # NOTE (Feb 2026): folder column removed - folder is computed from source_type at runtime
     new_version = WarehouseDocument.create!(
       attributes.merge(
-        display_name: display_name,
+        ui_name: ui_name,
         source_type: source_type,
-        folder: folder,
         storage_blob: blob,
         parent_document: self,
         version_group_id: group_id,
@@ -400,22 +448,8 @@ class WarehouseDocument < ApplicationRecord
     nil
   end
 
-  # SSoT: Compute folder from WarehouseProvider template
-  # Maps source_type to warehouse_type and expands template with documentable context
-  # Uses resolve_virtual_path (not resolve_path) for UI display folder without root_path prefix
-  def compute_folder_from_template
-    warehouse_type = source_type_to_warehouse_type
-    return unless warehouse_type
-
-    config = WarehouseProvider.instance rescue nil
-    return unless config
-
-    tokens = extract_folder_tokens
-    computed = config.resolve_virtual_path(warehouse_type.to_sym, tokens)
-    self.folder = computed if computed.present?
-  rescue StandardError => e
-    Rails.logger.debug "[WarehouseDocument] Could not compute folder: #{e.message}"
-  end
+  # NOTE (Feb 2026 FRC Fix): Removed compute_folder_from_template method
+  # Folder paths are now computed at runtime by computed_folder_path
 
   # Map source_type to warehouse template key
   def source_type_to_warehouse_type
@@ -428,6 +462,7 @@ class WarehouseDocument < ApplicationRecord
     when "contact" then "contact"
     when "xero" then "bank_statement"
     when "case" then "case"
+    when "notebook" then "notebook"
     else source_type
     end
   end
@@ -459,15 +494,39 @@ class WarehouseDocument < ApplicationRecord
     end
 
     # Corporate company context
-    if documentable.respond_to?(:corporate_company) && documentable.corporate_company
-      cc = documentable.corporate_company
+    if documentable.respond_to?(:corporate) && documentable.corporate
+      cc = documentable.corporate
       tokens[:CompanyCode] = cc.company_code
-      tokens[:CompanyGroup] = cc.company_group.presence || "Default"
+      tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
     end
 
     # Case context
     if documentable.respond_to?(:case_number)
       tokens[:CaseId] = documentable.case_number
+    end
+
+    # Asset context (for asset documents: expenses, service, readings)
+    # SSoT: Assets belong to Corporate (company), so we need both asset + corporate tokens
+    if documentable.is_a?(Asset)
+      tokens[:AssetName] = documentable.display_name.presence || documentable.name.presence || "Asset-#{documentable.id}"
+      tokens[:AssetNumber] = documentable.asset_number if documentable.asset_number.present?
+      # Also get corporate context from the asset's company
+      if documentable.corporate
+        cc = documentable.corporate
+        tokens[:CompanyCode] = cc.company_code
+        tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
+      end
+    elsif documentable.respond_to?(:asset) && documentable.asset
+      # For child records like AssetExpense, AssetServiceHistory, etc.
+      asset = documentable.asset
+      tokens[:AssetName] = asset.display_name.presence || asset.name.presence || "Asset-#{asset.id}"
+      tokens[:AssetNumber] = asset.asset_number if asset.asset_number.present?
+      # Also get corporate context from the asset's company
+      if asset.corporate
+        cc = asset.corporate
+        tokens[:CompanyCode] ||= cc.company_code
+        tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
+      end
     end
 
     # Email context

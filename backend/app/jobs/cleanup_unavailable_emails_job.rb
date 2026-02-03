@@ -110,7 +110,7 @@ class CleanupUnavailableEmailsJob < ApplicationJob
 
       # Delete user states (read/unread tracking)
       if defined?(EmailUserState)
-        EmailUserState.where(synced_email_id: email.id).delete_all
+        EmailUserState.where(email_warehouse_id: email.id).delete_all
       end
 
       # Finally delete the email itself

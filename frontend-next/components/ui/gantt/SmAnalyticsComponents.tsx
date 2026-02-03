@@ -737,7 +737,7 @@ export function ImportExportPanel({ constructionId, constructionName }: ImportEx
     try {
       const blob = await api.getBlob(
         `/api/v1/sm_integrations/export_ms_project`,
-        { params: { construction_id: String(constructionId) } }
+        { params: { job_id: String(constructionId) } }
       );
 
       const url = window.URL.createObjectURL(blob);

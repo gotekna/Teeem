@@ -459,7 +459,7 @@ module Api
         # Get AI categorization statistics
         def ai_stats
           stats = ::Gl::AiCategorizationAttempt.usage_stats(current_company)
-          learning_stats = ::Gl::AiCategorizationLearning.where(corporate_company: current_company)
+          learning_stats = ::Gl::AiCategorizationLearning.where(corporate: current_company)
 
           render json: {
             success: true,
@@ -707,7 +707,7 @@ module Api
         end
 
         def current_company
-          @current_company ||= Corporate.find(params[:corporate_company_id] || current_user.corporate_company_id)
+          @current_company ||= Corporate.find(params[:corporate_id] || current_user.corporate_id)
         end
       end
     end

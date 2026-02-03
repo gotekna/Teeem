@@ -12,7 +12,7 @@ import { redirect } from "next/navigation";
  * 3. Redirects to appropriate locations based on path patterns
  *
  * Why this exists:
- * - Prevents "/settings/system/entity-config/foo" from being treated as foundation "settings"
+ * - Prevents "/settings/system/warehouse-config/foo" from being treated as foundation "settings"
  * - Maps legacy admin-style URLs to new settings structure
  * - Provides graceful handling of invalid settings URLs
  */
@@ -20,11 +20,11 @@ import { redirect } from "next/navigation";
 // Map legacy/deep paths to their correct settings locations
 // SSoT: All redirects use path-based URLs (not query params)
 const PATH_REDIRECTS: Record<string, string> = {
-  // Entity Configuration deep links → Admin System (where EntityConfigurationTab lives)
+  // Folder Configuration deep links → Admin System (where EntityConfigurationTab lives)
   // These need to go to admin/system, not settings/developer
-  "system/entity-config": "/admin/system/entity-config/corporate",
-  "system/entity-configuration": "/admin/system/entity-config/corporate",
-  "developer/entity-config": "/admin/system/entity-config/corporate",
+  // SSoT (Feb 2026): entity-config renamed to warehouse-config - NO LEGACY REDIRECTS (fail fast)
+  "system/warehouse-config": "/admin/system/warehouse-config/corporate",
+  "developer/warehouse-config": "/admin/system/warehouse-config/corporate",
 
   // Component deep links → Developer tab (path-based)
   "system/components": "/settings/developer/components",
@@ -50,11 +50,12 @@ function getRedirectUrl(pathSegments: string[]): string {
     return PATH_REDIRECTS[fullPath];
   }
 
-  // Special handling for entity-config deep links (preserve the scope)
-  // e.g., system/entity-config/storage_config → /admin/system/entity-config/storage_config
-  if (fullPath.startsWith("system/entity-config/") || fullPath.startsWith("system/entity-configuration/")) {
+  // Special handling for warehouse-config deep links (preserve the scope)
+  // e.g., system/warehouse-config/warehouse_folders → /admin/system/warehouse-config/warehouse_folders
+  // SSoT (Feb 2026): entity-config renamed to warehouse-config - NO LEGACY REDIRECTS (fail fast)
+  if (fullPath.startsWith("system/warehouse-config/")) {
     const scope = pathSegments[2] || "corporate";
-    return `/admin/system/entity-config/${scope}`;
+    return `/admin/system/warehouse-config/${scope}`;
   }
 
   // Special handling for schedule-master deep links (preserve sub-paths)

@@ -49,7 +49,7 @@ module Api
           end
 
           # Create the spreadsheet with a name based on the attachment filename
-          filename = attachment_doc.original_filename || attachment_doc.display_name || "spreadsheet"
+          filename = attachment_doc.original_filename || attachment_doc.ui_name || "spreadsheet"
           base_name = filename.sub(/\.(xlsx?|csv)$/i, "")
           spreadsheet = current_user.teeem_spreadsheets.create!(
             name: base_name,

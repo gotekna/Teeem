@@ -83,29 +83,29 @@ class XeroContactMerger
       # Check if target already has a link for this tenant
       existing_link = target.external_links.find_by(
         source: "xero",
-        tenant_id: dup_link.tenant_id
+        tenant_id: dup_link.xero_org_id
       )
 
       if existing_link
         # Conflict: both target and duplicate are linked to same org
         if existing_link.external_contact_id == dup_link.external_contact_id
           # Same Xero contact ID - just delete duplicate link
-          Rails.logger.info "[XeroContactMerger] Same Xero ID for tenant #{dup_link.tenant_id}, deleting duplicate link"
+          Rails.logger.info "[XeroContactMerger] Same Xero ID for tenant #{dup_link.xero_org_id}, deleting duplicate link"
           dup_link.destroy
         else
           # Different Xero contact IDs - flag for review and keep both for now
-          Rails.logger.warn "[XeroContactMerger] Conflict: different Xero IDs for tenant #{dup_link.tenant_id}"
+          Rails.logger.warn "[XeroContactMerger] Conflict: different Xero IDs for tenant #{dup_link.xero_org_id}"
           @result[:xero_links_conflicts] += 1
 
           # Archive the duplicate's Xero contact in this org
-          archive_xero_contact_in_org(dup_link.tenant_id, dup_link.external_contact_id)
+          archive_xero_contact_in_org(dup_link.xero_org_id, dup_link.external_contact_id)
 
           # Delete the duplicate link
           dup_link.destroy
         end
       else
         # No conflict - transfer link to target
-        Rails.logger.info "[XeroContactMerger] Transferring Xero link for tenant #{dup_link.tenant_id} to target"
+        Rails.logger.info "[XeroContactMerger] Transferring Xero link for tenant #{dup_link.xero_org_id} to target"
         dup_link.update!(contact_id: target.id)
         @result[:xero_links_transferred] += 1
       end
@@ -161,8 +161,8 @@ class XeroContactMerger
     duplicate.employees.update_all(primary_company_id: target.id)
 
     # Transfer corporate directorships and shareholdings
-    duplicate.corporate_company_directorships.update_all(contact_id: target.id)
-    duplicate.corporate_company_shareholdings.update_all(shareholder_id: target.id)
+    duplicate.corporate_directorships.update_all(contact_id: target.id)
+    duplicate.corporate_shareholdings.update_all(shareholder_id: target.id)
     duplicate.dividend_payments.update_all(shareholder_id: target.id)
   end
 
@@ -219,11 +219,11 @@ class XeroContactMerger
 
     xero_links.each do |link|
       begin
-        archive_xero_contact_in_org(link.tenant_id, link.external_contact_id)
+        archive_xero_contact_in_org(link.xero_org_id, link.external_contact_id)
         @result[:xero_archived_count] += 1
       rescue StandardError => e
         Rails.logger.error "[XeroContactMerger] Failed to archive Xero contact: #{e.message}"
-        @result[:errors] << "Failed to archive Xero contact in org #{link.tenant_id}: #{e.message}"
+        @result[:errors] << "Failed to archive Xero contact in org #{link.xero_org_id}: #{e.message}"
       end
     end
   end

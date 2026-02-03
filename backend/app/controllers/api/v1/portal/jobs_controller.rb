@@ -174,15 +174,15 @@ module Api
             completed_at: purchase_order.completed_at,
             created_at: purchase_order.created_at,
             construction: {
-              id: purchase_order.construction.id,
-              name: purchase_order.construction.job_name,
-              address: purchase_order.construction.street_address,
-              city: purchase_order.construction.city,
-              state: purchase_order.construction.state,
-              postcode: purchase_order.construction.postcode
+              id: purchase_order.job.id,
+              name: purchase_order.job.job_name,
+              address: purchase_order.job.street_address,
+              city: purchase_order.job.city,
+              state: purchase_order.job.state,
+              postcode: purchase_order.job.postcode
             },
             builder: {
-              name: purchase_order.construction.business_name || "Builder"
+              name: purchase_order.job.business_name || "Builder"
             },
             is_arrived: purchase_order.arrived_at.present?,
             is_completed: purchase_order.completed_at.present?,

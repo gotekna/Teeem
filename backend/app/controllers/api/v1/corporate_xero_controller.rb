@@ -1672,17 +1672,18 @@ module Api
         organisation_info = fetch_xero_organisation(connection)
 
         # Invoice stats
-        invoices = ExternalInvoice.xero.sales_invoices.for_tenant(xero_tenant_id)
+        # FRC (Feb 2026): Use for_xero_org (Xero UUID), not for_tenant (TEEEM integer)
+        invoices = ExternalInvoice.xero.sales_invoices.for_xero_org(xero_tenant_id)
         invoices_with_pdfs = WarehouseDocument.where(documentable_type: "ExternalInvoice", documentable_id: invoices.select(:id), source_type: "xero").select(:documentable_id).distinct.count
         invoices_by_status = invoices.group(:status).count
 
         # Bill stats
-        bills = ExternalInvoice.xero.bills.for_tenant(xero_tenant_id)
+        bills = ExternalInvoice.xero.bills.for_xero_org(xero_tenant_id)
         bills_with_pdfs = WarehouseDocument.where(documentable_type: "ExternalInvoice", documentable_id: bills.select(:id), source_type: "xero").select(:documentable_id).distinct.count
         bills_by_status = bills.group(:status).count
 
         # Credit notes
-        credit_notes = ExternalInvoice.xero.credit_notes.for_tenant(xero_tenant_id)
+        credit_notes = ExternalInvoice.xero.credit_notes.for_xero_org(xero_tenant_id)
 
         # Contact stats
         linked_contacts = ContactExternalLink.where(

@@ -55,31 +55,38 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { TokenBuilder, resolveWithExamples } from "@/components/ui/tokens";
+import { getWarehouseScopeForType } from "@/lib/placeholders";
 import Link from "next/link";
 
 // SSoT: Simple scopes have inline editing (no document types)
 // Note: 'overview' is needed because the Tasks folder can have scopeKey='overview'
-// (from EntityTab.scope_base_folders when tab_key='overview' shares path with 'task')
+// (from WarehouseTabConfig.scope_base_folders when tab_key='overview' shares path with 'task')
 // Note: 'user' added for Teeem Docs (personal user documents)
 const SIMPLE_SCOPES = ['email', 'warehouse', 'task', 'user', 'overview'];
 // SSoT: Complex scopes need separate tab (have document types, entity filters)
 const COMPLEX_SCOPES = ['corporate', 'job', 'contact'];
 
-// SSoT: Warehouse types that show inherited parent path in UI
-// Used for UI display only - shows parent tokens greyed out, user adds suffix
-// The database stores FULL paths for all types (SSoT is warehouse_folders)
+// SSoT: Warehouse types that inherit path from a parent type
+// These store only their suffix (e.g., "Attachments") and inherit the base from parent
+// Backend and frontend MUST match - WarehouseProvider.WAREHOUSE_TYPE_PARENTS is THE SSoT
 //
-// Note: Backend WAREHOUSE_TYPE_PARENTS is DIFFERENT (only case/email/asset types)
-// Task types store full paths directly, frontend just shows UI hint
+// Example: task_attachments stores "Attachments", path_for(:task_attachments) returns
+// "Tasks/{{TaskId}}/{{TaskName}}/Attachments" (parent path + suffix)
 const WAREHOUSE_TYPE_PARENTS: Record<string, string> = {
+  'task_attachments': 'task',
+  'task_responses': 'task',
   'case_documents': 'case',
   'case_emails': 'case',
-  // Note: email_body, email_attachments NOT here - they're shown as entity tabs, not folder nodes
+  'email_body': 'email',
+  'email_attachments': 'email',
   'asset_expenses': 'asset',
   'asset_service': 'asset',
   'asset_readings': 'asset',
-  'task_attachments': 'task',
-  'task_responses': 'task',
+  'user_excel': 'user',
+  'user_word': 'user',
+  'user_powerpoint': 'user',
+  'user_pdf': 'user',
+  'user_notes': 'user',
 };
 
 // Human-readable labels for scope links
@@ -88,6 +95,15 @@ const SCOPE_LABELS: Record<string, string> = {
   job: 'Jobs',
   contact: 'Contacts',
   user: 'Teeem Docs',
+  // Teeem Docs sub-scopes (Feb 2026)
+  user_excel: 'Excel',
+  user_word: 'Word',
+  user_powerpoint: 'PowerPoint',
+  user_pdf: 'PDF',
+  user_notes: 'Notes',
+  // Email sub-scopes
+  email_body: 'Email Body',
+  email_attachments: 'Attachments',
   // Warehousing sub-scopes
   chat: 'Chat',
   bill_inbox: 'Bill Inbox',
@@ -129,18 +145,18 @@ function normalizeProviderType(apiValue: string | null | undefined): ProviderTyp
 type ScopeFolders = Record<string, string>;
 
 // Document type interface
-// Note: display_name contains the Display Name TEMPLATE (with tokens like {ContactName})
+// Note: display_name contains the Document UI Name TEMPLATE (with tokens like {ContactName})
 // name contains the actual document type name like "Xero Invoice"
 interface DocumentType {
   id: number;
   name: string;  // Actual doc type name: "Xero Invoice"
   abbreviation?: string;  // Short code: "XINV"
-  display_name?: string;  // Display Name TEMPLATE: "{ContactName} {DocTypeName} {Date}"
-  file_name?: string;  // Download Name TEMPLATE: "{ContactName} {DocTypeCode} {Date}"
+  display_name?: string;  // Document UI Name TEMPLATE: "{ContactName} {DocTypeName} {Date}"
+  file_name?: string;  // Document Download Name TEMPLATE: "{ContactName} {DocTypeCode} {Date}"
 }
 
-// Entity tab interface for tabs under each scope
-interface EntityTab {
+// WarehouseFolder interface for tabs under each scope
+interface WarehouseTabConfig {
   id: number;
   tab_key: string;
   display_name: string;
@@ -151,12 +167,14 @@ interface EntityTab {
   warehouse_enabled?: boolean | null;
   has_storage_folder?: boolean | null;
   storage_folder_path: string | null;
-  send_name_template: string | null;
+  download_name: string | null;
+  ui_name: string | null;  // SSoT: Document UI Name template
   enabled: boolean;
   order_position: number;
   icon_name: string | null;
-  warehouse_folder?: string | null;
-  children?: EntityTab[];
+  folder_path?: string | null;
+  base_folder?: string | null;  // SSoT: First segment of folder_path (from database)
+  children?: WarehouseTabConfig[];
   document_types?: DocumentType[];
 }
 
@@ -200,8 +218,11 @@ interface StorageConfig {
   warehouse_folders: ScopeFolders;
   // SSoT: Templates for folder paths and filenames per warehouse type
   warehouse_folder_templates: Record<string, string>;
-  file_name_templates: Record<string, string>;
-  display_name_templates: Record<string, string>;
+  download_names: Record<string, string>;  // Filename when downloading
+  ui_name_templates: Record<string, string>;  // Name shown in File Warehouse UI
+  // Legacy field names for backwards compatibility during API transition
+  file_name_templates?: Record<string, string>;
+  display_name_templates?: Record<string, string>;
   // SSoT: Config links for warehouse folders (URL to external config page)
   config_links: Record<string, string>;
   // Phase 4: Virtual warehouses (render from DB instead of S3)
@@ -219,15 +240,15 @@ interface FolderTreeNode {
   scopeKey: string | null;  // Primary scope key (first one added)
   scopeKeys: string[];  // ALL scope keys that share this path (for multi-scope folders like Tasks)
   children: FolderTreeNode[];
-  tabs?: EntityTab[];  // Tabs under this scope folder
+  tabs?: WarehouseTabConfig[];  // Tabs under this scope folder
 }
 
 // SSoT: Known scope root folder names (first segment of paths that should appear at root)
-// These match WAREHOUSE_ROOT_DEFAULTS in WarehouseProvider (Jan 2026 consolidation)
+// These match DEFAULT_WAREHOUSE_FOLDERS in WarehouseProvider (Jan 2026 consolidation)
 // Note: 'People' merged into 'Contacts'
 // Note: 'Users' added for Teeem Docs (personal user documents - Jan 2026)
 const KNOWN_ROOT_FOLDERS = [
-  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Users', 'Teeem Docs', 'Warehouse', 'Shared', 'System',
+  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Users', 'Teeem Docs', 'Warehouse', 'Warehousing', 'Shared', 'System',
   // Added Jan 2026 - new warehouse scopes
   'Cases', 'Assets', 'Financials', 'Payments', 'ESignatures', 'Templates'
 ];
@@ -244,13 +265,14 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
     .sort(([, a], [, b]) => a.localeCompare(b));
 
   // Filter out paths that shouldn't be at root level:
-  // 1. Paths that start with {{ (placeholder at root level)
+  // 1. Paths that start with {{ or [[ (placeholder at root level)
   // 2. Paths that don't start with a known scope root folder (e.g., "ActiveStorage", "Attachments")
   //    These are tab paths that should be relative to their scope but were stored incorrectly
   const filteredEntries = entries.filter(([key, path]) => {
     if (!path) return false;
-    // Skip paths that start with {{ (placeholder at root level)
-    if (path.startsWith('{{')) return false;
+    // Skip paths that start with {{ or [[ (placeholder/literal at root level)
+    // {{Token}} = dynamic placeholder, [[Token]] = literal folder name placeholder
+    if (path.startsWith('{{') || path.startsWith('[[')) return false;
     // Skip paths whose first segment isn't a known scope root folder
     // This filters out "ActiveStorage", "Attachments", "Documents", "Revit", "Email Body" etc.
     // that should be nested under their scope roots but aren't
@@ -288,8 +310,8 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
     'template_documents', 'template_bank_statements', 'template_invoices', 'template_email_signatures', 'template_pdf_fields',
     'esignature', 'esignature_pending', 'esignature_completed',
     'plan',
-    'task_attachments', 'task_responses'  // Task sub-scopes for attachments and responses
-    // Note: email_body, email_attachments NOT included - they're shown as entity tabs, not folder nodes
+    'task_attachments', 'task_responses',  // Task sub-scopes
+    'user_excel', 'user_word', 'user_powerpoint', 'user_pdf', 'user_notes',  // Teeem Docs sub-scopes
   ];
 
   filteredEntries.forEach(([key, path]) => {
@@ -331,10 +353,12 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
     // For main scopes, filter out placeholder parts but KEEP static parts after them
     // e.g., "Jobs/{{JobCode}}/Compliance" → ['Jobs', 'Compliance']
     // This allows compliance and plan scopes to create proper child nodes under Jobs
+    // FRC: Check both {{ (dynamic) and [[ (literal) placeholder syntax
+    const isPlaceholder = (p: string) => p.startsWith('{{') || p.startsWith('[[');
     let parts = allParts;
     if (isMainScope) {
       // Filter out placeholder parts, keep all static parts
-      parts = allParts.filter(p => !p.startsWith('{{'));
+      parts = allParts.filter(p => !isPlaceholder(p));
       if (parts.length === 0) {
         // Path is all placeholders - skip entirely
         return;
@@ -345,19 +369,17 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
     let currentPath = '';
 
     // Track actual static parts for determining leaf
-    const staticParts = parts.filter(p => !p.startsWith('{{'));
+    const staticParts = parts.filter(p => !isPlaceholder(p));
 
     parts.forEach((part, index) => {
       // Skip placeholder parts entirely for tree building
-      if (part.startsWith('{{')) return;
+      if (isPlaceholder(part)) return;
 
       currentPath = currentPath ? `${currentPath}/${part}` : part;
       const staticIndex = staticParts.indexOf(part);
-      const isLeaf = staticIndex === staticParts.length - 1;
-      // For scopes with subfolders after placeholder (like compliance, plan), set scopeKey on the LEAF
-      // For simple scopes (like job, contact), set scopeKey on first folder
-      const hasSubfolderAfterPlaceholder = staticParts.length > 1;
-      const shouldSetScopeKey = hasSubfolderAfterPlaceholder ? isLeaf : (staticIndex === 0);
+      // SSoT (Feb 2026): Always put scope badge on FIRST static folder (root level)
+      // This keeps badges visible at top level, not buried in subfolders
+      const shouldSetScopeKey = staticIndex === 0;
 
       // Look for existing node at this level
       let node = current.find(n => n.name === part);
@@ -427,6 +449,221 @@ function isSimpleScopeKey(scopeKey: string | null): boolean {
   return simpleSubScopes.includes(scopeKey);
 }
 
+// ============================================================================
+// SSoT: FolderEditPanel - THE ONE reusable component for folder/tab editing
+// Standardized field order: Root Path → Base Folder → Folder Path → Full Path
+//                          → Document UI Name → Document Download Name
+// ============================================================================
+interface FolderEditPanelProps {
+  // Path configuration
+  rootPath: string;
+  baseFolderValue?: string;
+  baseFolderInheritedFrom?: string;  // If set, base folder is read-only (inherited)
+  folderPath: string;
+  fullPathPreview: string;
+  // Document naming
+  uiNameValue: string;
+  downloadNameValue: string;
+  // Scope for token builder
+  scope: string;
+  // Callbacks
+  onBaseFolderChange?: (value: string) => void;
+  onFolderPathChange: (value: string) => void;
+  onUiNameChange: (value: string) => void;
+  onDownloadNameChange: (value: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  // State
+  isSaving?: boolean;
+  hasUnsavedChanges?: boolean;
+  lastSaved?: Date | null;
+  // Display options
+  showBaseFolder?: boolean;  // Default true for scope folders, false for tabs
+  folderSuffixButtons?: React.ReactNode;  // Optional folder suffix quick-add buttons
+  compactMode?: boolean;  // Slightly smaller spacing for nested panels
+}
+
+function FolderEditPanel({
+  rootPath,
+  baseFolderValue,
+  baseFolderInheritedFrom,
+  folderPath,
+  fullPathPreview,
+  uiNameValue,
+  downloadNameValue,
+  scope,
+  onBaseFolderChange,
+  onFolderPathChange,
+  onUiNameChange,
+  onDownloadNameChange,
+  onSave,
+  onCancel,
+  isSaving = false,
+  hasUnsavedChanges = false,
+  lastSaved = null,
+  showBaseFolder = true,
+  folderSuffixButtons,
+  compactMode = false,
+}: FolderEditPanelProps) {
+  const labelClass = compactMode ? "text-[11px]" : "text-xs";
+  const spacing = compactMode ? "space-y-3" : "space-y-4";
+
+  return (
+    <div className={spacing}>
+      {/* 1. Root Path (always read-only) */}
+      <div className="space-y-1">
+        <label className={cn(labelClass, "font-medium text-muted-foreground")}>Root Path</label>
+        <div className="bg-muted/50 border border-muted rounded px-3 py-2">
+          <span className="font-mono text-sm text-muted-foreground">
+            {rootPath || '/'}
+          </span>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          Storage provider root folder (configured in Storage Config).
+        </p>
+      </div>
+
+      {/* 2. Base Folder (optional - for scope folders) */}
+      {showBaseFolder && (
+        <div className="space-y-1">
+          <label className={cn(labelClass, "font-medium text-muted-foreground")}>
+            Base Folder
+            {baseFolderInheritedFrom && (
+              <span className="text-muted-foreground/70 ml-1">
+                (inherited from {baseFolderInheritedFrom.replace('_', ' ')})
+              </span>
+            )}
+          </label>
+          {baseFolderInheritedFrom ? (
+            // Read-only when inherited
+            <div className="bg-muted/50 border border-muted rounded px-3 py-2">
+              <span className="font-mono text-sm text-muted-foreground">
+                {baseFolderValue || ''}
+              </span>
+            </div>
+          ) : (
+            // Editable when not inherited
+            <TokenBuilder
+              value={baseFolderValue || ''}
+              onChange={onBaseFolderChange || (() => {})}
+              scope={getWarehouseScopeForType(scope)}
+              showPreview={false}
+              separator="/"
+              placeholder="Click tokens to build base folder..."
+              defaultExpanded={false}
+            />
+          )}
+          <p className="text-[10px] text-muted-foreground">
+            {baseFolderInheritedFrom
+              ? `Base path inherited from ${baseFolderInheritedFrom.replace('_', ' ')}. Edit the Folder Path below to set the suffix.`
+              : 'Storage folder path. Use the same path for related types to group them on one row.'
+            }
+          </p>
+        </div>
+      )}
+
+      {/* 3. Folder Path (TokenBuilder) */}
+      <TokenBuilder
+        label={<span className={cn(labelClass, "font-medium")}>Folder Path</span>}
+        value={folderPath}
+        onChange={onFolderPathChange}
+        scope={getWarehouseScopeForType(scope)}
+        showPreview={false}
+        separator="/"
+        placeholder="Click tokens to build folder path..."
+        defaultExpanded={false}
+        prefixValue={baseFolderInheritedFrom ? baseFolderValue : undefined}
+      />
+
+      {/* 4. Full Path Preview */}
+      <div className={cn(
+        "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2",
+        compactMode ? "-mt-1" : "-mt-2"
+      )}>
+        <span className="text-xs text-muted-foreground">Full Path: </span>
+        <span className="font-mono text-sm text-green-700 dark:text-green-400">
+          {fullPathPreview || '/'}
+        </span>
+      </div>
+
+      {/* Optional: Folder suffix quick-add buttons */}
+      {folderSuffixButtons}
+
+      {/* 5. Document UI Name (TokenBuilder) */}
+      <TokenBuilder
+        label={<span className={cn(labelClass, "font-medium")}>Document UI Name</span>}
+        value={uiNameValue}
+        onChange={onUiNameChange}
+        scope={getWarehouseScopeForType(scope)}
+        showPreview={true}
+        placeholder="Click tokens to build document UI name..."
+        defaultExpanded={false}
+        defaultValue="{{OriginalFileName}}"
+      />
+
+      {/* 6. Document Download Name (TokenBuilder) */}
+      <TokenBuilder
+        label={
+          <span className={cn(labelClass, "font-medium")}>
+            Document Download Name
+            {(!downloadNameValue || downloadNameValue === '{{OriginalFileName}}') && (
+              <span className="ml-1.5 text-[9px] text-blue-500/70 font-normal">(default)</span>
+            )}
+          </span>
+        }
+        value={downloadNameValue}
+        onChange={onDownloadNameChange}
+        scope={getWarehouseScopeForType(scope)}
+        showPreview={true}
+        placeholder="Click tokens to build download filename..."
+        defaultExpanded={false}
+        defaultValue="{{OriginalFileName}}"
+      />
+
+      {/* Save/Cancel buttons */}
+      <div className="flex items-center justify-between pt-2 border-t mt-3">
+        {/* Auto-save indicator */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {isSaving ? (
+            <>
+              <Spinner size={12} />
+              <span>Saving...</span>
+            </>
+          ) : lastSaved ? (
+            <>
+              <CheckCircle2 className="h-3 w-3 text-green-500 dark:text-green-400" />
+              <span>Auto-saved</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground/50">Changes auto-save</span>
+          )}
+        </div>
+
+        {/* Save and Close buttons */}
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="default"
+            onClick={onSave}
+            disabled={isSaving || !hasUnsavedChanges}
+            className="h-7 px-3 text-xs"
+          >
+            {isSaving ? 'Saving...' : 'Save'}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onCancel}
+            className="h-7 px-3 text-xs"
+          >
+            Close
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // TreeNode component for folder hierarchy
 interface TreeNodeProps {
   node: FolderTreeNode;
@@ -448,10 +685,10 @@ interface TreeNodeProps {
   parentScopeKey?: string | null;
   // SSoT: Templates for auto-save
   scopeTemplates: Record<string, string>;
-  fileNameTemplates: Record<string, string>;
-  displayNameTemplates: Record<string, string>;
+  downloadNameTemplates: Record<string, string>;  // Filename when downloading
+  uiNameTemplates: Record<string, string>;  // Name shown in File Warehouse UI
   configLinks: Record<string, string>;
-  onSaveTemplates: (scopeKey: string, baseFolder: string, folderTemplate: string, filenameTemplate: string, displayNameTemplate: string, configLink: string | null) => Promise<void>;
+  onSaveTemplates: (scopeKey: string, baseFolder: string, folderTemplate: string, downloadNameTemplate: string, uiNameTemplate: string, configLink: string | null) => Promise<void>;
   // Phase 4: Virtual scopes
   virtualScopes: Record<string, boolean>;
   onToggleVirtual: (scopeKey: string, isVirtual: boolean) => Promise<void>;
@@ -476,8 +713,8 @@ function TreeNode({
   onCancelTabEdit,
   parentScopeKey,
   scopeTemplates,
-  fileNameTemplates,
-  displayNameTemplates,
+  downloadNameTemplates,
+  uiNameTemplates,
   configLinks,
   onSaveTemplates,
   virtualScopes,
@@ -490,7 +727,9 @@ function TreeNode({
   const isEditingThisNode = editingKey && node.scopeKeys?.includes(editingKey);
   // The currently editing scope key (could be different from node.scopeKey when multiple scopes share path)
   const currentEditingScopeKey = isEditingThisNode ? editingKey : null;
-  const [editValue, setEditValue] = React.useState(node.path);
+  // FRC Fix: Initialize editValue to FIRST segment only (Base Folder)
+  // NOT full path which would cause duplication with folderTemplate
+  const [editValue, setEditValue] = React.useState(node.path?.split('/')[0] || node.path || '');
   // SSoT: Initialize templates from props (loaded from backend), fallback to defaults
   // Use editingKey when available, otherwise primary scopeKey
   const activeScopeKey = currentEditingScopeKey || node.scopeKey;
@@ -545,11 +784,11 @@ function TreeNode({
   const [folderTemplate, setFolderTemplate] = React.useState(
     getInitialFolderTemplate(activeScopeKey)
   );
-  const [filenameTemplate, setFilenameTemplate] = React.useState(
-    activeScopeKey ? fileNameTemplates[activeScopeKey] || '' : ''
+  const [downloadNameTemplate, setDownloadNameTemplate] = React.useState(
+    activeScopeKey ? downloadNameTemplates[activeScopeKey] || '' : ''
   );
-  const [displayNameTemplate, setDisplayNameTemplate] = React.useState(
-    activeScopeKey ? displayNameTemplates[activeScopeKey] || '' : ''
+  const [uiNameTemplate, setUiNameTemplate] = React.useState(
+    activeScopeKey ? uiNameTemplates[activeScopeKey] || '' : ''
   );
   // Config link: checkbox + URL for linking to external config page
   // SSoT: Initialize from configLinks prop (loaded from backend)
@@ -576,18 +815,18 @@ function TreeNode({
     scopeKey: string;
     baseFolder: string;
     folder: string;
-    filename: string;
-    displayName: string;
+    downloadName: string;
+    uiName: string;
     configLink: string | null;
   } | null>(null);
   // Track the last scope we initialized for (to avoid re-initializing on prop changes)
   const initializedScopeRef = React.useRef<string | null>(null);
 
   // Immediate save function (no debounce) - for switching scopes
-  const saveImmediate = React.useCallback(async (scopeKey: string, baseFolder: string, folder: string, filename: string, displayName: string, configLink: string | null) => {
+  const saveImmediate = React.useCallback(async (scopeKey: string, baseFolder: string, folder: string, downloadName: string, uiName: string, configLink: string | null) => {
     if (!scopeKey) return;
     try {
-      await onSaveTemplates(scopeKey, baseFolder, folder, filename, displayName, configLink);
+      await onSaveTemplates(scopeKey, baseFolder, folder, downloadName, uiName, configLink);
     } catch (error) {
       console.error('Failed to save templates:', error);
     }
@@ -595,7 +834,11 @@ function TreeNode({
 
   // Manual save handler - saves immediately without waiting for debounce
   const handleManualSave = React.useCallback(async () => {
-    if (!currentEditingScopeKey) return;
+    console.log('🟡 [handleManualSave] Called', { currentEditingScopeKey, editValue, folderTemplate, downloadNameTemplate, uiNameTemplate, hasConfigLink, configLinkUrl });
+    if (!currentEditingScopeKey) {
+      console.log('🟡 [handleManualSave] No currentEditingScopeKey, returning');
+      return;
+    }
 
     // Clear any pending auto-save
     if (saveTimeoutRef.current) {
@@ -606,38 +849,46 @@ function TreeNode({
     setIsSaving(true);
     try {
       const linkToSave = hasConfigLink ? configLinkUrl : null;
-      await onSaveTemplates(currentEditingScopeKey, editValue, folderTemplate, filenameTemplate, displayNameTemplate, linkToSave);
+      console.log('🟡 [handleManualSave] Calling onSaveTemplates with:', { currentEditingScopeKey, editValue, folderTemplate, downloadNameTemplate, uiNameTemplate, linkToSave });
+      await onSaveTemplates(currentEditingScopeKey, editValue, folderTemplate, downloadNameTemplate, uiNameTemplate, linkToSave);
+      console.log('🟡 [handleManualSave] Save successful');
       setLastSaved(new Date());
       hasModified.current = false;
       setHasUnsavedChanges(false);
       prevScopeRef.current = null;
     } catch (error) {
-      console.error('Failed to save templates:', error);
+      console.error('🟡 [handleManualSave] Failed to save templates:', error);
     } finally {
       setIsSaving(false);
     }
-  }, [currentEditingScopeKey, editValue, folderTemplate, filenameTemplate, displayNameTemplate, hasConfigLink, configLinkUrl, onSaveTemplates]);
+  }, [currentEditingScopeKey, editValue, folderTemplate, downloadNameTemplate, uiNameTemplate, hasConfigLink, configLinkUrl, onSaveTemplates]);
 
   // Auto-save function with debounce - calls actual API
-  const autoSave = React.useCallback(async (scopeKey: string, baseFolder: string, folder: string, filename: string, displayName: string, configLink: string | null) => {
-    if (!scopeKey || !hasModified.current) return;
+  const autoSave = React.useCallback(async (scopeKey: string, baseFolder: string, folder: string, downloadName: string, uiName: string, configLink: string | null) => {
+    console.log('🟢 [autoSave] Called', { scopeKey, baseFolder, folder, downloadName, uiName, configLink, hasModified: hasModified.current });
+    if (!scopeKey || !hasModified.current) {
+      console.log('🟢 [autoSave] Skipping - no scopeKey or not modified');
+      return;
+    }
 
     // Update the ref so we can save when switching
-    prevScopeRef.current = { scopeKey, baseFolder, folder, filename, displayName, configLink };
+    prevScopeRef.current = { scopeKey, baseFolder, folder, downloadName, uiName, configLink };
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = setTimeout(async () => {
+      console.log('🟢 [autoSave] Debounce triggered, saving...');
       setIsSaving(true);
       try {
-        await onSaveTemplates(scopeKey, baseFolder, folder, filename, displayName, configLink);
+        await onSaveTemplates(scopeKey, baseFolder, folder, downloadName, uiName, configLink);
+        console.log('🟢 [autoSave] Save successful');
         setLastSaved(new Date());
         hasModified.current = false;
         setHasUnsavedChanges(false);
         prevScopeRef.current = null; // Clear after successful save
       } catch (error) {
-        console.error('Failed to save templates:', error);
+        console.error('🟢 [autoSave] Failed to save templates:', error);
       } finally {
         setIsSaving(false);
       }
@@ -651,21 +902,21 @@ function TreeNode({
     if (currentEditingScopeKey && hasModified.current && initializedScopeRef.current === currentEditingScopeKey) {
       // Pass null for configLink if checkbox is unchecked (to remove it)
       const linkToSave = hasConfigLink ? configLinkUrl : null;
-      autoSave(currentEditingScopeKey, editValue, folderTemplate, filenameTemplate, displayNameTemplate, linkToSave);
+      autoSave(currentEditingScopeKey, editValue, folderTemplate, downloadNameTemplate, uiNameTemplate, linkToSave);
     }
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [editValue, folderTemplate, filenameTemplate, displayNameTemplate, hasConfigLink, configLinkUrl, currentEditingScopeKey, autoSave]);
+  }, [editValue, folderTemplate, downloadNameTemplate, uiNameTemplate, hasConfigLink, configLinkUrl, currentEditingScopeKey, autoSave]);
 
   // Save previous scope immediately when switching to a different scope
   React.useEffect(() => {
     // If we have pending changes from a previous scope, save them immediately
     if (prevScopeRef.current && prevScopeRef.current.scopeKey !== currentEditingScopeKey) {
       const prev = prevScopeRef.current;
-      saveImmediate(prev.scopeKey, prev.baseFolder, prev.folder, prev.filename, prev.displayName, prev.configLink);
+      saveImmediate(prev.scopeKey, prev.baseFolder, prev.folder, prev.downloadName, prev.uiName, prev.configLink);
       prevScopeRef.current = null;
       // Clear any pending debounced save
       if (saveTimeoutRef.current) {
@@ -682,16 +933,16 @@ function TreeNode({
     setFolderTemplate(value);
   };
 
-  const handleFilenameTemplateChange = (value: string) => {
+  const handleDownloadNameTemplateChange = (value: string) => {
     hasModified.current = true;
     setHasUnsavedChanges(true);
-    setFilenameTemplate(value);
+    setDownloadNameTemplate(value);
   };
 
-  const handleDisplayNameTemplateChange = (value: string) => {
+  const handleUiNameTemplateChange = (value: string) => {
     hasModified.current = true;
     setHasUnsavedChanges(true);
-    setDisplayNameTemplate(value);
+    setUiNameTemplate(value);
   };
 
   // Determine if this node is in a simple scope context (for inline editing)
@@ -703,18 +954,31 @@ function TreeNode({
   React.useEffect(() => {
     if (currentEditingScopeKey) {
       const scopeActuallyChanged = initializedScopeRef.current !== currentEditingScopeKey;
+      console.log('🟣 [TreeNode useEffect] Scope edit check:', { currentEditingScopeKey, previousScope: initializedScopeRef.current, scopeActuallyChanged, nodePath: node.path });
 
       // Only initialize templates when switching to a DIFFERENT scope
       if (scopeActuallyChanged) {
-        setEditValue(currentPath[currentEditingScopeKey] || node.path);
-        setFolderTemplate(
-          getInitialFolderTemplate(currentEditingScopeKey)
+        // FRC Fix: Base Folder should be FIRST segment only (e.g., "Tasks")
+        // NOT the full path (e.g., "Tasks/{{TaskId}}/{{TaskName}}")
+        // The template portion is in scopeTemplates (set via setFolderTemplate below)
+        const fullPath = currentPath[currentEditingScopeKey] || node.path;
+        const firstSegment = fullPath?.split('/')[0] || fullPath || '';
+        const initialTemplate = getInitialFolderTemplate(currentEditingScopeKey);
+        console.log('🟣 [TreeNode useEffect] Initializing edit values:', {
+          fullPath,
+          firstSegment,
+          folderTemplate: initialTemplate,
+          downloadName: downloadNameTemplates[currentEditingScopeKey],
+          uiName: uiNameTemplates[currentEditingScopeKey],
+          configLink: configLinks[currentEditingScopeKey],
+        });
+        setEditValue(firstSegment);
+        setFolderTemplate(initialTemplate);
+        setDownloadNameTemplate(
+          downloadNameTemplates[currentEditingScopeKey] || ''
         );
-        setFilenameTemplate(
-          fileNameTemplates[currentEditingScopeKey] || ''
-        );
-        setDisplayNameTemplate(
-          displayNameTemplates[currentEditingScopeKey] || ''
+        setUiNameTemplate(
+          uiNameTemplates[currentEditingScopeKey] || ''
         );
         const linkValue = configLinks[currentEditingScopeKey] || '';
         setConfigLinkUrl(linkValue);
@@ -728,7 +992,7 @@ function TreeNode({
       // Editing stopped - reset the initialized scope tracker
       initializedScopeRef.current = null;
     }
-  }, [currentEditingScopeKey, currentPath, node.path, scopeTemplates, fileNameTemplates, displayNameTemplates, configLinks]);
+  }, [currentEditingScopeKey, currentPath, node.path, scopeTemplates, downloadNameTemplates, uiNameTemplates, configLinks]);
 
   const fullPath = rootPath
     ? `${rootPath}/${node.path}`.replace(/\/+/g, '/')
@@ -795,30 +1059,22 @@ function TreeNode({
           </div>
         )}
 
-        {/* Config link - shown when checkbox is enabled and URL is set */}
-        {hasConfigLink && configLinkUrl && !isEditingThisNode && (() => {
-          // Get tab name from URL
-          const getTabName = (url: string) => {
-            if (url.includes('corporate')) return 'Corporate tab';
-            if (url.includes('/job')) return 'Jobs tab';
-            if (url.includes('/contact')) return 'Contacts tab';
-            return 'Configure';
-          };
-          return (
-            <Link
-              href={configLinkUrl}
-              className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-1"
-            >
-              {getTabName(configLinkUrl)} <ExternalLink className="h-3 w-3" />
-            </Link>
-          );
-        })()}
+        {/* SSoT (Feb 2026): Config link buttons removed for consistency - all scopes show tabs */}
 
-        {/* Tab count badge */}
+        {/* Individual tab badges */}
         {hasTabs && (
-          <span className="ml-1 text-[10px] text-muted-foreground">
-            ({node.tabs!.length} tabs)
-          </span>
+          <div className="flex items-center gap-1 ml-1">
+            {node.tabs!.map((tab) => (
+              <Badge
+                key={tab.id}
+                variant="secondary"
+                className="h-5 text-[10px] px-1.5"
+                title={`Tab: ${tab.display_name}`}
+              >
+                {tab.display_name}
+              </Badge>
+            ))}
+          </div>
         )}
       </div>
 
@@ -871,12 +1127,40 @@ function TreeNode({
 
         if (!displayPath) return null;
 
+        // Get UI/Download name status for this scope
+        const scopeUiName = uiNameTemplates[parentScopeKey] || '';
+        const scopeDownloadName = downloadNameTemplates[parentScopeKey] || '';
+
         return (
           <div
-            className="text-[10px] text-muted-foreground font-mono"
+            className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono"
             style={{ paddingLeft: `${level * 16 + 28}px` }}
           >
-            {displayPath}
+            <span>{displayPath}</span>
+            {/* UI Name indicator: green=custom, orange=default */}
+            <span
+              className={cn(
+                "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
+                scopeUiName
+                  ? "bg-green-500 text-white dark:bg-green-600"
+                  : "bg-orange-500 text-white dark:bg-orange-600"
+              )}
+              title={`UI Name: ${scopeUiName || '{{OriginalFileName}} (default)'}`}
+            >
+              UI
+            </span>
+            {/* Download Name indicator: green=custom, orange=default */}
+            <span
+              className={cn(
+                "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
+                scopeDownloadName
+                  ? "bg-green-500 text-white dark:bg-green-600"
+                  : "bg-orange-500 text-white dark:bg-orange-600"
+              )}
+              title={`Download Name: ${scopeDownloadName || '{{OriginalFileName}} (default)'}`}
+            >
+              DL
+            </span>
           </div>
         );
       })()}
@@ -927,7 +1211,7 @@ function TreeNode({
                     hasModified.current = true;
                     setHasUnsavedChanges(true);
                   }}
-                  scope="storage"
+                  scope={getWarehouseScopeForType(currentEditingScopeKey || '')}
                   showPreview={false}
                   separator="/"
                   placeholder="Click tokens to build base folder..."
@@ -947,7 +1231,7 @@ function TreeNode({
               label={<span className="text-xs font-medium">Folder Path</span>}
               value={folderTemplate}
               onChange={handleFolderTemplateChange}
-              scope="storage"
+              scope={getWarehouseScopeForType(currentEditingScopeKey || '')}
               showPreview={false}
               separator="/"
               placeholder="Click tokens to build folder path..."
@@ -962,16 +1246,19 @@ function TreeNode({
             />
 
             {/* Full Path Preview - directly under Folder Path for immediate feedback */}
-            {/* SSoT: For child types, use parent's base folder instead of editValue */}
+            {/* SSoT: For parent types, folderTemplate already includes base folder (e.g., "Tasks/{{TaskId}}")
+                For child types, we need parent's base folder + child's suffix template */}
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2 -mt-2">
               <span className="text-xs text-muted-foreground">Full Path: </span>
               <span className="font-mono text-sm text-green-700 dark:text-green-400">
                 {normalizePathDisplay([
                   rootPath,
                   currentEditingScopeKey && WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]
-                    ? scopeRootFolders[WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]] || editValue
-                    : editValue,
-                  folderTemplate
+                    // Child type: parent's base folder + child's suffix template
+                    ? [scopeRootFolders[WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]] || editValue, folderTemplate].filter(Boolean).join('/')
+                    // Parent type: folderTemplate already includes base folder (e.g., "Tasks/{{TaskId}}/{{TaskName}}")
+                    // FRC Fix (Feb 2026): Don't add editValue separately - it's already the first segment of folderTemplate
+                    : folderTemplate || editValue
                 ].filter(Boolean).join('/').replace(/\/+/g, '/'))}
               </span>
             </div>
@@ -1058,26 +1345,28 @@ function TreeNode({
               </div>
             )}
 
-            {/* Display Name Template (what user sees in UI) */}
+            {/* Document UI Name Template (what user sees in File Warehouse) */}
             <TokenBuilder
-              label={<span className="text-xs font-medium">Display Name</span>}
-              value={displayNameTemplate}
-              onChange={handleDisplayNameTemplateChange}
-              scope="storage"
+              label={<span className="text-xs font-medium">Document UI Name</span>}
+              value={uiNameTemplate}
+              onChange={handleUiNameTemplateChange}
+              scope={getWarehouseScopeForType(currentEditingScopeKey || '')}
               showPreview={true}
-              placeholder="Click tokens to build display name..."
+              placeholder="Click tokens to build document UI name..."
               defaultExpanded={false}
+              defaultValue="{{OriginalFileName}}"
             />
 
-            {/* Download Name Template (filename when downloading) */}
+            {/* Document Download Name Template (filename when downloading) */}
             <TokenBuilder
-              label={<span className="text-xs font-medium">Download Name</span>}
-              value={filenameTemplate}
-              onChange={handleFilenameTemplateChange}
-              scope="storage"
+              label={<span className="text-xs font-medium">Document Download Name</span>}
+              value={downloadNameTemplate}
+              onChange={handleDownloadNameTemplateChange}
+              scope={getWarehouseScopeForType(currentEditingScopeKey || '')}
               showPreview={true}
-              placeholder="Click tokens to build filename..."
+              placeholder="Click tokens to build download filename..."
               defaultExpanded={false}
+              defaultValue="{{OriginalFileName}}"
             />
 
             {/* Auto-save status and close */}
@@ -1135,27 +1424,27 @@ function TreeNode({
               {/* Render ALL scope templates as nested preview folders */}
               {(() => {
                 // Collect all templates from all scopes sharing this path
-                const allTemplates: Array<{ scopeKey: string; template: string; filename: string }> = [];
+                const allTemplates: Array<{ scopeKey: string; template: string; downloadName: string }> = [];
                 for (const sk of node.scopeKeys) {
                   const template = scopeTemplates[sk] || '';
-                  const filename = fileNameTemplates[sk] || '';
+                  const downloadName = downloadNameTemplates[sk] || '';
                   // Skip COMPLEX_SCOPES - they show via tabs section exclusively (job, contact, corporate)
                   // Skip scopes with config links (they show tabs instead)
                   if (!COMPLEX_SCOPES.includes(sk) && !configLinks[sk] && template) {
-                    allTemplates.push({ scopeKey: sk, template, filename });
+                    allTemplates.push({ scopeKey: sk, template, downloadName });
                   }
                 }
 
                 // Build a merged tree structure from all templates
                 // This handles the case where multiple scopes share the same prefix (e.g., {{TaskId}})
-                const templateTree: Map<string, { parts: string[]; scopeKey: string; filename: string }[]> = new Map();
-                for (const { scopeKey, template, filename } of allTemplates) {
+                const templateTree: Map<string, { parts: string[]; scopeKey: string; downloadName: string }[]> = new Map();
+                for (const { scopeKey, template, downloadName } of allTemplates) {
                   const parts = template.split('/').filter(Boolean);
                   const key = parts[0] || ''; // First part as the grouping key
                   if (!templateTree.has(key)) {
                     templateTree.set(key, []);
                   }
-                  templateTree.get(key)!.push({ parts, scopeKey, filename });
+                  templateTree.get(key)!.push({ parts, scopeKey, downloadName });
                 }
 
                 // Render the merged tree
@@ -1179,7 +1468,7 @@ function TreeNode({
                   );
 
                   // Render the remaining parts for each scope - resolve placeholders to examples
-                  for (const { parts, scopeKey, filename } of items) {
+                  for (const { parts, scopeKey, downloadName } of items) {
                     const remainingParts = parts.slice(1);
                     let currentLevel = level + 2;
                     for (let idx = 0; idx < remainingParts.length; idx++) {
@@ -1196,9 +1485,9 @@ function TreeNode({
                           <span className="font-mono text-xs text-muted-foreground italic">
                             {resolveWithExamples(part)}
                           </span>
-                          {isLast && filename && (
+                          {isLast && downloadName && (
                             <span className="ml-2 text-[10px] text-muted-foreground/60">
-                              → {resolveWithExamples(filename)}
+                              → {resolveWithExamples(downloadName)}
                             </span>
                           )}
                         </div>
@@ -1230,8 +1519,8 @@ function TreeNode({
               onCancelTabEdit={onCancelTabEdit}
               parentScopeKey={node.scopeKey || parentScopeKey}
               scopeTemplates={scopeTemplates}
-              fileNameTemplates={fileNameTemplates}
-              displayNameTemplates={displayNameTemplates}
+              downloadNameTemplates={downloadNameTemplates}
+              uiNameTemplates={uiNameTemplates}
               configLinks={configLinks}
               onSaveTemplates={onSaveTemplates}
               virtualScopes={virtualScopes}
@@ -1350,7 +1639,7 @@ function resolveTemplatePreview(template: string, docType?: DocumentType): strin
 
 // TabNode component for displaying entity tabs
 interface TabNodeProps {
-  tab: EntityTab;
+  tab: WarehouseTabConfig;
   level: number;
   basePath: string;
   rootPath: string;
@@ -1378,6 +1667,11 @@ function TabNode({
   // Extract just the folder name from stored path (strip base path if present)
   const extractFolderName = (storedPath: string | null | undefined, base: string): string => {
     if (!storedPath) return '';
+    // FRC Fix (Feb 2026): If stored path equals base path exactly, return empty (no additional folder)
+    // This happens for root tabs where folder_path IS the scope's full template
+    if (base && storedPath === base) {
+      return '';
+    }
     // If path starts with basePath, strip it to get just the folder name
     if (base && storedPath.startsWith(base + '/')) {
       return storedPath.slice(base.length + 1);
@@ -1389,22 +1683,38 @@ function TabNode({
     return storedPath;
   };
 
-  // Folder name: extract from stored path, or default to display_name
-  const storedPath = tab.warehouse_folder || tab.storage_folder_path;
-  const defaultFolderName = storedPath ? extractFolderName(storedPath, basePath) : (tab.display_name || '');
-  const [editPath, setEditPath] = React.useState(defaultFolderName);
+  // Folder name: extract from stored path
+  // Use ?? (nullish coalescing) not || so empty string "" is preserved (user intentionally cleared it)
+  const storedPath = tab.folder_path ?? tab.storage_folder_path ?? '';
+  const extractedFolderName = storedPath ? extractFolderName(storedPath, basePath) : '';
+  // FRC Fix (Feb 2026): If folder_path is empty, use tab's display_name (not basePath segment)
+  // This shows the tab's name instead of deriving from parent path
+  const defaultFolderName = extractedFolderName || tab.display_name || '';
+  // Edit path: only show what was actually stored (empty if folder_path is empty)
+  const [editPath, setEditPath] = React.useState(extractedFolderName);
   const [editDisplayName, setEditDisplayName] = React.useState(tab.display_name || '');
-  const [editSendName, setEditSendName] = React.useState(tab.send_name_template || '');
+  const [editSendName, setEditSendName] = React.useState(tab.download_name || '{{OriginalFileName}}');
 
+  // Track previous isEditing state to only initialize on ENTRY to edit mode
+  const wasEditingRef = React.useRef(false);
   React.useEffect(() => {
-    if (isEditing) {
-      const stored = tab.warehouse_folder || tab.storage_folder_path;
-      const folderName = stored ? extractFolderName(stored, basePath) : (tab.display_name || '');
+    // Only reset edit fields when ENTERING edit mode (false → true)
+    // NOT when data changes during editing (that would overwrite user's changes)
+    const shouldInit = isEditing && !wasEditingRef.current;
+    console.log('[TabNode useEffect]', { isEditing, wasEditing: wasEditingRef.current, shouldInit, tabId: tab.id });
+    if (shouldInit) {
+      console.log('[TabNode useEffect] tab.folder_path:', JSON.stringify(tab.folder_path));
+      console.log('[TabNode useEffect] tab.storage_folder_path:', JSON.stringify(tab.storage_folder_path));
+      const stored = tab.folder_path ?? tab.storage_folder_path ?? '';
+      console.log('[TabNode useEffect] stored (after ??):', JSON.stringify(stored));
+      const folderName = stored ? extractFolderName(stored, basePath) : '';
+      console.log('[TabNode useEffect] Initializing editPath to:', JSON.stringify(folderName));
       setEditPath(folderName);
       setEditDisplayName(tab.display_name || '');
-      setEditSendName(tab.send_name_template || '');
+      setEditSendName(tab.download_name || '{{OriginalFileName}}');
     }
-  }, [isEditing, tab.warehouse_folder, tab.storage_folder_path, tab.display_name, tab.send_name_template, basePath]);
+    wasEditingRef.current = isEditing;
+  }, [isEditing, tab.folder_path, tab.storage_folder_path, tab.display_name, tab.download_name, basePath]);
 
   // Build full path preview: rootPath + basePath + folderName
   const fullPathPreview = [rootPath, basePath, editPath]
@@ -1429,10 +1739,33 @@ function TabNode({
         onClick={!isEditing ? (e) => { e.stopPropagation(); onStartEdit(tab.id); } : undefined}
         title={!isEditing ? "Click to edit" : undefined}
       >
-        {/* Tab header row - show folder name from warehouse_folder (resolved) */}
+        {/* Tab header row - show folder name from folder_path (resolved) */}
         <div className="flex items-center gap-1 mb-2">
           <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
           <span className="text-sm font-medium">{resolveTemplatePreview(defaultFolderName || tab.display_name || '')}</span>
+          {/* UI/DL badges for this tab */}
+          <span
+            className={cn(
+              "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
+              tab.ui_name
+                ? "bg-green-500 text-white dark:bg-green-600"
+                : "bg-orange-500 text-white dark:bg-orange-600"
+            )}
+            title={`UI Name: ${tab.ui_name || '{{OriginalFileName}} (default)'}`}
+          >
+            UI
+          </span>
+          <span
+            className={cn(
+              "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
+              tab.download_name && tab.download_name !== '{{OriginalFileName}}'
+                ? "bg-green-500 text-white dark:bg-green-600"
+                : "bg-orange-500 text-white dark:bg-orange-600"
+            )}
+            title={`Download Name: ${tab.download_name || '{{OriginalFileName}} (default)'}`}
+          >
+            DL
+          </span>
           {!isEditing && (
             <span className="text-[10px] text-muted-foreground ml-2 opacity-0 group-hover:opacity-100">(click to edit)</span>
           )}
@@ -1440,21 +1773,8 @@ function TabNode({
 
         {isEditing ? (
           <div className="space-y-3 ml-4 border-l-2 border-blue-200 dark:border-blue-800 pl-3">
-            {/* Display Name - what users see in UI */}
-            <div className="space-y-1">
-              <TokenBuilder
-                label={<span className="text-[11px] font-medium text-muted-foreground">Display Name</span>}
-                value={editDisplayName}
-                onChange={setEditDisplayName}
-                scope="storage"
-                showPreview={true}
-                separator=" "
-                placeholder="Name shown in UI..."
-                defaultExpanded={false}
-              />
-            </div>
-
-            {/* Root folder path (read-only) */}
+            {/* SSoT: Standardized field order matches FolderEditPanel */}
+            {/* 1. Root folder path (read-only) */}
             <div className="space-y-1">
               <span className="text-[11px] font-medium text-muted-foreground">Root Path</span>
               <div className="bg-muted/50 border border-muted rounded px-2 py-1.5">
@@ -1464,37 +1784,82 @@ function TabNode({
               </div>
             </div>
 
-            {/* Folder Path - the folder name in storage */}
+            {/* 2. Base Folder (inherited from parent scope - read-only for tabs) */}
+            <div className="space-y-1">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                Base Folder
+                <span className="text-muted-foreground/70 ml-1">(inherited from {scope})</span>
+              </span>
+              <div className="bg-muted/50 border border-muted rounded px-2 py-1.5">
+                <span className="font-mono text-xs text-muted-foreground">
+                  {basePath.replace(/\/?\{\{TeeemXL\}\}|\{\{TabName\}\}/g, '').replace(/\/+$/, '') || '/'}
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Base path inherited from parent scope. Edit Folder Path below to set the tab folder name.
+              </p>
+            </div>
+
+            {/* 3. Folder Path - the folder name in storage */}
             <div className="space-y-1">
               <TokenBuilder
                 label={<span className="text-[11px] font-medium text-muted-foreground">Folder Path</span>}
                 value={editPath}
                 onChange={setEditPath}
-                scope="storage"
+                scope={getWarehouseScopeForType(scope)}
                 showPreview={false}
                 separator="/"
                 placeholder="e.g. TeeemXL"
                 defaultExpanded={false}
               />
-              {/* Full path preview - basePath is the SSoT template with {{TeeemXL}} replaced by folder name */}
+              {/* 4. Full path preview - append editPath to basePath (or replace placeholder if present) */}
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-2 py-1">
                 <span className="text-[10px] text-muted-foreground font-medium">Full Path: </span>
                 <span className="font-mono text-xs text-green-700 dark:text-green-400">
-                  {[rootPath, basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/g, editPath || '...')]
-                    .filter(Boolean)
-                    .join('/')
-                    .replace(/\/+/g, '/') || '/'}
+                  {(() => {
+                    const hasPlaceholder = /\{\{TeeemXL\}\}|\{\{TabName\}\}/i.test(basePath);
+                    const resolvedBase = hasPlaceholder
+                      ? basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/gi, editPath || '...')
+                      : basePath;
+                    // FRC Fix: Always append editPath (even if basePath already has tokens like {{Year}})
+                    const fullPath = hasPlaceholder
+                      ? [rootPath, resolvedBase]  // Placeholder was replaced
+                      : [rootPath, basePath, editPath].filter(Boolean);  // Append editPath
+                    return fullPath.join('/').replace(/\/+/g, '/') || '/';
+                  })()}
                 </span>
               </div>
             </div>
 
-            {/* Download filename template */}
+            {/* 4. Document UI Name - what users see in UI */}
             <div className="space-y-1">
               <TokenBuilder
-                label={<span className="text-[11px] font-medium text-muted-foreground">Download Filename</span>}
+                label={<span className="text-[11px] font-medium text-muted-foreground">Document UI Name</span>}
+                value={editDisplayName}
+                onChange={setEditDisplayName}
+                scope={getWarehouseScopeForType(scope)}
+                showPreview={true}
+                separator=" "
+                placeholder="Name shown in UI..."
+                defaultExpanded={false}
+                defaultValue="{{OriginalFileName}}"
+              />
+            </div>
+
+            {/* 5. Document Download Name template */}
+            <div className="space-y-1">
+              <TokenBuilder
+                label={
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Document Download Name
+                    {(!tab.download_name || editSendName === '{{OriginalFileName}}') && (
+                      <span className="ml-1.5 text-[9px] text-blue-500/70 font-normal">(default)</span>
+                    )}
+                  </span>
+                }
                 value={editSendName}
                 onChange={setEditSendName}
-                scope="storage"
+                scope={getWarehouseScopeForType(scope)}
                 showPreview={true}
                 separator=" "
                 placeholder="e.g. {{OriginalFileName}}"
@@ -1509,8 +1874,24 @@ function TabNode({
                 onClick={() => {
                   // Use tab.display_name as fallback if editDisplayName is empty
                   const displayNameToSave = editDisplayName.trim() || tab.display_name || 'Untitled';
-                  console.log('[TabNode Save] Clicked:', { tabId: tab.id, editPath, displayNameToSave, editSendName });
-                  onSaveEdit(tab.id, editPath, displayNameToSave, editSendName);
+
+                  // FRC Fix (Feb 2026): If folder path is empty, save empty string
+                  // Don't append basePath - empty means "use basePath directly"
+                  // This prevents the loop where {{Year}} gets extracted and re-added
+                  let fullPath: string;
+                  if (!editPath.trim()) {
+                    // Empty folder path = use basePath directly (save as empty)
+                    fullPath = '';
+                  } else {
+                    // Has folder path - build full path
+                    const hasPlaceholder = /\{\{TeeemXL\}\}|\{\{TabName\}\}/i.test(basePath);
+                    fullPath = hasPlaceholder
+                      ? basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/gi, editPath)
+                      : [basePath, editPath].filter(Boolean).join('/').replace(/\/+/g, '/');
+                  }
+
+                  console.log('[TabNode Save] Clicked:', { tabId: tab.id, editPath, fullPath, displayNameToSave, editSendName, basePath });
+                  onSaveEdit(tab.id, fullPath, displayNameToSave, editSendName);
                 }}
                 className="h-7 text-xs"
               >
@@ -1527,12 +1908,9 @@ function TabNode({
             </div>
           </div>
         ) : (
-          // Show display name, folder path, and download filename when not editing
+          // SSoT: Standardized field order matches editing state
+          // Show folder path, document UI name, and download name when not editing
           <div className="ml-4 text-[11px] text-muted-foreground space-y-0.5">
-            <div>
-              <span className="font-medium">Display Name: </span>
-              <span>{tab.display_name}</span>
-            </div>
             <div>
               <span className="font-medium">Folder Path: </span>
               <span className="font-mono">
@@ -1550,8 +1928,12 @@ function TabNode({
               </span>
             </div>
             <div>
-              <span className="font-medium">Download As: </span>
-              <span className="font-mono">{tab.send_name_template || '{{OriginalFileName}}'}</span>
+              <span className="font-medium">Document UI Name: </span>
+              <span>{tab.display_name}</span>
+            </div>
+            <div>
+              <span className="font-medium">Document Download Name: </span>
+              <span className="font-mono">{tab.download_name || '{{OriginalFileName}}'}</span>
             </div>
           </div>
         )}
@@ -1563,14 +1945,36 @@ function TabNode({
   const hasChildren = tab.children && tab.children.length > 0;
   const hasDocTypes = tab.document_types && tab.document_types.length > 0;
   const hasExpandableContent = hasChildren || hasDocTypes;
-  const storedFolderPath = tab.warehouse_folder || tab.storage_folder_path;
+  const storedFolderPath = tab.folder_path || tab.storage_folder_path;
+
+  // FRC Fix (Feb 2026): Extract parent folder name from basePath (first static segment)
+  // When folder_path is empty/invalid, inherit this instead of showing bad data like {25}
+  const getParentFolderName = (path: string | null | undefined): string => {
+    if (!path) return '';
+    const parts = path.split('/').filter(Boolean);
+    for (const part of parts) {
+      // Return first non-placeholder part
+      if (!part.startsWith('{{') && !part.startsWith('[[')) {
+        return part;
+      }
+    }
+    return '';
+  };
+
+  // Check if storedFolderPath is valid (not empty, not just an ID like {25})
+  const isValidFolderPath = storedFolderPath &&
+    storedFolderPath.trim() !== '' &&
+    !/^\{\d+\}$/.test(storedFolderPath.trim());
+
   // For child tabs (parent_id exists), use display_name as folder name
-  // For root tabs, extract from stored path or fall back to display_name
-  // This ensures child tabs get their OWN name appended, not the parent's folder
+  // For root tabs, extract from stored path or fall back to base_folder column
+  // FRC Fix: If folder_path is empty/invalid, use base_folder from database (SSoT)
   const isChildTab = !!tab.parent_id;
+  const extractedName = isValidFolderPath ? extractFolderName(storedFolderPath, basePath) : '';
+  // SSoT (Feb 2026): Use tab.base_folder directly instead of extracting from path
   const folderName = isChildTab
     ? (tab.display_name || '')
-    : (storedFolderPath ? extractFolderName(storedFolderPath, basePath) : (tab.display_name || ''));
+    : (extractedName || tab.base_folder || tab.display_name || '');
 
   // Compute this tab's full path (for passing to children as their basePath)
   // If basePath has {{TabName}}, replace it with folder name (root tabs)
@@ -1604,8 +2008,31 @@ function TabNode({
           <span className="w-3.5" /> // Spacer for alignment
         )}
         <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-        {/* Show folder name (from warehouse_folder), resolved if it contains tokens */}
+        {/* Show folder name (from folder_path), resolved if it contains tokens */}
         <span className="text-sm">{resolveTemplatePreview(folderName || tab.display_name || '')}</span>
+        {/* UI/DL badges for this tab */}
+        <span
+          className={cn(
+            "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
+            tab.ui_name
+              ? "bg-green-500 text-white dark:bg-green-600"
+              : "bg-orange-500 text-white dark:bg-orange-600"
+          )}
+          title={`UI Name: ${tab.ui_name || '{{OriginalFileName}} (default)'}`}
+        >
+          UI
+        </span>
+        <span
+          className={cn(
+            "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
+            tab.download_name && tab.download_name !== '{{OriginalFileName}}'
+              ? "bg-green-500 text-white dark:bg-green-600"
+              : "bg-orange-500 text-white dark:bg-orange-600"
+          )}
+          title={`Download Name: ${tab.download_name || '{{OriginalFileName}} (default)'}`}
+        >
+          DL
+        </span>
         {/* Show document type count if has doc types */}
         {hasDocTypes && (
           <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">
@@ -1632,10 +2059,10 @@ function TabNode({
               style={{ paddingLeft: `${level * 16 + 58}px` }}
             >
               {tab.document_types!.map((dt) => {
-                // display_name contains the Display Name TEMPLATE (with tokens)
-                // file_name contains the Download Name TEMPLATE (with tokens)
+                // display_name contains the Document UI Name TEMPLATE (with tokens)
+                // file_name contains the Document Download Name TEMPLATE (with tokens)
                 // name is the actual document type name like "Xero Invoice"
-                const displayTemplate = dt.display_name || dt.file_name || '';
+                const uiNameTemplate = dt.display_name || dt.file_name || '';
                 const downloadTemplate = dt.file_name || '';
 
                 return (
@@ -1649,23 +2076,23 @@ function TabNode({
                         <span className="text-muted-foreground/60 text-[9px]">({dt.abbreviation})</span>
                       )}
                     </div>
-                    {/* Display Name and Download Name side by side */}
+                    {/* Document UI Name and Download Name side by side */}
                     <div className="flex items-start gap-8 pl-2 mt-0.5">
-                      {/* Display Name (left) */}
+                      {/* Document UI Name (left) */}
                       <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-1.5">
                           <span className="text-[9px] text-muted-foreground/50">👁</span>
                           <span className="font-mono text-[8px] text-muted-foreground/60">
-                            {displayTemplate || '(default)'}
+                            {uiNameTemplate || '(default)'}
                           </span>
                         </div>
                         <span className="font-mono text-[9px] text-green-700 dark:text-green-400 pl-4">
-                          {displayTemplate
-                            ? resolveTemplatePreview(displayTemplate, dt)
+                          {uiNameTemplate
+                            ? resolveTemplatePreview(uiNameTemplate, dt)
                             : '(default)'}
                         </span>
                       </div>
-                      {/* Download Name (right) */}
+                      {/* Document Download Name (right) */}
                       <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-1.5">
                           <span className="text-[9px] text-muted-foreground/50">📥</span>
@@ -1731,8 +2158,8 @@ export function WarehouseProviderTab() {
     warehouse_folders: {} as ScopeFolders,
     // SSoT: Templates for folder paths and filenames per warehouse type
     warehouse_folder_templates: {} as Record<string, string>,
-    file_name_templates: {} as Record<string, string>,
-    display_name_templates: {} as Record<string, string>,
+    download_names: {} as Record<string, string>,  // Filename when downloading
+    ui_name_templates: {} as Record<string, string>,  // Name shown in File Warehouse UI
     // SSoT: Config links for warehouse folders
     config_links: {} as Record<string, string>,
     // Phase 4: Virtual warehouses (render from DB instead of S3)
@@ -1748,7 +2175,7 @@ export function WarehouseProviderTab() {
   const [editingTabId, setEditingTabId] = React.useState<number | null>(null);
 
   // Entity tabs for each scope
-  const [entityTabs, setEntityTabs] = React.useState<Record<string, EntityTab[]>>({});
+  const [entityTabs, setWarehouseTabConfigs] = React.useState<Record<string, WarehouseTabConfig[]>>({});
   const [loadingTabs, setLoadingTabs] = React.useState(false);
 
   // Warehouse stats for live preview
@@ -1788,10 +2215,10 @@ export function WarehouseProviderTab() {
 
   // Fetch entity tabs for all scopes
   // FRC (Jan 2026): Use per-scope error handling so one failing scope doesn't break all tabs
-  const loadEntityTabs = async () => {
+  const loadWarehouseTabConfigs = async () => {
     setLoadingTabs(true);
     try {
-      const tabsByScope: Record<string, EntityTab[]> = {};
+      const tabsByScope: Record<string, WarehouseTabConfig[]> = {};
 
       // Fetch tabs for each scope in parallel with per-scope error handling
       const scopeKeys = Object.keys(SCOPE_TO_API_SCOPE);
@@ -1799,8 +2226,8 @@ export function WarehouseProviderTab() {
         scopeKeys.map(async (scopeKey) => {
           try {
             const apiScope = SCOPE_TO_API_SCOPE[scopeKey];
-            const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>(
-              `/api/v1/entity_tabs?scope=${apiScope}`
+            const response = await api.get<{ success: boolean; data: { tabs: WarehouseTabConfig[] } }>(
+              `/api/v1/warehouse_folders?scope=${apiScope}`
             );
             // Safely access nested properties
             const tabs = response?.success && response?.data?.tabs ? response.data.tabs : [];
@@ -1818,7 +2245,7 @@ export function WarehouseProviderTab() {
         tabsByScope[scopeKey] = tabs;
       });
 
-      setEntityTabs(tabsByScope);
+      setWarehouseTabConfigs(tabsByScope);
     } catch (error) {
       console.error("Failed to load entity tabs:", error);
     } finally {
@@ -1833,45 +2260,61 @@ export function WarehouseProviderTab() {
     const tree = buildFolderTree(scopeFolders);
 
     // Helper: Check if tab has doc types directly
-    const tabHasDocTypes = (tab: EntityTab): boolean => {
+    const tabHasDocTypes = (tab: WarehouseTabConfig): boolean => {
       return !!(tab.document_types && tab.document_types.length > 0);
     };
 
     // Helper: Check if tab or any descendants have doc types AND warehouse enabled
     // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)
-    const hasDescendantWithDocTypes = (tab: EntityTab): boolean => {
-      // This tab has warehouse + doc types
+    // FRC (Feb 2026): Must include parent tabs if children have doc types
+    // Example: Corporate has no direct doc types, but Tax/ID children do → include Corporate
+    const hasDescendantWithDocTypes = (tab: WarehouseTabConfig): boolean => {
       const isWarehouseEnabled = tab.warehouse_enabled ?? tab.has_storage_folder;
+      // This tab has warehouse + doc types directly
       if (isWarehouseEnabled && tabHasDocTypes(tab)) return true;
-      // Or any child has it
+      // Or any child/descendant has doc types (recursive check)
       if (tab.children && tab.children.length > 0) {
         return tab.children.some(child => hasDescendantWithDocTypes(child));
       }
       return false;
     };
 
-    // Helper: Filter tabs recursively
-    // Keep a tab if: (has warehouse + doc types) OR (has children that qualify)
-    const filterTabsWithDocTypes = (tabs: EntityTab[]): EntityTab[] => {
+    // Helper: Filter tabs to those with document types (directly OR via children)
+    // Keeps parent tabs if any children have doc types, filters children recursively
+    const filterTabsWithDocTypes = (tabs: WarehouseTabConfig[]): WarehouseTabConfig[] => {
       return tabs
         .filter(tab => hasDescendantWithDocTypes(tab))
         .map(tab => ({
           ...tab,
-          // Recursively filter children - only keep those with warehouse + doc types (or qualifying descendants)
+          // Recursively filter children - only keep qualifying descendants
           children: tab.children ? filterTabsWithDocTypes(tab.children) : []
         }));
     };
 
-    // Scopes that don't use document types - show all warehouse-enabled tabs
-    // SSoT: 'user' added for Teeem Docs (Jan 2026)
-    // SSoT: 'case' added for Case document management (Jan 2026)
-    const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse', 'user', 'case'];
+    // SSoT (Feb 2026): All scopes show warehouse-enabled tabs for consistency
+    // Previously corporate/job/contact required document types - now all show tabs
+    const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse', 'user', 'case', 'corporate', 'job', 'contact'];
 
     // Helper: Filter tabs for scopes without doc types (just warehouse enabled)
     // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)
-    const filterWarehouseEnabledTabs = (tabs: EntityTab[]): EntityTab[] => {
+    // SSoT (Feb 2026): Also exclude tabs whose tab_key matches a child scope in WAREHOUSE_TYPE_PARENTS
+    // BUT only if that child scope has a folder entry (will show as separate node with its own badge)
+    const CHILD_SCOPE_TAB_KEYS = Object.keys(WAREHOUSE_TYPE_PARENTS);
+    // SSoT: tab_key uses hyphens (email-attachments) but scope keys use underscores (email_attachments)
+    // Normalize both to underscores for comparison
+    const normalizeKey = (key: string) => key.replace(/-/g, '_');
+    const filterWarehouseEnabledTabs = (tabs: WarehouseTabConfig[]): WarehouseTabConfig[] => {
       return tabs
-        .filter(tab => (tab.warehouse_enabled ?? tab.has_storage_folder) === true)
+        .filter(tab => {
+          // Must be warehouse enabled
+          if ((tab.warehouse_enabled ?? tab.has_storage_folder) !== true) return false;
+          // Exclude tabs that match child scope keys ONLY if the scope has a folder entry
+          // (it will appear as a separate folder node with its own badge)
+          // If no folder entry exists, show the tab as a badge on the parent scope
+          const normalizedTabKey = normalizeKey(tab.tab_key);
+          if (CHILD_SCOPE_TAB_KEYS.includes(normalizedTabKey) && scopeFolders[normalizedTabKey]) return false;
+          return true;
+        })
         .map(tab => ({
           ...tab,
           children: tab.children ? filterWarehouseEnabledTabs(tab.children) : []
@@ -1879,13 +2322,14 @@ export function WarehouseProviderTab() {
     };
 
     // Attach tabs to scope nodes
-    // SSoT: For doc-type scopes, show tabs with document types
-    // For other scopes (email, task, warehouse), show all warehouse-enabled tabs
+    // SSoT (Feb 2026): contact/job/corporate scopes show only tabs WITH document types
+    // email/task/warehouse/user/case scopes show ALL warehouse-enabled tabs (no doc type requirement)
     const attachTabs = (nodes: FolderTreeNode[]) => {
       nodes.forEach(node => {
         if (node.scopeKey && entityTabs[node.scopeKey]) {
           const allTabs = entityTabs[node.scopeKey];
-          // Use different filter based on scope type
+          // Scopes without doc types: show all warehouse-enabled tabs
+          // Other scopes (contact, job, corporate): only show tabs with document types
           if (SCOPES_WITHOUT_DOC_TYPES.includes(node.scopeKey)) {
             node.tabs = filterWarehouseEnabledTabs(allTabs);
           } else {
@@ -1934,31 +2378,41 @@ export function WarehouseProviderTab() {
     displayName: string,
     sendNameTemplate: string
   ) => {
-    console.log('[saveTabFolderPath] Saving:', { tabId, folderPath, displayName, sendNameTemplate });
     try {
-      const response = await api.patch<{ success: boolean; error?: string }>(
-        `/api/v1/entity_tabs/${tabId}`,
+      console.log('[saveTabFolderPath] Saving:', { tabId, folderPath, displayName, sendNameTemplate });
+      const response = await api.patch<{ success: boolean; error?: string; data?: WarehouseTabConfig }>(
+        `/api/v1/warehouse_folders/${tabId}`,
         {
-          entity_tab: {
+          warehouse_folder: {
             display_name: displayName,
-            warehouse_folder: folderPath,
-            send_name_template: sendNameTemplate,
+            folder_path: folderPath,
+            download_name: sendNameTemplate,
           }
         }
       );
+      console.log('[saveTabFolderPath] Response:', response);
       if (response?.success) {
-        // Update local state
-        setEntityTabs(prev => {
+        // SSoT: Use RESPONSE data if available, not sent values
+        // Backend might transform/normalize values (e.g., empty string handling)
+        const savedData = response.data;
+        const savedFolderPath = savedData?.folder_path ?? folderPath;
+        const savedDisplayName = savedData?.display_name ?? displayName;
+        const savedSendName = savedData?.download_name ?? sendNameTemplate;
+
+        console.log('[saveTabFolderPath] Using values:', { savedFolderPath, savedDisplayName, savedSendName });
+
+        // Update local state with response data (SSoT)
+        setWarehouseTabConfigs(prev => {
           const newTabs = { ...prev };
           Object.keys(newTabs).forEach(scope => {
             newTabs[scope] = newTabs[scope].map(tab =>
               tab.id === tabId
                 ? {
                     ...tab,
-                    display_name: displayName,
-                    warehouse_folder: folderPath,
-                    storage_folder_path: folderPath,  // Legacy alias
-                    send_name_template: sendNameTemplate
+                    display_name: savedDisplayName,
+                    folder_path: savedFolderPath,
+                    storage_folder_path: savedFolderPath,  // Legacy alias
+                    download_name: savedSendName
                   }
                 : tab
             );
@@ -1987,42 +2441,83 @@ export function WarehouseProviderTab() {
     scopeKey: string,
     baseFolder: string,
     folderTemplate: string,
-    filenameTemplate: string,
-    displayNameTemplate: string,
+    downloadNameTemplate: string,
+    uiNameTemplate: string,
     configLink: string | null
   ) => {
+    // DEBUG: Log all save parameters
+    console.log('🔵 [saveScopeTemplates] Called with:', {
+      scopeKey,
+      baseFolder,
+      folderTemplate,
+      downloadNameTemplate,
+      uiNameTemplate,
+      configLink,
+    });
+
     try {
       // SSoT: warehouse_folders stores the FULL path - this is the source of truth
       // UI shows parent portion greyed out for child types, but we save the complete path
       const isChildType = !!WAREHOUSE_TYPE_PARENTS[scopeKey];
       const parentKey = WAREHOUSE_TYPE_PARENTS[scopeKey];
 
+      console.log('🔵 [saveScopeTemplates] Child type check:', { isChildType, parentKey, parentPath: parentKey ? formData.warehouse_folders[parentKey] : null });
+
       // For child types: parent's base folder + suffix (full path)
-      // For parent types: baseFolder + folderTemplate (full path)
-      const warehouseFolderValue = isChildType && parentKey
-        ? [formData.warehouse_folders[parentKey], folderTemplate]  // Parent base + suffix = full path
+      // For parent types: folderTemplate already includes baseFolder (e.g., "Tasks/{{TaskId}}/{{TaskName}}")
+      // FRC Fix (Feb 2026): Don't combine baseFolder + folderTemplate for parent types - causes duplication
+      let warehouseFolderValue: string;
+      if (isChildType && parentKey) {
+        // Child type: parent's base folder + suffix (full path)
+        warehouseFolderValue = [formData.warehouse_folders[parentKey], folderTemplate]
             .filter(Boolean)
             .join('/')
             .replace(/\/+/g, '/')
-            .replace(/\/+$/, '')
-        : [baseFolder, folderTemplate]
+            .replace(/\/+$/, '');
+      } else if (folderTemplate && folderTemplate.startsWith(baseFolder)) {
+        // Parent type: folderTemplate already includes baseFolder, use as-is
+        warehouseFolderValue = folderTemplate
+            .replace(/\/+/g, '/')
+            .replace(/\/+$/, '');
+      } else {
+        // Parent type: combine baseFolder + folderTemplate
+        warehouseFolderValue = [baseFolder, folderTemplate]
             .filter(Boolean)
             .join('/')
-            .replace(/\/+/g, '/')  // Normalize double slashes
-            .replace(/\/+$/, '');  // Strip trailing slash for consistency
+            .replace(/\/+/g, '/')
+            .replace(/\/+$/, '');
+      }
+
+      console.log('🔵 [saveScopeTemplates] Computed warehouseFolderValue:', warehouseFolderValue);
+
+      // FRC Guard (Feb 2026): Prevent saving empty folder_path for root scopes
+      // This would remove the scope from the tree entirely and break folder storage
+      if (!warehouseFolderValue || warehouseFolderValue.trim() === '') {
+        toast({
+          title: "Cannot save",
+          description: "Folder path cannot be empty. The scope needs a base folder path.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const payload = {
+        storage: {
+          warehouse_folders: { [scopeKey]: warehouseFolderValue },
+          warehouse_folder_templates: { [scopeKey]: folderTemplate },
+          download_names: { [scopeKey]: downloadNameTemplate },
+          ui_name_templates: { [scopeKey]: uiNameTemplate },
+          config_links: { [scopeKey]: configLink }, // null removes the link
+        }
+      };
+      console.log('🔵 [saveScopeTemplates] API payload:', JSON.stringify(payload, null, 2));
 
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
         "/api/v1/warehouse_provider",
-        {
-          storage: {
-            warehouse_folders: { [scopeKey]: warehouseFolderValue },
-            warehouse_folder_templates: { [scopeKey]: folderTemplate },
-            file_name_templates: { [scopeKey]: filenameTemplate },
-            display_name_templates: { [scopeKey]: displayNameTemplate },
-            config_links: { [scopeKey]: configLink }, // null removes the link
-          }
-        }
+        payload
       );
+      console.log('🔵 [saveScopeTemplates] API response:', response);
+
       if (response?.success) {
         // Update local state to reflect saved values
         setFormData(prev => {
@@ -2036,8 +2531,8 @@ export function WarehouseProviderTab() {
             ...prev,
             warehouse_folders: { ...prev.warehouse_folders, [scopeKey]: warehouseFolderValue },
             warehouse_folder_templates: { ...prev.warehouse_folder_templates, [scopeKey]: folderTemplate },
-            file_name_templates: { ...prev.file_name_templates, [scopeKey]: filenameTemplate },
-            display_name_templates: { ...prev.display_name_templates, [scopeKey]: displayNameTemplate },
+            download_names: { ...prev.download_names, [scopeKey]: downloadNameTemplate },
+            ui_name_templates: { ...prev.ui_name_templates, [scopeKey]: uiNameTemplate },
             config_links: newConfigLinks,
           };
         });
@@ -2053,7 +2548,7 @@ export function WarehouseProviderTab() {
       });
       throw error; // Re-throw so auto-save can handle it
     }
-  }, [toast]);
+  }, [toast, formData.warehouse_folders]);
 
   // Phase 4: Toggle virtual warehouse via API
   const toggleVirtualScope = React.useCallback(async (scopeKey: string, isVirtual: boolean) => {
@@ -2117,16 +2612,22 @@ export function WarehouseProviderTab() {
   // Load storage config and entity tabs on mount
   React.useEffect(() => {
     loadConfig();
-    loadEntityTabs();
+    loadWarehouseTabConfigs();
   }, []);
 
   const loadConfig = async () => {
     try {
       setLoading(true);
+      console.log('🔴 [loadConfig] Fetching storage config...');
       const response = await api.get<{ success: boolean; data: StorageConfig }>(
         "/api/v1/warehouse_provider"
       );
+      console.log('🔴 [loadConfig] Response:', response);
       if (response?.success && response.data) {
+        console.log('🔴 [loadConfig] warehouse_folders:', response.data.warehouse_folders);
+        console.log('🔴 [loadConfig] warehouse_folder_templates:', response.data.warehouse_folder_templates);
+        console.log('🔴 [loadConfig] download_names:', response.data.download_names);
+        console.log('🔴 [loadConfig] ui_name_templates:', response.data.ui_name_templates);
         setConfig(response.data);
         setFormData({
           // Provider type - normalize legacy values (wasabi/s3 → s3_compatible)
@@ -2146,9 +2647,10 @@ export function WarehouseProviderTab() {
           // warehouse_folders REMOVED (Jan 2026 SSoT fix)
           warehouse_folders: response.data.warehouse_folders || {},
           // SSoT: Templates from WarehouseProvider
+          // Support both old (file_name_templates/display_name_templates) and new (download_names/ui_name_templates) field names
           warehouse_folder_templates: response.data.warehouse_folder_templates || {},
-          file_name_templates: response.data.file_name_templates || {},
-          display_name_templates: response.data.display_name_templates || {},
+          download_names: response.data.download_names || response.data.file_name_templates || {},
+          ui_name_templates: response.data.ui_name_templates || response.data.display_name_templates || {},
           // SSoT: Config links from WarehouseProvider
           config_links: response.data.config_links || {},
           // Phase 4: Virtual warehouses from WarehouseProvider
@@ -2184,8 +2686,8 @@ export function WarehouseProviderTab() {
             // SSoT: warehouse_folders is THE ONE place for warehouse type roots
             warehouse_folders: config?.warehouse_folders,
             warehouse_folder_templates: formData.warehouse_folder_templates,
-            file_name_templates: formData.file_name_templates,
-            display_name_templates: formData.display_name_templates,
+            download_names: formData.download_names,
+            ui_name_templates: formData.ui_name_templates,
             config_links: formData.config_links,
             virtual_warehouses: formData.virtual_warehouses,  // Phase 4: Virtual File Warehouse
             exclude_sm_tasks: formData.exclude_sm_tasks,      // SM task exclusion setting
@@ -2600,8 +3102,8 @@ export function WarehouseProviderTab() {
                 <div className="border-t pt-3">
                   <h5 className="text-xs font-medium mb-2 text-muted-foreground uppercase tracking-wide">How the Folder Tree is Built</h5>
                   <div className="text-xs space-y-1.5 text-muted-foreground">
-                    <div><strong className="text-foreground">Root folders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.all_root_folders</code> (Jobs, Contacts, Tasks, etc.)</div>
-                    <div><strong className="text-foreground">Subfolders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.tabs_for_root_folder()</code> + <code className="bg-muted px-1 rounded">GROUP BY</code> on <code className="bg-muted px-1 rounded">WarehouseDocument.folder</code></div>
+                    <div><strong className="text-foreground">Base folders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.all_base_folders</code> (Jobs, Contacts, Tasks, etc.)</div>
+                    <div><strong className="text-foreground">Subfolders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.tabs_for_base_folder()</code> + <code className="bg-muted px-1 rounded">GROUP BY</code> on <code className="bg-muted px-1 rounded">WarehouseDocument.folder</code></div>
                     <div><strong className="text-foreground">Files</strong> → from <code className="bg-muted px-1 rounded">WarehouseDocument</code> records at that folder path</div>
                   </div>
                 </div>
@@ -3107,8 +3609,8 @@ export function WarehouseProviderTab() {
                     onSaveTabEdit={saveTabFolderPath}
                     onCancelTabEdit={() => setEditingTabId(null)}
                     scopeTemplates={formData.warehouse_folder_templates}
-                    fileNameTemplates={formData.file_name_templates}
-                    displayNameTemplates={formData.display_name_templates}
+                    downloadNameTemplates={formData.download_names}
+                    uiNameTemplates={formData.ui_name_templates}
                     configLinks={formData.config_links}
                     onSaveTemplates={saveScopeTemplates}
                     virtualScopes={formData.virtual_warehouses}

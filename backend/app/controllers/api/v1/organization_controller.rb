@@ -288,32 +288,26 @@ module Api
 
       # GET /api/v1/organization/document_provider
       # Returns the organization's current document storage provider configuration
+      #
+      # SSoT (Feb 2026): WarehouseProvider is THE ONE source for ALL storage config:
+      # - provider_type: which provider (sharepoint, s3_compatible)
+      # - credential_id: which credential to use (polymorphic)
+      # - bucket: S3 bucket name
+      # Organization.document_provider* columns are DEPRECATED and will be removed.
       def document_provider
-        # SSoT (Jan 2026): Derive from tenant, not Organization.first
-        # Auto-create Organization if it doesn't exist for the tenant
-        organization = current_organization || create_organization_for_tenant
-
-        if organization.nil?
-          return render json: {
-            success: true,
-            data: {
-              document_provider: "sharepoint",
-              available_providers: Organization::DOCUMENT_PROVIDERS,
-              s3_credentials: [],
-              can_switch: false,
-              message: "No organization found. Using default SharePoint."
-            }
-          }
-        end
+        # SSoT: WarehouseProvider is THE ONE source for storage config
+        warehouse_provider = WarehouseProvider.instance rescue nil
+        current_provider = warehouse_provider&.provider_type || "sharepoint"
+        current_bucket = warehouse_provider&.bucket
+        # SSoT: credential_id from WarehouseProvider (polymorphic)
+        current_credential_id = warehouse_provider&.credential_id
 
         # Get available S3 credentials for dropdown
-        # SSoT (Jan 2026): bucket removed - WarehouseProvider.bucket is SSoT
         s3_credentials = S3CompatibleCredential.active.order(:name).map do |cred|
           {
             id: cred.id,
             name: cred.name,
             provider_type: cred.provider_type,
-            # bucket removed - WarehouseProvider.bucket is SSoT
             status: cred.status,
             connected: cred.status == "connected"
           }
@@ -326,24 +320,17 @@ module Api
           false
         end
 
-        # SSoT (Jan 2026): Include bucket from WarehouseProvider
-        # Bucket is displayed on BOTH Storage Config and Storage Provider pages
-        # but WarehouseProvider.bucket is THE ONE SSoT
-        warehouse_provider = WarehouseProvider.instance rescue nil
-        current_bucket = warehouse_provider&.bucket
-
         # Get active credential status and last connected info
-        active_credential = nil
         credential_status = nil
         last_error = nil
 
-        if organization.document_provider == "s3_compatible" && organization.document_provider_credential_id
-          active_credential = S3CompatibleCredential.find_by(id: organization.document_provider_credential_id)
+        if current_provider == "s3_compatible" && current_credential_id
+          active_credential = S3CompatibleCredential.find_by(id: current_credential_id)
           if active_credential
             credential_status = active_credential.status
             last_error = active_credential.metadata&.dig("last_error")
           end
-        elsif organization.document_provider == "sharepoint"
+        elsif current_provider == "sharepoint"
           sp_cred = MicrosoftCredential.sharepoint_credential rescue nil
           credential_status = sp_cred&.connected? ? "connected" : "disconnected"
         end
@@ -351,15 +338,14 @@ module Api
         render json: {
           success: true,
           data: {
-            document_provider: organization.document_provider,
-            document_provider_credential_id: organization.document_provider_credential_id,
+            # SSoT: All values from WarehouseProvider
+            document_provider: current_provider,
+            document_provider_credential_id: current_credential_id,
             available_providers: Organization::DOCUMENT_PROVIDERS,
             s3_credentials: s3_credentials,
             sharepoint_configured: sharepoint_configured,
             can_switch: s3_credentials.any? { |c| c[:connected] } || sharepoint_configured,
-            # SSoT (Jan 2026): Bucket from WarehouseProvider - visible on both screens
             bucket: current_bucket,
-            # Connection status info
             connection_status: credential_status,
             last_error: last_error,
             warehouse_provider_updated_at: warehouse_provider&.updated_at
@@ -369,18 +355,10 @@ module Api
 
       # PUT /api/v1/organization/document_provider
       # Updates the organization's document storage provider
+      #
+      # SSoT (Feb 2026): WarehouseProvider is THE ONE source for ALL storage config.
+      # Organization.document_provider* columns are DEPRECATED and will be removed.
       def update_document_provider
-        # SSoT (Jan 2026): Derive from tenant, not Organization.first
-        # Auto-create Organization if it doesn't exist for the tenant
-        organization = current_organization || create_organization_for_tenant
-
-        if organization.nil?
-          return render json: {
-            success: false,
-            error: "No organization found and could not create one"
-          }, status: :not_found
-        end
-
         provider = params[:document_provider]
         credential_id = params[:document_provider_credential_id]
 
@@ -392,6 +370,7 @@ module Api
         end
 
         # Validate credential if switching to S3
+        credential = nil
         if provider == "s3_compatible"
           if credential_id.blank?
             return render json: {
@@ -409,38 +388,46 @@ module Api
           end
         end
 
-        old_provider = organization.document_provider
-        organization.document_provider = provider
-        organization.document_provider_credential_id = provider == "s3_compatible" ? credential_id : nil
+        # SSoT: WarehouseProvider is THE ONE source - update it directly
+        warehouse_provider = WarehouseProvider.instance
+        unless warehouse_provider
+          return render json: {
+            success: false,
+            error: "Storage configuration not found"
+          }, status: :not_found
+        end
 
-        if organization.save
-          Rails.logger.info "[DocumentProvider] Organization switched from #{old_provider} to #{provider}"
+        old_provider = warehouse_provider.provider_type
+        update_attrs = {
+          provider_type: provider,
+          # SSoT: credential stored in WarehouseProvider (polymorphic)
+          credential_type: provider == "s3_compatible" ? "S3CompatibleCredential" : nil,
+          credential_id: provider == "s3_compatible" ? credential_id : nil
+        }
 
-          # SSoT (Jan 2026): Also update bucket in WarehouseProvider if provided
-          # Bucket is visible on BOTH screens but WarehouseProvider is SSoT
-          if params[:bucket].present?
-            warehouse_provider = WarehouseProvider.instance rescue nil
-            if warehouse_provider
-              connection_config = warehouse_provider.connection_config || {}
-              connection_config["bucket"] = params[:bucket]
-              warehouse_provider.update!(connection_config: connection_config)
-              Rails.logger.info "[DocumentProvider] Updated bucket in WarehouseProvider: #{params[:bucket]}"
-            end
-          end
+        # Update bucket if provided
+        if params[:bucket].present?
+          connection_config = warehouse_provider.connection_config || {}
+          connection_config["bucket"] = params[:bucket]
+          update_attrs[:connection_config] = connection_config
+        end
+
+        if warehouse_provider.update(update_attrs)
+          Rails.logger.info "[DocumentProvider] SSoT: WarehouseProvider updated provider_type=#{provider}, credential_id=#{credential_id}"
 
           render json: {
             success: true,
             message: "Document provider updated to #{provider}",
             data: {
-              document_provider: organization.document_provider,
-              document_provider_credential_id: organization.document_provider_credential_id,
-              bucket: params[:bucket].presence || (WarehouseProvider.instance.bucket rescue nil)
+              document_provider: warehouse_provider.provider_type,
+              document_provider_credential_id: warehouse_provider.credential_id,
+              bucket: warehouse_provider.bucket
             }
           }
         else
           render json: {
             success: false,
-            errors: organization.errors.full_messages
+            errors: warehouse_provider.errors.full_messages
           }, status: :unprocessable_entity
         end
       end

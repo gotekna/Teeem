@@ -9,15 +9,15 @@ module Gl
     # system is connected.
     #
     # Usage:
-    #   adapter = Gl::Adapters.for(corporate_company)
+    #   adapter = Gl::Adapters.for(corporate)
     #   adapter.sync_accounts
     #   adapter.sync_invoices(since: 1.day.ago)
     #
     class Base
-      attr_reader :corporate_company, :credential, :sync_log
+      attr_reader :corporate, :credential, :sync_log
 
-      def initialize(corporate_company, credential: nil)
-        @corporate_company = corporate_company
+      def initialize(corporate, credential: nil)
+        @corporate = corporate
         @credential = credential
         @sync_log = nil
       end
@@ -194,7 +194,7 @@ module Gl
       # Find or create an account from external data
       def upsert_account(external_data)
         account = Gl::Account.find_or_initialize_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
           external_account_id: external_data[:external_id]
@@ -228,7 +228,7 @@ module Gl
       # Find or create a tax rate from external data
       def upsert_tax_rate(external_data)
         tax_rate = Gl::TaxRate.find_or_initialize_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
           code: external_data[:code],
@@ -256,7 +256,7 @@ module Gl
       # Start a sync log
       def with_sync_log(sync_type, &block)
         @sync_log = Gl::SyncLog.start!(
-          corporate_company: corporate_company,
+          corporate: corporate,
           provider: provider_code,
           tenant_id: tenant_id,
           sync_type: sync_type,
@@ -296,13 +296,13 @@ module Gl
 
       # Get the period for a date
       def period_for(date)
-        Gl::Period.for_date(corporate_company, date, provider: provider_code, tenant_id: tenant_id)
+        Gl::Period.for_date(corporate, date, provider: provider_code, tenant_id: tenant_id)
       end
 
       # Find an account by external ID
       def find_account(external_id)
         Gl::Account.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
           external_account_id: external_id

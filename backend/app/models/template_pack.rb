@@ -16,7 +16,7 @@
 #   - archived: No longer available (but existing imports remain)
 #
 class TemplatePack < ApplicationRecord
-  belongs_to :source_tenant, class_name: "CorporateGroup"
+  belongs_to :source_tenant, class_name: "CompanyGroup"
   belongs_to :created_by, class_name: "User", optional: true
 
   has_many :template_pack_items, dependent: :destroy

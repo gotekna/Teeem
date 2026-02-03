@@ -1,6 +1,6 @@
 class DirectorOnboardingRequest < ApplicationRecord
   belongs_to :contact, optional: true
-  belongs_to :corporate_company, foreign_key: "company_id", optional: true
+  belongs_to :corporate, foreign_key: "company_id", optional: true
   belongs_to :reviewed_by, class_name: "User", optional: true
   belongs_to :invited_by, class_name: "User", optional: true
 
@@ -74,9 +74,9 @@ class DirectorOnboardingRequest < ApplicationRecord
       contact_record = find_or_create_contact!
 
       # Create company director relationship if company specified
-      if corporate_company.present?
+      if corporate.present?
         CorporateDirector.find_or_create_by!(
-          corporate: corporate_company,
+          corporate: corporate,
           contact: contact_record
         ) do |cd|
           cd.position = "director"

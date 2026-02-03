@@ -85,7 +85,7 @@ module Api
 
           # Delete associated budgets
           ::Gl::Budget.where(
-            corporate_company_id: scenario.corporate_company_id,
+            company_id: scenario.corporate_id,
             scenario: scenario.scenario_type
           ).for_financial_year(scenario.fiscal_year).destroy_all
 
@@ -243,7 +243,7 @@ module Api
 
         def current_company
           @current_company ||= Corporate.find(
-            params[:corporate_company_id] || current_user.corporate_company_id
+            params[:corporate_id] || current_user.corporate_id
           )
         end
       end

@@ -220,11 +220,11 @@ class EmailParserService
       recent_po = PurchaseOrder.where(supplier_id: contact.supplier_id)
                               .order(created_at: :desc)
                               .first
-      recent_po&.construction
+      recent_po&.job
     end
   end
 
-  # Match construction by address mentioned in email
+  # Match job by address mentioned in email
   def match_by_address
     body = [ extract_subject, extract_body_text, extract_body_html ].compact.join(" ")
     return nil if body.blank?

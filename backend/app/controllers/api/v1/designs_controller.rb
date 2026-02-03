@@ -74,10 +74,10 @@ module Api
       # DELETE /api/v1/designs/:id
       # Soft delete - set is_active to false
       def destroy
-        if @design.constructions.any?
+        if @design.jobs.any?
           return render json: {
             success: false,
-            error: "Cannot delete design that is assigned to constructions"
+            error: "Cannot delete design that is assigned to jobs"
           }, status: :unprocessable_entity
         end
 

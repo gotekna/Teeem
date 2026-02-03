@@ -169,9 +169,9 @@ When discovering duplicates:
 
 | Data Type | SSoT Location | ❌ NOT Here |
 |-----------|---------------|-------------|
-| Storage paths/config | `StorageConfiguration` | Credential tables, settings |
+| Storage paths/config | `WarehouseProvider` | Credential tables, settings |
 | Auth tokens/secrets | Appropriate credential table | Config tables |
-| Company settings | `CompanySetting` | `CorporateCompanySetting` (legacy) |
+| Company settings | `CompanySetting` | Multiple settings tables |
 | User preferences | `User` model | Settings tables |
 
 ### Run Before Creating Migration
@@ -255,7 +255,7 @@ current_organization  # First organization in tenant (for credential lookups)
 | Document types | `lib/constants/document-types.ts` |
 | Column types | `lib/constants/column-types.ts` (frontend helpers: `isLookupColumn()`, `isChoiceColumn()`) |
 | UI components | `lib/component-registry.ts` |
-| Storage paths | `StorageConfiguration` model (paths, templates, provider config) |
+| Storage paths | `WarehouseProvider` model (paths, templates, provider config) |
 | Foundation slugs | `lib/constants/foundation-slugs.ts` |
 
 **Rule:** Search `lib/constants/` before creating ANY constant.
@@ -472,7 +472,7 @@ Use `[id]` pattern for dynamic routes:
 | Holidays | `/settings/company/holidays` | Public holidays |
 | Workflows | `/settings/company/workflows` | Workflow configuration |
 | Job Setup | `/settings/company/job-setup` | Lists (Types/Statuses/Stages/Suburbs), Workflow |
-| Entity Config | `/settings/company/entity-config` | Corporate, Jobs, Contacts, Document Types, Storage Config, Email Config |
+| Warehouse Config | `/settings/company/warehouse-config` | Warehouse Folders, Document Types, Corporate, Jobs, Contacts, Email Config, Config Sync |
 | Offline | `/settings/company/offline` | Offline mode settings |
 
 ### Navigation Patterns
@@ -485,7 +485,7 @@ Use `[id]` pattern for dynamic routes:
 - ❌ `/settings/documents` → Moved to `/settings/company/documents`
 - ❌ `/settings/integrations` → Redirects to `/settings/connections/integrations`
 - ❌ `/settings/company/connections` → Moved to top-level `/settings/connections`
-- ❌ Entity Config in Developer → Moved to `/settings/company/entity-config`
+- ❌ Entity Config in Developer → Moved to `/settings/company/warehouse-config` (renamed Feb 2026)
 - ❌ Workflow Config separate tab → Moved to `/settings/company/job-setup/workflow`
 - ❌ Doc Templates duplicate → Consolidated into Documents > Templates
 
@@ -590,7 +590,7 @@ staging → beta → production
 | Rob Dev | `teeem-rob-dev` | - | - |
 | Sam Dev | `teeem-sam-dev` | - | - |
 
-**Deploy:** Use `/l` command (SSoT) - deploys staging to production
+**Deploy:** Use `/p` command (SSoT) - deploys to production via pipeline
 
 **Local:** Frontend port 3000, Backend port 3001
 
@@ -635,7 +635,7 @@ staging → beta → production
 **This is a monorepo. NEVER push directly to Heroku.**
 
 - ❌ WRONG: `git push heroku staging:main` (pushes full monorepo, Puma can't find config)
-- ✅ RIGHT: Use `/l` or `/lp` commands (extracts `backend/` only)
+- ✅ RIGHT: Use `/p`, `/s`, or `/b` commands (extracts `backend/` only)
 
 **Why:** Heroku expects Rails app at root. The monorepo has `backend/` subdirectory, so direct push breaks with `config/puma.rb not found`.
 
@@ -643,7 +643,8 @@ staging → beta → production
 ```bash
 cd /Users/robertharder/GitHub/teeem
 DEPLOY_DIR=$(mktemp -d)
-cp -r backend/* "$DEPLOY_DIR/"
+# Use rsync to include hidden files like .slugignore
+rsync -a --exclude='.git' backend/ "$DEPLOY_DIR/"
 cd "$DEPLOY_DIR" && git init && git add . && git commit -m "Fix deploy"
 git remote add heroku https://git.heroku.com/teeem-production.git
 git push heroku HEAD:main --force
@@ -668,13 +669,13 @@ cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
 
 ## 🔴 Storage Provider Authentication
 
-**Credential models = Auth ONLY.** Storage config lives in StorageConfiguration.
+**Credential models = Auth ONLY.** Storage config lives in WarehouseProvider.
 
 | Provider | Credential Model | Config SSoT |
 |----------|------------------|-------------|
-| S3/Wasabi | `S3CompatibleCredential` | `StorageConfiguration.instance` |
-| SharePoint | `MicrosoftCredential` | `StorageConfiguration.instance` |
-| Local | None (filesystem) | `StorageConfiguration.instance` |
+| S3/Wasabi | `S3CompatibleCredential` | `WarehouseProvider.instance` |
+| SharePoint | `MicrosoftCredential` | `WarehouseProvider.instance` |
+| Local | None (filesystem) | `WarehouseProvider.instance` |
 
 ```ruby
 # Auth (tokens/keys) - separate per provider
@@ -682,10 +683,10 @@ S3CompatibleCredential.active             # S3/Wasabi auth
 MicrosoftCredential.sharepoint_credential # SharePoint auth
 
 # Config (paths, provider settings) - ALWAYS from SSoT
-StorageConfiguration.instance  # THE ONE source for all storage config
+WarehouseProvider.instance  # THE ONE source for all storage config
 ```
 
-**Check current provider:** `StorageConfiguration.instance.provider_type`
+**Check current provider:** `WarehouseProvider.instance.provider_type`
 
 ## 🔴 Xero (SSoT: Webhooks)
 
@@ -696,16 +697,16 @@ StorageConfiguration.instance  # THE ONE source for all storage config
 | Contact/Invoice sync | Webhooks (live) |
 | Bank transactions | `xero_bank_transaction_sync` (no webhook available) |
 
-## 🔴 Document Storage (SSoT: StorageConfiguration)
+## 🔴 Document Storage (SSoT: WarehouseProvider)
 
-**StorageConfiguration is THE SSoT for all document storage paths and provider config.**
+**WarehouseProvider is THE SSoT for all document storage paths and provider config.**
 
 ```ruby
 # THE ONE way to get storage paths
-StorageConfiguration.instance.path_for(:jobs)      # → "Jobs"
-StorageConfiguration.instance.path_for(:contacts)  # → "Contacts"
-StorageConfiguration.instance.path_for(:people)    # → "People"
-StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Plans")
+WarehouseProvider.instance.path_for(:jobs)      # → "Jobs"
+WarehouseProvider.instance.path_for(:contacts)  # → "Contacts"
+WarehouseProvider.instance.path_for(:people)    # → "People"
+WarehouseProvider.instance.resolve_path(:job, JobCode: "J-001", Category: "Plans")
 # → Full path varies by provider (handled internally)
 ```
 
@@ -713,7 +714,7 @@ StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Pl
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    StorageConfiguration                      │
+│                    WarehouseProvider                         │
 │                      (THE ONE SSoT)                          │
 ├─────────────────────────────────────────────────────────────┤
 │  provider_type:    s3_compatible | sharepoint | local       │
@@ -731,24 +732,21 @@ StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Pl
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**DocumentProviderAware concern:** Use `include DocumentProviderAware` in services to get
-provider-agnostic file operations (upload, download, list, delete).
-
 **CRITICAL (Jan 2026):** Frontend NEVER knows about paths.
 - Frontend sends: `{ scope: "emails", tokens: { mailbox: "inbox@tekna.com.au" } }`
-- Backend resolves paths internally using StorageConfiguration
+- Backend resolves paths internally using WarehouseProvider
 - Frontend receives: files, folders, breadcrumbs (abstract, not paths)
 
 ### SSoT Lookups
 
 | Need | SSoT | ❌ NEVER |
 |------|------|----------|
-| Current provider | `StorageConfiguration.instance.provider_type` | Guessing/assuming |
-| Base path for scope | `StorageConfiguration.instance.path_for(:contacts)` | `"Contacts"` hardcoded |
-| Full resolved path | `StorageConfiguration.instance.resolve_path(:job, ...)` | Manual string building |
-| Connection config | `StorageConfiguration.instance.connection_config` | Direct credential access |
-| Root path | `StorageConfiguration.instance.root_path` | Hardcoded paths |
-| Provider type | `StorageConfiguration.instance.provider_type` | Checking multiple sources |
+| Current provider | `WarehouseProvider.instance.provider_type` | Guessing/assuming |
+| Base path for scope | `WarehouseProvider.instance.path_for(:contacts)` | `"Contacts"` hardcoded |
+| Full resolved path | `WarehouseProvider.instance.resolve_path(:job, ...)` | Manual string building |
+| Connection config | `WarehouseProvider.instance.connection_config` | Direct credential access |
+| Root path | `WarehouseProvider.instance.root_path` | Hardcoded paths |
+| Provider type | `WarehouseProvider.instance.provider_type` | Checking multiple sources |
 | Frontend path handling | Backend resolves, frontend uses scopes | Hardcoding paths in frontend |
 
 **ALWAYS check provider_type before assuming storage behavior.**
@@ -768,18 +766,14 @@ provider-agnostic file operations (upload, download, list, delete).
 
 ```ruby
 # ❌ REMOVED - Direct credential config access:
-credential.sharepoint_site_id    # Use StorageConfiguration.instance
-credential.sharepoint_drive_id   # Use StorageConfiguration.instance
-# All storage config is now in StorageConfiguration, not credentials
-
-# ❌ DEPRECATED in CorporateCompanySetting:
-CorporateCompanySetting.sharepoint_full_path(:jobs)  # Use StorageConfiguration
-CorporateCompanySetting.contact_documents_path       # Use StorageConfiguration.path_for(:contacts)
+credential.sharepoint_site_id    # Use WarehouseProvider.instance
+credential.sharepoint_drive_id   # Use WarehouseProvider.instance
+# All storage config is now in WarehouseProvider, not credentials
 ```
 
 ### Admin UI
 
-**Configure at:** `/settings/company/connections` (Storage Provider tab)
+**Configure at:** `/settings/connections` (Storage Provider tab)
 - Edit paths (Jobs, Contacts, People, etc.)
 - Edit path templates with drag-and-drop tokens
 - View storage provider connection status

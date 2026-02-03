@@ -247,9 +247,9 @@ module Api
             status: request.purchase_order.status,
             completed_at: request.purchase_order.completed_at,
             construction: {
-              id: request.purchase_order.construction&.id,
-              name: request.purchase_order.construction&.name,
-              address: request.purchase_order.construction&.address
+              id: request.purchase_order.job&.id,
+              name: request.purchase_order.job&.name,
+              address: request.purchase_order.job&.address
             }
           },
           supplier: {

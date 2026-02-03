@@ -6,19 +6,42 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # GET /api/v1/synced_emails
   # List synced emails with filtering
   def index
-    emails = SyncedEmail.all
+    # FRC (Feb 2026): For cross-tenant email sharing, we need to bypass acts_as_tenant
+    # for IMAP credentials that are shared. The accessible_by scope handles authorization,
+    # so we use unscoped to avoid the tenant filter blocking shared credential emails.
+
+    # Capture tenant ID BEFORE entering without_tenant block (where current_tenant is nil)
+    user_tenant_id = current_tenant&.id
+
+    # SSoT: Use accessible_by scope which includes owned AND shared credentials
+    user_imap_ids = ActsAsTenant.without_tenant { ImapCredential.accessible_by(current_user).pluck(:id) }
+
+    # Check if any IMAP credentials are cross-tenant shared (owned by a different tenant)
+    # If so, we need to bypass acts_as_tenant for the entire email query
+    has_cross_tenant_imap = ActsAsTenant.without_tenant {
+      ImapCredential.where(id: user_imap_ids)
+                    .where.not(user_id: current_user.id)
+                    .joins(:user)
+                    .where.not(users: { tenant_id: user_tenant_id })
+                    .exists?
+    }
+
+    # Start with appropriate scope based on whether cross-tenant access is needed
+    if has_cross_tenant_imap
+      # Bypass tenant scoping - we'll filter explicitly by accessible credential IDs
+      emails = SyncedEmail.unscoped
+    else
+      emails = SyncedEmail.all
+    end
 
     # Filter to only current user's emails (my_emails mode)
     # Skip this filter if microsoft_credential_id is provided (we'll filter by that instead)
     if params[:my_emails] == "true" && params[:microsoft_credential_id].blank?
-      # SSoT: Use accessible_by scope which includes owned AND shared credentials
-      user_imap_ids = ImapCredential.accessible_by(current_user).pluck(:id)
-
       # Get MS365 org credentials the user has mailbox access to
       ms365_cred_ids = []
       ms365_mailbox_emails = []
       # SSoT: Use MicrosoftCredential
-      MicrosoftCredential.app_credentials.connected.each do |org_cred|
+      MicrosoftCredential.refreshable_app.each do |org_cred|
         user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
         if user_mailboxes.any?
           ms365_cred_ids << org_cred.id
@@ -29,7 +52,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       conditions = []
       bind_values = []
 
-      # IMAP accounts
+      # IMAP accounts - explicitly filter by accessible credential IDs
       if user_imap_ids.any?
         conditions << "(source_type = 'imap' AND imap_credential_id IN (?))"
         bind_values << user_imap_ids
@@ -272,7 +295,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
     all_email_ids = emails.map(&:id)
-    user_states_cache = EmailUserState.where(synced_email_id: all_email_ids, user_id: current_user.id).index_by(&:synced_email_id)
+    user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
 
     render json: {
       emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) },
@@ -298,8 +321,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
       # Batch load user states for read status
       email_ids = thread_emails.map(&:id)
-      user_states_cache = EmailUserState.where(synced_email_id: email_ids, user_id: current_user.id)
-                                        .index_by(&:synced_email_id)
+      user_states_cache = EmailUserState.where(email_warehouse_id: email_ids, user_id: current_user.id)
+                                        .index_by(&:email_warehouse_id)
 
       return render json: {
         email: email_json(@email, include_body: true),
@@ -337,8 +360,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Batch load all user states for thread (1 query)
     email_ids = thread_emails.map(&:id)
-    user_states_cache = EmailUserState.where(synced_email_id: email_ids, user_id: current_user.id)
-                                      .index_by(&:synced_email_id)
+    user_states_cache = EmailUserState.where(email_warehouse_id: email_ids, user_id: current_user.id)
+                                      .index_by(&:email_warehouse_id)
 
     # Batch load all contacts for thread (1 query)
     all_contact_ids = thread_emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
@@ -494,7 +517,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Solution: :default queue = highest priority, processes immediately, non-blocking.
   def sync
     # SSoT: Sync ALL connected MS365 organizations (not just one)
-    connected_orgs = MicrosoftCredential.app_credentials.connected
+    connected_orgs = MicrosoftCredential.refreshable_app
 
     if connected_orgs.empty?
       return render json: {
@@ -552,7 +575,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Admin dashboard showing mailboxes grouped by organization with sync stats
   def sync_dashboard
     # MS365 Organizations
-    ms_credentials = MicrosoftCredential.app_credentials.connected.includes(:organization)
+    ms_credentials = MicrosoftCredential.refreshable_app.includes(:organization)
 
     ms365_orgs = ms_credentials.map do |cred|
       mailboxes = SyncedEmailMailbox
@@ -652,11 +675,25 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Get unread email counts for the sidebar badge
   def unread_counts
     begin
-      # Get emails user has access to (same logic as index my_emails)
-      emails = SyncedEmail.all
+      # FRC (Feb 2026): Capture tenant ID BEFORE entering without_tenant block
+      user_tenant_id = current_tenant&.id
+
       # SSoT: Use accessible_by scope which includes owned AND shared credentials
-      user_imap_credentials = ImapCredential.accessible_by(current_user)
+      # FRC (Feb 2026): Must bypass acts_as_tenant for cross-tenant IMAP credentials
+      user_imap_credentials = ActsAsTenant.without_tenant { ImapCredential.accessible_by(current_user) }
       user_imap_ids = user_imap_credentials.pluck(:id)
+
+      # Check if any IMAP credentials are cross-tenant shared
+      has_cross_tenant_imap = ActsAsTenant.without_tenant {
+        ImapCredential.where(id: user_imap_ids)
+                      .where.not(user_id: current_user.id)
+                      .joins(:user)
+                      .where.not(users: { tenant_id: user_tenant_id })
+                      .exists?
+      }
+
+      # Get emails user has access to - bypass tenant for cross-tenant sharing
+      emails = has_cross_tenant_imap ? SyncedEmail.unscoped : SyncedEmail.all
 
       # Build list of all email accounts user has access to
       all_accounts = []
@@ -669,7 +706,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       # Get MS365 org credentials the user has mailbox access to
       ms365_cred_ids = []
       ms365_mailbox_emails = []
-      MicrosoftCredential.app_credentials.connected.each do |org_cred|
+      MicrosoftCredential.refreshable_app.each do |org_cred|
         user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
         if user_mailboxes.any?
           ms365_cred_ids << org_cred.id
@@ -1139,20 +1176,20 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Try to find WarehouseDocument attachment first
     attachment_doc = @email.attachment_documents.find_by(id: attachment_id)
-    filename_hint = filename_param || attachment_doc&.original_filename || attachment_doc&.display_name
+    filename_hint = filename_param || attachment_doc&.original_filename || attachment_doc&.ui_name
     content_type_hint = attachment_doc&.content_type || attachment_doc&.storage_blob&.content_type
 
     # SSoT: Try WarehouseDocument + StorageBlob first (primary path since Jan 2026)
     # Priority 1: Use attachment found by ID if it has a storage blob
     if attachment_doc&.storage_blob.present?
-      Rails.logger.info "[SyncedEmail] Downloading attachment from storage by ID: #{attachment_doc.id} (#{attachment_doc.display_name})"
+      Rails.logger.info "[SyncedEmail] Downloading attachment from storage by ID: #{attachment_doc.id} (#{attachment_doc.ui_name})"
       content = attachment_doc.storage_blob.download
       # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
       content = content&.b
       if content.present?
         return send_data(
           content,
-          filename: attachment_doc.original_filename || attachment_doc.display_name,
+          filename: attachment_doc.original_filename || attachment_doc.ui_name,
           type: content_type_hint || "application/octet-stream",
           disposition: "attachment"
         )
@@ -1161,7 +1198,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Priority 2: Search by filename if ID lookup didn't work
     if @email.attachment_documents.any? && filename_hint.present?
-      doc = @email.attachment_documents.find { |d| (d.original_filename || d.display_name) == filename_hint }
+      doc = @email.attachment_documents.find { |d| (d.original_filename || d.ui_name) == filename_hint }
       if doc&.storage_blob.present?
         Rails.logger.info "[SyncedEmail] Downloading attachment from storage by filename: #{filename_hint}"
         content = doc.storage_blob.download
@@ -1183,7 +1220,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     credential = if @email.microsoft_credential_id.present?
                    MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
                  else
-                   MicrosoftCredential.app_credentials.connected.first
+                   MicrosoftCredential.refreshable_app.first
                  end
 
     unless credential&.valid_credential?
@@ -1238,7 +1275,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Priority 1: Use attachment found by ID if it has storage_blob
     if attachment_doc&.storage_blob.present?
-      filename = attachment_doc.original_filename || attachment_doc.display_name
+      filename = attachment_doc.original_filename || attachment_doc.ui_name
       url = attachment_doc.storage_blob.presigned_url(
         expires_in: 900,  # 15 minutes
         filename: filename
@@ -1255,7 +1292,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Priority 2: Search by filename if ID lookup didn't find a blob
     if @email.attachment_documents.any? && filename_param.present?
-      doc = @email.attachment_documents.find { |d| (d.original_filename || d.display_name) == filename_param && d.storage_blob.present? }
+      doc = @email.attachment_documents.find { |d| (d.original_filename || d.ui_name) == filename_param && d.storage_blob.present? }
       if doc&.storage_blob.present?
         url = doc.storage_blob.presigned_url(
           expires_in: 900,
@@ -1373,7 +1410,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     credential = if @email.microsoft_credential_id.present?
                    MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
                  else
-                   MicrosoftCredential.app_credentials.connected.first
+                   MicrosoftCredential.refreshable_app.first
                  end
 
     return nil unless credential&.valid_credential?
@@ -1614,7 +1651,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     user_state = if user_states_cache
       user_states_cache[email.id]
     else
-      EmailUserState.find_by(synced_email_id: email.id, user_id: current_user.id)
+      EmailUserState.find_by(email_warehouse_id: email.id, user_id: current_user.id)
     end
     # FRC (Jan 2026): If user has a state, use it. Otherwise fall back to the email's
     # read status from O365/IMAP. Previously defaulted to false, which showed emails
@@ -1708,74 +1745,103 @@ class Api::V1::SyncedEmailsController < ApplicationController
     json
   end
 
-  # Build attachments list - use synced records (WarehouseDocument) or fetch from MS365
+  # Build attachments list - merge synced records (WarehouseDocument) with MS365
   # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+  # FRC (Feb 2026): Fixed to always check MS365 for missing attachments
+  # Previously only showed synced attachments, missing real PDFs while showing signature images
   def build_attachments_list(email)
-    # First try local attachment_documents (already synced via WarehouseDocument)
+    result = []
+    synced_filenames = Set.new
+
+    # First add local attachment_documents (already synced via WarehouseDocument)
     synced = email.attachment_documents.includes(:storage_blob)
-    if synced.any?
-      return synced.map do |doc|
-        # For inline images: content_id matches cid: references in HTML
-        content_id = doc.metadata&.dig('content_id')
-        # Generate presigned URL for inline images (to replace cid: references)
-        inline_url = if doc.storage_blob.present? && content_id.present?
-                       doc.storage_blob.presigned_url(expires_in: 3600)
-                     end
-        {
-          id: doc.id,
-          name: doc.original_filename || doc.display_name || "Unknown",
-          content_type: doc.content_type || doc.storage_blob&.content_type,
-          size: doc.file_size || doc.storage_blob&.file_size,
-          outlook_attachment_id: nil,  # Not stored in WarehouseDocument
-          content_id: content_id,
-          inline_url: inline_url
-        }
-      end
+    synced.each do |doc|
+      # For inline images: content_id matches cid: references in HTML
+      content_id = doc.metadata&.dig('content_id')
+      content_type = doc.content_type || doc.storage_blob&.content_type
+      file_size = doc.file_size || doc.storage_blob&.file_size || 0
+
+      # Mark inline images (signature logos) - they're embedded in the body via cid:
+      # Keep large images (>100KB) as they're likely real photos, not signatures
+      is_inline_signature = content_id.present? && content_type&.start_with?('image/') && file_size < 100_000
+
+      # Generate presigned URL for inline images (to replace cid: references)
+      inline_url = if doc.storage_blob.present? && content_id.present?
+                     doc.storage_blob.presigned_url(expires_in: 3600)
+                   end
+      filename = doc.original_filename || doc.ui_name || "Unknown"
+      synced_filenames << filename.downcase
+
+      result << {
+        id: doc.id,
+        name: filename,
+        content_type: content_type,
+        size: file_size,
+        outlook_attachment_id: nil,
+        content_id: content_id,
+        inline_url: inline_url,
+        is_inline: is_inline_signature  # Flag for frontend to hide from attachment list
+      }
     end
 
-    # If no synced attachments but email has attachments, fetch from MS365
-    return [] unless email.has_attachments && email.outlook_id.present?
+    # Also fetch from MS365 to find any attachments not yet synced (e.g., large PDFs)
+    return result unless email.has_attachments && email.outlook_id.present?
 
     begin
       credential = if email.microsoft_credential_id.present?
                      MicrosoftCredential.find_by(id: email.microsoft_credential_id)
                    else
-                     MicrosoftCredential.app_credentials.connected.first
+                     MicrosoftCredential.refreshable_app.first
                    end
 
-      return [] unless credential&.valid_credential?
+      return result unless credential&.valid_credential?
 
       mailbox = email.mailbox_owner_email
-      return [] unless mailbox.present?
+      return result unless mailbox.present?
 
       client = MicrosoftAppGraphClient.new(credential)
       ms_attachments = client.get_email_attachments(mailbox, email.outlook_id)
 
-      # Filter out embedded images/signatures (inline attachments with contentId)
-      # These are typically small signature images that clutter the attachment list
+      # Filter out embedded images/signatures - be conservative to not lose real attachments
+      # Only filter if: isInline=true, OR (has contentId AND is small image = signature)
+      # FRC (Feb 2026): Previous filter was too aggressive - rejected any attachment with contentId
       filtered = ms_attachments.reject do |att|
-        att["isInline"] == true || att["contentId"].present?
+        is_inline = att["isInline"] == true
+        content_type = att["contentType"]&.to_s&.downcase || ""
+        file_size = att["size"].to_i
+        has_content_id = att["contentId"].present?
+        is_image = content_type.start_with?("image/")
+        is_small = file_size < 100_000  # 100KB threshold
+
+        # Reject if explicitly inline, OR if it's a small image with contentId (signature)
+        is_inline || (has_content_id && is_image && is_small)
       end
 
-      # SSoT: Update attachment_count when we discover actual count from Outlook
-      # This ensures the count is accurate for future list views
-      if filtered.any? && email.attachment_count.to_i != filtered.size
-        email.update_column(:attachment_count, filtered.size)
-      end
+      # Add MS365 attachments that aren't already synced locally
+      filtered.each do |att|
+        filename = att["name"] || "attachment"
+        next if synced_filenames.include?(filename.downcase)
 
-      filtered.map do |att|
-        {
-          id: nil,  # No local ID yet
-          name: att["name"] || "attachment",
+        result << {
+          id: nil,  # No local ID yet - needs to be fetched on download
+          name: filename,
           content_type: att["contentType"],
           size: att["size"],
           outlook_attachment_id: att["id"]
         }
       end
+
+      # SSoT: Update attachment_count when we discover actual count from Outlook
+      # Count non-inline attachments (real documents)
+      real_attachment_count = result.reject { |a| a[:content_id].present? }.size
+      if real_attachment_count > 0 && email.attachment_count.to_i != real_attachment_count
+        email.update_column(:attachment_count, real_attachment_count)
+      end
     rescue StandardError => e
       Rails.logger.warn "[SyncedEmail] Failed to fetch attachments from MS365: #{e.message}"
-      []
     end
+
+    result
   end
 
   def suggestion_json(suggestion)
@@ -1911,7 +1977,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
       contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
       all_email_ids = emails.map(&:id)
-      user_states_cache = EmailUserState.where(synced_email_id: all_email_ids, user_id: current_user.id).index_by(&:synced_email_id)
+      user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
 
       return render json: {
         success: true,
@@ -1937,7 +2003,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     all_contact_ids = all_emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
     all_email_ids = all_emails.map(&:id)
-    user_states_cache = EmailUserState.where(synced_email_id: all_email_ids, user_id: current_user.id).index_by(&:synced_email_id)
+    user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
 
     render json: {
       success: true,

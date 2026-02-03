@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :gl_account, class_name: 'Gl::Account'
 
     # Delegate
@@ -63,16 +63,16 @@ module Gl
       end
 
       # Create opening balances for a new financial year (year-end rollover)
-      def rollover_to_new_year(corporate_company, from_fy, to_fy)
+      def rollover_to_new_year(corporate, from_fy, to_fy)
         # Get closing balances for all balance sheet accounts
         Gl::Account
-          .where(corporate_company: corporate_company)
+          .where(corporate: corporate)
           .balance_sheet
           .active
           .find_each do |account|
             # Get the closing balance as of the last day of from_fy
             last_period = Gl::Period
-              .where(corporate_company: corporate_company, financial_year: from_fy)
+              .where(corporate: corporate, financial_year: from_fy)
               .order(period_number: :desc)
               .first
 
@@ -90,7 +90,7 @@ module Gl
             effective_date = Date.new(fy_year - 1, 7, 1)
 
             find_or_initialize_by(
-              corporate_company: corporate_company,
+              corporate: corporate,
               gl_account: account,
               effective_date: effective_date
             ).tap do |ob|
@@ -105,7 +105,7 @@ module Gl
       # Set opening balance for an account
       def set_balance(account, date, balance, source: 'manual', financial_year: nil)
         find_or_initialize_by(
-          corporate_company: account.corporate_company,
+          corporate: account.corporate,
           gl_account: account,
           effective_date: date
         ).tap do |ob|

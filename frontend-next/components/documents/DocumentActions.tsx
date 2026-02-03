@@ -16,7 +16,7 @@ import { copyToClipboard } from "@/utils/formatters";
 export interface DocumentFile {
   id?: number;
   fileName: string;
-  displayName?: string;
+  uiName?: string;
   fileUrl: string | null;
   storagePath?: string | null;
   mimeType?: string;
@@ -59,7 +59,7 @@ export function DocumentActions({
     // Create a hidden link and trigger download
     const link = window.document.createElement("a");
     link.href = document.fileUrl;
-    link.download = document.displayName || document.fileName;
+    link.download = document.uiName || document.fileName;
     link.click();
   };
 
@@ -101,9 +101,9 @@ export function DocumentActions({
     }
 
     // Open email compose with file link in body
-    const subject = encodeURIComponent(`File: ${document.displayName || document.fileName}`);
+    const subject = encodeURIComponent(`File: ${document.uiName || document.fileName}`);
     const body = encodeURIComponent(
-      `Here is the file you requested:\n\n${document.displayName || document.fileName}\n${document.fileUrl}`
+      `Here is the file you requested:\n\n${document.uiName || document.fileName}\n${document.fileUrl}`
     );
     window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
   };

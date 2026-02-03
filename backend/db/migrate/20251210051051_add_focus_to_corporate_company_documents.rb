@@ -1,8 +1,8 @@
 class AddFocusToCorporateCompanyDocuments < ActiveRecord::Migration[8.0]
   def up
     # Add focus column with default 'company'
-    add_column :corporate_company_documents, :focus, :string, default: 'company', null: false
-    add_index :corporate_company_documents, :focus
+    add_column :corporate_documents, :focus, :string, default: 'company', null: false
+    add_index :corporate_documents, :focus
 
     puts "\n" + "=" * 80
     puts "ADDING FOCUS FIELD TO CORPORATE_COMPANY_DOCUMENTS"
@@ -64,7 +64,7 @@ class AddFocusToCorporateCompanyDocuments < ActiveRecord::Migration[8.0]
   end
 
   def down
-    remove_index :corporate_company_documents, :focus
-    remove_column :corporate_company_documents, :focus
+    remove_index :corporate_documents, :focus
+    remove_column :corporate_documents, :focus
   end
 end

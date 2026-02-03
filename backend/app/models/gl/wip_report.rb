@@ -7,12 +7,12 @@ module Gl
 
     STATUSES = %w[draft final archived].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :created_by, class_name: "User", optional: true
 
     has_many :jobs, class_name: "Gl::WipReportJob", foreign_key: "wip_report_id", dependent: :destroy
 
-    validates :reference, presence: true, uniqueness: { scope: :corporate_company_id }
+    validates :reference, presence: true, uniqueness: { scope: :corporate_id }
     validates :report_date, presence: true
     validates :status, presence: true, inclusion: { in: STATUSES }
 
@@ -24,7 +24,7 @@ module Gl
     # Generate a new WIP report
     def self.generate!(company, as_of: Date.current, user: nil)
       report = create!(
-        corporate_company: company,
+        corporate: company,
         report_date: as_of,
         period_end: as_of,
         period_start: as_of.beginning_of_month,
@@ -110,7 +110,7 @@ module Gl
 
       year = Date.current.year.to_s[-2..]
       month = Date.current.strftime("%m")
-      sequence = self.class.where(corporate_company_id: corporate_company_id)
+      sequence = self.class.where(company_id: company_id)
                            .where("reference LIKE ?", "WIP#{year}#{month}%")
                            .count + 1
 

@@ -7,7 +7,7 @@ module Gl
 
     CLASS_TYPES = %w[location region project product_line cost_center custom].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :parent, class_name: "Gl::TrackingClass", optional: true
 
     has_many :children, class_name: "Gl::TrackingClass", foreign_key: :parent_id, dependent: :nullify
@@ -15,7 +15,7 @@ module Gl
 
     validates :name, presence: true
     validates :class_type, presence: true, inclusion: { in: CLASS_TYPES }
-    validates :code, uniqueness: { scope: [:corporate_company_id, :class_type] }, allow_blank: true
+    validates :code, uniqueness: { scope: [:corporate_id, :class_type] }, allow_blank: true
 
     scope :active, -> { where(active: true) }
     scope :for_type, ->(type) { where(class_type: type) }

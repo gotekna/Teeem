@@ -6,19 +6,19 @@
 class AddBrandColorsToCorporateCompanySettings < ActiveRecord::Migration[8.0]
   def change
     # Primary brand color (buttons, links, key UI elements)
-    add_column :corporate_company_settings, :brand_color_primary, :string
-    add_column :corporate_company_settings, :brand_color_primary_foreground, :string
+    add_column :corporate_settings, :brand_color_primary, :string
+    add_column :corporate_settings, :brand_color_primary_foreground, :string
 
     # Secondary color (card backgrounds, hover states)
-    add_column :corporate_company_settings, :brand_color_secondary, :string
+    add_column :corporate_settings, :brand_color_secondary, :string
 
     # Muted color (labels, disabled text)
-    add_column :corporate_company_settings, :brand_color_muted, :string
+    add_column :corporate_settings, :brand_color_muted, :string
 
     # Accent color (highlights, AI elements, links)
-    add_column :corporate_company_settings, :brand_color_accent, :string
+    add_column :corporate_settings, :brand_color_accent, :string
 
     # Website URL for auto-detecting brand colors
-    add_column :corporate_company_settings, :website_url, :string
+    add_column :corporate_settings, :website_url, :string
   end
 end

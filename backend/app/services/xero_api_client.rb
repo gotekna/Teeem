@@ -152,7 +152,7 @@ class XeroApiClient
       tenant = tenant_info.first
 
       # Find or create the company's Xero connection
-      connection = company.corporate_company_xero_connection || company.build_corporate_company_xero_connection
+      connection = company.corporate_xero_connection || company.build_corporate_xero_connection
 
       # Update connection with OAuth tokens
       connection.connect!(

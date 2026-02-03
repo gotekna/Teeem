@@ -74,7 +74,7 @@ class QuoteResponse < ApplicationRecord
   end
 
   def builder
-    quote_request.construction
+    quote_request.job
   end
 
   private

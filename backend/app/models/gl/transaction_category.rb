@@ -7,14 +7,14 @@ module Gl
 
     CATEGORY_TYPES = %w[expense revenue asset liability].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :default_account, class_name: "Gl::Account", optional: true
     belongs_to :default_tax_rate, class_name: "Gl::TaxRate", optional: true
 
     has_many :predictions, class_name: "Gl::CategorizationPrediction",
                            foreign_key: :predicted_category_id, dependent: :nullify
 
-    validates :name, presence: true, uniqueness: { scope: :corporate_company_id }
+    validates :name, presence: true, uniqueness: { scope: :corporate_id }
     validates :category_type, inclusion: { in: CATEGORY_TYPES }, allow_blank: true
     validates :confidence_threshold, numericality: { greater_than: 0, less_than_or_equal_to: 1 }
 
@@ -73,7 +73,7 @@ module Gl
       ]
 
       common.each do |cat|
-        find_or_create_by!(corporate_company: company, name: cat[:name]) do |c|
+        find_or_create_by!(corporate: company, name: cat[:name]) do |c|
           c.category_type = cat[:category_type]
           c.keywords = cat[:keywords]
         end

@@ -79,7 +79,7 @@ import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { ContactHeader, XeroLink } from "./components/ContactHeader";
-import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
+import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import { getIcon } from "@/lib/icon-map";
 import {
   ContactOverviewTab,
@@ -239,8 +239,8 @@ export default function ContactDetailPage() {
   // SSoT: Entity types from API
   const { metadata: entityTypeMetadata } = useEntityTypes();
 
-  // SSoT: Tab configuration from EntityTabs API (Phase 5 - unified tabs)
-  const { tabs: contactTabs, primaryXeroName } = useEntityTabs({ scope: "contact" });
+  // SSoT: Tab configuration from WarehouseFolders API (Phase 5 - unified tabs)
+  const { tabs: contactTabs, primaryXeroName } = useWarehouseFolders({ scope: "contact" });
 
   // Create a map for quick tab config lookup
   const tabConfigMap = useMemo(() => {

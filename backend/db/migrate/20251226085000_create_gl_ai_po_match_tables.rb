@@ -4,7 +4,7 @@ class CreateGlAiPoMatchTables < ActiveRecord::Migration[7.1]
   def change
     # Track AI matching attempts for rate limiting
     create_table :gl_ai_po_match_attempts do |t|
-      t.references :corporate_company, null: false, foreign_key: true, index: true
+      t.references :corporate, null: false, foreign_key: true, index: true
       t.references :bill_inbox, foreign_key: true, index: true
       t.references :matched_po, foreign_key: { to_table: :purchase_orders }
       t.boolean :successful, default: false
@@ -15,12 +15,12 @@ class CreateGlAiPoMatchTables < ActiveRecord::Migration[7.1]
     end
 
     # Index for rate limiting queries
-    add_index :gl_ai_po_match_attempts, [:corporate_company_id, :created_at],
+    add_index :gl_ai_po_match_attempts, [:corporate_id, :created_at],
               name: "idx_ai_po_attempts_rate_limit"
 
     # Store user feedback on AI matches for learning
     create_table :gl_ai_po_match_learnings do |t|
-      t.references :corporate_company, null: false, foreign_key: true, index: true
+      t.references :corporate, null: false, foreign_key: true, index: true
       t.references :bill_inbox, null: false, foreign_key: true, index: true
       t.references :purchase_order, null: false, foreign_key: true, index: true
       t.references :user, foreign_key: true
@@ -41,7 +41,7 @@ class CreateGlAiPoMatchTables < ActiveRecord::Migration[7.1]
     end
 
     # Index for finding similar past matches
-    add_index :gl_ai_po_match_learnings, [:corporate_company_id, :was_accepted],
+    add_index :gl_ai_po_match_learnings, [:corporate_id, :was_accepted],
               name: "idx_ai_po_learnings_acceptance"
 
     # Index for supplier name lookups

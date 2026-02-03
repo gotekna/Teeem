@@ -47,8 +47,8 @@ import { BackButton } from "@/components/ui/back-button";
 
 interface CompanyApprovalRule {
   id: number;
-  corporate_company_id: number;
-  corporate_company?: {
+  company_id: number;
+  corporate?: {
     id: number;
     name: string;
     code: string;
@@ -106,7 +106,7 @@ export default function FinanceSettingsPage() {
 
   // Form state
   const [formData, setFormData] = useState({
-    corporate_company_id: "",
+    company_id: "",
     rule_type: "bill_approval",
     name: "",
     min_amount: "",
@@ -141,14 +141,14 @@ export default function FinanceSettingsPage() {
   }, [loadData]);
 
   const filteredRules = rules.filter((rule) =>
-    companyFilter === "all" || rule.corporate_company_id.toString() === companyFilter
+    companyFilter === "all" || rule.company_id.toString() === companyFilter
   );
 
   const handleOpenDialog = (rule?: CompanyApprovalRule) => {
     if (rule) {
       setEditingRule(rule);
       setFormData({
-        corporate_company_id: rule.corporate_company_id.toString(),
+        company_id: rule.company_id.toString(),
         rule_type: rule.rule_type,
         name: rule.name,
         min_amount: rule.min_amount?.toString() || "",
@@ -162,7 +162,7 @@ export default function FinanceSettingsPage() {
     } else {
       setEditingRule(null);
       setFormData({
-        corporate_company_id: "",
+        company_id: "",
         rule_type: "bill_approval",
         name: "",
         min_amount: "",
@@ -181,7 +181,7 @@ export default function FinanceSettingsPage() {
     setSaving(true);
     try {
       const payload = {
-        corporate_company_id: parseInt(formData.corporate_company_id),
+        company_id: parseInt(formData.company_id),
         rule_type: formData.rule_type,
         name: formData.name,
         min_amount: formData.min_amount ? parseFloat(formData.min_amount) : null,
@@ -311,7 +311,7 @@ export default function FinanceSettingsPage() {
               {filteredRules.map((rule) => (
                 <TableRow key={rule.id}>
                   <TableCell>
-                    {rule.corporate_company?.code || "-"}
+                    {rule.corporate?.code || "-"}
                   </TableCell>
                   <TableCell className="font-medium">{rule.name}</TableCell>
                   <TableCell>
@@ -385,8 +385,8 @@ export default function FinanceSettingsPage() {
             <div className="space-y-2">
               <Label>Company</Label>
               <Select
-                value={formData.corporate_company_id}
-                onValueChange={(v) => setFormData({ ...formData, corporate_company_id: v })}
+                value={formData.company_id}
+                onValueChange={(v) => setFormData({ ...formData, company_id: v })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select company" />
@@ -525,7 +525,7 @@ export default function FinanceSettingsPage() {
             </Button>
             <Button
               onClick={handleSave}
-              disabled={saving || !formData.corporate_company_id || !formData.name}
+              disabled={saving || !formData.company_id || !formData.name}
             >
               {saving ? "Saving..." : editingRule ? "Update" : "Create"}
             </Button>

@@ -37,3 +37,46 @@
 .vercel
 *.aria2
 latest.dump
+
+# ============================================
+# SLUG SIZE OPTIMIZATION (Feb 2026)
+# These were accidentally tracked, causing 495MB slug
+# ============================================
+
+# Node modules (21MB+ on Heroku)
+node_modules/
+
+# Large import/export CSV files (4MB+)
+*.csv
+!db/seeds/**/*.csv
+
+# Excel files
+*.xlsx
+*.xls
+
+# Test coverage (1.4MB)
+coverage/
+
+# Spec/test files (not needed on Heroku)
+spec/
+
+# ML service (not used on Heroku)
+ml_service/
+
+# Scripts (dev only)
+scripts/
+
+# IDE and editor files
+.ruby-lsp/
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.swo
+
+# Documentation markdown files (not needed at runtime)
+*.md
+!README.md
+
+# Old buildpack artifacts
+ImageMagick*.tar*

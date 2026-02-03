@@ -475,7 +475,7 @@ class CaseRelationshipService
     nodes = []
     edges = []
 
-    companies = @case.case_companies.includes(:corporate_company)
+    companies = @case.case_companies.includes(:corporate)
     base_y = 50 # Position companies at top
 
     companies.each_with_index do |case_company, index|
@@ -604,7 +604,7 @@ class CaseRelationshipService
         end
 
         # Check shareholdings
-        shareholding = company.corporate_company_shareholdings.find_by(shareholder_type: "Contact", shareholder_id: contact.id)
+        shareholding = company.corporate_shareholdings.find_by(shareholder_type: "Contact", shareholder_id: contact.id)
         if shareholding && shareholding.percentage_of_total.to_f > 0
           edges << {
             id: "edge-contact-company-shareholding-#{contact.id}-#{company.id}",

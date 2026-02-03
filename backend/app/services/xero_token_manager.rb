@@ -491,7 +491,7 @@ class XeroTokenManager
     def find_company_for_credential(credential)
       # Try to find company via CorporateXeroConnection
       connection = CorporateXeroConnection.find_by(xero_credential: credential)
-      connection&.corporate_company
+      connection&.corporate
     end
   end
 end

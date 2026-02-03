@@ -45,8 +45,9 @@ class XeroDuplicateFixService
           office_phone: contact.office_phone,
           created_at: contact.created_at,
           score: score_contact(contact),
+          # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
           xero_tenants: contact.xero_links.map { |link|
-            { tenant_id: link.tenant_id, tenant_name: link.tenant_name }
+            { xero_org_id: link.xero_org_id, tenant_name: link.tenant_name }
           },
           relationships: {
             jobs: contact.jobs.size,
@@ -169,15 +170,16 @@ class XeroDuplicateFixService
     sources.each do |source|
       ContactExternalLink.where(contact_id: source.id).each do |link|
         # Check if target already has this tenant
+        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
         existing = ContactExternalLink.find_by(
           contact_id: target.id,
-          tenant_id: link.tenant_id,
+          xero_org_id: link.xero_org_id,
           source: link.source
         )
 
         if existing
           # Target already linked to this tenant - destroy duplicate link
-          Rails.logger.info("Skipping link #{link.id} - target already linked to #{link.tenant_id}")
+          Rails.logger.info("Skipping link #{link.id} - target already linked to #{link.xero_org_id}")
           link.destroy
         else
           # Move link to target

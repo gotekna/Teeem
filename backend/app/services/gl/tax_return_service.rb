@@ -16,7 +16,7 @@ module Gl
   # - Carried forward losses
   #
   class TaxReturnService
-    attr_reader :corporate_company, :financial_year, :options
+    attr_reader :corporate, :financial_year, :options
 
     # Australian company tax rates (2024-25)
     TAX_RATES = {
@@ -48,8 +48,8 @@ module Gl
       total_deductions: 'Label 7K - Total deductions'
     }.freeze
 
-    def initialize(corporate_company, financial_year = nil, options = {})
-      @corporate_company = corporate_company
+    def initialize(corporate, financial_year = nil, options = {})
+      @corporate = corporate
       @financial_year = financial_year || current_fy
       @options = options.with_indifferent_access
     end
@@ -107,9 +107,9 @@ module Gl
 
     def entity_info
       {
-        name: corporate_company.name,
-        abn: corporate_company.abn,
-        acn: corporate_company.acn,
+        name: corporate.name,
+        abn: corporate.abn,
+        acn: corporate.acn,
         entity_type: entity_type,
         tax_rate: applicable_tax_rate,
         is_base_rate_entity: base_rate_entity?,
@@ -158,7 +158,7 @@ module Gl
     def calculate_gross_payments
       # Sales revenue (subject to withholding - building/construction industry)
       sales_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'revenue',
         account_class: %w[sales_revenue service_revenue]
       )
@@ -168,7 +168,7 @@ module Gl
 
     def calculate_gross_interest
       interest_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'revenue',
         name: ['Interest Income', 'Interest Received', 'Bank Interest']
       )
@@ -178,7 +178,7 @@ module Gl
 
     def calculate_gross_dividends
       dividend_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'revenue',
         name: ['Dividend Income', 'Dividends Received']
       )
@@ -188,7 +188,7 @@ module Gl
 
     def calculate_gross_rent
       rent_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'revenue',
         name: ['Rental Income', 'Lease Income']
       )
@@ -198,7 +198,7 @@ module Gl
 
     def calculate_other_income
       other_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'revenue',
         account_class: 'other_income'
       )
@@ -208,7 +208,7 @@ module Gl
 
     def calculate_total_income
       revenue_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'revenue'
       )
 
@@ -238,7 +238,7 @@ module Gl
 
     def calculate_cost_of_sales
       cos_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'expense',
         account_class: %w[cost_of_sales direct_costs]
       )
@@ -248,7 +248,7 @@ module Gl
 
     def calculate_contractor_payments
       contractor_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'expense',
         account_class: %w[subcontractors contractors]
       )
@@ -258,7 +258,7 @@ module Gl
 
     def calculate_superannuation
       super_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'expense',
         account_class: 'superannuation'
       )
@@ -268,7 +268,7 @@ module Gl
 
     def calculate_bad_debts
       bad_debt_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'expense',
         name: ['Bad Debts', 'Bad Debt Expense', 'Doubtful Debts']
       )
@@ -278,7 +278,7 @@ module Gl
 
     def calculate_lease_expenses
       lease_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'expense',
         name: ['Rent', 'Lease Expense', 'Equipment Hire', 'Office Rent']
       )
@@ -288,7 +288,7 @@ module Gl
 
     def calculate_interest_expenses
       interest_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'expense',
         name: ['Interest Expense', 'Interest Paid', 'Bank Charges', 'Loan Interest']
       )
@@ -298,7 +298,7 @@ module Gl
 
     def calculate_depreciation
       depreciation_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'expense',
         account_class: 'depreciation'
       )
@@ -308,7 +308,7 @@ module Gl
 
     def calculate_motor_vehicle
       mv_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'expense',
         name: ['Motor Vehicle Expenses', 'Vehicle Running Costs', 'Fuel', 'Car Expenses']
       )
@@ -318,7 +318,7 @@ module Gl
 
     def calculate_repairs
       repairs_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'expense',
         name: ['Repairs & Maintenance', 'Repairs', 'Maintenance']
       )
@@ -339,7 +339,7 @@ module Gl
 
     def calculate_total_deductions
       expense_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'expense'
       )
 
@@ -381,7 +381,7 @@ module Gl
 
       # Entertainment (50% non-deductible)
       entertainment = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         name: ['Entertainment', 'Meals & Entertainment']
       ).sum { |a| account_fy_balance(a).abs } * 0.5
 
@@ -389,7 +389,7 @@ module Gl
 
       # Penalties and fines
       penalties = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         name: ['Penalties', 'Fines', 'ATO Penalties']
       ).sum { |a| account_fy_balance(a).abs }
 
@@ -629,7 +629,7 @@ module Gl
       Gl::LedgerLine
         .joins(:gl_journal_entry)
         .where(gl_account: account)
-        .where(gl_journal_entries: { corporate_company: corporate_company })
+        .where(gl_journal_entries: { corporate: corporate })
         .where('gl_journal_entries.entry_date >= ? AND gl_journal_entries.entry_date <= ?', fy_start_date, fy_end_date)
         .sum('debit - credit')
     end
@@ -637,7 +637,7 @@ module Gl
     def calculate_aggregated_turnover
       # Current year turnover
       revenue_accounts = Gl::Account.where(
-        corporate_company: corporate_company,
+        corporate: corporate,
         account_type: 'revenue'
       )
 

@@ -204,8 +204,8 @@ class XeroDocumentMatcher
   end
 
   def determine_match_type(doc)
-    if doc.display_name&.include?(invoice.invoice_number)
-      "display_name"
+    if doc.ui_name&.include?(invoice.invoice_number)
+      "ui_name"
     elsif doc.original_filename&.include?(invoice.invoice_number)
       "filename"
     elsif doc.metadata&.dig("invoice_number") == invoice.invoice_number

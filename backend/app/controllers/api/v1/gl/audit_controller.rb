@@ -5,11 +5,11 @@ module Api
     module Gl
       # Controller for audit trail and snapshots
       class AuditController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
 
         # GET /api/v1/gl/audit/logs
         def logs
-          logs = @corporate_company.gl_audit_logs
+          logs = @corporate.gl_audit_logs
                                    .includes(:user)
                                    .recent
 
@@ -28,7 +28,7 @@ module Api
 
         # GET /api/v1/gl/audit/record/:type/:id
         def record_history
-          logs = @corporate_company.gl_audit_logs
+          logs = @corporate.gl_audit_logs
                                    .where(auditable_type: params[:type], auditable_id: params[:id])
                                    .includes(:user)
                                    .recent
@@ -38,7 +38,7 @@ module Api
 
         # GET /api/v1/gl/audit/snapshots
         def snapshots
-          snapshots = @corporate_company.gl_audit_snapshots
+          snapshots = @corporate.gl_audit_snapshots
                                         .includes(:created_by)
                                         .recent
 
@@ -51,11 +51,11 @@ module Api
         def create_snapshot
           snapshot = case params[:snapshot_type]
                      when "daily"
-                       ::Gl::AuditSnapshot.daily_snapshot!(@corporate_company, user: current_user)
+                       ::Gl::AuditSnapshot.daily_snapshot!(@corporate, user: current_user)
                      when "monthly"
-                       ::Gl::AuditSnapshot.monthly_snapshot!(@corporate_company, user: current_user)
+                       ::Gl::AuditSnapshot.monthly_snapshot!(@corporate, user: current_user)
                      when "eofy"
-                       ::Gl::AuditSnapshot.eofy_snapshot!(@corporate_company, user: current_user)
+                       ::Gl::AuditSnapshot.eofy_snapshot!(@corporate, user: current_user)
                      else
                        render json: { success: false, error: "Invalid snapshot type" }, status: :unprocessable_entity
                        return
@@ -66,7 +66,7 @@ module Api
 
         # GET /api/v1/gl/audit/snapshots/:id/export
         def export_snapshot
-          snapshot = @corporate_company.gl_audit_snapshots.find(params[:id])
+          snapshot = @corporate.gl_audit_snapshots.find(params[:id])
           data = snapshot.export_data!
 
           send_data data,
@@ -80,16 +80,16 @@ module Api
           render json: {
             success: true,
             data: {
-              total_logs: @corporate_company.gl_audit_logs.count,
-              today: @corporate_company.gl_audit_logs.where("created_at >= ?", Date.current).count,
-              this_week: @corporate_company.gl_audit_logs.where("created_at >= ?", 1.week.ago).count,
-              by_action: @corporate_company.gl_audit_logs.group(:action).count,
-              by_type: @corporate_company.gl_audit_logs.group(:auditable_type).count,
+              total_logs: @corporate.gl_audit_logs.count,
+              today: @corporate.gl_audit_logs.where("created_at >= ?", Date.current).count,
+              this_week: @corporate.gl_audit_logs.where("created_at >= ?", 1.week.ago).count,
+              by_action: @corporate.gl_audit_logs.group(:action).count,
+              by_type: @corporate.gl_audit_logs.group(:auditable_type).count,
               snapshots: {
-                daily: @corporate_company.gl_audit_snapshots.for_type("daily").count,
-                monthly: @corporate_company.gl_audit_snapshots.for_type("monthly").count,
-                eofy: @corporate_company.gl_audit_snapshots.for_type("eofy").count,
-                last_snapshot: @corporate_company.gl_audit_snapshots.recent.first&.snapshot_date
+                daily: @corporate.gl_audit_snapshots.for_type("daily").count,
+                monthly: @corporate.gl_audit_snapshots.for_type("monthly").count,
+                eofy: @corporate.gl_audit_snapshots.for_type("eofy").count,
+                last_snapshot: @corporate.gl_audit_snapshots.recent.first&.snapshot_date
               }
             }
           }
@@ -97,7 +97,7 @@ module Api
 
         # GET /api/v1/gl/audit/retainage_releases
         def retainage_releases
-          releases = @corporate_company.gl_retainage_releases
+          releases = @corporate.gl_retainage_releases
                                        .includes(:job, :invoice, :approved_by)
                                        .order(release_date: :desc)
 
@@ -123,7 +123,7 @@ module Api
 
         # POST /api/v1/gl/audit/retainage_releases/:id/approve
         def approve_retainage_release
-          release = @corporate_company.gl_retainage_releases.find(params[:id])
+          release = @corporate.gl_retainage_releases.find(params[:id])
 
           if release.approve!(current_user)
             render json: { success: true, data: release }
@@ -134,7 +134,7 @@ module Api
 
         # POST /api/v1/gl/audit/retainage_releases/:id/invoice
         def invoice_retainage_release
-          release = @corporate_company.gl_retainage_releases.find(params[:id])
+          release = @corporate.gl_retainage_releases.find(params[:id])
           invoice = release.generate_invoice!
 
           if invoice
@@ -147,8 +147,8 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id])
         end
       end
     end

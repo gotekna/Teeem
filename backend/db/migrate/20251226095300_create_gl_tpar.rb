@@ -4,7 +4,7 @@ class CreateGlTpar < ActiveRecord::Migration[7.1]
   def change
     # TPAR (Taxable Payments Annual Report) records
     create_table :gl_tpar_reports do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :created_by, foreign_key: { to_table: :users }
 
       t.string :financial_year, null: false, limit: 10  # e.g., "2024-25"
@@ -27,7 +27,7 @@ class CreateGlTpar < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_tpar_reports, [:corporate_company_id, :financial_year],
+    add_index :gl_tpar_reports, [:corporate_id, :financial_year],
               unique: true, name: "idx_tpar_reports_year"
 
     # TPAR payee records

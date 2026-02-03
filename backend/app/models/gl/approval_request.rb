@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[pending approved rejected cancelled].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :workflow, class_name: "Gl::ApprovalWorkflow", optional: true
     belongs_to :requested_by, class_name: "User", optional: true
     belongs_to :approvable, polymorphic: true
@@ -31,7 +31,7 @@ module Gl
 
     # Submit document for approval
     def self.submit!(document, user:)
-      company = document.corporate_company
+      company = document.corporate
       workflow = ApprovalWorkflow.find_matching(
         company,
         document_type: document.class.name.demodulize.underscore,
@@ -39,7 +39,7 @@ module Gl
       )
 
       create!(
-        corporate_company: company,
+        corporate: company,
         workflow: workflow,
         requested_by: user,
         approvable: document,

@@ -4,7 +4,7 @@ module Api
   module V1
     module Gl
       class ReportsController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
 
         # GET /api/v1/gl/reports/profit_loss
         def profit_loss
@@ -13,7 +13,7 @@ module Api
           compare = params[:compare] == 'true'
 
           report = ::Gl::Reports::ProfitLoss.new(
-            @corporate_company,
+            @corporate,
             provider: params[:provider],
             tenant_id: params[:tenant_id]
           )
@@ -30,7 +30,7 @@ module Api
         # GET /api/v1/gl/reports/profit_loss_ytd
         def profit_loss_ytd
           report = ::Gl::Reports::ProfitLoss.new(
-            @corporate_company,
+            @corporate,
             provider: params[:provider],
             tenant_id: params[:tenant_id]
           )
@@ -45,7 +45,7 @@ module Api
           financial_year = params[:financial_year] || ::Gl::Period.financial_year_for(Date.current)
 
           report = ::Gl::Reports::ProfitLoss.new(
-            @corporate_company,
+            @corporate,
             provider: params[:provider],
             tenant_id: params[:tenant_id]
           )
@@ -61,7 +61,7 @@ module Api
           compare_date = params[:compare_date]&.to_date
 
           report = ::Gl::Reports::BalanceSheet.new(
-            @corporate_company,
+            @corporate,
             provider: params[:provider],
             tenant_id: params[:tenant_id]
           )
@@ -80,7 +80,7 @@ module Api
           show_zero = params[:show_zero_balances] == 'true'
 
           report = ::Gl::Reports::TrialBalance.new(
-            @corporate_company,
+            @corporate,
             provider: params[:provider],
             tenant_id: params[:tenant_id]
           )
@@ -99,7 +99,7 @@ module Api
           compare_date = params[:compare_date]&.to_date || (as_of_date - 1.year)
 
           report = ::Gl::Reports::TrialBalance.new(
-            @corporate_company,
+            @corporate,
             provider: params[:provider],
             tenant_id: params[:tenant_id]
           )
@@ -121,7 +121,7 @@ module Api
           to_date = params[:to_date]&.to_date || Date.current
 
           report = ::Gl::Reports::BankStatement.new(
-            @corporate_company,
+            @corporate,
             provider: params[:provider],
             tenant_id: params[:tenant_id]
           )
@@ -141,7 +141,7 @@ module Api
           to_date = params[:to_date]&.to_date || Date.current
 
           report = ::Gl::Reports::BankStatement.new(
-            @corporate_company,
+            @corporate,
             provider: params[:provider],
             tenant_id: params[:tenant_id]
           )
@@ -163,7 +163,7 @@ module Api
           to_date = params[:to_date]&.to_date || Date.current
 
           calculator = ::Gl::BalanceCalculator.new(
-            @corporate_company,
+            @corporate,
             provider: params[:provider],
             tenant_id: params[:tenant_id]
           )
@@ -191,8 +191,8 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id] || current_user&.corporate_company_id)
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id] || current_user&.corporate_id)
         rescue ActiveRecord::RecordNotFound
           render json: { success: false, error: 'Company not found' }, status: :not_found
         end
@@ -220,7 +220,7 @@ module Api
         end
 
         def scoped_accounts
-          scope = ::Gl::Account.where(corporate_company: @corporate_company)
+          scope = ::Gl::Account.where(corporate: @corporate)
 
           if params[:provider].present?
             scope = scope.where(external_provider: params[:provider], external_tenant_id: params[:tenant_id])

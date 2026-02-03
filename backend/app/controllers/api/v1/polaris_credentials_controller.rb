@@ -7,8 +7,9 @@ module Api
 
       # GET /api/v1/polaris_credentials
       # Get current PolarMail configuration
+      # SSoT (Feb 2026): Uses tenant-scoped lookup
       def index
-        credential = PolarisCredential.for_org(current_organization).active.first
+        credential = PolarisCredential.for_tenant(current_tenant).active.first
 
         if credential
           render json: {
@@ -35,13 +36,14 @@ module Api
 
       # POST /api/v1/polaris_credentials
       # Create or update PolarMail configuration
+      # SSoT (Feb 2026): Uses tenant-scoped lookup
       def create
         # Deactivate existing credential if present
-        existing = PolarisCredential.for_org(current_organization).active.first
+        existing = PolarisCredential.for_tenant(current_tenant).active.first
         existing&.update!(is_active: false)
 
         credential = PolarisCredential.new(
-          organization: current_organization,
+          tenant: current_tenant,
           api_key: params[:admin_username],
           api_secret: params[:admin_password],
           is_active: true,

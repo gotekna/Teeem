@@ -11,7 +11,7 @@ class MvJobSummary < ApplicationRecord
 
   # Associations for convenience
   belongs_to :job, foreign_key: "job_id"
-  belongs_to :corporate_company, foreign_key: "company_id", optional: true
+  belongs_to :corporate, foreign_key: "company_id", optional: true
 
   # Scopes
   scope :for_company, ->(company_id) { where(company_id: company_id) }

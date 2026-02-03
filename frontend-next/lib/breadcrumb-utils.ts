@@ -167,11 +167,11 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "connections": "Connections",
   "job-setup": "Job Setup",
   "workflow-config": "Workflow Config",
-  "entity-config": "Folder Config",
+  "warehouse-config": "Warehouse Config",
   "offline": "Offline",
 
-  // Settings > Company > Folder Config sub-tabs
-  "storage_config": "Storage Config",
+  // Settings > Company > Warehouse Config sub-tabs
+  "warehouse_folders": "Warehouse Folders",
   "document_types": "Document Types",
   // Note: "corporate" already defined above for Settings tabs
   "job": "Jobs",
@@ -393,7 +393,7 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "connections": ["provider", "migration", "costs"],
   "security": ["users", "roles", "groups"],
   "corporate": ["groups", "companies", "company-tabs"],
-  "entity-config": ["storage_config", "document_types", "corporate", "job", "contact", "email_config", "config_sync"],
+  "warehouse-config": ["warehouse_folders", "document_types", "corporate", "job", "contact", "email_config", "config_sync"],
 };
 
 /**

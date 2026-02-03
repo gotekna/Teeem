@@ -1622,11 +1622,11 @@ function GoldDocumentTypeEditor() {
             </div>
 
             <div className="flex gap-4">
-              {/* Download Name / Display Name builders */}
+              {/* Document Download Name / Document UI Name builders */}
               <div className="flex-1 space-y-4">
-                {/* Download Name */}
+                {/* Document Download Name */}
                 <div className="space-y-2">
-                  <Label>Download Name</Label>
+                  <Label>Document Download Name</Label>
                   <div
                     className={cn(
                       "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
@@ -1668,10 +1668,10 @@ function GoldDocumentTypeEditor() {
                   </div>
                 </div>
 
-                {/* Display Name */}
+                {/* Document UI Name */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label>Display Name</Label>
+                    <Label>Document UI Name</Label>
                     <div className="flex items-center gap-4 text-sm">
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <Checkbox checked={removeCompanyName} onCheckedChange={(c) => setRemoveCompanyName(!!c)} />
@@ -1679,7 +1679,7 @@ function GoldDocumentTypeEditor() {
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <Checkbox checked={displayNameSameAsFileName} onCheckedChange={(c) => setDisplayNameSameAsFileName(!!c)} />
-                        <span className="text-muted-foreground">Same as Download Name</span>
+                        <span className="text-muted-foreground">Same as Document Download Name</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <Checkbox checked={showFullDescription} onCheckedChange={(c) => setShowFullDescription(!!c)} />

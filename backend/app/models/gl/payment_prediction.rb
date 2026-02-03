@@ -7,7 +7,7 @@ module Gl
 
     RISK_LEVELS = %w[low medium high].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :invoice, class_name: "Gl::Invoice"
     belongs_to :contact, optional: true
 
@@ -24,12 +24,12 @@ module Gl
     def self.predict!(invoice)
       return nil unless invoice.unpaid?
 
-      company = invoice.corporate_company
+      company = invoice.corporate
       contact = invoice.contact
 
       # Get customer stats
       stats = Gl::CustomerPaymentStats.find_or_initialize_by(
-        corporate_company: company,
+        corporate: company,
         contact: contact
       )
 
@@ -38,7 +38,7 @@ module Gl
       predicted_days = calculate_predicted_days_late(invoice, stats)
 
       create!(
-        corporate_company: company,
+        corporate: company,
         invoice: invoice,
         contact: contact,
         probability_late: probability,
@@ -60,7 +60,7 @@ module Gl
 
       # Update customer stats
       Gl::CustomerPaymentStats.record_payment!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         contact: contact,
         invoice: invoice,
         payment_date: payment_date
@@ -69,7 +69,7 @@ module Gl
 
     # Prediction accuracy
     def self.accuracy(company, period: 30.days)
-      predictions = where(corporate_company: company)
+      predictions = where(corporate: company)
                     .where.not(prediction_correct: nil)
                     .where("created_at >= ?", period.ago)
 

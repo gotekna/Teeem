@@ -26,11 +26,11 @@ class AddSearchInfrastructure < ActiveRecord::Migration[7.1]
     end
 
     # 2. corporate_company_documents
-    unless column_exists?(:corporate_company_documents, :searchable)
-      add_column :corporate_company_documents, :searchable, :tsvector
+    unless column_exists?(:corporate_documents, :searchable)
+      add_column :corporate_documents, :searchable, :tsvector
     end
-    unless index_exists?(:corporate_company_documents, :searchable, using: :gin)
-      add_index :corporate_company_documents, :searchable,
+    unless index_exists?(:corporate_documents, :searchable, using: :gin)
+      add_index :corporate_documents, :searchable,
                 using: :gin,
                 name: "idx_documents_searchable_gin",
                 algorithm: :concurrently
@@ -85,8 +85,8 @@ class AddSearchInfrastructure < ActiveRecord::Migration[7.1]
     # Remove indexes first, then columns
     remove_index :email_warehouse, name: "idx_email_warehouse_searchable_gin", if_exists: true
 
-    remove_index :corporate_company_documents, name: "idx_documents_searchable_gin", if_exists: true
-    remove_column :corporate_company_documents, :searchable, if_exists: true
+    remove_index :corporate_documents, name: "idx_documents_searchable_gin", if_exists: true
+    remove_column :corporate_documents, :searchable, if_exists: true
 
     remove_index :jobs, name: "idx_jobs_searchable_gin", if_exists: true
     remove_column :jobs, :searchable, if_exists: true

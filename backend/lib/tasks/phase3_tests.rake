@@ -118,7 +118,7 @@ namespace :phase3 do
       corp_doc = WarehouseDocument.find_by(source_type: "corporate")
       if corp_doc
         send_name = resolver.resolve(corp_doc)
-        puts "   Display: #{corp_doc.display_name&.truncate(40)}"
+        puts "   Display: #{corp_doc.ui_name&.truncate(40)}"
         puts "   Send Name: #{send_name&.truncate(50)}"
 
         if send_name.present? && send_name != "document"
@@ -141,7 +141,7 @@ namespace :phase3 do
 
       if email_doc
         send_name = resolver.resolve(email_doc)
-        puts "   Display: #{email_doc.display_name&.truncate(40)}"
+        puts "   Display: #{email_doc.ui_name&.truncate(40)}"
         puts "   Send Name: #{send_name&.truncate(50)}"
 
         # Should contain subject and date, end in .eml
@@ -161,7 +161,7 @@ namespace :phase3 do
       job_doc = WarehouseDocument.find_by(source_type: "job")
       if job_doc
         send_name = resolver.resolve(job_doc)
-        puts "   Display: #{job_doc.display_name&.truncate(40)}"
+        puts "   Display: #{job_doc.ui_name&.truncate(40)}"
         puts "   Send Name: #{send_name&.truncate(50)}"
 
         if send_name.present? && send_name != "document"
@@ -294,7 +294,7 @@ namespace :phase3 do
           id: doc.id,
           source: doc.source_type,
           documentableType: doc.documentable_type,
-          displayName: doc.display_name,
+          displayName: doc.ui_name,
           sendName: doc.download_filename,
           mimeType: doc.content_type || doc.storage_blob&.content_type,
           fileSize: doc.file_size || doc.storage_blob&.file_size,

@@ -10,16 +10,16 @@ module Gl
   # - Creates adjustment journal entries for gains/losses
   #
   class CurrencyRevaluationService
-    attr_reader :corporate_company, :revaluation_date, :converter
+    attr_reader :corporate, :revaluation_date, :converter
 
     # Standard account codes for exchange gains/losses
     EXCHANGE_GAIN_ACCOUNT = 'exchange_gain'   # Revenue account
     EXCHANGE_LOSS_ACCOUNT = 'exchange_loss'   # Expense account
 
-    def initialize(corporate_company, revaluation_date: Date.current)
-      @corporate_company = corporate_company
+    def initialize(corporate, revaluation_date: Date.current)
+      @corporate = corporate
       @revaluation_date = revaluation_date
-      @converter = Gl::CurrencyConverter.new(corporate_company)
+      @converter = Gl::CurrencyConverter.new(corporate)
       @revaluations = []
     end
 
@@ -72,7 +72,7 @@ module Gl
       return if balance.zero?
 
       currency = Gl::Currency.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         code: account.currency_code
       )
       return unless currency
@@ -115,7 +115,7 @@ module Gl
       return unless invoice.currency_code != base_currency.code
 
       currency = Gl::Currency.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         code: invoice.currency_code
       )
       return unless currency
@@ -171,7 +171,7 @@ module Gl
       return unless bill.currency_code != base_currency.code
 
       currency = Gl::Currency.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         code: bill.currency_code
       )
       return unless currency
@@ -224,7 +224,7 @@ module Gl
       period = find_or_create_period(revaluation_date)
 
       journal = Gl::JournalEntry.create!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         gl_period: period,
         entry_date: revaluation_date,
         description: "Currency revaluation as at #{revaluation_date.strftime('%d %b %Y')}",
@@ -305,12 +305,12 @@ module Gl
     private
 
     def base_currency
-      @base_currency ||= Gl::Currency.base_currency_for(corporate_company)
+      @base_currency ||= Gl::Currency.base_currency_for(corporate)
     end
 
     def foreign_bank_accounts
       Gl::Account
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where(is_bank_account: true)
         .where(active: true)
         .where.not(currency_code: [nil, '', base_currency.code])
@@ -318,7 +318,7 @@ module Gl
 
     def unpaid_foreign_invoices
       Gl::Invoice
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where(invoice_type: 'sales_invoice')
         .where(status: %w[approved submitted])
         .where.not(currency_code: [nil, '', base_currency.code])
@@ -326,7 +326,7 @@ module Gl
 
     def unpaid_foreign_bills
       Gl::Invoice
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where(invoice_type: 'bill')
         .where(status: %w[approved submitted])
         .where.not(currency_code: [nil, '', base_currency.code])
@@ -360,21 +360,21 @@ module Gl
 
     def accounts_receivable
       @ar ||= Gl::Account.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         system_account: 'accounts_receivable'
       )
     end
 
     def accounts_payable
       @ap ||= Gl::Account.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         system_account: 'accounts_payable'
       )
     end
 
     def exchange_gain_account
       @gain_account ||= Gl::Account.find_or_create_by!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         system_account: EXCHANGE_GAIN_ACCOUNT
       ) do |a|
         a.code = '8100'
@@ -386,7 +386,7 @@ module Gl
 
     def exchange_loss_account
       @loss_account ||= Gl::Account.find_or_create_by!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         system_account: EXCHANGE_LOSS_ACCOUNT
       ) do |a|
         a.code = '6100'
@@ -399,7 +399,7 @@ module Gl
     def find_or_create_period(date)
       # Find or create period for the date
       Gl::Period.find_by(
-        corporate_company: corporate_company,
+        corporate: corporate,
         period_start: date.beginning_of_month,
         period_end: date.end_of_month
       ) || create_period_for(date)
@@ -411,7 +411,7 @@ module Gl
       period_number = ((date.month - 7) % 12) + 1
 
       Gl::Period.create!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         financial_year: "FY#{fy_year}",
         period_number: period_number,
         period_name: date.strftime('%B %Y'),

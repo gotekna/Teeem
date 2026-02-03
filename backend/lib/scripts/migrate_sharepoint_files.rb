@@ -15,8 +15,8 @@ end
 client = MicrosoftGraphClient.new
 
 # Constants
-# SSoT: Fetch folder names from EntityTab (replaces DocumentFolder)
-PRIMARY_FOLDERS = EntityTab.where(warehouse_type: 'corporate_entity', tab_group: 'documents')
+# SSoT: Fetch folder names from WarehouseFolder (replaces DocumentFolder)
+PRIMARY_FOLDERS = WarehouseFolder.where(warehouse_type: 'corporate_entity', tab_group: 'documents')
                            .where(parent_id: nil)
                            .enabled
                            .order(:order_position)
@@ -423,7 +423,7 @@ puts "#{PRIVATE_FOLDER_NAME} folder ID: #{private_folder['id']}"
 # Create group and company folders
 company_folder_ids = {}
 
-CorporateGroup.includes(:companies).order(:name).each do |group|
+CompanyGroup.includes(:companies).order(:name).each do |group|
   puts "Creating folders for group: #{group.name}"
 
   # Create group folder

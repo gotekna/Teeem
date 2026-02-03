@@ -8,7 +8,7 @@ module Gl
     self.table_name = "gl_ai_categorization_learnings"
 
     # Associations
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :ai_suggested_account, class_name: "Gl::Account", optional: true
     belongs_to :user_chosen_account, class_name: "Gl::Account"
 

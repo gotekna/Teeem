@@ -51,7 +51,7 @@ module SsotAuthorization
 
   # Get company groups accessible to current user
   def accessible_company_groups
-    current_user&.accessible_company_groups || CorporateGroup.none
+    current_user&.accessible_company_groups || CompanyGroup.none
   end
 
   # Filter contact attributes based on user permissions

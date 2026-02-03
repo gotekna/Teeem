@@ -267,8 +267,8 @@ module Api
             target_contact.update(linked_company_id: source.linked_company_id, link_to_cg: true)
           end
 
-          ContactCorporateGroupMembership.where(contact_id: source.id).each do |membership|
-            existing = ContactCorporateGroupMembership.find_by(
+          ContactCompanyGroupMembership.where(contact_id: source.id).each do |membership|
+            existing = ContactCompanyGroupMembership.find_by(
               contact_id: target_contact.id,
               company_group_id: membership.company_group_id
             )
@@ -321,10 +321,11 @@ module Api
           end
         end
 
+        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
         def transfer_xero_links(source, target_contact)
           source.xero_links.each do |xero_link|
             existing = target_contact.xero_links.find_by(
-              tenant_id: xero_link.tenant_id,
+              xero_org_id: xero_link.xero_org_id,
               source: xero_link.source
             )
 

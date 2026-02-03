@@ -59,6 +59,22 @@ export interface EmailContact {
 // =============================================================================
 
 /**
+ * Per-mailbox branding configuration (Feb 2026)
+ * SSoT: Each email account can have its own company branding for signatures
+ */
+export interface AccountBrandingConfig {
+  use_default?: boolean;           // true = use company settings, false = use custom
+  company_name?: string;           // Company name for signature
+  logo_url?: string;               // Light logo (for light backgrounds)
+  logo_dark?: string;              // Dark logo (for dark backgrounds)
+  address?: string;                // Street address
+  city_state?: string;             // City, State, Postcode
+  website?: string;                // Company website
+  brand_color?: string;            // Primary brand color (hex)
+  brand_color_foreground?: string; // Text color on brand (hex)
+}
+
+/**
  * Email account configuration.
  * Represents IMAP, Outlook, or MS365 email accounts.
  */
@@ -72,6 +88,13 @@ export interface EmailAccount {
   is_default?: boolean;
   email_signature?: string | null;
   email_aliases?: string[];
+  // FRC (Feb 2026): Cross-tenant sharing fields
+  is_shared?: boolean; // True if current user is not the owner
+  is_cross_tenant?: boolean; // True if credential owner is in a different tenant
+  owner_name?: string; // Name of the credential owner
+  owner_tenant_name?: string; // Tenant name of the credential owner
+  // SSoT (Feb 2026): Per-mailbox branding config
+  branding_config?: AccountBrandingConfig;
 }
 
 // =============================================================================
@@ -232,7 +255,7 @@ export type StarColor = "yellow" | "blue" | "green" | "red" | "purple" | "orange
  */
 export interface EmailUserState {
   id: number;
-  synced_email_id: number;
+  email_warehouse_id: number;
   user_id: number;
   is_pinned: boolean;
   is_starred: boolean;

@@ -3,7 +3,7 @@
 class CreateGlBasLodgements < ActiveRecord::Migration[7.1]
   def change
     create_table :gl_bas_lodgements do |t|
-      t.references :corporate_company, null: false, foreign_key: true, index: true
+      t.references :corporate, null: false, foreign_key: true, index: true
 
       # Period identification
       t.string :period_code, null: false, limit: 10   # Q1, Q2, Q3, Q4 or M01-M12
@@ -30,7 +30,7 @@ class CreateGlBasLodgements < ActiveRecord::Migration[7.1]
 
     # Unique index per period (allowing amendments)
     add_index :gl_bas_lodgements,
-              [:corporate_company_id, :period_code, :period_year, :is_amendment, :created_at],
+              [:corporate_id, :period_code, :period_year, :is_amendment, :created_at],
               name: "idx_bas_lodgements_period"
 
     # Index for finding lodged periods

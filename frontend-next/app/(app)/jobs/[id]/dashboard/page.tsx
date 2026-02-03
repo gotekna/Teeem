@@ -259,7 +259,7 @@ export default function SmDashboardPage() {
   const fetchDashboard = useCallback(async () => {
     try {
       const res = await api.get<DashboardData>("/api/v1/sm_reports/dashboard", {
-        params: { construction_id: constructionId },
+        params: { job_id: constructionId },
       });
       setDashboardData(res);
     } catch (err) {
@@ -272,7 +272,7 @@ export default function SmDashboardPage() {
     try {
       const res = await api.get<UtilizationData>("/api/v1/sm_reports/utilization", {
         params: {
-          construction_id: constructionId,
+          job_id: constructionId,
           start_date: dateRange.start,
           end_date: dateRange.end,
         },
@@ -288,7 +288,7 @@ export default function SmDashboardPage() {
     try {
       const res = await api.get<CostData>("/api/v1/sm_reports/costs", {
         params: {
-          construction_id: constructionId,
+          job_id: constructionId,
           start_date: dateRange.start,
           end_date: dateRange.end,
         },
@@ -303,7 +303,7 @@ export default function SmDashboardPage() {
   const fetchTrends = useCallback(async () => {
     try {
       const res = await api.get<{ weeks: TrendWeek[] }>("/api/v1/sm_reports/trends", {
-        params: { construction_id: constructionId, weeks: 8 },
+        params: { job_id: constructionId, weeks: 8 },
       });
       setTrendsData(res.weeks || []);
     } catch (err) {
@@ -315,7 +315,7 @@ export default function SmDashboardPage() {
   const fetchForecast = useCallback(async () => {
     try {
       const res = await api.get<ForecastData>("/api/v1/sm_reports/forecast", {
-        params: { construction_id: constructionId, days: 14 },
+        params: { job_id: constructionId, days: 14 },
       });
       setForecastData(res);
     } catch (err) {
@@ -351,7 +351,7 @@ export default function SmDashboardPage() {
       const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
 
       const params = new URLSearchParams({
-        construction_id: constructionId,
+        job_id: constructionId,
         type,
         format: "csv",
         start_date: dateRange.start,

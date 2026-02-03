@@ -6,17 +6,23 @@ class DocumentType < ApplicationRecord
   # Note: corporate_company_documents and job_documents associations REMOVED (Jan 2026) - tables dropped
   # SSoT: WarehouseDocument is now THE ONE table for document metadata
 
-  # SSoT: WarehouseFolder associations (renamed: EntityTab → StorageLocation → WarehouseFolder, Jan 2026)
+  # SSoT: WarehouseFolder associations (renamed: legacy tabs → StorageLocation → WarehouseFolder, Jan 2026)
   has_many :warehouse_folder_document_types, foreign_key: :document_type_id, dependent: :destroy
   has_many :warehouse_folders, through: :warehouse_folder_document_types
 
   # Backwards compatibility aliases
   alias_method :storage_location_document_types, :warehouse_folder_document_types
   alias_method :storage_locations, :warehouse_folders
+  # DEPRECATED: Use warehouse_folder_document_types (Jan 2026)
   def entity_tab_document_types
     warehouse_folder_document_types
   end
-  has_many :entity_tabs, through: :warehouse_folder_document_types, source: :warehouse_folder
+  # DEPRECATED: Use warehouse_folders (Jan 2026)
+  def entity_tabs
+    warehouse_folders
+  end
+  # DEPRECATED: Use warehouse_folders (Jan 2026)
+  # has_many :entity_tabs, through: :warehouse_folder_document_types, source: :warehouse_folder
 
   # Get location names for display
   def location_names
@@ -73,7 +79,7 @@ class DocumentType < ApplicationRecord
   end
 
   # SSoT: category is DEPRECATED (Jan 2026)
-  # Was used for legacy folder organization, now superseded by EntityTab hierarchy
+  # Was used for legacy folder organization, now superseded by WarehouseFolder hierarchy
   # Returns nil - callers use .presence with "General" fallback
   def category
     nil
@@ -152,11 +158,11 @@ class DocumentType < ApplicationRecord
   end
 
   # Callbacks
-  # SSoT: WarehouseDocument.display_name is computed dynamically via SendNameResolver
+  # SSoT: WarehouseDocument.ui_name is computed dynamically via SendNameResolver
   # Sync pending warehouse_folder_ids after create (deferred from warehouse_folder_ids= setter)
   after_create :sync_pending_warehouse_folder_ids
   # Track naming format changes for standardization prompts
-  after_save :track_naming_format_change, if: :saved_change_to_file_name?
+  after_save :track_naming_format_change, if: :saved_change_to_download_name?
 
   # Attribute to track naming format change details (used by API response)
   attr_accessor :naming_format_change_info
@@ -165,7 +171,7 @@ class DocumentType < ApplicationRecord
   # Name must be unique within each scope (company, job, contacts, both)
   # This allows the same name in different scopes (e.g., "Invoice" for both company and job)
   validates :name, presence: true, uniqueness: { scope: [:tenant_id, :scope], message: "has already been taken for this scope" }
-  # Note: category field is deprecated - tabs/folders (EntityTab) are now the primary organization method
+  # Note: category field is deprecated - WarehouseFolder is now the primary organization method
 
   # Scopes
   scope :active, -> { where(active: true) }
@@ -308,9 +314,9 @@ class DocumentType < ApplicationRecord
     ]
   }.freeze
 
-  # Returns the preferred display name (uses display_name column if set, otherwise name)
-  def canonical_display_name
-    read_attribute(:display_name).presence || name
+  # Returns the preferred UI name (uses ui_name column if set, otherwise name)
+  def canonical_ui_name
+    read_attribute(:ui_name).presence || name
   end
 
   # Find a document type by name OR any of its aliases (database or default)
@@ -382,12 +388,12 @@ class DocumentType < ApplicationRecord
   # Generate a preview title showing what the document will look like when named
   # Replaces placeholders with example values, date in AU format (DD-MM-YYYY)
   def title_preview
-    return nil if file_name.blank?
+    return nil if download_name.blank?
 
     # Australian date format (DD-MM-YYYY)
     au_date = Date.current.strftime("%d-%m-%Y")
 
-    format = file_name.dup
+    format = download_name.dup
 
     # Replace all placeholders with example values
     # Corporate placeholders (SSoT: TenantSetting for company name)
@@ -448,12 +454,12 @@ class DocumentType < ApplicationRecord
   # Generate proposed filename for a specific job
   # Uses actual job data instead of placeholder values
   def generate_proposed_name(job:, file_extension: nil, description: nil, number: nil, user: nil, tab: nil)
-    return nil if file_name.blank?
+    return nil if download_name.blank?
 
     # Australian date format (DD-MM-YYYY)
     au_date = Date.current.strftime("%d-%m-%Y")
 
-    format = file_name.dup
+    format = download_name.dup
 
     # Job placeholders - SSoT: use database column, not hardcoded pattern
     job_code = job.job_code
@@ -537,7 +543,7 @@ class DocumentType < ApplicationRecord
   # Track naming format changes for standardization prompts
   # Sets naming_format_change_info attribute with affected document count
   def track_naming_format_change
-    old_format, new_format = saved_change_to_file_name
+    old_format, new_format = saved_change_to_download_name
     return if old_format == new_format
 
     # Count documents of this type that would be affected by the format change

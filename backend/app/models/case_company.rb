@@ -1,10 +1,10 @@
 # CaseCompany - links companies to cases
 class CaseCompany < ApplicationRecord
   belongs_to :case_record, foreign_key: :case_id, class_name: "CaseRecord"
-  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :corporate, foreign_key: "company_id"
 
-  # Alias company to corporate_company for backwards compatibility
-  alias_method :company, :corporate_company
+  # Alias company to corporate for backwards compatibility
+  alias_method :company, :corporate
 
   validates :case_id, uniqueness: { scope: :company_id }
   validates :role, inclusion: {

@@ -3,7 +3,7 @@
 class CreateGlDeposits < ActiveRecord::Migration[7.1]
   def change
     create_table :gl_deposits do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :contact, null: false, foreign_key: true
       t.references :job, foreign_key: true
       t.references :received_by, foreign_key: { to_table: :users }
@@ -34,9 +34,9 @@ class CreateGlDeposits < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_deposits, [:corporate_company_id, :contact_id, :status],
+    add_index :gl_deposits, [:corporate_id, :contact_id, :status],
               name: "idx_deposits_contact_status"
-    add_index :gl_deposits, [:corporate_company_id, :reference],
+    add_index :gl_deposits, [:corporate_id, :reference],
               unique: true, name: "idx_deposits_reference"
 
     # Deposit allocations (which invoices the deposit was applied to)

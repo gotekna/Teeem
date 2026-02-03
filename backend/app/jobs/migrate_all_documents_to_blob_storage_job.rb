@@ -136,7 +136,7 @@ class MigrateAllDocumentsToBlobStorageJob < ApplicationJob
       storage_path: new_path,
       file_size: content.bytesize,
       content_type: wd.content_type || detect_content_type(extension),
-      original_filename: wd.display_name || File.basename(old_path),
+      original_filename: wd.ui_name || File.basename(old_path),
       reference_count: 1
     )
 
@@ -166,8 +166,8 @@ class MigrateAllDocumentsToBlobStorageJob < ApplicationJob
       when /excel|xlsx/ then ".xlsx"
       else ""
       end
-    elsif wd.display_name.present?
-      File.extname(wd.display_name)
+    elsif wd.ui_name.present?
+      File.extname(wd.ui_name)
     else
       ""
     end

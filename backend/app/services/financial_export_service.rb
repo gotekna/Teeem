@@ -33,7 +33,7 @@ class FinancialExportService
           transaction.transaction_type.capitalize,
           transaction.category,
           transaction.description,
-          transaction.construction&.name || "N/A",
+          transaction.job&.name || "N/A",
           format_currency(transaction.amount),
           transaction.status.capitalize,
           transaction.external_system_type || "Not Synced",
@@ -213,7 +213,7 @@ class FinancialExportService
           t.transaction_type.capitalize,
           t.category,
           t.description,
-          t.construction&.name || "",
+          t.job&.name || "",
           format_currency(t.amount),
           t.status.capitalize
         ]

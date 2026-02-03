@@ -54,7 +54,14 @@ import {
   Clock,
   Users,
   FolderOpen,
+  Printer,
+  Eye,
+  Save,
+  Send,
+  Paperclip,
+  Files,
 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -63,7 +70,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/formatters";
 
@@ -356,6 +364,16 @@ export default function PurchaseOrderDetailPage() {
   const [budgetLockedBy, setBudgetLockedBy] = useState<string | null>(null);
   const [budgetLockedAt, setBudgetLockedAt] = useState<string | null>(null);
   const [lockingBudget, setLockingBudget] = useState(false);
+
+  // PDF action states
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string>("");
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [savingPdf, setSavingPdf] = useState(false);
+  const [sendModalOpen, setSendModalOpen] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+  const { toast } = useToast();
 
   // Original state for change tracking
   const [originalState, setOriginalState] = useState<{
@@ -886,6 +904,126 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
+  // PDF action handlers
+  const hasLineItems = lineItems.filter((item) => !item._destroy && (item.description || item.pricebook_item_id)).length > 0;
+  const canSendEmail = hasLineItems && selectedSupplier?.email;
+
+  const handlePrint = () => {
+    if (!purchaseOrder) return;
+    // Open PDF in new tab (browser's native print dialog)
+    window.open(`/api/v1/purchase_orders/${recordId}/generate_pdf`, "_blank");
+  };
+
+  const handlePreview = async () => {
+    if (!purchaseOrder) return;
+
+    try {
+      setLoadingPreview(true);
+      const baseUrl = getApiBaseUrl();
+      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
+      const headers: HeadersInit = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${baseUrl}/api/v1/purchase_orders/${recordId}/generate_pdf?format=html`, {
+        headers,
+        credentials: "include",
+      });
+      const html = await response.text();
+      setPreviewHtml(html);
+      setPreviewModalOpen(true);
+    } catch (err) {
+      console.error("Failed to load preview:", err);
+      toast({
+        variant: "destructive",
+        title: "Preview failed",
+        description: "Could not load PDF preview",
+      });
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const handleSavePdf = async () => {
+    if (!purchaseOrder || !hasLineItems) return;
+
+    try {
+      setSavingPdf(true);
+      const response = await api.post<{
+        success: boolean;
+        filename: string;
+        message: string;
+        error?: string;
+      }>(`/api/v1/purchase_orders/${recordId}/save_pdf`);
+
+      if (response?.success) {
+        toast({
+          title: "PDF Saved",
+          description: response.message || `Saved as ${response.filename}`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Save failed",
+          description: response?.error || "Failed to save PDF",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to save PDF:", err);
+      toast({
+        variant: "destructive",
+        title: "Save failed",
+        description: "Could not save PDF to warehouse",
+      });
+    } finally {
+      setSavingPdf(false);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!purchaseOrder || !canSendEmail) return;
+
+    try {
+      setSendingEmail(true);
+      const response = await api.post<{
+        success: boolean;
+        message: string;
+        purchase_order?: PurchaseOrder;
+        error?: string;
+      }>(`/api/v1/purchase_orders/${recordId}/send_email`);
+
+      if (response?.success) {
+        toast({
+          title: "Email Sent",
+          description: response.message,
+        });
+        setSendModalOpen(false);
+
+        // Update local state with new PO status
+        if (response.purchase_order) {
+          setPurchaseOrder(response.purchase_order);
+          setStatus(response.purchase_order.status);
+          setOrderedDate(response.purchase_order.ordered_date || "");
+        }
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Send failed",
+          description: response?.error || "Failed to send email",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to send email:", err);
+      toast({
+        variant: "destructive",
+        title: "Send failed",
+        description: "Could not send email to supplier",
+      });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   // Line item handlers
   const updateLineItem = (index: number, field: keyof LineItem, value: unknown) => {
     const updated = [...lineItems];
@@ -1125,6 +1263,58 @@ export default function PurchaseOrderDetailPage() {
         </div>
 
         <div className="flex gap-2">
+          {/* PDF Actions */}
+          <Button
+            onClick={handlePrint}
+            variant="outline"
+            size="sm"
+            disabled={!hasLineItems || saving}
+            title={hasLineItems ? "Print PDF" : "Add line items to enable print"}
+          >
+            <Printer className="h-4 w-4 mr-1.5" />
+            Print
+          </Button>
+          <Button
+            onClick={handlePreview}
+            variant="outline"
+            size="sm"
+            disabled={!hasLineItems || loadingPreview || saving}
+            title={hasLineItems ? "Preview PDF" : "Add line items to enable preview"}
+          >
+            <Eye className={cn("h-4 w-4 mr-1.5", loadingPreview && "animate-pulse")} />
+            Preview
+          </Button>
+          <Button
+            onClick={handleSavePdf}
+            variant="outline"
+            size="sm"
+            disabled={!hasLineItems || savingPdf || saving}
+            title={hasLineItems ? "Save PDF to warehouse" : "Add line items to save PDF"}
+          >
+            <Save className={cn("h-4 w-4 mr-1.5", savingPdf && "animate-pulse")} />
+            {savingPdf ? "Saving..." : "Save PDF"}
+          </Button>
+          <Button
+            onClick={() => setSendModalOpen(true)}
+            variant="outline"
+            size="sm"
+            disabled={!canSendEmail || saving}
+            title={
+              !hasLineItems
+                ? "Add line items to enable send"
+                : !selectedSupplier
+                ? "Select a supplier first"
+                : !selectedSupplier.email
+                ? "Supplier has no email address"
+                : "Send PO to supplier via email"
+            }
+          >
+            <Send className="h-4 w-4 mr-1.5" />
+            Send
+          </Button>
+
+          <div className="w-px h-8 bg-border mx-1" />
+
           <Button
             onClick={openSyncModal}
             variant="outline"
@@ -1864,6 +2054,131 @@ export default function PurchaseOrderDetailPage() {
                 <>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Sync from Schedule
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview Modal */}
+      <Dialog open={previewModalOpen} onOpenChange={setPreviewModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Purchase Order Preview
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto border rounded-lg bg-white">
+            {previewHtml ? (
+              <iframe
+                srcDoc={previewHtml}
+                className="w-full h-full min-h-[60vh]"
+                title="PO Preview"
+              />
+            ) : (
+              <div className="flex items-center justify-center py-12">
+                <Spinner className="h-8 w-8" />
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex-wrap gap-2 sm:gap-0">
+            <div className="flex-1">
+              <Button variant="outline" onClick={() => setPreviewModalOpen(false)}>
+                Close
+              </Button>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // TODO: Open attach plans modal/picker
+                  toast({ title: "Coming soon", description: "Attach Plans functionality" });
+                }}
+              >
+                <Paperclip className="h-4 w-4 mr-2" />
+                Attach Plans
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // TODO: Open site document picker
+                  toast({ title: "Coming soon", description: "Site Doc functionality" });
+                }}
+              >
+                <Files className="h-4 w-4 mr-2" />
+                Site Doc
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setPreviewModalOpen(false);
+                  setSendModalOpen(true);
+                }}
+                disabled={!canSendEmail}
+                title={!canSendEmail ? "Add line items and supplier email to enable" : "Send PO to supplier"}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Send
+              </Button>
+              <Button onClick={handlePrint}>
+                <Printer className="h-4 w-4 mr-2" />
+                Print
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Email Confirmation Modal */}
+      <Dialog open={sendModalOpen} onOpenChange={setSendModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5" />
+              Send Purchase Order
+            </DialogTitle>
+            <DialogDescription>
+              This will email the purchase order PDF to the supplier.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+              <Building2 className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="font-medium">{selectedSupplier?.display_name || "Supplier"}</p>
+                <p className="text-sm text-muted-foreground">{selectedSupplier?.email}</p>
+              </div>
+            </div>
+
+            <div className="text-sm text-muted-foreground space-y-2">
+              <p>The following will happen:</p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>PDF will be generated with current line items</li>
+                <li>Email will be sent to supplier</li>
+                <li>PO status will change to &quot;Sent&quot;</li>
+                <li>Ordered date will be set to today</li>
+                <li>PDF copy saved to warehouse</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSendModalOpen(false)} disabled={sendingEmail}>
+              Cancel
+            </Button>
+            <Button onClick={handleSendEmail} disabled={sendingEmail}>
+              {sendingEmail ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Email
                 </>
               )}
             </Button>

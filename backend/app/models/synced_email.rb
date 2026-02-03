@@ -53,8 +53,8 @@ class SyncedEmail < ApplicationRecord
   has_many :sm_task_attachments, as: :attachable, dependent: :destroy
   has_many :attached_tasks, through: :sm_task_attachments, source: :sm_task
 
-  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
-  # The .eml file itself uses SendNameResolver with template "{Subject} - {ReceivedDate}.eml"
+  # Phase 3: Universal warehouse metadata (SSoT for ui_name, download_name, folder)
+  # The .eml file itself uses SendNameResolver with download_name template "{Subject} - {ReceivedDate}.eml"
   has_one :warehouse_document, as: :documentable, dependent: :destroy
 
   # Ultra Email Architecture: Store Once, Link Many
@@ -74,8 +74,8 @@ class SyncedEmail < ApplicationRecord
   after_create_commit :inherit_job_from_thread
   after_create_commit :inherit_task_from_thread
   after_destroy_commit :broadcast_email_deleted
-  # Phase 4: Update warehouse_document.folder on relevant field changes
-  after_save :update_warehouse_document_folder, if: :should_update_virtual_folder?
+  # NOTE (Feb 2026 FRC Fix): Removed update_warehouse_document_folder callback
+  # Folder paths are now computed at runtime - no sync needed
   # Phase 4: Ensure warehouse_document exists when storage_path is set
   after_save :ensure_warehouse_document, if: :saved_change_to_storage_path?
 
@@ -366,10 +366,11 @@ class SyncedEmail < ApplicationRecord
 
   # SSoT: Get attachment documents for this email via WarehouseDocument (Jan 2026)
   # Returns WarehouseDocument records linked to this email
-  # FRC (Jan 2026): Fixed to query correct source_type='email' and metadata key 'parent_email_id'
+  # FRC (Feb 2026): Fixed query to match actual storage format from sync_attachments!
+  # Attachments are stored with source_type='email_attachment' and metadata key 'synced_email_id'
   def attachment_documents
-    WarehouseDocument.where(source_type: 'email')
-                     .where("metadata->>'parent_email_id' = ?", id.to_s)
+    WarehouseDocument.where(source_type: 'email_attachment')
+                     .where("metadata->>'synced_email_id' = ?", id.to_s)
   end
 
   # Get document attachments (exclude small signature images, keep large photos)
@@ -429,7 +430,7 @@ class SyncedEmail < ApplicationRecord
 
   # Compute virtual folder path for email attachments
   # SSoT: Now uses same path as email (attachments appear alongside .eml files)
-  # Configure at: /settings/company/entity-config → Storage Config → Emails
+  # Configure at: /settings/company/warehouse-config → Warehouse Folders → Emails
   def virtual_attachments_folder_path
     resolve_virtual_path(:email_attachments)
   end
@@ -892,12 +893,12 @@ class SyncedEmail < ApplicationRecord
         next unless result[:success]
 
         pdf_texts << {
-          filename: doc.original_filename || doc.display_name,
+          filename: doc.original_filename || doc.ui_name,
           text: result[:text],
           pages: result[:page_count]
         }
       rescue StandardError => e
-        Rails.logger.error "Failed to extract PDF text from #{doc.display_name}: #{e.message}"
+        Rails.logger.error "Failed to extract PDF text from #{doc.ui_name}: #{e.message}"
       end
     end
 
@@ -948,7 +949,7 @@ class SyncedEmail < ApplicationRecord
       WarehouseDocument.create!(
         documentable: self,
         storage_blob_id: src_doc.storage_blob_id,
-        display_name: src_doc.display_name,
+        ui_name: src_doc.ui_name,
         original_filename: src_doc.original_filename,
         folder: 'Emails/Attachments',
         source_type: 'email_attachment',
@@ -960,7 +961,7 @@ class SyncedEmail < ApplicationRecord
 
       # Increment blob reference count
       src_doc.storage_blob&.increment!(:reference_count)
-      Rails.logger.debug "[SyncedEmail] Linked attachment: #{src_doc.display_name} → blob #{src_doc.storage_blob_id}"
+      Rails.logger.debug "[SyncedEmail] Linked attachment: #{src_doc.ui_name} → blob #{src_doc.storage_blob_id}"
     end
 
     # Update attachment count
@@ -1057,25 +1058,9 @@ class SyncedEmail < ApplicationRecord
 
   # Phase 4: Determine if virtual folder needs updating
   # Returns true if received_at, mailbox_owner_email, or email_mailbox_id changed
-  def should_update_virtual_folder?
-    saved_change_to_received_at? ||
-      saved_change_to_mailbox_owner_email? ||
-      saved_change_to_email_mailbox_id?
-  end
-
-  # Phase 4: Update warehouse_document.folder when virtual folder path changes
-  # This enables instant reorganization - just change the DB, don't move files
-  def update_warehouse_document_folder
-    return unless warehouse_document.present?
-
-    new_folder = virtual_folder_path
-    return if warehouse_document.folder == new_folder
-
-    warehouse_document.update_column(:folder, new_folder)
-    Rails.logger.debug "[SyncedEmail] Updated warehouse_document folder to: #{new_folder}"
-  rescue StandardError => e
-    Rails.logger.error "[SyncedEmail] Failed to update warehouse_document folder: #{e.message}"
-  end
+  # NOTE (Feb 2026 FRC Fix): Removed should_update_virtual_folder? and update_warehouse_document_folder
+  # Folder paths are now computed at runtime via WarehouseDocument#computed_folder_path
+  # No sync needed - renaming a WarehouseFolder instantly affects all documents
 
   # Phase 4: Ensure warehouse_document exists when storage_path is set
   # This is a safety net - EmailStorageUploadService should create it, but if

@@ -9,7 +9,7 @@ module Gl
     STATUSES = %w[pending reviewed resolved].freeze
     RESOLUTIONS = %w[keep_first keep_last merge none_duplicate].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :reviewed_by, class_name: "User", optional: true
 
     has_many :members, class_name: "Gl::DuplicateMember", foreign_key: :duplicate_group_id, dependent: :destroy
@@ -52,7 +52,7 @@ module Gl
       model = entity_model(entity_type)
       return [] unless model
 
-      records = model.where(corporate_company: company)
+      records = model.where(corporate: company)
       groups = []
 
       # Group by potential duplicate keys
@@ -66,7 +66,7 @@ module Gl
         next if similarity < 0.7
 
         group = create!(
-          corporate_company: company,
+          corporate: company,
           entity_type: entity_type,
           similarity_score: similarity,
           matching_fields: key[:fields]

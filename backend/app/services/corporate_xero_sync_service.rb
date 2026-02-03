@@ -4,7 +4,7 @@
 # Handles: Monthly P&L, Chart of Accounts, Invoices, Balance Sheets
 #
 # Usage:
-#   service = CorporateXeroSyncService.new(corporate_company)
+#   service = CorporateXeroSyncService.new(corporate)
 #   service.sync_all                    # Sync everything
 #   service.sync_monthly_pl             # Just monthly P&L
 #   service.sync_monthly_pl(force: true) # Force refresh even if recently synced
@@ -14,9 +14,9 @@ class CorporateXeroSyncService
 
   class SyncError < StandardError; end
 
-  def initialize(corporate_company)
-    @company = corporate_company
-    @connection = corporate_company.corporate_xero_connection
+  def initialize(corporate)
+    @company = corporate
+    @connection = corporate.corporate_xero_connection
   end
 
   # Sync all Xero data types
@@ -123,7 +123,7 @@ class CorporateXeroSyncService
     accounts.each do |account_data|
       next if account_data["SystemAccount"].present?  # Skip system accounts
 
-      xero_account = @connection.corporate_company_xero_accounts.find_or_initialize_by(
+      xero_account = @connection.corporate_xero_accounts.find_or_initialize_by(
         xero_account_id: account_data["AccountID"]
       )
 
@@ -155,7 +155,7 @@ class CorporateXeroSyncService
     {
       success: true,
       accounts_synced: saved_count,
-      total_accounts: @connection.corporate_company_xero_accounts.count
+      total_accounts: @connection.corporate_xero_accounts.count
     }
   rescue StandardError => e
     Rails.logger.error("[CorporateXeroSync] sync_accounts failed: #{e.message}")

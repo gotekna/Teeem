@@ -14,7 +14,7 @@ class RobsFixMigrationService
     "TEEEM Jobs 5"
   ].freeze
 
-  # Map source folder prefixes to target EntityTab tab_keys
+  # Map source folder prefixes to target WarehouseFolder tab_keys
   SOURCE_TO_TAB_MAP = {
     /^01\s*revit/i => "drawings",
     /^02\s*land\s*info/i => "documents",
@@ -399,7 +399,7 @@ class RobsFixMigrationService
   def generate_standard_name(doc_type_name, job, file_ext, original_name)
     doc_type = DocumentType.find_by(name: doc_type_name)
 
-    if doc_type&.file_name.present?
+    if doc_type&.download_name.present?
       # Use the DocumentType template
       base_name = doc_type.generate_proposed_name(
         job: job,

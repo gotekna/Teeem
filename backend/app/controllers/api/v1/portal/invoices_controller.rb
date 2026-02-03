@@ -47,8 +47,8 @@ module Api
                 po_number: invoice.purchase_order.po_number,
                 total: invoice.purchase_order.total,
                 construction: {
-                  name: invoice.purchase_order.construction.job_name,
-                  address: invoice.purchase_order.construction.street_address
+                  name: invoice.purchase_order.job.job_name,
+                  address: invoice.purchase_order.job.street_address
                 }
               },
               accounting_integration: invoice.accounting_integration ? {
@@ -232,7 +232,7 @@ module Api
             created_at: invoice.created_at,
             purchase_order_id: invoice.purchase_order_id,
             po_number: invoice.purchase_order.po_number,
-            construction_name: invoice.purchase_order.construction.job_name,
+            construction_name: invoice.purchase_order.job.job_name,
             days_outstanding: invoice.paid_at ? nil : (Time.current - invoice.created_at).to_i / 1.day,
             can_edit: invoice.pending?,
             can_delete: invoice.pending? || invoice.failed?,

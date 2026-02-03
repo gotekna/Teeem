@@ -3,7 +3,7 @@
 class CreateGlPeriods < ActiveRecord::Migration[8.0]
   def change
     create_table :gl_periods do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
 
       # External provider linking
       t.string :external_provider         # 'xero', 'quickbooks', 'myob', nil
@@ -27,7 +27,7 @@ class CreateGlPeriods < ActiveRecord::Migration[8.0]
     end
 
     # Unique constraint: one period per FY per company per provider tenant
-    add_index :gl_periods, [:corporate_company_id, :external_provider, :external_tenant_id, :financial_year, :period_number],
+    add_index :gl_periods, [:corporate_id, :external_provider, :external_tenant_id, :financial_year, :period_number],
               unique: true, name: 'idx_gl_periods_unique'
 
     # Performance indexes

@@ -326,7 +326,7 @@ namespace :xero do
         .limit(10)
         .each do |doc|
           puts "  ID: #{doc.id}"
-          puts "    Display: #{doc.display_name[0..50]}..."
+          puts "    Display: #{doc.ui_name[0..50]}..."
           puts "    Folder: #{doc.folder}"
           puts "    Linkable: #{doc.linkable_type}##{doc.linkable_id}" if doc.linkable_id
           puts "    Metadata: #{doc.metadata&.slice('corporate_id', 'company_name', 'document_type')}"
@@ -411,7 +411,7 @@ namespace :xero do
         puts "\nSample (first 20):"
         orphans.limit(20).each do |doc|
           puts "  ID: #{doc.id}"
-          puts "    Display: #{doc.display_name[0..60]}..."
+          puts "    Display: #{doc.ui_name[0..60]}..."
           puts "    Folder: #{doc.folder}"
           puts "    Created: #{doc.created_at}"
           puts ""
@@ -648,7 +648,7 @@ namespace :xero do
           puts "  DUPE: Corp WD##{doc.id} = #{other.source_type} WD##{other.id} (#{other.documentable_type}##{other.documentable_id})" if blob_dupes <= 10
         else
           blob_unique += 1
-          puts "  UNIQUE: Corp WD##{doc.id} blob:#{doc.storage_blob_id} #{doc.display_name.to_s[0..50]}" if blob_unique <= 5
+          puts "  UNIQUE: Corp WD##{doc.id} blob:#{doc.storage_blob_id} #{doc.ui_name.to_s[0..50]}" if blob_unique <= 5
         end
       end
       puts "  Duplicates of task/job/other docs: #{blob_dupes}"
@@ -662,11 +662,11 @@ namespace :xero do
       WarehouseDocument.where(source_type: "corporate", storage_blob_id: nil).limit(sample_size).find_each do |doc|
         other = WarehouseDocument.where.not(source_type: "corporate")
                                  .where.not(storage_blob_id: nil)
-                                 .where(display_name: doc.display_name)
+                                 .where(ui_name: doc.ui_name)
                                  .first
         if other
           name_match += 1
-          puts "  MATCH: Corp WD##{doc.id} '#{doc.display_name.to_s[0..40]}' = #{other.source_type} WD##{other.id}" if name_match <= 5
+          puts "  MATCH: Corp WD##{doc.id} '#{doc.ui_name.to_s[0..40]}' = #{other.source_type} WD##{other.id}" if name_match <= 5
         else
           name_no_match += 1
         end
@@ -682,10 +682,10 @@ namespace :xero do
         next unless filename.present?
         other = WarehouseDocument.where.not(source_type: "corporate")
                                  .where.not(storage_blob_id: nil)
-                                 .where(display_name: filename.sub(/\.[^.]+$/, ""))
+                                 .where(ui_name: filename.sub(/\.[^.]+$/, ""))
                                  .or(WarehouseDocument.where.not(source_type: "corporate")
                                                       .where.not(storage_blob_id: nil)
-                                                      .where("display_name ILIKE ?", "%#{filename.sub(/\.[^.]+$/, "")}%"))
+                                                      .where("ui_name ILIKE ?", "%#{filename.sub(/\.[^.]+$/, "")}%"))
                                  .first
         if other
           fn_match += 1
@@ -720,7 +720,7 @@ namespace :xero do
                                  .where.not(source_type: "corporate")
                                  .first
         if other
-          to_delete << { id: doc.id, display: doc.display_name.to_s[0..50], real_source: other.source_type, real_id: other.id }
+          to_delete << { id: doc.id, display: doc.ui_name.to_s[0..50], real_source: other.source_type, real_id: other.id }
         end
       end
 
@@ -922,7 +922,7 @@ namespace :xero do
             if results[:samples].count < 30
               results[:samples] << {
                 doc_id: doc.id,
-                display_name: doc.display_name,
+                display_name: doc.ui_name,
                 link_type: "Corporate",
                 link_id: company.id,
                 link_name: company.name,
@@ -992,7 +992,7 @@ namespace :xero do
         results[:samples] << {
           id: doc.id,
           source_type: doc.source_type,
-          display_name: doc.display_name
+          display_name: doc.ui_name
         }
       end
 

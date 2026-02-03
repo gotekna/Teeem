@@ -317,7 +317,7 @@ namespace :setup do
     end
     puts "  ✓ Exported #{ScheduleTemplateRow.count} rows to #{rows_file}"
 
-    # NOTE: FolderTemplate export removed - SSoT: EntityTab is now the source of truth for folder structure
+    # NOTE: FolderTemplate export removed - SSoT: WarehouseFolder is now the source of truth for folder structure
 
     # Summary
     puts "\n" + "="*60

@@ -319,7 +319,7 @@ export default function ChatPage() {
     try {
       const payload: Record<string, number> = {};
       if (entityType === "job") {
-        payload.construction_id = entityId;
+        payload.job_id = entityId;
       } else if (entityType === "contact") {
         payload.contact_id = entityId;
       } else if (entityType === "case") {
@@ -334,7 +334,7 @@ export default function ChatPage() {
           msg.id === messageId
             ? {
                 ...msg,
-                ...(entityType === "job" && { saved_to_job: true, construction_id: entityId }),
+                ...(entityType === "job" && { saved_to_job: true, job_id: entityId }),
                 ...(entityType === "contact" && { contact_id: entityId }),
                 ...(entityType === "case" && { case_id: entityId }),
               }

@@ -42,8 +42,8 @@ module Api
         documents = docs.map do |doc|
           {
             id: doc.id,
-            display_name: doc.display_name,
-            file_name: doc.storage_blob&.original_filename || doc.display_name,
+            display_name: doc.ui_name,
+            file_name: doc.storage_blob&.original_filename || doc.ui_name,
             document_type: doc.metadata&.dig("document_type"),
             folder: doc.folder,
             source: "warehouse",

@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[pending completed reversed].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :original_transaction, polymorphic: true
     belongs_to :created_by, class_name: "User", optional: true
     belongs_to :approved_by, class_name: "User", optional: true
@@ -26,7 +26,7 @@ module Gl
     # Create split with lines
     def self.create_split!(transaction, lines_params, user:)
       split = new(
-        corporate_company: transaction.try(:corporate_company) || Corporate.first,
+        corporate: transaction.try(:corporate) || Corporate.first,
         original_transaction: transaction,
         original_amount: transaction.try(:amount) || transaction.try(:total),
         created_by: user

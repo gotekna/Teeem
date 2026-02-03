@@ -115,7 +115,7 @@ class EmailHealthMonitorJob < ApplicationJob
     end
 
     # Check Office 365 accounts
-    MicrosoftCredential.app_credentials.connected.find_each do |credential|
+    MicrosoftCredential.refreshable_app.find_each do |credential|
       next unless stalled?(credential, "ms365")
 
       Rails.logger.warn "[EmailHealthMonitor] Triggering recovery sync for Office 365 org: #{credential.name}"
@@ -128,13 +128,15 @@ class EmailHealthMonitorJob < ApplicationJob
 
   # Check if account sync is stalled (overdue)
   def stalled?(credential, account_type)
-    return false unless credential.last_synced_at
+    # SSoT: IMAP uses last_synced_at, MS365 uses last_sync_at
+    last_sync = account_type == "imap" ? credential.last_synced_at : credential.last_sync_at
+    return false unless last_sync
 
     expected_interval = EXPECTED_INTERVALS[account_type]
     grace_period = SELF_HEAL_GRACE_PERIOD
 
-    # Stalled if: last_synced_at + expected_interval + grace_period < now
-    credential.last_synced_at + expected_interval + grace_period < Time.current
+    # Stalled if: last_sync + expected_interval + grace_period < now
+    last_sync + expected_interval + grace_period < Time.current
   end
 
   # Check for stale syncs and log warnings
@@ -145,13 +147,13 @@ class EmailHealthMonitorJob < ApplicationJob
     ImapCredential.where(is_active: true).find_each do |credential|
       if stale?(credential, "imap")
         Rails.logger.warn "[EmailHealthMonitor] Stale IMAP sync: #{credential.email_address} " \
-                          "(last sync: #{credential.last_synced_at})"
+                          "(last sync: #{credential.last_synced_at || 'never'})"
         stale_count += 1
       end
     end
 
     # Check Office 365 accounts
-    MicrosoftCredential.app_credentials.connected.find_each do |credential|
+    MicrosoftCredential.refreshable_app.find_each do |credential|
       if stale?(credential, "ms365")
         Rails.logger.warn "[EmailHealthMonitor] Stale Office 365 sync: #{credential.name} " \
                           "(last sync: #{credential.last_sync_at})"

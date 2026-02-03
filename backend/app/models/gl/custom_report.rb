@@ -9,7 +9,7 @@ module Gl
     BASE_ENTITIES = %w[invoices bills payments accounts jobs contacts expenses time_entries].freeze
     CATEGORIES = %w[finance operations compliance custom].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :created_by, class_name: "User", optional: true
 
     has_many :report_columns, class_name: "Gl::ReportColumn", foreign_key: :custom_report_id, dependent: :destroy
@@ -133,7 +133,7 @@ module Gl
     def self.from_template(template, company, user)
       definition = template.definition.with_indifferent_access
       report = create!(
-        corporate_company: company,
+        corporate: company,
         created_by: user,
         name: "#{template.name} Copy",
         description: template.description,
@@ -248,7 +248,7 @@ module Gl
 
     def build_query(parameters)
       # Start with base entity
-      query = base_model.where(corporate_company: corporate_company)
+      query = base_model.where(corporate: corporate)
 
       # Apply includes for nested fields
       includes = columns.filter_map { |c| c.split(".").first.to_sym if c.include?(".") }.uniq

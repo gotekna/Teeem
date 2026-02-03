@@ -101,7 +101,7 @@ export function IconPicker({
   // SSoT: Fetch global icon usage when picker opens
   React.useEffect(() => {
     if (open && showGlobalUsage && Object.keys(globalUsage).length === 0) {
-      api.get<{ success: boolean; data: Record<string, GlobalIconUsage[]> }>('/api/v1/entity_tabs/global_icon_usage')
+      api.get<{ success: boolean; data: Record<string, GlobalIconUsage[]> }>('/api/v1/warehouse_folders/global_icon_usage')
         .then((response) => {
           if (response?.success) {
             setGlobalUsage(response.data);

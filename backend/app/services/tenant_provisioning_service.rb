@@ -6,7 +6,7 @@
 #
 # Creation Order (dependencies matter!):
 #   1. Tenant (SSoT for multi-tenancy isolation)
-#   2. CorporateGroup (business grouping, belongs_to Tenant)
+#   2. CompanyGroup (business grouping, belongs_to Tenant)
 #   3. Organization (credential isolation, belongs_to Tenant)
 #   4. TenantSetting (configuration, belongs_to Tenant)
 #   5. Corporate (the customer's main company)
@@ -32,14 +32,14 @@
 #   # => { success: true, tenant: Tenant, admin_user: User }
 #
 class TenantProvisioningService
-  attr_reader :params, :tenant, :corporate_group, :organization, :corporate_company, :admin_user, :errors
+  attr_reader :params, :tenant, :company_group, :organization, :corporate, :admin_user, :errors
 
   def initialize(params)
     @params = params.with_indifferent_access
     @tenant = nil
-    @corporate_group = nil
+    @company_group = nil
     @organization = nil
-    @corporate_company = nil
+    @corporate = nil
     @admin_user = nil
     @errors = []
   end
@@ -48,10 +48,10 @@ class TenantProvisioningService
     ActiveRecord::Base.transaction do
       # Phase 1: Core multi-tenancy structure
       create_tenant           # 1. Tenant (SSoT)
-      create_corporate_group  # 2. CorporateGroup (belongs_to Tenant)
+      create_company_group  # 2. CompanyGroup (belongs_to Tenant)
       create_organization     # 3. Organization (credential isolation)
       create_tenant_setting   # 4. TenantSetting (config)
-      create_corporate_company # 5. Corporate (main company)
+      create_corporate # 5. Corporate (main company)
 
       # Phase 2: Admin user (requires Contact per Jan 2026 rules)
       create_admin_user       # 6-7. Contact + User
@@ -111,14 +111,14 @@ class TenantProvisioningService
     raise ActiveRecord::Rollback
   end
 
-  def create_corporate_group
-    @corporate_group = CorporateGroup.create!(
+  def create_company_group
+    @company_group = CompanyGroup.create!(
       tenant: @tenant,
       name: @params[:company_name],
       slug: @tenant.slug  # Reuse tenant slug for consistency
     )
 
-    Rails.logger.info "[TenantProvisioning] Created CorporateGroup: #{@corporate_group.name}"
+    Rails.logger.info "[TenantProvisioning] Created CompanyGroup: #{@company_group.name}"
   rescue ActiveRecord::RecordInvalid => e
     @errors << "Failed to create corporate group: #{e.message}"
     raise ActiveRecord::Rollback
@@ -140,7 +140,7 @@ class TenantProvisioningService
   def create_tenant_setting
     TenantSetting.create!(
       tenant: @tenant,
-      corporate_group: @corporate_group,  # Backward compat
+      company_group: @company_group,  # Backward compat
       company_name: @params[:company_name],
       abn: @params[:abn],
       email: @params[:email],
@@ -157,7 +157,7 @@ class TenantProvisioningService
     raise ActiveRecord::Rollback
   end
 
-  def create_corporate_company
+  def create_corporate
     # Corporate requires a Contact (Contact is THE ONE SSoT for identity)
     # Create company contact first
     company_contact = Contact.create!(
@@ -172,9 +172,9 @@ class TenantProvisioningService
       is_active: true
     )
 
-    @corporate_company = Corporate.create!(
+    @corporate = Corporate.create!(
       tenant: @tenant,
-      company_group_id: @corporate_group.id,
+      company_group_id: @company_group.id,
       contact: company_contact,
       name: @params[:company_name],
       abn: @params[:abn],
@@ -183,9 +183,9 @@ class TenantProvisioningService
     )
 
     # Set this company as the billing company for the tenant
-    @tenant.update!(billing_company: @corporate_company)
+    @tenant.update!(billing_company: @corporate)
 
-    Rails.logger.info "[TenantProvisioning] Created Corporate: #{@corporate_company.name}"
+    Rails.logger.info "[TenantProvisioning] Created Corporate: #{@corporate.name}"
   rescue ActiveRecord::RecordInvalid => e
     @errors << "Failed to create corporate company: #{e.message}"
     raise ActiveRecord::Rollback
@@ -207,13 +207,13 @@ class TenantProvisioningService
       email: @params[:admin_email],
       entity_type: "person",
       is_team_contact: true,  # Internal team member
-      primary_company_id: @corporate_company&.id,
+      primary_company_id: @corporate&.id,
       is_active: true
     )
 
     @admin_user = User.create!(
       tenant: @tenant,
-      corporate_group: @corporate_group,  # Backward compat
+      company_group: @company_group,  # Backward compat
       contact: admin_contact,  # REQUIRED: User must have Contact
       email: @params[:admin_email],
       first_name: @params[:admin_first_name],
@@ -554,8 +554,8 @@ class TenantProvisioningService
     slug = base_slug
     counter = 1
 
-    # Check both Tenant AND CorporateGroup for uniqueness
-    while Tenant.exists?(slug: slug) || CorporateGroup.exists?(slug: slug)
+    # Check both Tenant AND CompanyGroup for uniqueness
+    while Tenant.exists?(slug: slug) || CompanyGroup.exists?(slug: slug)
       slug = "#{base_slug}-#{counter}"
       counter += 1
     end

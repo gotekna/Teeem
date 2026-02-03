@@ -4,13 +4,13 @@ class AddSharepointPathTemplatesToCorporateCompanySettings < ActiveRecord::Migra
     # Templates use placeholders like {{JobCode}}, {{Category}}, {{CompanyCode}}, etc.
     # Full path = root_path + scope_path + resolved_template
     # e.g., /Shared Documents/TEEEM Jobs/JOB-001/Plans
-    add_column :corporate_company_settings, :sharepoint_job_template, :string,
+    add_column :corporate_settings, :sharepoint_job_template, :string,
                default: "{{JobCode}}/{{Category}}"
-    add_column :corporate_company_settings, :sharepoint_company_template, :string,
+    add_column :corporate_settings, :sharepoint_company_template, :string,
                default: "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"
-    add_column :corporate_company_settings, :sharepoint_people_template, :string,
+    add_column :corporate_settings, :sharepoint_people_template, :string,
                default: "{{ContactName}}/{{Category}}"
-    add_column :corporate_company_settings, :sharepoint_contacts_template, :string,
+    add_column :corporate_settings, :sharepoint_contacts_template, :string,
                default: "{{ContactName}}/{{Category}}"
 
     # Data migration: If SystemSetting has existing templates, migrate them

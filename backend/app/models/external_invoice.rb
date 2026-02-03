@@ -72,7 +72,11 @@ class ExternalInvoice < ApplicationRecord
   scope :pending_push, -> { where(pending_push: true) }
   scope :created_in_teeem, -> { where(created_in_teeem: true) }
   scope :with_errors, -> { where.not(sync_error: nil) }
+  # FRC (Feb 2026): Two different "tenant" concepts - don't confuse them!
+  # - tenant_id: TEEEM Tenant FK (integer) - for multi-tenancy scoping
+  # - xero_org_id: Xero organization UUID (string) - for Xero API/org filtering
   scope :for_tenant, ->(tenant_id) { where(tenant_id: tenant_id) }
+  scope :for_xero_org, ->(xero_org_id) { where(xero_org_id: xero_org_id) }
 
   # Find by tracking option name (for job linking)
   scope :with_tracking, ->(tracking_name) {

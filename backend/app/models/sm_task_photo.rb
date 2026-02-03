@@ -111,21 +111,24 @@ class SmTaskPhoto < ApplicationRecord
     document_type || task&.completion_document_type
   end
 
-  # SSoT: Get the EntityTab from DocumentType (primary_entity_tab method)
+  # SSoT: Get the WarehouseFolder from DocumentType (primary_warehouse_folder method)
   # This provides the folder name and storage_folder_path template
-  def effective_entity_tab
-    effective_document_type&.primary_entity_tab
+  def effective_warehouse_folder
+    effective_document_type&.primary_warehouse_folder
   end
+
+  # DEPRECATED: Use effective_warehouse_folder (Jan 2026)
+  alias_method :effective_entity_tab, :effective_warehouse_folder
 
   # SSoT: All tokens come from related records - NOTHING HARDCODED
   # Used by StorableDocument.upload_to_storage() to build the storage path
   #
   # Path is built from:
-  # 1. EntityTab.storage_folder_path template (from database, NOT hardcoded)
+  # 1. WarehouseFolder.storage_folder_path template (from database, NOT hardcoded)
   # 2. Tokens expanded from this method
   def default_storage_tokens
     doc_type = effective_document_type
-    entity_tab = effective_entity_tab
+    warehouse_folder = effective_warehouse_folder
     effective_job = job || task&.job
 
     {
@@ -133,10 +136,10 @@ class SmTaskPhoto < ApplicationRecord
       JobCode: effective_job&.job_code,
       JobTitle: effective_job&.title,
 
-      # Tab tokens (from EntityTab - SSoT for folder structure)
-      TabName: entity_tab&.display_name || doc_type&.primary_tab,
-      TabKey: entity_tab&.tab_key,
-      SubTabName: entity_tab&.parent&.display_name,
+      # Tab tokens (from WarehouseFolder - SSoT for folder structure)
+      TabName: warehouse_folder&.display_name || doc_type&.primary_tab,
+      TabKey: warehouse_folder&.tab_key,
+      SubTabName: warehouse_folder&.parent&.display_name,
 
       # DocumentType tokens
       DocTypeCode: doc_type&.code || doc_type&.abbreviation,
@@ -152,20 +155,20 @@ class SmTaskPhoto < ApplicationRecord
     }.compact
   end
 
-  # SSoT: Get the storage folder path template from EntityTab
+  # SSoT: Get the storage folder path template from WarehouseFolder
   # This is the database-stored template, NOT a hardcoded constant
   def storage_folder_template
-    effective_entity_tab&.storage_folder_path
+    effective_warehouse_folder&.storage_folder_path
   end
 
-  # SSoT: Filename from DocumentType.file_name template
+  # SSoT: Filename from DocumentType.download_name template
   # Falls back to "{DocTypeCode} {JobCode} {Date}" if no template
   def storage_filename
     doc_type = effective_document_type
     tokens = default_storage_tokens
 
-    base_name = if doc_type&.file_name.present?
-      expand_filename_template(doc_type.file_name, tokens)
+    base_name = if doc_type&.download_name.present?
+      expand_filename_template(doc_type.download_name, tokens)
     else
       # Fallback: use tokens directly
       [tokens[:DocTypeCode], tokens[:JobCode], tokens[:Date]].compact.join(" ")

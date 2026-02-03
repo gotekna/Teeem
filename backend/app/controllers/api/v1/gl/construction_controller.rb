@@ -5,13 +5,13 @@ module Api
     module Gl
       # Controller for construction-specific features
       class ConstructionController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
 
         # ===== LIEN WAIVERS =====
 
         # GET /api/v1/gl/construction/lien_waivers
         def lien_waivers
-          waivers = @corporate_company.gl_lien_waivers
+          waivers = @corporate.gl_lien_waivers
                                       .includes(:job, :contact, :progress_claim)
                                       .order(waiver_date: :desc)
 
@@ -40,7 +40,7 @@ module Api
 
         # POST /api/v1/gl/construction/lien_waivers/:id/receive
         def receive_lien_waiver
-          waiver = @corporate_company.gl_lien_waivers.find(params[:id])
+          waiver = @corporate.gl_lien_waivers.find(params[:id])
           waiver.mark_received!(from: params[:from], document_id: params[:document_id])
 
           render json: { success: true, data: waiver }
@@ -48,7 +48,7 @@ module Api
 
         # POST /api/v1/gl/construction/lien_waivers/:id/approve
         def approve_lien_waiver
-          waiver = @corporate_company.gl_lien_waivers.find(params[:id])
+          waiver = @corporate.gl_lien_waivers.find(params[:id])
 
           if waiver.approve!
             render json: { success: true, data: waiver }
@@ -61,7 +61,7 @@ module Api
 
         # GET /api/v1/gl/construction/change_orders
         def change_orders
-          orders = @corporate_company.gl_change_orders
+          orders = @corporate.gl_change_orders
                                      .includes(:job, :contact, :lines)
                                      .order(created_at: :desc)
 
@@ -73,7 +73,7 @@ module Api
 
         # GET /api/v1/gl/construction/change_orders/:id
         def show_change_order
-          order = @corporate_company.gl_change_orders.find(params[:id])
+          order = @corporate.gl_change_orders.find(params[:id])
 
           render json: {
             success: true,
@@ -83,7 +83,7 @@ module Api
 
         # POST /api/v1/gl/construction/change_orders
         def create_change_order
-          order = @corporate_company.gl_change_orders.build(change_order_params)
+          order = @corporate.gl_change_orders.build(change_order_params)
           order.requested_by = current_user
 
           if order.save
@@ -96,7 +96,7 @@ module Api
 
         # PATCH /api/v1/gl/construction/change_orders/:id
         def update_change_order
-          order = @corporate_company.gl_change_orders.find(params[:id])
+          order = @corporate.gl_change_orders.find(params[:id])
 
           if order.update(change_order_params)
             order.calculate_totals!
@@ -109,7 +109,7 @@ module Api
 
         # POST /api/v1/gl/construction/change_orders/:id/submit
         def submit_change_order
-          order = @corporate_company.gl_change_orders.find(params[:id])
+          order = @corporate.gl_change_orders.find(params[:id])
 
           if order.submit!
             render json: { success: true, data: order }
@@ -120,7 +120,7 @@ module Api
 
         # POST /api/v1/gl/construction/change_orders/:id/approve
         def approve_change_order
-          order = @corporate_company.gl_change_orders.find(params[:id])
+          order = @corporate.gl_change_orders.find(params[:id])
 
           if order.approve!(current_user)
             render json: { success: true, data: order }
@@ -133,7 +133,7 @@ module Api
 
         # GET /api/v1/gl/construction/equipment
         def equipment_list
-          equipment = @corporate_company.gl_equipment.order(:equipment_number)
+          equipment = @corporate.gl_equipment.order(:equipment_number)
           equipment = equipment.where(status: params[:status]) if params[:status].present?
           equipment = equipment.where(category: params[:category]) if params[:category].present?
 
@@ -142,7 +142,7 @@ module Api
 
         # GET /api/v1/gl/construction/equipment/:id
         def show_equipment
-          equipment = @corporate_company.gl_equipment.find(params[:id])
+          equipment = @corporate.gl_equipment.find(params[:id])
 
           render json: {
             success: true,
@@ -154,7 +154,7 @@ module Api
 
         # POST /api/v1/gl/construction/equipment
         def create_equipment
-          equipment = @corporate_company.gl_equipment.build(equipment_params)
+          equipment = @corporate.gl_equipment.build(equipment_params)
 
           if equipment.save
             render json: { success: true, data: equipment }, status: :created
@@ -166,7 +166,7 @@ module Api
 
         # PATCH /api/v1/gl/construction/equipment/:id
         def update_equipment
-          equipment = @corporate_company.gl_equipment.find(params[:id])
+          equipment = @corporate.gl_equipment.find(params[:id])
 
           if equipment.update(equipment_params)
             render json: { success: true, data: equipment }
@@ -178,7 +178,7 @@ module Api
 
         # POST /api/v1/gl/construction/equipment/:id/record_usage
         def record_usage
-          equipment = @corporate_company.gl_equipment.find(params[:id])
+          equipment = @corporate.gl_equipment.find(params[:id])
           job = Job.find(params[:job_id])
 
           usage = equipment.record_usage!(
@@ -194,7 +194,7 @@ module Api
 
         # GET /api/v1/gl/construction/equipment/:id/usages
         def equipment_usages
-          equipment = @corporate_company.gl_equipment.find(params[:id])
+          equipment = @corporate.gl_equipment.find(params[:id])
           usages = equipment.usages.includes(:job, :user).ordered
 
           usages = usages.for_job(Job.find(params[:job_id])) if params[:job_id].present?
@@ -230,8 +230,8 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id])
         end
 
         def change_order_params

@@ -46,7 +46,7 @@ namespace :document_types do
       end
 
       original_file_name = doc_type.file_name || ""
-      original_display_name = doc_type.display_name || ""
+      original_display_name = doc_type.ui_name || ""
 
       file_name = cleanup_file_name(original_file_name, clean_name, abbrev)
       display_name = cleanup_file_name(original_display_name, clean_name, abbrev)
@@ -69,7 +69,7 @@ namespace :document_types do
 
         doc_type.update!(
           file_name: file_name,
-          display_name: display_name
+          ui_name: display_name
         )
         updated_count += 1
       else
@@ -101,7 +101,7 @@ namespace :document_types do
       end
 
       original_file_name = doc_type.file_name || ""
-      original_display_name = doc_type.display_name || ""
+      original_display_name = doc_type.ui_name || ""
 
       file_name = cleanup_file_name(original_file_name, clean_name, abbrev)
       display_name = cleanup_file_name(original_display_name, clean_name, abbrev)

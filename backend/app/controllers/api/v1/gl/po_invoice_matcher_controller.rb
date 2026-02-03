@@ -8,7 +8,7 @@ module Api
         # Get AI-enhanced match suggestions for a bill
         def suggestions
           bill = BillInbox.find(params[:bill_inbox_id])
-          matcher = ::Gl::AiPoInvoiceMatcher.new(bill, corporate_company: current_company)
+          matcher = ::Gl::AiPoInvoiceMatcher.new(bill, corporate: current_company)
 
           matches = matcher.all_matches
 
@@ -29,7 +29,7 @@ module Api
           bill = BillInbox.find(params[:bill_inbox_id])
           po = PurchaseOrder.find(params[:purchase_order_id])
 
-          matcher = ::Gl::AiPoInvoiceMatcher.new(bill, corporate_company: current_company)
+          matcher = ::Gl::AiPoInvoiceMatcher.new(bill, corporate: current_company)
           matcher.record_confirmation(po, was_accepted: true, user: current_user)
 
           # Apply the match using existing BillMatchingService logic
@@ -61,7 +61,7 @@ module Api
           bill = BillInbox.find(params[:bill_inbox_id])
           po = PurchaseOrder.find(params[:purchase_order_id])
 
-          matcher = ::Gl::AiPoInvoiceMatcher.new(bill, corporate_company: current_company)
+          matcher = ::Gl::AiPoInvoiceMatcher.new(bill, corporate: current_company)
           matcher.record_confirmation(po, was_accepted: false, user: current_user)
 
           render json: {
@@ -75,10 +75,10 @@ module Api
         def stats
           attempts = ::Gl::AiPoMatchAttempt.usage_stats(current_company)
           learnings = {
-            total_feedback: ::Gl::AiPoMatchLearning.where(corporate_company: current_company).count,
+            total_feedback: ::Gl::AiPoMatchLearning.where(corporate: current_company).count,
             acceptance_rate: ::Gl::AiPoMatchLearning.acceptance_rate(current_company),
-            accepted: ::Gl::AiPoMatchLearning.where(corporate_company: current_company).accepted.count,
-            rejected: ::Gl::AiPoMatchLearning.where(corporate_company: current_company).rejected.count
+            accepted: ::Gl::AiPoMatchLearning.where(corporate: current_company).accepted.count,
+            rejected: ::Gl::AiPoMatchLearning.where(corporate: current_company).rejected.count
           }
 
           render json: {
@@ -95,7 +95,7 @@ module Api
         # List bills that need matching
         def unmatched
           bills = BillInbox
-            .where(corporate_company: current_company)
+            .where(corporate: current_company)
             .where(match_status: [nil, "unmatched"])
             .where.not(status: %w[error voided])
             .includes(:supplier)
@@ -115,10 +115,10 @@ module Api
         # Get suggestions for multiple bills at once
         def batch_suggest
           bill_ids = params[:bill_inbox_ids] || []
-          bills = BillInbox.where(id: bill_ids, corporate_company: current_company)
+          bills = BillInbox.where(id: bill_ids, corporate: current_company)
 
           results = bills.map do |bill|
-            matcher = ::Gl::AiPoInvoiceMatcher.new(bill, corporate_company: current_company)
+            matcher = ::Gl::AiPoInvoiceMatcher.new(bill, corporate: current_company)
             best_match = matcher.find_best_match
 
             {
@@ -188,7 +188,7 @@ module Api
 
         def current_company
           @current_company ||= Corporate.find(
-            params[:corporate_company_id] || current_user.corporate_company_id
+            params[:corporate_id] || current_user.corporate_id
           )
         end
       end

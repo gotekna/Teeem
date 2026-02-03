@@ -8,7 +8,7 @@ module Gl
     COSTING_METHODS = %w[average fifo lifo].freeze
     STATUSES = %w[active discontinued out_of_stock].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :pricebook_item, optional: true
     belongs_to :cogs_account, class_name: "Gl::Account", optional: true
     belongs_to :inventory_account, class_name: "Gl::Account", optional: true
@@ -16,7 +16,7 @@ module Gl
 
     has_many :transactions, class_name: "Gl::InventoryTransaction", foreign_key: "inventory_item_id", dependent: :destroy
 
-    validates :sku, presence: true, uniqueness: { scope: :corporate_company_id }
+    validates :sku, presence: true, uniqueness: { scope: :corporate_id }
     validates :name, presence: true
     validates :costing_method, presence: true, inclusion: { in: COSTING_METHODS }
     validates :status, presence: true, inclusion: { in: STATUSES }

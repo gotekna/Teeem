@@ -109,8 +109,8 @@ class Contact < ApplicationRecord
   has_many :people_documents, dependent: :destroy
 
   # Company Group memberships (SSoT - links contact to company groups with permissions)
-  has_many :corporate_group_memberships, class_name: "ContactCorporateGroupMembership", dependent: :destroy
-  has_many :corporate_groups_via_membership, through: :corporate_group_memberships, source: :corporate_group
+  has_many :company_group_memberships, class_name: "ContactCompanyGroupMembership", dependent: :destroy
+  has_many :company_groups_via_membership, through: :company_group_memberships, source: :company_group
 
   # SSoT - if this contact is a company/trust, link to the Company record
   has_one :company_record, class_name: "Corporate", foreign_key: "contact_id", dependent: :nullify
@@ -546,7 +546,7 @@ class Contact < ApplicationRecord
   # SSoT: Sync Contact → Corporate for standard contact fields
   # One-way sync: Contact is SSoT for name, email, phone, bank details
   # Two-way sync for ABN: Contact.abn ↔ Corporate.abn
-  after_commit :sync_to_corporate_company, if: :should_sync_to_corporate?
+  after_commit :sync_to_corporate, if: :should_sync_to_corporate?
 
   # SSoT: Auto-link unlinked Xero invoices when contact is created/updated
   # If invoice.contact_name matches contact.display_name exactly, link them
@@ -880,8 +880,22 @@ class Contact < ApplicationRecord
 
   # Enable corporate management for this contact
   # Creates Corporate extension record if needed
-  def enable_corporate_management!
+  #
+  # @param company_group [CompanyGroup] Required - the group this company belongs to
+  # @return [Boolean] true if successful, false if failed
+  #
+  # FRC (Feb 2026): company_group is now REQUIRED to prevent orphan Corporate records.
+  # Root cause: 397 orphan Corporates were created without company_group_id because
+  # the old method didn't require it. This led to data quality issues with:
+  # - External suppliers incorrectly promoted to Corporate status
+  # - No visibility in Corporate dashboards (grouped by company_group)
+  def enable_corporate_management!(company_group:)
     return false unless can_be_corporate_managed?
+
+    unless company_group.is_a?(CompanyGroup) && company_group.persisted?
+      Rails.logger.error("Contact##{id}: company_group is required for enable_corporate_management!")
+      return false
+    end
 
     transaction do
       # Set flag
@@ -892,6 +906,7 @@ class Contact < ApplicationRecord
         Corporate.create!(
           contact: self,
           tenant: tenant,
+          company_group: company_group,
           name: display_name,
           abn: abn,
           acn: acn,
@@ -972,7 +987,7 @@ class Contact < ApplicationRecord
   end
 
   def director_companies
-    current_directorships.includes(:corporate_company).map(&:company)
+    current_directorships.includes(:corporate).map(&:company)
   end
 
   # Company/Employment relationship helpers
@@ -1029,7 +1044,7 @@ class Contact < ApplicationRecord
   end
 
   def company_group_memberships_count
-    corporate_group_memberships.count
+    company_group_memberships.count
   end
 
   def trustees_of
@@ -1272,8 +1287,9 @@ class Contact < ApplicationRecord
   end
 
   # Get link for a specific Xero tenant
-  def xero_link_for_tenant(tenant_id)
-    xero_links.find_by(tenant_id: tenant_id)
+  # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
+  def xero_link_for_tenant(xero_org_id)
+    xero_links.find_by(xero_org_id: xero_org_id)
   end
 
   def has_xero_conflicts?
@@ -1947,7 +1963,7 @@ class Contact < ApplicationRecord
   end
 
   # SSoT: Sync Contact → Corporate for standard contact fields
-  def sync_to_corporate_company
+  def sync_to_corporate
     # Prevent infinite loops
     return if Thread.current[:syncing_contact_to_company]
 
@@ -2027,8 +2043,9 @@ class Contact < ApplicationRecord
     if active_duplicate
       # Transfer all Xero links to the active duplicate
       xero_links.each do |link|
-        # Check if duplicate already has a link to this Xero tenant
-        existing = active_duplicate.xero_links.find_by(tenant_id: link.tenant_id)
+        # Check if duplicate already has a link to this Xero org
+        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
+        existing = active_duplicate.xero_links.find_by(xero_org_id: link.xero_org_id)
         if existing
           # Duplicate already linked to this tenant - mark ours for review
           link.update_columns(needs_review: true, sync_error: "Deactivated - duplicate link exists on Contact##{active_duplicate.id}")

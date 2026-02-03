@@ -7,7 +7,7 @@ class CreateBillInbox < ActiveRecord::Migration[8.0]
       t.bigint :email_warehouse_id
 
       # Company assignment (multi-tenant)
-      t.references :corporate_company, foreign_key: true
+      t.references :corporate, foreign_key: true
       t.bigint :detected_company_id  # AI-detected company from invoice
 
       # Supplier info (extracted or matched)
@@ -64,7 +64,7 @@ class CreateBillInbox < ActiveRecord::Migration[8.0]
 
     add_index :bill_inboxes, :status
     add_index :bill_inboxes, :match_status
-    add_index :bill_inboxes, [ :corporate_company_id, :status ]
+    add_index :bill_inboxes, [ :corporate_id, :status ]
     add_index :bill_inboxes, :email_message_id, unique: true, where: "email_message_id IS NOT NULL"
     add_index :bill_inboxes, [ :supplier_id, :invoice_number ], unique: true, where: "invoice_number IS NOT NULL"
     add_foreign_key :bill_inboxes, :corporate_companies, column: :detected_company_id

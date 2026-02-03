@@ -8,7 +8,7 @@ module Gl
   #
   # Usage:
   #   # Get adapter for company
-  #   adapter = Gl::Adapters.for(corporate_company)
+  #   adapter = Gl::Adapters.for(corporate)
   #
   #   # Full sync
   #   service = Gl::SyncService.new(adapter)
@@ -22,11 +22,11 @@ module Gl
   #   service.sync_invoices(since: 1.day.ago)
   #
   class SyncService
-    attr_reader :adapter, :corporate_company, :sync_log
+    attr_reader :adapter, :corporate, :sync_log
 
     def initialize(adapter)
       @adapter = adapter
-      @corporate_company = adapter.corporate_company
+      @corporate = adapter.corporate
       @sync_log = nil
     end
 
@@ -155,7 +155,7 @@ module Gl
 
     def recalculate_balances
       calculator = Gl::BalanceCalculator.new(
-        corporate_company,
+        corporate,
         provider: adapter.provider_code,
         tenant_id: adapter.tenant_id
       )
@@ -167,7 +167,7 @@ module Gl
     def recalculate_affected_balances(since)
       # Find periods affected by recent changes
       affected_periods = Gl::JournalEntry
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where(external_provider: adapter.provider_code)
         .where(external_tenant_id: adapter.tenant_id)
         .where('created_at >= ? OR updated_at >= ?', since, since)
@@ -177,7 +177,7 @@ module Gl
       return if affected_periods.empty?
 
       calculator = Gl::BalanceCalculator.new(
-        corporate_company,
+        corporate,
         provider: adapter.provider_code,
         tenant_id: adapter.tenant_id
       )
@@ -236,7 +236,7 @@ module Gl
     # Get recent sync logs
     def recent_syncs(limit: 20)
       Gl::SyncLog
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .for_provider(adapter.provider_code, adapter.tenant_id)
         .recent
         .limit(limit)
@@ -256,7 +256,7 @@ module Gl
 
       # Create periods for current FY
       current_fy = Gl::Period.financial_year_for(Date.current)
-      Gl::Period.generate_for_year(corporate_company, current_fy)
+      Gl::Period.generate_for_year(corporate, current_fy)
 
       log_info('Standalone GL setup complete')
       true
@@ -268,7 +268,7 @@ module Gl
 
     def with_sync_log(sync_type)
       @sync_log = Gl::SyncLog.start!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         provider: adapter.provider_code || 'standalone',
         tenant_id: adapter.tenant_id || 'local',
         sync_type: sync_type,

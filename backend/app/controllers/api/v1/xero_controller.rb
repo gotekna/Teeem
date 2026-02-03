@@ -1543,7 +1543,8 @@ module Api
                                        .where.not(external_invoices: { status: %w[voided deleted] })
 
           if tenant_id.present?
-            pdf_query = pdf_query.where(external_invoices: { tenant_id: tenant_id })
+            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+            pdf_query = pdf_query.where(external_invoices: { xero_org_id: tenant_id })
           end
 
           invoices_with_pdfs = pdf_query.distinct.count(:documentable_id)
@@ -1564,8 +1565,9 @@ module Api
                                            .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
                                            .where(documentable_type: "ExternalInvoice")
           if tenant_id.present?
+            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
             pdf_docs_query = pdf_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                           .where(external_invoices: { tenant_id: tenant_id })
+                                           .where(external_invoices: { xero_org_id: tenant_id })
           end
           last_pdf_sync = pdf_sync_status&.last_synced_at || pdf_docs_query.maximum(:created_at)
 
@@ -1576,8 +1578,9 @@ module Api
                                          .where(documentable_type: "ExternalInvoice")
                                          .where("warehouse_documents.created_at > ?", 24.hours.ago)
           if tenant_id.present?
+            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
             pdfs_last_24h_query = pdfs_last_24h_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                                     .where(external_invoices: { tenant_id: tenant_id })
+                                                     .where(external_invoices: { xero_org_id: tenant_id })
           end
           pdfs_last_24h = pdfs_last_24h_query.count
 
@@ -1602,8 +1605,9 @@ module Api
                                                    .where(documentable_type: "ExternalInvoice")
                                                    .where.not(storage_blob_id: nil)
           if tenant_id.present?
+            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
             sharepoint_docs_query = sharepoint_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                                         .where(external_invoices: { tenant_id: tenant_id })
+                                                         .where(external_invoices: { xero_org_id: tenant_id })
           end
           last_sharepoint_sync = sharepoint_sync_status&.last_synced_at || sharepoint_docs_query.maximum(:updated_at)
 
@@ -1623,7 +1627,8 @@ module Api
                                          .where(external_invoices: { invoice_type: "bill" })
                                          .where.not(external_invoices: { status: "draft" })
                                          .where.not(external_invoices: { status: %w[voided deleted] })
-          bills_query = bills_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
+          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          bills_query = bills_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
           bills_with_pdfs = bills_query.distinct.count("warehouse_documents.documentable_id")
 
           sales_total = pdf_eligible_invoices.sales_invoices.count
@@ -1636,7 +1641,8 @@ module Api
                                          .where(external_invoices: { invoice_type: "sales_invoice" })
                                          .where.not(external_invoices: { status: "draft" })
                                          .where.not(external_invoices: { status: %w[voided deleted] })
-          sales_query = sales_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
+          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          sales_query = sales_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
           sales_with_pdfs = sales_query.distinct.count("warehouse_documents.documentable_id")
 
           quotes_total = pdf_eligible_invoices.quotes.count
@@ -1649,7 +1655,8 @@ module Api
                                           .where(external_invoices: { invoice_type: "quote" })
                                           .where.not(external_invoices: { status: "draft" })
                                           .where.not(external_invoices: { status: %w[voided deleted] })
-          quotes_query = quotes_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
+          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          quotes_query = quotes_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
           quotes_with_pdfs = quotes_query.distinct.count("warehouse_documents.documentable_id")
 
           # Credit notes breakdown
@@ -1663,7 +1670,8 @@ module Api
                                                 .where(external_invoices: { invoice_type: "credit_note" })
                                                 .where.not(external_invoices: { status: "draft" })
                                                 .where.not(external_invoices: { status: %w[voided deleted] })
-          credit_notes_query = credit_notes_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
+          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          credit_notes_query = credit_notes_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
           credit_notes_with_pdfs = credit_notes_query.distinct.count("warehouse_documents.documentable_id")
 
           # Estimate time remaining for PDF sync (based on 10s per invoice)
@@ -1849,9 +1857,45 @@ module Api
             Rails.logger.warn("[pdf_sync_status] Could not get SharePoint URL: #{e.message}")
           end
 
+          # ============================================
+          # PER-TENANT STATUS (Feb 2026: Ultra Transparency)
+          # ============================================
+          # Give customers complete visibility into WHY each org is paused
+          per_tenant_status = XeroCredential.where(status: %w[connected degraded disconnected]).map do |cred|
+            usage = XeroRateLimitTracker.usage_for(cred.tenant_id)
+            lockout = XeroRateLimitTracker.current_lockout(tenant_id: cred.tenant_id)
+
+            # Count remaining for this specific tenant (using xero_org_id)
+            tenant_remaining = count_remaining_for_tenant(cred.tenant_id)
+
+            # Determine status and reason
+            status_info = determine_tenant_status(cred, usage, lockout, tenant_remaining)
+
+            {
+              tenant_id: cred.tenant_id,
+              tenant_name: cred.tenant_name,
+              total: tenant_remaining[:total],
+              synced: tenant_remaining[:synced],
+              pending: tenant_remaining[:pending],
+              percentage: tenant_remaining[:percentage],
+              status: status_info[:status],
+              reason: status_info[:reason],
+              detail: status_info[:detail],
+              rate_limit_daily_pct: usage&.dig(:daily, :percentage),
+              lockout_remaining_secs: lockout ? XeroRateLimitTracker.lockout_remaining_seconds(tenant_id: cred.tenant_id) : 0
+            }
+          end
+
+          # Calculate overall ETA based on actual throughput
+          overall_eta = calculate_overall_eta(pdfs_pending, pdfs_last_24h)
+
           render json: {
             success: true,
             data: {
+              # Per-tenant status for Ultra Transparency (Feb 2026)
+              per_tenant_status: per_tenant_status,
+              overall_eta: overall_eta,
+
               # Stage 1: Invoice DATA sync (Xero -> Database)
               stage1_data_sync: {
                 total_in_database: total_invoices_in_db,
@@ -1971,10 +2015,60 @@ module Api
         end
       end
 
+      # POST /api/v1/xero/trigger_sync_all
+      # Manually triggers all Xero sync types for immediate recovery
+      # FRC (Feb 2026): Added to allow UI to trigger syncs when self-heal is too slow
+      # This is safe to call frequently - jobs are idempotent and won't duplicate
+      def trigger_sync_all
+        begin
+          jobs_triggered = []
+
+          # Trigger all sync types
+          XeroInvoiceSyncJob.perform_later
+          jobs_triggered << "invoices"
+
+          XeroContactSyncJob.perform_later
+          jobs_triggered << "contacts"
+
+          XeroAttachmentSyncJob.perform_later
+          jobs_triggered << "pdfs"
+
+          XeroBankTransactionSyncJob.perform_later
+          jobs_triggered << "bank_transactions"
+
+          # Also run health monitor for immediate orphan cleanup
+          XeroHealthMonitorJob.perform_later
+          jobs_triggered << "health_monitor"
+
+          Rails.logger.info("[Xero] Manual sync triggered: #{jobs_triggered.join(', ')}")
+
+          render json: {
+            success: true,
+            data: {
+              jobs_triggered: jobs_triggered,
+              message: "All sync jobs queued. Status will update within minutes."
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero trigger_sync_all error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to trigger sync: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/xero/sync_stats
       # Returns comprehensive sync statistics for the Xero dashboard
       # Includes per-tenant stats, global stats, and cross-tenant matching info
       # Multi-tenancy: Filters by current tenant (master sees all, others see own)
+      #
+      # Performance (Feb 2026): Refactored to use XeroSyncStatsService for batch queries.
+      # Old: 15N+13 queries for N credentials (2.45M queries at 15k connections)
+      # New: ~10 queries regardless of connection count
+      #
+      # Supports optional pagination for large datasets:
+      #   ?page=1&per_page=50 - Returns paginated tenant stats
       def sync_stats
         begin
           # Get Xero credentials filtered by tenant
@@ -1985,188 +2079,25 @@ module Api
                           XeroCredential.for_teeem_tenant(current_tenant)
                         end
 
-          # Per-tenant statistics
-          tenant_stats = credentials.map do |cred|
-            tenant_id = cred.tenant_id
+          # Optional pagination support
+          page = params[:page]&.to_i
+          per_page = (params[:per_page] || 50).to_i.clamp(1, 100)
 
-            # Count external links for this tenant
-            tenant_links = ContactExternalLink.xero.for_tenant(tenant_id)
-            links_count = tenant_links.count
-            enabled_count = tenant_links.enabled.count
-            pending_review_count = tenant_links.pending_review.count
-            with_errors_count = tenant_links.with_errors.count
+          # Cache key includes tenant scope for multi-tenancy
+          cache_key = "xero:sync_stats:#{current_tenant&.id || 'global'}"
 
-            # Unlinked = Links where TEEEM contact is inactive or deleted
-            # These Xero contacts won't sync properly until re-linked
-            unlinked_count = tenant_links
-              .joins("LEFT JOIN contacts c ON contact_external_links.contact_id = c.id AND (c.is_active = true OR c.is_active IS NULL)")
-              .where("c.id IS NULL")
-              .count
-
-            # Count invoices/bills for this tenant
-            # SSoT: Use .active scope + exclude drafts to match pdf_sync_status (drafts can't have PDFs)
-            tenant_invoices = ExternalInvoice.xero.active.where(tenant_id: tenant_id).where.not(status: "draft")
-            invoices_count = tenant_invoices.sales_invoices.count
-            bills_count = tenant_invoices.bills.count
-            quotes_count = tenant_invoices.quotes.count
-            credit_notes_count = tenant_invoices.credit_notes.count
-
-            # Last sync timestamps
-            last_contact_sync = tenant_links.maximum(:last_synced_at)
-            last_invoice_sync = tenant_invoices.maximum(:last_synced_at)
-
-            # Cross-tenant matches (contacts linked to multiple tenants)
-            cross_tenant_contact_ids = ContactExternalLink.xero
-                                                          .for_tenant(tenant_id)
-                                                          .joins("INNER JOIN contact_external_links cel2 ON cel2.contact_id = contact_external_links.contact_id AND cel2.tenant_id != contact_external_links.tenant_id AND cel2.source = 'xero'")
-                                                          .distinct
-                                                          .pluck(:contact_id)
-            cross_tenant_count = cross_tenant_contact_ids.count
-
-            # Match type breakdown for this tenant
-            match_breakdown = tenant_links.group(:match_type).count
-
-            # Rate limit status for this tenant
-            rate_usage = XeroRateLimitTracker.usage_for(tenant_id) rescue nil
-
-            # SSoT: Sync health status per sync type for this tenant
-            # This shows when each sync type last ran and its health status
-            tenant_sync_health = XeroSyncStatus.health_summary(tenant_id: tenant_id)
-
-            {
-              tenant_id: tenant_id,
-              tenant_name: cred.tenant_name,
-              status: cred.status,
-              is_primary: cred.is_primary,
-              # SSoT: Per-sync-type health for this tenant (Jan 2026)
-              sync_health: tenant_sync_health[:sync_types],
-              overall_sync_health: tenant_sync_health[:overall_health],
-              contacts: {
-                total_links: links_count,
-                sync_enabled: enabled_count,
-                pending_review: pending_review_count,
-                with_errors: with_errors_count,
-                unlinked: unlinked_count,
-                cross_tenant_matches: cross_tenant_count,
-                last_synced_at: last_contact_sync
-              },
-              documents: {
-                invoices: invoices_count,
-                bills: bills_count,
-                quotes: quotes_count,
-                credit_notes: credit_notes_count,
-                total: invoices_count + bills_count + quotes_count + credit_notes_count,
-                last_synced_at: last_invoice_sync
-              },
-              match_breakdown: {
-                exact_abn: match_breakdown["exact_abn"] || 0,
-                exact_email: match_breakdown["exact_email"] || 0,
-                fuzzy_name: match_breakdown["fuzzy_name"] || 0,
-                manual: match_breakdown["manual"] || 0
-              },
-              rate_limits: rate_usage ? {
-                daily_percentage: rate_usage.dig(:daily, :percentage)&.round(1) || 0,
-                minute_percentage: rate_usage.dig(:minute, :percentage)&.round(1) || 0,
-                is_limited: (rate_usage.dig(:daily, :percentage) || 0) >= 80
-              } : nil
-            }
+          # Use cached stats if available (5 minute TTL)
+          # Pass page params to allow cache bypass when paginating
+          data = if page.present?
+            # Paginated requests compute fresh stats (don't cache partial results)
+            compute_sync_stats(credentials, page: page, per_page: per_page)
+          else
+            Rails.cache.fetch(cache_key, expires_in: 5.minutes) do
+              compute_sync_stats(credentials)
+            end
           end
 
-          # Global statistics (across all tenants)
-          # SSoT: Use .active scope + exclude drafts to match pdf_sync_status (drafts can't have PDFs)
-          all_xero_links = ContactExternalLink.xero
-          all_invoices = ExternalInvoice.xero.active.where.not(status: "draft")
-
-          # Total pending reviews
-          total_pending_reviews = all_xero_links.pending_review.count
-
-          # Contacts linked to multiple Xero tenants
-          multi_tenant_contact_ids = all_xero_links.group(:contact_id)
-                                                    .having("COUNT(DISTINCT tenant_id) > 1")
-                                                    .pluck(:contact_id)
-          multi_tenant_contacts_count = multi_tenant_contact_ids.count
-
-          # Global match type breakdown
-          global_match_breakdown = all_xero_links.group(:match_type).count
-
-          # Total unique contacts with any Xero link
-          total_contacts_with_links = all_xero_links.distinct.count(:contact_id)
-
-          # Total invoices/bills across all tenants
-          total_invoices = all_invoices.sales_invoices.count
-          total_bills = all_invoices.bills.count
-          total_quotes = all_invoices.quotes.count
-          total_credit_notes = all_invoices.credit_notes.count
-
-          # Recent sync activity (last 24 hours)
-          recent_contact_syncs = all_xero_links.where("last_synced_at > ?", 24.hours.ago).count
-          recent_invoice_syncs = all_invoices.where("last_synced_at > ?", 24.hours.ago).count
-
-          # Get pending review items with details for display
-          pending_review_items = all_xero_links.pending_review
-                                                .includes(:contact)
-                                                .limit(10)
-                                                .map do |link|
-            tenant = credentials.find { |c| c.tenant_id == link.tenant_id }
-            # Try to get Xero contact name from multiple sources
-            xero_name = link.external_name ||
-                        link.metadata&.dig("name") ||
-                        ExternalInvoice.where(external_contact_id: link.external_contact_id, tenant_id: link.tenant_id)
-                                       .where.not(contact_name: nil)
-                                       .limit(1)
-                                       .pick(:contact_name) ||
-                        link.external_contact_id
-            {
-              id: link.id,
-              contact_id: link.contact_id,
-              contact_name: link.contact&.display_name,
-              tenant_id: link.tenant_id,
-              tenant_name: tenant&.tenant_name || link.tenant_name,
-              external_contact_id: link.external_contact_id,
-              external_contact_name: xero_name,
-              match_type: link.match_type,
-              match_confidence: link.match_confidence,
-              created_at: link.created_at
-            }
-          end
-
-          render json: {
-            success: true,
-            data: {
-              tenant_count: credentials.count,
-              tenants: tenant_stats,
-              global: {
-                pending_reviews: {
-                  count: total_pending_reviews,
-                  items: pending_review_items
-                },
-                cross_tenant: {
-                  contacts_linked_to_multiple_tenants: multi_tenant_contacts_count,
-                  multi_tenant_contact_ids: multi_tenant_contact_ids.first(100)  # Limit for response size
-                },
-                match_breakdown: {
-                  exact_abn: global_match_breakdown["exact_abn"] || 0,
-                  exact_email: global_match_breakdown["exact_email"] || 0,
-                  fuzzy_name: global_match_breakdown["fuzzy_name"] || 0,
-                  manual: global_match_breakdown["manual"] || 0,
-                  total: all_xero_links.count
-                },
-                totals: {
-                  contacts_with_links: total_contacts_with_links,
-                  total_links: all_xero_links.count,
-                  invoices: total_invoices,
-                  bills: total_bills,
-                  quotes: total_quotes,
-                  credit_notes: total_credit_notes,
-                  all_documents: total_invoices + total_bills + total_quotes + total_credit_notes
-                },
-                recent_activity: {
-                  contact_syncs_24h: recent_contact_syncs,
-                  invoice_syncs_24h: recent_invoice_syncs
-                }
-              }
-            }
-          }
+          render json: { success: true, data: data }
         rescue StandardError => e
           Rails.logger.error("Xero sync_stats error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
@@ -2191,11 +2122,12 @@ module Api
           tenant_ids = credentials.pluck(:tenant_id)
 
           # Find contacts linked to 2+ Xero tenants (within visible tenants)
+          # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
           contact_ids_with_multiple_links = ContactExternalLink
             .xero
-            .where(tenant_id: tenant_ids)
+            .where(xero_org_id: tenant_ids)
             .group(:contact_id)
-            .having("COUNT(DISTINCT tenant_id) >= 2")
+            .having("COUNT(DISTINCT xero_org_id) >= 2")
             .count
             .keys
 
@@ -2206,7 +2138,8 @@ module Api
 
           common_contacts_data = contacts.map do |contact|
             xero_links = contact.external_links.xero.to_a
-            tenant_ids = xero_links.map(&:tenant_id).uniq
+            # FRC (Feb 2026): Renamed tenant_id to xero_org_id
+            xero_org_ids = xero_links.map(&:xero_org_id).uniq
 
             {
               id: contact.id,
@@ -2214,12 +2147,12 @@ module Api
               entity_type: contact.entity_type,
               email: contact.email,
               tax_number: contact.tax_number,
-              tenant_count: tenant_ids.count,
-              tenants: tenant_ids.map do |tid|
-                cred = credentials.find { |c| c.tenant_id == tid }
-                link = xero_links.find { |l| l.tenant_id == tid }
+              tenant_count: xero_org_ids.count,
+              tenants: xero_org_ids.map do |xero_org_id|
+                cred = credentials.find { |c| c.tenant_id == xero_org_id }
+                link = xero_links.find { |l| l.xero_org_id == xero_org_id }
                 {
-                  tenant_id: tid,
+                  tenant_id: xero_org_id,
                   tenant_name: cred&.tenant_name || "Unknown",
                   external_contact_id: link&.external_contact_id,
                   external_contact_name: link&.external_name || link&.metadata&.dig("name") || link&.external_contact_id,
@@ -2671,7 +2604,7 @@ module Api
 
             # Push to Xero - wrap in per-contact exception handling
             begin
-              result = xero_client.post("Contacts", xero_payload, tenant_id: link.tenant_id)
+              result = xero_client.post("Contacts", xero_payload, tenant_id: link.xero_org_id)
 
               if result[:success]
                 # Update the external_name to match what we pushed
@@ -2751,7 +2684,7 @@ module Api
             next unless contact
 
             # Fetch Xero contact details
-            result = xero_client.get("Contacts/#{link.external_contact_id}", tenant_id: link.tenant_id)
+            result = xero_client.get("Contacts/#{link.external_contact_id}", tenant_id: link.xero_org_id)
 
             unless result[:success] && result[:data].present?
               comparisons << {
@@ -3052,7 +2985,7 @@ module Api
           failed = 0
 
           companies_with_xero.find_each do |company|
-            connection = company.corporate_company_xero_connection
+            connection = company.corporate_xero_connection
             next unless connection&.connected?
 
             begin
@@ -3172,7 +3105,7 @@ module Api
           result = stale_links.map do |link|
             # Find invoices still pointing to this stale Xero contact
             invoices = ExternalInvoice
-              .where(tenant_id: link.tenant_id, external_contact_id: link.external_contact_id)
+              .where(tenant_id: link.xero_org_id, external_contact_id: link.external_contact_id)
               .order(invoice_date: :desc)
               .limit(10)
 
@@ -3180,8 +3113,8 @@ module Api
               link_id: link.id,
               xero_contact_name: link.external_name,
               xero_contact_id: link.external_contact_id,
-              tenant_id: link.tenant_id,
-              tenant_name: XeroCredential.find_by(tenant_id: link.tenant_id)&.tenant_name,
+              tenant_id: link.xero_org_id,
+              tenant_name: XeroCredential.find_by(tenant_id: link.xero_org_id)&.tenant_name,
               sync_error: link.sync_error,
               teeem_contact_id: link.contact_id,
               teeem_contact_name: link.contact&.display_name,
@@ -3245,6 +3178,51 @@ module Api
       end
 
       private
+
+      # Compute sync stats using batch queries (XeroSyncStatsService)
+      # This reduces query count from O(n) to O(1) for per-tenant stats
+      # Performance (Feb 2026): Part of "Scale Xero Sync to 15k" plan
+      def compute_sync_stats(credentials, page: nil, per_page: 50)
+        credentials_array = credentials.to_a
+
+        # Apply pagination if requested
+        if page.present?
+          total_count = credentials_array.count
+          total_pages = (total_count / per_page.to_f).ceil
+          paginated_credentials = credentials_array.slice((page - 1) * per_page, per_page) || []
+        else
+          paginated_credentials = credentials_array
+        end
+
+        # Batch compute all stats in ~10 queries instead of 15N
+        stats = XeroSyncStatsService.compute_all_stats(paginated_credentials)
+
+        # Build per-tenant stats from pre-computed data
+        tenant_stats = paginated_credentials.map do |cred|
+          XeroSyncStatsService.build_tenant_stats(cred, stats)
+        end
+
+        # Global statistics (still computed directly for now, could also be cached)
+        global_stats = XeroSyncStatsService.compute_global_stats(credentials_array)
+
+        result = {
+          tenant_count: credentials_array.count,
+          tenants: tenant_stats,
+          global: global_stats
+        }
+
+        # Add pagination metadata if paginating
+        if page.present?
+          result[:pagination] = {
+            page: page,
+            per_page: per_page,
+            total_count: total_count,
+            total_pages: total_pages
+          }
+        end
+
+        result
+      end
 
       # Humanize Xero push errors to user-friendly messages
       def humanize_xero_push_error(message)
@@ -3450,6 +3428,114 @@ module Api
           "Created from Xero"
         else
           "Synced to Xero"
+        end
+      end
+
+      # ============================================
+      # PER-TENANT STATUS HELPERS (Feb 2026: Ultra Transparency)
+      # ============================================
+
+      # Count remaining PDFs for a specific Xero tenant (by xero_org_id)
+      def count_remaining_for_tenant(xero_tenant_id)
+        # Get all invoices for this Xero org via ContactExternalLink
+        contact_ids = ContactExternalLink
+          .where(source: "xero", xero_org_id: xero_tenant_id)
+          .pluck(:contact_id)
+
+        # FRC (Feb 2026): Xero only generates PDFs for certain invoice types:
+        # - sales_invoice, quote, credit_note: YES (Xero auto-generates PDF)
+        # - bill: NO - Xero does NOT auto-generate PDFs for bills (supplier invoices)
+        # Without excluding bills, the percentage is misleading (shows ~50% when actually complete)
+        total_scope = ExternalInvoice.active
+          .where(contact_id: contact_ids)
+          .where.not(status: "draft")
+          .where.not(status: %w[voided deleted])
+          .where.not(invoice_type: "bill")  # Bills don't have auto-generated PDFs
+
+        total = total_scope.count
+
+        # Count invoices WITH synced PDFs
+        synced = WarehouseDocument
+          .where(source_type: "xero")
+          .where("metadata->>'is_primary' = ?", "true")
+          .where.not(storage_blob_id: nil)
+          .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
+          .where(documentable_type: "ExternalInvoice")
+          .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
+          .where(external_invoices: { contact_id: contact_ids })
+          .where.not(external_invoices: { status: "draft" })
+          .where.not(external_invoices: { status: %w[voided deleted] })
+          .where.not(external_invoices: { invoice_type: "bill" })  # Match total_scope
+          .distinct.count(:documentable_id)
+
+        pending = [total - synced, 0].max
+        percentage = total > 0 ? ((synced.to_f / total) * 100).round(1) : 100.0
+
+        { total: total, synced: synced, pending: pending, percentage: percentage }
+      end
+
+      # Determine status and reason for a specific tenant
+      def determine_tenant_status(credential, usage, lockout, remaining)
+        # Priority 1: Disconnected/degraded credentials
+        if credential.status == "disconnected"
+          return { status: "disconnected", reason: "Needs re-auth", detail: "Token expired or revoked" }
+        end
+
+        if credential.status == "degraded"
+          return { status: "degraded", reason: "Token failing", detail: "Refresh attempts failing" }
+        end
+
+        # Priority 2: Rate limited (Xero 429 lockout)
+        if lockout.present?
+          mins = (XeroRateLimitTracker.lockout_remaining_seconds(tenant_id: credential.tenant_id) / 60.0).ceil
+          return { status: "rate_limited", reason: "Paused #{mins}m", detail: "Xero rate limited - auto-resumes" }
+        end
+
+        # Priority 3: Approaching daily limit (>90%)
+        if usage && usage[:daily][:percentage] >= 90
+          return {
+            status: "rate_limited",
+            reason: "Daily limit #{usage[:daily][:percentage].round}%",
+            detail: "Slowing down to stay under limit"
+          }
+        end
+
+        # Priority 4: Complete
+        if remaining[:pending].zero?
+          return { status: "complete", reason: "Done", detail: "All PDFs synced" }
+        end
+
+        # Default: Syncing
+        { status: "syncing", reason: "#{remaining[:pending]} remaining", detail: "Sync in progress" }
+      end
+
+      # Calculate overall ETA based on throughput
+      def calculate_overall_eta(pending_count, synced_last_24h)
+        return nil if pending_count.zero?
+
+        # Use actual throughput if we have data
+        if synced_last_24h > 0
+          # PDFs per hour based on last 24h
+          pdfs_per_hour = synced_last_24h / 24.0
+          hours_remaining = (pending_count / pdfs_per_hour).ceil
+
+          if hours_remaining < 1
+            return "< 1 hour"
+          elsif hours_remaining < 24
+            return "~#{hours_remaining} hour#{'s' if hours_remaining != 1}"
+          else
+            days = (hours_remaining / 24.0).ceil
+            return "~#{days} day#{'s' if days != 1}"
+          end
+        end
+
+        # Fallback: estimate based on typical rate (10s per PDF)
+        minutes = (pending_count * 10) / 60
+        if minutes < 60
+          "~#{minutes} minutes"
+        else
+          hours = (minutes / 60.0).ceil
+          "~#{hours} hour#{'s' if hours != 1}"
         end
       end
 

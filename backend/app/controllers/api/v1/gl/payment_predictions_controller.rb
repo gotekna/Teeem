@@ -85,7 +85,7 @@ module Api
 
           # Get current unpaid invoices for this contact
           unpaid = ::Gl::Invoice
-            .where(corporate_company: current_company, contact: contact, invoice_type: "sales_invoice")
+            .where(corporate: current_company, contact: contact, invoice_type: "sales_invoice")
             .where.not(status: %w[paid voided deleted draft])
             .order(due_date: :asc)
 
@@ -155,11 +155,11 @@ module Api
 
         def find_invoice(id)
           # Try GL invoices first
-          invoice = ::Gl::Invoice.find_by(id: id, corporate_company: current_company)
+          invoice = ::Gl::Invoice.find_by(id: id, corporate: current_company)
           return invoice if invoice
 
           # Fall back to external invoices
-          ExternalInvoice.find_by(id: id, corporate_company: current_company)
+          ExternalInvoice.find_by(id: id, corporate: current_company)
         end
 
         def invoice_json(invoice)
@@ -180,7 +180,7 @@ module Api
 
         def current_company
           @current_company ||= Corporate.find(
-            params[:corporate_company_id] || current_user.corporate_company_id
+            params[:corporate_id] || current_user.corporate_id
           )
         end
       end

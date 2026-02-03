@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-# One-time migration to rename Job 46 SharePoint folders to match EntityTab names
+# One-time migration to rename Job 46 SharePoint folders to match WarehouseFolder names
 #
 # Usage:
 #   rails job46:migrate_folders           # Dry run (show what would be renamed)
 #   rails job46:migrate_folders[execute]  # Actually rename folders
 #
 namespace :job46 do
-  desc "Migrate Job 46 SharePoint folders to match EntityTab names"
+  desc "Migrate Job 46 SharePoint folders to match WarehouseFolder names"
   task :migrate_folders, [:mode] => :environment do |_t, args|
     dry_run = args[:mode] != 'execute'
 
@@ -21,8 +21,8 @@ namespace :job46 do
     puts "SharePoint Status: #{job.sharepoint_folder_status}"
     puts
 
-    # Mapping: old SharePoint folder name => new EntityTab name
-    # Based on current EntityTab configuration
+    # Mapping: old SharePoint folder name => new WarehouseFolder name
+    # Based on current WarehouseFolder configuration
     FOLDER_MAPPINGS = {
       # Root level folders
       "01 Sales" => "Sales",

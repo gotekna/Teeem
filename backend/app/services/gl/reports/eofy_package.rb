@@ -14,10 +14,10 @@ module Gl
     # - Comparative analysis (vs prior year)
     #
     class EofyPackage
-      attr_reader :corporate_company, :financial_year, :options
+      attr_reader :corporate, :financial_year, :options
 
-      def initialize(corporate_company, financial_year = nil, options = {})
-        @corporate_company = corporate_company
+      def initialize(corporate, financial_year = nil, options = {})
+        @corporate = corporate
         @financial_year = financial_year || current_fy
         @options = options.with_indifferent_access
       end
@@ -138,7 +138,7 @@ module Gl
 
       def revenue_section
         accounts = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'revenue',
           account_class: %w[sales_revenue service_revenue other_revenue]
         )
@@ -148,7 +148,7 @@ module Gl
 
       def cost_of_sales_section
         accounts = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'expense',
           account_class: %w[cost_of_sales direct_costs]
         )
@@ -158,7 +158,7 @@ module Gl
 
       def operating_expenses_section
         accounts = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'expense'
         ).where.not(account_class: %w[cost_of_sales direct_costs other_expense])
 
@@ -167,7 +167,7 @@ module Gl
 
       def other_income_section
         accounts = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'revenue',
           account_class: 'other_income'
         )
@@ -177,7 +177,7 @@ module Gl
 
       def other_expenses_section
         accounts = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'expense',
           account_class: 'other_expense'
         )
@@ -217,13 +217,13 @@ module Gl
 
       def assets_section
         current_assets = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'asset',
           account_class: %w[bank cash accounts_receivable inventory prepaid current_asset]
         )
 
         non_current_assets = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'asset',
           account_class: %w[fixed_asset equipment property intangible investment]
         )
@@ -241,13 +241,13 @@ module Gl
 
       def liabilities_section
         current_liabilities = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'liability',
           account_class: %w[accounts_payable tax_payable accrued current_liability gst_collected gst_paid]
         )
 
         non_current_liabilities = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'liability',
           account_class: %w[long_term_debt loan non_current_liability]
         )
@@ -265,7 +265,7 @@ module Gl
 
       def equity_section
         accounts = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'equity'
         )
 
@@ -289,7 +289,7 @@ module Gl
       # =========================================================================
 
       def trial_balance_report
-        accounts = Gl::Account.where(corporate_company: corporate_company)
+        accounts = Gl::Account.where(corporate: corporate)
           .where(active: true)
           .order(:code)
 
@@ -330,7 +330,7 @@ module Gl
         quarters = %w[Q1 Q2 Q3 Q4].map do |quarter|
           quarter_dates = quarter_date_range(quarter)
           bas = Gl::BasPreparationService.new(
-            corporate_company,
+            corporate,
             period_start: quarter_dates[:start],
             period_end: quarter_dates[:end]
           )
@@ -363,11 +363,11 @@ module Gl
 
       def gst_reconciliation
         gst_collected_account = Gl::Account.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           system_account: 'gst_collected'
         )
         gst_paid_account = Gl::Account.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           system_account: 'gst_paid'
         )
 
@@ -389,19 +389,19 @@ module Gl
       def depreciation_schedule
         # Get fixed asset accounts
         asset_accounts = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'asset',
           account_class: %w[fixed_asset equipment property]
         )
 
         accumulated_accounts = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'asset',
           account_class: 'accumulated_depreciation'
         )
 
         expense_accounts = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_type: 'expense',
           account_class: 'depreciation'
         )
@@ -446,12 +446,12 @@ module Gl
 
       def payg_summary_report
         wages_accounts = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_class: 'wages'
         )
 
         super_accounts = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_class: 'superannuation'
         )
 
@@ -490,7 +490,7 @@ module Gl
         prior_fy = "FY#{financial_year.delete('FY').to_i - 1}"
 
         current_pl = profit_loss_report
-        prior_package = self.class.new(corporate_company, prior_fy, options)
+        prior_package = self.class.new(corporate, prior_fy, options)
         prior_pl = prior_package.profit_loss
 
         {
@@ -641,7 +641,7 @@ module Gl
         Gl::LedgerLine
           .joins(:gl_journal_entry)
           .where(gl_account: account)
-          .where(gl_journal_entries: { corporate_company: corporate_company })
+          .where(gl_journal_entries: { corporate: corporate })
           .where('gl_journal_entries.entry_date >= ? AND gl_journal_entries.entry_date <= ?', fy_start_date, fy_end_date)
           .sum('debit - credit')
       end
@@ -650,7 +650,7 @@ module Gl
         Gl::LedgerLine
           .joins(:gl_journal_entry)
           .where(gl_account: account)
-          .where(gl_journal_entries: { corporate_company: corporate_company })
+          .where(gl_journal_entries: { corporate: corporate })
           .where('gl_journal_entries.entry_date >= ? AND gl_journal_entries.entry_date <= ?', start_date, end_date)
           .sum('debit - credit')
       end
@@ -671,10 +671,10 @@ module Gl
       end
 
       def calculate_current_year_earnings
-        revenue_total = Gl::Account.where(corporate_company: corporate_company, account_type: 'revenue')
+        revenue_total = Gl::Account.where(corporate: corporate, account_type: 'revenue')
           .sum { |a| account_fy_balance(a).abs }
 
-        expense_total = Gl::Account.where(corporate_company: corporate_company, account_type: 'expense')
+        expense_total = Gl::Account.where(corporate: corporate, account_type: 'expense')
           .sum { |a| account_fy_balance(a).abs }
 
         revenue_total - expense_total
@@ -684,7 +684,7 @@ module Gl
         # Find depreciation entries for this asset in the FY
         Gl::LedgerLine
           .joins(:gl_journal_entry)
-          .where(gl_journal_entries: { corporate_company: corporate_company, source_type: 'depreciation' })
+          .where(gl_journal_entries: { corporate: corporate, source_type: 'depreciation' })
           .where('gl_journal_entries.entry_date >= ? AND gl_journal_entries.entry_date <= ?', fy_start_date, fy_end_date)
           .where('description LIKE ?', "%#{asset_account.name}%")
           .sum(:credit)
@@ -701,7 +701,7 @@ module Gl
 
         # Quick ratio excludes inventory
         inventory = Gl::Account.where(
-          corporate_company: corporate_company,
+          corporate: corporate,
           account_class: 'inventory'
         ).sum { |a| account_closing_balance(a) }
 
@@ -710,7 +710,7 @@ module Gl
 
       def cover_page_data
         {
-          company_name: corporate_company.name,
+          company_name: corporate.name,
           financial_year: financial_year,
           period: "1 July #{fy_start_date.year} to 30 June #{fy_end_date.year}",
           generated_at: Time.current.strftime('%d %B %Y at %H:%M'),

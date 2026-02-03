@@ -12,16 +12,16 @@
 class RemoveConnectionStatusFromCorporateCompanyXeroConnections < ActiveRecord::Migration[8.0]
   def up
     # Remove the deprecated column
-    remove_column :corporate_company_xero_connections, :connection_status, :string
+    remove_column :corporate_xero_connections, :connection_status, :string
 
     # Also remove the deprecated last_sync_error column (status now in XeroHealthEvent)
-    remove_column :corporate_company_xero_connections, :last_sync_error, :text
+    remove_column :corporate_xero_connections, :last_sync_error, :text
   end
 
   def down
     # Re-add the columns if rolling back
-    add_column :corporate_company_xero_connections, :connection_status, :string, default: "pending"
-    add_column :corporate_company_xero_connections, :last_sync_error, :text
+    add_column :corporate_xero_connections, :connection_status, :string, default: "pending"
+    add_column :corporate_xero_connections, :last_sync_error, :text
 
     # Backfill status from XeroConnectionHealth
     CorporateCompanyXeroConnection.find_each do |conn|

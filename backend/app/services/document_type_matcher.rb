@@ -80,14 +80,14 @@ class DocumentTypeMatcher
   # Strategy 1: Exact name match (100% confidence)
   def try_exact_match(document_type)
     name_normalized = normalize(document_type.name)
-    display_normalized = normalize(document_type.display_name) if document_type.display_name.present?
+    ui_name_normalized = normalize(document_type.ui_name) if document_type.ui_name.present?
 
     if @normalized_filename.include?(name_normalized)
       return { confidence: 100, match_type: "exact", matched_term: document_type.name }
     end
 
-    if display_normalized && @normalized_filename.include?(display_normalized)
-      return { confidence: 100, match_type: "exact", matched_term: document_type.display_name }
+    if ui_name_normalized && @normalized_filename.include?(ui_name_normalized)
+      return { confidence: 100, match_type: "exact", matched_term: document_type.ui_name }
     end
 
     nil
@@ -144,7 +144,7 @@ class DocumentTypeMatcher
   def try_fuzzy_match(document_type)
     # Get words from document type name and aliases
     dt_words = extract_words(document_type.name)
-    dt_words += extract_words(document_type.display_name) if document_type.display_name.present?
+    dt_words += extract_words(document_type.ui_name) if document_type.ui_name.present?
     (document_type.aliases || []).each { |a| dt_words += extract_words(a) }
     dt_words = dt_words.uniq
 

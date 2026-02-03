@@ -91,6 +91,8 @@ export interface TokenBuilderProps {
   separator?: string;
   /** Read-only prefix value (inherited tokens shown greyed out before editable tokens) */
   prefixValue?: string;
+  /** Default value shown as hint when value is empty. Visual only - NOT persisted on save. */
+  defaultValue?: string;
 }
 
 // Token item with unique ID for drag-and-drop
@@ -207,6 +209,20 @@ function ReadOnlyToken({ item }: { item: TokenItem }) {
   );
 }
 
+// Default token (shown as hint when value is empty - NOT persisted)
+function DefaultToken({ item }: { item: TokenItem }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border border-dashed",
+        "bg-muted/30 text-muted-foreground/50 border-muted-foreground/20"
+      )}
+    >
+      <span className="truncate">{item.value}</span>
+    </span>
+  );
+}
+
 export function TokenBuilder({
   value,
   onChange,
@@ -224,6 +240,7 @@ export function TokenBuilder({
   defaultExpanded = false,
   separator = " ",
   prefixValue,
+  defaultValue,
 }: TokenBuilderProps) {
   const [customText, setCustomText] = React.useState("");
   const [activeId, setActiveId] = React.useState<string | null>(null);
@@ -281,6 +298,25 @@ export function TokenBuilder({
     }));
   }, [prefixValue, isFolderPathMode]);
 
+  // Parse default value into hint tokens (shown when value is empty)
+  const defaultTokens: TokenItem[] = React.useMemo(() => {
+    if (!defaultValue) return [];
+    const parsed = parseTemplate(defaultValue);
+
+    // In folder path mode, filter out separator-only text tokens
+    const filtered = isFolderPathMode
+      ? parsed.filter(token => !(token.type === "text" && token.value.trim() === "/"))
+      : parsed;
+
+    return filtered.map((token, index) => ({
+      ...token,
+      id: `default-${index}-${token.value}`,
+    }));
+  }, [defaultValue, isFolderPathMode]);
+
+  // Check if showing default (value empty but defaultValue set)
+  const isShowingDefault = !value && defaultValue && defaultTokens.length > 0;
+
   // Find active item for drag overlay
   const activeItem = React.useMemo(
     () => tokens.find((t) => t.id === activeId) || null,
@@ -318,13 +354,17 @@ export function TokenBuilder({
   // Remove a token at index
   const removeToken = (index: number) => {
     const newTokens = tokens.filter((_, i) => i !== index);
+    console.log('[TokenBuilder] removeToken:', { index, currentTokens: tokens.length, newTokens: newTokens.length, isFolderPathMode });
 
     // In folder path mode, rebuild by joining placeholders with separator
     if (isFolderPathMode) {
       const newValue = newTokens.map(t => t.value).join(separator);
+      console.log('[TokenBuilder] Calling onChange with:', JSON.stringify(newValue));
       onChange(newValue);
     } else {
-      onChange(buildTemplate(newTokens.map(({ type, value }) => ({ type, value }))));
+      const newValue = buildTemplate(newTokens.map(({ type, value }) => ({ type, value })));
+      console.log('[TokenBuilder] Calling onChange with:', JSON.stringify(newValue));
+      onChange(newValue);
     }
   };
 
@@ -396,8 +436,25 @@ export function TokenBuilder({
         )}
 
         {/* Editable tokens with drag-and-drop */}
-        {tokens.length === 0 && prefixTokens.length === 0 ? (
+        {tokens.length === 0 && prefixTokens.length === 0 && !isShowingDefault ? (
           <span className="text-sm text-muted-foreground">{placeholder}</span>
+        ) : tokens.length === 0 && isShowingDefault ? (
+          /* Show default tokens as hint when value is empty */
+          <div className="flex items-center gap-1.5">
+            {defaultTokens.map((token) => (
+              <DefaultToken key={token.id} item={token} />
+            ))}
+            <span className="text-xs text-muted-foreground/60 italic ml-1">(default)</span>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => onChange(defaultValue || "")}
+                className="ml-1 text-xs px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 transition-colors"
+              >
+                Use
+              </button>
+            )}
+          </div>
         ) : tokens.length === 0 ? (
           <span className="text-sm text-muted-foreground italic">+ add suffix</span>
         ) : (
@@ -429,11 +486,16 @@ export function TokenBuilder({
       </div>
 
       {/* Preview */}
-      {showPreview && value && (
+      {showPreview && (value || isShowingDefault) && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Preview:</span>
-          <span className="text-sm font-mono text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 px-2 py-0.5 rounded-none">
-            {preview}
+          <span className={cn(
+            "text-sm font-mono px-2 py-0.5 rounded-none",
+            isShowingDefault
+              ? "text-muted-foreground/60 bg-muted/30 italic"
+              : "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30"
+          )}>
+            {isShowingDefault ? resolveWithExamples(defaultValue || "", previewUseLong) : preview}
           </span>
         </div>
       )}

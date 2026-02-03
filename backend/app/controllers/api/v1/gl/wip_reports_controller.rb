@@ -6,12 +6,12 @@ module Api
       # Controller for Construction Work in Progress (WIP) reports
       # Tracks revenue recognition using percentage of completion method
       class WipReportsController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
         before_action :set_wip_report, only: [:show, :update, :destroy, :recalculate, :finalize, :archive]
 
         # GET /api/v1/gl/wip_reports
         def index
-          reports = @corporate_company.gl_wip_reports
+          reports = @corporate.gl_wip_reports
                                       .includes(:jobs, :created_by)
                                       .order(report_date: :desc)
 
@@ -38,7 +38,7 @@ module Api
         # POST /api/v1/gl/wip_reports
         def create
           @wip_report = ::Gl::WipReport.generate!(
-            @corporate_company,
+            @corporate,
             as_of: Date.parse(params[:report_date] || Date.current.to_s),
             user: current_user
           )
@@ -107,7 +107,7 @@ module Api
         # GET /api/v1/gl/wip_reports/summary
         def summary
           # Get latest finalized report
-          latest = @corporate_company.gl_wip_reports.final.order(report_date: :desc).first
+          latest = @corporate.gl_wip_reports.final.order(report_date: :desc).first
 
           return render json: { success: true, data: nil } unless latest
 
@@ -130,12 +130,12 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id])
         end
 
         def set_wip_report
-          @wip_report = @corporate_company.gl_wip_reports.find(params[:id])
+          @wip_report = @corporate.gl_wip_reports.find(params[:id])
         end
 
         def wip_report_params

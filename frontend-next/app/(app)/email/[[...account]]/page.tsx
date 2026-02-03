@@ -81,6 +81,7 @@ import {
   CheckCheck,
   ListTodo,
   UserPlus,
+  Printer,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1841,6 +1842,42 @@ To: ${email.to_emails?.join(", ") || ""}
     setComposeOpen(true);
   }, [selectedAccount, setComposeOpen]);
 
+  // Print handler - opens email in new window for printing
+  const handlePrint = useCallback((email: Email) => {
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>${email.subject || "Email"}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+            .header { border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
+            .field { margin: 5px 0; }
+            .label { font-weight: bold; color: #666; }
+            .body { line-height: 1.6; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2 style="margin: 0 0 10px 0;">${email.subject || "(No Subject)"}</h2>
+            <div class="field"><span class="label">From:</span> ${email.from_email || email.from_address || ""}</div>
+            <div class="field"><span class="label">To:</span> ${email.to_emails?.join(", ") || ""}</div>
+            ${email.cc_emails?.length ? `<div class="field"><span class="label">CC:</span> ${email.cc_emails.join(", ")}</div>` : ""}
+            <div class="field"><span class="label">Date:</span> ${email.received_at ? format(new Date(email.received_at), "PPpp") : ""}</div>
+          </div>
+          <div class="body">${email.body_html || email.body_text || ""}</div>
+        </body>
+        </html>
+      `;
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  }, []);
+
   // Create a task from email (same as forwarding to newtask@teeem.com.au)
   const handleCreateTaskFromEmail = async (email: Email) => {
     if (creatingTask) return;
@@ -1858,10 +1895,10 @@ To: ${email.to_emails?.join(", ") || ""}
       if (response.success && response.sm_task) {
         toast({
           title: "Task Created",
-          description: `Task "${response.sm_task.name}" created successfully`,
+          description: `Task "${response.sm_task.name}" created - opening for editing`,
         });
-        // Open Task Hub in a new tab (standalone tasks go to /tasks, not /sm-tasks)
-        window.open(`/tasks`, "_blank");
+        // Open the task detail page directly so user can rename, assign followers, etc.
+        window.open(`/sm_tasks/${response.sm_task.id}`, "_blank");
       } else {
         throw new Error(response.error || "Failed to create task");
       }
@@ -2564,6 +2601,15 @@ To: ${email.to_emails?.join(", ") || ""}
                 <Forward className="h-4 w-4 mr-2" />
                 Forward
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePrint(selectedEmail)}
+                title="Print email"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                Print
+              </Button>
 
               {/* Right-aligned actions: Contact + Task Creation */}
               <div className="ml-auto flex items-center gap-2">
@@ -2831,6 +2877,15 @@ To: ${email.to_emails?.join(", ") || ""}
                 >
                   <Forward className="h-4 w-4 mr-2" />
                   Forward
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePrint(popoutEmail)}
+                  title="Print email"
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print
                 </Button>
               </div>
 

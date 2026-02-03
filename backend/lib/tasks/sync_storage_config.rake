@@ -1,89 +1,44 @@
-# Sync Storage Configuration from staging to production
-# Run with: rails sync_storage_config:apply
+# SSoT (Feb 2026): warehouse_folders table is THE ONE source of truth
+# All path templates are stored in warehouse_folders.folder_path column
+# NO hardcoded defaults - to create new tenant, copy warehouse_folders from existing tenant
 
 namespace :sync_storage_config do
-  desc "Apply storage configuration from staging (Jan 2026)"
-  task apply: :environment do
-    ActsAsTenant.with_tenant(Organization.first) do
-      puts "Syncing StorageConfiguration..."
+  desc "Show current warehouse folder paths from database (SSoT)"
+  task show: :environment do
+    puts "SSoT: warehouse_folders table is THE ONE source of truth"
+    puts "\nWarehouse folder paths by type:"
 
-      sc = StorageConfiguration.instance
-
-      # SSoT: warehouse_folders paths (from staging Jan 2026)
-      warehouse_folders = {
-        "user" => "Teeem Docs/{{UserName}}/{{Folder}}",
-        "job" => "Jobs/{{JobCode}}/{{TabName}}",
-        "contact" => "Contacts/{{ContactName}}/{{TabName}}",
-        "corporate" => "Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-        "task" => "Tasks/{{TaskId}}/{{TaskName}}",
-        "task_attachments" => "Tasks/{{TaskId}}/{{TaskName}}/Attachments",
-        "task_responses" => "Tasks/{{TaskId}}/{{TaskName}}/Responses",
-        "case" => "Cases/{{CaseId}}",
-        "case_documents" => "Cases/{{CaseId}}/Documents",
-        "case_emails" => "Cases/{{CaseId}}/Emails",
-        "asset" => "Assets/{{AssetName}}",
-        "asset_expenses" => "Assets/{{AssetName}}/Expenses",
-        "asset_service" => "Assets/{{AssetName}}/Service",
-        "asset_readings" => "Assets/{{AssetName}}/Readings",
-        "compliance" => "Jobs/{{JobCode}}/Compliance",
-        "bank_statement" => "Corporate/{{CompanyGroup}}/{{CompanyCode}}/XERO/Bank",
-        "template" => "Templates/{{TemplateType}}",
-        "template_documents" => "Templates/Documents",
-        "template_bank_statements" => "Templates/Bank Statements",
-        "template_invoices" => "Templates/Invoices",
-        "template_email_signatures" => "Templates/Email Signatures",
-        "template_pdf_fields" => "Templates/PDF Fields",
-        "esignature" => "ESignatures/{{Year}}/{{Month}}",
-        "esignature_pending" => "ESignatures/Pending",
-        "esignature_completed" => "ESignatures/Completed",
-        "plan" => "Jobs/{{JobCode}}/Plans",
-        "email" => "Emails/{{Mailbox}}/{{Year}}/{{Month}}",
-        "email_body" => "Body",
-        "email_attachments" => "Emails/{{Mailbox}}/{{Year}}/{{Month}}",
-        "warehouse" => "Warehousing/{{TabName}}",
-        "chat" => "Warehousing/Chat/{{Context}}/{{Year}}/{{Month}}",
-        "bill_inbox" => "Warehousing/BillInbox/{{Status}}/{{Year}}/{{Month}}",
-        "notebook" => "Warehousing/Notes/{{UserName}}/{{NotebookName}}/{{Year}}",
-        "payment" => "Payments/{{Year}}/{{Month}}",
-        "financial" => "Financials/{{Year}}",
-        "payment_proof" => "Payments/{{Year}}/{{Month}}/Proof",
-        "corporate_entity" => "Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-        "payment_invoices" => "Payments/{{Year}}/{{Month}}/Invoices",
-        "financial_transactions" => "Financials/{{Year}}/{{Month}}"
-      }
-
-      sc.update!(warehouse_folders: warehouse_folders)
-      puts "  Updated #{warehouse_folders.keys.count} warehouse_folders paths"
-
-      # Fix EntityTab display names (match by tab_key since IDs may differ)
-      puts "\nFixing EntityTab display names..."
-
-      tab_fixes = {
-        "chat" => { display_name: "Chat" },
-        "bill-inbox" => { display_name: "Bill Inbox" }
-      }
-
-      tab_fixes.each do |tab_key, attrs|
-        tab = EntityTab.find_by(tab_key: tab_key)
-        if tab
-          old_name = tab.display_name
-          tab.update!(attrs)
-          puts "  #{tab_key}: #{old_name.inspect} -> #{attrs[:display_name].inspect}"
-        else
-          puts "  #{tab_key}: NOT FOUND (may need to create)"
-        end
-      end
-
-      puts "\nDone!"
+    WarehouseFolder.distinct.pluck(:warehouse_type).sort.each do |warehouse_type|
+      folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
+      folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
+      path = folder&.folder_path || "(not set)"
+      puts "  #{warehouse_type}: #{path}"
     end
   end
 
-  desc "Show current storage configuration"
-  task show: :environment do
-    ActsAsTenant.with_tenant(Organization.first) do
-      sc = StorageConfiguration.instance
-      puts "Current warehouse_folders:"
-      puts sc.warehouse_folders.to_yaml
+  desc "Copy warehouse_folders from one tenant to another (for new tenant setup)"
+  task :copy_to_tenant, [:source_tenant_id, :target_tenant_id] => :environment do |_, args|
+    source_id = args[:source_tenant_id]&.to_i
+    target_id = args[:target_tenant_id]&.to_i
+
+    unless source_id && target_id
+      puts "Usage: rails sync_storage_config:copy_to_tenant[source_tenant_id,target_tenant_id]"
+      exit 1
     end
+
+    source_folders = WarehouseFolder.where(tenant_id: [source_id, nil])
+    puts "Copying #{source_folders.count} warehouse_folders from tenant #{source_id} to #{target_id}..."
+
+    copied = 0
+    source_folders.find_each do |folder|
+      next if WarehouseFolder.exists?(tenant_id: target_id, warehouse_type: folder.warehouse_type, tab_key: folder.tab_key)
+
+      new_folder = folder.dup
+      new_folder.tenant_id = target_id
+      new_folder.save!
+      copied += 1
+    end
+
+    puts "Copied #{copied} warehouse_folders to tenant #{target_id}"
   end
 end

@@ -9,8 +9,7 @@ class EmailSnooze < ApplicationRecord
   belongs_to :email_warehouse, class_name: "SyncedEmail"
   belongs_to :user
 
-  # Alias for legacy column name (EmailWarehouse was renamed to SyncedEmail)
-  alias_attribute :synced_email_id, :email_warehouse_id
+  # Alias for legacy association name (EmailWarehouse was renamed to SyncedEmail)
   # Use alias_method for associations (alias_attribute only works for columns in Rails 8)
   alias_method :synced_email, :email_warehouse
   alias_method :synced_email=, :email_warehouse=
@@ -222,7 +221,7 @@ class EmailSnooze < ApplicationRecord
   def as_json(options = {})
     {
       id: id,
-      email_id: synced_email_id,
+      email_id: email_warehouse_id,
       user_id: user_id,
       snooze_until: snooze_until,
       is_active: is_active,

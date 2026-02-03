@@ -17,8 +17,8 @@ class RenameOnedriveToSharepoint < ActiveRecord::Migration[8.0]
     rename_column :company_documents, :expected_onedrive_path, :expected_sharepoint_path
 
     # Corporate Company Documents table
-    rename_column :corporate_company_documents, :onedrive_download_url, :sharepoint_download_url
-    rename_column :corporate_company_documents, :expected_onedrive_path, :expected_sharepoint_path
+    rename_column :corporate_documents, :onedrive_download_url, :sharepoint_download_url
+    rename_column :corporate_documents, :expected_onedrive_path, :expected_sharepoint_path
 
     # Job Documents table
     rename_column :job_documents, :onedrive_item_id, :sharepoint_item_id

@@ -197,8 +197,10 @@ export default function CloudflareSettingsPage() {
 
   const isConnected = credential?.status === 'connected';
 
+  // FRC (Feb 2026): Use flex layout for scroll compatibility
+  // Parent (ScrollablePage) uses flex - block layout (space-y) breaks scroll
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <BackButton fallbackHref="/settings/company/connections/integrations" />

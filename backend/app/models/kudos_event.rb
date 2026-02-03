@@ -33,7 +33,7 @@ class KudosEvent < ApplicationRecord
 
   # Class Methods
   def self.record_arrival(purchase_order, actual_time)
-    return unless purchase_order.contact&.subcontractor_account
+    return unless purchase_order.supplier&.subcontractor_account
 
     expected = purchase_order.scheduled_date
     return unless expected
@@ -42,7 +42,7 @@ class KudosEvent < ApplicationRecord
     points = is_on_time ? 50 : -25
 
     create!(
-      subcontractor_account: purchase_order.contact.subcontractor_account,
+      subcontractor_account: purchase_order.supplier.subcontractor_account,
       purchase_order: purchase_order,
       event_type: is_on_time ? "arrived_on_time" : "arrived_late",
       expected_time: expected,
@@ -52,7 +52,7 @@ class KudosEvent < ApplicationRecord
   end
 
   def self.record_completion(purchase_order, actual_time)
-    return unless purchase_order.contact&.subcontractor_account
+    return unless purchase_order.supplier&.subcontractor_account
 
     expected = purchase_order.expected_completion_date
     return unless expected
@@ -61,7 +61,7 @@ class KudosEvent < ApplicationRecord
     points = is_on_time ? 100 : -50
 
     create!(
-      subcontractor_account: purchase_order.contact.subcontractor_account,
+      subcontractor_account: purchase_order.supplier.subcontractor_account,
       purchase_order: purchase_order,
       event_type: is_on_time ? "completed_on_time" : "completed_late",
       expected_time: expected,

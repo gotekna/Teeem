@@ -217,7 +217,7 @@ module Gl
     def ai_categorize(statement_items)
       return if statement_items.empty?
 
-      company = reconciliation.corporate_company
+      company = reconciliation.corporate
       ai_service = AiTransactionCategorizationService.new(company)
 
       statement_items.each do |stmt|

@@ -18,7 +18,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
 
     has_many :sync_logs, class_name: 'Gl::SyncLog', foreign_key: 'gl_provider_credential_id', dependent: :destroy
 
@@ -37,7 +37,7 @@ module Gl
     validates :status, inclusion: { in: STATUSES }
     validates :last_sync_status, inclusion: { in: SYNC_STATUSES }, allow_blank: true
     validates :tenant_id, uniqueness: {
-      scope: [:corporate_company_id, :provider],
+      scope: [:corporate_id, :provider],
       message: 'already connected for this provider'
     }
 

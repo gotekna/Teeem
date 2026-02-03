@@ -305,7 +305,7 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
   // Render columns (without swimlanes)
   const renderColumns = () => (
     <div
-      className={cn("flex overflow-x-auto", gapClasses[columnGap])}
+      className={cn("flex h-full overflow-x-auto", gapClasses[columnGap])}
       style={{ minWidth: columns.length * minColumnWidth }}
     >
       {columnsWithState.map((column) => {
@@ -319,7 +319,7 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
         return (
           <div
             key={column.id}
-            className={isCollapsed ? "shrink-0" : "flex-1"}
+            className={isCollapsed ? "shrink-0 h-full" : "flex-1 h-full"}
             style={isCollapsed ? undefined : { minWidth: minColumnWidth }}
           >
             <KanbanColumn

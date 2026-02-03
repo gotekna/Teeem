@@ -7,14 +7,14 @@ module Gl
 
     STATUSES = %w[draft in_progress completed approved].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :created_by, class_name: "User", optional: true
     belongs_to :approved_by, class_name: "User", optional: true
 
     has_many :lines, class_name: "Gl::StockCountLine", foreign_key: "stock_count_id", dependent: :destroy
     accepts_nested_attributes_for :lines, allow_destroy: true
 
-    validates :reference, presence: true, uniqueness: { scope: :corporate_company_id }
+    validates :reference, presence: true, uniqueness: { scope: :corporate_id }
     validates :count_date, presence: true
     validates :status, presence: true, inclusion: { in: STATUSES }
 
@@ -66,7 +66,7 @@ module Gl
 
     # Add all active items to the count
     def populate_all_items!
-      corporate_company.gl_inventory_items.active.tracked.find_each do |item|
+      corporate.gl_inventory_items.active.tracked.find_each do |item|
         lines.find_or_create_by!(inventory_item: item) do |line|
           line.system_quantity = item.quantity_on_hand
         end
@@ -87,7 +87,7 @@ module Gl
       return if reference.present?
 
       year = Date.current.year.to_s[-2..]
-      sequence = self.class.where(corporate_company_id: corporate_company_id)
+      sequence = self.class.where(company_id: company_id)
                            .where("reference LIKE ?", "SC#{year}%")
                            .count + 1
 

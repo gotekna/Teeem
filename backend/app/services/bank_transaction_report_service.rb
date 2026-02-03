@@ -383,7 +383,7 @@ class BankTransactionReportService
 
     # Get company/account details
     if @bank_account_record.present?
-      company_name = @bank_account_record.corporate_company&.name || @bank_account_record.account_name || account_name
+      company_name = @bank_account_record.corporate&.name || @bank_account_record.account_name || account_name
       bsb = @bank_account_record.formatted_bsb || @bank_account_record.bsb || "-"
       account_number = @bank_account_record.account_number || "-"
     else
@@ -841,7 +841,7 @@ class BankTransactionReportService
 
     # Get company/account details
     if @bank_account_record.present?
-      company_name = @bank_account_record.corporate_company&.name || account_name
+      company_name = @bank_account_record.corporate&.name || account_name
       bsb = @bank_account_record.formatted_bsb || "-"
       account_number = @bank_account_record.account_number || "-"
     else
@@ -1051,7 +1051,7 @@ class BankTransactionReportService
 
     # Get company/account details
     if @bank_account_record.present?
-      company_name = @bank_account_record.corporate_company&.name || account_name
+      company_name = @bank_account_record.corporate&.name || account_name
       bsb = @bank_account_record.formatted_bsb || "-"
       account_number = @bank_account_record.account_number || "-"
     else
@@ -1302,7 +1302,7 @@ class BankTransactionReportService
 
     # Get company/account details
     if @bank_account_record.present?
-      company_name = @bank_account_record.corporate_company&.name || account_name
+      company_name = @bank_account_record.corporate&.name || account_name
       bsb = @bank_account_record.formatted_bsb || "-"
       account_number = @bank_account_record.account_number || "-"
     else
@@ -1551,7 +1551,7 @@ class BankTransactionReportService
 
     # Get company/account details from BankAccount record
     if @bank_account_record.present?
-      company_name = @bank_account_record.corporate_company&.name || @bank_account_record.account_name || account_name
+      company_name = @bank_account_record.corporate&.name || @bank_account_record.account_name || account_name
       bsb = @bank_account_record.formatted_bsb || @bank_account_record.bsb || "-"
       account_number = @bank_account_record.account_number || "-"
     else
@@ -1577,8 +1577,8 @@ class BankTransactionReportService
     # Get address from corporate company if available
     address_lines = []
 
-    if @bank_account_record&.corporate_company.present?
-      corp = @bank_account_record.corporate_company
+    if @bank_account_record&.corporate.present?
+      corp = @bank_account_record.corporate
       # Use registered office address or principal place of business
       full_address = corp.registered_office_address.presence || corp.principal_place_of_business.presence
       if full_address.present?

@@ -13,18 +13,18 @@ class RenameCorporateCompaniesToCorporates < ActiveRecord::Migration[8.0]
     rename_table :corporate_companies, :corporates
 
     # 2. Rename related tables (alphabetical order)
-    rename_table :corporate_company_activities, :corporate_activities
-    rename_table :corporate_company_compliance_items, :corporate_compliance_items
-    rename_table :corporate_company_directors, :corporate_directors
-    rename_table :corporate_company_loans, :corporate_loans
-    rename_table :corporate_company_minutes, :corporate_minutes
-    rename_table :corporate_company_monthly_pls, :corporate_monthly_pls
-    rename_table :corporate_company_shareholdings, :corporate_shareholdings
-    rename_table :corporate_company_xero_accounts, :corporate_xero_accounts
-    rename_table :corporate_company_xero_connections, :corporate_xero_connections
+    rename_table :corporate_activities, :corporate_activities
+    rename_table :corporate_compliance_items, :corporate_compliance_items
+    rename_table :corporate_directors, :corporate_directors
+    rename_table :corporate_loans, :corporate_loans
+    rename_table :corporate_minutes, :corporate_minutes
+    rename_table :corporate_monthly_pls, :corporate_monthly_pls
+    rename_table :corporate_shareholdings, :corporate_shareholdings
+    rename_table :corporate_xero_accounts, :corporate_xero_accounts
+    rename_table :corporate_xero_connections, :corporate_xero_connections
 
     # 3. Rename foreign key column in monthly_pls (uses corporate_company_id, not company_id)
-    rename_column :corporate_monthly_pls, :corporate_company_id, :corporate_id
+    rename_column :corporate_monthly_pls, :corporate_id, :corporate_id
 
     # 4. Rename foreign key column in xero_accounts (uses company_xero_connection_id)
     rename_column :corporate_xero_accounts, :company_xero_connection_id, :corporate_xero_connection_id

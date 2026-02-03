@@ -125,7 +125,7 @@ class PlanCombinerService
 
   def get_plans_folder_path
     raise CombineError, "Job has no storage folder" unless @job.storage_folder_path.present?
-    "#{@job.storage_folder_path}/#{EntityTab.folder_name_for('job', 'plans', '04 Plans')}"
+    "#{@job.storage_folder_path}/#{WarehouseFolder.folder_name_for('job', 'plans', '04 Plans')}"
   end
 
   def build_filename

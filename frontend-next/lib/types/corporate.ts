@@ -98,8 +98,7 @@ export interface Corporate {
   storage_folder_url?: string;
   current_directors?: Director[];
   pending_compliance_items?: ComplianceItem[];
-  company_group?: string | { name: string; code?: string };
-  corporate_group?: { id: number; name: string; code?: string };
+  company_group?: string | { id: number; name: string; code?: string };
   company_group_id?: number;
   group_name?: string;
   parent_company_id?: number;

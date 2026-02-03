@@ -76,9 +76,7 @@ module Api
         update_attrs[:root_path] = sp[:sharepoint_root_path] if sp.key?(:sharepoint_root_path)
         update_attrs[:scope_folders] = sp[:scope_folders] if sp.key?(:scope_folders)
 
-        if sp.key?(:file_name_templates)
-          update_attrs[:file_name_templates] = (storage_config.file_name_templates || {}).merge(sp[:file_name_templates].to_h)
-        end
+        # NOTE (Feb 2026): download_name_templates column REMOVED - now per-tab in warehouse_folders.download_name
         if sp.key?(:config_links)
           update_attrs[:config_links] = (storage_config.config_links || {}).merge(sp[:config_links].to_h).compact_blank
         end
@@ -231,7 +229,7 @@ module Api
           :s3_endpoint, :s3_bucket, :s3_region,
           :sharepoint_root_path,
           scope_folders: {},
-          file_name_templates: {},
+          # NOTE (Feb 2026): download_name_templates REMOVED - now per-tab in warehouse_folders.download_name
           config_links: {}
         )
       end

@@ -94,7 +94,7 @@ module StorableDocument
   end
 
   # Preview what the storage path would be
-  # SSoT: Passes self so the service can use EntityTab.storage_folder_path template
+  # SSoT: Passes self so the service can use WarehouseFolder.storage_folder_path template
   def preview_storage_path(tokens: {}, filename: nil)
     service = DocumentStorageService.new
     tokens = default_storage_tokens.merge(tokens)

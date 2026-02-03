@@ -4,7 +4,7 @@ class CreateGlWipReports < ActiveRecord::Migration[7.1]
   def change
     # WIP Report headers
     create_table :gl_wip_reports do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :created_by, foreign_key: { to_table: :users }
 
       t.string :reference, null: false
@@ -29,9 +29,9 @@ class CreateGlWipReports < ActiveRecord::Migration[7.1]
       t.timestamps
     end
 
-    add_index :gl_wip_reports, [:corporate_company_id, :report_date],
+    add_index :gl_wip_reports, [:corporate_id, :report_date],
               name: "idx_wip_reports_date"
-    add_index :gl_wip_reports, [:corporate_company_id, :reference],
+    add_index :gl_wip_reports, [:corporate_id, :reference],
               unique: true, name: "idx_wip_reports_ref"
 
     # WIP Report job details

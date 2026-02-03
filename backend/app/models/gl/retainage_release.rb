@@ -8,7 +8,7 @@ module Gl
     RELEASE_TYPES = %w[partial final milestone].freeze
     STATUSES = %w[pending approved invoiced paid].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :job
     belongs_to :progress_claim, class_name: "Gl::ProgressClaim", optional: true
     belongs_to :invoice, class_name: "Gl::Invoice", optional: true
@@ -28,7 +28,7 @@ module Gl
     # Request release
     def self.request!(job:, amount:, release_type: "partial", conditions: nil)
       create!(
-        corporate_company: job.corporate_company,
+        corporate: job.corporate,
         job: job,
         release_type: release_type,
         release_date: Date.current,
@@ -53,7 +53,7 @@ module Gl
       return invoice if invoice.present?
 
       new_invoice = Gl::Invoice.create!(
-        corporate_company: corporate_company,
+        corporate: corporate,
         contact: job.contact,
         job: job,
         invoice_type: "sales",

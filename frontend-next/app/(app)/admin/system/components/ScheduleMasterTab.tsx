@@ -677,7 +677,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // Load job EntityTabs for photo storage dropdown
   const loadJobEntityTabs = async () => {
     try {
-      const data = await api.get<{ success: boolean; data: { tabs: Array<{ id: number; display_name: string; tab_key: string }> } }>("/api/v1/entity_tabs?scope=job");
+      const data = await api.get<{ success: boolean; data: { tabs: Array<{ id: number; display_name: string; tab_key: string }> } }>("/api/v1/warehouse_folders?scope=job");
       if (data?.data?.tabs) {
         setJobEntityTabs(data.data.tabs);
       }

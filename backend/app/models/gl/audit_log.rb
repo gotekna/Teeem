@@ -8,7 +8,7 @@ module Gl
     ACTIONS = %w[create update delete approve reject void restore import].freeze
     SOURCES = %w[web api import system webhook].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :user, optional: true
     belongs_to :auditable, polymorphic: true, optional: true
 
@@ -25,7 +25,7 @@ module Gl
     # Log a change
     def self.log!(record, action:, user: nil, changes: nil, source: "web", ip: nil, notes: nil)
       create!(
-        corporate_company: record.try(:corporate_company) || Corporate.first,
+        corporate: record.try(:corporate) || Corporate.first,
         user: user,
         auditable_type: record.class.name,
         auditable_id: record.id,

@@ -7,7 +7,7 @@ module Gl
 
     STATUSES = %w[pending accepted rejected corrected].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :bank_transaction, class_name: "Gl::BankTransaction", optional: true
     belongs_to :predicted_category, class_name: "Gl::TransactionCategory", optional: true
     belongs_to :predicted_account, class_name: "Gl::Account", optional: true
@@ -79,7 +79,7 @@ module Gl
       confidence = best_match[1]
 
       create!(
-        corporate_company: company,
+        corporate: company,
         bank_transaction: transaction,
         predicted_category: category,
         predicted_account: category.default_account,
@@ -94,7 +94,7 @@ module Gl
 
     # Prediction accuracy stats
     def self.accuracy_stats(company)
-      predictions = where(corporate_company: company).where.not(status: "pending")
+      predictions = where(corporate: company).where.not(status: "pending")
 
       total = predictions.count
       return { accuracy: 0, total: 0 } if total.zero?

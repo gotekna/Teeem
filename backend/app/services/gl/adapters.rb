@@ -4,11 +4,11 @@ module Gl
   # Adapter factory for GL providers
   #
   # Usage:
-  #   adapter = Gl::Adapters.for(corporate_company)
+  #   adapter = Gl::Adapters.for(corporate)
   #   adapter.sync_accounts
   #
   #   # Or with a specific credential
-  #   adapter = Gl::Adapters.for(corporate_company, credential: my_credential)
+  #   adapter = Gl::Adapters.for(corporate, credential: my_credential)
   #
   module Adapters
     PROVIDER_ADAPTERS = {
@@ -24,42 +24,42 @@ module Gl
       # Otherwise, finds the first connected credential.
       # Falls back to Standalone if no credentials exist.
       #
-      def for(corporate_company, credential: nil)
-        credential ||= find_credential(corporate_company)
+      def for(corporate, credential: nil)
+        credential ||= find_credential(corporate)
 
         if credential.nil?
-          Standalone.new(corporate_company)
+          Standalone.new(corporate)
         else
-          adapter_class_for(credential.provider).new(corporate_company, credential: credential)
+          adapter_class_for(credential.provider).new(corporate, credential: credential)
         end
       end
 
       # Get adapter for a specific provider
-      def for_provider(corporate_company, provider, tenant_id: nil)
+      def for_provider(corporate, provider, tenant_id: nil)
         credential = Gl::ProviderCredential.find_by(
-          corporate_company: corporate_company,
+          corporate: corporate,
           provider: provider,
           tenant_id: tenant_id
         )
 
         if credential
-          adapter_class_for(provider).new(corporate_company, credential: credential)
+          adapter_class_for(provider).new(corporate, credential: credential)
         else
           raise ArgumentError, "No credential found for provider: #{provider}"
         end
       end
 
       # Get all connected adapters for a company
-      def all_for(corporate_company)
+      def all_for(corporate)
         credentials = Gl::ProviderCredential
-          .where(corporate_company: corporate_company)
+          .where(corporate: corporate)
           .connected
 
         if credentials.empty?
-          [Standalone.new(corporate_company)]
+          [Standalone.new(corporate)]
         else
           credentials.map do |credential|
-            adapter_class_for(credential.provider).new(corporate_company, credential: credential)
+            adapter_class_for(credential.provider).new(corporate, credential: credential)
           end
         end
       end
@@ -76,9 +76,9 @@ module Gl
 
       private
 
-      def find_credential(corporate_company)
+      def find_credential(corporate)
         Gl::ProviderCredential
-          .where(corporate_company: corporate_company)
+          .where(corporate: corporate)
           .connected
           .sync_enabled
           .first

@@ -5,7 +5,7 @@ class FinancialTransaction < ApplicationRecord
   # Associations
   belongs_to :job, optional: true
   belongs_to :user
-  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :corporate, foreign_key: "company_id"
   belongs_to :keepr_journal, class_name: "Keepr::Journal", optional: true
 
   # SSoT: Link to deduplicated file storage (Jan 2026)
@@ -38,7 +38,7 @@ class FinancialTransaction < ApplicationRecord
   scope :posted, -> { where(status: "posted") }
   scope :synced, -> { where(status: "synced") }
   scope :unsynced, -> { where.not(status: "synced") }
-  scope :for_job, ->(job_id) { where(construction_id: job_id) }
+  scope :for_job, ->(job_id) { where(job_id: job_id) }
   scope :for_company, ->(company_id) { where(company_id: company_id) }
   scope :in_date_range, ->(from_date, to_date) { where(transaction_date: from_date..to_date) }
   scope :recent, -> { order(transaction_date: :desc, created_at: :desc) }

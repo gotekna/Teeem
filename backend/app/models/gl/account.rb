@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :parent_account, class_name: 'Gl::Account', optional: true
 
     has_many :child_accounts, class_name: 'Gl::Account', foreign_key: :parent_account_id, dependent: :nullify
@@ -46,7 +46,7 @@ module Gl
     validates :system_account, inclusion: { in: SYSTEM_ACCOUNTS }, allow_blank: true
     validates :external_provider, inclusion: { in: PROVIDERS }, allow_blank: true
     validates :code, uniqueness: {
-      scope: [:corporate_company_id, :external_provider, :external_tenant_id],
+      scope: [:corporate_id, :external_provider, :external_tenant_id],
       message: 'must be unique per company and provider'
     }
 

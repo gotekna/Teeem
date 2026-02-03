@@ -16,10 +16,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Trash2,
   RefreshCw,
   ClipboardCopy,
   Check,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { clearAllCachedRecords } from "@/lib/records-cache";
@@ -193,11 +194,11 @@ function SidebarContent({
       clearAllCachedRecords();
       console.log("[ClearCache] Records cache cleared");
 
-      // 3. Clear app localStorage (but not auth)
+      // 3. Clear app localStorage (but not auth or sidebar preferences)
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && !key.includes("token") && !key.includes("auth") && !key.includes("session")) {
+        if (key && !key.includes("token") && !key.includes("auth") && !key.includes("session") && !key.includes("sidebar")) {
           keysToRemove.push(key);
         }
       }
@@ -363,13 +364,16 @@ function SidebarContent({
                     copiedProblems
                       ? "bg-green-600 text-white border-green-600"
                       : errorCount > 0
-                        ? "bg-red-100 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
+                        ? "text-black border-yellow-500 hover:opacity-80"
                         : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
                   )}
+                  style={!copiedProblems && errorCount > 0 ? {
+                    background: 'repeating-linear-gradient(45deg, #fbbf24, #fbbf24 4px, #000 4px, #000 8px)'
+                  } : undefined}
                   title="Copy errors & warnings"
                 >
-                  {copiedProblems ? <Check className="h-2.5 w-2.5" /> : <span>!</span>}
-                  <span>{errorCount}</span>
+                  {copiedProblems ? <Check className="h-2.5 w-2.5" /> : <span className={errorCount > 0 ? "text-white font-bold drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" : ""}>!</span>}
+                  <span className={errorCount > 0 && !copiedProblems ? "text-white font-bold drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" : ""}>{errorCount}</span>
                 </button>
                 <button
                   onClick={handleClearCache}
@@ -382,8 +386,7 @@ function SidebarContent({
                   )}
                   title="Clear cache + hard refresh"
                 >
-                  <Trash2 className="h-2.5 w-2.5" />
-                  <RefreshCw className="h-2 w-2" />
+                  <RefreshCw className="h-3 w-3" />
                 </button>
               </div>
             )}
@@ -411,13 +414,16 @@ function SidebarContent({
                     copiedProblems
                       ? "bg-green-600 text-white border-green-600"
                       : errorCount > 0
-                        ? "bg-red-100 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
+                        ? "text-black border-yellow-500 hover:opacity-80"
                         : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
                   )}
+                  style={!copiedProblems && errorCount > 0 ? {
+                    background: 'repeating-linear-gradient(45deg, #fbbf24, #fbbf24 4px, #000 4px, #000 8px)'
+                  } : undefined}
                   title="Copy errors & warnings"
                 >
-                  {copiedProblems ? <Check className="h-3 w-3" /> : <span>!</span>}
-                  <span>{errorCount}</span>
+                  {copiedProblems ? <Check className="h-3 w-3" /> : <span className={errorCount > 0 ? "text-white font-bold drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" : ""}>!</span>}
+                  <span className={errorCount > 0 && !copiedProblems ? "text-white font-bold drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" : ""}>{errorCount}</span>
                 </button>
                 <button
                   onClick={handleClearCache}
@@ -430,8 +436,7 @@ function SidebarContent({
                   )}
                   title="Clear cache + hard refresh"
                 >
-                  <Trash2 className="h-3 w-3" />
-                  <RefreshCw className="h-2.5 w-2.5" />
+                  <RefreshCw className="h-3.5 w-3.5" />
                 </button>
               </div>
             )}
@@ -443,7 +448,7 @@ function SidebarContent({
 }
 
 export function Sidebar() {
-  const { isExpanded, setIsExpanded } = useSidebar();
+  const { isExpanded, setIsExpanded, isPinned, setIsPinned } = useSidebar();
   const [persona, setPersona] = useState<Persona>('manager');
   const [badges, setBadges] = useState<Record<string, number>>({});
   const [emailAccountBadges, setEmailAccountBadges] = useState<Record<string, number>>({});
@@ -1031,18 +1036,45 @@ export function Sidebar() {
         )}
       >
         <SidebarContent {...sidebarContentProps} />
-        {/* Chevron Toggle Button */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-background border border-border rounded-full flex items-center justify-center hover:bg-secondary transition-colors shadow-sm z-10"
-          aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
-        >
-          {isExpanded ? (
-            <ChevronLeft className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
+        {/* Sidebar Toggle Buttons */}
+        <div className="absolute -right-3 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-10">
+          {/* Pin Button - only show when expanded */}
+          {isExpanded && (
+            <button
+              onClick={() => setIsPinned(!isPinned)}
+              className={cn(
+                "w-6 h-6 bg-background border border-border rounded-full flex items-center justify-center hover:bg-secondary transition-colors shadow-sm",
+                isPinned && "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+              )}
+              aria-label={isPinned ? "Unpin sidebar" : "Pin sidebar open"}
+              title={isPinned ? "Unpin sidebar" : "Pin sidebar open"}
+            >
+              {isPinned ? (
+                <Pin className="h-3 w-3" />
+              ) : (
+                <PinOff className="h-3 w-3" />
+              )}
+            </button>
           )}
-        </button>
+          {/* Chevron Toggle Button - disabled when pinned */}
+          <button
+            onClick={() => !isPinned && setIsExpanded(!isExpanded)}
+            className={cn(
+              "w-6 h-6 bg-background border border-border rounded-full flex items-center justify-center transition-colors shadow-sm",
+              isPinned
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:bg-secondary"
+            )}
+            aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            disabled={isPinned}
+          >
+            {isExpanded ? (
+              <ChevronLeft className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+        </div>
       </aside>
     </>
   );

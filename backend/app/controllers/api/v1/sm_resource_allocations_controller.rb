@@ -147,7 +147,7 @@ module Api
       def gantt_data
         construction_id = params[:job_id]
 
-        tasks = SmTask.where(construction_id: construction_id)
+        tasks = SmTask.where(job_id: construction_id)
           .includes(resource_allocations: :resource)
           .where.not(resource_allocations: { id: nil })
 

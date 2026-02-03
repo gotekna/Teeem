@@ -159,7 +159,7 @@ module Api
           document_type: usage.document_type ? {
             id: usage.document_type.id,
             name: usage.document_type.name,
-            display_name: usage.document_type.display_name
+            uiName: usage.document_type.ui_name
           } : nil,
           job: usage.job ? {
             id: usage.job.id,

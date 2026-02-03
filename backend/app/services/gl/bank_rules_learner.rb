@@ -15,8 +15,8 @@ module Gl
     # Confidence threshold for suggestions
     MIN_CONFIDENCE = 0.7
 
-    def initialize(corporate_company)
-      @company = corporate_company
+    def initialize(corporate)
+      @company = corporate
     end
 
     # Analyze recent categorizations and suggest rules
@@ -40,7 +40,7 @@ module Gl
     # Record a manual categorization for learning
     def record_categorization(bank_line:, account:, user: nil)
       BankRuleLearning.create!(
-        corporate_company: @company,
+        corporate: @company,
         bank_line_id: bank_line.id,
         gl_account: account,
         user: user,
@@ -55,7 +55,7 @@ module Gl
     # Auto-create a rule from a suggestion
     def create_rule_from_suggestion(suggestion)
       BankRule.create!(
-        corporate_company: @company,
+        corporate: @company,
         name: suggestion[:suggested_name],
         match_type: suggestion[:match_type],
         match_value: suggestion[:match_value],
@@ -69,12 +69,12 @@ module Gl
 
     # Get learning statistics
     def stats
-      learnings = BankRuleLearning.where(corporate_company: @company)
+      learnings = BankRuleLearning.where(corporate: @company)
 
       {
         total_learnings: learnings.count,
         unique_patterns: learnings.distinct.count(:transaction_description),
-        rules_created: BankRule.where(corporate_company: @company, auto_created: true).count,
+        rules_created: BankRule.where(corporate: @company, auto_created: true).count,
         top_accounts: top_learned_accounts,
         recent_learnings: learnings.order(created_at: :desc).limit(10).map { |l| learning_json(l) }
       }
@@ -85,7 +85,7 @@ module Gl
     def find_patterns
       # Group learnings by normalized description and account
       BankRuleLearning
-        .where(corporate_company: @company)
+        .where(corporate: @company)
         .where("learned_at > ?", 90.days.ago)
         .group(:transaction_description, :gl_account_id, :transaction_type)
         .having("COUNT(*) >= ?", MIN_PATTERN_COUNT)
@@ -103,7 +103,7 @@ module Gl
     end
 
     def rule_already_exists?(pattern)
-      BankRule.where(corporate_company: @company)
+      BankRule.where(corporate: @company)
               .where("LOWER(match_value) = LOWER(?)", pattern[:description])
               .exists?
     end
@@ -114,7 +114,7 @@ module Gl
 
       # Calculate confidence based on consistency
       total_for_desc = BankRuleLearning
-        .where(corporate_company: @company, transaction_description: pattern[:description])
+        .where(corporate: @company, transaction_description: pattern[:description])
         .count
 
       consistency = pattern[:count].to_f / total_for_desc
@@ -166,7 +166,7 @@ module Gl
 
     def sample_transactions(description)
       BankRuleLearning
-        .where(corporate_company: @company, transaction_description: description)
+        .where(corporate: @company, transaction_description: description)
         .order(created_at: :desc)
         .limit(5)
         .pluck(:transaction_amount, :learned_at)
@@ -175,7 +175,7 @@ module Gl
 
     def top_learned_accounts
       BankRuleLearning
-        .where(corporate_company: @company)
+        .where(corporate: @company)
         .joins(:gl_account)
         .group("gl_accounts.id", "gl_accounts.name", "gl_accounts.code")
         .order("COUNT(*) DESC")

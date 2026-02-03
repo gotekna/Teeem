@@ -17,12 +17,12 @@ module Gl
       "security" => "S"
     }.freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :created_by, class_name: "User", optional: true
 
     has_many :payees, class_name: "Gl::TparPayee", foreign_key: "tpar_report_id", dependent: :destroy
 
-    validates :financial_year, presence: true, uniqueness: { scope: :corporate_company_id }
+    validates :financial_year, presence: true, uniqueness: { scope: :corporate_id }
     validates :period_start, presence: true
     validates :period_end, presence: true
     validates :status, inclusion: { in: STATUSES }
@@ -38,7 +38,7 @@ module Gl
       period_end = Date.new(year_start + 1, 6, 30)
 
       report = create!(
-        corporate_company: company,
+        corporate: company,
         financial_year: financial_year,
         period_start: period_start,
         period_end: period_end,
@@ -55,7 +55,7 @@ module Gl
       # Find all contractors with TPAR payments
       payments = Gl::Invoice
                  .joins(:contact)
-                 .where(corporate_company: corporate_company)
+                 .where(corporate: corporate)
                  .where(invoice_type: "bill")
                  .where(status: "paid")
                  .where(date: period_start..period_end)

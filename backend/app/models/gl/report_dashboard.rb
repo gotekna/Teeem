@@ -5,7 +5,7 @@ module Gl
   class ReportDashboard < ApplicationRecord
     self.table_name = "gl_report_dashboards"
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :created_by, class_name: "User", optional: true
 
     has_many :widgets, class_name: "Gl::DashboardWidget", foreign_key: :dashboard_id, dependent: :destroy
@@ -18,7 +18,7 @@ module Gl
     # Make this the default dashboard
     def make_default!
       transaction do
-        corporate_company.gl_report_dashboards.update_all(is_default: false)
+        corporate.gl_report_dashboards.update_all(is_default: false)
         update!(is_default: true)
       end
     end

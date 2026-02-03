@@ -5,14 +5,14 @@ module Api
     module Gl
       # Controller for batch payments and ABA file generation
       class PaymentBatchesController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
         before_action :set_batch, only: [:show, :update, :destroy, :add_bills, :add_payment,
                                          :remove_item, :submit, :approve, :reject,
                                          :generate_aba, :download_aba, :process_batch, :complete]
 
         # GET /api/v1/gl/payment_batches
         def index
-          batches = @corporate_company.gl_payment_batches
+          batches = @corporate.gl_payment_batches
                                       .includes(:bank_account, :created_by, :approved_by)
                                       .order(created_at: :desc)
 
@@ -38,7 +38,7 @@ module Api
 
         # POST /api/v1/gl/payment_batches
         def create
-          @batch = @corporate_company.gl_payment_batches.build(batch_params)
+          @batch = @corporate.gl_payment_batches.build(batch_params)
           @batch.created_by = current_user
           @batch.payment_date ||= Date.current
 
@@ -171,7 +171,7 @@ module Api
 
         # GET /api/v1/gl/payment_batches/payable_bills
         def payable_bills
-          bills = @corporate_company.gl_invoices
+          bills = @corporate.gl_invoices
                                     .where(invoice_type: "bill", status: %w[approved submitted])
                                     .includes(:contact)
                                     .order(due_date: :asc)
@@ -196,7 +196,7 @@ module Api
 
         # GET /api/v1/gl/payment_batches/summary
         def summary
-          batches = @corporate_company.gl_payment_batches
+          batches = @corporate.gl_payment_batches
 
           render json: {
             success: true,
@@ -217,12 +217,12 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id])
         end
 
         def set_batch
-          @batch = @corporate_company.gl_payment_batches.find(params[:id])
+          @batch = @corporate.gl_payment_batches.find(params[:id])
         end
 
         def batch_params

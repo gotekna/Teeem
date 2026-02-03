@@ -162,7 +162,8 @@ sync
 sleep 1
 
 DEPLOY_DIR=$(mktemp -d)
-cp -r backend/* "$DEPLOY_DIR/"
+# FIX (Feb 2026): Use rsync to copy ALL files including hidden (.slugignore)
+rsync -a --exclude='.git' backend/ "$DEPLOY_DIR/"
 
 # VERIFICATION: Check that latest changes are in copied directory
 # Compare git HEAD with copied files to ensure Edit tool changes are included

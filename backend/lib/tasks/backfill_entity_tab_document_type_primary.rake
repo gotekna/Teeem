@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
-# Backfill is_primary flag for EntityTabDocumentType join records
+# Backfill is_primary flag for WarehouseFolderDocumentType join records
 # SSoT: The is_primary flag identifies which tab is the primary home for a DocumentType
-# First tab in the DocumentType's entity_tab_ids array = primary
+# First tab in the DocumentType's warehouse_folder_ids array = primary
 # All other tabs = secondary ("also show in")
 
-namespace :entity_tabs do
-  desc "Backfill is_primary flag on EntityTabDocumentType join records"
+namespace :warehouse_folders do
+  desc "Backfill is_primary flag on WarehouseFolderDocumentType join records"
   task backfill_is_primary: :environment do
-    puts "=== Backfilling is_primary flag for EntityTabDocumentType ==="
+    puts "=== Backfilling is_primary flag for WarehouseFolderDocumentType ==="
     puts ""
 
     updated_count = 0
@@ -16,7 +16,7 @@ namespace :entity_tabs do
     secondary_count = 0
 
     DocumentType.find_each do |dt|
-      joins = dt.entity_tab_document_types.to_a
+      joins = dt.warehouse_folder_document_types.to_a
       next if joins.empty?
 
       # First tab is primary, rest are secondary
@@ -47,15 +47,15 @@ namespace :entity_tabs do
     puts "Done!"
   end
 
-  desc "Report on EntityTabDocumentType is_primary status"
+  desc "Report on WarehouseFolderDocumentType is_primary status"
   task report_is_primary: :environment do
-    puts "=== EntityTabDocumentType is_primary Report ==="
+    puts "=== WarehouseFolderDocumentType is_primary Report ==="
     puts ""
 
-    total = EntityTabDocumentType.count
-    primary = EntityTabDocumentType.where(is_primary: true).count
-    secondary = EntityTabDocumentType.where(is_primary: false).count
-    null_primary = EntityTabDocumentType.where(is_primary: nil).count
+    total = WarehouseFolderDocumentType.count
+    primary = WarehouseFolderDocumentType.where(is_primary: true).count
+    secondary = WarehouseFolderDocumentType.where(is_primary: false).count
+    null_primary = WarehouseFolderDocumentType.where(is_primary: nil).count
 
     puts "Total join records: #{total}"
     puts "  - is_primary: true  = #{primary}"
@@ -64,7 +64,7 @@ namespace :entity_tabs do
     puts ""
 
     # Check for document types with multiple primaries (shouldn't happen)
-    multi_primary = EntityTabDocumentType
+    multi_primary = WarehouseFolderDocumentType
       .where(is_primary: true)
       .group(:document_type_id)
       .having("COUNT(*) > 1")

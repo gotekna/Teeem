@@ -157,7 +157,7 @@ class Form43CertificateGenerator
 
   def generate_filename
     # Use document type's naming pattern if available
-    if document_type.file_name.present?
+    if document_type.download_name.present?
       document_type.generate_proposed_name(job: job, file_extension: "pdf")
     else
       # Fallback filename - SSoT: use database column

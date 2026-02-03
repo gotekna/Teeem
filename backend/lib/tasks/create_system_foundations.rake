@@ -33,7 +33,7 @@ namespace :teeem do
       { model: "GoldStandardTable", icon: "⭐", feature: "System", name: "Gold Standard" },
       { model: "InspiringQuote", icon: "💬", feature: "System", name: "Inspiring Quotes" },
       { model: "ScheduleTemplate", icon: "📋", feature: "Schedule Manager", name: "Schedule Templates" },
-      # NOTE: FolderTemplate removed - SSoT: EntityTab is now the source of truth for folder structure
+      # NOTE: FolderTemplate removed - SSoT: WarehouseFolder is now the source of truth for folder structure
       # Added for TeeemTableView migration
       { model: "Lead", icon: "🎯", feature: "Sales", name: "Leads" },
       { model: "QuoteRequest", icon: "📝", feature: "Procurement", name: "Quote Requests" },

@@ -38,14 +38,14 @@ module HealthChecks
       )
     end
 
-    # Documents missing display name
-    def check_missing_display_name
-      docs = WarehouseDocument.where(display_name: [nil, ""])
+    # Documents missing UI name
+    def check_missing_ui_name
+      docs = WarehouseDocument.where(ui_name: [nil, ""])
                               .limit(100)
 
       build_result(
-        name: "Documents Missing Display Name",
-        description: "Documents without a display name set.",
+        name: "Documents Missing UI Name",
+        description: "Documents without a UI name set.",
         severity: :info,
         items: docs,
         icon: "document-text",
@@ -104,7 +104,7 @@ module HealthChecks
         elsif item.is_a?(WarehouseDocument)
           {
             id: item.id,
-            display: item.display_name || item.original_filename || "Document ##{item.id}",
+            display: item.ui_name || item.original_filename || "Document ##{item.id}",
             source_type: item.source_type,
             folder: item.folder,
             documentable_type: item.documentable_type,

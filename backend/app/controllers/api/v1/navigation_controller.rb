@@ -69,7 +69,7 @@ module Api
         end
 
         # MS365 accounts (from sync_config user_mailbox_access)
-        MicrosoftCredential.app_credentials.connected.each do |org_cred|
+        MicrosoftCredential.refreshable_app.each do |org_cred|
           user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
           configured_emails = user_mailbox_access[current_user.id.to_s] || []
 
@@ -206,7 +206,7 @@ module Api
 
         # MS365 org accounts (with user mailbox access)
         # SSoT: Use MicrosoftCredential for app credentials
-        MicrosoftCredential.app_credentials.connected.each do |org_cred|
+        MicrosoftCredential.refreshable_app.each do |org_cred|
           user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
           configured_emails = user_mailbox_access[current_user.id.to_s] || []
 

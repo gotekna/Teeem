@@ -2,7 +2,7 @@ class RenameOnedriveFileIdToSharepointFileId < ActiveRecord::Migration[8.0]
   def up
     # Rename column on both tables that have onedrive_file_id
     rename_column :company_documents, :onedrive_file_id, :sharepoint_file_id
-    rename_column :corporate_company_documents, :onedrive_file_id, :sharepoint_file_id
+    rename_column :corporate_documents, :onedrive_file_id, :sharepoint_file_id
 
     # Recreate mv_document_summary with new column name
     execute <<-SQL
@@ -36,7 +36,7 @@ class RenameOnedriveFileIdToSharepointFileId < ActiveRecord::Migration[8.0]
   def down
     # Rename back
     rename_column :company_documents, :sharepoint_file_id, :onedrive_file_id
-    rename_column :corporate_company_documents, :sharepoint_file_id, :onedrive_file_id
+    rename_column :corporate_documents, :sharepoint_file_id, :onedrive_file_id
 
     # Recreate mv_document_summary with old column name
     execute <<-SQL

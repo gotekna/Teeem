@@ -995,9 +995,10 @@ module Api
           end
 
           # Transfer Xero links
+          # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
           duplicate.xero_links.each do |xero_link|
             existing = primary.xero_links.find_by(
-              tenant_id: xero_link.tenant_id,
+              xero_org_id: xero_link.xero_org_id,
               source: xero_link.source
             )
 

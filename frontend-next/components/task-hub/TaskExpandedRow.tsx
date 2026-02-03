@@ -492,7 +492,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const isPOTask = !!task.purchase_order_id;
 
   // Check if task is linked to a job
-  const isJobLinked = task.construction_id > 0;
+  const isJobLinked = task.job_id > 0;
 
   // Check if current user is following this task
   const isCurrentUserFollowing = useMemo(() => {
@@ -1994,8 +1994,8 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
               label: job.name,
               client_name: job.client_name,
             } as ComboboxItem & { client_name?: string }))}
-            selectedItem={task.construction_id > 0 ? {
-              id: String(task.construction_id),
+            selectedItem={task.job_id > 0 ? {
+              id: String(task.job_id),
               label: task.job_name || 'Unknown Job'
             } : undefined}
             onSelect={(item) => handleJobChange(parseInt(item.id))}
@@ -2075,12 +2075,12 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
         )}
 
         {/* View Documents */}
-        {task.construction_id > 0 && (
+        {task.job_id > 0 && (
           <Button
             variant="outline"
             size="sm"
             className="h-7 text-xs gap-1"
-            onClick={() => window.open(`/jobs/${task.construction_id}/documents`, '_blank')}
+            onClick={() => window.open(`/jobs/${task.job_id}/documents`, '_blank')}
           >
             <FileText className="h-3 w-3" />
             Documents
@@ -2158,7 +2158,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                     attachments={pendingAttachments}
                     onAdd={handleAddAttachment}
                     onRemove={handleRemovePendingAttachment}
-                    jobId={task.construction_id > 0 ? String(task.construction_id) : undefined}
+                    jobId={task.job_id > 0 ? String(task.job_id) : undefined}
                   />
                 </div>
               )}

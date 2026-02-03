@@ -3,14 +3,14 @@
 module Api
   module V1
     class BillPaymentBatchesController < ApplicationController
-      before_action :set_corporate_company, only: [ :index, :create, :eligible_bills ]
+      before_action :set_corporate, only: [ :index, :create, :eligible_bills ]
       before_action :set_batch, only: [ :show, :update, :destroy, :add_bill, :remove_bill,
                                         :generate_aba, :download_aba, :submit_for_approval,
                                         :approve, :mark_submitted, :mark_completed ]
 
-      # GET /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches
+      # GET /api/v1/corporate_companies/:corporate_id/bill_payment_batches
       def index
-        batches = @corporate_company.bill_payment_batches
+        batches = @corporate.bill_payment_batches
                     .includes(:bank_account, :created_by, :approved_by)
                     .order(created_at: :desc)
 
@@ -31,7 +31,7 @@ module Api
         }
       end
 
-      # GET /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches/:id
+      # GET /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id
       def show
         render json: @batch.as_json(
           include: {
@@ -50,15 +50,15 @@ module Api
         )
       end
 
-      # POST /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches
+      # POST /api/v1/corporate_companies/:corporate_id/bill_payment_batches
       def create
-        bank_account = @corporate_company.bank_accounts.find(params[:bank_account_id])
+        bank_account = @corporate.bank_accounts.find(params[:bank_account_id])
 
         unless bank_account.is_ap_enabled
           return render json: { error: "Bank account is not enabled for AP payments" }, status: :unprocessable_entity
         end
 
-        @batch = @corporate_company.bill_payment_batches.build(
+        @batch = @corporate.bill_payment_batches.build(
           bank_account: bank_account,
           payment_date: params[:payment_date] || TenantSetting.today + 1.day,
           processing_description: params[:description],
@@ -72,7 +72,7 @@ module Api
         end
       end
 
-      # PATCH /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches/:id
+      # PATCH /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id
       def update
         if @batch.update(batch_params)
           render json: @batch
@@ -81,7 +81,7 @@ module Api
         end
       end
 
-      # DELETE /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches/:id
+      # DELETE /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id
       def destroy
         if @batch.cancel!
           render json: { success: true }
@@ -90,7 +90,7 @@ module Api
         end
       end
 
-      # POST /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches/:id/add_bill
+      # POST /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/add_bill
       def add_bill
         unless @batch.can_add_items?
           return render json: { error: "Cannot add items to batch in #{@batch.status} status" }, status: :unprocessable_entity
@@ -114,7 +114,7 @@ module Api
         render json: @batch.reload, include: [ :bill_payments ]
       end
 
-      # DELETE /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches/:id/remove_bill/:bill_payment_id
+      # DELETE /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/remove_bill/:bill_payment_id
       def remove_bill
         payment = @batch.bill_payments.find(params[:bill_payment_id])
 
@@ -129,7 +129,7 @@ module Api
         render json: @batch.reload
       end
 
-      # POST /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches/:id/generate_aba
+      # POST /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/generate_aba
       def generate_aba
         unless @batch.can_generate_file?
           return render json: { error: "Cannot generate file for batch in #{@batch.status} status" }, status: :unprocessable_entity
@@ -154,7 +154,7 @@ module Api
         render json: { error: e.message }, status: :unprocessable_entity
       end
 
-      # GET /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches/:id/download_aba
+      # GET /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/download_aba
       def download_aba
         unless @batch.aba_file_content.present?
           return render json: { error: "ABA file has not been generated" }, status: :not_found
@@ -166,7 +166,7 @@ module Api
                   disposition: "attachment"
       end
 
-      # POST /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches/:id/submit_for_approval
+      # POST /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/submit_for_approval
       def submit_for_approval
         if @batch.submit_for_approval!
           render json: @batch
@@ -175,7 +175,7 @@ module Api
         end
       end
 
-      # POST /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches/:id/approve
+      # POST /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/approve
       def approve
         unless @batch.can_approve?
           return render json: { error: "Cannot approve batch in #{@batch.status} status" }, status: :unprocessable_entity
@@ -185,7 +185,7 @@ module Api
         render json: @batch
       end
 
-      # POST /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches/:id/mark_submitted
+      # POST /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/mark_submitted
       def mark_submitted
         unless @batch.can_submit?
           return render json: { error: "Cannot mark as submitted in #{@batch.status} status" }, status: :unprocessable_entity
@@ -195,7 +195,7 @@ module Api
         render json: @batch
       end
 
-      # POST /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches/:id/mark_completed
+      # POST /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/mark_completed
       def mark_completed
         unless @batch.status == "submitted"
           return render json: { error: "Batch must be submitted before completing" }, status: :unprocessable_entity
@@ -211,10 +211,10 @@ module Api
         render json: @batch
       end
 
-      # GET /api/v1/corporate_companies/:corporate_company_id/bill_payment_batches/eligible_bills
+      # GET /api/v1/corporate_companies/:corporate_id/bill_payment_batches/eligible_bills
       def eligible_bills
         bills = BillInbox
-          .where(corporate_company: @corporate_company)
+          .where(corporate: @corporate)
           .where(status: "approved")
           .includes(:supplier, :matched_purchase_order)
 
@@ -239,23 +239,23 @@ module Api
 
       private
 
-      def set_corporate_company
+      def set_corporate
         # Support both nested (/companies/:id/bill_payment_batches) and top-level (/bill_payment_batches) routes
-        if params[:corporate_company_id].present?
-          @corporate_company = Corporate.find(params[:corporate_company_id])
+        if params[:corporate_id].present?
+          @corporate = Corporate.find(params[:corporate_id])
         elsif params[:company_id].present?
-          @corporate_company = Corporate.find(params[:company_id])
+          @corporate = Corporate.find(params[:company_id])
         else
           # For top-level route without company filter, use the user's default company
-          @corporate_company = current_user&.corporate_company || Corporate.first
+          @corporate = current_user&.corporate || Corporate.first
         end
       end
 
       def set_batch
         @batch = BillPaymentBatch.find(params[:id])
 
-        # Ensure batch belongs to the right company if corporate_company_id is provided
-        if params[:corporate_company_id].present? && @batch.corporate_company_id != params[:corporate_company_id].to_i
+        # Ensure batch belongs to the right company if company_id is provided
+        if params[:corporate_id].present? && @batch.corporate_id != params[:corporate_id].to_i
           raise ActiveRecord::RecordNotFound
         end
       end

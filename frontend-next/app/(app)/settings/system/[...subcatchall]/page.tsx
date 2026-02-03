@@ -3,7 +3,7 @@
  *
  * SSoT: Handles both:
  * 1. Tab navigation: /settings/system/navigation, /settings/system/agents, etc.
- * 2. Legacy redirects: /settings/system/entity-config/* → /admin/system/entity-config/*
+ * 2. Legacy redirects: /settings/system/warehouse-config/* → /admin/system/warehouse-config/*
  *
  * Tab navigation re-exports the parent page, allowing URL-based tab state.
  */
@@ -25,9 +25,10 @@ const VALID_TABS = [
   "inspiring-quotes",
 ];
 
-// Legacy paths that should redirect to admin
+// Paths that redirect to admin (where actual components live)
+// SSoT (Feb 2026): entity-config renamed to warehouse-config - NO LEGACY REDIRECTS (fail fast)
 const PATH_REDIRECTS: Record<string, string> = {
-  "entity-config": "/admin/system/entity-config",
+  "warehouse-config": "/admin/system/warehouse-config",
   "schedule-master": "/admin/system/schedule-master",
 };
 

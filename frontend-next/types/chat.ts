@@ -24,7 +24,7 @@ export interface ChatMessage {
 
   // Entity context (for saving/linking messages)
   saved_to_job?: boolean;
-  construction_id?: number;
+  job_id?: number;
   contact_id?: number;
   case_id?: number;
 

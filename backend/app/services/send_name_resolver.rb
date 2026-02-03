@@ -16,10 +16,10 @@
 #   filename = resolver.resolve_for_documentable(email_attachment)
 #
 # Template Priority:
-#   1. WarehouseDocument.send_name (if already set)
-#   2. DocumentType.file_name template (expanded with context)
+#   1. WarehouseDocument.download_name (if already set)
+#   2. DocumentType.download_name template (expanded with context)
 #   3. Source-specific defaults (e.g., "{Subject} - {Date}.eml" for emails)
-#   4. WarehouseDocument.display_name
+#   4. WarehouseDocument.ui_name
 #   5. Original filename
 #   6. "document" (last resort)
 #
@@ -49,9 +49,9 @@ class SendNameResolver
   def resolve(warehouse_document)
     return "document" unless warehouse_document
 
-    # 1. If send_name is already set and not a template, use it
-    if warehouse_document.send_name.present? && !warehouse_document.send_name.include?("{")
-      return sanitize_and_ensure_extension(warehouse_document.send_name, warehouse_document)
+    # 1. If download_name is already set and not a template, use it
+    if warehouse_document.download_name.present? && !warehouse_document.download_name.include?("{")
+      return sanitize_and_ensure_extension(warehouse_document.download_name, warehouse_document)
     end
 
     # 2. Try to expand template
@@ -68,7 +68,7 @@ class SendNameResolver
     end
 
     # 3. Fallback chain
-    fallback_name = warehouse_document.display_name.presence ||
+    fallback_name = warehouse_document.ui_name.presence ||
                     warehouse_document.original_filename.presence ||
                     warehouse_document.documentable&.try(:file_name).presence ||
                     "document"
@@ -90,7 +90,7 @@ class SendNameResolver
     context = build_context_from_documentable(documentable)
 
     # Get template
-    template = documentable.try(:document_type)&.file_name.presence ||
+    template = documentable.try(:document_type)&.download_name.presence ||
                DEFAULT_TEMPLATES[source_type]
 
     if template.present?
@@ -115,16 +115,16 @@ class SendNameResolver
   def resolve_template(warehouse_document)
     documentable = warehouse_document.documentable
 
-    # 1. Try send_name if it looks like a template
-    if warehouse_document.send_name.present? && warehouse_document.send_name.include?("{")
-      return warehouse_document.send_name
+    # 1. Try download_name if it looks like a template
+    if warehouse_document.download_name.present? && warehouse_document.download_name.include?("{")
+      return warehouse_document.download_name
     end
 
-    # 2. Try DocumentType.file_name template
+    # 2. Try DocumentType.download_name template
     # Note: Use document_type_record (association) not document_type (string column)
     doc_type_record = documentable.try(:document_type_record) || documentable.try(:document_type)
-    if doc_type_record.respond_to?(:file_name) && doc_type_record.file_name.present?
-      return doc_type_record.file_name
+    if doc_type_record.respond_to?(:download_name) && doc_type_record.download_name.present?
+      return doc_type_record.download_name
     end
 
     # 3. Use source-specific default template
@@ -137,7 +137,7 @@ class SendNameResolver
     context = build_context_from_documentable(documentable)
 
     # Add warehouse document specific values
-    context[:display_name] = warehouse_document.display_name
+    context[:ui_name] = warehouse_document.ui_name
     context[:original_filename] = warehouse_document.original_filename
     context[:folder] = warehouse_document.folder
 
@@ -184,11 +184,11 @@ class SendNameResolver
     end
 
     # Company context
-    if documentable.respond_to?(:corporate_company) && documentable.corporate_company
-      company = documentable.corporate_company
+    if documentable.respond_to?(:corporate) && documentable.corporate
+      company = documentable.corporate
       context[:company_code] = company.company_code || company.code
       context[:company_name] = company.name
-      context[:company_group] = company.company_group  # String column, not association
+      context[:company_group] = company.company_group&.name  # SSoT: use association
     end
 
     # Document type context

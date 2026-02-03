@@ -33,6 +33,7 @@ import {
   ChevronLeft,
   Type,
   Copy,
+  Search,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import {
@@ -97,9 +98,9 @@ const getBasePlaceholders = (scope: string): PlaceholderToken[] => {
 interface DocumentType {
   id: number;
   name: string;
-  display_name?: string;
+  ui_name?: string;
   abbreviation?: string;
-  file_name?: string;
+  download_name?: string;
   title_preview?: string;
   category?: string;
   folder?: string;
@@ -132,8 +133,8 @@ interface DocumentType {
 }
 
 export default function DocumentTypeDetailPage() {
-  // Use fullscreen layout mode - hides sidebar for focused editing
-  useSetLayoutMode("fullscreen");
+  // Use full-height layout mode for the detail form
+  useSetLayoutMode("full-height");
 
   const router = useRouter();
   const params = useParams();
@@ -145,9 +146,9 @@ export default function DocumentTypeDetailPage() {
   const [documentType, setDocumentType] = React.useState<DocumentType | null>(null);
   const [newExtension, setNewExtension] = React.useState("");
   const [draggedPlaceholder, setDraggedPlaceholder] = React.useState<string | null>(null);
-  const [draggedFromField, setDraggedFromField] = React.useState<"file_name" | "display_name" | "source" | null>(null);
+  const [draggedFromField, setDraggedFromField] = React.useState<"download_name" | "ui_name" | "source" | null>(null);
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
-  const [dropTarget, setDropTarget] = React.useState<{ field: "file_name" | "display_name"; index: number } | null>(null);
+  const [dropTarget, setDropTarget] = React.useState<{ field: "download_name" | "ui_name"; index: number } | null>(null);
   const [basicInfoExpanded, setBasicInfoExpanded] = React.useState(false);
   const [namingOrgExpanded, setNamingOrgExpanded] = React.useState(true);
   const [filingOrgExpanded, setFilingOrgExpanded] = React.useState(false);
@@ -163,9 +164,10 @@ export default function DocumentTypeDetailPage() {
   const [people, setPeople] = React.useState<Array<{id: number; name: string; code: string}>>([]);
   const [jobs, setJobs] = React.useState<Array<{id: number; name: string; code: string}>>([]);
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
+  const [tabSearch, setTabSearch] = React.useState(""); // Search filter for Primary/Secondary tab dropdowns
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
-  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // SSoT: EntityTab hierarchy for Additional Tabs
+  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number | string; name: string; tab_key?: string; storage_path?: string; isScope?: boolean; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children?: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }> }>>([]); // SSoT: Scope-first hierarchy (Corporate > Job > Contact > tabs)
   const [allTabsForLookup, setAllTabsForLookup] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // All tabs (any group) for name lookups
   const [xeroTabs, setXeroTabs] = React.useState<Array<{ id?: number; name: string; key: string; children: Array<{ id?: number; name: string; key: string }> }>>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
@@ -185,11 +187,13 @@ export default function DocumentTypeDetailPage() {
   const [renaming, setRenaming] = React.useState(false);
 
   // SSoT: THE ONE function for tab name resolution in this component
-  // Searches recursively through tabs and their children
+  // Searches recursively through scope > tab > subtab hierarchy
   const findTabName = React.useCallback((items: any[], id: number | undefined): string | null => {
     if (!id || !items?.length) return null;
     for (const item of items) {
-      if (item.id === id) return item.name;
+      // Compare with type coercion to handle string/number mismatches
+      // eslint-disable-next-line eqeqeq
+      if (item.id == id) return item.name || null;
       if (item.children?.length) {
         const found = findTabName(item.children, id);
         if (found) return found;
@@ -199,10 +203,14 @@ export default function DocumentTypeDetailPage() {
   }, []);
 
   // SSoT: Returns storage_path for display (shows full folder path)
+  // Searches recursively through scope > tab > subtab hierarchy
   const findTabPath = React.useCallback((items: any[], id: number | undefined): string | null => {
     if (!id || !items?.length) return null;
     for (const item of items) {
-      if (item.id === id) return item.storage_path || item.name;
+      // Compare with type coercion to handle string/number mismatches
+      // eslint-disable-next-line eqeqeq
+      if (item.id == id) return item.storage_path || item.name || null;
+      // Search in children (handles scope > tabs > subtabs structure)
       if (item.children?.length) {
         const found = findTabPath(item.children, id);
         if (found) return found;
@@ -222,15 +230,10 @@ export default function DocumentTypeDetailPage() {
   const urlTabId = searchParams.get("tab");
 
   // SSoT: Fetch available tabs from EntityTab API (replaces old document_folders)
+  // Groups tabs by scope (Corporate, Job, Contact) for hierarchical display
   React.useEffect(() => {
     const fetchFolders = async () => {
       try {
-        // Use document type scope (for existing) or URL scope (for new), default to corporate
-        const scope = (documentType?.scope || urlScope || "company").toLowerCase();
-        // Map document type scope to EntityTab scope
-        // SSoT: "contacts" maps to "contact" (Jan 2026 consolidation)
-        const entityTabScope = scope === "contacts" ? "contact" : scope === "job" || scope === "jobs" ? "job" : "corporate";
-
         // Build folder hierarchy recursively for all depths
         const mapTabRecursive = (tab: any): any => ({
           id: tab.id,
@@ -241,39 +244,53 @@ export default function DocumentTypeDetailPage() {
           children: (tab.children || []).map(mapTabRecursive)
         });
 
-        // Fetch EntityTabs for the appropriate scope, documents group
-        // SSoT: Xero tabs are children of the Xero tab in corporate scope
-        const data = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${entityTabScope}`);
-        let allDocumentTabs: any[] = [];
+        // SSoT: Fetch ALL tabs from ALL scopes and group by scope
+        // This creates a hierarchy: Corporate > tabs, Job > tabs, Contact > tabs
+        const scopeConfig = [
+          { apiScope: 'corporate', displayName: 'Corporate', icon: '🏢' },
+          { apiScope: 'job', displayName: 'Job', icon: '📋' },
+          { apiScope: 'contact', displayName: 'Contact', icon: '👤' }
+        ];
 
-        if (data.success && data.data?.tabs) {
-          // SSoT: Filter to tabs that can store documents (has_storage_folder: true OR tab_group: 'documents')
-          allDocumentTabs = data.data.tabs.filter((t: any) => t.has_storage_folder || t.tab_group === 'documents');
-        }
-
-        // SSoT: Fetch ALL tabs from ALL scopes for name lookups
-        // This ensures we can display tab names even for tabs from other scopes
-        // (e.g., a company doc type referencing a job or contact tab)
-        const allScopes = ['corporate', 'job', 'contact'];
+        const scopeGroupedHierarchy: any[] = [];
         const allTabsFromAllScopes: any[] = [];
-        for (const scope of allScopes) {
+
+        for (const scopeCfg of scopeConfig) {
           try {
-            const scopeData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${scope}`);
+            const scopeData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/warehouse_folders?scope=${scopeCfg.apiScope}`);
             if (scopeData.success && scopeData.data?.tabs) {
+              // Filter to tabs that can store documents
+              const documentTabs = scopeData.data.tabs.filter((t: any) => t.has_storage_folder || t.tab_group === 'documents');
+
+              // Add to all tabs for lookup
               allTabsFromAllScopes.push(...scopeData.data.tabs.map(mapTabRecursive));
+
+              // Create scope group with tabs as children
+              if (documentTabs.length > 0) {
+                scopeGroupedHierarchy.push({
+                  id: `scope-${scopeCfg.apiScope}`,
+                  name: scopeCfg.displayName,
+                  tab_key: scopeCfg.apiScope,
+                  storage_path: scopeCfg.displayName,
+                  isScope: true, // Flag to identify scope-level items
+                  children: documentTabs.map(mapTabRecursive)
+                });
+              }
             }
           } catch {
             // Continue if one scope fails
           }
         }
+
         setAllTabsForLookup(allTabsFromAllScopes);
 
-        if (allDocumentTabs.length > 0) {
-          const hierarchy = allDocumentTabs.map(mapTabRecursive);
-          setFolderHierarchy(hierarchy);
+        if (scopeGroupedHierarchy.length > 0) {
+          setFolderHierarchy(scopeGroupedHierarchy);
 
-          // Extract root tab names for Folder/Primary Tab dropdowns (keep sorted)
-          const rootNames = allDocumentTabs.map((t: any) => t.display_name).sort();
+          // Extract all tab names for folder options
+          const rootNames = scopeGroupedHierarchy
+            .flatMap(scope => scope.children.map((t: any) => t.name))
+            .sort();
           setFolderOptions(rootNames);
         } else {
           // Fallback to hard-coded list if API fails
@@ -291,41 +308,51 @@ export default function DocumentTypeDetailPage() {
   }, [urlScope, documentType?.scope]);
 
   // SSoT: Xero subtabs are now children of "Xero" tab in EntityTab system
-  // They're included in the main entity_tabs fetch above, so we extract them from folderHierarchy
+  // With scope-first hierarchy, Xero is under Corporate > Xero
   React.useEffect(() => {
-    // Find Xero in the folder hierarchy and use its children as Xero tabs
-    const xeroFolder = folderHierarchy.find((f: any) => f.name === "Xero" || f.tab_key === "xero");
-    if (xeroFolder) {
-      setXeroTabs([{
-        name: xeroFolder.name,
-        key: xeroFolder.tab_key || "xero",
-        id: xeroFolder.id,
-        children: (xeroFolder.children || []).map((c: any) => ({
-          name: c.name,
-          key: c.tab_key,
-          id: c.id
-        }))
-      }]);
+    // Find Corporate scope, then find Xero tab within it
+    const corporateScope = folderHierarchy.find((f: any) => f.tab_key === "corporate" || f.name === "Corporate");
+    if (corporateScope) {
+      const xeroFolder = (corporateScope.children || []).find((f: any) => f.name === "Xero" || f.tab_key === "xero");
+      if (xeroFolder) {
+        setXeroTabs([{
+          name: xeroFolder.name,
+          key: xeroFolder.tab_key || "xero",
+          id: xeroFolder.id,
+          children: (xeroFolder.children || []).map((c: any) => ({
+            name: c.name,
+            key: c.tab_key,
+            id: c.id
+          }))
+        }]);
+      }
     }
   }, [folderHierarchy]);
 
   // Pre-fill folder from URL tab ID once hierarchy is loaded
+  // Now handles scope-first hierarchy: Scope > Tab > SubTab
   React.useEffect(() => {
     if (!isNew || !urlTabId || folderHierarchy.length === 0) return;
 
     const tabIdNum = parseInt(urlTabId);
-    // Find the tab name from the hierarchy
-    for (const folder of folderHierarchy) {
-      if (folder.id === tabIdNum) {
-        setDocumentType(prev => prev ? { ...prev, folder: folder.name, primary_tab: folder.name } : prev);
-        return;
-      }
-      // Check children
-      for (const child of folder.children || []) {
-        if (child.id === tabIdNum) {
-          // For subtabs, set folder to parent and keep the child in entity_tab_ids
-          setDocumentType(prev => prev ? { ...prev, folder: folder.name, primary_tab: folder.name } : prev);
-          return;
+
+    // Search through scope > tab > subtab hierarchy
+    for (const scopeGroup of folderHierarchy) {
+      // Skip scope-level items (they're not selectable tabs)
+      if (scopeGroup.isScope) {
+        // Check tabs within this scope
+        for (const tab of scopeGroup.children || []) {
+          if (tab.id === tabIdNum) {
+            setDocumentType(prev => prev ? { ...prev, folder: tab.name, primary_tab: tab.name } : prev);
+            return;
+          }
+          // Check subtabs
+          for (const subtab of tab.children || []) {
+            if (subtab.id === tabIdNum) {
+              setDocumentType(prev => prev ? { ...prev, folder: tab.name, primary_tab: tab.name } : prev);
+              return;
+            }
+          }
         }
       }
     }
@@ -384,9 +411,9 @@ export default function DocumentTypeDetailPage() {
       setDocumentType({
         id: 0,
         name: "",
-        display_name: "",
+        ui_name: "",
         abbreviation: "",
-        file_name: getDefaultFileNameForScope(initialScope),
+        download_name: getDefaultFileNameForScope(initialScope),
         category: "", // Deprecated - not used, kept for backwards compatibility
         folder: "GENERAL",
         description: "",
@@ -495,7 +522,7 @@ export default function DocumentTypeDetailPage() {
     return getInitialsSSoT(name) || "";
   };
 
-  // Initialize checkbox state based on whether display_name exists
+  // Initialize checkbox state based on whether ui_name exists
   React.useEffect(() => {
     if (documentType) {
       // Always default all to true - user can uncheck if they want custom display name
@@ -505,7 +532,7 @@ export default function DocumentTypeDetailPage() {
     }
   }, [documentType?.id]); // Only run when document type changes
 
-  // Update file_name template when scope changes (only for new document types or empty file_name)
+  // Update download_name template when scope changes (only for new document types or empty download_name)
   React.useEffect(() => {
     if (documentType && isNew) {
       const scope = documentType.scope || "company";
@@ -518,15 +545,15 @@ export default function DocumentTypeDetailPage() {
         defaultTemplate = "{JobCode} {DocTypeCode} {FY}";
       }
 
-      // Only update if file_name is using a default template pattern
-      const currentFileName = documentType.file_name || "";
+      // Only update if download_name is using a default template pattern
+      const currentFileName = documentType.download_name || "";
       const isDefaultPattern = currentFileName === "" ||
         currentFileName === "{CompanyCode} {DocTypeCode} {FY}" ||
         currentFileName === "{PersonCode} {DocTypeCode} {FY}" ||
         currentFileName === "{JobCode} {DocTypeCode} {FY}";
 
       if (isDefaultPattern && currentFileName !== defaultTemplate) {
-        updateField("file_name", defaultTemplate);
+        updateField("download_name", defaultTemplate);
       }
     }
   }, [documentType?.scope, isNew]);
@@ -550,10 +577,10 @@ export default function DocumentTypeDetailPage() {
     return result;
   };
 
-  // Sync display_name with file_name when checkbox is checked
+  // Sync ui_name with download_name when checkbox is checked
   React.useEffect(() => {
     if (displayNameSameAsFileName && documentType) {
-      let fileName = documentType.file_name || "";
+      let fileName = documentType.download_name || "";
 
       if (showFullDescription) {
         // Convert short codes to long codes
@@ -576,9 +603,9 @@ export default function DocumentTypeDetailPage() {
         }
       }
 
-      updateField("display_name", fileName);
+      updateField("ui_name", fileName);
     }
-  }, [displayNameSameAsFileName, showFullDescription, removeCompanyName, documentType?.file_name, documentType?.scope]);
+  }, [displayNameSameAsFileName, showFullDescription, removeCompanyName, documentType?.download_name, documentType?.scope]);
 
   const loadDocumentType = async () => {
     try {
@@ -613,8 +640,8 @@ export default function DocumentTypeDetailPage() {
 
     // Validate: If {FormNumber} is used in templates, require at least one form number mapping
     const usesFormNumber =
-      documentType.file_name?.includes("{FormNumber}") ||
-      documentType.display_name?.includes("{FormNumber}");
+      documentType.download_name?.includes("{FormNumber}") ||
+      documentType.ui_name?.includes("{FormNumber}");
     const hasFormNumberMappings =
       documentType.form_number_mapping &&
       Object.keys(documentType.form_number_mapping).length > 0;
@@ -804,11 +831,11 @@ export default function DocumentTypeDetailPage() {
     updateField("file_extensions", currentExts.filter(e => e !== ext));
   };
 
-  // Check if a placeholder is used in file name or display name
+  // Check if a placeholder is used in download name or ui name
   const isPlaceholderUsed = (placeholderCode: string): boolean => {
-    const fileName = documentType?.file_name || "";
-    const displayName = documentType?.display_name || "";
-    return fileName.includes(placeholderCode) || displayName.includes(placeholderCode);
+    const fileName = documentType?.download_name || "";
+    const uiName = documentType?.ui_name || "";
+    return fileName.includes(placeholderCode) || uiName.includes(placeholderCode);
   };
 
   // Extract clean name from document type (removes code prefix like "AA - ")
@@ -987,7 +1014,7 @@ export default function DocumentTypeDetailPage() {
   // Handle drag start from field token
   const handleDragStartFromToken = (
     e: React.DragEvent,
-    field: "file_name" | "display_name",
+    field: "download_name" | "ui_name",
     index: number,
     placeholder: string
   ) => {
@@ -1009,7 +1036,7 @@ export default function DocumentTypeDetailPage() {
   // Handle drop to reorder within field
   const handleDropOnToken = (
     e: React.DragEvent,
-    field: "file_name" | "display_name",
+    field: "download_name" | "ui_name",
     dropIndex: number
   ) => {
     e.preventDefault();
@@ -1063,14 +1090,14 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Handle drag over on a specific position
-  const handleDragOverPosition = (e: React.DragEvent, field: "file_name" | "display_name", index: number) => {
+  const handleDragOverPosition = (e: React.DragEvent, field: "download_name" | "ui_name", index: number) => {
     e.preventDefault();
     e.stopPropagation();
     setDropTarget({ field, index });
   };
 
   // Handle drop on container (append to end)
-  const handleDropOnContainer = (e: React.DragEvent, field: "file_name" | "display_name") => {
+  const handleDropOnContainer = (e: React.DragEvent, field: "download_name" | "ui_name") => {
     e.preventDefault();
     if (!documentType) return;
 
@@ -1100,7 +1127,7 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Remove token from field
-  const removeToken = (field: "file_name" | "display_name", index: number) => {
+  const removeToken = (field: "download_name" | "ui_name", index: number) => {
     if (!documentType) return;
     const tokens = parseTokens(documentType[field] || "");
     const newTokens = tokens.filter((_, i) => i !== index);
@@ -1108,7 +1135,7 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Edit text token
-  const updateTextToken = (field: "file_name" | "display_name", index: number, newValue: string) => {
+  const updateTextToken = (field: "download_name" | "ui_name", index: number, newValue: string) => {
     if (!documentType) return;
     const tokens = parseTokens(documentType[field] || "");
     tokens[index] = { type: "text", value: newValue };
@@ -1116,7 +1143,7 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Click to insert at end
-  const handlePlaceholderClick = (placeholder: string, field: "file_name" | "display_name") => {
+  const handlePlaceholderClick = (placeholder: string, field: "download_name" | "ui_name") => {
     if (!documentType) return;
     const currentValue = documentType[field] || "";
     const newValue = currentValue + (currentValue ? " " : "") + placeholder;
@@ -1205,7 +1232,7 @@ export default function DocumentTypeDetailPage() {
   };
 
   // Add blank text token
-  const addBlankText = (field: "file_name" | "display_name") => {
+  const addBlankText = (field: "download_name" | "ui_name") => {
     if (!documentType) return;
     const tokens = parseTokens(documentType[field] || "");
     tokens.push({ type: "text", value: " " });
@@ -1376,6 +1403,15 @@ export default function DocumentTypeDetailPage() {
               <Label>Primary Tab</Label>
               {(() => {
                 const selectedId = documentType.entity_tab_ids?.[0];
+                const searchLower = tabSearch.toLowerCase();
+
+                // Filter function to check if tab/subtab matches search
+                const matchesSearch = (name: string, path?: string) => {
+                  if (!tabSearch) return true;
+                  return name.toLowerCase().includes(searchLower) ||
+                    (path && path.toLowerCase().includes(searchLower));
+                };
+
                 return (
                   <Select
                     value={selectedId?.toString() || ""}
@@ -1383,51 +1419,131 @@ export default function DocumentTypeDetailPage() {
                       const newId = parseInt(value);
                       const otherIds = (documentType.entity_tab_ids || []).slice(1);
                       updateField("entity_tab_ids", [newId, ...otherIds]);
+                      setTabSearch(""); // Clear search after selection
                     }}
                   >
                     <SelectTrigger className="text-sm">
                       <SelectValue placeholder="Select primary tab">
-                        {selectedId ? findTabPath(allTabsForLookup, selectedId) || findTabPath(folderHierarchy, selectedId) || `Tab ${selectedId}` : "Select..."}
+                        {(() => {
+                          if (!selectedId) return "Select...";
+                          // SSoT: First use entity_tabs from API (already loaded), then fall back to lookups
+                          const entityTab = documentType.entity_tabs?.find(t => t.id === selectedId || t.id == selectedId);
+                          return entityTab?.hierarchy_path || entityTab?.display_name ||
+                            findTabPath(allTabsForLookup, selectedId) || findTabPath(folderHierarchy, selectedId) || `Tab ${selectedId}`;
+                        })()}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {folderHierarchy.filter(p => p.id).map((parent, idx) => {
-                        const hasChildren = (parent.children || []).filter((c: any) => c.id).length > 0;
+                      {/* Search input */}
+                      <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
+                        <div className="flex items-center gap-2 px-2 py-1.5 border rounded-md bg-background">
+                          <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <input
+                            type="text"
+                            placeholder="Search tabs..."
+                            value={tabSearch}
+                            onChange={(e) => setTabSearch(e.target.value)}
+                            className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          />
+                          {tabSearch && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setTabSearch(""); }}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {/* SSoT: Scope-first hierarchy - Corporate > Job > Contact */}
+                      {folderHierarchy.map((scopeGroup, scopeIdx) => {
+                        // Scope groups are headers (not selectable)
+                        if (scopeGroup.isScope) {
+                          // Filter tabs within this scope based on search
+                          const filteredTabs = (scopeGroup.children || []).filter((tab: any) => {
+                            if (!tab.id) return false;
+                            // Check if tab matches
+                            if (matchesSearch(tab.name, tab.storage_path)) return true;
+                            // Check if any subtab matches
+                            return (tab.children || []).some((subtab: any) =>
+                              subtab.id && matchesSearch(subtab.name, subtab.storage_path)
+                            );
+                          });
 
-                        return (
-                          <SelectGroup key={parent.id}>
-                            {idx > 0 && <SelectSeparator />}
-                            {hasChildren ? (
-                              <>
-                                {/* Parent with children - show as group header */}
-                                <SelectLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
-                                  📁 {parent.name}
-                                </SelectLabel>
-                                {/* Children with tree connectors */}
-                                {(parent.children || []).filter((c: any) => c.id).map((child: any, childIdx: number, arr: any[]) => (
-                                  <SelectItem key={child.id} value={child.id.toString()} className="pl-4">
-                                    <span className="text-muted-foreground">
-                                      {childIdx === arr.length - 1 ? '└─' : '├─'}
-                                    </span>
-                                    <span className="ml-1">{child.name}</span>
-                                    {child.storage_path && child.storage_path !== child.name && (
-                                      <span className="text-xs text-muted-foreground ml-1">({child.storage_path})</span>
-                                    )}
-                                  </SelectItem>
-                                ))}
-                              </>
-                            ) : (
-                              /* Leaf folder - show directly as selectable */
-                              <SelectItem value={parent.id!.toString()}>
-                                <span>📁 {parent.name}</span>
-                                {parent.storage_path && parent.storage_path !== parent.name && (
-                                  <span className="text-xs text-muted-foreground ml-1">({parent.storage_path})</span>
-                                )}
-                              </SelectItem>
-                            )}
-                          </SelectGroup>
-                        );
+                          if (filteredTabs.length === 0) return null;
+
+                          return (
+                            <SelectGroup key={scopeGroup.tab_key}>
+                              {scopeIdx > 0 && <SelectSeparator />}
+                              {/* Scope header */}
+                              <SelectLabel className="text-xs font-semibold text-foreground px-2 py-1.5 bg-muted/50">
+                                {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
+                              </SelectLabel>
+                              {/* Tabs within this scope */}
+                              {filteredTabs.map((tab: any, tabIdx: number) => {
+                                const filteredSubTabs = (tab.children || []).filter((c: any) =>
+                                  c.id && matchesSearch(c.name, c.storage_path)
+                                );
+                                const hasSubTabs = filteredSubTabs.length > 0;
+
+                                if (hasSubTabs) {
+                                  // Tab with subtabs - show tab as header, subtabs as selectable
+                                  return (
+                                    <React.Fragment key={tab.id}>
+                                      <SelectLabel className="text-xs text-muted-foreground font-normal px-4 py-1">
+                                        📁 {tab.name}
+                                      </SelectLabel>
+                                      {filteredSubTabs.map((subtab: any, subtabIdx: number) => (
+                                        <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
+                                          <span className="text-muted-foreground">
+                                            {subtabIdx === filteredSubTabs.length - 1 ? '└─' : '├─'}
+                                          </span>
+                                          <span className="ml-1">{subtab.name}</span>
+                                          {subtab.storage_path && subtab.storage_path !== subtab.name && (
+                                            <span className="text-xs text-muted-foreground ml-1">({subtab.storage_path})</span>
+                                          )}
+                                        </SelectItem>
+                                      ))}
+                                    </React.Fragment>
+                                  );
+                                } else if (matchesSearch(tab.name, tab.storage_path)) {
+                                  // Leaf tab - directly selectable (only if it matches search)
+                                  return (
+                                    <SelectItem key={tab.id} value={tab.id.toString()} className="pl-4">
+                                      <span className="text-muted-foreground">
+                                        {tabIdx === filteredTabs.length - 1 ? '└─' : '├─'}
+                                      </span>
+                                      <span className="ml-1">📁 {tab.name}</span>
+                                      {tab.storage_path && tab.storage_path !== tab.name && (
+                                        <span className="text-xs text-muted-foreground ml-1">({tab.storage_path})</span>
+                                      )}
+                                    </SelectItem>
+                                  );
+                                }
+                                return null;
+                              })}
+                            </SelectGroup>
+                          );
+                        }
+                        return null;
                       })}
+                      {/* No results message */}
+                      {tabSearch && folderHierarchy.every(scopeGroup => {
+                        if (!scopeGroup.isScope) return true;
+                        return (scopeGroup.children || []).every((tab: any) => {
+                          if (!tab.id) return true;
+                          if (matchesSearch(tab.name, tab.storage_path)) return false;
+                          return !(tab.children || []).some((subtab: any) =>
+                            subtab.id && matchesSearch(subtab.name, subtab.storage_path)
+                          );
+                        });
+                      }) && (
+                        <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                          No tabs matching &quot;{tabSearch}&quot;
+                        </div>
+                      )}
                     </SelectContent>
                   </Select>
                 );
@@ -1440,10 +1556,19 @@ export default function DocumentTypeDetailPage() {
               {(() => {
                 const primaryId = documentType.entity_tab_ids?.[0];
                 const secondaryIds = (documentType.entity_tab_ids || []).slice(1);
+                const searchLower = tabSearch.toLowerCase();
+
+                // Filter function to check if tab/subtab matches search
+                const matchesSearch = (name: string, path?: string) => {
+                  if (!tabSearch) return true;
+                  return name.toLowerCase().includes(searchLower) ||
+                    (path && path.toLowerCase().includes(searchLower));
+                };
 
                 const addSecondaryTab = (tabId: number) => {
                   if (!secondaryIds.includes(tabId) && tabId !== primaryId) {
                     updateField("entity_tab_ids", [primaryId, ...secondaryIds, tabId].filter(Boolean));
+                    setTabSearch(""); // Clear search after selection
                   }
                 };
 
@@ -1451,22 +1576,31 @@ export default function DocumentTypeDetailPage() {
                   updateField("entity_tab_ids", [primaryId, ...secondaryIds.filter(id => id !== tabId)].filter(Boolean));
                 };
 
+                // Helper to check if a tab ID is available (not primary or already selected)
+                const isTabAvailable = (tabId: number) =>
+                  tabId !== primaryId && !secondaryIds.includes(tabId);
+
                 return (
                   <div className="space-y-2">
                     {/* Display selected secondary tabs */}
                     {secondaryIds.length > 0 && (
                       <div className="flex flex-wrap gap-1">
-                        {secondaryIds.map((tabId) => (
+                        {secondaryIds.map((tabId) => {
+                          // SSoT: First use entity_tabs from API (already loaded), then fall back to lookups
+                          const entityTab = documentType.entity_tabs?.find(t => t.id === tabId || t.id == tabId);
+                          const displayName = entityTab?.hierarchy_path || entityTab?.display_name ||
+                            findTabPath(allTabsForLookup, tabId) || findTabPath(folderHierarchy, tabId) || `Tab ${tabId}`;
+                          return (
                           <Badge key={tabId} variant="secondary" className="text-xs">
-                            {findTabPath(allTabsForLookup, tabId) || findTabPath(folderHierarchy, tabId) || `Tab ${tabId}`}
+                            {displayName}
                             <button onClick={() => removeSecondaryTab(tabId)} className="ml-1 hover:text-destructive">
                               <X className="h-2 w-2" />
                             </button>
                           </Badge>
-                        ))}
+                        );})}
                       </div>
                     )}
-                    {/* Add secondary tab dropdown */}
+                    {/* Add secondary tab dropdown - SSoT: Scope-first hierarchy with search */}
                     <Select
                       value=""
                       onValueChange={(value) => addSecondaryTab(parseInt(value))}
@@ -1475,45 +1609,119 @@ export default function DocumentTypeDetailPage() {
                         <SelectValue placeholder="+ Add tab..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {folderHierarchy.filter(p => p.id).map((parent, idx) => {
-                          // Get available children (not already selected)
-                          const availableChildren = (parent.children || []).filter((c: any) =>
-                            c.id && c.id !== primaryId && !secondaryIds.includes(c.id)
-                          );
-                          const parentAvailable = parent.id !== primaryId && !secondaryIds.includes(parent.id!);
-                          const hasChildren = availableChildren.length > 0;
+                        {/* Search input */}
+                        <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
+                          <div className="flex items-center gap-2 px-2 py-1.5 border rounded-md bg-background">
+                            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <input
+                              type="text"
+                              placeholder="Search tabs..."
+                              value={tabSearch}
+                              onChange={(e) => setTabSearch(e.target.value)}
+                              className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            />
+                            {tabSearch && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setTabSearch(""); }}
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {folderHierarchy.map((scopeGroup, scopeIdx) => {
+                          // Scope groups are headers (not selectable)
+                          if (scopeGroup.isScope) {
+                            // Filter to available tabs/subtabs within this scope that match search
+                            const availableTabs = (scopeGroup.children || []).filter((tab: any) => {
+                              // First check availability
+                              const tabIsAvailable = tab.id && isTabAvailable(tab.id);
+                              const hasAvailableSubTabs = (tab.children || []).some((subtab: any) =>
+                                subtab.id && isTabAvailable(subtab.id)
+                              );
+                              if (!tabIsAvailable && !hasAvailableSubTabs) return false;
 
-                          // Skip group if nothing available
-                          if (!parentAvailable && !hasChildren) return null;
+                              // Then check search match
+                              if (matchesSearch(tab.name, tab.storage_path)) return true;
+                              return (tab.children || []).some((subtab: any) =>
+                                subtab.id && isTabAvailable(subtab.id) && matchesSearch(subtab.name, subtab.storage_path)
+                              );
+                            });
 
-                          return (
-                            <SelectGroup key={parent.id}>
-                              {idx > 0 && <SelectSeparator />}
-                              {hasChildren ? (
-                                <>
-                                  {/* Parent with children - show as group header */}
-                                  <SelectLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
-                                    📁 {parent.name}
-                                  </SelectLabel>
-                                  {/* Children with tree connectors */}
-                                  {availableChildren.map((child: any, childIdx: number) => (
-                                    <SelectItem key={child.id} value={child.id.toString()} className="pl-4">
-                                      <span className="text-muted-foreground">
-                                        {childIdx === availableChildren.length - 1 ? '└─' : '├─'}
-                                      </span>
-                                      <span className="ml-1">{child.name}</span>
-                                    </SelectItem>
-                                  ))}
-                                </>
-                              ) : parentAvailable ? (
-                                /* Leaf folder - show directly as selectable */
-                                <SelectItem value={parent.id!.toString()}>
-                                  <span>📁 {parent.name}</span>
-                                </SelectItem>
-                              ) : null}
-                            </SelectGroup>
-                          );
+                            if (availableTabs.length === 0) return null;
+
+                            return (
+                              <SelectGroup key={scopeGroup.tab_key}>
+                                {scopeIdx > 0 && <SelectSeparator />}
+                                {/* Scope header */}
+                                <SelectLabel className="text-xs font-semibold text-foreground px-2 py-1.5 bg-muted/50">
+                                  {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
+                                </SelectLabel>
+                                {/* Tabs within this scope */}
+                                {availableTabs.map((tab: any, tabIdx: number) => {
+                                  const availableSubTabs = (tab.children || []).filter((c: any) =>
+                                    c.id && isTabAvailable(c.id) && matchesSearch(c.name, c.storage_path)
+                                  );
+                                  const hasSubTabs = availableSubTabs.length > 0;
+                                  const tabAvailable = tab.id && isTabAvailable(tab.id) && matchesSearch(tab.name, tab.storage_path);
+
+                                  if (hasSubTabs) {
+                                    // Tab with subtabs - show tab as header (if available), subtabs as selectable
+                                    return (
+                                      <React.Fragment key={tab.id}>
+                                        <SelectLabel className="text-xs text-muted-foreground font-normal px-4 py-1">
+                                          📁 {tab.name}
+                                        </SelectLabel>
+                                        {availableSubTabs.map((subtab: any, subtabIdx: number) => (
+                                          <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
+                                            <span className="text-muted-foreground">
+                                              {subtabIdx === availableSubTabs.length - 1 ? '└─' : '├─'}
+                                            </span>
+                                            <span className="ml-1">{subtab.name}</span>
+                                          </SelectItem>
+                                        ))}
+                                      </React.Fragment>
+                                    );
+                                  } else if (tabAvailable) {
+                                    // Leaf tab - directly selectable
+                                    return (
+                                      <SelectItem key={tab.id} value={tab.id.toString()} className="pl-4">
+                                        <span className="text-muted-foreground">
+                                          {tabIdx === availableTabs.length - 1 ? '└─' : '├─'}
+                                        </span>
+                                        <span className="ml-1">📁 {tab.name}</span>
+                                      </SelectItem>
+                                    );
+                                  }
+                                  return null;
+                                })}
+                              </SelectGroup>
+                            );
+                          }
+                          return null;
                         })}
+                        {/* No results message */}
+                        {tabSearch && folderHierarchy.every(scopeGroup => {
+                          if (!scopeGroup.isScope) return true;
+                          return (scopeGroup.children || []).every((tab: any) => {
+                            const tabIsAvailable = tab.id && isTabAvailable(tab.id);
+                            const hasAvailableSubTabs = (tab.children || []).some((subtab: any) =>
+                              subtab.id && isTabAvailable(subtab.id)
+                            );
+                            if (!tabIsAvailable && !hasAvailableSubTabs) return true;
+                            if (matchesSearch(tab.name, tab.storage_path)) return false;
+                            return !(tab.children || []).some((subtab: any) =>
+                              subtab.id && isTabAvailable(subtab.id) && matchesSearch(subtab.name, subtab.storage_path)
+                            );
+                          });
+                        }) && (
+                          <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                            No tabs matching &quot;{tabSearch}&quot;
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                     <p className="text-[10px] text-muted-foreground">
@@ -1731,45 +1939,45 @@ export default function DocumentTypeDetailPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="file_name">Download Name</Label>
+                <Label htmlFor="download_name">Document Download Name</Label>
             <div
               className={cn(
                 "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
                 draggedFromField && "border-dashed border-2 border-green-400 bg-green-50/50"
               )}
               onDrop={(e) => {
-                const tokens = parseTokens(documentType.file_name || "");
-                handleDropOnToken(e, "file_name", tokens.length);
+                const tokens = parseTokens(documentType.download_name || "");
+                handleDropOnToken(e, "download_name", tokens.length);
               }}
               onDragOver={(e) => {
                 handleDragOver(e);
-                const tokens = parseTokens(documentType.file_name || "");
-                setDropTarget({ field: "file_name", index: tokens.length });
+                const tokens = parseTokens(documentType.download_name || "");
+                setDropTarget({ field: "download_name", index: tokens.length });
               }}
               onDragLeave={() => setDropTarget(null)}
             >
-              {parseTokens(documentType.file_name || "").map((token, index) => (
+              {parseTokens(documentType.download_name || "").map((token, index) => (
                 <React.Fragment key={index}>
                   {/* Drop indicator line - only shows at current drop position */}
-                  {dropTarget?.field === "file_name" && dropTarget.index === index && (
+                  {dropTarget?.field === "download_name" && dropTarget.index === index && (
                     <div className="w-1 h-10 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
                   )}
                   <div
                     draggable={token.type === "placeholder"}
                     onDragStart={(e) =>
                       token.type === "placeholder" &&
-                      handleDragStartFromToken(e, "file_name", index, token.value)
+                      handleDragStartFromToken(e, "download_name", index, token.value)
                     }
                     onDragEnd={handleDragEnd}
                     onDrop={(e) => {
                       e.stopPropagation();
-                      handleDropOnToken(e, "file_name", index);
+                      handleDropOnToken(e, "download_name", index);
                     }}
-                    onDragOver={(e) => handleDragOverPosition(e, "file_name", index)}
+                    onDragOver={(e) => handleDragOverPosition(e, "download_name", index)}
                     className={cn(
                       token.type === "placeholder" &&
                         "cursor-grab active:cursor-grabbing transition-all",
-                      draggedFromField === "file_name" &&
+                      draggedFromField === "download_name" &&
                         draggedIndex === index &&
                         "opacity-30"
                     )}
@@ -1791,7 +1999,7 @@ export default function DocumentTypeDetailPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            removeToken("file_name", index);
+                            removeToken("download_name", index);
                           }}
                           className="ml-2 hover:text-destructive"
                         >
@@ -1808,12 +2016,12 @@ export default function DocumentTypeDetailPage() {
                         <input
                           type="text"
                           value={token.value}
-                          onChange={(e) => updateTextToken("file_name", index, e.target.value)}
+                          onChange={(e) => updateTextToken("download_name", index, e.target.value)}
                           className="bg-transparent border-none outline-none w-auto min-w-[20px] max-w-[100px] text-xs font-mono"
                           style={{ width: `${Math.max(20, token.value.length * 7)}px` }}
                           placeholder="text"
                           ref={(el) => {
-                            if (el && focusTextToken?.field === "file_name" && focusTextToken?.index === index) {
+                            if (el && focusTextToken?.field === "download_name" && focusTextToken?.index === index) {
                               el.focus();
                               el.select();
                               setFocusTextToken(null);
@@ -1823,7 +2031,7 @@ export default function DocumentTypeDetailPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            removeToken("file_name", index);
+                            removeToken("download_name", index);
                           }}
                           className="ml-1 hover:text-destructive text-muted-foreground"
                         >
@@ -1835,15 +2043,15 @@ export default function DocumentTypeDetailPage() {
                 </React.Fragment>
               ))}
               {/* Drop indicator at end */}
-              {dropTarget?.field === "file_name" && dropTarget.index === parseTokens(documentType.file_name || "").length && (
+              {dropTarget?.field === "download_name" && dropTarget.index === parseTokens(documentType.download_name || "").length && (
                 <div className="w-1 h-10 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
               )}
-              {parseTokens(documentType.file_name || "").length === 0 && !draggedFromField && (
+              {parseTokens(documentType.download_name || "").length === 0 && !draggedFromField && (
                 <span className="text-sm text-muted-foreground">
                   Drag placeholders here to build your file name template
                 </span>
               )}
-              {parseTokens(documentType.file_name || "").length === 0 && draggedFromField && (
+              {parseTokens(documentType.download_name || "").length === 0 && draggedFromField && (
                 <span className="text-sm text-green-600 dark:text-green-400 font-medium animate-pulse">
                   Drop here!
                 </span>
@@ -1851,9 +2059,9 @@ export default function DocumentTypeDetailPage() {
             </div>
             <div className="flex items-center gap-2 text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
               <span className="text-muted-foreground font-medium">Preview:</span>
-              {documentType.file_name && generatePreview(documentType.file_name) ? (
+              {documentType.download_name && generatePreview(documentType.download_name) ? (
                 <span className="font-semibold text-green-700 dark:text-green-400 font-mono">
-                  {generatePreview(documentType.file_name)}
+                  {generatePreview(documentType.download_name)}
                 </span>
               ) : (
                 <span className="text-muted-foreground italic">
@@ -1868,7 +2076,7 @@ export default function DocumentTypeDetailPage() {
 
           <div className="space-y-2">
             <div className="flex items-start justify-between gap-4">
-              <Label htmlFor="display_name">Display Name</Label>
+              <Label htmlFor="ui_name">Document UI Name</Label>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
@@ -1894,7 +2102,7 @@ export default function DocumentTypeDetailPage() {
                       htmlFor="same-as-file-name"
                       className="text-sm font-normal cursor-pointer text-muted-foreground"
                     >
-                      Same as Download Name
+                      Same as Document Download Name
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1921,39 +2129,39 @@ export default function DocumentTypeDetailPage() {
               )}
               onDrop={(e) => {
                 if (displayNameSameAsFileName) return;
-                const tokens = parseTokens(documentType.display_name || "");
-                handleDropOnToken(e, "display_name", tokens.length);
+                const tokens = parseTokens(documentType.ui_name || "");
+                handleDropOnToken(e, "ui_name", tokens.length);
               }}
               onDragOver={(e) => {
                 if (displayNameSameAsFileName) return;
                 handleDragOver(e);
-                const tokens = parseTokens(documentType.display_name || "");
-                setDropTarget({ field: "display_name", index: tokens.length });
+                const tokens = parseTokens(documentType.ui_name || "");
+                setDropTarget({ field: "ui_name", index: tokens.length });
               }}
               onDragLeave={() => setDropTarget(null)}
             >
-              {parseTokens(documentType.display_name || "").map((token, index) => (
+              {parseTokens(documentType.ui_name || "").map((token, index) => (
                 <React.Fragment key={index}>
                   {/* Drop indicator line - only shows at current drop position */}
-                  {dropTarget?.field === "display_name" && dropTarget.index === index && (
+                  {dropTarget?.field === "ui_name" && dropTarget.index === index && (
                     <div className="w-1 h-10 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
                   )}
                   <div
                     draggable={token.type === "placeholder"}
                     onDragStart={(e) =>
                       token.type === "placeholder" &&
-                      handleDragStartFromToken(e, "display_name", index, token.value)
+                      handleDragStartFromToken(e, "ui_name", index, token.value)
                     }
                     onDragEnd={handleDragEnd}
                     onDrop={(e) => {
                       e.stopPropagation();
-                      handleDropOnToken(e, "display_name", index);
+                      handleDropOnToken(e, "ui_name", index);
                     }}
-                    onDragOver={(e) => handleDragOverPosition(e, "display_name", index)}
+                    onDragOver={(e) => handleDragOverPosition(e, "ui_name", index)}
                     className={cn(
                       token.type === "placeholder" &&
                         "cursor-grab active:cursor-grabbing transition-all",
-                      draggedFromField === "display_name" &&
+                      draggedFromField === "ui_name" &&
                         draggedIndex === index &&
                         "opacity-30"
                     )}
@@ -1975,7 +2183,7 @@ export default function DocumentTypeDetailPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            removeToken("display_name", index);
+                            removeToken("ui_name", index);
                           }}
                           className="ml-2 hover:text-destructive"
                         >
@@ -1992,12 +2200,12 @@ export default function DocumentTypeDetailPage() {
                         <input
                           type="text"
                           value={token.value}
-                          onChange={(e) => updateTextToken("display_name", index, e.target.value)}
+                          onChange={(e) => updateTextToken("ui_name", index, e.target.value)}
                           className="bg-transparent border-none outline-none w-auto min-w-[20px] max-w-[100px] text-xs font-mono"
                           style={{ width: `${Math.max(20, token.value.length * 7)}px` }}
                           placeholder="text"
                           ref={(el) => {
-                            if (el && focusTextToken?.field === "display_name" && focusTextToken?.index === index) {
+                            if (el && focusTextToken?.field === "ui_name" && focusTextToken?.index === index) {
                               el.focus();
                               el.select();
                               setFocusTextToken(null);
@@ -2007,7 +2215,7 @@ export default function DocumentTypeDetailPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            removeToken("display_name", index);
+                            removeToken("ui_name", index);
                           }}
                           className="ml-1 hover:text-destructive text-muted-foreground"
                         >
@@ -2019,15 +2227,15 @@ export default function DocumentTypeDetailPage() {
                 </React.Fragment>
               ))}
               {/* Drop indicator at end */}
-              {dropTarget?.field === "display_name" && dropTarget.index === parseTokens(documentType.display_name || "").length && (
+              {dropTarget?.field === "ui_name" && dropTarget.index === parseTokens(documentType.ui_name || "").length && (
                 <div className="w-1 h-10 bg-blue-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50" />
               )}
-              {parseTokens(documentType.display_name || "").length === 0 && !draggedFromField && (
+              {parseTokens(documentType.ui_name || "").length === 0 && !draggedFromField && (
                 <span className="text-sm text-muted-foreground">
                   Optional: Leave empty to use Document Type Name, or drag placeholders here
                 </span>
               )}
-              {parseTokens(documentType.display_name || "").length === 0 && !displayNameSameAsFileName && draggedFromField && (
+              {parseTokens(documentType.ui_name || "").length === 0 && !displayNameSameAsFileName && draggedFromField && (
                 <span className="text-sm text-green-600 dark:text-green-400 font-medium animate-pulse">
                   Drop here!
                 </span>
@@ -2035,9 +2243,9 @@ export default function DocumentTypeDetailPage() {
             </div>
             <div className="flex items-center gap-2 text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
               <span className="text-muted-foreground font-medium">Preview:</span>
-              {documentType.display_name && generatePreview(documentType.display_name, showFullDescription) ? (
+              {documentType.ui_name && generatePreview(documentType.ui_name, showFullDescription) ? (
                 <span className="font-semibold text-green-700 dark:text-green-400 font-mono">
-                  {generatePreview(documentType.display_name, showFullDescription)}
+                  {generatePreview(documentType.ui_name, showFullDescription)}
                 </span>
               ) : (
                 <span className="text-muted-foreground italic">
@@ -2047,7 +2255,7 @@ export default function DocumentTypeDetailPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               {displayNameSameAsFileName
-                ? "Display Name matches Download Name automatically"
+                ? "Document UI Name matches Document Download Name automatically"
                 : "Drag placeholders to customize"}
             </p>
           </div>

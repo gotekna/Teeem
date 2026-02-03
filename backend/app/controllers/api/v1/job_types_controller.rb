@@ -1,12 +1,11 @@
 module Api
   module V1
     class JobTypesController < ApplicationController
-      skip_before_action :authorize_request, only: [ :index ]
       before_action :set_job_type, only: [ :show, :update, :destroy, :set_schedule_template ]
 
       # GET /api/v1/job_types
       def index
-        @job_types = JobType.unscoped.order(:position)
+        @job_types = JobType.order(:position)
 
         render json: {
           success: true,
@@ -25,7 +24,7 @@ module Api
       # POST /api/v1/job_types
       def create
         # Set position to be last if not provided
-        position = job_type_params[:position] || (JobType.unscoped.maximum(:position) || 0) + 1
+        position = job_type_params[:position] || (JobType.maximum(:position) || 0) + 1
 
         @job_type = JobType.new(job_type_params.merge(position: position))
 
@@ -71,7 +70,7 @@ module Api
 
         render json: {
           success: true,
-          job_types: JobType.unscoped.order(:position).map { |jt| job_type_json(jt) }
+          job_types: JobType.order(:position).map { |jt| job_type_json(jt) }
         }
       end
 

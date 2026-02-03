@@ -7,7 +7,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     # ASSOCIATIONS
     # ═══════════════════════════════════════════════════════════════
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :gl_period, class_name: 'Gl::Period'
     belongs_to :job, optional: true
     belongs_to :created_by, class_name: 'User', optional: true
@@ -122,7 +122,7 @@ module Gl
 
       year = entry_date&.year || Date.current.year
       last_entry = self.class
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where('entry_number LIKE ?', "JE-#{year}-%")
         .order(entry_number: :desc)
         .first

@@ -49,7 +49,7 @@ class AssetInsurance < ApplicationRecord
   end
 
   def create_activity
-    asset.company.corporate_company_activities.create!(
+    asset.company.corporate_activities.create!(
       activity_type: "asset_insurance_added",
       description: "Insurance added for #{asset.display_name}",
       metadata: {
@@ -66,7 +66,7 @@ class AssetInsurance < ApplicationRecord
   def create_update_activity
     return unless saved_changes.any?
 
-    asset.company.corporate_company_activities.create!(
+    asset.company.corporate_activities.create!(
       activity_type: "asset_insurance_updated",
       description: "Insurance updated for #{asset.display_name}",
       metadata: {

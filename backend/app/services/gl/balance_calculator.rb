@@ -9,7 +9,7 @@ module Gl
   # - YTD balances
   #
   # Usage:
-  #   calculator = Gl::BalanceCalculator.new(corporate_company, provider: 'xero', tenant_id: 'abc')
+  #   calculator = Gl::BalanceCalculator.new(corporate, provider: 'xero', tenant_id: 'abc')
   #
   #   # Calculate all balances for a period
   #   calculator.calculate_period(period)
@@ -21,7 +21,7 @@ module Gl
   #   calculator.running_balance(account, from_date, to_date)
   #
   class BalanceCalculator
-    attr_reader :corporate_company, :external_provider, :external_tenant_id
+    attr_reader :corporate, :external_provider, :external_tenant_id
 
     # Account types with debit normal balance
     DEBIT_NORMAL_TYPES = %w[asset expense].freeze
@@ -29,8 +29,8 @@ module Gl
     # Account types with credit normal balance
     CREDIT_NORMAL_TYPES = %w[liability equity revenue].freeze
 
-    def initialize(corporate_company, provider: nil, tenant_id: nil)
-      @corporate_company = corporate_company
+    def initialize(corporate, provider: nil, tenant_id: nil)
+      @corporate = corporate
       @external_provider = provider
       @external_tenant_id = tenant_id
     end
@@ -58,7 +58,7 @@ module Gl
     # Calculate balances for all periods in a financial year
     def calculate_financial_year(financial_year)
       periods = Gl::Period
-        .where(corporate_company: corporate_company)
+        .where(corporate: corporate)
         .where(financial_year: financial_year)
         .order(:period_start)
 
@@ -317,7 +317,7 @@ module Gl
 
     def calculate_ytd(account, period)
       fy_start = Gl::Period
-        .where(corporate_company: corporate_company, financial_year: period.financial_year)
+        .where(corporate: corporate, financial_year: period.financial_year)
         .order(:period_start)
         .first
         &.period_start
@@ -341,7 +341,7 @@ module Gl
 
     def opening_balance_at(account, as_of_date)
       # Find the FY for this date
-      period = Gl::Period.for_date(corporate_company, as_of_date,
+      period = Gl::Period.for_date(corporate, as_of_date,
         provider: external_provider, tenant_id: external_tenant_id)
 
       return 0 unless period
@@ -354,7 +354,7 @@ module Gl
 
       # Add all movements before the start date
       fy_start = Gl::Period
-        .where(corporate_company: corporate_company, financial_year: period.financial_year)
+        .where(corporate: corporate, financial_year: period.financial_year)
         .order(:period_start)
         .first
         &.period_start
@@ -399,7 +399,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
 
     def scoped_accounts
-      scope = Gl::Account.where(corporate_company: corporate_company)
+      scope = Gl::Account.where(corporate: corporate)
       if external_provider
         scope = scope.where(external_provider: external_provider, external_tenant_id: external_tenant_id)
       else
@@ -409,7 +409,7 @@ module Gl
     end
 
     def scoped_periods
-      scope = Gl::Period.where(corporate_company: corporate_company)
+      scope = Gl::Period.where(corporate: corporate)
       if external_provider
         scope = scope.where(external_provider: external_provider, external_tenant_id: external_tenant_id)
       else

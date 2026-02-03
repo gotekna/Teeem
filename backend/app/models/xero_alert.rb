@@ -2,7 +2,7 @@
 
 class XeroAlert < ApplicationRecord
   belongs_to :xero_credential, optional: true
-  belongs_to :corporate_company, optional: true
+  belongs_to :corporate, foreign_key: "company_id", optional: true
   belongs_to :dismissed_by, class_name: "User", optional: true
 
   # Alert types
@@ -28,7 +28,7 @@ class XeroAlert < ApplicationRecord
   scope :auto_resolved, -> { where(auto_resolved: true) }
   scope :critical, -> { where(severity: "critical") }
   scope :warnings, -> { where(severity: "warning") }
-  scope :for_company, ->(company_id) { where(corporate_company_id: company_id) }
+  scope :for_company, ->(company_id) { where(company_id: company_id) }
   scope :for_credential, ->(credential_id) { where(xero_credential_id: credential_id) }
   scope :recent, -> { order(created_at: :desc) }
 
@@ -72,7 +72,7 @@ class XeroAlert < ApplicationRecord
   def self.create_disconnected!(credential, message: nil)
     create!(
       xero_credential: credential,
-      corporate_company: find_company_for_credential(credential),
+      corporate: find_company_for_credential(credential),
       alert_type: "disconnected",
       severity: "critical",
       title: "Xero connection disconnected",
@@ -84,7 +84,7 @@ class XeroAlert < ApplicationRecord
   def self.create_token_expired!(credential, message: nil)
     create!(
       xero_credential: credential,
-      corporate_company: find_company_for_credential(credential),
+      corporate: find_company_for_credential(credential),
       alert_type: "token_expired",
       severity: "warning",
       title: "Xero connection issue",
@@ -96,7 +96,7 @@ class XeroAlert < ApplicationRecord
   def self.create_sync_stale!(credential, sync_type:, last_synced_at:)
     create!(
       xero_credential: credential,
-      corporate_company: find_company_for_credential(credential),
+      corporate: find_company_for_credential(credential),
       alert_type: "sync_stale",
       severity: "warning",
       title: "#{sync_type.humanize} sync is behind",

@@ -293,8 +293,9 @@ class ContactAutoMergeService
         # Transfer Xero links (contact_external_links)
         source.xero_links.each do |xero_link|
           # Check if target already has a link to this Xero tenant
+          # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
           existing = target.xero_links.find_by(
-            tenant_id: xero_link.tenant_id,
+            xero_org_id: xero_link.xero_org_id,
             source: xero_link.source
           )
 

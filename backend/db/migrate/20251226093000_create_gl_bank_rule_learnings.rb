@@ -3,7 +3,7 @@
 class CreateGlBankRuleLearnings < ActiveRecord::Migration[7.1]
   def change
     create_table :gl_bank_rule_learnings do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :gl_account, null: false, foreign_key: { to_table: :gl_accounts }
       t.references :user, foreign_key: true
       t.bigint :bank_line_id
@@ -19,7 +19,7 @@ class CreateGlBankRuleLearnings < ActiveRecord::Migration[7.1]
 
     # Index for finding patterns
     add_index :gl_bank_rule_learnings,
-              [:corporate_company_id, :transaction_description, :gl_account_id],
+              [:corporate_id, :transaction_description, :gl_account_id],
               name: "idx_bank_rule_learnings_pattern"
 
     # Add auto_created flag to reconciliation_rules if not exists

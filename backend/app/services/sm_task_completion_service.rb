@@ -98,7 +98,7 @@ class SmTaskCompletionService
     # Check if required document is attached
     if task.requires_document_to_complete? && task.completion_document_type_id.present?
       unless has_required_document_attached?
-        doc_type_name = task.completion_document_type&.display_name || task.completion_document_type&.name || "required document"
+        doc_type_name = task.completion_document_type&.ui_name || task.completion_document_type&.name || "required document"
         @errors << "Cannot complete task: #{doc_type_name} must be attached"
         return false
       end
@@ -212,8 +212,8 @@ class SmTaskCompletionService
       start_date = calendar.add_working_days(task.completed_at.to_date, lag_days)
 
       spawned = create_spawned_task(
-        name: "GET - #{doc_type.display_name || doc_type.name}",
-        description: "Collect document: #{doc_type.display_name || doc_type.name}",
+        name: "GET - #{doc_type.ui_name || doc_type.name}",
+        description: "Collect document: #{doc_type.ui_name || doc_type.name}",
         spawn_type: "document_get",
         duration_days: 1,
         start_date: start_date,
@@ -392,7 +392,7 @@ class SmTaskCompletionService
 
   def create_spawned_task(attrs)
     # Get next task number
-    max_number = SmTask.where(construction_id: task.construction_id).maximum(:task_number) || 0
+    max_number = SmTask.where(job_id: task.job_id).maximum(:task_number) || 0
 
     # Get sequence order (place right after parent task)
     new_sequence = task.sequence_order + 0.01
@@ -407,7 +407,7 @@ class SmTaskCompletionService
 
     # SSoT: Multi-tenancy - set tenant_id from parent task (background job has no tenant context)
     spawned = SmTask.create!(
-      construction_id: task.construction_id,
+      construction_id: task.job_id,
       parent_task_id: task.id,
       task_number: max_number + 1,
       sequence_order: new_sequence,
@@ -435,7 +435,7 @@ class SmTaskCompletionService
   def generate_unique_task_name(base_name)
     return base_name if base_name.blank?
 
-    job = Construction.find(task.construction_id)
+    job = Construction.find(task.job_id)
 
     # Find all tasks with exact name or numbered variants
     existing_tasks = job.sm_tasks.where(

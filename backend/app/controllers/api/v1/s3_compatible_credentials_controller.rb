@@ -17,8 +17,9 @@ module Api
       before_action :set_credential, only: %i[show update destroy test]
 
       # GET /api/v1/s3_compatible_credentials
+      # SSoT (Feb 2026): Uses tenant-scoped lookup
       def index
-        credentials = current_organization.s3_compatible_credentials.order(:name)
+        credentials = S3CompatibleCredential.for_tenant(current_tenant).order(:name)
 
         render json: {
           success: true,
@@ -35,8 +36,11 @@ module Api
       end
 
       # POST /api/v1/s3_compatible_credentials
+      # SSoT (Feb 2026): Uses tenant-scoped lookup
       def create
-        @credential = current_organization.s3_compatible_credentials.build(credential_params)
+        @credential = S3CompatibleCredential.new(credential_params)
+        @credential.tenant = current_tenant
+        @credential.organization = current_organization # DEPRECATED: kept for backwards compat
 
         if @credential.save
           render json: {
@@ -107,7 +111,8 @@ module Api
       private
 
       def set_credential
-        @credential = current_organization.s3_compatible_credentials.find(params[:id])
+        # SSoT (Feb 2026): Uses tenant-scoped lookup
+        @credential = S3CompatibleCredential.for_tenant(current_tenant).find(params[:id])
       end
 
       # SSoT (Jan 2026): bucket removed from params - WarehouseProvider.bucket is SSoT

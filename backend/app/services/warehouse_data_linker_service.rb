@@ -75,7 +75,7 @@ class WarehouseDataLinkerService
     end
   end
 
-  # Link warehouse documents to Jobs based on job reference in display_name/folder
+  # Link warehouse documents to Jobs based on job reference in ui_name/folder
   def link_job_documents!
     # Find warehouse documents with job references that aren't linked
     # Skip documents already linked to something
@@ -100,9 +100,9 @@ class WarehouseDataLinkerService
   private
 
   def find_matching_invoice(doc)
-    # Extract invoice number patterns from display_name
+    # Extract invoice number patterns from ui_name
     # Common patterns: INV-001234, Invoice 001234, etc.
-    display_name = doc.display_name.to_s
+    display_name = doc.ui_name.to_s
 
     # Try exact invoice number match
     if match = display_name.match(/INV[- ]?(\d+)/i)
@@ -125,7 +125,7 @@ class WarehouseDataLinkerService
   end
 
   def find_matching_po(doc)
-    display_name = doc.display_name.to_s
+    display_name = doc.ui_name.to_s
 
     # Try PO number match
     if match = display_name.match(/PO[- ]?(\d+)/i)

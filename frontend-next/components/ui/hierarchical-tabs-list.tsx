@@ -10,10 +10,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { EntityTab } from "@/lib/types/entity-tabs";
+import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 
 interface HierarchicalTabsListProps {
-  tabs: EntityTab[];
+  tabs: WarehouseFolder[];
   activeTab: string;
   /** Explicit parent tab key - use when URL specifies parent (avoids tab_key collision issues) */
   activeParentTab?: string;
@@ -25,11 +25,11 @@ interface HierarchicalTabsListProps {
  * A two-row TabsList that displays parent tabs in the first row and
  * children of the selected parent in the second row.
  *
- * SSoT: Uses EntityTab directly from useEntityTabs hook (Phase 5)
+ * SSoT: Uses WarehouseFolder directly from useWarehouseFolders hook (Phase 5)
  *
  * Usage:
  * ```tsx
- * const { tabs } = useEntityTabs({ scope: "job" });
+ * const { tabs } = useWarehouseFolders({ scope: "job" });
  *
  * <Tabs value={activeTab} onValueChange={setActiveTab}>
  *   <HierarchicalTabsList
@@ -49,7 +49,7 @@ export function HierarchicalTabsList({
   className,
 }: HierarchicalTabsListProps) {
   // Find the parent tab that contains the active tab as a child
-  const findParentOfActiveTab = React.useCallback((): EntityTab | null => {
+  const findParentOfActiveTab = React.useCallback((): WarehouseFolder | null => {
     for (const tab of tabs) {
       if (tab.children?.some((child) => child.tab_key === activeTab)) {
         return tab;

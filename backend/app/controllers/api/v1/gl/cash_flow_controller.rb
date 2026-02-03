@@ -283,7 +283,7 @@ module Api
 
         def calculate_ar_aging
           receivables = Gl::Invoice
-            .where(corporate_company: current_company)
+            .where(corporate: current_company)
             .where(invoice_type: 'sales_invoice')
             .where(status: %w[approved submitted])
             .where('amount_due > 0')
@@ -318,7 +318,7 @@ module Api
 
         def calculate_ap_aging
           payables = Gl::Invoice
-            .where(corporate_company: current_company)
+            .where(corporate: current_company)
             .where(invoice_type: 'bill')
             .where(status: %w[approved submitted])
             .where('amount_due > 0')
@@ -352,7 +352,7 @@ module Api
         end
 
         def current_company
-          @current_company ||= Corporate.find(params[:corporate_company_id] || current_user&.corporate_company_id || 1)
+          @current_company ||= Corporate.find(params[:corporate_id] || current_user&.corporate_id || 1)
         end
       end
     end

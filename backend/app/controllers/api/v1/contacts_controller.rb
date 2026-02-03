@@ -288,10 +288,11 @@ module Api
           end
         end
 
-        # Filter contacts linked to a specific Xero tenant (SSoT: ContactExternalLink.tenant_id)
+        # Filter contacts linked to a specific Xero org (SSoT: ContactExternalLink.xero_org_id)
+        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
         if params[:xero_tenant_id].present?
           @contacts = @contacts.joins(:external_links)
-                               .where(contact_external_links: { source: "xero", tenant_id: params[:xero_tenant_id] })
+                               .where(contact_external_links: { source: "xero", xero_org_id: params[:xero_tenant_id] })
                                .distinct
         end
 
@@ -363,10 +364,10 @@ module Api
         director_fields = params[:is_director] == "true" ? [ :place_of_birth, :birth_state, :birth_country, :residential_address ] : []
 
         # Performance: Eager load associations to avoid N+1 queries
-        # portal_user and corporate_groups_via_membership are always included in as_json response
-        # FRC (Jan 2026): Fixed from :corporate_group (doesn't exist) to :corporate_groups_via_membership (has_many through)
+        # portal_user and company_groups_via_membership are always included in as_json response
+        # FRC (Jan 2026): Fixed from :corporate_group (doesn't exist) to :company_groups_via_membership (has_many through)
         # contact_emails needed for email method (used by email composer autocomplete)
-        @contacts = @contacts.includes(:portal_user, :corporate_groups_via_membership, :contact_emails)
+        @contacts = @contacts.includes(:portal_user, :company_groups_via_membership, :contact_emails)
 
         # Conditional eager loading for company relationships
         if include_companies
@@ -380,7 +381,7 @@ module Api
 
         # PERFORMANCE: Pre-compute company_group_memberships_count (avoids N+1)
         # P95 was 5.07s due to N+1 COUNT queries; should be <500ms with batch query
-        membership_counts = ContactCorporateGroupMembership
+        membership_counts = ContactCompanyGroupMembership
           .where(contact_id: contact_ids)
           .group(:contact_id)
           .count
@@ -394,7 +395,7 @@ module Api
 
         json_includes = {
           portal_user: {},
-          corporate_groups_via_membership: {}
+          company_groups_via_membership: {}
         }
 
         if include_all_emails
@@ -766,12 +767,12 @@ module Api
             registered_office_address: linked_company.registered_office_address,
             principal_place_of_business: linked_company.principal_place_of_business,
             company_group_id: linked_company.company_group_id,
-            company_group_name: linked_company.corporate_group&.name
+            company_group_name: linked_company.company_group&.name
           }
 
           # SSoT: Only include corporate data (directors, shareholdings) if user has permission
           if can_view_corporate?
-            linked_company_data[:directors] = linked_company.corporate_company_directors.includes(:contact).map do |d|
+            linked_company_data[:directors] = linked_company.corporate_directors.includes(:contact).map do |d|
               {
                 id: d.id,
                 contact_id: d.contact_id,
@@ -783,7 +784,7 @@ module Api
                 is_current: d.is_current
               }
             end
-            linked_company_data[:shareholdings] = linked_company.corporate_company_shareholdings.includes(:shareholder).map do |s|
+            linked_company_data[:shareholdings] = linked_company.corporate_shareholdings.includes(:shareholder).map do |s|
               {
                 id: s.id,
                 shareholder_type: s.shareholder_type,
@@ -795,8 +796,8 @@ module Api
                 date_acquired: s.acquisition_date
               }
             end
-            linked_company_data[:directors_count] = linked_company.corporate_company_directors.current.count
-            linked_company_data[:shareholdings_count] = linked_company.corporate_company_shareholdings.count
+            linked_company_data[:directors_count] = linked_company.corporate_directors.current.count
+            linked_company_data[:shareholdings_count] = linked_company.corporate_shareholdings.count
             linked_company_data[:documents_count] = 0  # Table dropped (Jan 2026) - use WarehouseDocument
             # SSoT: Include bank accounts from the bank_accounts table
             linked_company_data[:bank_accounts] = linked_company.bank_accounts.active.map do |ba|
@@ -937,7 +938,7 @@ module Api
             }, status: :unprocessable_entity
           else
             # This is a person with Company Group memberships
-            membership_count = ContactCorporateGroupMembership.where(contact_id: @contact.id).count
+            membership_count = ContactCompanyGroupMembership.where(contact_id: @contact.id).count
             if membership_count > 0
               return render json: {
                 success: false,
@@ -1092,7 +1093,7 @@ module Api
               action: "Unlink from Company Group first."
             }
           else
-            membership_count = ContactCorporateGroupMembership.where(contact_id: @contact.id).count
+            membership_count = ContactCompanyGroupMembership.where(contact_id: @contact.id).count
             if membership_count > 0
               check[:can_delete] = false
               check[:blockers] << {
@@ -1500,7 +1501,7 @@ module Api
       # GET /api/v1/contacts/:id/documents
       # Returns WarehouseDocument records for this contact (including migrated Xero PDFs)
       # Optional params:
-      #   - tab_key: Filter by EntityTab (returns docs where document_type is linked to tab via primary or also_show_in)
+      #   - tab_key: Filter by WarehouseFolder (returns docs where document_type is linked to tab via primary or also_show_in)
       #   - folder: Filter by specific folder path
       #   - include_descendants: When true, includes documents from all subfolders (cascade view)
 
@@ -1558,8 +1559,8 @@ module Api
 
           {
             id: doc.id,
-            name: doc.storage_blob&.original_filename || doc.display_name,
-            displayName: doc.display_name,
+            name: doc.storage_blob&.original_filename || doc.ui_name,
+            displayName: doc.ui_name,
             folder: doc.folder,
             fileSize: doc.storage_blob&.file_size,
             contentType: doc.storage_blob&.content_type,
@@ -1763,7 +1764,7 @@ module Api
 
         # Eager load associations for show action to avoid N+1 queries
         # This reduces the show action from ~500ms to ~50ms
-        # Note: :corporate_group removed - Contact uses :corporate_groups_via_membership (has_many through)
+        # Note: :corporate_group removed - Contact uses :company_groups_via_membership (has_many through)
         eager_load_associations = if action_name == "show"
           [:contact_emails, :contact_phones, :contact_persons, :contact_addresses,
            :contact_groups, :portal_user]

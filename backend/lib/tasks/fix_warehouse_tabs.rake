@@ -9,7 +9,7 @@ namespace :fix_warehouse_tabs do
     puts "Fixing Warehouse entity tabs..."
 
     # Get all warehouse-type entity tabs
-    warehouse_tabs = EntityTab.where(warehouse_type: 'warehouse').where(warehouse_enabled: true)
+    warehouse_tabs = WarehouseFolder.where(warehouse_type: 'warehouse').where(warehouse_enabled: true)
 
     puts "Found #{warehouse_tabs.count} warehouse tabs"
 
@@ -39,11 +39,11 @@ namespace :fix_warehouse_tabs do
   task show: :environment do
     puts "Current Warehouse entity tabs:\n\n"
 
-    warehouse_tabs = EntityTab.where(warehouse_type: 'warehouse').where(warehouse_enabled: true).order(:order_position)
+    warehouse_tabs = WarehouseFolder.where(warehouse_type: 'warehouse').where(warehouse_enabled: true).order(:order_position)
 
     warehouse_tabs.each do |tab|
       puts "#{tab.display_name} (id: #{tab.id})"
-      puts "  warehouse_folder: #{tab.warehouse_folder || '(derived)'}"
+      puts "  folder_path: #{tab.folder_path || '(derived)'}"
       puts "  send_name_template: #{tab.send_name_template || '(not set)'}"
       puts ""
     end

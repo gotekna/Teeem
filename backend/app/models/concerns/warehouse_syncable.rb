@@ -17,11 +17,12 @@
 #   end
 #
 # Supported types:
-#   :xlsx  - TeeemSpreadsheet → Excel via TeeemXl
-#   :html  - TeeemDocument → HTML from TipTap content
-#   :pptx  - TeeemPresentation → PPTX (JSON for now)
-#   :pdf   - TeeemPdf → PDF via Prawn
-#   :file  - NotebookPageAttachment → Original file from ActiveStorage
+#   :xlsx     - TeeemSpreadsheet → Excel via TeeemXl
+#   :html     - TeeemDocument → HTML from TipTap content
+#   :pptx     - TeeemPresentation → PPTX (JSON for now)
+#   :pdf      - TeeemPdf → PDF via Prawn
+#   :file     - NotebookPageAttachment → Original file from ActiveStorage
+#   :notebook - NotebookPage → HTML via NotebookExportService (Feb 2026)
 #
 module WarehouseSyncable
   extend ActiveSupport::Concern
@@ -132,6 +133,8 @@ module WarehouseSyncable
       "#{safe_filename}.pdf"
     when :file
       file_name
+    when :notebook
+      "#{safe_filename}.html"
     else
       "document"
     end
@@ -141,7 +144,7 @@ module WarehouseSyncable
     case warehouse_document_type
     when :xlsx
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    when :html
+    when :html, :notebook
       "text/html"
     when :pptx
       "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -167,6 +170,8 @@ module WarehouseSyncable
       generate_pdf_content
     when :file
       generate_file_content
+    when :notebook
+      generate_notebook_content
     else
       nil
     end
@@ -259,6 +264,12 @@ module WarehouseSyncable
     else
       nil
     end
+  end
+
+  def generate_notebook_content
+    # NotebookPage uses NotebookExportService to generate HTML
+    # The service handles: TipTap content + positioned boxes + drawing strokes
+    NotebookExportService.new.export_html(self)
   end
 
   # ========================================
@@ -363,6 +374,7 @@ module WarehouseSyncable
     when :pptx then "PowerPoint"
     when :pdf then "PDF"
     when :file then "Files"
+    when :notebook then "Notes"
     else "Documents"
     end
   end

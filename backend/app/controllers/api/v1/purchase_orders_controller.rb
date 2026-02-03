@@ -1,7 +1,7 @@
 module Api
   module V1
     class PurchaseOrdersController < ApplicationController
-      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf, :schedule_sync_preview, :schedule_sync, :lock_budget, :unlock_budget ]
+      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf, :schedule_sync_preview, :schedule_sync, :lock_budget, :unlock_budget, :save_pdf, :send_email ]
 
       # GET /api/v1/purchase_orders
       # Params: construction_id, supplier_id, status, search, sort_by, sort_direction, page, per_page
@@ -565,7 +565,7 @@ module Api
       # Get all documents from the associated job that can be attached to this PO
       # Performance: Pre-cache attached IDs to avoid N+1
       def available_documents
-        documents = DocumentTask.where(construction_id: @purchase_order.job_id)
+        documents = DocumentTask.where(job_id: @purchase_order.job_id)
                                  .order(:category, :name)
 
         # Performance: Cache attached IDs as a Set for O(1) lookup
@@ -675,7 +675,192 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # POST /api/v1/purchase_orders/:id/save_pdf
+      # Generate PDF and save to File Warehouse (Jobs/{{JobCode}}/Purchase Orders)
+      def save_pdf
+        # Validate PO has line items
+        if @purchase_order.line_items.reject(&:marked_for_destruction?).empty?
+          return render json: { success: false, error: "Purchase order has no line items" }, status: :unprocessable_entity
+        end
+
+        # Generate PDF
+        generator = TeknaDocumentGenerator.new(:purchase_order)
+        result = generator.generate(purchase_order: @purchase_order)
+
+        # Build filename: {JobName}_{PONumber}_{SmTaskName}.pdf
+        job = @purchase_order.job
+        po_number = @purchase_order.purchase_order_number
+        task_name = @purchase_order.sm_task&.name || "General"
+        filename = build_po_filename(job&.name, po_number, task_name)
+
+        # Create StorageBlob (deduplication via SHA256 content_hash)
+        storage_blob = StorageBlob.find_or_create_for_content!(
+          result[:pdf_content],
+          filename: filename,
+          content_type: "application/pdf"
+        )
+
+        # Get or create DocumentType for Purchase Orders
+        document_type = DocumentType.find_by(name: "Purchase Order")
+
+        # Create WarehouseDocument
+        warehouse_doc = WarehouseDocument.create!(
+          ui_name: "#{po_number} - #{task_name}",
+          download_name: filename,
+          source_type: "job",
+          storage_blob: storage_blob,
+          linkable: job,
+          tenant_id: current_tenant&.id,
+          metadata: {
+            document_type_id: document_type&.id,
+            document_type: "Purchase Order",
+            purchase_order_id: @purchase_order.id,
+            purchase_order_number: po_number,
+            job_code: job&.job_code,
+            supplier_id: @purchase_order.supplier_id,
+            supplier_name: @purchase_order.supplier&.display_name,
+            generated_at: Time.current.iso8601
+          }
+        )
+
+        # Increment blob reference count
+        storage_blob.increment_reference!
+
+        render json: {
+          success: true,
+          document_id: warehouse_doc.id,
+          filename: filename,
+          download_url: warehouse_doc.download_url,
+          message: "PDF saved to #{job&.job_code || 'Job'}/Purchase Orders"
+        }
+      rescue TeknaDocumentGenerator::GenerationError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      rescue => e
+        Rails.logger.error "[PO SavePDF] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+        render json: { success: false, error: "Failed to save PDF: #{e.message}" }, status: :internal_server_error
+      end
+
+      # POST /api/v1/purchase_orders/:id/send_email
+      # Generate PDF and email to supplier, then save to warehouse
+      def send_email
+        # Validations
+        if @purchase_order.line_items.reject(&:marked_for_destruction?).empty?
+          return render json: { success: false, error: "Purchase order has no line items" }, status: :unprocessable_entity
+        end
+
+        unless @purchase_order.supplier.present?
+          return render json: { success: false, error: "No supplier selected" }, status: :unprocessable_entity
+        end
+
+        supplier_email = @purchase_order.supplier.email
+        unless supplier_email.present?
+          return render json: { success: false, error: "Supplier has no email address" }, status: :unprocessable_entity
+        end
+
+        # Generate PDF
+        generator = TeknaDocumentGenerator.new(:purchase_order)
+        result = generator.generate(purchase_order: @purchase_order)
+
+        # Build filename
+        job = @purchase_order.job
+        po_number = @purchase_order.purchase_order_number
+        task_name = @purchase_order.sm_task&.name || "General"
+        filename = build_po_filename(job&.name, po_number, task_name)
+
+        # Build email
+        company_name = TenantSetting.instance&.company_name || "Company"
+        subject = "Purchase Order #{po_number} - #{job&.name || 'Job'}"
+        body = <<~BODY
+          Hi,
+
+          Please find attached Purchase Order #{po_number}.
+
+          Job: #{job&.name || 'N/A'}
+          #{@purchase_order.sm_task ? "Task: #{task_name}" : ""}
+          Total: $#{format('%.2f', @purchase_order.total || 0)} (inc GST)
+
+          If you have any questions, please reply to this email.
+
+          Kind regards,
+          #{company_name}
+        BODY
+
+        # Send email with PDF attachment
+        BpmnMailer.workflow_email(
+          to: supplier_email,
+          subject: subject,
+          body: body,
+          attachments: [
+            {
+              filename: filename,
+              content_type: "application/pdf",
+              content: result[:pdf_content]
+            }
+          ]
+        ).deliver_now
+
+        # Update PO status to "sent" and set ordered_date
+        @purchase_order.send_to_supplier!
+
+        # Save PDF copy to warehouse
+        storage_blob = StorageBlob.find_or_create_for_content!(
+          result[:pdf_content],
+          filename: filename,
+          content_type: "application/pdf"
+        )
+
+        document_type = DocumentType.find_by(name: "Purchase Order")
+
+        warehouse_doc = WarehouseDocument.create!(
+          ui_name: "#{po_number} - #{task_name} (Sent)",
+          download_name: filename,
+          source_type: "job",
+          storage_blob: storage_blob,
+          linkable: job,
+          tenant_id: current_tenant&.id,
+          metadata: {
+            document_type_id: document_type&.id,
+            document_type: "Purchase Order",
+            purchase_order_id: @purchase_order.id,
+            purchase_order_number: po_number,
+            job_code: job&.job_code,
+            supplier_id: @purchase_order.supplier_id,
+            supplier_name: @purchase_order.supplier&.display_name,
+            sent_to: supplier_email,
+            sent_at: Time.current.iso8601,
+            generated_at: Time.current.iso8601
+          }
+        )
+
+        storage_blob.increment_reference!
+
+        # Reload PO to get updated status
+        @purchase_order.reload
+
+        render json: {
+          success: true,
+          message: "Purchase order sent to #{supplier_email}",
+          purchase_order: @purchase_order.as_json(include: :line_items),
+          document_id: warehouse_doc.id
+        }
+      rescue TeknaDocumentGenerator::GenerationError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      rescue => e
+        Rails.logger.error "[PO SendEmail] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+        render json: { success: false, error: "Failed to send email: #{e.message}" }, status: :internal_server_error
+      end
+
       private
+
+      # Build filename: {JobName}_{PONumber}_{SmTaskName}.pdf
+      # Sanitizes special characters for safe filenames
+      def build_po_filename(job_name, po_number, task_name)
+        safe_job = (job_name || "Job").gsub(/[^a-zA-Z0-9\s\-]/, "").strip[0..40]
+        safe_po = (po_number || "PO").gsub(/[^a-zA-Z0-9\-]/, "")
+        safe_task = (task_name || "Task").gsub(/[^a-zA-Z0-9\s\-]/, "").strip[0..40]
+
+        "#{safe_job}_#{safe_po}_#{safe_task}.pdf".gsub(/\s+/, " ").gsub(" ", "_")
+      end
 
       def set_purchase_order
         @purchase_order = PurchaseOrder.includes(:line_items, :supplier, :job).find_by_slug(params[:id])

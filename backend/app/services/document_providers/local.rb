@@ -283,8 +283,8 @@ module DocumentProviders
       # Create main job folder
       FileUtils.mkdir_p(full_path)
 
-      # Create subfolders from EntityTab hierarchy
-      create_subfolders_from_entity_tabs(full_path)
+      # Create subfolders from WarehouseFolder hierarchy
+      create_subfolders_from_warehouse_folders(full_path)
 
       {
         id: full_path,
@@ -328,8 +328,8 @@ module DocumentProviders
       filename.to_s.gsub(/[<>:"|?*\\]/, "_").strip
     end
 
-    def create_subfolders_from_entity_tabs(parent_path)
-      root_tabs = EntityTab.for_jobs
+    def create_subfolders_from_warehouse_folders(parent_path)
+      root_tabs = WarehouseFolder.for_jobs
                            .where(warehouse_enabled: true)
                            .enabled
                            .root_tabs
@@ -337,18 +337,18 @@ module DocumentProviders
                            .includes(children: { children: :children })
 
       root_tabs.each do |tab|
-        create_entity_tab_folder_recursive(tab, parent_path)
+        create_warehouse_folder_recursive(tab, parent_path)
       end
     end
 
-    def create_entity_tab_folder_recursive(tab, parent_path)
+    def create_warehouse_folder_recursive(tab, parent_path)
       folder_path = File.join(parent_path, tab.display_name)
       FileUtils.mkdir_p(folder_path)
 
       Rails.logger.info "[Local SSoT] Created folder: #{folder_path}"
 
       tab.children.where(warehouse_enabled: true).enabled.ordered.each do |child|
-        create_entity_tab_folder_recursive(child, folder_path)
+        create_warehouse_folder_recursive(child, folder_path)
       end
     end
   end

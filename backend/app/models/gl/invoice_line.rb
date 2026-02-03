@@ -13,7 +13,7 @@ module Gl
     belongs_to :job, optional: true
 
     # Delegate corporate company from invoice
-    delegate :corporate_company, to: :gl_invoice
+    delegate :corporate, to: :gl_invoice
 
     # ═══════════════════════════════════════════════════════════════
     # VALIDATIONS

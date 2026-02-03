@@ -100,7 +100,7 @@ module Api
         def mark_reviewed
           # Create or update anomaly review record
           review = ::Gl::AnomalyReview.find_or_initialize_by(
-            corporate_company: current_company,
+            corporate: current_company,
             transaction_type: params[:transaction_type],
             transaction_id: params[:transaction_id]
           )
@@ -124,7 +124,7 @@ module Api
         # List all anomaly reviews
         def reviews
           reviews = ::Gl::AnomalyReview
-            .where(corporate_company: current_company)
+            .where(corporate: current_company)
             .includes(:reviewed_by)
             .order(created_at: :desc)
             .limit(params[:limit] || 100)
@@ -156,7 +156,7 @@ module Api
 
         def current_company
           @current_company ||= Corporate.find(
-            params[:corporate_company_id] || current_user.corporate_company_id
+            params[:corporate_id] || current_user.corporate_id
           )
         end
       end

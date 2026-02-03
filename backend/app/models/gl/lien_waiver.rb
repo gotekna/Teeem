@@ -8,7 +8,7 @@ module Gl
     WAIVER_TYPES = %w[conditional_partial conditional_final unconditional_partial unconditional_final].freeze
     STATUSES = %w[requested received approved rejected].freeze
 
-    belongs_to :corporate_company
+    belongs_to :corporate, foreign_key: "company_id"
     belongs_to :job
     belongs_to :contact
     belongs_to :progress_claim, class_name: "Gl::ProgressClaim", optional: true
@@ -25,7 +25,7 @@ module Gl
     # Request a new waiver
     def self.request!(job:, contact:, waiver_type:, through_amount: nil, through_date: nil)
       create!(
-        corporate_company: job.corporate_company,
+        corporate: job.corporate,
         job: job,
         contact: contact,
         waiver_type: waiver_type,

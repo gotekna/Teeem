@@ -87,7 +87,7 @@ module Gl
 
     def cash_position_summary
       bank_accounts = Gl::Account.where(
-        corporate_company: company,
+        corporate: company,
         is_bank_account: true,
         active: true
       )
@@ -168,7 +168,7 @@ module Gl
 
     def bank_accounts_summary
       bank_accounts = Gl::Account.where(
-        corporate_company: company,
+        corporate: company,
         is_bank_account: true,
         active: true
       )
@@ -283,7 +283,7 @@ module Gl
     # =========================================================================
 
     def recent_activity
-      entries = Gl::JournalEntry.where(corporate_company: company)
+      entries = Gl::JournalEntry.where(corporate: company)
                                 .where('entry_date >= ?', 7.days.ago)
                                 .order(entry_date: :desc, created_at: :desc)
                                 .limit(20)
@@ -476,7 +476,7 @@ module Gl
 
     def revenue_for_period(from_date, to_date)
       revenue_accounts = Gl::Account.where(
-        corporate_company: company,
+        corporate: company,
         account_type: 'revenue'
       )
 
@@ -509,7 +509,7 @@ module Gl
 
     def expenses_for_period(from_date, to_date)
       expense_accounts = Gl::Account.where(
-        corporate_company: company,
+        corporate: company,
         account_type: 'expense'
       )
 
@@ -548,7 +548,7 @@ module Gl
 
     def cost_of_sales_ytd
       cos_accounts = Gl::Account.where(
-        corporate_company: company,
+        corporate: company,
         account_class: 'cost_of_sales'
       )
 
@@ -564,7 +564,7 @@ module Gl
 
     def operating_expenses_ytd
       op_expense_accounts = Gl::Account.where(
-        corporate_company: company,
+        corporate: company,
         account_type: 'expense'
       ).where.not(account_class: 'cost_of_sales')
 
@@ -577,7 +577,7 @@ module Gl
     # Cash calculations
     def total_cash_balance
       bank_accounts = Gl::Account.where(
-        corporate_company: company,
+        corporate: company,
         is_bank_account: true,
         active: true
       )
@@ -621,7 +621,7 @@ module Gl
 
     def inflows_on_date(date)
       bank_accounts = Gl::Account.where(
-        corporate_company: company,
+        corporate: company,
         is_bank_account: true
       )
 
@@ -633,7 +633,7 @@ module Gl
 
     def outflows_on_date(date)
       bank_accounts = Gl::Account.where(
-        corporate_company: company,
+        corporate: company,
         is_bank_account: true
       )
 
@@ -646,7 +646,7 @@ module Gl
     # Receivables calculations
     def total_receivables
       ar_account = Gl::Account.find_by(
-        corporate_company: company,
+        corporate: company,
         system_account: 'accounts_receivable'
       )
       return 0 unless ar_account
@@ -703,7 +703,7 @@ module Gl
     # Payables calculations
     def total_payables
       ap_account = Gl::Account.find_by(
-        corporate_company: company,
+        corporate: company,
         system_account: 'accounts_payable'
       )
       return 0 unless ap_account

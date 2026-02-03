@@ -155,7 +155,7 @@ class SmActivity < ApplicationRecord
 
       track(
         activity_type,
-        construction: task.construction,
+        construction: task.job,
         user: user,
         task: task,
         trackable: task,

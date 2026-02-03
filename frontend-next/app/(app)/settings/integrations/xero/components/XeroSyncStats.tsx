@@ -2,11 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
+import { Input } from "@/components/ui/input";
 import {
   Users,
   FileText,
@@ -21,12 +23,32 @@ import {
   Eye,
   Zap,
   HardDrive,
+  Search,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { FuzzyMatchReviewModal } from "./FuzzyMatchReviewModal";
 import { FuzzyMatchReviewSheet } from "./FuzzyMatchReviewSheet";
 import { XeroOrgContactsDrilldownSheet } from "./XeroOrgContactsDrilldownSheet";
+
+// Card height for virtual scrolling (estimated average)
+const CARD_HEIGHT = 420;
+// Number of cards to render outside viewport
+const OVERSCAN = 3;
+// Threshold for enabling virtual scrolling
+const VIRTUAL_THRESHOLD = 10;
+
+// TenantCard component for virtual scrolling (extracted for reuse)
+interface TenantCardProps {
+  tenant: TenantStats;
+  router: ReturnType<typeof useRouter>;
+  onOpenReviewSheet: () => void;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
+}
 
 interface TenantContactStats {
   total_links: number;
@@ -117,6 +139,21 @@ interface BlobHealth {
   status: "healthy" | "needs_validation" | "files_missing" | "no_blobs";
 }
 
+// SSoT: sync_health comes from XeroSyncStatus.health_summary() - shows when sync JOB ran
+// NOT the same as contacts.last_synced_at which only updates when individual records change
+interface SyncHealthEntry {
+  status: string | null;
+  health_status: "green" | "yellow" | "red";
+  stale: boolean;
+  last_synced_at: string | null;
+  age_seconds: number | null;
+  age_minutes: number | null;
+  next_sync_at: string | null;
+  records_synced: number | null;
+  last_error: string | null;
+  message: string;
+}
+
 interface TenantStats {
   tenant_id: string;
   tenant_name: string;
@@ -130,6 +167,14 @@ interface TenantStats {
   data_sync?: TenantDataSyncStats;
   totals_summary?: TotalsSummary;
   blob_health?: BlobHealth;
+  // SSoT for "Synced X ago" - shows when sync JOB ran (from XeroSyncStatus)
+  sync_health?: {
+    invoices?: SyncHealthEntry;
+    contacts?: SyncHealthEntry;
+    pdfs?: SyncHealthEntry;
+    bank_transactions?: SyncHealthEntry;
+  };
+  overall_sync_health?: "green" | "yellow" | "red";
 }
 
 interface PendingReviewItem {
@@ -176,6 +221,157 @@ interface SyncStatsData {
   global: GlobalStats;
 }
 
+// Safe date formatting helper - prevents crashes from invalid dates
+function safeFormatDistance(dateString: string | null | undefined, options?: { addSuffix?: boolean }): string {
+  if (!dateString) return "—";
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "—";
+    return formatDistanceToNow(date, options);
+  } catch {
+    return "—";
+  }
+}
+
+// TenantCard - Extracted for use in virtual scrolling
+// Renders a single tenant organization card with stats
+function TenantCard({ tenant, router, onOpenReviewSheet }: TenantCardProps) {
+  return (
+    <Card
+      className={`h-full ${
+        tenant.is_primary
+          ? "border-cyan-300 bg-cyan-50/50 dark:border-cyan-700 dark:bg-cyan-950/30"
+          : tenant.rate_limits?.is_limited
+          ? "border-amber-300 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/30"
+          : ""
+      }`}
+    >
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-sm font-medium">{tenant.tenant_name}</CardTitle>
+            {tenant.is_primary && (
+              <Badge className="bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 text-xs">Primary</Badge>
+            )}
+          </div>
+          <Badge
+            className={`text-xs ${
+              tenant.status === "connected"
+                ? "bg-status-success text-status-success-foreground"
+                : "bg-status-warning text-status-warning-foreground"
+            }`}
+          >
+            {tenant.status === "connected" ? (
+              <CheckCircle2 className="h-3 w-3 mr-1" />
+            ) : (
+              <AlertTriangle className="h-3 w-3 mr-1" />
+            )}
+            {tenant.status}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Stats Grid - Compact version */}
+        <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="p-2 bg-muted/50 rounded">
+            <div className="text-lg font-bold">{tenant.contacts.total_links}</div>
+            <div className="text-xs text-muted-foreground">Contacts</div>
+          </div>
+          <div className="p-2 bg-muted/50 rounded">
+            <div className="text-lg font-bold">{tenant.documents.total}</div>
+            <div className="text-xs text-muted-foreground">Documents</div>
+          </div>
+          {tenant.contacts.unlinked > 0 ? (
+            <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded border border-amber-300 dark:border-amber-700">
+              <div className="text-lg font-bold text-amber-700 dark:text-amber-400">{tenant.contacts.unlinked}</div>
+              <div className="text-xs text-amber-600 dark:text-amber-500">Unlinked</div>
+            </div>
+          ) : (
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded">
+              <div className="text-lg font-bold text-green-700 dark:text-green-400">✓</div>
+              <div className="text-xs text-green-600 dark:text-green-500">All Linked</div>
+            </div>
+          )}
+          <div className="p-2 bg-muted/50 rounded">
+            <div className="text-lg font-bold">{tenant.contacts.cross_tenant_matches}</div>
+            <div className="text-xs text-muted-foreground">Shared</div>
+          </div>
+        </div>
+
+        {/* Document breakdown */}
+        <div className="flex justify-between text-xs text-muted-foreground px-1">
+          <span>{tenant.documents.invoices} invoices</span>
+          <span>{tenant.documents.bills} bills</span>
+          <span>{tenant.documents.quotes} quotes</span>
+        </div>
+
+        {/* PDF Sync Progress - Compact */}
+        {tenant.pdf_sync && (
+          <div className="p-2 bg-muted/30 rounded border">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-muted-foreground">PDF Sync</span>
+              <span className={`text-xs font-medium ${(tenant.pdf_sync?.percentage || 0) >= 100 ? "text-green-600" : "text-blue-600"}`}>
+                {tenant.pdf_sync?.percentage?.toFixed(1) || 0}%
+              </span>
+            </div>
+            <Progress
+              value={tenant.pdf_sync?.percentage || 0}
+              className={`h-1.5 ${(tenant.pdf_sync?.percentage || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-blue-500"}`}
+            />
+            <div className="text-xs text-muted-foreground mt-1">
+              {(tenant.pdf_sync?.synced || 0).toLocaleString()} / {(tenant.pdf_sync?.total || tenant.documents.total).toLocaleString()}
+            </div>
+          </div>
+        )}
+
+        {/* Rate Limits */}
+        {tenant.rate_limits && (
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Daily API</span>
+              <span className={`font-medium ${tenant.rate_limits.daily_percentage >= 80 ? "text-amber-600" : ""}`}>
+                {tenant.rate_limits.daily_percentage}%
+              </span>
+            </div>
+            <Progress
+              value={tenant.rate_limits.daily_percentage}
+              className={`h-2 ${tenant.rate_limits.daily_percentage >= 80 ? "[&>div]:bg-amber-500" : ""}`}
+            />
+          </div>
+        )}
+
+        {/* Pending Reviews Warning */}
+        {tenant.contacts.pending_review > 0 && (
+          <button
+            onClick={onOpenReviewSheet}
+            className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 cursor-pointer transition-colors w-full text-left"
+          >
+            <AlertTriangle className="h-3 w-3" />
+            {tenant.contacts.pending_review} pending review
+          </button>
+        )}
+
+        {/* Last Sync */}
+        {tenant.sync_health?.contacts?.last_synced_at && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full",
+                tenant.sync_health.contacts.health_status === "green" && "bg-green-500",
+                tenant.sync_health.contacts.health_status === "yellow" && "bg-yellow-500",
+                tenant.sync_health.contacts.health_status === "red" && "bg-red-500"
+              )}
+              title={tenant.sync_health.contacts.message}
+            />
+            <Clock className="h-3 w-3" />
+            Synced {safeFormatDistance(tenant.sync_health?.contacts?.last_synced_at, { addSuffix: true })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function XeroSyncStats() {
   const router = useRouter();
   const [loading, setLoading] = React.useState(true);
@@ -186,6 +382,13 @@ export function XeroSyncStats() {
   const [selectedReviewItem, setSelectedReviewItem] = React.useState<PendingReviewItem | null>(null);
   const [reviewSheetOpen, setReviewSheetOpen] = React.useState(false);
   const [contactsDrilldownOpen, setContactsDrilldownOpen] = React.useState(false);
+
+  // Search/filter state for large tenant lists (Scale to 15k feature)
+  const [searchQuery, setSearchQuery] = React.useState("");
+  // Track expanded tenant cards for lazy-loading PDF details
+  const [expandedTenants, setExpandedTenants] = React.useState<Set<string>>(new Set());
+  // Ref for virtual scroller container
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
   // Light-weight callback to update pending count without refetching everything
   const handleReviewed = React.useCallback(() => {
@@ -343,7 +546,86 @@ export function XeroSyncStats() {
     );
   }
 
-  const { global, tenants } = data;
+  const { global: rawGlobal, tenants } = data;
+
+  // Defensive: ensure tenants is always an array
+  const safeTenants = Array.isArray(tenants) ? tenants : [];
+
+  // Defensive: ensure global has all required properties with safe defaults
+  const global: GlobalStats = {
+    pending_reviews: {
+      count: rawGlobal?.pending_reviews?.count ?? 0,
+      items: Array.isArray(rawGlobal?.pending_reviews?.items) ? rawGlobal.pending_reviews.items : [],
+    },
+    cross_tenant: {
+      contacts_linked_to_multiple_tenants: rawGlobal?.cross_tenant?.contacts_linked_to_multiple_tenants ?? 0,
+      multi_tenant_contact_ids: rawGlobal?.cross_tenant?.multi_tenant_contact_ids ?? [],
+    },
+    match_breakdown: {
+      exact_abn: rawGlobal?.match_breakdown?.exact_abn ?? 0,
+      exact_email: rawGlobal?.match_breakdown?.exact_email ?? 0,
+      fuzzy_name: rawGlobal?.match_breakdown?.fuzzy_name ?? 0,
+      manual: rawGlobal?.match_breakdown?.manual ?? 0,
+      total: rawGlobal?.match_breakdown?.total ?? 0,
+    },
+    totals: {
+      contacts_with_links: rawGlobal?.totals?.contacts_with_links ?? 0,
+      total_links: rawGlobal?.totals?.total_links ?? 0,
+      invoices: rawGlobal?.totals?.invoices ?? 0,
+      bills: rawGlobal?.totals?.bills ?? 0,
+      quotes: rawGlobal?.totals?.quotes ?? 0,
+      credit_notes: rawGlobal?.totals?.credit_notes ?? 0,
+      all_documents: rawGlobal?.totals?.all_documents ?? 0,
+    },
+    recent_activity: {
+      contact_syncs_24h: rawGlobal?.recent_activity?.contact_syncs_24h ?? 0,
+      invoice_syncs_24h: rawGlobal?.recent_activity?.invoice_syncs_24h ?? 0,
+    },
+  };
+
+  // Filter tenants by search query (Scale to 15k feature)
+  const filteredTenants = React.useMemo(() => {
+    if (!searchQuery.trim()) return safeTenants;
+    const query = searchQuery.toLowerCase();
+    return safeTenants.filter(
+      (t) =>
+        t.tenant_name?.toLowerCase().includes(query) ||
+        t.tenant_id?.toLowerCase().includes(query)
+    );
+  }, [safeTenants, searchQuery]);
+
+  // Sort filtered tenants: primary first, then alphabetically
+  const sortedTenants = React.useMemo(() => {
+    return [...filteredTenants].sort((a, b) => {
+      if (a.is_primary) return -1;
+      if (b.is_primary) return 1;
+      return (a.tenant_name || "").localeCompare(b.tenant_name || "");
+    });
+  }, [filteredTenants]);
+
+  // Virtual scrolling for large tenant lists
+  // Only enable when tenant count exceeds threshold for better performance
+  const useVirtualScroll = sortedTenants.length > VIRTUAL_THRESHOLD;
+
+  const virtualizer = useVirtualizer({
+    count: useVirtualScroll ? sortedTenants.length : 0,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => CARD_HEIGHT,
+    overscan: OVERSCAN,
+  });
+
+  // Helper to toggle tenant expansion
+  const toggleTenantExpansion = React.useCallback((tenantId: string) => {
+    setExpandedTenants((prev) => {
+      const next = new Set(prev);
+      if (next.has(tenantId)) {
+        next.delete(tenantId);
+      } else {
+        next.add(tenantId);
+      }
+      return next;
+    });
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -690,21 +972,77 @@ export function XeroSyncStats() {
         </Card>
       )}
 
-      {/* Per-Tenant Stats - 2 Column Grid */}
+      {/* Per-Tenant Stats - 2 Column Grid with Search and Virtual Scrolling */}
       <div>
-        <div className="flex items-center gap-2 mb-4">
-          <Building2 className="h-5 w-5 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Xero Organizations</h3>
-          <Badge className="bg-muted text-muted-foreground">{tenants.length} connected</Badge>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Xero Organizations</h3>
+            <Badge className="bg-muted text-muted-foreground">{tenants.length} connected</Badge>
+            {searchQuery && filteredTenants.length !== tenants.length && (
+              <Badge variant="outline" className="text-xs">
+                {filteredTenants.length} shown
+              </Badge>
+            )}
+          </div>
+          {/* Search input for large tenant lists */}
+          {tenants.length > 5 && (
+            <div className="relative w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search organizations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-9"
+              />
+            </div>
+          )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {tenants
-            .sort((a, b) => {
-              if (a.is_primary) return -1;
-              if (b.is_primary) return 1;
-              return a.tenant_name.localeCompare(b.tenant_name);
-            })
-            .map((tenant) => (
+
+        {/* Virtual scrolling container for large lists */}
+        {useVirtualScroll ? (
+          <div
+            ref={scrollContainerRef}
+            className="h-[800px] overflow-auto rounded-lg border"
+          >
+            <div
+              style={{
+                height: virtualizer.getTotalSize(),
+                width: "100%",
+                position: "relative",
+              }}
+            >
+              {virtualizer.getVirtualItems().map((virtualRow) => {
+                const tenant = sortedTenants[virtualRow.index];
+                return (
+                  <div
+                    key={tenant.tenant_id}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: virtualRow.size,
+                      transform: `translateY(${virtualRow.start}px)`,
+                      padding: "8px",
+                    }}
+                  >
+                    <TenantCard
+                      tenant={tenant}
+                      router={router}
+                      onOpenReviewSheet={() => setReviewSheetOpen(true)}
+                      isExpanded={expandedTenants.has(tenant.tenant_id)}
+                      onToggleExpand={() => toggleTenantExpansion(tenant.tenant_id)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* Standard grid for smaller tenant counts */
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {sortedTenants.map((tenant) => (
               <Card
                 key={tenant.tenant_id}
                 className={`${
@@ -758,12 +1096,12 @@ export function XeroSyncStats() {
                         <div className="flex justify-between text-[10px] text-muted-foreground mt-1 pt-1 border-t border-border/50">
                           <span>
                             Last: {tenant.data_sync.last_synced_at
-                              ? formatDistanceToNow(new Date(tenant.data_sync.last_synced_at), { addSuffix: false })
+                              ? safeFormatDistance(tenant.data_sync?.last_synced_at, { addSuffix: false })
                               : "—"}
                           </span>
                           <span>
                             Next: {tenant.data_sync.next_sync_at
-                              ? formatDistanceToNow(new Date(tenant.data_sync.next_sync_at), { addSuffix: false })
+                              ? safeFormatDistance(tenant.data_sync?.next_sync_at, { addSuffix: false })
                               : "—"}
                           </span>
                         </div>
@@ -790,12 +1128,12 @@ export function XeroSyncStats() {
                         <div className="flex justify-between text-[10px] text-muted-foreground mt-1 pt-1 border-t border-border/50">
                           <span>
                             Last: {tenant.pdf_sync.last_synced_at
-                              ? formatDistanceToNow(new Date(tenant.pdf_sync.last_synced_at), { addSuffix: false })
+                              ? safeFormatDistance(tenant.pdf_sync?.last_synced_at, { addSuffix: false })
                               : "—"}
                           </span>
                           <span>
                             Next: {tenant.pdf_sync.next_sync_at
-                              ? formatDistanceToNow(new Date(tenant.pdf_sync.next_sync_at), { addSuffix: false })
+                              ? safeFormatDistance(tenant.pdf_sync?.next_sync_at, { addSuffix: false })
                               : "—"}
                           </span>
                         </div>
@@ -938,17 +1276,27 @@ export function XeroSyncStats() {
                     </button>
                   )}
 
-                  {/* Last Sync */}
-                  {tenant.contacts.last_synced_at && (
+                  {/* Last Sync - SSoT: sync_health shows when sync JOB ran (not when records changed) */}
+                  {tenant.sync_health?.contacts?.last_synced_at && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <span
+                        className={cn(
+                          "h-2 w-2 rounded-full",
+                          tenant.sync_health.contacts.health_status === "green" && "bg-green-500",
+                          tenant.sync_health.contacts.health_status === "yellow" && "bg-yellow-500",
+                          tenant.sync_health.contacts.health_status === "red" && "bg-red-500"
+                        )}
+                        title={tenant.sync_health.contacts.message}
+                      />
                       <Clock className="h-3 w-3" />
-                      Synced {formatDistanceToNow(new Date(tenant.contacts.last_synced_at), { addSuffix: true })}
+                      Synced {safeFormatDistance(tenant.sync_health?.contacts?.last_synced_at, { addSuffix: true })}
                     </div>
                   )}
                 </CardContent>
               </Card>
             ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Fuzzy Match Review Modal */}

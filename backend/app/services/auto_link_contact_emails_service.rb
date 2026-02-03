@@ -24,7 +24,7 @@ class AutoLinkContactEmailsService
       next if email.classified_as_irrelevant?
 
       # Skip if already linked
-      next if @case_record.case_emails.exists?(synced_email_id: email.id)
+      next if @case_record.case_emails.exists?(email_warehouse_id: email.id)
 
       # Link email to case
       @case_record.add_email(
@@ -35,7 +35,7 @@ class AutoLinkContactEmailsService
       )
 
       # Mark as auto-linked
-      case_email = @case_record.case_emails.find_by(synced_email_id: email.id)
+      case_email = @case_record.case_emails.find_by(email_warehouse_id: email.id)
       case_email.update_columns(
         auto_linked: true,
         auto_linked_via_contact_id: @contact.id

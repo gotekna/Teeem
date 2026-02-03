@@ -45,10 +45,11 @@ module Api
           query = query.where(id: duplicate_ids)
         end
 
-        # Filter contacts by Xero tenant (SSoT: ContactExternalLink.tenant_id)
+        # Filter contacts by Xero org (SSoT: ContactExternalLink.xero_org_id)
+        # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
         if params[:xero_tenant_id].present? && model.table_name == "contacts"
           query = query.joins(:external_links)
-                       .where(contact_external_links: { source: "xero", tenant_id: params[:xero_tenant_id] })
+                       .where(contact_external_links: { source: "xero", xero_org_id: params[:xero_tenant_id] })
         end
 
         # Apply search filter with multiple search modes
@@ -869,8 +870,8 @@ module Api
         return true if contact.quote_request_contacts.exists?
         return true if contact.pricebook_items.exists?
         return true if contact.case_contacts.exists?
-        return true if contact.corporate_company_directorships.exists?
-        return true if contact.corporate_company_shareholdings.exists?
+        return true if contact.corporate_directorships.exists?
+        return true if contact.corporate_shareholdings.exists?
         return true if contact.contact_activities.exists?
 
         false
@@ -1381,7 +1382,7 @@ module Api
         # Associations to skip globally (heavy or problematic)
         skip_associations = [
           :po_supplier,       # Contact model with 81+ associations - load lazily
-          :photo_entity_tab   # EntityTab has recursive parent/children
+          :photo_entity_tab   # WarehouseFolder has recursive parent/children
         ]
 
         model.reflect_on_all_associations(:belongs_to).each do |reflection|

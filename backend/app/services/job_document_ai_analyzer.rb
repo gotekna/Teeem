@@ -32,7 +32,7 @@ class JobDocumentAiAnalyzer
     end
 
     # Generate proposed name using the document type's naming format
-    proposed_name = if suggested_type&.file_name.present?
+    proposed_name = if suggested_type&.download_name.present?
       generate_proposed_name(suggested_type, analysis)
     else
       analysis[:proposed_name]
@@ -162,8 +162,8 @@ class JobDocumentAiAnalyzer
   end
 
   def build_document_types_section
-    # folder is computed from primary EntityTab - group in Ruby after query
-    doc_types = DocumentType.where(scope: %w[job both]).active.includes(entity_tab_document_types: :entity_tab).order(:name)
+    # folder is computed from primary WarehouseFolder - group in Ruby after query
+    doc_types = DocumentType.where(scope: %w[job both]).active.includes(warehouse_folder_document_types: :warehouse_folder).order(:name)
 
     if doc_types.any?
       lines = []
@@ -173,7 +173,7 @@ class JobDocumentAiAnalyzer
         lines << "### #{folder || 'GENERAL'}"
         types.each do |dt|
           abbrev = dt.abbreviation.present? ? " (#{dt.abbreviation})" : ""
-          format = dt.file_name.present? ? " - Format: #{dt.file_name}" : ""
+          format = dt.download_name.present? ? " - Format: #{dt.download_name}" : ""
           extensions = dt.file_extensions.present? ? " [#{dt.file_extensions.join(', ')}]" : ""
           lines << "- ID #{dt.id}: #{dt.name}#{abbrev}#{format}#{extensions}"
         end
@@ -187,7 +187,7 @@ class JobDocumentAiAnalyzer
   end
 
   def generate_proposed_name(doc_type, analysis)
-    format = doc_type.file_name.dup
+    format = doc_type.download_name.dup
     return analysis[:proposed_name] if format.blank?
 
     # Australian date format

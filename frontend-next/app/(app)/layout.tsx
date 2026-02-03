@@ -102,10 +102,10 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
        * transition-all caused non-composited border-color animations triggering CLS
        * Only padding-left needs to animate (for sidebar resize) */}
       <main
-        className={`sidebar-content-area h-screen ${containerClassName} transition-[padding-left] duration-300 ease-in-out pb-16 md:pb-0`}
+        className={`sidebar-content-area h-screen flex flex-col overflow-hidden ${containerClassName} transition-[padding-left] duration-300 ease-in-out pb-16 md:pb-0`}
         style={{ paddingTop: shouldHideSidebar ? headerOffset : headerOffset + BREADCRUMB_BAR_HEIGHT }}
       >
-        <div className={`h-full ${contentClassName}`}>
+        <div className={`flex-1 min-h-0 overflow-auto ${contentClassName}`}>
           {children}
         </div>
       </main>

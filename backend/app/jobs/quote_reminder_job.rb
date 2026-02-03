@@ -109,9 +109,9 @@ class QuoteReminderJob < ApplicationJob
   end
 
   def send_sms_reminder(quote_request, contact, hours_waiting)
-    message = "REMINDER: Quote request from #{quote_request.construction.business_name || 'Builder'}\n" \
+    message = "REMINDER: Quote request from #{quote_request.job.business_name || 'Builder'}\n" \
               "Waiting #{hours_waiting} hours for response\n" \
-              "Job: #{quote_request.construction.job_name}\n" \
+              "Job: #{quote_request.job.job_name}\n" \
               "Login to respond: #{portal_url}"
 
     # TODO: Implement Twilio SMS sending

@@ -22,12 +22,12 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
+import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import { getTabComponent } from "@/lib/tab-component-registry";
 import { TabNavigation } from "@/components/common/TabNavigation";
 import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle } from "lucide-react";
-import type { EntityTab } from "@/lib/types/entity-tabs";
+import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 
 // ============================================
 // FEATURE FLAG
@@ -154,7 +154,7 @@ export function XeroTabRenderer({
   const [tabStats, setTabStats] = React.useState<XeroTabStats | null>(null);
 
   // Fetch Xero tabs from API (children of "xero" parent in corporate scope)
-  const { tabs, loading, error } = useEntityTabs({
+  const { tabs, loading, error } = useWarehouseFolders({
     scope: "corporate",
     // entityType filtering not needed for Xero tabs
   });
@@ -207,13 +207,13 @@ export function XeroTabRenderer({
 
   // Filter to just Xero tabs (tabs with parent that has tab_key="xero")
   // NOTE: Backend returns NESTED tabs (children inside parent.children array)
-  const xeroTabs = React.useMemo((): EntityTab[] => {
+  const xeroTabs = React.useMemo((): WarehouseFolder[] => {
     // Find the Xero parent tab
     const xeroParent = tabs.find((t) => t.tab_key === "xero" && !t.parent_id);
     if (!xeroParent) return [];
 
-    // Children are NESTED inside parent (EntityTab.children array)
-    const children: EntityTab[] = xeroParent.children || [];
+    // Children are NESTED inside parent (WarehouseFolder.children array)
+    const children: WarehouseFolder[] = xeroParent.children || [];
 
     // Apply tab stats (counts) to each tab
     return children
@@ -236,7 +236,7 @@ export function XeroTabRenderer({
       || l1[0] || null;
 
     // L2 tabs = children NESTED inside active L1 tab
-    const l2Children: EntityTab[] = currentL1?.children || [];
+    const l2Children: WarehouseFolder[] = currentL1?.children || [];
     const l2 = l2Children.filter((t) => t.enabled);
 
     // Find active L2

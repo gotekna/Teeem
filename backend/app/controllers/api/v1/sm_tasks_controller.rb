@@ -41,8 +41,8 @@ module Api
         @tasks = @tasks.visible_to(current_user)
 
         # Apply filters
-        @tasks = @tasks.where(construction_id: params[:job_id]) if params[:job_id].present?
-        @tasks = @tasks.where(construction_id: params[:job_ids]) if params[:job_ids].present?
+        @tasks = @tasks.where(job_id: params[:job_id]) if params[:job_id].present?
+        @tasks = @tasks.where(job_id: params[:job_ids]) if params[:job_ids].present?
         @tasks = @tasks.where(assigned_user_id: params[:assigned_user_id]) if params[:assigned_user_id].present?
         @tasks = @tasks.where(status: params[:statuses]) if params[:statuses].present?
         @tasks = @tasks.by_trade(params[:trade]) if params[:trade].present?
@@ -853,7 +853,7 @@ module Api
         # Add job context
         if @task.job.present?
           case_attrs[:contact_id] = @task.job.client_id
-          case_attrs[:company_id] = @task.job.corporate_company_id
+          case_attrs[:company_id] = @task.job.corporate_id
         end
 
         @case = CaseRecord.new(case_attrs)
@@ -1102,7 +1102,7 @@ module Api
       # Update attachment properties (e.g., link to a question via action_item_id)
       #
       # Renaming SSoT:
-      #   - If warehouse_document exists: Update warehouse_document.display_name (Phase 3 SSoT)
+      #   - If warehouse_document exists: Update warehouse_document.ui_name (Phase 3 SSoT)
       #   - Fallback: Update attachment.display_name (for emails or legacy attachments)
       def update_attachment
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
@@ -1118,11 +1118,13 @@ module Api
           Rails.logger.warn "[FRC-DEBUG] Referrer: #{request.referrer}"
         end
 
-        # Handle display_name update - SSoT is warehouse_document.display_name
-        if params[:display_name].present?
+        # Handle display_name update - SSoT is warehouse_document.ui_name
+        # Accept both :display_name (legacy) and :ui_name (new) params
+        new_ui_name = params[:ui_name].presence || params[:display_name].presence
+        if new_ui_name.present?
           if attachment.warehouse_document.present?
             # Phase 3 SSoT: Update warehouse_document directly
-            attachment.warehouse_document.update!(display_name: params[:display_name])
+            attachment.warehouse_document.update!(ui_name: new_ui_name)
             # Clear association cache so attachment.display_name sees updated value
             attachment.reload
           else
@@ -1362,7 +1364,7 @@ module Api
         end
 
         # Get filename and content type from appropriate source
-        filename = document.respond_to?(:display_name) ? document.display_name : (document.respond_to?(:file_name) ? document.file_name : "attachment")
+        filename = document.respond_to?(:ui_name) ? document.ui_name : (document.respond_to?(:file_name) ? document.file_name : "attachment")
         content_type = document.storage_blob&.content_type || "application/octet-stream"
 
         render json: {
@@ -1475,7 +1477,7 @@ module Api
             result = service.download(document)
             next unless result[:success] && result[:content]
 
-            filename = document.file_name || document.display_name || "document_#{att.id}"
+            filename = document.file_name || document.ui_name || "document_#{att.id}"
             # Ensure unique filenames in zip
             zip.put_next_entry(filename)
             zip.write(result[:content])
@@ -2059,6 +2061,50 @@ module Api
             }
           }
         }
+      end
+
+      # ============================================
+      # Task Notes (comments with author/date)
+      # ============================================
+
+      # GET /api/v1/sm_tasks/:id/notes
+      def notes
+        task_notes = @task.notes.includes(:user)
+
+        render json: {
+          success: true,
+          notes: task_notes.map { |note| note.as_json_with_user }
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/notes
+      def create_note
+        note = @task.notes.create!(
+          user: current_user,
+          content: params[:content]
+        )
+
+        render json: {
+          success: true,
+          note: note.as_json_with_user
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # DELETE /api/v1/sm_tasks/:id/notes/:note_id
+      def delete_note
+        note = @task.notes.find(params[:note_id])
+
+        # Only allow note author or task owner to delete
+        unless note.user_id == current_user.id || @task.manageable_by?(current_user)
+          return render json: { success: false, error: "Not authorized to delete this note" }, status: :forbidden
+        end
+
+        note.destroy
+        render json: { success: true }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Note not found" }, status: :not_found
       end
 
       # ============================================
@@ -2831,7 +2877,7 @@ module Api
               email_attachments: email.attachment_documents.map do |doc|
                 {
                   id: doc.id,
-                  filename: doc.original_filename || doc.display_name,
+                  filename: doc.original_filename || doc.ui_name,
                   content_type: doc.content_type || doc.storage_blob&.content_type,
                   file_size: doc.file_size || doc.storage_blob&.file_size
                 }
@@ -2845,7 +2891,7 @@ module Api
           base.merge(
             document: {
               id: doc.id,
-              file_name: doc.storage_blob&.original_filename || doc.display_name,
+              file_name: doc.storage_blob&.original_filename || doc.ui_name,
               # SSoT: Use attachment.display_name which checks warehouse_document first
               display_name: attachment.display_name,
               document_type: nil,  # WarehouseDocument doesn't have document_type
@@ -3213,7 +3259,7 @@ module Api
 
       def task_to_json_with_job(task)
         json = task_to_json(task)
-        json[:job_id] = task.construction_id
+        json[:job_id] = task.job_id
         json[:job_name] = task.job&.name || "Unknown Job"
         json[:is_critical_path] = false # Placeholder - would need critical path calculation
         json[:blockers] = task.is_hold_task ? [ task.hold_notes ].compact : []
@@ -3258,7 +3304,7 @@ module Api
       def task_to_json(task, include_dependencies: false)
         json = {
           id: task.id,
-          construction_id: task.construction_id,
+          construction_id: task.job_id,
           job_name: task.job&.name || "Unknown Job",
           task_number: task.task_number,
           name: task.name,
@@ -3302,7 +3348,7 @@ module Api
           # Completion document requirement
           requires_document_to_complete: task.requires_document_to_complete,
           completion_document_type_id: task.completion_document_type_id,
-          completion_document_type_name: task.completion_document_type&.display_name || task.completion_document_type&.name,
+          completion_document_type_name: task.completion_document_type&.ui_name || task.completion_document_type&.name,
           # Computed
           started_at: task.started_at,
           completed_at: task.completed_at,

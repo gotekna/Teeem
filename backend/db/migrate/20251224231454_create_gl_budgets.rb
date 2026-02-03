@@ -3,7 +3,7 @@
 class CreateGlBudgets < ActiveRecord::Migration[8.0]
   def change
     create_table :gl_budgets do |t|
-      t.references :corporate_company, null: false, foreign_key: true
+      t.references :corporate, null: false, foreign_key: true
       t.references :gl_account, null: false, foreign_key: true
       t.references :gl_period, null: false, foreign_key: true
 

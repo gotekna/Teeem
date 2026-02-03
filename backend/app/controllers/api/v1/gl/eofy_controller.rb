@@ -411,7 +411,7 @@ module Api
 
         def current_company
           @current_company ||= Corporate.find(
-            params[:corporate_company_id] || current_user&.corporate_company_id || 1
+            params[:corporate_id] || current_user&.corporate_id || 1
           )
         end
 

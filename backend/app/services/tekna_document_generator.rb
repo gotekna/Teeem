@@ -91,7 +91,7 @@ class TeknaDocumentGenerator
       requires: [ :purchase_order ],
       layout: "tekna",
       title: "Purchase Order",
-      output_filename: "{date}_PO_{po_number}_{job_name}"
+      output_filename: "{job_name}_{po_number}_{task_name}"
     },
 
     # QBCC Official documents (PDF overlay - uses official QBCC PDFs)
@@ -624,6 +624,9 @@ class TeknaDocumentGenerator
     filename.gsub!("{job_number}", job&.try(:job_number).to_s)
     filename.gsub!("{variation_number}", extra_data.dig(:variation, :number).to_s)
     filename.gsub!("{po_number}", purchase_order&.purchase_order_number.to_s)
+    # SSoT: Task name from linked SmTask (for Purchase Orders)
+    task_name = purchase_order&.sm_task&.name || extra_data[:task_name] || "General"
+    filename.gsub!("{task_name}", task_name.to_s.parameterize.presence || "general")
 
     "#{filename}.pdf"
   end
@@ -814,7 +817,7 @@ class TeknaDocumentGenerator
     path_parts = sharepoint_path.split("/")
     filename = path_parts.pop
 
-    # Resolve folder names from EntityTab
+    # Resolve folder names from WarehouseFolder
     resolved_path_parts = path_parts.map { |f| resolve_folder_name(f) }
     full_path = "#{job_folder_path}/#{resolved_path_parts.join('/')}/#{filename}"
 
@@ -853,8 +856,8 @@ class TeknaDocumentGenerator
     raise GenerationError, "Storage error: #{e.message}"
   end
 
-  # SSoT: Resolve folder names from EntityTab
-  # Maps template folder names to actual folder names from EntityTab
+  # SSoT: Resolve folder names from WarehouseFolder
+  # Maps template folder names to actual folder names from WarehouseFolder
   # Falls back to original name if no mapping exists
   FOLDER_NAME_MAPPINGS = {
     "04 Plans" => ["job", "plans"],
@@ -867,6 +870,6 @@ class TeknaDocumentGenerator
     return folder_name unless mapping
 
     scope, tab_key = mapping
-    EntityTab.folder_name_for(scope, tab_key, folder_name)
+    WarehouseFolder.folder_name_for(scope, tab_key, folder_name)
   end
 end

@@ -5,7 +5,7 @@ class SmTaskAttachment < ApplicationRecord
   belongs_to :added_by, class_name: "User", optional: true
   belongs_to :action_item, class_name: "TaskActionItem", optional: true
 
-  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  # Phase 3: Universal warehouse metadata (SSoT for ui_name, download_name, folder)
   # Task attachments appear under Tasks/ folder in File Warehouse
   # Same file can appear in multiple folders (Tasks/ AND Emails/ or Corporate/)
   has_one :warehouse_document, as: :documentable, dependent: :destroy
@@ -76,13 +76,13 @@ class SmTaskAttachment < ApplicationRecord
 
   # Get display name - SSoT hierarchy for renamed attachments
   # Priority:
-  #   1. warehouse_document.display_name (Phase 3 SSoT - editable)
+  #   1. warehouse_document.ui_name (Phase 3 SSoT - editable)
   #   2. attachment.display_name (stored locally for emails/legacy)
   #   3. attachable's original name (file_name or subject)
   def display_name
     # Phase 3 SSoT: Check warehouse_document first
-    if warehouse_document&.display_name.present?
-      return warehouse_document.display_name
+    if warehouse_document&.ui_name.present?
+      return warehouse_document.ui_name
     end
 
     # Fallback: Check if custom display_name is stored on attachment
@@ -94,7 +94,7 @@ class SmTaskAttachment < ApplicationRecord
     when "SyncedEmail"
       attachable&.subject || "Email"
     when "WarehouseDocument"
-      attachable&.display_name || attachable&.original_filename || "Document"
+      attachable&.ui_name || attachable&.original_filename || "Document"
     else
       "Attachment"
     end
@@ -149,7 +149,7 @@ class SmTaskAttachment < ApplicationRecord
     # Get display name from attachable
     name = case attachable_type
            when "WarehouseDocument"
-             attachable&.display_name || attachable&.original_filename || "Document"
+             attachable&.ui_name || attachable&.original_filename || "Document"
            when "SyncedEmail"
              attachable&.subject || "Email"
            else
@@ -159,7 +159,7 @@ class SmTaskAttachment < ApplicationRecord
     # Get original filename
     filename = case attachable_type
                when "WarehouseDocument"
-                 attachable&.original_filename || attachable&.display_name
+                 attachable&.original_filename || attachable&.ui_name
                when "SyncedEmail"
                  "#{attachable&.subject || 'Email'}.eml"
                else
@@ -168,6 +168,14 @@ class SmTaskAttachment < ApplicationRecord
 
     # Compute the task folder path (e.g., "Tasks/2236/Responses")
     folder = compute_task_folder_path
+
+    # FRC (Feb 2026): Prevent duplicate WarehouseDocuments for same blob+folder
+    # Same file can appear in multiple folders, but NOT multiple times in same folder
+    existing = WarehouseDocument.find_by(storage_blob_id: blob.id, folder: folder)
+    if existing
+      Rails.logger.debug("[SmTaskAttachment] ##{id}: Skipping duplicate - WD #{existing.id} already exists for blob #{blob.id} in #{folder}")
+      return
+    end
 
     # FRC (Jan 2026): Must set tenant explicitly - model callbacks don't have
     # ActsAsTenant context, and WarehouseDocument validates tenant presence

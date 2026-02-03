@@ -4,7 +4,7 @@ module Api
   module V1
     module Gl
       class PaymentsController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate
         before_action :set_payment, only: [ :show, :update, :complete, :void, :allocate ]
 
         # GET /api/v1/gl/payments
@@ -49,7 +49,7 @@ module Api
         # POST /api/v1/gl/payments
         def create
           payment = ::Gl::Payment.new(payment_params)
-          payment.corporate_company = @corporate_company
+          payment.corporate = @corporate
           payment.external_provider = params[:provider] if params[:provider].present? && params[:provider] != "standalone"
           payment.external_tenant_id = params[:tenant_id]
           payment.created_in_teeem = true
@@ -198,8 +198,8 @@ module Api
 
         private
 
-        def set_corporate_company
-          @corporate_company = Corporate.find(params[:corporate_company_id] || current_user&.corporate_company_id)
+        def set_corporate
+          @corporate = Corporate.find(params[:corporate_id] || current_user&.corporate_id)
         rescue ActiveRecord::RecordNotFound
           render json: { success: false, error: "Company not found" }, status: :not_found
         end
@@ -211,7 +211,7 @@ module Api
         end
 
         def scoped_payments
-          scope = ::Gl::Payment.where(corporate_company: @corporate_company)
+          scope = ::Gl::Payment.where(corporate: @corporate)
 
           if params[:provider].present? && params[:provider] != "standalone"
             scope = scope.where(external_provider: params[:provider], external_tenant_id: params[:tenant_id])
@@ -223,7 +223,7 @@ module Api
         end
 
         def scoped_invoices
-          scope = ::Gl::Invoice.where(corporate_company: @corporate_company)
+          scope = ::Gl::Invoice.where(corporate: @corporate)
 
           if params[:provider].present? && params[:provider] != "standalone"
             scope = scope.where(external_provider: params[:provider], external_tenant_id: params[:tenant_id])

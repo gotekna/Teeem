@@ -88,8 +88,8 @@ module TenantResolvable
       return contact.tenant
     end
     # Corporate Company
-    if respond_to?(:corporate_company) && corporate_company.present?
-      tenant = corporate_company_tenant(corporate_company)
+    if respond_to?(:corporate) && corporate.present?
+      tenant = corporate_tenant(corporate)
       return tenant if tenant.present?
     end
     # User
@@ -140,8 +140,8 @@ module TenantResolvable
     end
 
     # Through corporate company
-    if doc.respond_to?(:corporate_company) && doc.corporate_company.present?
-      return corporate_company_tenant(doc.corporate_company)
+    if doc.respond_to?(:corporate) && doc.corporate.present?
+      return corporate_tenant(doc.corporate)
     end
 
     # Through organization (legacy)
@@ -153,12 +153,12 @@ module TenantResolvable
   end
 
   # Get tenant from a corporate company (through group)
-  def corporate_company_tenant(company)
+  def corporate_tenant(company)
     return nil unless company
 
-    # Corporate → CorporateGroup → Tenant
-    if company.respond_to?(:corporate_group) && company.corporate_group&.tenant.present?
-      return company.corporate_group.tenant
+    # Corporate → CompanyGroup → Tenant
+    if company.respond_to?(:company_group) && company.company_group&.tenant.present?
+      return company.company_group.tenant
     end
 
     # Direct tenant on company (if added)

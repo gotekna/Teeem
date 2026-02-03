@@ -7,7 +7,7 @@ class AddTenantIdToBillPaymentBatches < ActiveRecord::Migration[8.0]
       UPDATE bill_payment_batches
       SET tenant_id = corporate_companies.tenant_id
       FROM corporate_companies
-      WHERE bill_payment_batches.corporate_company_id = corporate_companies.id
+      WHERE bill_payment_batches.corporate_id = corporate_companies.id
       AND bill_payment_batches.tenant_id IS NULL
       AND corporate_companies.tenant_id IS NOT NULL
     SQL

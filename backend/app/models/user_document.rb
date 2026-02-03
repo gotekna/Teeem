@@ -28,7 +28,7 @@ class UserDocument < ApplicationRecord
   # duplicating storage location. Files now stored via StorageBlob (belongs_to :storage_blob)
   # which deduplicates via content_hash and uses WarehouseProvider for provider-agnostic paths.
 
-  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  # Phase 3: Universal warehouse metadata (SSoT for ui_name, download_name, folder)
   has_one :warehouse_document, as: :documentable, dependent: :destroy
 
   # SSoT: Categories map to storage scopes in WarehouseProvider
@@ -78,16 +78,19 @@ class UserDocument < ApplicationRecord
     CATEGORIES[category] || :users
   end
 
-  # SSoT: Get the EntityTab from DocumentType (primary_entity_tab method)
+  # SSoT: Get the WarehouseFolder from DocumentType (primary_warehouse_folder method)
   # This provides the folder name and storage_folder_path template
-  def effective_entity_tab
-    document_type&.primary_entity_tab
+  def effective_warehouse_folder
+    document_type&.primary_warehouse_folder
   end
 
-  # SSoT: Get the storage folder path template from EntityTab
+  # DEPRECATED: Use effective_warehouse_folder (Jan 2026)
+  alias_method :effective_entity_tab, :effective_warehouse_folder
+
+  # SSoT: Get the storage folder path template from WarehouseFolder
   # This is the database-stored template, NOT a hardcoded constant
   def storage_folder_template
-    effective_entity_tab&.storage_folder_path
+    effective_warehouse_folder&.storage_folder_path
   end
 
   # ========================================
@@ -95,19 +98,32 @@ class UserDocument < ApplicationRecord
   # ========================================
 
   # SSoT: Virtual folder path for File Warehouse display
-  # Uses WarehouseProvider template: Users/{{UserName}}/{{Folder}}
+  # Uses WarehouseProvider template from database (e.g., "Teeem Docs/{{UserName}}/{{Year}}")
   #
-  # @return [String] Virtual folder path like "Users/Robert Harder/Projects"
+  # @return [String] Virtual folder path like "Teeem Docs/Robert Harder/2026"
   def virtual_folder_path
     config = WarehouseProvider.instance
     template = config&.path_for(:user)
     raise "WarehouseProvider missing :user template - run rails warehouse:init" unless template
 
     result = template.dup
-    result.gsub!("{{UserName}}", sanitize_path_component(user&.name.to_s))
+
+    # User-related tokens (use "Unknown" fallback for nil/blank user names)
+    result.gsub!("{{UserName}}", sanitize_path_component(user&.name.to_s) || "Unknown")
+
+    # Date tokens (SSoT: based on document creation date)
+    doc_date = created_at || Time.current
+    result.gsub!("{{Year}}", doc_date.year.to_s)
+    result.gsub!("{{Month}}", doc_date.strftime("%m"))
+    result.gsub!("{{Day}}", doc_date.strftime("%d"))
+
+    # Folder/category tokens
     result.gsub!("{{Folder}}", folder.to_s)
     result.gsub!("{{Category}}", category&.titleize.to_s)
     result.gsub!("{{TabName}}", folder.to_s.presence || category&.titleize.to_s)
+
+    # File-related tokens
+    result.gsub!("{{OriginalFileName}}", sanitize_path_component(File.basename(file_name.to_s, ".*")) || "")
 
     # Clean up empty tokens and double slashes
     result.gsub!(/\{\{[^}]+\}\}/, "")
@@ -166,7 +182,7 @@ class UserDocument < ApplicationRecord
 
   # SSoT: Default tokens for storage path template
   # Path is built from:
-  # 1. EntityTab.storage_folder_path template (from database, NOT hardcoded)
+  # 1. WarehouseFolder.storage_folder_path template (from database, NOT hardcoded)
   # 2. Tokens expanded from this method
   #
   # Category determines base folder:
@@ -174,17 +190,18 @@ class UserDocument < ApplicationRecord
   # - contracts: /Users/Contracts/{UserName}/filename
   # - my_docs: /Users/MyDocs/{UserName}/filename
   def default_storage_tokens
-    entity_tab = effective_entity_tab
+    warehouse_folder = effective_warehouse_folder
+    doc_date = created_at || Time.current
 
     {
       # User tokens
       UserName: sanitize_path_component(user&.name || "Unknown"),
       UserEmail: user&.email,
 
-      # Tab tokens (from EntityTab - SSoT for folder structure)
-      TabName: entity_tab&.display_name || folder || category&.titleize || "Documents",
-      TabKey: entity_tab&.tab_key,
-      SubTabName: entity_tab&.parent&.display_name,
+      # Tab tokens (from WarehouseFolder - SSoT for folder structure)
+      TabName: warehouse_folder&.display_name || folder || category&.titleize || "Documents",
+      TabKey: warehouse_folder&.tab_key,
+      SubTabName: warehouse_folder&.parent&.display_name,
 
       # DocumentType tokens
       DocTypeCode: document_type&.code,
@@ -194,8 +211,11 @@ class UserDocument < ApplicationRecord
       # Category token
       Category: category&.titleize,
 
-      # Date tokens
-      Date: created_at&.strftime("%Y-%m-%d"),
+      # Date tokens (SSoT: for folder organization)
+      Date: doc_date.strftime("%Y-%m-%d"),
+      Year: doc_date.year.to_s,
+      Month: doc_date.strftime("%m"),
+      Day: doc_date.strftime("%d"),
 
       # File tokens
       OriginalFileName: File.basename(file_name.to_s, ".*")
