@@ -135,7 +135,7 @@ class WarehouseFolderQueryService
           name: dt.name,
           ui_name: dt.ui_name,
           abbreviation: dt.abbreviation,
-          file_name: dt.file_name
+          download_name: dt.download_name
         }
       end
     end
