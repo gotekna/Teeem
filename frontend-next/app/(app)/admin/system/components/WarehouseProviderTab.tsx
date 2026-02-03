@@ -310,7 +310,6 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
     'esignature', 'esignature_pending', 'esignature_completed',
     'plan',
     'task_attachments', 'task_responses',  // Task sub-scopes
-    'email_body', 'email_attachments',      // Email sub-scopes
     'user_excel', 'user_word', 'user_powerpoint', 'user_pdf', 'user_notes',  // Teeem Docs sub-scopes
   ];
 
@@ -447,6 +446,221 @@ function isSimpleScopeKey(scopeKey: string | null): boolean {
     'email_attachments'
   ];
   return simpleSubScopes.includes(scopeKey);
+}
+
+// ============================================================================
+// SSoT: FolderEditPanel - THE ONE reusable component for folder/tab editing
+// Standardized field order: Root Path → Base Folder → Folder Path → Full Path
+//                          → Document UI Name → Document Download Name
+// ============================================================================
+interface FolderEditPanelProps {
+  // Path configuration
+  rootPath: string;
+  baseFolderValue?: string;
+  baseFolderInheritedFrom?: string;  // If set, base folder is read-only (inherited)
+  folderPath: string;
+  fullPathPreview: string;
+  // Document naming
+  uiNameValue: string;
+  downloadNameValue: string;
+  // Scope for token builder
+  scope: string;
+  // Callbacks
+  onBaseFolderChange?: (value: string) => void;
+  onFolderPathChange: (value: string) => void;
+  onUiNameChange: (value: string) => void;
+  onDownloadNameChange: (value: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  // State
+  isSaving?: boolean;
+  hasUnsavedChanges?: boolean;
+  lastSaved?: Date | null;
+  // Display options
+  showBaseFolder?: boolean;  // Default true for scope folders, false for tabs
+  folderSuffixButtons?: React.ReactNode;  // Optional folder suffix quick-add buttons
+  compactMode?: boolean;  // Slightly smaller spacing for nested panels
+}
+
+function FolderEditPanel({
+  rootPath,
+  baseFolderValue,
+  baseFolderInheritedFrom,
+  folderPath,
+  fullPathPreview,
+  uiNameValue,
+  downloadNameValue,
+  scope,
+  onBaseFolderChange,
+  onFolderPathChange,
+  onUiNameChange,
+  onDownloadNameChange,
+  onSave,
+  onCancel,
+  isSaving = false,
+  hasUnsavedChanges = false,
+  lastSaved = null,
+  showBaseFolder = true,
+  folderSuffixButtons,
+  compactMode = false,
+}: FolderEditPanelProps) {
+  const labelClass = compactMode ? "text-[11px]" : "text-xs";
+  const spacing = compactMode ? "space-y-3" : "space-y-4";
+
+  return (
+    <div className={spacing}>
+      {/* 1. Root Path (always read-only) */}
+      <div className="space-y-1">
+        <label className={cn(labelClass, "font-medium text-muted-foreground")}>Root Path</label>
+        <div className="bg-muted/50 border border-muted rounded px-3 py-2">
+          <span className="font-mono text-sm text-muted-foreground">
+            {rootPath || '/'}
+          </span>
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          Storage provider root folder (configured in Storage Config).
+        </p>
+      </div>
+
+      {/* 2. Base Folder (optional - for scope folders) */}
+      {showBaseFolder && (
+        <div className="space-y-1">
+          <label className={cn(labelClass, "font-medium text-muted-foreground")}>
+            Base Folder
+            {baseFolderInheritedFrom && (
+              <span className="text-muted-foreground/70 ml-1">
+                (inherited from {baseFolderInheritedFrom.replace('_', ' ')})
+              </span>
+            )}
+          </label>
+          {baseFolderInheritedFrom ? (
+            // Read-only when inherited
+            <div className="bg-muted/50 border border-muted rounded px-3 py-2">
+              <span className="font-mono text-sm text-muted-foreground">
+                {baseFolderValue || ''}
+              </span>
+            </div>
+          ) : (
+            // Editable when not inherited
+            <TokenBuilder
+              value={baseFolderValue || ''}
+              onChange={onBaseFolderChange || (() => {})}
+              scope={getWarehouseScopeForType(scope)}
+              showPreview={false}
+              separator="/"
+              placeholder="Click tokens to build base folder..."
+              defaultExpanded={false}
+            />
+          )}
+          <p className="text-[10px] text-muted-foreground">
+            {baseFolderInheritedFrom
+              ? `Base path inherited from ${baseFolderInheritedFrom.replace('_', ' ')}. Edit the Folder Path below to set the suffix.`
+              : 'Storage folder path. Use the same path for related types to group them on one row.'
+            }
+          </p>
+        </div>
+      )}
+
+      {/* 3. Folder Path (TokenBuilder) */}
+      <TokenBuilder
+        label={<span className={cn(labelClass, "font-medium")}>Folder Path</span>}
+        value={folderPath}
+        onChange={onFolderPathChange}
+        scope={getWarehouseScopeForType(scope)}
+        showPreview={false}
+        separator="/"
+        placeholder="Click tokens to build folder path..."
+        defaultExpanded={false}
+        prefixValue={baseFolderInheritedFrom ? baseFolderValue : undefined}
+      />
+
+      {/* 4. Full Path Preview */}
+      <div className={cn(
+        "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2",
+        compactMode ? "-mt-1" : "-mt-2"
+      )}>
+        <span className="text-xs text-muted-foreground">Full Path: </span>
+        <span className="font-mono text-sm text-green-700 dark:text-green-400">
+          {fullPathPreview || '/'}
+        </span>
+      </div>
+
+      {/* Optional: Folder suffix quick-add buttons */}
+      {folderSuffixButtons}
+
+      {/* 5. Document UI Name (TokenBuilder) */}
+      <TokenBuilder
+        label={<span className={cn(labelClass, "font-medium")}>Document UI Name</span>}
+        value={uiNameValue}
+        onChange={onUiNameChange}
+        scope={getWarehouseScopeForType(scope)}
+        showPreview={true}
+        placeholder="Click tokens to build document UI name..."
+        defaultExpanded={false}
+        defaultValue="{{OriginalFileName}}"
+      />
+
+      {/* 6. Document Download Name (TokenBuilder) */}
+      <TokenBuilder
+        label={
+          <span className={cn(labelClass, "font-medium")}>
+            Document Download Name
+            {(!downloadNameValue || downloadNameValue === '{{OriginalFileName}}') && (
+              <span className="ml-1.5 text-[9px] text-blue-500/70 font-normal">(default)</span>
+            )}
+          </span>
+        }
+        value={downloadNameValue}
+        onChange={onDownloadNameChange}
+        scope={getWarehouseScopeForType(scope)}
+        showPreview={true}
+        placeholder="Click tokens to build download filename..."
+        defaultExpanded={false}
+        defaultValue="{{OriginalFileName}}"
+      />
+
+      {/* Save/Cancel buttons */}
+      <div className="flex items-center justify-between pt-2 border-t mt-3">
+        {/* Auto-save indicator */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {isSaving ? (
+            <>
+              <Spinner size={12} />
+              <span>Saving...</span>
+            </>
+          ) : lastSaved ? (
+            <>
+              <CheckCircle2 className="h-3 w-3 text-green-500 dark:text-green-400" />
+              <span>Auto-saved</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground/50">Changes auto-save</span>
+          )}
+        </div>
+
+        {/* Save and Close buttons */}
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="default"
+            onClick={onSave}
+            disabled={isSaving || !hasUnsavedChanges}
+            className="h-7 px-3 text-xs"
+          >
+            {isSaving ? 'Saving...' : 'Save'}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onCancel}
+            className="h-7 px-3 text-xs"
+          >
+            Close
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // TreeNode component for folder hierarchy
@@ -1566,7 +1780,58 @@ function TabNode({
 
         {isEditing ? (
           <div className="space-y-3 ml-4 border-l-2 border-blue-200 dark:border-blue-800 pl-3">
-            {/* Document UI Name - what users see in UI */}
+            {/* SSoT: Standardized field order matches FolderEditPanel */}
+            {/* 1. Root folder path (read-only) */}
+            <div className="space-y-1">
+              <span className="text-[11px] font-medium text-muted-foreground">Root Path</span>
+              <div className="bg-muted/50 border border-muted rounded px-2 py-1.5">
+                <span className="font-mono text-xs text-muted-foreground">
+                  {rootPath || '/'}
+                </span>
+              </div>
+            </div>
+
+            {/* 2. Base Folder (inherited from parent scope - read-only for tabs) */}
+            <div className="space-y-1">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                Base Folder
+                <span className="text-muted-foreground/70 ml-1">(inherited from {scope})</span>
+              </span>
+              <div className="bg-muted/50 border border-muted rounded px-2 py-1.5">
+                <span className="font-mono text-xs text-muted-foreground">
+                  {basePath.replace(/\/?\{\{TeeemXL\}\}|\{\{TabName\}\}/g, '').replace(/\/+$/, '') || '/'}
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Base path inherited from parent scope. Edit Folder Path below to set the tab folder name.
+              </p>
+            </div>
+
+            {/* 3. Folder Path - the folder name in storage */}
+            <div className="space-y-1">
+              <TokenBuilder
+                label={<span className="text-[11px] font-medium text-muted-foreground">Folder Path</span>}
+                value={editPath}
+                onChange={setEditPath}
+                scope={getWarehouseScopeForType(scope)}
+                showPreview={false}
+                separator="/"
+                placeholder="e.g. TeeemXL"
+                defaultExpanded={false}
+              />
+              {/* 4. Full path preview - basePath is the SSoT template with {{TeeemXL}} replaced by folder name */}
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-2 py-1">
+                <span className="text-[10px] text-muted-foreground font-medium">Full Path: </span>
+                <span className="font-mono text-xs text-green-700 dark:text-green-400">
+                  {[rootPath, basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/g, editPath || '...')]
+                    .filter(Boolean)
+                    .join('/')
+                    .replace(/\/+/g, '/') || '/'}
+                </span>
+              </div>
+            </div>
+
+            {/* 4. Document UI Name - what users see in UI */}
             <div className="space-y-1">
               <TokenBuilder
                 label={<span className="text-[11px] font-medium text-muted-foreground">Document UI Name</span>}
@@ -1580,41 +1845,7 @@ function TabNode({
               />
             </div>
 
-            {/* Root folder path (read-only) */}
-            <div className="space-y-1">
-              <span className="text-[11px] font-medium text-muted-foreground">Root Path</span>
-              <div className="bg-muted/50 border border-muted rounded px-2 py-1.5">
-                <span className="font-mono text-xs text-muted-foreground">
-                  {rootPath || '/'}
-                </span>
-              </div>
-            </div>
-
-            {/* Folder Path - the folder name in storage */}
-            <div className="space-y-1">
-              <TokenBuilder
-                label={<span className="text-[11px] font-medium text-muted-foreground">Folder Path</span>}
-                value={editPath}
-                onChange={setEditPath}
-                scope={getWarehouseScopeForType(scope)}
-                showPreview={false}
-                separator="/"
-                placeholder="e.g. TeeemXL"
-                defaultExpanded={false}
-              />
-              {/* Full path preview - basePath is the SSoT template with {{TeeemXL}} replaced by folder name */}
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-2 py-1">
-                <span className="text-[10px] text-muted-foreground font-medium">Full Path: </span>
-                <span className="font-mono text-xs text-green-700 dark:text-green-400">
-                  {[rootPath, basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/g, editPath || '...')]
-                    .filter(Boolean)
-                    .join('/')
-                    .replace(/\/+/g, '/') || '/'}
-                </span>
-              </div>
-            </div>
-
-            {/* Document Download Name template */}
+            {/* 5. Document Download Name template */}
             <div className="space-y-1">
               <TokenBuilder
                 label={
@@ -1669,12 +1900,9 @@ function TabNode({
             </div>
           </div>
         ) : (
-          // Show document UI name, folder path, and download name when not editing
+          // SSoT: Standardized field order matches editing state
+          // Show folder path, document UI name, and download name when not editing
           <div className="ml-4 text-[11px] text-muted-foreground space-y-0.5">
-            <div>
-              <span className="font-medium">Document UI Name: </span>
-              <span>{tab.display_name}</span>
-            </div>
             <div>
               <span className="font-medium">Folder Path: </span>
               <span className="font-mono">
@@ -1690,6 +1918,10 @@ function TabNode({
                     .filter(Boolean).join('/').replace(/\/+/g, '/');
                 })()}
               </span>
+            </div>
+            <div>
+              <span className="font-medium">Document UI Name: </span>
+              <span>{tab.display_name}</span>
             </div>
             <div>
               <span className="font-medium">Document Download Name: </span>
@@ -2037,7 +2269,7 @@ export function WarehouseProviderTab() {
     // Helper: Filter tabs for scopes without doc types (just warehouse enabled)
     // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)
     // SSoT (Feb 2026): Also exclude tabs whose tab_key matches a child scope in WAREHOUSE_TYPE_PARENTS
-    // These tabs now appear as folder nodes with badges, so showing them as entity tabs is duplicate
+    // BUT only if that child scope has a folder entry (will show as separate node with its own badge)
     const CHILD_SCOPE_TAB_KEYS = Object.keys(WAREHOUSE_TYPE_PARENTS);
     // SSoT: tab_key uses hyphens (email-attachments) but scope keys use underscores (email_attachments)
     // Normalize both to underscores for comparison
@@ -2047,10 +2279,11 @@ export function WarehouseProviderTab() {
         .filter(tab => {
           // Must be warehouse enabled
           if ((tab.warehouse_enabled ?? tab.has_storage_folder) !== true) return false;
-          // Exclude tabs that match child scope keys (they appear as folder nodes now)
-          // Normalize hyphen → underscore for comparison (tab_key: "email-attachments" → "email_attachments")
+          // Exclude tabs that match child scope keys ONLY if the scope has a folder entry
+          // (it will appear as a separate folder node with its own badge)
+          // If no folder entry exists, show the tab as a badge on the parent scope
           const normalizedTabKey = normalizeKey(tab.tab_key);
-          if (CHILD_SCOPE_TAB_KEYS.includes(normalizedTabKey)) return false;
+          if (CHILD_SCOPE_TAB_KEYS.includes(normalizedTabKey) && scopeFolders[normalizedTabKey]) return false;
           return true;
         })
         .map(tab => ({
