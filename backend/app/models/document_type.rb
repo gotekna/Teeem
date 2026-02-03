@@ -2,6 +2,10 @@ class DocumentType < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
 
+  # Backwards compatibility: display_name was renamed to ui_name (Feb 2026)
+  # TODO: Gradually migrate all callers to use ui_name, then remove this alias
+  alias_attribute :display_name, :ui_name
+
   # Associations
   # Note: corporate_company_documents and job_documents associations REMOVED (Jan 2026) - tables dropped
   # SSoT: WarehouseDocument is now THE ONE table for document metadata

@@ -29,6 +29,10 @@ class WarehouseDocument < ApplicationRecord
   # SSoT: Tenant scoping - ensures all queries are scoped to current tenant
   acts_as_tenant :tenant
 
+  # Backwards compatibility: display_name was renamed to ui_name (Feb 2026)
+  # TODO: Gradually migrate all callers to use ui_name, then remove this alias
+  alias_attribute :display_name, :ui_name
+
   # ========================================
   # Callbacks
   # ========================================
