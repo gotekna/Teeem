@@ -94,7 +94,7 @@ namespace :warehouse do
     puts "Total documents: #{total}"
 
     start_time = Time.current
-    tree = { root_folders: Hash.new(0), paths: {} }
+    tree = { base_folders: Hash.new(0), paths: {} }
     processed = 0
 
     WarehouseDocument.includes(:documentable).find_each(batch_size: 1000) do |doc|
@@ -104,7 +104,7 @@ namespace :warehouse do
       tree[:paths][doc.id] = computed_path
 
       root = computed_path.split("/").first
-      tree[:root_folders][root] += 1
+      tree[:base_folders][root] += 1
 
       processed += 1
       if processed % 10000 == 0
@@ -116,7 +116,7 @@ namespace :warehouse do
     end
 
     # Convert to regular hash for caching
-    tree[:root_folders] = tree[:root_folders].to_h
+    tree[:base_folders] = tree[:base_folders].to_h
 
     # Cache for 1 hour
     Rails.cache.write("warehouse_folder_tree_v2", tree, expires_in: 1.hour)
@@ -124,8 +124,8 @@ namespace :warehouse do
     elapsed = (Time.current - start_time).round
     puts ""
     puts "Done in #{elapsed} seconds!"
-    puts "Root folders:"
-    tree[:root_folders].each do |name, count|
+    puts "Base folders:"
+    tree[:base_folders].each do |name, count|
       puts "  #{name}: #{count} documents"
     end
   end
@@ -488,7 +488,7 @@ namespace :warehouse do
         display_name: 'Tasks',
         tab_group: 'system',
         folder_path: 'Tasks/{{TaskId}}/{{TaskName}}',
-        root_folder: 'Tasks'
+        base_folder: 'Tasks'
       },
       {
         warehouse_type: 'task_attachments',
@@ -496,7 +496,7 @@ namespace :warehouse do
         display_name: 'Task Attachments',
         tab_group: 'system',
         folder_path: 'Tasks/{{TaskId}}/{{TaskName}}/Attachments',
-        root_folder: 'Tasks'
+        base_folder: 'Tasks'
       },
       {
         warehouse_type: 'task_responses',
@@ -504,7 +504,7 @@ namespace :warehouse do
         display_name: 'Task Responses',
         tab_group: 'system',
         folder_path: 'Tasks/{{TaskId}}/{{TaskName}}/Responses',
-        root_folder: 'Tasks'
+        base_folder: 'Tasks'
       },
 
       # Teeem Docs folder (user documents)
@@ -514,7 +514,7 @@ namespace :warehouse do
         display_name: 'Teeem Docs',
         tab_group: 'system',
         folder_path: 'Teeem Docs/{{UserName}}/{{Year}}',
-        root_folder: 'Teeem Docs'
+        base_folder: 'Teeem Docs'
       },
 
       # Cases folder
@@ -524,7 +524,7 @@ namespace :warehouse do
         display_name: 'Cases',
         tab_group: 'system',
         folder_path: 'Cases/{{CaseId}}',
-        root_folder: 'Cases'
+        base_folder: 'Cases'
       },
 
       # Asset document subfolders (under Corporate)
@@ -534,7 +534,7 @@ namespace :warehouse do
         display_name: 'Asset',
         tab_group: 'documents',
         folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}',
-        root_folder: 'Corporate'
+        base_folder: 'Corporate'
       },
       {
         warehouse_type: 'asset_expenses',
@@ -542,7 +542,7 @@ namespace :warehouse do
         display_name: 'Asset Expenses',
         tab_group: 'documents',
         folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Expenses',
-        root_folder: 'Corporate'
+        base_folder: 'Corporate'
       },
       {
         warehouse_type: 'asset_service',
@@ -550,7 +550,7 @@ namespace :warehouse do
         display_name: 'Asset Service',
         tab_group: 'documents',
         folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Service',
-        root_folder: 'Corporate'
+        base_folder: 'Corporate'
       },
       {
         warehouse_type: 'asset_readings',
@@ -558,7 +558,7 @@ namespace :warehouse do
         display_name: 'Asset Readings',
         tab_group: 'documents',
         folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Readings',
-        root_folder: 'Corporate'
+        base_folder: 'Corporate'
       }
     ]
 
@@ -579,7 +579,7 @@ namespace :warehouse do
           is_system_tab: true,
           warehouse_enabled: true,
           folder_path: attrs[:warehouse_folder],
-          root_folder: attrs[:root_folder]
+          base_folder: attrs[:base_folder]
         )
         puts "  ✅ Created #{attrs[:warehouse_type]} (#{attrs[:display_name]})"
         created_count += 1
@@ -594,11 +594,11 @@ namespace :warehouse do
     puts "\nWarehouse Folders:"
     puts "-" * 100
 
-    WarehouseFolder.where.not(root_folder: [nil, ''])
-                   .order(:root_folder, :warehouse_type)
+    WarehouseFolder.where.not(base_folder: [nil, ''])
+                   .order(:base_folder, :warehouse_type)
                    .each do |wf|
       status = wf.warehouse_enabled ? "✅" : "❌"
-      puts "#{status} #{wf.warehouse_type.ljust(20)} | #{wf.root_folder.ljust(12)} | #{wf.folder_path}"
+      puts "#{status} #{wf.warehouse_type.ljust(20)} | #{wf.base_folder.ljust(12)} | #{wf.folder_path}"
     end
   end
 end

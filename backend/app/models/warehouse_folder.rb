@@ -206,43 +206,43 @@ class WarehouseFolder < ApplicationRecord
     'Templates' => 'template'
   }.freeze
 
-  # Get warehouse_type for a root folder
+  # Get warehouse_type for a base folder
   # SSoT: Reads from warehouse_folders table (Feb 2026)
-  def self.warehouse_type_for_root_folder(root_folder)
-    find_by(parent_id: nil, display_name: root_folder, warehouse_enabled: true)&.warehouse_type
+  def self.warehouse_type_for_base_folder(base_folder)
+    find_by(parent_id: nil, display_name: base_folder, warehouse_enabled: true)&.warehouse_type
   end
 
-  # Get root folder for a warehouse_type (inverse lookup)
+  # Get base folder for a warehouse_type (inverse lookup)
   # SSoT: Reads from warehouse_folders table (Feb 2026)
   # @param warehouse_type [String] e.g., "job", "contact", "corporate"
   # @return [String, nil] e.g., "Jobs", "Contacts", "Corporate"
-  def self.root_folder_for_warehouse_type(warehouse_type)
+  def self.base_folder_for_warehouse_type(warehouse_type)
     find_by(parent_id: nil, warehouse_type: warehouse_type.to_s, warehouse_enabled: true)&.display_name
   end
 
-  # Get all root folders (for File Warehouse root level)
+  # Get all base folders (for File Warehouse root level)
   # SSoT: Reads from warehouse_folders table (Feb 2026)
-  def self.all_root_folders
+  def self.all_base_folders
     where(parent_id: nil, warehouse_enabled: true)
       .distinct
       .pluck(:display_name)
       .compact
   end
 
-  # Get tabs (subfolders) for a root folder
-  # @param root_folder [String] The root folder name (e.g., "Jobs", "Contacts")
+  # Get tabs (subfolders) for a base folder
+  # @param base_folder [String] The base folder name (e.g., "Jobs", "Contacts")
   # @return [Array<Hash>] Array of {name:, path:, has_children:, etc.}
   #
-  # SSoT (Feb 2026 FRC Fix): Exclude the root folder itself from subfolders
-  # e.g., "Teeem Docs" is both the root folder AND a root tab for warehouse_type "user"
+  # SSoT (Feb 2026 FRC Fix): Exclude the base folder itself from subfolders
+  # e.g., "Teeem Docs" is both the base folder AND a root tab for warehouse_type "user"
   # Without this exclusion, expanding "Teeem Docs" would show "Teeem Docs/Teeem Docs"
-  def self.tabs_for_root_folder(root_folder)
-    warehouse_type = warehouse_type_for_root_folder(root_folder)
+  def self.tabs_for_base_folder(base_folder)
+    warehouse_type = warehouse_type_for_base_folder(base_folder)
     return [] unless warehouse_type
 
     for_warehouse_type(warehouse_type)
       .where(warehouse_enabled: true)
-      .where.not(display_name: root_folder)  # SSoT: Exclude root folder itself
+      .where.not(display_name: base_folder)  # SSoT: Exclude base folder itself
       .enabled
       .root_tabs
       .includes(:children)
@@ -251,7 +251,7 @@ class WarehouseFolder < ApplicationRecord
         has_children = tab.children.where(warehouse_enabled: true).exists?
         {
           name: tab.display_name,
-          path: "#{root_folder}/#{tab.display_name}",
+          path: "#{base_folder}/#{tab.display_name}",
           tab_key: tab.tab_key,
           icon: tab.icon_name,
           warehouse_type: warehouse_type,
@@ -269,8 +269,8 @@ class WarehouseFolder < ApplicationRecord
     parts = path.split('/')
     return [] if parts.length < 2
 
-    root_folder = parts[0]
-    warehouse_type = warehouse_type_for_root_folder(root_folder)
+    base_folder = parts[0]
+    warehouse_type = warehouse_type_for_base_folder(base_folder)
     return [] unless warehouse_type
 
     # Walk the path to find the parent tab
@@ -691,22 +691,22 @@ class WarehouseFolder < ApplicationRecord
     result
   end
 
-  # SSoT (Feb 2026): Map warehouse_type → root folder name
-  # Uses root_folder column (populated from first segment of folder_path)
+  # SSoT (Feb 2026): Map warehouse_type → base folder name
+  # Uses base_folder column (populated from first segment of folder_path)
   # Used by: documents_controller, warehouse_provider.as_json
   #
   # FRC (Feb 2026): Filter OUT internal/system folders with [[...]] syntax
   # These are template folders (e.g., [[Email Body]]/{{Subject}}) not user-visible roots
   # Example: "email" should map to "Emails", not "[[Email Body]]"
-  def self.warehouse_type_to_root_folder
+  def self.warehouse_type_to_base_folder
     result = {}
-    # First pass: Get user-visible folders (no [[ in root_folder)
-    WarehouseFolder.where.not(root_folder: [nil, ''])
-                   .where("root_folder NOT LIKE '%[[%'")
+    # First pass: Get user-visible folders (no [[ in base_folder)
+    WarehouseFolder.where.not(base_folder: [nil, ''])
+                   .where("base_folder NOT LIKE '%[[%'")
                    .distinct
-                   .pluck(:warehouse_type, :root_folder)
-                   .each do |warehouse_type, root|
-      result[warehouse_type] ||= root if root.present?
+                   .pluck(:warehouse_type, :base_folder)
+                   .each do |warehouse_type, base|
+      result[warehouse_type] ||= base if base.present?
     end
     result
   end
@@ -717,10 +717,10 @@ class WarehouseFolder < ApplicationRecord
     WarehouseFolder.distinct.pluck(:warehouse_type)
   end
 
-  # SSoT (Feb 2026): Get root folder for a warehouse_type
+  # SSoT (Feb 2026): Get base folder for a warehouse_type
   # Prefers parent_id: nil, falls back to first folder of that type
   # Used by: warehouse_provider.path_for, warehouse_providers_controller
-  def self.root_folder_for(warehouse_type)
+  def self.base_folder_for(warehouse_type)
     find_by(warehouse_type: warehouse_type, parent_id: nil) ||
       where(warehouse_type: warehouse_type).order(:id).first
   end
@@ -1330,7 +1330,7 @@ class WarehouseFolder < ApplicationRecord
 
   # NOTE (Feb 2026 FRC Fix): Removed rename_folders_in_database_if_needed method
   # WarehouseDocument.folder is redundant - folder paths are computed from source_type.
-  # See: documents_controller.rb#source_type_to_root_folder_mapping
+  # See: documents_controller.rb#source_type_to_base_folder_mapping
 
   # SSoT: Root tabs must have unique icons within the same warehouse_type
   # Child tabs can inherit parent's icon OR have their own unique icon

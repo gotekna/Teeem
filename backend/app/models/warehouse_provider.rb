@@ -66,7 +66,7 @@ class WarehouseProvider < ApplicationRecord
     xero user
   ].freeze
 
-  # LIM (Jan 2026): scope_root_folders is now a method that returns simple mapping
+  # LIM (Jan 2026): scope_base_folders is now a method that returns simple mapping
   # Note: scope_options was deleted and replaced with exclude_sm_tasks boolean
 
   # Validations
@@ -303,14 +303,14 @@ class WarehouseProvider < ApplicationRecord
     type_key = WAREHOUSE_KEY_ALIASES[type_key] || type_key
 
     # SSoT: Read path template from warehouse_folders table
-    folder = WarehouseFolder.root_folder_for(type_key)
-    path = folder&.warehouse_folder
+    folder = WarehouseFolder.base_folder_for(type_key)
+    path = folder&.folder_path
 
     return nil if path.blank? || path == "DISABLED"
     path
   end
 
-  # LIM (Feb 2026): Removed effective_warehouse_folders, scope_root_folders, scope_folder_templates,
+  # LIM (Feb 2026): Removed effective_warehouse_folders, scope_base_folders, scope_folder_templates,
   # scope_download_names, scope_ui_names - all read directly from warehouse_folders table (SSoT)
 
   # ========================================
@@ -937,9 +937,9 @@ class WarehouseProvider < ApplicationRecord
       # Link expiry days for presigned URLs (from TenantSetting - SSoT)
       link_expiry_days: TenantSetting.link_expiry_days,
 
-      # LIM (Feb 2026): Frontend gets root folder mapping from warehouse_folders SSoT
+      # LIM (Feb 2026): Frontend gets base folder mapping from warehouse_folders SSoT
       # scope_folders: { contact: "Contacts", job: "Jobs", ... } - NOT full templates
-      scope_folders: WarehouseFolder.warehouse_type_to_root_folder,
+      scope_folders: WarehouseFolder.warehouse_type_to_base_folder,
 
       # SSoT (Feb 2026): Full path templates from warehouse_folders table
       # Frontend needs these for the Warehouse Folders config UI

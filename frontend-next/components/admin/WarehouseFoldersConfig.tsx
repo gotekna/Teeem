@@ -325,7 +325,7 @@ export function WarehouseFoldersConfig({
   const getBasePath = React.useCallback((scopeKey: string): string => {
     const rootPath = storageConfig?.root_path || "";
     // SSoT: warehouse_folders is THE ONE source for scope root paths
-    const scopePath = storageConfig?.folder_paths?.[scopeKey] || "";
+    const scopePath = storageConfig?.warehouse_folders?.[scopeKey] || "";
     if (!scopePath) return rootPath || "";
     // Combine root and scope path, normalize slashes
     const fullPath = [rootPath, scopePath].filter(Boolean).join('/');

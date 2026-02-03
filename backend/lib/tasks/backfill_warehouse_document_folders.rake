@@ -15,7 +15,7 @@
 #    - User paths lose user names when tenant mismatch occurs
 #
 # 3. NOT NEEDED: The original issue (folders like [[Email Body]] appearing) was
-#    fixed in warehouse_type_to_root_folder by filtering internal folders.
+#    fixed in warehouse_type_to_base_folder by filtering internal folders.
 #    Existing document folder values are correct for when they were created.
 #
 # CONCLUSION: Historical documents have correct paths for their creation time.

@@ -196,13 +196,13 @@ class WarehouseDocument < ApplicationRecord
       Rails.logger.debug "[WarehouseDocument] computed_folder_path template failed for #{id}: #{e.message}"
     end
 
-    # Fallback: derive root folder from source_type
-    source_type_to_root_folder
+    # Fallback: derive base folder from source_type
+    source_type_to_base_folder
   end
 
-  # SSoT: Map source_type to root folder name
+  # SSoT: Map source_type to base folder name
   # Used as final fallback when template computation fails
-  def source_type_to_root_folder
+  def source_type_to_base_folder
     case source_type
     when "corporate", "xero", "financial", "asset" then "Corporate"
     when "job", "compliance" then "Jobs"
@@ -217,14 +217,14 @@ class WarehouseDocument < ApplicationRecord
     end
   end
 
-  # SSoT (Feb 2026): Root folder name from WarehouseFolder path templates
-  # Uses warehouse_type_to_root_folder which extracts first segment of path
+  # SSoT (Feb 2026): Base folder name from WarehouseFolder path templates
+  # Uses warehouse_type_to_base_folder which extracts first segment of path
   # e.g., "Jobs/{{JobCode}}/Compliance" → "Jobs"
-  # Fallback to source_type_to_root_folder if WarehouseFolder not configured
+  # Fallback to source_type_to_base_folder if WarehouseFolder not configured
   def folder
     warehouse_type = source_type_to_warehouse_type
-    # warehouse_type_to_root_folder returns {"job" => "Jobs", "corporate" => "Corporate", ...}
-    WarehouseFolder.warehouse_type_to_root_folder[warehouse_type] || source_type_to_root_folder
+    # warehouse_type_to_base_folder returns {"job" => "Jobs", "corporate" => "Corporate", ...}
+    WarehouseFolder.warehouse_type_to_base_folder[warehouse_type] || source_type_to_base_folder
   end
 
   # NOTE (Feb 2026 FRC Fix): folder column REMOVED from table.

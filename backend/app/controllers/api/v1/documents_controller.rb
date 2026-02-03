@@ -292,7 +292,7 @@ module Api
 
         # SSoT: Prepend scope root folder if path doesn't already include it
         # Task folders are stored as "Tasks/123/Attachments" but frontend sends "123/Attachments"
-        scope_root = scope_root_folder(scope)
+        scope_root = scope_base_folder(scope)
         full_path = if base_path.present? && scope_root.present? && !base_path.start_with?(scope_root)
                       "#{scope_root}/#{base_path}"
                     else
@@ -580,29 +580,29 @@ module Api
         base_scope = base_scope.where.not(source_type: "email") unless include_emails
 
         if path.blank?
-          # SSoT (Feb 2026 FRC Fix): Root folder structure comes from warehouse_type_to_root_folder
+          # SSoT (Feb 2026 FRC Fix): Root folder structure comes from warehouse_type_to_base_folder
           # This extracts first segment of path templates (e.g., "Jobs/{{JobCode}}" → "Jobs")
-          # NOT from all_root_folders which returns tabs (ADVICE, ASIC, etc.) not conceptual roots
+          # NOT from all_base_folders which returns tabs (ADVICE, ASIC, etc.) not conceptual roots
           #
-          # Root cause: all_root_folders queries parent_id: nil folders, which are TABS
-          # SSoT: warehouse_type_to_root_folder extracts roots from path templates
-          root_folders_from_config = WarehouseFolder.warehouse_type_to_root_folder.values.uniq
+          # Root cause: all_base_folders queries parent_id: nil folders, which are TABS
+          # SSoT: warehouse_type_to_base_folder extracts roots from path templates
+          base_folders_from_config = WarehouseFolder.warehouse_type_to_base_folder.values.uniq
 
           # SSoT: Map source_type to root folder for counting
           # This eliminates duplicates from legacy folder values (ADVICE, Assets, BANK, etc.)
-          source_type_to_root = source_type_to_root_folder_mapping
+          source_type_to_root = source_type_to_base_folder_mapping
 
           # Count documents by source_type, then map to root folder
           source_counts = base_scope.group(:source_type).count
           folder_counts = Hash.new(0)
           source_counts.each do |source_type, count|
-            root_folder = source_type_to_root[source_type]
-            next unless root_folder # Skip unknown source types
-            folder_counts[root_folder] += count
+            base_folder = source_type_to_root[source_type]
+            next unless base_folder # Skip unknown source types
+            folder_counts[base_folder] += count
           end
 
           # Build folders array: ONLY configured folders (no extras from document folder column)
-          folders = root_folders_from_config.map do |name|
+          folders = base_folders_from_config.map do |name|
             { name: name, path: name, count: folder_counts[name] || 0 }
           end
 
@@ -661,10 +661,10 @@ module Api
           result = build_task_folder_tree_from_template(path)
           folders = result[:folders]
           files = result[:files]
-        elsif !path.include?("/") && WarehouseFolder.warehouse_type_for_root_folder(path)
+        elsif !path.include?("/") && WarehouseFolder.warehouse_type_for_base_folder(path)
           # SSoT (Jan 2026): Root folder expanded - show tabs from WarehouseFolder
           # e.g., "Jobs" → shows Plans, Site, Sales, Photo, etc.
-          tabs_from_config = WarehouseFolder.tabs_for_root_folder(path)
+          tabs_from_config = WarehouseFolder.tabs_for_base_folder(path)
 
           # Get actual document counts for each tab folder
           subfolder_counts = base_scope
@@ -687,10 +687,10 @@ module Api
 
           folders = folders.sort_by { |f| f[:name].to_s.downcase }
           files = []
-        elsif path.include?("/") && WarehouseFolder.warehouse_type_for_root_folder(path.split("/").first)
+        elsif path.include?("/") && WarehouseFolder.warehouse_type_for_base_folder(path.split("/").first)
           # SSoT (Jan 2026): Subfolder with configured tabs - check for child tabs
           # e.g., "Jobs/Photo" → shows Supervisor, Site, Client, etc.
-          root_folder = path.split("/").first
+          base_folder = path.split("/").first
           child_tabs = WarehouseFolder.child_tabs_for_path(path)
           path_depth = path.count("/") + 2
 
@@ -713,7 +713,7 @@ module Api
             extra_folders.each do |name, count|
               # SSoT: Return relative path (without root folder prefix)
               full_path = "#{path}/#{name}"
-              relative_path = full_path.sub("#{root_folder}/", "")
+              relative_path = full_path.sub("#{base_folder}/", "")
               folders << { name: name, path: relative_path, count: count }
             end
           else
@@ -722,7 +722,7 @@ module Api
             folders = subfolder_counts.map do |name, count|
               # SSoT: Return relative path (without root folder prefix)
               full_path = "#{path}/#{name}"
-              relative_path = full_path.sub("#{root_folder}/", "")
+              relative_path = full_path.sub("#{base_folder}/", "")
               { name: name, path: relative_path, count: count }
             end
           end
@@ -853,18 +853,18 @@ module Api
       end
 
       # SSoT (Feb 2026 FRC Fix): Map source_type to root folder
-      # @return [Hash] { source_type => root_folder_name }
-      def source_type_to_root_folder_mapping
-        @source_type_to_root_folder_mapping ||= WarehouseFolder.warehouse_type_to_root_folder
+      # @return [Hash] { source_type => base_folder_name }
+      def source_type_to_base_folder_mapping
+        @source_type_to_base_folder_mapping ||= WarehouseFolder.warehouse_type_to_base_folder
       end
 
       # Build a complete folder tree by computing paths for all warehouse documents
       # This is cached to avoid O(n) computation on every request
       # Called by: rails warehouse:warmup_cache
       #
-      # @return [Hash] { root_folders: { name => count }, paths: { doc_id => computed_path } }
+      # @return [Hash] { base_folders: { name => count }, paths: { doc_id => computed_path } }
       def self.build_folder_tree
-        tree = { root_folders: Hash.new(0), paths: {} }
+        tree = { base_folders: Hash.new(0), paths: {} }
 
         # Use find_each for memory efficiency with large datasets
         WarehouseDocument.includes(:documentable).find_each(batch_size: 1000) do |doc|
@@ -876,11 +876,11 @@ module Api
 
           # Count root folders
           root = computed_path.split("/").first
-          tree[:root_folders][root] += 1
+          tree[:base_folders][root] += 1
         end
 
-        # Convert root_folders to regular hash (Hash.new(0) doesn't serialize well)
-        tree[:root_folders] = tree[:root_folders].to_h
+        # Convert base_folders to regular hash (Hash.new(0) doesn't serialize well)
+        tree[:base_folders] = tree[:base_folders].to_h
 
         tree
       end
@@ -1550,23 +1550,23 @@ module Api
       # e.g., for Contacts scope: returns "7 Eleven/Bills", frontend adds "Contacts/" prefix
       def build_generic_folder_tree(scope, path_segments)
         # Get root folder from scope (e.g., "job" → "Jobs", "contact" → "Contacts")
-        root_folder = WarehouseFolder.root_folder_for_warehouse_type(scope)
-        return { folders: [], files: [] } unless root_folder
+        base_folder = WarehouseFolder.base_folder_for_warehouse_type(scope)
+        return { folders: [], files: [] } unless base_folder
 
         # Build full DB path (includes root folder for querying WarehouseDocument.folder)
-        full_db_path = path_segments.any? ? "#{root_folder}/#{path_segments.join('/')}" : nil
+        full_db_path = path_segments.any? ? "#{base_folder}/#{path_segments.join('/')}" : nil
         # Relative path for response (what frontend will use)
         relative_path = path_segments.any? ? path_segments.join('/') : nil
         path_depth = path_segments.size + 2  # "RootFolder" is depth 1, first segment is depth 2
 
         # Base scope: all documents in this root folder
-        base_scope = WarehouseDocument.where("folder LIKE ?", "#{root_folder}/%")
+        base_scope = WarehouseDocument.where("folder LIKE ?", "#{base_folder}/%")
 
         # Get configured tabs for this path level
         tabs_from_config = if full_db_path
           WarehouseFolder.child_tabs_for_path(full_db_path)
         else
-          WarehouseFolder.tabs_for_root_folder(root_folder)
+          WarehouseFolder.tabs_for_base_folder(base_folder)
         end
 
         # Get subfolder counts from documents
@@ -1579,7 +1579,7 @@ module Api
         # SSoT: Return RELATIVE paths - frontend adds root folder prefix
         folders = tabs_from_config.map do |tab|
           # Strip root folder from path (WarehouseFolder methods return full paths)
-          relative_tab_path = tab[:path].to_s.sub(/^#{Regexp.escape(root_folder)}\//, '')
+          relative_tab_path = tab[:path].to_s.sub(/^#{Regexp.escape(base_folder)}\//, '')
           {
             name: tab[:name],
             path: relative_tab_path,
@@ -2274,7 +2274,7 @@ module Api
 
       # SSoT: Get root folder for scope (used to expand paths in virtual_tree)
       # Folders are stored with prefix (e.g., "Tasks/123") but frontend sends without prefix
-      def scope_root_folder(scope)
+      def scope_base_folder(scope)
         case scope.to_s
         when "task" then "Tasks"
         when "job" then "Jobs"

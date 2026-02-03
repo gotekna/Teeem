@@ -39,7 +39,22 @@ export type PlaceholderColor =
   | "green"   // Date-related
   | "gray";   // Other
 
-export type PlaceholderScope = "company" | "job" | "document" | "storage" | "all";
+export type PlaceholderScope =
+  | "company"
+  | "job"
+  | "document"
+  | "storage"
+  | "all"
+  // Warehouse-type-specific scopes (for base folder token filtering)
+  | "warehouse_task"
+  | "warehouse_job"
+  | "warehouse_contact"
+  | "warehouse_corporate"
+  | "warehouse_email"
+  | "warehouse_case"
+  | "warehouse_asset"
+  | "warehouse_template"
+  | "warehouse_people";
 
 // =============================================================================
 // COMPANY PLACEHOLDERS (Purple)
@@ -777,6 +792,113 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
 export const SHAREPOINT_PLACEHOLDERS = STORAGE_PLACEHOLDERS;
 
 // =============================================================================
+// WAREHOUSE-TYPE-SPECIFIC PLACEHOLDERS (For base folder token filtering)
+// =============================================================================
+
+// Common tokens available to all warehouse types
+const COMMON_WAREHOUSE_TOKENS = STORAGE_PLACEHOLDERS.filter(p =>
+  ["{{Date}}", "{{Year}}", "{{Month}}", "{{Sequence}}", "{{UploadedBy}}", "{{Category}}", "{{Folder}}"].includes(p.code)
+);
+
+// Task tokens - for Tasks base folder
+export const WAREHOUSE_TASK_PLACEHOLDERS: PlaceholderToken[] = [
+  ...STORAGE_PLACEHOLDERS.filter(p =>
+    p.code.startsWith("{{Task") ||
+    p.code === "[[Attachments]]" ||
+    p.code === "[[Responses]]" ||
+    p.code.startsWith("{{Attachment") ||
+    p.code.startsWith("{{Response")
+  ),
+  ...COMMON_WAREHOUSE_TOKENS,
+];
+
+// Job tokens - for Jobs base folder
+export const WAREHOUSE_JOB_PLACEHOLDERS: PlaceholderToken[] = [
+  ...STORAGE_PLACEHOLDERS.filter(p =>
+    p.code.startsWith("{{Job") ||
+    p.code === "{{LotNumber}}" ||
+    p.code === "{{StreetName}}" ||
+    p.code === "{{Suburb}}" ||
+    p.code === "{{TabName}}" ||
+    p.code === "{{SubTabName}}" ||
+    p.code === "{{Category}}"
+  ),
+  ...COMMON_WAREHOUSE_TOKENS.filter(p => p.code !== "{{Category}}"), // Avoid duplicate
+];
+
+// Contact tokens - for Contacts base folder
+export const WAREHOUSE_CONTACT_PLACEHOLDERS: PlaceholderToken[] = [
+  ...STORAGE_PLACEHOLDERS.filter(p =>
+    p.code === "{{ContactName}}" ||
+    p.code === "{{Category}}" ||
+    p.code === "{{Folder}}"
+  ),
+  ...COMMON_WAREHOUSE_TOKENS.filter(p => !["{{Category}}", "{{Folder}}"].includes(p.code)), // Avoid duplicate
+];
+
+// Corporate tokens - for corporate entities (Companies, Accounts, etc.)
+export const WAREHOUSE_CORPORATE_PLACEHOLDERS: PlaceholderToken[] = [
+  ...STORAGE_PLACEHOLDERS.filter(p =>
+    p.code.startsWith("{{Company") ||
+    p.code.startsWith("[[Teeem") ||
+    p.code === "{{Category}}" ||
+    p.code === "{{Folder}}"
+  ),
+  ...COMMON_WAREHOUSE_TOKENS.filter(p => !["{{Category}}", "{{Folder}}"].includes(p.code)), // Avoid duplicate
+];
+
+// Email tokens - for Emails base folder
+export const WAREHOUSE_EMAIL_PLACEHOLDERS: PlaceholderToken[] = [
+  ...STORAGE_PLACEHOLDERS.filter(p =>
+    p.code === "{{Mailbox}}" ||
+    p.code === "{{Subject}}" ||
+    p.code === "{{SenderName}}" ||
+    p.code === "{{SenderEmail}}" ||
+    p.code === "{{ReceivedDate}}" ||
+    p.code === "{{ReceivedTime}}" ||
+    p.code === "[[Email Body]]" ||
+    p.code === "[[Email Attachments]]" ||
+    p.code === "{{Year}}" ||
+    p.code === "{{Month}}"
+  ),
+  ...COMMON_WAREHOUSE_TOKENS.filter(p => !["{{Year}}", "{{Month}}"].includes(p.code)), // Avoid duplicate
+];
+
+// Case tokens - for Cases base folder
+export const WAREHOUSE_CASE_PLACEHOLDERS: PlaceholderToken[] = [
+  ...STORAGE_PLACEHOLDERS.filter(p =>
+    p.code.startsWith("{{Case")
+  ),
+  ...COMMON_WAREHOUSE_TOKENS,
+];
+
+// Asset tokens - for Assets base folder
+export const WAREHOUSE_ASSET_PLACEHOLDERS: PlaceholderToken[] = [
+  ...STORAGE_PLACEHOLDERS.filter(p =>
+    p.code.startsWith("{{Asset")
+  ),
+  ...COMMON_WAREHOUSE_TOKENS,
+];
+
+// Template tokens - for Templates base folder
+export const WAREHOUSE_TEMPLATE_PLACEHOLDERS: PlaceholderToken[] = [
+  ...STORAGE_PLACEHOLDERS.filter(p =>
+    p.code.startsWith("{{Template")
+  ),
+  ...COMMON_WAREHOUSE_TOKENS,
+];
+
+// People tokens - for People base folder (users, personnel)
+export const WAREHOUSE_PEOPLE_PLACEHOLDERS: PlaceholderToken[] = [
+  ...STORAGE_PLACEHOLDERS.filter(p =>
+    p.code === "{{UserCode}}" ||
+    p.code === "{{UserName}}" ||
+    p.code === "{{ContactName}}"
+  ),
+  ...COMMON_WAREHOUSE_TOKENS,
+];
+
+// =============================================================================
 // COMBINED EXPORTS BY SCOPE
 // =============================================================================
 
@@ -793,6 +915,16 @@ export const PLACEHOLDERS_BY_SCOPE: Record<PlaceholderScope, PlaceholderToken[]>
     ...PLAN_PLACEHOLDERS,
     ...DATE_PLACEHOLDERS,
   ],
+  // Warehouse-type-specific scopes (for base folder token filtering)
+  warehouse_task: WAREHOUSE_TASK_PLACEHOLDERS,
+  warehouse_job: WAREHOUSE_JOB_PLACEHOLDERS,
+  warehouse_contact: WAREHOUSE_CONTACT_PLACEHOLDERS,
+  warehouse_corporate: WAREHOUSE_CORPORATE_PLACEHOLDERS,
+  warehouse_email: WAREHOUSE_EMAIL_PLACEHOLDERS,
+  warehouse_case: WAREHOUSE_CASE_PLACEHOLDERS,
+  warehouse_asset: WAREHOUSE_ASSET_PLACEHOLDERS,
+  warehouse_template: WAREHOUSE_TEMPLATE_PLACEHOLDERS,
+  warehouse_people: WAREHOUSE_PEOPLE_PLACEHOLDERS,
 };
 
 // =============================================================================
@@ -804,6 +936,60 @@ export const PLACEHOLDERS_BY_SCOPE: Record<PlaceholderScope, PlaceholderToken[]>
  */
 export function getPlaceholders(scope: PlaceholderScope = "all"): PlaceholderToken[] {
   return PLACEHOLDERS_BY_SCOPE[scope] || PLACEHOLDERS_BY_SCOPE.all;
+}
+
+/**
+ * Map warehouse_type to the appropriate PlaceholderScope for token filtering
+ * Used by Warehouse Folders UI to show only relevant tokens for each base folder
+ */
+export function getWarehouseScopeForType(warehouseType: string): PlaceholderScope {
+  const scopeMap: Record<string, PlaceholderScope> = {
+    // Task-related types
+    task: "warehouse_task",
+    task_attachment: "warehouse_task",
+    task_response: "warehouse_task",
+    sm_task: "warehouse_task",
+
+    // Job-related types
+    job: "warehouse_job",
+    job_document: "warehouse_job",
+    job_attachment: "warehouse_job",
+
+    // Contact-related types
+    contact: "warehouse_contact",
+    contact_document: "warehouse_contact",
+
+    // Corporate/Company types
+    corporate: "warehouse_corporate",
+    company: "warehouse_corporate",
+    corporate_company: "warehouse_corporate",
+    account: "warehouse_corporate",
+
+    // Email types
+    email: "warehouse_email",
+    email_attachment: "warehouse_email",
+    email_body: "warehouse_email",
+    mailbox: "warehouse_email",
+
+    // Case types
+    case: "warehouse_case",
+    case_document: "warehouse_case",
+
+    // Asset types
+    asset: "warehouse_asset",
+    asset_document: "warehouse_asset",
+
+    // Template types
+    template: "warehouse_template",
+    document_template: "warehouse_template",
+
+    // People types
+    person: "warehouse_people",
+    people: "warehouse_people",
+    user: "warehouse_people",
+  };
+
+  return scopeMap[warehouseType?.toLowerCase()] || "storage";
 }
 
 /**

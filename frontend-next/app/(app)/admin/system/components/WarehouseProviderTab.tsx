@@ -55,6 +55,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { TokenBuilder, resolveWithExamples } from "@/components/ui/tokens";
+import { getWarehouseScopeForType } from "@/lib/placeholders";
 import Link from "next/link";
 
 // SSoT: Simple scopes have inline editing (no document types)
@@ -1012,7 +1013,7 @@ function TreeNode({
                     hasModified.current = true;
                     setHasUnsavedChanges(true);
                   }}
-                  scope="storage"
+                  scope={getWarehouseScopeForType(currentEditingScopeKey || '')}
                   showPreview={false}
                   separator="/"
                   placeholder="Click tokens to build base folder..."
@@ -1032,7 +1033,7 @@ function TreeNode({
               label={<span className="text-xs font-medium">Folder Path</span>}
               value={folderTemplate}
               onChange={handleFolderTemplateChange}
-              scope="storage"
+              scope={getWarehouseScopeForType(currentEditingScopeKey || '')}
               showPreview={false}
               separator="/"
               placeholder="Click tokens to build folder path..."
@@ -1047,16 +1048,19 @@ function TreeNode({
             />
 
             {/* Full Path Preview - directly under Folder Path for immediate feedback */}
-            {/* SSoT: For child types, use parent's base folder instead of editValue */}
+            {/* SSoT: For parent types, folderTemplate already includes base folder (e.g., "Tasks/{{TaskId}}")
+                For child types, we need parent's base folder + child's suffix template */}
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2 -mt-2">
               <span className="text-xs text-muted-foreground">Full Path: </span>
               <span className="font-mono text-sm text-green-700 dark:text-green-400">
                 {normalizePathDisplay([
                   rootPath,
                   currentEditingScopeKey && WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]
-                    ? scopeRootFolders[WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]] || editValue
-                    : editValue,
-                  folderTemplate
+                    // Child type: parent's base folder + child's suffix template
+                    ? [scopeRootFolders[WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]] || editValue, folderTemplate].filter(Boolean).join('/')
+                    // Parent type: folderTemplate already includes base folder (e.g., "Tasks/{{TaskId}}/{{TaskName}}")
+                    // FRC Fix (Feb 2026): Don't add editValue separately - it's already the first segment of folderTemplate
+                    : folderTemplate || editValue
                 ].filter(Boolean).join('/').replace(/\/+/g, '/'))}
               </span>
             </div>
@@ -1148,7 +1152,7 @@ function TreeNode({
               label={<span className="text-xs font-medium">Document UI Name</span>}
               value={uiNameTemplate}
               onChange={handleUiNameTemplateChange}
-              scope="storage"
+              scope={getWarehouseScopeForType(currentEditingScopeKey || '')}
               showPreview={true}
               placeholder="Click tokens to build document UI name..."
               defaultExpanded={false}
@@ -1160,7 +1164,7 @@ function TreeNode({
               label={<span className="text-xs font-medium">Document Download Name</span>}
               value={downloadNameTemplate}
               onChange={handleDownloadNameTemplateChange}
-              scope="storage"
+              scope={getWarehouseScopeForType(currentEditingScopeKey || '')}
               showPreview={true}
               placeholder="Click tokens to build download filename..."
               defaultExpanded={false}
@@ -1568,7 +1572,7 @@ function TabNode({
                 label={<span className="text-[11px] font-medium text-muted-foreground">Document UI Name</span>}
                 value={editDisplayName}
                 onChange={setEditDisplayName}
-                scope="storage"
+                scope={getWarehouseScopeForType(scope)}
                 showPreview={true}
                 separator=" "
                 placeholder="Name shown in UI..."
@@ -1592,7 +1596,7 @@ function TabNode({
                 label={<span className="text-[11px] font-medium text-muted-foreground">Folder Path</span>}
                 value={editPath}
                 onChange={setEditPath}
-                scope="storage"
+                scope={getWarehouseScopeForType(scope)}
                 showPreview={false}
                 separator="/"
                 placeholder="e.g. TeeemXL"
@@ -1623,7 +1627,7 @@ function TabNode({
                 }
                 value={editSendName}
                 onChange={setEditSendName}
-                scope="storage"
+                scope={getWarehouseScopeForType(scope)}
                 showPreview={true}
                 separator=" "
                 placeholder="e.g. {{OriginalFileName}}"
@@ -1990,7 +1994,7 @@ export function WarehouseProviderTab() {
   // Build folder tree from warehouse_folders, attaching tabs to scope nodes
   // SSoT: Use config from API (not formData which may have stale initial state)
   const folderTree = React.useMemo(() => {
-    const scopeFolders = config?.folder_paths || {};
+    const scopeFolders = config?.warehouse_folders || {};
     const tree = buildFolderTree(scopeFolders);
 
     // Helper: Check if tab has doc types directly
@@ -2078,7 +2082,7 @@ export function WarehouseProviderTab() {
 
     attachTabs(tree);
     return tree;
-  }, [config?.folder_paths, entityTabs]);
+  }, [config?.warehouse_folders, entityTabs]);
 
   // Toggle tree node expansion
   const toggleExpanded = (path: string) => {
@@ -2096,7 +2100,7 @@ export function WarehouseProviderTab() {
 
     // When collapsing, also close any edit panels for scopes at or under this path
     if (isCollapsing && editingKey) {
-      const scopesAtPath = Object.entries(formData.folder_paths)
+      const scopesAtPath = Object.entries(formData.warehouse_folders)
         .filter(([, folderPath]) => folderPath === path || folderPath.startsWith(path + '/'))
         .map(([scopeKey]) => scopeKey);
       if (scopesAtPath.includes(editingKey)) {
@@ -2195,21 +2199,32 @@ export function WarehouseProviderTab() {
       const isChildType = !!WAREHOUSE_TYPE_PARENTS[scopeKey];
       const parentKey = WAREHOUSE_TYPE_PARENTS[scopeKey];
 
-      console.log('🔵 [saveScopeTemplates] Child type check:', { isChildType, parentKey, parentPath: parentKey ? formData.folder_paths[parentKey] : null });
+      console.log('🔵 [saveScopeTemplates] Child type check:', { isChildType, parentKey, parentPath: parentKey ? formData.warehouse_folders[parentKey] : null });
 
       // For child types: parent's base folder + suffix (full path)
-      // For parent types: baseFolder + folderTemplate (full path)
-      const warehouseFolderValue = isChildType && parentKey
-        ? [formData.folder_paths[parentKey], folderTemplate]  // Parent base + suffix = full path
+      // For parent types: folderTemplate already includes baseFolder (e.g., "Tasks/{{TaskId}}/{{TaskName}}")
+      // FRC Fix (Feb 2026): Don't combine baseFolder + folderTemplate for parent types - causes duplication
+      let warehouseFolderValue: string;
+      if (isChildType && parentKey) {
+        // Child type: parent's base folder + suffix (full path)
+        warehouseFolderValue = [formData.warehouse_folders[parentKey], folderTemplate]
             .filter(Boolean)
             .join('/')
             .replace(/\/+/g, '/')
-            .replace(/\/+$/, '')
-        : [baseFolder, folderTemplate]
+            .replace(/\/+$/, '');
+      } else if (folderTemplate && folderTemplate.startsWith(baseFolder)) {
+        // Parent type: folderTemplate already includes baseFolder, use as-is
+        warehouseFolderValue = folderTemplate
+            .replace(/\/+/g, '/')
+            .replace(/\/+$/, '');
+      } else {
+        // Parent type: combine baseFolder + folderTemplate
+        warehouseFolderValue = [baseFolder, folderTemplate]
             .filter(Boolean)
             .join('/')
-            .replace(/\/+/g, '/')  // Normalize double slashes
-            .replace(/\/+$/, '');  // Strip trailing slash for consistency
+            .replace(/\/+/g, '/')
+            .replace(/\/+$/, '');
+      }
 
       console.log('🔵 [saveScopeTemplates] Computed warehouseFolderValue:', warehouseFolderValue);
 
@@ -2241,8 +2256,8 @@ export function WarehouseProviderTab() {
           }
           return {
             ...prev,
-            warehouse_folders: { ...prev.folder_paths, [scopeKey]: warehouseFolderValue },
-            warehouse_folder_templates: { ...prev.folder_path_templates, [scopeKey]: folderTemplate },
+            warehouse_folders: { ...prev.warehouse_folders, [scopeKey]: warehouseFolderValue },
+            warehouse_folder_templates: { ...prev.warehouse_folder_templates, [scopeKey]: folderTemplate },
             download_names: { ...prev.download_names, [scopeKey]: downloadNameTemplate },
             ui_name_templates: { ...prev.ui_name_templates, [scopeKey]: uiNameTemplate },
             config_links: newConfigLinks,
@@ -2260,7 +2275,7 @@ export function WarehouseProviderTab() {
       });
       throw error; // Re-throw so auto-save can handle it
     }
-  }, [toast, formData.folder_paths]);
+  }, [toast, formData.warehouse_folders]);
 
   // Phase 4: Toggle virtual warehouse via API
   const toggleVirtualScope = React.useCallback(async (scopeKey: string, isVirtual: boolean) => {
@@ -2336,8 +2351,8 @@ export function WarehouseProviderTab() {
       );
       console.log('🔴 [loadConfig] Response:', response);
       if (response?.success && response.data) {
-        console.log('🔴 [loadConfig] warehouse_folders:', response.data.folder_paths);
-        console.log('🔴 [loadConfig] warehouse_folder_templates:', response.data.folder_path_templates);
+        console.log('🔴 [loadConfig] warehouse_folders:', response.data.warehouse_folders);
+        console.log('🔴 [loadConfig] warehouse_folder_templates:', response.data.warehouse_folder_templates);
         console.log('🔴 [loadConfig] download_names:', response.data.download_names);
         console.log('🔴 [loadConfig] ui_name_templates:', response.data.ui_name_templates);
         setConfig(response.data);
@@ -2357,10 +2372,10 @@ export function WarehouseProviderTab() {
           root_path: response.data.root_path || "",
           // SSoT: warehouse_folders is THE ONE source for warehouse type roots
           // warehouse_folders REMOVED (Jan 2026 SSoT fix)
-          warehouse_folders: response.data.folder_paths || {},
+          warehouse_folders: response.data.warehouse_folders || {},
           // SSoT: Templates from WarehouseProvider
           // Support both old (file_name_templates/display_name_templates) and new (download_names/ui_name_templates) field names
-          warehouse_folder_templates: response.data.folder_path_templates || {},
+          warehouse_folder_templates: response.data.warehouse_folder_templates || {},
           download_names: response.data.download_names || response.data.file_name_templates || {},
           ui_name_templates: response.data.ui_name_templates || response.data.display_name_templates || {},
           // SSoT: Config links from WarehouseProvider
@@ -2396,8 +2411,8 @@ export function WarehouseProviderTab() {
             provider_type: formData.provider_type,
             root_path: formData.root_path,
             // SSoT: warehouse_folders is THE ONE place for warehouse type roots
-            warehouse_folders: config?.folder_paths,
-            warehouse_folder_templates: formData.folder_path_templates,
+            warehouse_folders: config?.warehouse_folders,
+            warehouse_folder_templates: formData.warehouse_folder_templates,
             download_names: formData.download_names,
             ui_name_templates: formData.ui_name_templates,
             config_links: formData.config_links,
@@ -2554,7 +2569,7 @@ export function WarehouseProviderTab() {
                 </h4>
                 <p className="text-sm text-muted-foreground">
                   This page configures <strong>virtual folder paths</strong> for the File Warehouse.
-                  All settings save to <code className="bg-muted px-1 rounded">WarehouseProvider.folder_paths</code> (SSoT).
+                  All settings save to <code className="bg-muted px-1 rounded">WarehouseProvider.warehouse_folders</code> (SSoT).
                 </p>
               </div>
 
@@ -2814,8 +2829,8 @@ export function WarehouseProviderTab() {
                 <div className="border-t pt-3">
                   <h5 className="text-xs font-medium mb-2 text-muted-foreground uppercase tracking-wide">How the Folder Tree is Built</h5>
                   <div className="text-xs space-y-1.5 text-muted-foreground">
-                    <div><strong className="text-foreground">Root folders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.all_root_folders</code> (Jobs, Contacts, Tasks, etc.)</div>
-                    <div><strong className="text-foreground">Subfolders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.tabs_for_root_folder()</code> + <code className="bg-muted px-1 rounded">GROUP BY</code> on <code className="bg-muted px-1 rounded">WarehouseDocument.folder</code></div>
+                    <div><strong className="text-foreground">Base folders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.all_base_folders</code> (Jobs, Contacts, Tasks, etc.)</div>
+                    <div><strong className="text-foreground">Subfolders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.tabs_for_base_folder()</code> + <code className="bg-muted px-1 rounded">GROUP BY</code> on <code className="bg-muted px-1 rounded">WarehouseDocument.folder</code></div>
                     <div><strong className="text-foreground">Files</strong> → from <code className="bg-muted px-1 rounded">WarehouseDocument</code> records at that folder path</div>
                   </div>
                 </div>
@@ -3309,25 +3324,25 @@ export function WarehouseProviderTab() {
                     onSaveEdit={(key, value) => {
                       setFormData(prev => ({
                         ...prev,
-                        warehouse_folders: { ...prev.folder_paths, [key]: value }
+                        warehouse_folders: { ...prev.warehouse_folders, [key]: value }
                       }));
                       setEditingKey(null);
                     }}
                     onCancelEdit={() => setEditingKey(null)}
-                    currentPath={formData.folder_paths}
+                    currentPath={formData.warehouse_folders}
                     rootPath={formData.root_path}
                     editingTabId={editingTabId}
                     onStartTabEdit={setEditingTabId}
                     onSaveTabEdit={saveTabFolderPath}
                     onCancelTabEdit={() => setEditingTabId(null)}
-                    scopeTemplates={formData.folder_path_templates}
+                    scopeTemplates={formData.warehouse_folder_templates}
                     downloadNameTemplates={formData.download_names}
                     uiNameTemplates={formData.ui_name_templates}
                     configLinks={formData.config_links}
                     onSaveTemplates={saveScopeTemplates}
                     virtualScopes={formData.virtual_warehouses}
                     onToggleVirtual={toggleVirtualScope}
-                    scopeRootFolders={formData.folder_paths || {}}
+                    scopeRootFolders={formData.warehouse_folders || {}}
                   />
                 ))}
               </div>
@@ -3471,11 +3486,11 @@ export function WarehouseProviderTab() {
                     <h3 className="text-sm font-medium">Folder Structure Preview</h3>
                     <div className="border rounded-lg p-4 bg-muted/20 font-mono text-sm space-y-1">
                       {/* Render configured scopes with their computed paths */}
-                      {Object.entries(formData.folder_paths)
+                      {Object.entries(formData.warehouse_folders)
                         .filter(([, path]) => path)
                         .sort(([, a], [, b]) => a.localeCompare(b))
                         .map(([scopeKey, basePath]) => {
-                          const template = formData.folder_path_templates[scopeKey] || '' || '';
+                          const template = formData.warehouse_folder_templates[scopeKey] || '' || '';
                           const count = warehouseStats.warehouse_by_source[scopeKey] || 0;
                           const icons: Record<string, React.ReactNode> = {
                             email: <Mail className="h-3.5 w-3.5 text-blue-500" />,

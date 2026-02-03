@@ -91,7 +91,7 @@ module Api
         # This is THE ONE place where custom folder templates (like {{Year}}) are stored
         if sp.key?(:warehouse_folders)
           sp[:warehouse_folders].to_h.each do |warehouse_type, template|
-            folder = WarehouseFolder.root_folder_for(warehouse_type)
+            folder = WarehouseFolder.base_folder_for(warehouse_type)
             folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
             folder.update!(folder_path: template.presence)
             Rails.logger.info "[WarehouseProvider] Saved folder_path for #{warehouse_type}: #{template}"
@@ -101,7 +101,7 @@ module Api
         # SSoT: Save download_name templates to warehouse_folders table per-warehouse_type
         if sp.key?(:download_names)
           sp[:download_names].to_h.each do |warehouse_type, template|
-            folder = WarehouseFolder.root_folder_for(warehouse_type)
+            folder = WarehouseFolder.base_folder_for(warehouse_type)
             folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
             folder.update!(download_name: template.presence)
             Rails.logger.info "[WarehouseProvider] Saved download_name for #{warehouse_type}: #{template}"
@@ -111,7 +111,7 @@ module Api
         # SSoT: Save ui_name templates to warehouse_folders table per-warehouse_type
         if sp.key?(:ui_name_templates)
           sp[:ui_name_templates].to_h.each do |warehouse_type, template|
-            folder = WarehouseFolder.root_folder_for(warehouse_type)
+            folder = WarehouseFolder.base_folder_for(warehouse_type)
             folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
             folder.update!(ui_name: template.presence)
             Rails.logger.info "[WarehouseProvider] Saved ui_name for #{warehouse_type}: #{template}"
@@ -214,7 +214,7 @@ module Api
           :exclude_sm_tasks,  # SM task exclusion setting (replaces scope_options)
           :link_expiry_days,  # Link expiry for presigned URLs (saved to TenantSetting)
           # NOTE (Feb 2026): SSoT Consolidation - columns REMOVED from warehouse_providers:
-          # - warehouse_folders, scope_root_folders (paths now per-tab in warehouse_folders table)
+          # - warehouse_folders, scope_base_folders (paths now per-tab in warehouse_folders table)
           # - download_name_templates, ui_name_templates (now per-tab in warehouse_folders)
           # These params are still accepted but saved to warehouse_folders table per-warehouse_type:
           warehouse_folders: {},      # Path templates (e.g., "Teeem Docs/{{UserName}}/{{Year}}")
