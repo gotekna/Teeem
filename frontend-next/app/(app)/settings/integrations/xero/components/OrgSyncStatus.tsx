@@ -95,7 +95,8 @@ function formatLockoutTime(seconds: number): string {
 export function OrgSyncStatus({ orgs, className }: OrgSyncStatusProps) {
   // Sort orgs: syncing first, then rate_limited, then complete
   const sortedOrgs = React.useMemo(() => {
-    if (!orgs || orgs.length === 0) return [];
+    // Defensive: ensure orgs is an array
+    if (!Array.isArray(orgs) || orgs.length === 0) return [];
     const order: Record<string, number> = {
       syncing: 1,
       rate_limited: 2,
@@ -103,20 +104,22 @@ export function OrgSyncStatus({ orgs, className }: OrgSyncStatusProps) {
       disconnected: 4,
       complete: 5,
     };
-    return [...orgs].sort((a, b) => (order[a.status] || 99) - (order[b.status] || 99));
+    return [...orgs].sort((a, b) => (order[a?.status] || 99) - (order[b?.status] || 99));
   }, [orgs]);
 
   // Summary counts
   const summary = React.useMemo(() => {
-    if (!orgs || orgs.length === 0) return { syncing: 0, complete: 0, rateLimited: 0, needsAttention: 0 };
-    const syncing = orgs.filter((o) => o.status === "syncing").length;
-    const complete = orgs.filter((o) => o.status === "complete").length;
-    const rateLimited = orgs.filter((o) => o.status === "rate_limited").length;
-    const needsAttention = orgs.filter((o) => o.status === "disconnected" || o.status === "degraded").length;
+    // Defensive: ensure orgs is an array
+    if (!Array.isArray(orgs) || orgs.length === 0) return { syncing: 0, complete: 0, rateLimited: 0, needsAttention: 0 };
+    const syncing = orgs.filter((o) => o?.status === "syncing").length;
+    const complete = orgs.filter((o) => o?.status === "complete").length;
+    const rateLimited = orgs.filter((o) => o?.status === "rate_limited").length;
+    const needsAttention = orgs.filter((o) => o?.status === "disconnected" || o?.status === "degraded").length;
     return { syncing, complete, rateLimited, needsAttention };
   }, [orgs]);
 
-  if (!orgs || orgs.length === 0) {
+  // Defensive: ensure orgs is an array before rendering
+  if (!Array.isArray(orgs) || orgs.length === 0) {
     return null;
   }
 
