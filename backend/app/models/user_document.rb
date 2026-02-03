@@ -108,8 +108,8 @@ class UserDocument < ApplicationRecord
 
     result = template.dup
 
-    # User-related tokens
-    result.gsub!("{{UserName}}", sanitize_path_component(user&.name.to_s))
+    # User-related tokens (use "Unknown" fallback for nil/blank user names)
+    result.gsub!("{{UserName}}", sanitize_path_component(user&.name.to_s) || "Unknown")
 
     # Date tokens (SSoT: based on document creation date)
     doc_date = created_at || Time.current
@@ -123,7 +123,7 @@ class UserDocument < ApplicationRecord
     result.gsub!("{{TabName}}", folder.to_s.presence || category&.titleize.to_s)
 
     # File-related tokens
-    result.gsub!("{{OriginalFileName}}", sanitize_path_component(File.basename(file_name.to_s, ".*")))
+    result.gsub!("{{OriginalFileName}}", sanitize_path_component(File.basename(file_name.to_s, ".*")) || "")
 
     # Clean up empty tokens and double slashes
     result.gsub!(/\{\{[^}]+\}\}/, "")

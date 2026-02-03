@@ -2,24 +2,57 @@
 
 # FRC (Feb 2026): Backfill warehouse_documents.folder with computed paths
 #
-# Root Cause: Documents created before WarehouseFolder templates were configured
-# have incomplete folder paths (e.g., "Teeem Docs/Robert Harder" missing "/2026")
+# ⚠️ DO NOT RUN - KNOWN ISSUES (Feb 2026)
+# =========================================
+# This task has critical flaws that cause data quality issues:
 #
-# This task recomputes folder paths from documentable.virtual_folder_path for all
-# documents whose folder doesn't match the current template output.
+# 1. TENANT SCOPING: Documents span multiple tenants, but virtual_folder_path
+#    requires tenant context. Cross-tenant user/contact lookups return nil,
+#    causing paths like "Tasks/Unknown" instead of "Tasks/2236/Attachments".
 #
-# Usage:
-#   rails warehouse:backfill_folders           # Dry run
-#   rails warehouse:backfill_folders[execute]  # Actually update
+# 2. INFORMATION LOSS: Many computed paths are LESS specific than stored paths:
+#    - Task paths lose task IDs (e.g., "Tasks/2336/Attachments" → "Tasks/Unknown")
+#    - User paths lose user names when tenant mismatch occurs
+#
+# 3. NOT NEEDED: The original issue (folders like [[Email Body]] appearing) was
+#    fixed in warehouse_type_to_root_folder by filtering internal folders.
+#    Existing document folder values are correct for when they were created.
+#
+# CONCLUSION: Historical documents have correct paths for their creation time.
+# New documents get year-based paths from updated templates. No backfill needed.
+# =========================================
+#
+# Original intent was to recompute folder paths from documentable.virtual_folder_path
+# for all documents whose folder doesn't match the current template output.
+#
+# Usage (DRY RUN ONLY - execute mode disabled):
+#   rails warehouse:backfill_folders           # Dry run to see what WOULD change
 
 namespace :warehouse do
-  desc "Backfill warehouse_documents.folder with computed paths from templates"
+  desc "Backfill warehouse_documents.folder (DRY RUN ONLY - see file comments for why execute is disabled)"
   task :backfill_folders, [:mode] => :environment do |_t, args|
     dry_run = args[:mode] != "execute"
 
+    # ⚠️ Safety: Block execute mode due to data quality issues
+    unless dry_run
+      puts "=" * 60
+      puts "⚠️  EXECUTE MODE DISABLED"
+      puts "=" * 60
+      puts "This task has known issues that cause data quality problems."
+      puts "See lib/tasks/backfill_warehouse_document_folders.rake for details."
+      puts ""
+      puts "TL;DR: Cross-tenant scoping causes 'Unknown' in paths,"
+      puts "and some computed paths lose information vs stored paths."
+      puts ""
+      puts "Run dry run to see what WOULD change (won't actually change):"
+      puts "  rails warehouse:backfill_folders"
+      puts "=" * 60
+      exit 1
+    end
+
     puts "=" * 60
     puts "Backfilling warehouse_documents.folder paths"
-    puts "Mode: #{dry_run ? 'DRY RUN' : 'EXECUTE'}"
+    puts "Mode: DRY RUN (execute mode disabled)"
     puts "=" * 60
 
     # Set tenant context (virtual_folder_path methods need WarehouseProvider.instance)
@@ -30,6 +63,7 @@ namespace :warehouse do
     end
     ActsAsTenant.current_tenant = tenant
     puts "Using tenant: #{tenant.name || tenant.id}"
+    puts "⚠️  WARNING: Cross-tenant documents will show 'Unknown' due to scoping"
 
     stats = { updated: 0, skipped: 0, errors: 0, no_change: 0 }
 
@@ -94,9 +128,9 @@ namespace :warehouse do
     puts "  Errors: #{stats[:errors]}"
     puts "=" * 60
 
-    if dry_run && stats[:updated] > 0
-      puts "\nTo apply changes, run:"
-      puts "  rails warehouse:backfill_folders[execute]"
+    if stats[:updated] > 0
+      puts "\n⚠️  Execute mode is disabled (see file comments for why)."
+      puts "Historical documents have correct paths for their creation time."
     end
   end
 end
