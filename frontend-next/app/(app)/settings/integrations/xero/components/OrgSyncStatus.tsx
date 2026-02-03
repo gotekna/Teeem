@@ -187,7 +187,7 @@ export function OrgSyncStatus({ orgs, className }: OrgSyncStatusProps) {
                 )}
               />
               <span className="text-xs font-mono text-muted-foreground w-12 text-right">
-                {org.percentage}%
+                {org.percentage ?? 0}%
               </span>
             </div>
 
@@ -208,7 +208,7 @@ export function OrgSyncStatus({ orgs, className }: OrgSyncStatusProps) {
               <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800 text-xs">
                 <div className="flex items-center gap-1 text-amber-700 dark:text-amber-300">
                   <Clock className="h-3 w-3" />
-                  {org.detail}
+                  {String(org.detail ?? "")}
                   {org.lockout_remaining_secs && org.lockout_remaining_secs > 0 && (
                     <span className="font-medium ml-1">
                       ({formatLockoutTime(org.lockout_remaining_secs)})
@@ -227,7 +227,7 @@ export function OrgSyncStatus({ orgs, className }: OrgSyncStatusProps) {
               <div className="mt-2 pt-2 border-t border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
                 <div className="flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
-                  {org.detail}
+                  {String(org.detail ?? "")}
                 </div>
               </div>
             )}

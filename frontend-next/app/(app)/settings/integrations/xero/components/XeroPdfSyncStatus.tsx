@@ -421,7 +421,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
           <div className="flex items-start gap-1.5">
             <AlertTriangle className="h-3 w-3 text-amber-600 mt-0.5 shrink-0" />
             <div className="flex-1">
-              <div className="font-medium text-amber-800">{blocker.reason}</div>
+              <div className="font-medium text-amber-800">{String(blocker.reason ?? "")}</div>
               {blocker.estimated_days && blocker.estimated_days > 1 && (
                 <div className="text-amber-700 mt-0.5">
                   ~{blocker.estimated_days} days to complete
