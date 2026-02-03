@@ -34,10 +34,16 @@ namespace :deploy do
       puts "   (Deployment will continue, but run 'rails foundation:sync' manually)"
     end
 
-    # 3. (REMOVED Feb 2026) Warehouse folder sync no longer needed
-    # SSoT: Folder paths are now stored per-tab in warehouse_folders table
-    # No deployment sync required - paths are set when tabs are created
-    puts "\n📁 Warehouse folders: SSoT in warehouse_folders table ✅"
+    # 3. Ensure required warehouse_folders exist
+    # SSoT: Auto-seed missing warehouse_folder entries on every deploy
+    # This prevents "missing folder" issues when new warehouse_types are added
+    puts "\n📁 Checking warehouse folders..."
+    begin
+      Rake::Task["warehouse:ensure_folders"].invoke
+      puts "✅ Warehouse folders verified"
+    rescue => e
+      puts "⚠️  Warehouse folder check warning: #{e.message}"
+    end
 
     # 4. Sync recurring jobs from config/recurring.yml (SolidQueue)
     if defined?(SolidQueue)
