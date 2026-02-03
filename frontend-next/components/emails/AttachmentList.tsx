@@ -8,6 +8,8 @@ import {
   FileSpreadsheet,
   File,
   Download,
+  Eye,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -419,7 +421,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           </Button>
         )}
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
         {visibleAttachments.map((attachment, idx) => {
           const Icon = getFileIcon(attachment.content_type, attachment.name);
           const isLoading = loading === attachment.name;
@@ -428,38 +430,41 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           return (
             <div
               key={attachment.id || idx}
-              className="flex items-center gap-1 text-sm group"
+              className="flex items-center gap-1.5 text-sm"
             >
               <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-              <button
-                onClick={hasId ? () => handlePreviewInPopup(attachment) : undefined}
-                onDoubleClick={hasId ? (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleOpenInNewWindow(attachment);
-                } : undefined}
+              <span
                 className={cn(
-                  "truncate text-left max-w-[200px]",
-                  hasId && "text-primary hover:underline cursor-pointer",
-                  !hasId && "text-foreground",
+                  "truncate max-w-[200px]",
                   isLoading && "opacity-50"
                 )}
-                title="Click to preview, double-click to open in new tab"
-                disabled={!hasId}
+                title={attachment.name}
               >
                 {attachment.name}
-              </button>
+              </span>
               {hasId && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => { e.stopPropagation(); handleDownload(attachment, e); }}
-                  disabled={isLoading}
-                  title="Download"
-                >
-                  <Download className={cn("h-3 w-3", isLoading && "animate-spin")} />
-                </Button>
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 w-5 p-0"
+                    onClick={() => handlePreviewInPopup(attachment)}
+                    disabled={isLoading}
+                    title="Preview"
+                  >
+                    <Eye className={cn("h-3.5 w-3.5 text-muted-foreground hover:text-foreground", isLoading && "animate-pulse")} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 w-5 p-0"
+                    onClick={(e) => handleDownload(attachment, e)}
+                    disabled={isLoading}
+                    title="Download"
+                  >
+                    <Download className={cn("h-3.5 w-3.5 text-muted-foreground hover:text-foreground", isLoading && "animate-spin")} />
+                  </Button>
+                </>
               )}
               {attachment.size && (
                 <span className="text-xs text-muted-foreground">

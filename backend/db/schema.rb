@@ -1494,6 +1494,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_160001) do
     t.index ["source"], name: "index_contact_external_links_on_source"
     t.index ["sync_enabled"], name: "index_contact_external_links_on_sync_enabled"
     t.index ["xero_contact_status"], name: "index_contact_external_links_on_xero_contact_status"
+    t.index ["xero_org_id", "last_synced_at"], name: "idx_cel_xero_org_last_synced"
+    t.index ["xero_org_id", "match_type"], name: "idx_cel_xero_org_match_type"
+    t.index ["xero_org_id", "needs_review"], name: "idx_cel_xero_org_needs_review"
+    t.index ["xero_org_id", "sync_enabled"], name: "idx_cel_xero_org_sync_enabled"
+    t.index ["xero_org_id", "sync_error"], name: "idx_cel_xero_org_sync_error"
     t.index ["xero_org_id"], name: "index_contact_external_links_on_xero_org_id"
   end
 
@@ -3014,6 +3019,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_160001) do
     t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_external_invoices_pending_sync"
     t.index ["tenant_id"], name: "index_external_invoices_on_tenant_id"
     t.index ["tracking_data"], name: "index_external_invoices_on_tracking_data", using: :gin
+    t.index ["xero_org_id", "invoice_type", "status"], name: "idx_ext_inv_xero_org_type_status"
+    t.index ["xero_org_id", "last_synced_at"], name: "idx_ext_inv_xero_org_last_synced"
+    t.index ["xero_org_id", "source"], name: "idx_ext_inv_xero_org_source"
     t.index ["xero_org_id"], name: "index_external_invoices_on_xero_org_id"
   end
 
@@ -9980,6 +9988,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_160001) do
     t.bigint "storage_blob_id"
     t.string "display_name", null: false
     t.string "send_name"
+    t.string "folder"
     t.string "source_type", null: false
     t.string "original_filename"
     t.bigint "file_size"
@@ -9997,13 +10006,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_160001) do
     t.index ["display_name"], name: "index_warehouse_documents_on_display_name"
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
+    t.index ["folder"], name: "index_warehouse_documents_on_folder"
     t.index ["linkable_type", "linkable_id"], name: "idx_warehouse_docs_linkable"
     t.index ["metadata"], name: "idx_warehouse_docs_metadata", using: :gin
     t.index ["parent_document_id", "source_type"], name: "idx_warehouse_docs_parent_source", where: "(parent_document_id IS NOT NULL)"
     t.index ["parent_document_id"], name: "idx_warehouse_docs_parent"
+    t.index ["source_type", "folder"], name: "idx_warehouse_docs_scope_folder"
     t.index ["source_type"], name: "index_warehouse_documents_on_source_type"
     t.index ["storage_blob_id", "source_type"], name: "idx_warehouse_docs_blob_source"
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
+    t.index ["tenant_id", "source_type", "folder"], name: "idx_warehouse_docs_tenant_scope_folder"
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
   end
