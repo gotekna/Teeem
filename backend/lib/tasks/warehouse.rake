@@ -487,7 +487,7 @@ namespace :warehouse do
         tab_key: 'task',
         display_name: 'Tasks',
         tab_group: 'system',
-        warehouse_folder: 'Tasks/{{TaskId}}/{{TaskName}}',
+        folder_path: 'Tasks/{{TaskId}}/{{TaskName}}',
         root_folder: 'Tasks'
       },
       {
@@ -495,7 +495,7 @@ namespace :warehouse do
         tab_key: 'task-attachments',
         display_name: 'Task Attachments',
         tab_group: 'system',
-        warehouse_folder: 'Tasks/{{TaskId}}/{{TaskName}}/Attachments',
+        folder_path: 'Tasks/{{TaskId}}/{{TaskName}}/Attachments',
         root_folder: 'Tasks'
       },
       {
@@ -503,7 +503,7 @@ namespace :warehouse do
         tab_key: 'responses',
         display_name: 'Task Responses',
         tab_group: 'system',
-        warehouse_folder: 'Tasks/{{TaskId}}/{{TaskName}}/Responses',
+        folder_path: 'Tasks/{{TaskId}}/{{TaskName}}/Responses',
         root_folder: 'Tasks'
       },
 
@@ -513,7 +513,7 @@ namespace :warehouse do
         tab_key: 'user',
         display_name: 'Teeem Docs',
         tab_group: 'system',
-        warehouse_folder: 'Teeem Docs/{{UserName}}/{{Year}}',
+        folder_path: 'Teeem Docs/{{UserName}}/{{Year}}',
         root_folder: 'Teeem Docs'
       },
 
@@ -523,7 +523,7 @@ namespace :warehouse do
         tab_key: 'case',
         display_name: 'Cases',
         tab_group: 'system',
-        warehouse_folder: 'Cases/{{CaseId}}',
+        folder_path: 'Cases/{{CaseId}}',
         root_folder: 'Cases'
       },
 
@@ -533,7 +533,7 @@ namespace :warehouse do
         tab_key: 'overview',
         display_name: 'Asset',
         tab_group: 'documents',
-        warehouse_folder: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}',
+        folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}',
         root_folder: 'Corporate'
       },
       {
@@ -541,7 +541,7 @@ namespace :warehouse do
         tab_key: 'expenses',
         display_name: 'Asset Expenses',
         tab_group: 'documents',
-        warehouse_folder: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Expenses',
+        folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Expenses',
         root_folder: 'Corporate'
       },
       {
@@ -549,7 +549,7 @@ namespace :warehouse do
         tab_key: 'service',
         display_name: 'Asset Service',
         tab_group: 'documents',
-        warehouse_folder: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Service',
+        folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Service',
         root_folder: 'Corporate'
       },
       {
@@ -557,7 +557,7 @@ namespace :warehouse do
         tab_key: 'readings',
         display_name: 'Asset Readings',
         tab_group: 'documents',
-        warehouse_folder: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Readings',
+        folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Readings',
         root_folder: 'Corporate'
       }
     ]
@@ -578,7 +578,7 @@ namespace :warehouse do
           enabled: true,
           is_system_tab: true,
           warehouse_enabled: true,
-          warehouse_folder: attrs[:warehouse_folder],
+          folder_path: attrs[:warehouse_folder],
           root_folder: attrs[:root_folder]
         )
         puts "  ✅ Created #{attrs[:warehouse_type]} (#{attrs[:display_name]})"
@@ -598,7 +598,7 @@ namespace :warehouse do
                    .order(:root_folder, :warehouse_type)
                    .each do |wf|
       status = wf.warehouse_enabled ? "✅" : "❌"
-      puts "#{status} #{wf.warehouse_type.ljust(20)} | #{wf.root_folder.ljust(12)} | #{wf.warehouse_folder}"
+      puts "#{status} #{wf.warehouse_type.ljust(20)} | #{wf.root_folder.ljust(12)} | #{wf.folder_path}"
     end
   end
 end

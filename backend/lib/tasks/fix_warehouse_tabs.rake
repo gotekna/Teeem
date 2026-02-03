@@ -43,7 +43,7 @@ namespace :fix_warehouse_tabs do
 
     warehouse_tabs.each do |tab|
       puts "#{tab.display_name} (id: #{tab.id})"
-      puts "  warehouse_folder: #{tab.warehouse_folder || '(derived)'}"
+      puts "  folder_path: #{tab.folder_path || '(derived)'}"
       puts "  send_name_template: #{tab.send_name_template || '(not set)'}"
       puts ""
     end

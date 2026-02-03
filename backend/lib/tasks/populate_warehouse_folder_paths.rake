@@ -14,28 +14,28 @@ namespace :warehouse do
     WarehouseFolder.distinct.pluck(:warehouse_type).sort.each do |warehouse_type|
       puts "\n--- #{warehouse_type} ---"
       WarehouseFolder.where(warehouse_type: warehouse_type)
-                     .where.not(warehouse_folder: [nil, ''])
+                     .where.not(folder_path: [nil, ''])
                      .order(:parent_id, :order_position)
                      .each do |tab|
         indent = tab.parent_id ? "  " : ""
-        puts "#{indent}#{tab.display_name}: #{tab.warehouse_folder}"
+        puts "#{indent}#{tab.display_name}: #{tab.folder_path}"
       end
     end
   end
 
-  desc "List tabs missing warehouse_folder paths"
+  desc "List tabs missing folder_path"
   task missing_folder_paths: :environment do
     puts "=" * 60
-    puts "Tabs missing warehouse_folder paths"
+    puts "Tabs missing folder_path"
     puts "=" * 60
 
-    missing = WarehouseFolder.where(warehouse_folder: [nil, ''])
+    missing = WarehouseFolder.where(folder_path: [nil, ''])
                              .order(:warehouse_type, :parent_id, :order_position)
 
     if missing.empty?
-      puts "✅ All tabs have warehouse_folder paths set"
+      puts "✅ All tabs have folder_path set"
     else
-      puts "Found #{missing.count} tabs without warehouse_folder:"
+      puts "Found #{missing.count} tabs without folder_path:"
       missing.each do |tab|
         puts "  [#{tab.warehouse_type}] #{tab.display_name} (id: #{tab.id})"
       end

@@ -1,5 +1,5 @@
 # SSoT (Feb 2026): warehouse_folders table is THE ONE source of truth
-# All path templates are stored in warehouse_folders.warehouse_folder column
+# All path templates are stored in warehouse_folders.folder_path column
 # NO hardcoded defaults - to create new tenant, copy warehouse_folders from existing tenant
 
 namespace :sync_storage_config do
@@ -11,7 +11,7 @@ namespace :sync_storage_config do
     WarehouseFolder.distinct.pluck(:warehouse_type).sort.each do |warehouse_type|
       folder = WarehouseFolder.find_by(warehouse_type: warehouse_type, parent_id: nil)
       folder ||= WarehouseFolder.where(warehouse_type: warehouse_type).order(:id).first
-      path = folder&.warehouse_folder || "(not set)"
+      path = folder&.folder_path || "(not set)"
       puts "  #{warehouse_type}: #{path}"
     end
   end

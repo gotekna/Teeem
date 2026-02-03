@@ -87,14 +87,14 @@ module Api
         # - download_name_templates column REMOVED - stored per-tab in warehouse_folders.download_name
         # - ui_name_templates column REMOVED - stored per-tab in warehouse_folders.ui_name
 
-        # SSoT: Save warehouse_folder path templates to warehouse_folders table per-warehouse_type
+        # SSoT: Save folder_path templates to warehouse_folders table per-warehouse_type
         # This is THE ONE place where custom folder templates (like {{Year}}) are stored
         if sp.key?(:warehouse_folders)
           sp[:warehouse_folders].to_h.each do |warehouse_type, template|
             folder = WarehouseFolder.root_folder_for(warehouse_type)
             folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
-            folder.update!(warehouse_folder: template.presence)
-            Rails.logger.info "[WarehouseProvider] Saved warehouse_folder for #{warehouse_type}: #{template}"
+            folder.update!(folder_path: template.presence)
+            Rails.logger.info "[WarehouseProvider] Saved folder_path for #{warehouse_type}: #{template}"
           end
         end
 

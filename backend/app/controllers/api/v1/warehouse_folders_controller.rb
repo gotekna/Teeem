@@ -59,11 +59,11 @@ module Api
       # PATCH/PUT /api/v1/warehouse_folders/:id
       def update
         Rails.logger.info "[WarehouseFolders#update] Received params: #{warehouse_folder_params.inspect}"
-        Rails.logger.info "[WarehouseFolders#update] warehouse_folder value: #{warehouse_folder_params[:warehouse_folder].inspect}"
+        Rails.logger.info "[WarehouseFolders#update] folder_path value: #{warehouse_folder_params[:folder_path].inspect}"
 
         if @warehouse_folder.update(warehouse_folder_params)
           @warehouse_folder.reload  # Ensure we get the actual saved value
-          Rails.logger.info "[WarehouseFolders#update] Saved. DB value: #{@warehouse_folder.read_attribute(:warehouse_folder).inspect}"
+          Rails.logger.info "[WarehouseFolders#update] Saved. DB value: #{@warehouse_folder.read_attribute(:folder_path).inspect}"
 
           render json: { success: true, data: @warehouse_folder.as_nested_json }
         else
@@ -194,12 +194,12 @@ module Api
       end
 
       # POST /api/v1/warehouse_folders/reset_paths
-      # Reset all tabs to use inherited SSoT paths (clears warehouse_folder, sets uses_custom_path = false)
+      # Reset all tabs to use inherited SSoT paths (clears folder_path, sets uses_custom_path = false)
       def reset_paths
         updated_count = WarehouseFolder
           .where(warehouse_enabled: true)
-          .where("uses_custom_path = true OR warehouse_folder IS NOT NULL")
-          .update_all(uses_custom_path: false, warehouse_folder: nil)
+          .where("uses_custom_path = true OR folder_path IS NOT NULL")
+          .update_all(uses_custom_path: false, folder_path: nil)
 
         render json: {
           success: true,
@@ -299,7 +299,7 @@ module Api
           :component_name,
           # New warehouse naming
           :warehouse_enabled,
-          :warehouse_folder,  # Custom folder NAME (replaces display_name in SSoT template)
+          :folder_path,  # Custom folder path template (replaces display_name in SSoT template)
           :warehouse_type_override,
           # Legacy backwards compat
           :has_storage_folder,

@@ -142,14 +142,14 @@ class WarehouseFolderQueryService
   end
 
   # SSoT: Get the warehouse path template for this tab
-  # The warehouse_folder column stores the COMPLETE path template (Feb 2026 consolidation)
+  # The folder_path column stores the COMPLETE path template (Feb 2026 consolidation)
   # No derivation needed - warehouse_folders table is THE ONE SSoT
   def derive_warehouse_folder(tab)
     return nil unless tab.warehouse_enabled
 
-    # SSoT: warehouse_folder column stores complete path template
+    # SSoT: folder_path column stores complete path template
     # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Documents"
-    tab.warehouse_folder
+    tab.folder_path
   end
 
   # Build JSON for a single tab (recursively includes children)
@@ -160,7 +160,7 @@ class WarehouseFolderQueryService
     # Compute document count from pre-loaded data
     doc_count = compute_document_count(tab)
 
-    # Get warehouse_folder: stored value if set, otherwise derived from template
+    # Get folder_path: stored value if set, otherwise derived from template
     derived_folder = derive_warehouse_folder(tab)
 
     # Compute warehouse paths without additional queries
@@ -192,9 +192,9 @@ class WarehouseFolderQueryService
       visibility_rule: tab.visibility_rule,
       # New warehouse naming
       warehouse_enabled: tab.warehouse_enabled,
-      # SSoT: Return raw stored warehouse_folder for editing (nil/empty = use display_name default in UI)
+      # SSoT: Return raw stored folder_path for editing (nil/empty = use display_name default in UI)
       # ⚠️ DO NOT use .presence here - empty string "" must be preserved (user intentionally cleared it)
-      warehouse_folder: tab.read_attribute(:warehouse_folder),
+      folder_path: tab.read_attribute(:folder_path),
       # SSoT: "Document Download Name" in UI
       download_name: tab.read_attribute(:download_name),
       # SSoT: "Document UI Name" in UI (Feb 2026)
@@ -254,14 +254,14 @@ class WarehouseFolderQueryService
   end
 
   # Compute all warehouse-related paths
-  # SSoT: Compute warehouse paths from stored warehouse_folder column
+  # SSoT: Compute warehouse paths from stored folder_path column
   # Feb 2026 consolidation: warehouse_folders table is THE ONE SSoT
   def compute_warehouse_data(tab, derived_folder)
     return {} unless tab.warehouse_enabled
 
     warehouse_type_key = warehouse_type_for_template(tab)
     base_path = compute_base_path(warehouse_type_key)
-    # SSoT: derived_folder IS the complete path template (from warehouse_folder column)
+    # SSoT: derived_folder IS the complete path template (from folder_path column)
     effective_path = derived_folder
     upload_path = compute_upload_path(tab, effective_path)
 
@@ -294,7 +294,7 @@ class WarehouseFolderQueryService
   end
 
   # NOTE: compute_effective_path removed (Feb 2026)
-  # Paths are now stored directly in warehouse_folder column - no derivation needed
+  # Paths are now stored directly in folder_path column - no derivation needed
 
   # Compute folder path for uploads (strips {{JobCode}} for job warehouse_type)
   def compute_upload_path(tab, effective_path)

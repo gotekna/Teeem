@@ -70,9 +70,9 @@ namespace :warehouse_folders do
     all_updates.each do |tab_id, new_path|
       tab = WarehouseFolder.find_by(id: tab_id)
       if tab
-        old_path = tab.warehouse_folder
+        old_path = tab.folder_path
         if old_path != new_path
-          tab.update_columns(warehouse_folder: new_path)
+          tab.update_columns(folder_path: new_path)
           puts "  ✓ Tab #{tab_id} (#{tab.display_name}): '#{old_path}' → '#{new_path}'"
           updated += 1
         else

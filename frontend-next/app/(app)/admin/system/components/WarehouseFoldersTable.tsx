@@ -79,7 +79,7 @@ interface WarehouseTabRow {
   description?: string;
   // New naming (SSoT)
   warehouse_enabled?: boolean;
-  warehouse_folder?: string;
+  folder_path?: string;
   warehouse_type?: string;
   // Legacy backwards compat aliases (API returns both)
   has_sharepoint_folder?: boolean;
@@ -259,7 +259,7 @@ export function WarehouseFoldersTable() {
       await api.patch(`/api/v1/corporate/warehouse_folders/${tab.id}`, {
         tab: {
           warehouse_enabled: !!editingPath.value,
-          warehouse_folder: editingPath.value || null,
+          folder_path: editingPath.value || null,
         }
       });
       await loadTabs();
@@ -357,7 +357,7 @@ export function WarehouseFoldersTable() {
       await api.patch(`/api/v1/corporate/warehouse_folders/${folderBrowserTab.id}`, {
         tab: {
           warehouse_enabled: true,
-          warehouse_folder: folderName,
+          folder_path: folderName,
         }
       });
       await loadTabs();
@@ -455,7 +455,7 @@ export function WarehouseFoldersTable() {
                       const hasSubTabs = tab.sub_tabs && tab.sub_tabs.length > 0;
                       // Use new naming with fallback to legacy
                       const warehouseEnabled = tab.warehouse_enabled ?? tab.has_sharepoint_folder;
-                      const warehouseFolder = tab.warehouse_folder ?? tab.sharepoint_folder_path;
+                      const warehouseFolder = tab.folder_path ?? tab.sharepoint_folder_path;
                       const hasFolder = warehouseEnabled && warehouseFolder;
 
                       return (
@@ -793,10 +793,10 @@ export function WarehouseFoldersTable() {
 
           <div className="mt-6 space-y-4">
             {/* Current path info */}
-            {(folderBrowserTab?.warehouse_folder || folderBrowserTab?.sharepoint_folder_path) && (
+            {(folderBrowserTab?.folder_path || folderBrowserTab?.sharepoint_folder_path) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Current folder: </span>
-                <span className="font-mono text-blue-600 dark:text-blue-400">/{folderBrowserTab?.warehouse_folder || folderBrowserTab?.sharepoint_folder_path}</span>
+                <span className="font-mono text-blue-600 dark:text-blue-400">/{folderBrowserTab?.folder_path || folderBrowserTab?.sharepoint_folder_path}</span>
               </div>
             )}
 

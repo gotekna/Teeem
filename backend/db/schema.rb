@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_03_170001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_03_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10061,7 +10061,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_03_170001) do
     t.string "visibility_rule"
     t.bigint "tenant_id"
     t.string "download_name"
-    t.string "warehouse_folder"
+    t.string "folder_path"
     t.string "ui_name"
     t.string "root_folder"
     t.index ["enabled"], name: "index_warehouse_folders_on_enabled"

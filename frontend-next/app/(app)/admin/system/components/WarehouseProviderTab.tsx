@@ -171,7 +171,7 @@ interface WarehouseTabConfig {
   enabled: boolean;
   order_position: number;
   icon_name: string | null;
-  warehouse_folder?: string | null;
+  folder_path?: string | null;
   children?: WarehouseTabConfig[];
   document_types?: DocumentType[];
 }
@@ -862,11 +862,20 @@ function TreeNode({
           );
         })()}
 
-        {/* Tab count badge */}
+        {/* Individual tab badges */}
         {hasTabs && (
-          <span className="ml-1 text-[10px] text-muted-foreground">
-            ({node.tabs!.length} tabs)
-          </span>
+          <div className="flex items-center gap-1 ml-1">
+            {node.tabs!.map((tab) => (
+              <Badge
+                key={tab.id}
+                variant="secondary"
+                className="h-5 text-[10px] px-1.5"
+                title={`Tab: ${tab.display_name}`}
+              >
+                {tab.display_name}
+              </Badge>
+            ))}
+          </div>
         )}
       </div>
 
@@ -1469,7 +1478,7 @@ function TabNode({
 
   // Folder name: extract from stored path
   // Use ?? (nullish coalescing) not || so empty string "" is preserved (user intentionally cleared it)
-  const storedPath = tab.warehouse_folder ?? tab.storage_folder_path ?? '';
+  const storedPath = tab.folder_path ?? tab.storage_folder_path ?? '';
   const defaultFolderName = storedPath ? extractFolderName(storedPath, basePath) : '';
   const [editPath, setEditPath] = React.useState(defaultFolderName);
   const [editDisplayName, setEditDisplayName] = React.useState(tab.display_name || '');
@@ -1483,9 +1492,9 @@ function TabNode({
     const shouldInit = isEditing && !wasEditingRef.current;
     console.log('[TabNode useEffect]', { isEditing, wasEditing: wasEditingRef.current, shouldInit, tabId: tab.id });
     if (shouldInit) {
-      console.log('[TabNode useEffect] tab.warehouse_folder:', JSON.stringify(tab.warehouse_folder));
+      console.log('[TabNode useEffect] tab.folder_path:', JSON.stringify(tab.folder_path));
       console.log('[TabNode useEffect] tab.storage_folder_path:', JSON.stringify(tab.storage_folder_path));
-      const stored = tab.warehouse_folder ?? tab.storage_folder_path ?? '';
+      const stored = tab.folder_path ?? tab.storage_folder_path ?? '';
       console.log('[TabNode useEffect] stored (after ??):', JSON.stringify(stored));
       const folderName = stored ? extractFolderName(stored, basePath) : '';
       console.log('[TabNode useEffect] Initializing editPath to:', JSON.stringify(folderName));
@@ -1494,7 +1503,7 @@ function TabNode({
       setEditSendName(tab.download_name || '{{OriginalFileName}}');
     }
     wasEditingRef.current = isEditing;
-  }, [isEditing, tab.warehouse_folder, tab.storage_folder_path, tab.display_name, tab.download_name, basePath]);
+  }, [isEditing, tab.folder_path, tab.storage_folder_path, tab.display_name, tab.download_name, basePath]);
 
   // Build full path preview: rootPath + basePath + folderName
   const fullPathPreview = [rootPath, basePath, editPath]
@@ -1519,7 +1528,7 @@ function TabNode({
         onClick={!isEditing ? (e) => { e.stopPropagation(); onStartEdit(tab.id); } : undefined}
         title={!isEditing ? "Click to edit" : undefined}
       >
-        {/* Tab header row - show folder name from warehouse_folder (resolved) */}
+        {/* Tab header row - show folder name from folder_path (resolved) */}
         <div className="flex items-center gap-1 mb-2">
           <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
           <span className="text-sm font-medium">{resolveTemplatePreview(defaultFolderName || tab.display_name || '')}</span>
@@ -1630,7 +1639,7 @@ function TabNode({
                   // Use tab.display_name as fallback if editDisplayName is empty
                   const displayNameToSave = editDisplayName.trim() || tab.display_name || 'Untitled';
 
-                  // FRC Fix: Build full warehouse_folder path, not just the folder name
+                  // FRC Fix: Build full folder_path, not just the folder name
                   // If basePath contains {{TeeemXL}} or {{TabName}}, replace with editPath
                   // Otherwise, append editPath to basePath
                   const hasPlaceholder = /\{\{TeeemXL\}\}|\{\{TabName\}\}/i.test(basePath);
@@ -1692,7 +1701,7 @@ function TabNode({
   const hasChildren = tab.children && tab.children.length > 0;
   const hasDocTypes = tab.document_types && tab.document_types.length > 0;
   const hasExpandableContent = hasChildren || hasDocTypes;
-  const storedFolderPath = tab.warehouse_folder || tab.storage_folder_path;
+  const storedFolderPath = tab.folder_path || tab.storage_folder_path;
   // For child tabs (parent_id exists), use display_name as folder name
   // For root tabs, extract from stored path or fall back to display_name
   // This ensures child tabs get their OWN name appended, not the parent's folder
@@ -1733,7 +1742,7 @@ function TabNode({
           <span className="w-3.5" /> // Spacer for alignment
         )}
         <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-        {/* Show folder name (from warehouse_folder), resolved if it contains tokens */}
+        {/* Show folder name (from folder_path), resolved if it contains tokens */}
         <span className="text-sm">{resolveTemplatePreview(folderName || tab.display_name || '')}</span>
         {/* UI/DL badges for this tab */}
         <span
@@ -1981,7 +1990,7 @@ export function WarehouseProviderTab() {
   // Build folder tree from warehouse_folders, attaching tabs to scope nodes
   // SSoT: Use config from API (not formData which may have stale initial state)
   const folderTree = React.useMemo(() => {
-    const scopeFolders = config?.warehouse_folders || {};
+    const scopeFolders = config?.folder_paths || {};
     const tree = buildFolderTree(scopeFolders);
 
     // Helper: Check if tab has doc types directly
@@ -2069,7 +2078,7 @@ export function WarehouseProviderTab() {
 
     attachTabs(tree);
     return tree;
-  }, [config?.warehouse_folders, entityTabs]);
+  }, [config?.folder_paths, entityTabs]);
 
   // Toggle tree node expansion
   const toggleExpanded = (path: string) => {
@@ -2087,7 +2096,7 @@ export function WarehouseProviderTab() {
 
     // When collapsing, also close any edit panels for scopes at or under this path
     if (isCollapsing && editingKey) {
-      const scopesAtPath = Object.entries(formData.warehouse_folders)
+      const scopesAtPath = Object.entries(formData.folder_paths)
         .filter(([, folderPath]) => folderPath === path || folderPath.startsWith(path + '/'))
         .map(([scopeKey]) => scopeKey);
       if (scopesAtPath.includes(editingKey)) {
@@ -2110,7 +2119,7 @@ export function WarehouseProviderTab() {
         {
           warehouse_folder: {
             display_name: displayName,
-            warehouse_folder: folderPath,
+            folder_path: folderPath,
             download_name: sendNameTemplate,
           }
         }
@@ -2120,7 +2129,7 @@ export function WarehouseProviderTab() {
         // SSoT: Use RESPONSE data if available, not sent values
         // Backend might transform/normalize values (e.g., empty string handling)
         const savedData = response.data;
-        const savedFolderPath = savedData?.warehouse_folder ?? folderPath;
+        const savedFolderPath = savedData?.folder_path ?? folderPath;
         const savedDisplayName = savedData?.display_name ?? displayName;
         const savedSendName = savedData?.download_name ?? sendNameTemplate;
 
@@ -2135,7 +2144,7 @@ export function WarehouseProviderTab() {
                 ? {
                     ...tab,
                     display_name: savedDisplayName,
-                    warehouse_folder: savedFolderPath,
+                    folder_path: savedFolderPath,
                     storage_folder_path: savedFolderPath,  // Legacy alias
                     download_name: savedSendName
                   }
@@ -2186,12 +2195,12 @@ export function WarehouseProviderTab() {
       const isChildType = !!WAREHOUSE_TYPE_PARENTS[scopeKey];
       const parentKey = WAREHOUSE_TYPE_PARENTS[scopeKey];
 
-      console.log('🔵 [saveScopeTemplates] Child type check:', { isChildType, parentKey, parentPath: parentKey ? formData.warehouse_folders[parentKey] : null });
+      console.log('🔵 [saveScopeTemplates] Child type check:', { isChildType, parentKey, parentPath: parentKey ? formData.folder_paths[parentKey] : null });
 
       // For child types: parent's base folder + suffix (full path)
       // For parent types: baseFolder + folderTemplate (full path)
       const warehouseFolderValue = isChildType && parentKey
-        ? [formData.warehouse_folders[parentKey], folderTemplate]  // Parent base + suffix = full path
+        ? [formData.folder_paths[parentKey], folderTemplate]  // Parent base + suffix = full path
             .filter(Boolean)
             .join('/')
             .replace(/\/+/g, '/')
@@ -2232,8 +2241,8 @@ export function WarehouseProviderTab() {
           }
           return {
             ...prev,
-            warehouse_folders: { ...prev.warehouse_folders, [scopeKey]: warehouseFolderValue },
-            warehouse_folder_templates: { ...prev.warehouse_folder_templates, [scopeKey]: folderTemplate },
+            warehouse_folders: { ...prev.folder_paths, [scopeKey]: warehouseFolderValue },
+            warehouse_folder_templates: { ...prev.folder_path_templates, [scopeKey]: folderTemplate },
             download_names: { ...prev.download_names, [scopeKey]: downloadNameTemplate },
             ui_name_templates: { ...prev.ui_name_templates, [scopeKey]: uiNameTemplate },
             config_links: newConfigLinks,
@@ -2251,7 +2260,7 @@ export function WarehouseProviderTab() {
       });
       throw error; // Re-throw so auto-save can handle it
     }
-  }, [toast, formData.warehouse_folders]);
+  }, [toast, formData.folder_paths]);
 
   // Phase 4: Toggle virtual warehouse via API
   const toggleVirtualScope = React.useCallback(async (scopeKey: string, isVirtual: boolean) => {
@@ -2327,8 +2336,8 @@ export function WarehouseProviderTab() {
       );
       console.log('🔴 [loadConfig] Response:', response);
       if (response?.success && response.data) {
-        console.log('🔴 [loadConfig] warehouse_folders:', response.data.warehouse_folders);
-        console.log('🔴 [loadConfig] warehouse_folder_templates:', response.data.warehouse_folder_templates);
+        console.log('🔴 [loadConfig] warehouse_folders:', response.data.folder_paths);
+        console.log('🔴 [loadConfig] warehouse_folder_templates:', response.data.folder_path_templates);
         console.log('🔴 [loadConfig] download_names:', response.data.download_names);
         console.log('🔴 [loadConfig] ui_name_templates:', response.data.ui_name_templates);
         setConfig(response.data);
@@ -2348,10 +2357,10 @@ export function WarehouseProviderTab() {
           root_path: response.data.root_path || "",
           // SSoT: warehouse_folders is THE ONE source for warehouse type roots
           // warehouse_folders REMOVED (Jan 2026 SSoT fix)
-          warehouse_folders: response.data.warehouse_folders || {},
+          warehouse_folders: response.data.folder_paths || {},
           // SSoT: Templates from WarehouseProvider
           // Support both old (file_name_templates/display_name_templates) and new (download_names/ui_name_templates) field names
-          warehouse_folder_templates: response.data.warehouse_folder_templates || {},
+          warehouse_folder_templates: response.data.folder_path_templates || {},
           download_names: response.data.download_names || response.data.file_name_templates || {},
           ui_name_templates: response.data.ui_name_templates || response.data.display_name_templates || {},
           // SSoT: Config links from WarehouseProvider
@@ -2387,8 +2396,8 @@ export function WarehouseProviderTab() {
             provider_type: formData.provider_type,
             root_path: formData.root_path,
             // SSoT: warehouse_folders is THE ONE place for warehouse type roots
-            warehouse_folders: config?.warehouse_folders,
-            warehouse_folder_templates: formData.warehouse_folder_templates,
+            warehouse_folders: config?.folder_paths,
+            warehouse_folder_templates: formData.folder_path_templates,
             download_names: formData.download_names,
             ui_name_templates: formData.ui_name_templates,
             config_links: formData.config_links,
@@ -2545,7 +2554,7 @@ export function WarehouseProviderTab() {
                 </h4>
                 <p className="text-sm text-muted-foreground">
                   This page configures <strong>virtual folder paths</strong> for the File Warehouse.
-                  All settings save to <code className="bg-muted px-1 rounded">WarehouseProvider.warehouse_folders</code> (SSoT).
+                  All settings save to <code className="bg-muted px-1 rounded">WarehouseProvider.folder_paths</code> (SSoT).
                 </p>
               </div>
 
@@ -3300,25 +3309,25 @@ export function WarehouseProviderTab() {
                     onSaveEdit={(key, value) => {
                       setFormData(prev => ({
                         ...prev,
-                        warehouse_folders: { ...prev.warehouse_folders, [key]: value }
+                        warehouse_folders: { ...prev.folder_paths, [key]: value }
                       }));
                       setEditingKey(null);
                     }}
                     onCancelEdit={() => setEditingKey(null)}
-                    currentPath={formData.warehouse_folders}
+                    currentPath={formData.folder_paths}
                     rootPath={formData.root_path}
                     editingTabId={editingTabId}
                     onStartTabEdit={setEditingTabId}
                     onSaveTabEdit={saveTabFolderPath}
                     onCancelTabEdit={() => setEditingTabId(null)}
-                    scopeTemplates={formData.warehouse_folder_templates}
+                    scopeTemplates={formData.folder_path_templates}
                     downloadNameTemplates={formData.download_names}
                     uiNameTemplates={formData.ui_name_templates}
                     configLinks={formData.config_links}
                     onSaveTemplates={saveScopeTemplates}
                     virtualScopes={formData.virtual_warehouses}
                     onToggleVirtual={toggleVirtualScope}
-                    scopeRootFolders={formData.warehouse_folders || {}}
+                    scopeRootFolders={formData.folder_paths || {}}
                   />
                 ))}
               </div>
@@ -3462,11 +3471,11 @@ export function WarehouseProviderTab() {
                     <h3 className="text-sm font-medium">Folder Structure Preview</h3>
                     <div className="border rounded-lg p-4 bg-muted/20 font-mono text-sm space-y-1">
                       {/* Render configured scopes with their computed paths */}
-                      {Object.entries(formData.warehouse_folders)
+                      {Object.entries(formData.folder_paths)
                         .filter(([, path]) => path)
                         .sort(([, a], [, b]) => a.localeCompare(b))
                         .map(([scopeKey, basePath]) => {
-                          const template = formData.warehouse_folder_templates[scopeKey] || '' || '';
+                          const template = formData.folder_path_templates[scopeKey] || '' || '';
                           const count = warehouseStats.warehouse_by_source[scopeKey] || 0;
                           const icons: Record<string, React.ReactNode> = {
                             email: <Mail className="h-3.5 w-3.5 text-blue-500" />,

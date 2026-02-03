@@ -325,7 +325,7 @@ export function WarehouseFoldersConfig({
   const getBasePath = React.useCallback((scopeKey: string): string => {
     const rootPath = storageConfig?.root_path || "";
     // SSoT: warehouse_folders is THE ONE source for scope root paths
-    const scopePath = storageConfig?.warehouse_folders?.[scopeKey] || "";
+    const scopePath = storageConfig?.folder_paths?.[scopeKey] || "";
     if (!scopePath) return rootPath || "";
     // Combine root and scope path, normalize slashes
     const fullPath = [rootPath, scopePath].filter(Boolean).join('/');
@@ -338,7 +338,7 @@ export function WarehouseFoldersConfig({
     // Determine which scope folder to use based on storage_path_type override
     const pathScope = tab.warehouse_type_override === 'corporate' ? 'people' : defaultScope;
     const basePath = getBasePath(pathScope);
-    const folderPath = tab.warehouse_folder || tab.display_name;
+    const folderPath = tab.folder_path || tab.display_name;
     // Combine and normalize: collapse multiple slashes, strip trailing
     const fullPath = [basePath, folderPath].filter(Boolean).join('/');
     return fullPath.replace(/\/+/g, '/').replace(/\/+$/, '');
@@ -851,7 +851,7 @@ export function WarehouseFoldersConfig({
       entity_filters: [],
       enabled: true,
       warehouse_enabled: false,
-      warehouse_folder: "",
+      folder_path: "",
       warehouse_type_override: 'corporate',  // SSoT: Default to corporate path
       is_photo_category: false,  // SSoT: Explicit photo category flag
       is_cad_category: false,  // SSoT: Explicit CAD/Revit category flag
@@ -865,7 +865,7 @@ export function WarehouseFoldersConfig({
   // (Special config sheets are accessed via dedicated buttons, not the edit action)
   const openEditDialog = (tab: WarehouseFolder) => {
     // Note: Both {{TabName}} (parent) and {{SubTabName}} (current) are valid for subtabs
-    const folderPath = tab.warehouse_folder || "";
+    const folderPath = tab.folder_path || "";
 
     // SSoT: Store original display_name for folder rename detection
     setOriginalDisplayName(tab.display_name);
@@ -880,7 +880,7 @@ export function WarehouseFoldersConfig({
       enabled: tab.enabled,
       icon_name: tab.icon_name || "",
       warehouse_enabled: tab.warehouse_enabled,
-      warehouse_folder: folderPath,
+      folder_path: folderPath,
       uses_custom_path: tab.uses_custom_path || false,  // SSoT: Template inheritance flag
       warehouse_type_override: tab.warehouse_type_override || 'corporate',  // SSoT: Path type for contacts
       // SSoT: Include linked document type IDs
@@ -943,7 +943,7 @@ export function WarehouseFoldersConfig({
           enabled: formData.enabled,
           icon_name: formData.icon_name,
           warehouse_enabled: formData.warehouse_enabled,
-          warehouse_folder: formData.warehouse_folder,
+          folder_path: formData.folder_path,
           uses_custom_path: formData.uses_custom_path,  // SSoT: Template inheritance flag
           warehouse_type_override: formData.warehouse_type_override,  // SSoT: Path type for contacts
           // SSoT: Include linked document type IDs
@@ -985,7 +985,7 @@ export function WarehouseFoldersConfig({
           enabled: formData.enabled ?? true,
           icon_name: formData.icon_name,
           warehouse_enabled: formData.warehouse_enabled,
-          warehouse_folder: formData.warehouse_folder,
+          folder_path: formData.folder_path,
           warehouse_type_override: formData.warehouse_type_override,  // SSoT: Path type for contacts
           is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
           is_cad_category: formData.is_cad_category,  // SSoT: Explicit CAD/Revit category flag
@@ -2484,11 +2484,11 @@ export function WarehouseFoldersConfig({
                 {/* SSoT: Show inherited base path as greyed-out prefix, then editable tab folder */}
                 <TokenBuilder
                   label={editingTab?.is_system_tab ? "Folder Path (system-managed)" : "Folder Path"}
-                  value={formData.warehouse_folder ?? ""}
+                  value={formData.folder_path ?? ""}
                   onChange={(value) =>
                     setFormData((prev) => ({
                       ...prev,
-                      warehouse_folder: value,
+                      folder_path: value,
                     }))
                   }
                   scope="storage"
@@ -2560,7 +2560,7 @@ export function WarehouseFoldersConfig({
                   const parentTabName = parentTab?.display_name || "";
 
                   // Resolve with ACTUAL values, not generic examples
-                  let folderPath = formData.warehouse_folder || currentTabName;
+                  let folderPath = formData.folder_path || currentTabName;
                   folderPath = folderPath
                     .replace(/\{\{SubTabName\}\}/g, currentTabName)
                     .replace(/\{\{TabName\}\}/g, parentTabName || currentTabName)

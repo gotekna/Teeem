@@ -446,14 +446,14 @@ class WarehouseFolder < ApplicationRecord
   public
 
   # SSoT: Get the full warehouse path template for this tab
-  # The warehouse_folder column stores the COMPLETE path template (Feb 2026 consolidation)
+  # The folder_path column stores the COMPLETE path template (Feb 2026 consolidation)
   # No derivation needed - warehouse_folders table is THE ONE SSoT
   def resolved_warehouse_path
     return nil unless warehouse_enabled
 
-    # SSoT: warehouse_folder column stores complete path template
+    # SSoT: folder_path column stores complete path template
     # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Documents"
-    read_attribute(:warehouse_folder)
+    read_attribute(:folder_path)
   end
 
   # Get the full storage path for this tab
@@ -618,7 +618,7 @@ class WarehouseFolder < ApplicationRecord
       xero_scope: xero_scope,
       xero_account_name: xero_account_name,  # Resolved name (e.g., "Tekna Homes")
       warehouse_enabled: warehouse_enabled,
-      warehouse_folder: read_attribute(:warehouse_folder),  # SSoT: Raw value for editing (nil = use display_name default)
+      folder_path: read_attribute(:folder_path),  # SSoT: Raw value for editing (nil = use display_name default)
       download_name: read_attribute(:download_name),  # SSoT: "Document Download Name" in UI
       ui_name: read_attribute(:ui_name),  # SSoT: "Document UI Name" in UI
       full_warehouse_path: full_warehouse_path,
@@ -627,7 +627,7 @@ class WarehouseFolder < ApplicationRecord
       warehouse_type_override: warehouse_type_override || 'corporate',
       warehouse_base_path: warehouse_base_path,
       effective_warehouse_path: effective_warehouse_path,  # For UI display (keeps {{JobCode}})
-      folder_path: upload_folder_path,  # For uploads (strips {{JobCode}} for job-warehouse_type tabs)
+      upload_path: upload_folder_path,  # For uploads (derived from effective_warehouse_path)
       inherited_template: inherited_template,
       hierarchy_path: hierarchy_path,
       document_count: document_count,
@@ -682,9 +682,9 @@ class WarehouseFolder < ApplicationRecord
   def self.warehouse_base_folders
     # SSoT (Feb 2026): Read directly from warehouse_folders table
     result = {}
-    WarehouseFolder.where.not(warehouse_folder: [nil, ''])
+    WarehouseFolder.where.not(folder_path: [nil, ''])
                    .distinct
-                   .pluck(:warehouse_type, :warehouse_folder)
+                   .pluck(:warehouse_type, :folder_path)
                    .each do |warehouse_type, path|
       result[warehouse_type] ||= path
     end
@@ -692,7 +692,7 @@ class WarehouseFolder < ApplicationRecord
   end
 
   # SSoT (Feb 2026): Map warehouse_type → root folder name
-  # Uses root_folder column (populated from first segment of warehouse_folder path)
+  # Uses root_folder column (populated from first segment of folder_path)
   # Used by: documents_controller, warehouse_provider.as_json
   #
   # FRC (Feb 2026): Filter OUT internal/system folders with [[...]] syntax
@@ -725,7 +725,7 @@ class WarehouseFolder < ApplicationRecord
       where(warehouse_type: warehouse_type).order(:id).first
   end
 
-  # SSoT (Feb 2026): Map warehouse_type → full warehouse_folder path template
+  # SSoT (Feb 2026): Map warehouse_type → full folder_path template
   # Returns: { "job" => "Jobs/{{JobCode}}/Overview", "email" => "Emails/{{Year}}/{{Month}}", ... }
   # Used by: warehouse_provider.to_config_hash (frontend needs full paths)
   # Prefers: tab_key == warehouse_type OR tab_key == 'overview' (the "root" tab for each type)
@@ -734,19 +734,19 @@ class WarehouseFolder < ApplicationRecord
 
     # Get root folders - prefer tab_key matching warehouse_type or 'overview'
     WarehouseFolder.where(parent_id: nil)
-                   .where.not(warehouse_folder: [nil, ''])
+                   .where.not(folder_path: [nil, ''])
                    .where('tab_key = warehouse_type OR tab_key = ?', 'overview')
-                   .pluck(:warehouse_type, :warehouse_folder)
+                   .pluck(:warehouse_type, :folder_path)
                    .each do |warehouse_type, path|
       result[warehouse_type] = path if path.present?
     end
 
     # Fallback: for any warehouse_type not yet in result, use first folder found
     WarehouseFolder.where(parent_id: nil)
-                   .where.not(warehouse_folder: [nil, ''])
+                   .where.not(folder_path: [nil, ''])
                    .where.not(warehouse_type: result.keys)
                    .order(:id)
-                   .pluck(:warehouse_type, :warehouse_folder)
+                   .pluck(:warehouse_type, :folder_path)
                    .each do |warehouse_type, path|
       result[warehouse_type] ||= path if path.present?
     end
