@@ -261,8 +261,19 @@ class XeroAttachmentSyncJob < ApplicationJob
       .where.not(storage_blob_id: nil)
       .pluck(:documentable_id)
 
+    # FRC (Feb 2026): Xero only generates PDFs for certain invoice types/statuses:
+    # - sales_invoice: YES (Xero auto-generates PDF when approved/sent/paid)
+    # - quote: YES (Xero auto-generates PDF when sent)
+    # - credit_note: YES (Xero auto-generates PDF)
+    # - bill: NO - Xero does NOT auto-generate PDFs for bills (supplier invoices).
+    #         Bills only have PDFs if the supplier uploaded an attachment.
+    # - draft: NO - Xero doesn't generate PDFs until invoice is approved
+    #
+    # Without these filters, the job wastes 2000+ API calls on bills that can never have PDFs.
     query = ExternalInvoice
       .active
+      .where.not(status: "draft")       # Draft invoices have no PDF
+      .where.not(invoice_type: "bill")  # Bills don't have auto-generated PDFs
       .where.not(external_id: nil)
       .where.not(tenant_id: nil)
       .where.not(contact_id: nil)
@@ -295,8 +306,11 @@ class XeroAttachmentSyncJob < ApplicationJob
       .where(source: "xero", xero_org_id: xero_tenant_id)
       .pluck(:contact_id)
 
+    # FRC (Feb 2026): Must match find_invoices_needing_pdfs filters
     ExternalInvoice
       .active
+      .where.not(status: "draft")       # Draft invoices have no PDF
+      .where.not(invoice_type: "bill")  # Bills don't have auto-generated PDFs
       .where(contact_id: contact_ids_for_xero_org)
       .where.not(external_id: nil)
       .where.not(tenant_id: nil)

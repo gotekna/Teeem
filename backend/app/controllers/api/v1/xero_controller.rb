@@ -3442,11 +3442,15 @@ module Api
           .where(source: "xero", xero_org_id: xero_tenant_id)
           .pluck(:contact_id)
 
-        # Total invoices linked to these contacts (excluding drafts, voided, deleted)
+        # FRC (Feb 2026): Xero only generates PDFs for certain invoice types:
+        # - sales_invoice, quote, credit_note: YES (Xero auto-generates PDF)
+        # - bill: NO - Xero does NOT auto-generate PDFs for bills (supplier invoices)
+        # Without excluding bills, the percentage is misleading (shows ~50% when actually complete)
         total_scope = ExternalInvoice.active
           .where(contact_id: contact_ids)
           .where.not(status: "draft")
           .where.not(status: %w[voided deleted])
+          .where.not(invoice_type: "bill")  # Bills don't have auto-generated PDFs
 
         total = total_scope.count
 
@@ -3461,6 +3465,7 @@ module Api
           .where(external_invoices: { contact_id: contact_ids })
           .where.not(external_invoices: { status: "draft" })
           .where.not(external_invoices: { status: %w[voided deleted] })
+          .where.not(external_invoices: { invoice_type: "bill" })  # Match total_scope
           .distinct.count(:documentable_id)
 
         pending = [total - synced, 0].max
