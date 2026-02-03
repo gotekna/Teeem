@@ -12,6 +12,9 @@ class Version < ApplicationRecord
   end
 
   def self.current_version_string
-    "v#{current.current_version}"
+    v = current.current_version
+    major = v / 100
+    minor = v % 100
+    "#{major}.#{minor}"
   end
 end
