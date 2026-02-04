@@ -232,6 +232,19 @@ interface WarehouseTabFolder {
   children?: WarehouseTabFolder[];
 }
 
+// SSoT: Warehouse folder tree from database (Feb 2026)
+interface WarehouseTreeNode {
+  id: string;
+  name: string;
+  type: "category";
+  icon: string;
+  warehouseType: string;
+  folderPath: string | null;
+  fullPath: string | null;
+  fileCount: number;
+  children: WarehouseTreeNode[];
+}
+
 // Icon mapping for all storage scopes - matches WarehouseProvider.SCOPE_FOLDERS
 const SCOPE_ICONS: Record<string, React.ReactNode> = {
   job: <Briefcase className="h-4 w-4" />,
@@ -451,6 +464,11 @@ export default function AllDocumentsPage() {
     people: ScopeHierarchyItem[];
   }>({ corporate: [], job: [], people: [] });
 
+  // SSoT: Warehouse folder tree from database (Feb 2026)
+  // This is THE source of truth for folder structure - configured in admin settings
+  const [warehouseTree, setWarehouseTree] = useState<WarehouseTreeNode[]>([]);
+  const [warehouseTreeLoading, setWarehouseTreeLoading] = useState(true);
+
   // SSoT: S3 folder contents - loaded lazily when expanding folders
   // This mirrors the exact Wasabi/S3 folder structure for OneDrive-like browsing
   const [s3Folders, setS3Folders] = useState<Record<string, {
@@ -538,6 +556,37 @@ export default function AllDocumentsPage() {
       }
     };
     fetchStorageConfig();
+  }, []);
+
+  // SSoT: Fetch folder tree from warehouse_folders table (Feb 2026)
+  // This is THE source of truth for folder structure - replaces S3 browsing
+  useEffect(() => {
+    const fetchWarehouseTree = async () => {
+      setWarehouseTreeLoading(true);
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: {
+            tree: WarehouseTreeNode[];
+            counts: Record<string, number>;
+            total: number;
+          };
+        }>("/api/v1/warehouse_folders/tree");
+
+        if (response?.success && response.data) {
+          setWarehouseTree(response.data.tree);
+          // Update counts from the API response
+          if (response.data.counts) {
+            setCounts(prev => ({ ...prev, ...response.data.counts, total: response.data.total }));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch warehouse folder tree:", err);
+      } finally {
+        setWarehouseTreeLoading(false);
+      }
+    };
+    fetchWarehouseTree();
   }, []);
 
   // SSoT: Fetch all configured folders from Entity Configurator
@@ -910,13 +959,8 @@ export default function AllDocumentsPage() {
     }
   }, [s3Folders, loadingS3Folders, getScopeFromPath, virtualScopes, scopeFolders]);
 
-  // SSoT: Fetch root S3 folders on page load for Pure S3 Browsing
-  // Wasabi = SSoT for DISPLAY (shows actual folder structure)
-  // scope_folders = SSoT for STORAGE (where uploads go)
-  useEffect(() => {
-    // Fetch root folders from Wasabi/S3 to build the tree
-    fetchS3Folders("");
-  }, [fetchS3Folders]);
+  // NOTE (Feb 2026): S3 root folder fetch removed - using warehouse_folders/tree instead
+  // S3 folders are now only fetched when user expands a folder to see files
 
   // Poll for active background jobs (folder reorganization)
   useEffect(() => {
@@ -1197,16 +1241,20 @@ export default function AllDocumentsPage() {
   }, [documents, searchQuery]);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // SSoT: PURE S3 BROWSING - Tree shows 100% what's on Wasabi
-  // Wasabi = SSoT for DISPLAY (actual folder structure)
-  // scope_folders = SSoT for STORAGE (where uploads go, not used for display)
+  // SSoT: WAREHOUSE FOLDERS - Tree shows configured folder structure from database
+  // warehouse_folders table = SSoT for DISPLAY (admin-configured structure)
+  // S3 = SSoT for file contents (loaded on expand)
   // ═══════════════════════════════════════════════════════════════════════════
   const treeData = useMemo((): TreeNode[] => {
 
-    // Map folder names to icons for better UX
-    const getFolderIcon = (name: string): React.ReactNode => {
-      const normalizedName = name.toLowerCase().replace(/[^a-z]/g, '');
-      // Check known scope names
+    // Map icon names to React components
+    const getIconComponent = (iconName: string, folderName: string): React.ReactNode => {
+      // First try the icon name from the database
+      if (iconName && SCOPE_ICONS[iconName]) {
+        return SCOPE_ICONS[iconName];
+      }
+      // Fall back to folder name matching
+      const normalizedName = folderName.toLowerCase().replace(/[^a-z]/g, '');
       if (normalizedName === 'jobs' || normalizedName === 'job') return SCOPE_ICONS.job;
       if (normalizedName === 'corporate') return SCOPE_ICONS.corporate;
       if (normalizedName === 'people') return SCOPE_ICONS.people;
@@ -1215,51 +1263,27 @@ export default function AllDocumentsPage() {
       if (normalizedName === 'attachments') return SCOPE_ICONS.attachments;
       if (normalizedName === 'tasks' || normalizedName === 'task') return SCOPE_ICONS.task;
       if (normalizedName === 'templates') return SCOPE_ICONS.templates;
-      if (normalizedName === 'users') return SCOPE_ICONS.users;
+      if (normalizedName === 'users' || normalizedName === 'user') return SCOPE_ICONS.users;
+      if (normalizedName === 'warehousing' || normalizedName === 'warehouse') return SCOPE_ICONS.warehouse;
+      if (normalizedName === 'billinbox' || normalizedName === 'bill') return SCOPE_ICONS.billinbox;
+      if (normalizedName === 'chat') return SCOPE_ICONS.chat;
       return <Folder className="h-4 w-4" />;
     };
 
-    // Enhanced s3FoldersToTree that adds icons
-    const s3FoldersToTreeWithIcons = (s3Path: string): TreeNode[] => {
-      const data = s3Folders[s3Path];
-      if (!data) return [];
+    // Convert WarehouseTreeNode to TreeNode recursively
+    const convertToTreeNode = (node: WarehouseTreeNode): TreeNode => {
+      // Check if S3 content has been loaded for this folder
+      const s3Data = node.fullPath ? s3Folders[node.fullPath] : undefined;
 
-      const folderNodes: TreeNode[] = data.folders
-        .filter(folder => folder.path != null)  // Skip folders with null paths
-        .map(folder => {
-        // Check if this subfolder has been loaded
-        const subfolderData = s3Folders[folder.path];
-        const subChildren = subfolderData ? s3FoldersToTreeWithIcons(folder.path) : undefined;
+      // Build children: first from warehouse_folders, then add S3 files if loaded
+      const warehouseChildren = node.children.map(convertToTreeNode);
 
-        return {
-          id: `s3-folder-${(folder.path || "").replace(/\//g, "-")}`,
-          name: folder.name,
-          type: "folder" as const,
-          icon: getFolderIcon(folder.name),
-          children: subChildren,
-          // For lazy loading - track the S3 path
-          fullPath: folder.path,
-          // Use folder's count from API (e.g., Emails count) or calculate from loaded subfolders
-          fileCount: folder.count ?? (subfolderData ? subfolderData.folders.length + subfolderData.files.length : undefined),
-          // External link - double-clicking navigates to this URL (e.g., individual mailboxes)
-          externalLink: folder.external_link,
-          // Mailbox count - shown on Emails folder
-          mailboxCount: folder.mailbox_count,
-          // Mailbox folder - single-click opens drawer, double-click opens external link
-          isMailbox: folder.is_mailbox,
-          mailboxEmail: folder.mailbox_email,
-        };
-      });
-
-      const fileNodes: TreeNode[] = data.files
-        .filter(file => file.path != null)  // Skip files with null paths
-        .map(file => ({
+      // Add S3 files if the folder has been expanded and loaded
+      const s3Files: TreeNode[] = s3Data?.files?.map(file => ({
         id: `s3-file-${(file.path || "").replace(/\//g, "-")}`,
         name: file.name,
         type: "file" as const,
         file: {
-          // SSoT (Jan 2026): Use WarehouseDocument ID from API for virtual folders
-          // This enables "Link to Task" for documents browsed in File Warehouse
           id: file.id || file.warehouse_document_id || 0,
           source: "corporate" as const,
           fileName: file.name,
@@ -1273,30 +1297,31 @@ export default function AllDocumentsPage() {
           createdAt: new Date().toISOString(),
           isImage: /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name),
         },
-      }));
+      })) || [];
 
-      return [...folderNodes, ...fileNodes];
+      return {
+        id: node.id,
+        name: node.name,
+        type: "category" as const,
+        icon: getIconComponent(node.icon, node.name),
+        fullPath: node.fullPath || node.folderPath || undefined,
+        fileCount: node.fileCount,
+        children: [...warehouseChildren, ...s3Files],
+      };
     };
 
-    // Build tree directly from S3 root - shows exactly what's on Wasabi
-    const rootData = s3Folders[""];
-    if (!rootData) {
-      // Root not loaded yet - show loading state or empty
-      return [];
-    }
-
-    // Check if folder index is being built (first load takes ~90 seconds)
-    if (rootData.loading) {
+    // Show loading state while fetching warehouse tree
+    if (warehouseTreeLoading) {
       return [{
-        id: "loading-index",
-        name: rootData.message || "Building folder index...",
+        id: "loading-tree",
+        name: "Loading folders...",
         type: "loading" as const,
-        progress: rootData.progress,
       }];
     }
 
-    return s3FoldersToTreeWithIcons("");
-  }, [s3Folders]);
+    // Convert warehouse tree to TreeNode format
+    return warehouseTree.map(convertToTreeNode);
+  }, [warehouseTree, warehouseTreeLoading, s3Folders]);
 
   // Toggle folder expansion and fetch S3 folders if needed
   // SSoT: Pure S3 Browsing - ALL folders come from Wasabi

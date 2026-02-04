@@ -211,7 +211,11 @@ module Api
             end
 
             # SSoT (Feb 2026): Include linked warehouse_folder for UI/DL editing
-            wf = WarehouseFolder.includes(:document_types).find_by(base_folder_id: bf.id)
+            # FRC (Feb 2026): Bypass tenant scoping - warehouse_folders are config data linked to base_folders
+            # The tenant_id is for Config Sync, not for restricting admin access
+            wf = ActsAsTenant.without_tenant do
+              WarehouseFolder.includes(:document_types).find_by(base_folder_id: bf.id)
+            end
 
             {
               id: bf.id,
@@ -279,12 +283,15 @@ module Api
             bf.update_column(:folder_path_template, new_bf_template)
 
             # Also update linked warehouse_folders
-            WarehouseFolder.where(base_folder_id: bf.id).find_each do |wf|
-              next if wf.folder_path.blank?
+            # FRC (Feb 2026): Bypass tenant scoping for config data
+            ActsAsTenant.without_tenant do
+              WarehouseFolder.where(base_folder_id: bf.id).find_each do |wf|
+                next if wf.folder_path.blank?
 
-              if wf.folder_path.start_with?(old_prefix)
-                new_wf_path = wf.folder_path.sub(old_prefix, new_prefix)
-                wf.update_column(:folder_path, new_wf_path)
+                if wf.folder_path.start_with?(old_prefix)
+                  new_wf_path = wf.folder_path.sub(old_prefix, new_prefix)
+                  wf.update_column(:folder_path, new_wf_path)
+                end
               end
             end
           end
@@ -292,12 +299,15 @@ module Api
 
         # Also update any warehouse_folders directly linked to this warehouse_type
         # (not through base_folder) that have paths starting with old prefix
-        WarehouseFolder.where(warehouse_type: @warehouse_type.code).find_each do |wf|
-          next if wf.folder_path.blank?
+        # FRC (Feb 2026): Bypass tenant scoping for config data
+        ActsAsTenant.without_tenant do
+          WarehouseFolder.where(warehouse_type: @warehouse_type.code).find_each do |wf|
+            next if wf.folder_path.blank?
 
-          if wf.folder_path.start_with?(old_prefix)
-            new_wf_path = wf.folder_path.sub(old_prefix, new_prefix)
-            wf.update_column(:folder_path, new_wf_path)
+            if wf.folder_path.start_with?(old_prefix)
+              new_wf_path = wf.folder_path.sub(old_prefix, new_prefix)
+              wf.update_column(:folder_path, new_wf_path)
+            end
           end
         end
       end

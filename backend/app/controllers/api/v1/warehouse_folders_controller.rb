@@ -331,7 +331,7 @@ module Api
           icon: folder.icon_name || "folder",
           warehouseType: folder.warehouse_type,
           folderPath: folder.folder_path,
-          fullPath: folder.effective_folder_path,
+          fullPath: folder.folder_path,  # Use folder_path directly - it's the SSoT
           fileCount: 0,  # Will be enriched by frontend from counts
           children: depth < 5 ? children.map { |child| build_tree_node(child, depth + 1) } : []
         }
