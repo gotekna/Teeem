@@ -68,6 +68,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { TokenBuilder, resolveWithExamples } from "@/components/ui/tokens";
 import { getWarehouseScopeForType } from "@/lib/placeholders";
 import Link from "next/link";
+import { WarehouseFolderEditor, WarehouseFolderEditData } from "@/components/admin/WarehouseFolderEditor";
 
 // SSoT (Feb 2026): All warehouse type config now comes from database
 // - base_folder.full_path_template is the SSoT for folder paths
@@ -1861,11 +1862,7 @@ export function WarehouseProviderTab() {
     base_folder_path_template?: string;  // SSoT: Template from base_folders table (read-only)
   }
   const [editingWarehouseFolder, setEditingWarehouseFolder] = React.useState<EditingWarehouseFolder | null>(null);
-  const [warehouseFolderEditForm, setWarehouseFolderEditForm] = React.useState({
-    folder_path: '',
-    download_name: '',
-    ui_name: '',
-  });
+  const [savingWarehouseFolder, setSavingWarehouseFolder] = React.useState(false);
 
   // Warehouse stats for live preview
   interface WarehouseStats {
@@ -1969,25 +1966,23 @@ export function WarehouseProviderTab() {
   };
 
   // SSoT (Feb 2026): Start editing a warehouse folder's path and UI/DL names
+  // Opens the WarehouseFolderEditor shared component with the selected folder
   const startEditingWarehouseFolder = (folder: EditingWarehouseFolder) => {
     setEditingWarehouseFolder(folder);
-    setWarehouseFolderEditForm({
-      folder_path: folder.folder_path || '',
-      download_name: folder.download_name || '',
-      ui_name: folder.ui_name || '',
-    });
   };
 
   // SSoT (Feb 2026): Save warehouse folder path and UI/DL names
-  const saveWarehouseFolder = async () => {
+  // Used by WarehouseFolderEditor shared component
+  const saveWarehouseFolder = async (data: { folder_path: string; download_name: string; ui_name: string }) => {
     if (!editingWarehouseFolder) return;
 
+    setSavingWarehouseFolder(true);
     try {
       const response = await api.patch<{ success: boolean }>(`/api/v1/warehouse_folders/${editingWarehouseFolder.id}`, {
         warehouse_folder: {
-          folder_path: warehouseFolderEditForm.folder_path || null,
-          download_name: warehouseFolderEditForm.download_name || null,
-          ui_name: warehouseFolderEditForm.ui_name || null,
+          folder_path: data.folder_path || null,
+          download_name: data.download_name || null,
+          ui_name: data.ui_name || null,
         }
       });
 
@@ -2008,6 +2003,8 @@ export function WarehouseProviderTab() {
         variant: "destructive",
       });
       console.error('Failed to save warehouse folder:', error);
+    } finally {
+      setSavingWarehouseFolder(false);
     }
   };
 
@@ -3642,218 +3639,14 @@ export function WarehouseProviderTab() {
         </TabsContent>
       </Tabs>
 
-      {/* Warehouse Folder Edit Dialog - for editing UI/DL names */}
-      <Dialog open={!!editingWarehouseFolder} onOpenChange={(open) => !open && setEditingWarehouseFolder(null)}>
-        <DialogContent className="sm:max-w-[700px]">
-          <DialogHeader>
-            <DialogTitle>Edit Warehouse Folder</DialogTitle>
-            <DialogDescription>
-              {editingWarehouseFolder?.display_name} - Configure folder path and name templates
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {/* Available Tokens */}
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Available Tokens (drag to field or click to copy)</Label>
-              <div className="flex flex-wrap gap-1">
-                {[
-                  '{{OriginalFileName}}',
-                  '{{Subject}}',
-                  '{{FromName}}',
-                  '{{FromEmail}}',
-                  '{{ReceivedDate}}',
-                  '{{Date}}',
-                  '{{JobCode}}',
-                  '{{JobName}}',
-                  '{{ContactName}}',
-                  '{{CompanyCode}}',
-                  '{{DocTypeName}}',
-                ].map((token) => (
-                  <button
-                    key={token}
-                    type="button"
-                    draggable
-                    className="px-1.5 py-0.5 text-[10px] font-mono bg-muted hover:bg-muted/80 rounded border cursor-grab active:cursor-grabbing"
-                    onClick={() => {
-                      navigator.clipboard.writeText(token);
-                      toast({ title: 'Copied', description: `${token} copied to clipboard` });
-                    }}
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', token);
-                      e.dataTransfer.effectAllowed = 'copy';
-                    }}
-                    title={`Drag to field or click to copy ${token}`}
-                  >
-                    {token}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Full Warehouse Folder Path - Editable with greyed-out base path prefix */}
-            <div className="space-y-2">
-              <Label htmlFor="folder_path">Full Warehouse Folder Path</Label>
-              <div className="flex items-center border rounded-md overflow-hidden">
-                {/* Base folder path prefix - read-only, greyed out */}
-                {editingWarehouseFolder?.base_folder_path_template && (
-                  <span className="px-3 py-2 bg-muted text-muted-foreground font-mono text-sm border-r whitespace-nowrap">
-                    {editingWarehouseFolder.base_folder_path_template}
-                  </span>
-                )}
-                {/* Editable suffix */}
-                <Input
-                  id="folder_path"
-                  value={
-                    // Show only the suffix after the base folder path
-                    editingWarehouseFolder?.base_folder_path_template && warehouseFolderEditForm.folder_path.startsWith(editingWarehouseFolder.base_folder_path_template)
-                      ? warehouseFolderEditForm.folder_path.slice(editingWarehouseFolder.base_folder_path_template.length)
-                      : warehouseFolderEditForm.folder_path
-                  }
-                  onChange={(e) => {
-                    const suffix = e.target.value;
-                    const basePath = editingWarehouseFolder?.base_folder_path_template || '';
-                    setWarehouseFolderEditForm(prev => ({
-                      ...prev,
-                      folder_path: basePath + suffix
-                    }));
-                  }}
-                  placeholder=""
-                  className="font-mono text-sm border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.classList.add('ring-2', 'ring-primary');
-                  }}
-                  onDragLeave={(e) => {
-                    e.currentTarget.classList.remove('ring-2', 'ring-primary');
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.classList.remove('ring-2', 'ring-primary');
-                    const token = e.dataTransfer.getData('text/plain');
-                    if (token) {
-                      setWarehouseFolderEditForm(prev => {
-                        // Add / before token if current value doesn't end with /
-                        const currentPath = prev.folder_path;
-                        const separator = currentPath.endsWith('/') ? '' : '/';
-                        return {
-                          ...prev,
-                          folder_path: currentPath + separator + token
-                        };
-                      });
-                    }
-                  }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Full folder path saved to warehouse_folders table.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="ui_name">UI Name Template</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="ui_name"
-                  value={warehouseFolderEditForm.ui_name}
-                  onChange={(e) => setWarehouseFolderEditForm(prev => ({ ...prev, ui_name: e.target.value }))}
-                  placeholder="e.g., {{Subject}} - {{FromName}}"
-                  className="flex-1"
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.classList.add('ring-2', 'ring-primary');
-                  }}
-                  onDragLeave={(e) => {
-                    e.currentTarget.classList.remove('ring-2', 'ring-primary');
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.classList.remove('ring-2', 'ring-primary');
-                    const token = e.dataTransfer.getData('text/plain');
-                    if (token) {
-                      setWarehouseFolderEditForm(prev => ({
-                        ...prev,
-                        ui_name: prev.ui_name + token
-                      }));
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setWarehouseFolderEditForm(prev => ({ ...prev, ui_name: '{{OriginalFileName}}' }))}
-                  title="Set to default template"
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Default
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                How this folder&apos;s items appear in the UI. Leave blank for default.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="download_name">Download Name Template</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="download_name"
-                  value={warehouseFolderEditForm.download_name}
-                  onChange={(e) => setWarehouseFolderEditForm(prev => ({ ...prev, download_name: e.target.value }))}
-                  placeholder="e.g., {{Subject}} - {{ReceivedDate}}.eml"
-                  className="flex-1"
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.classList.add('ring-2', 'ring-primary');
-                  }}
-                  onDragLeave={(e) => {
-                    e.currentTarget.classList.remove('ring-2', 'ring-primary');
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.classList.remove('ring-2', 'ring-primary');
-                    const token = e.dataTransfer.getData('text/plain');
-                    if (token) {
-                      setWarehouseFolderEditForm(prev => ({
-                        ...prev,
-                        download_name: prev.download_name + token
-                      }));
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setWarehouseFolderEditForm(prev => ({ ...prev, download_name: '{{OriginalFileName}}' }))}
-                  title="Set to default template"
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Default
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Filename used when downloading. Include extension.
-              </p>
-            </div>
-            {/* Live preview of full path */}
-            <div className="rounded-lg border bg-muted/50 p-3 space-y-1 text-sm">
-              <div className="flex gap-2">
-                <span className="text-muted-foreground w-24">Path:</span>
-                <span className="font-mono text-xs">{warehouseFolderEditForm.folder_path || editingWarehouseFolder?.display_name || ''}</span>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingWarehouseFolder(null)}>
-              Cancel
-            </Button>
-            <Button onClick={saveWarehouseFolder}>
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Warehouse Folder Edit Dialog - SSoT shared component */}
+      <WarehouseFolderEditor
+        open={!!editingWarehouseFolder}
+        onOpenChange={(open) => !open && setEditingWarehouseFolder(null)}
+        folder={editingWarehouseFolder}
+        onSave={saveWarehouseFolder}
+        isSaving={savingWarehouseFolder}
+      />
     </div>
   );
 }
