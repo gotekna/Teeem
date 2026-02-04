@@ -706,14 +706,22 @@ class WarehouseFolder < ApplicationRecord
   # FRC (Feb 2026): Filter OUT internal/system folders with [[...]] syntax
   # These are template folders (e.g., [[Email Body]]/{{Subject}}) not user-visible roots
   # Example: "email" should map to "Emails", not "[[Email Body]]"
+  #
+  # FRC (Feb 2026): Use raw SQL because `belongs_to :base_folder` association
+  # shadows the `base_folder` string column, causing ActiveRecord queries to fail
   def self.warehouse_type_to_base_folder
     result = {}
-    # First pass: Get user-visible folders (no [[ in base_folder)
-    WarehouseFolder.where.not(base_folder: [nil, ''])
-                   .where("base_folder NOT LIKE '%[[%'")
-                   .distinct
-                   .pluck(:warehouse_type, :base_folder)
-                   .each do |warehouse_type, base|
+    # Use raw SQL to bypass the base_folder association shadowing issue
+    sql = <<-SQL
+      SELECT DISTINCT warehouse_type, base_folder
+      FROM warehouse_folders
+      WHERE base_folder IS NOT NULL
+        AND base_folder != ''
+        AND base_folder NOT LIKE '%[[%'
+    SQL
+    connection.execute(sql).each do |row|
+      warehouse_type = row['warehouse_type']
+      base = row['base_folder']
       result[warehouse_type] ||= base if base.present?
     end
     result
