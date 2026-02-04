@@ -111,14 +111,30 @@ module Api
           :warehouse_type_id,
           :name,
           :folder_path_template,
-          :download_name_template,
-          :ui_name_template,
           :enabled,
           :order_position
         )
       end
 
       def serialize_base_folder(base_folder)
+        # SSoT (Feb 2026): Compute full_path_template by combining warehouse type template + base folder template
+        wt_template = base_folder.warehouse_type&.folder_path_template.presence
+        bf_template = base_folder.folder_path_template.presence
+
+        full_template = if bf_template.blank?
+          wt_template || base_folder.name
+        elsif wt_template.blank?
+          bf_template
+        else
+          # Check if base folder template is relative or absolute
+          scope_root = wt_template.split('/').first
+          if bf_template.start_with?(scope_root)
+            bf_template
+          else
+            "#{wt_template}/#{bf_template}"
+          end
+        end
+
         {
           id: base_folder.id,
           warehouse_type_id: base_folder.warehouse_type_id,
@@ -126,8 +142,7 @@ module Api
           warehouse_type_name: base_folder.warehouse_type&.display_name,
           name: base_folder.name,
           folder_path_template: base_folder.folder_path_template,
-          download_name_template: base_folder.download_name_template,
-          ui_name_template: base_folder.ui_name_template,
+          full_path_template: full_template,
           path_preview: base_folder.path_preview,
           is_system: base_folder.is_system,
           enabled: base_folder.enabled,

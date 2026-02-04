@@ -121,9 +121,15 @@ interface BaseFolderFromAPI {
   folder_path_template?: string;
   full_path_template?: string;  // SSoT: Full path including warehouse type's template
   path_preview?: string;
-  ui_name_template?: string;  // How items appear in UI
-  download_name_template?: string;  // Filename when downloading
   is_system?: boolean;  // System base folders can't be deleted (e.g., Task Attachments)
+  // SSoT (Feb 2026): Linked warehouse_folder for UI/DL name editing
+  warehouse_folder?: {
+    id: number;
+    display_name: string;
+    folder_path?: string;
+    ui_name?: string;
+    download_name?: string;
+  };
 }
 
 // WarehouseType from API (for base folders lookup and tree building)
@@ -490,10 +496,10 @@ interface TreeNodeProps {
   onToggleVirtual: (scopeKey: string, isVirtual: boolean) => Promise<void>;
   // SSoT: warehouse_folders - full path patterns like Jobs/{{JobCode}}
   scopeRootFolders: Record<string, string>;
-  // SSoT (Feb 2026): Callback to edit a base folder
-  onEditBaseFolder?: (bf: BaseFolderFromAPI) => void;
   // SSoT (Feb 2026): All warehouse types for display_name lookup
   warehouseTypes: WarehouseTypeFromAPI[];
+  // SSoT (Feb 2026): Edit warehouse folder UI/DL names
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string }) => void;
 }
 
 function TreeNode({
@@ -520,8 +526,8 @@ function TreeNode({
   virtualScopes,
   onToggleVirtual,
   scopeRootFolders,
-  onEditBaseFolder,
   warehouseTypes,
+  onEditWarehouseFolder,
 }: TreeNodeProps) {
   const hasChildren = node.children.length > 0;
   const hasTabs = node.tabs && node.tabs.length > 0;
@@ -795,56 +801,104 @@ function TreeNode({
         <span className="font-mono text-sm">{node.name}</span>
 
         {/* Scope badges - show only PRIMARY scope (not child scopes like task_attachments) */}
-        {/* SSoT (Feb 2026): Base folder edit icon - only show on LEAF nodes (no children) */}
-        {/* Lock icon for system folders, clickable to edit templates */}
+        {/* SSoT (Feb 2026): Base folder indicators - show on LEAF nodes (no children) */}
+        {/* Lock icon for system folders, Folder icon for custom folders */}
+        {/* Settings button for folders with linked warehouse_folder (for UI/DL editing) */}
         {node.baseFolders && node.baseFolders.length > 0 && node.children.length === 0 && (
           <div className="flex items-center gap-1 ml-1">
             {node.baseFolders.map((bf) => (
-              <button
-                key={bf.id}
-                className="p-0.5 rounded hover:bg-muted cursor-pointer"
-                title={bf.is_system
-                  ? `System folder (required by code) - click to edit templates`
-                  : `Click to edit templates`}
-                onClick={() => onEditBaseFolder?.(bf)}
-              >
-                {bf.is_system ? (
-                  <Lock className="h-3 w-3 text-muted-foreground" />
-                ) : (
-                  <Settings className="h-3 w-3 text-muted-foreground" />
+              <div key={bf.id} className="flex items-center gap-0.5">
+                <span
+                  className="p-0.5"
+                  title={bf.is_system
+                    ? `System folder (required by code): ${bf.name}`
+                    : `Base folder: ${bf.name}`}
+                >
+                  {bf.is_system ? (
+                    <Lock className="h-3 w-3 text-muted-foreground" />
+                  ) : (
+                    <Folder className="h-3 w-3 text-muted-foreground" />
+                  )}
+                </span>
+                {/* UI/DL badges - green if custom, orange if default */}
+                {bf.warehouse_folder && (
+                  <>
+                    <span
+                      className={`text-[9px] px-1 rounded ${
+                        bf.warehouse_folder.ui_name
+                          ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                          : 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
+                      }`}
+                      title={`UI: ${bf.warehouse_folder.ui_name || '{{OriginalFileName}} (default)'}`}
+                    >
+                      UI
+                    </span>
+                    <span
+                      className={`text-[9px] px-1 rounded ${
+                        bf.warehouse_folder.download_name
+                          ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                          : 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
+                      }`}
+                      title={`DL: ${bf.warehouse_folder.download_name || '{{OriginalFileName}} (default)'}`}
+                    >
+                      DL
+                    </span>
+                  </>
                 )}
-              </button>
+                {/* Edit button for folders with linked warehouse_folder */}
+                {bf.warehouse_folder && onEditWarehouseFolder && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditWarehouseFolder({
+                        id: bf.warehouse_folder!.id,
+                        display_name: bf.warehouse_folder!.display_name || bf.name,
+                        // SSoT: Load from warehouse_folder first, fallback to base_folder template
+                        folder_path: bf.warehouse_folder!.folder_path || bf.full_path_template || bf.folder_path_template,
+                        download_name: bf.warehouse_folder!.download_name,
+                        ui_name: bf.warehouse_folder!.ui_name,
+                      });
+                    }}
+                    className="p-0.5 hover:bg-muted rounded"
+                    title="Edit UI/DL names"
+                  >
+                    <Settings className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
       </div>
 
       {/* SSoT (Feb 2026): Show base folder details for LEAF nodes */}
-      {/* Color-coded: green = custom template set, orange = using default */}
+      {/* Always show folder path, UI name, and DL name for base folders */}
       {node.baseFolders && node.baseFolders.length > 0 && node.children.length === 0 && (
         <div style={{ paddingLeft: `${level * 16 + 28}px` }}>
           {node.baseFolders.map((bf) => (
             <div
               key={bf.id}
-              className="text-[10px] text-muted-foreground font-mono space-y-0.5 mb-1 cursor-pointer hover:bg-muted/50 rounded px-1 -mx-1"
-              onDoubleClick={() => onEditBaseFolder?.(bf)}
-              title="Double-click to edit UI/DL templates"
+              className="text-[10px] text-muted-foreground font-mono space-y-0.5 mb-2"
             >
               <div>{bf.full_path_template || bf.folder_path_template || '—'}</div>
-              <div className="flex items-center gap-3">
-                <span>
-                  <span className="text-muted-foreground/60">UI:</span>{' '}
-                  <span className={bf.ui_name_template ? 'text-green-600 dark:text-green-400' : 'text-orange-500 dark:text-orange-400 italic'}>
-                    {bf.ui_name_template || '{{OriginalFileName}}'}
-                  </span>
-                </span>
-                <span>
-                  <span className="text-muted-foreground/60">DL:</span>{' '}
-                  <span className={bf.download_name_template ? 'text-green-600 dark:text-green-400' : 'text-orange-500 dark:text-orange-400 italic'}>
-                    {bf.download_name_template || '{{OriginalFileName}}'}
-                  </span>
-                </span>
-              </div>
+              {/* Always show UI/DL fields for base folders with warehouse_folder */}
+              {/* Green = custom value saved, Orange = using default (original filename) */}
+              {bf.warehouse_folder && (
+                <div className="flex flex-col gap-0.5 text-[9px] mt-0.5">
+                  <div className="flex items-center gap-1">
+                    <span className="w-6">UI:</span>
+                    <span className={bf.warehouse_folder.ui_name ? 'text-green-500' : 'text-orange-500'}>
+                      {bf.warehouse_folder.ui_name || '{{OriginalFileName}}'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-6">DL:</span>
+                    <span className={bf.warehouse_folder.download_name ? 'text-green-500' : 'text-orange-500'}>
+                      {bf.warehouse_folder.download_name || '{{OriginalFileName}}'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1106,8 +1160,8 @@ function TreeNode({
               virtualScopes={virtualScopes}
               onToggleVirtual={onToggleVirtual}
               scopeRootFolders={scopeRootFolders}
-              onEditBaseFolder={onEditBaseFolder}
               warehouseTypes={warehouseTypes}
+              onEditWarehouseFolder={onEditWarehouseFolder}
             />
           ))}
           {/* Show entity tabs (with document types) */}
@@ -1126,6 +1180,7 @@ function TreeNode({
                   onStartEdit={onStartTabEdit}
                   onSaveEdit={onSaveTabEdit}
                   onCancelEdit={onCancelTabEdit}
+                  onEditWarehouseFolder={onEditWarehouseFolder}
                 />
               ))}
             </div>
@@ -1230,6 +1285,8 @@ interface TabNodeProps {
   onStartEdit: (tabId: number) => void;
   onSaveEdit: (tabId: number, path: string, displayName: string, sendNameTemplate: string) => void;
   onCancelEdit: () => void;
+  // SSoT (Feb 2026): Edit warehouse folder UI/DL names
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string }) => void;
 }
 
 function TabNode({
@@ -1242,6 +1299,7 @@ function TabNode({
   onStartEdit,
   onSaveEdit,
   onCancelEdit,
+  onEditWarehouseFolder,
 }: TabNodeProps) {
   const isEditing = editingTabId === tab.id;
   // SSoT (Feb 2026): Simple/complex distinction removed - all scopes use base_folders
@@ -1624,6 +1682,26 @@ function TabNode({
             {tab.document_types!.length} {tab.document_types!.length === 1 ? 'type' : 'types'}
           </span>
         )}
+        {/* SSoT (Feb 2026): Edit button for UI/DL names */}
+        {onEditWarehouseFolder && (
+          <button
+            type="button"
+            className="p-0.5 rounded hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Edit UI/DL name templates"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditWarehouseFolder({
+                id: tab.id,
+                display_name: tab.display_name,
+                folder_path: tab.folder_path || tab.storage_folder_path || undefined,
+                download_name: tab.download_name || undefined,
+                ui_name: tab.ui_name || undefined,
+              });
+            }}
+          >
+            <Settings className="h-3 w-3 text-muted-foreground" />
+          </button>
+        )}
       </div>
       {/* Collapsible content: folder path, document types, and children */}
       {!isCollapsed && (
@@ -1710,6 +1788,7 @@ function TabNode({
               onStartEdit={onStartEdit}
               onSaveEdit={onSaveEdit}
               onCancelEdit={onCancelEdit}
+              onEditWarehouseFolder={onEditWarehouseFolder}
             />
           ))}
         </>
@@ -1768,11 +1847,20 @@ export function WarehouseProviderTab() {
   const [baseFoldersByScope, setBaseFoldersByScope] = React.useState<Record<string, BaseFolderFromAPI[]>>({});
   // SSoT (Feb 2026): Full warehouse types data for building folder tree
   const [warehouseTypes, setWarehouseTypes] = React.useState<WarehouseTypeFromAPI[]>([]);
-  // SSoT (Feb 2026): Edit base folder UI/DL templates inline
-  const [editingBaseFolder, setEditingBaseFolder] = React.useState<BaseFolderFromAPI | null>(null);
-  const [baseFolderEditForm, setBaseFolderEditForm] = React.useState({
-    ui_name_template: '',
-    download_name_template: '',
+
+  // SSoT (Feb 2026): Edit warehouse folder UI/DL names
+  interface EditingWarehouseFolder {
+    id: number;
+    display_name: string;
+    folder_path?: string;
+    download_name?: string;
+    ui_name?: string;
+  }
+  const [editingWarehouseFolder, setEditingWarehouseFolder] = React.useState<EditingWarehouseFolder | null>(null);
+  const [warehouseFolderEditForm, setWarehouseFolderEditForm] = React.useState({
+    folder_path: '',
+    download_name: '',
+    ui_name: '',
   });
 
   // Warehouse stats for live preview
@@ -1876,43 +1964,46 @@ export function WarehouseProviderTab() {
     }
   };
 
-  // SSoT (Feb 2026): Start editing a base folder's UI/DL templates
-  const startEditingBaseFolder = (bf: BaseFolderFromAPI) => {
-    setEditingBaseFolder(bf);
-    setBaseFolderEditForm({
-      ui_name_template: bf.ui_name_template || '',
-      download_name_template: bf.download_name_template || '',
+  // SSoT (Feb 2026): Start editing a warehouse folder's path and UI/DL names
+  const startEditingWarehouseFolder = (folder: EditingWarehouseFolder) => {
+    setEditingWarehouseFolder(folder);
+    setWarehouseFolderEditForm({
+      folder_path: folder.folder_path || '',
+      download_name: folder.download_name || '',
+      ui_name: folder.ui_name || '',
     });
   };
 
-  // SSoT (Feb 2026): Save base folder UI/DL templates
-  const saveBaseFolder = async () => {
-    if (!editingBaseFolder) return;
+  // SSoT (Feb 2026): Save warehouse folder path and UI/DL names
+  const saveWarehouseFolder = async () => {
+    if (!editingWarehouseFolder) return;
 
     try {
-      const response = await api.patch<{ success: boolean }>(`/api/v1/base_folders/${editingBaseFolder.id}`, {
-        base_folder: {
-          ui_name_template: baseFolderEditForm.ui_name_template,
-          download_name_template: baseFolderEditForm.download_name_template,
+      const response = await api.patch<{ success: boolean }>(`/api/v1/warehouse_folders/${editingWarehouseFolder.id}`, {
+        warehouse_folder: {
+          folder_path: warehouseFolderEditForm.folder_path || null,
+          download_name: warehouseFolderEditForm.download_name || null,
+          ui_name: warehouseFolderEditForm.ui_name || null,
         }
       });
 
       if (response?.success) {
         toast({
           title: "Saved",
-          description: `Updated ${editingBaseFolder.name}`,
+          description: `Updated ${editingWarehouseFolder.display_name}`,
         });
-        setEditingBaseFolder(null);
-        // Reload warehouse types to refresh the tree
+        setEditingWarehouseFolder(null);
+        // Reload warehouse types and tab configs to refresh the tree with new UI/DL values
         loadWarehouseTypes();
+        loadWarehouseTabConfigs();
       }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to save base folder",
+        description: "Failed to save warehouse folder",
         variant: "destructive",
       });
-      console.error('Failed to save base folder:', error);
+      console.error('Failed to save warehouse folder:', error);
     }
   };
 
@@ -3335,8 +3426,8 @@ export function WarehouseProviderTab() {
                     virtualScopes={formData.virtual_warehouses}
                     onToggleVirtual={toggleVirtualScope}
                     scopeRootFolders={scopeRootFoldersFromWarehouseTypes}
-                    onEditBaseFolder={startEditingBaseFolder}
                     warehouseTypes={warehouseTypes}
+                    onEditWarehouseFolder={startEditingWarehouseFolder}
                   />
                 ))}
               </div>
@@ -3547,13 +3638,13 @@ export function WarehouseProviderTab() {
         </TabsContent>
       </Tabs>
 
-      {/* Base Folder Edit Dialog - for editing UI/DL templates */}
-      <Dialog open={!!editingBaseFolder} onOpenChange={(open) => !open && setEditingBaseFolder(null)}>
-        <DialogContent className="sm:max-w-[500px]">
+      {/* Warehouse Folder Edit Dialog - for editing UI/DL names */}
+      <Dialog open={!!editingWarehouseFolder} onOpenChange={(open) => !open && setEditingWarehouseFolder(null)}>
+        <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
-            <DialogTitle>Edit Base Folder</DialogTitle>
+            <DialogTitle>Edit Warehouse Folder</DialogTitle>
             <DialogDescription>
-              {editingBaseFolder?.name} - Configure display and download templates
+              {editingWarehouseFolder?.display_name} - Configure folder path and name templates
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -3595,13 +3686,46 @@ export function WarehouseProviderTab() {
               </div>
             </div>
 
+            {/* Folder Path - Full editable path */}
             <div className="space-y-2">
-              <Label htmlFor="ui_name_template">UI Name Template</Label>
+              <Label htmlFor="folder_path">Folder Path</Label>
+              <Input
+                id="folder_path"
+                value={warehouseFolderEditForm.folder_path}
+                onChange={(e) => setWarehouseFolderEditForm(prev => ({ ...prev, folder_path: e.target.value }))}
+                placeholder="e.g., Tasks/{{TaskId}}/{{TaskName}}/Attachments"
+                className="font-mono text-sm"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.add('ring-2', 'ring-primary');
+                }}
+                onDragLeave={(e) => {
+                  e.currentTarget.classList.remove('ring-2', 'ring-primary');
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove('ring-2', 'ring-primary');
+                  const token = e.dataTransfer.getData('text/plain');
+                  if (token) {
+                    setWarehouseFolderEditForm(prev => ({
+                      ...prev,
+                      folder_path: prev.folder_path + token
+                    }));
+                  }
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Full folder path saved to warehouse_folders table.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ui_name">UI Name Template</Label>
               <div className="flex gap-2">
                 <Input
-                  id="ui_name_template"
-                  value={baseFolderEditForm.ui_name_template}
-                  onChange={(e) => setBaseFolderEditForm(prev => ({ ...prev, ui_name_template: e.target.value }))}
+                  id="ui_name"
+                  value={warehouseFolderEditForm.ui_name}
+                  onChange={(e) => setWarehouseFolderEditForm(prev => ({ ...prev, ui_name: e.target.value }))}
                   placeholder="e.g., {{Subject}} - {{FromName}}"
                   className="flex-1"
                   onDragOver={(e) => {
@@ -3616,9 +3740,9 @@ export function WarehouseProviderTab() {
                     e.currentTarget.classList.remove('ring-2', 'ring-primary');
                     const token = e.dataTransfer.getData('text/plain');
                     if (token) {
-                      setBaseFolderEditForm(prev => ({
+                      setWarehouseFolderEditForm(prev => ({
                         ...prev,
-                        ui_name_template: prev.ui_name_template + token
+                        ui_name: prev.ui_name + token
                       }));
                     }
                   }}
@@ -3627,7 +3751,7 @@ export function WarehouseProviderTab() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setBaseFolderEditForm(prev => ({ ...prev, ui_name_template: '{{OriginalFileName}}' }))}
+                  onClick={() => setWarehouseFolderEditForm(prev => ({ ...prev, ui_name: '{{OriginalFileName}}' }))}
                   title="Set to default template"
                 >
                   <Plus className="h-3 w-3 mr-1" />
@@ -3639,12 +3763,12 @@ export function WarehouseProviderTab() {
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="download_name_template">Download Name Template</Label>
+              <Label htmlFor="download_name">Download Name Template</Label>
               <div className="flex gap-2">
                 <Input
-                  id="download_name_template"
-                  value={baseFolderEditForm.download_name_template}
-                  onChange={(e) => setBaseFolderEditForm(prev => ({ ...prev, download_name_template: e.target.value }))}
+                  id="download_name"
+                  value={warehouseFolderEditForm.download_name}
+                  onChange={(e) => setWarehouseFolderEditForm(prev => ({ ...prev, download_name: e.target.value }))}
                   placeholder="e.g., {{Subject}} - {{ReceivedDate}}.eml"
                   className="flex-1"
                   onDragOver={(e) => {
@@ -3659,9 +3783,9 @@ export function WarehouseProviderTab() {
                     e.currentTarget.classList.remove('ring-2', 'ring-primary');
                     const token = e.dataTransfer.getData('text/plain');
                     if (token) {
-                      setBaseFolderEditForm(prev => ({
+                      setWarehouseFolderEditForm(prev => ({
                         ...prev,
-                        download_name_template: prev.download_name_template + token
+                        download_name: prev.download_name + token
                       }));
                     }
                   }}
@@ -3670,7 +3794,7 @@ export function WarehouseProviderTab() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setBaseFolderEditForm(prev => ({ ...prev, download_name_template: '{{OriginalFileName}}' }))}
+                  onClick={() => setWarehouseFolderEditForm(prev => ({ ...prev, download_name: '{{OriginalFileName}}' }))}
                   title="Set to default template"
                 >
                   <Plus className="h-3 w-3 mr-1" />
@@ -3681,24 +3805,20 @@ export function WarehouseProviderTab() {
                 Filename used when downloading. Include extension.
               </p>
             </div>
-            {editingBaseFolder && (
+            {editingWarehouseFolder && (
               <div className="rounded-lg border bg-muted/50 p-3 space-y-1 text-sm">
                 <div className="flex gap-2">
                   <span className="text-muted-foreground w-24">Path:</span>
-                  <span className="font-mono text-xs">{editingBaseFolder.full_path_template || editingBaseFolder.folder_path_template}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground w-24">Preview:</span>
-                  <span className="font-mono text-xs">{editingBaseFolder.path_preview}</span>
+                  <span className="font-mono text-xs">{editingWarehouseFolder.folder_path || editingWarehouseFolder.display_name}</span>
                 </div>
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingBaseFolder(null)}>
+            <Button variant="outline" onClick={() => setEditingWarehouseFolder(null)}>
               Cancel
             </Button>
-            <Button onClick={saveBaseFolder}>
+            <Button onClick={saveWarehouseFolder}>
               <Save className="h-4 w-4 mr-2" />
               Save
             </Button>

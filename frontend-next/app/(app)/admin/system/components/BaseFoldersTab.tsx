@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Plus, Pencil, Trash2, Lock, FolderOpen, Search, ArrowUpDown, ArrowUp, ArrowDown, Mail, Zap } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, FolderOpen, Search, ArrowUpDown, ArrowUp, ArrowDown, Mail, Zap, ChevronRight, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 type SortField = "warehouse_type_name" | "name" | "folder_path_template" | "warehouse_folders_count" | "enabled";
@@ -58,8 +58,7 @@ interface BaseFolder {
   warehouse_type_name: string;
   name: string;
   folder_path_template?: string;
-  download_name_template?: string;
-  ui_name_template?: string;
+  full_path_template?: string;
   path_preview?: string;
   is_system: boolean;
   enabled: boolean;
@@ -108,6 +107,19 @@ export function BaseFoldersTab() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [sortField, setSortField] = React.useState<SortField>("warehouse_type_name");
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc");
+  const [collapsedTypes, setCollapsedTypes] = React.useState<Set<string>>(new Set());
+
+  const toggleTypeCollapse = (typeName: string) => {
+    setCollapsedTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(typeName)) {
+        next.delete(typeName);
+      } else {
+        next.add(typeName);
+      }
+      return next;
+    });
+  };
 
   // Fetch warehouse types for dropdown
   const { data: warehouseTypesData } = useQuery({
@@ -313,6 +325,27 @@ export function BaseFoldersTab() {
     });
   }, [rawFolders, searchQuery, sortField, sortDirection]);
 
+  // Get all unique type names for collapse all functionality
+  const allTypeNames = React.useMemo(() => {
+    const types = new Set<string>();
+    baseFolders.forEach(f => {
+      types.add(f.warehouse_type_name || f.warehouse_type_code || "Unassigned");
+    });
+    return types;
+  }, [baseFolders]);
+
+  const allCollapsed = allTypeNames.size > 0 && collapsedTypes.size === allTypeNames.size;
+
+  const toggleCollapseAll = () => {
+    if (allCollapsed) {
+      // Expand all
+      setCollapsedTypes(new Set());
+    } else {
+      // Collapse all
+      setCollapsedTypes(new Set(allTypeNames));
+    }
+  };
+
   // Early returns AFTER all hooks (React Rules of Hooks)
   if (isLoading) {
     return (
@@ -393,25 +426,31 @@ export function BaseFoldersTab() {
         <span>System: {rawFolders.filter(f => f.is_system).length}</span>
       </div>
 
-      {/* Table */}
+      {/* Table - Cascaded by Type */}
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead
-                className="w-[140px] cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort("warehouse_type_name")}
-              >
-                <div className="flex items-center">
-                  Type
-                  {getSortIcon("warehouse_type_name")}
-                </div>
-              </TableHead>
-              <TableHead
-                className="w-[150px] cursor-pointer hover:bg-muted/50"
+                className="w-[200px] cursor-pointer hover:bg-muted/50"
                 onClick={() => handleSort("name")}
               >
-                <div className="flex items-center">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleCollapseAll();
+                    }}
+                    className="p-0.5 hover:bg-muted rounded"
+                    title={allCollapsed ? "Expand all" : "Collapse all"}
+                  >
+                    {allCollapsed ? (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
                   Name
                   {getSortIcon("name")}
                 </div>
@@ -448,75 +487,112 @@ export function BaseFoldersTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {baseFolders.map((folder) => (
-              <TableRow key={folder.id}>
-                <TableCell>
-                  <Badge variant="outline" className="font-normal">
-                    {folder.warehouse_type_name || folder.warehouse_type_code}
-                  </Badge>
-                </TableCell>
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-1">
-                    {folder.is_dynamic && folder.dynamic_type === "mailbox" ? (
-                      <Mail className="h-4 w-4 text-blue-500" />
-                    ) : (
-                      <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    {folder.name}
-                    {folder.is_system && (
-                      <Lock className="h-3 w-3 text-muted-foreground" />
-                    )}
-                    {folder.is_dynamic && (
-                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800">
-                        <Zap className="h-2.5 w-2.5 mr-0.5" />
-                        Dynamic
-                      </Badge>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
-                  {folder.folder_path_template || "-"}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {folder.path_preview || "-"}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary" className="text-xs">
-                    {folder.warehouse_folders_count}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={folder.enabled ? "default" : "outline"}>
-                    {folder.enabled ? "Yes" : "No"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => openEditDialog(folder)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    {folder.can_delete && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => handleDelete(folder)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+            {(() => {
+              // Group folders by warehouse type
+              const grouped = baseFolders.reduce((acc, folder) => {
+                const type = folder.warehouse_type_name || folder.warehouse_type_code || "Unassigned";
+                if (!acc[type]) acc[type] = [];
+                acc[type].push(folder);
+                return acc;
+              }, {} as Record<string, BaseFolder[]>);
+
+              // Sort types alphabetically
+              const sortedTypes = Object.keys(grouped).sort();
+
+              return sortedTypes.map((typeName) => {
+                const isCollapsed = collapsedTypes.has(typeName);
+                return (
+                <React.Fragment key={typeName}>
+                  {/* Type Header Row - Clickable */}
+                  <TableRow
+                    className="bg-muted/50 hover:bg-muted cursor-pointer"
+                    onClick={() => toggleTypeCollapse(typeName)}
+                  >
+                    <TableCell colSpan={6} className="py-2">
+                      <div className="flex items-center gap-2">
+                        {isCollapsed ? (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <Badge variant="outline" className="font-medium">
+                          {typeName}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          ({grouped[typeName].length} folder{grouped[typeName].length !== 1 ? "s" : ""})
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  {/* Folder Rows - Collapsible */}
+                  {!isCollapsed && grouped[typeName].map((folder) => (
+                    <TableRow key={folder.id}>
+                      <TableCell className="font-medium pl-6">
+                        <div className="flex items-center gap-1">
+                          {folder.is_dynamic && folder.dynamic_type === "mailbox" ? (
+                            <Mail className="h-4 w-4 text-blue-500" />
+                          ) : (
+                            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          {folder.name}
+                          {folder.is_system && (
+                            <Lock className="h-3 w-3 text-muted-foreground" />
+                          )}
+                          {folder.is_dynamic && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800">
+                              <Zap className="h-2.5 w-2.5 mr-0.5" />
+                              Dynamic
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {folder.full_path_template || folder.folder_path_template || "-"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {folder.path_preview || "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="text-xs">
+                          {folder.warehouse_folders_count}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={folder.enabled ? "default" : "outline"}>
+                          {folder.enabled ? "Yes" : "No"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEditDialog(folder)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          {!folder.is_system && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => handleDelete(folder)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </React.Fragment>
+              );
+              });
+            })()}
             {baseFolders.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   {searchQuery ? `No folders matching "${searchQuery}"` : "No base folders found"}
                 </TableCell>
               </TableRow>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_04_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_04_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -633,8 +633,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_04_120000) do
     t.bigint "warehouse_type_id", null: false
     t.string "name", null: false
     t.string "folder_path_template"
-    t.string "download_name_template"
-    t.string "ui_name_template"
     t.boolean "is_system", default: false, null: false
     t.boolean "enabled", default: true, null: false
     t.integer "order_position", default: 0, null: false

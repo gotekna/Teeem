@@ -131,8 +131,6 @@ class BaseFolder < ApplicationRecord
       warehouse_type_name: warehouse_type&.display_name,
       name: name,
       folder_path_template: folder_path_template,
-      download_name_template: download_name_template,
-      ui_name_template: ui_name_template,
       path_preview: path_preview,
       is_system: is_system,
       enabled: enabled,
