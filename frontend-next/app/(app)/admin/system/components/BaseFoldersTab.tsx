@@ -429,6 +429,26 @@ export function BaseFoldersTab() {
     return result;
   };
 
+  // Build ancestor path by walking up parent chain
+  // e.g., if parent_id points to "Balance Sheet" which has parent "Xero", returns "Xero/Balance Sheet"
+  const buildAncestorPath = React.useCallback((parentId: number | null): string => {
+    if (!parentId) return '';
+
+    const pathParts: string[] = [];
+    let currentId: number | null = parentId;
+    const visited = new Set<number>(); // Prevent infinite loops
+
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      const folder = baseFolders.find(f => f.id === currentId);
+      if (!folder) break;
+      pathParts.unshift(folder.name);
+      currentId = folder.parent_id;
+    }
+
+    return pathParts.join('/');
+  }, [baseFolders]);
+
   // Get available parent options for a folder (same type, exclude self and descendants)
   const getParentOptions = React.useCallback((warehouseTypeId: number | null, currentFolderId: number | null) => {
     if (!warehouseTypeId) return [];
@@ -864,14 +884,16 @@ export function BaseFoldersTab() {
                 />
               </div>
 
-              {/* Full path preview - uses name as folder path */}
+              {/* Full path preview - includes parent hierarchy */}
               {(() => {
                 const selectedType = warehouseTypeOptions.find(wt => wt.value === formData.warehouse_type_id);
                 const rawBasePath = selectedType?.base_path || '';
                 const rawName = formData.name || '';
                 if (!rawBasePath || !rawName) return null;
-                // Build full path, normalizing slashes
-                const fullPath = [rawBasePath, rawName]
+                // Build ancestor path from parent hierarchy
+                const ancestorPath = buildAncestorPath(formData.parent_id);
+                // Build full path: basePath + ancestorPath + name
+                const fullPath = [rawBasePath, ancestorPath, rawName]
                   .map(p => p.trim().replace(/^\/+|\/+$/g, ''))  // Trim and remove leading/trailing slashes
                   .filter(Boolean)
                   .join('/');
