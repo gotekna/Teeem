@@ -952,51 +952,65 @@ function TreeNode({
       </div>
 
       {/* SSoT (Feb 2026): Show base folder details for LEAF nodes */}
-      {/* Show folder path badge, UI/DL badges - matching WarehouseFoldersConfig style */}
+      {/* Show folder path, UI/DL names - matching WarehouseFoldersConfig style */}
       {node.baseFolders && node.baseFolders.length > 0 && node.children.length === 0 && (
         <div style={{ paddingLeft: `${level * 16 + 28}px` }}>
           {node.baseFolders.map((bf) => (
-            <div key={bf.id} className="mb-2">
-              {/* Badges row - folder path + UI + DL */}
-              <div className="flex items-center gap-1.5 flex-wrap py-0.5">
-                {/* Folder path badge (green) */}
+            <div key={bf.id} className="mb-2 text-[10px]">
+              {/* Full path row */}
+              <div className="flex items-center gap-1.5 py-0.5">
                 <Badge
                   variant="outline"
-                  className="text-[10px] gap-1 font-normal bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                  className="gap-1 font-normal bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                 >
                   <FolderOpen className="h-3 w-3 shrink-0" />
                   <span className="font-mono">{bf.full_path_template || bf.folder_path_template || '—'}</span>
                 </Badge>
-                {/* UI badge (green = custom, orange = default) */}
-                {bf.warehouse_folder && (
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "text-[10px] gap-0.5 font-normal",
-                      bf.warehouse_folder.ui_name
-                        ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
-                        : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
-                    )}
-                    title={`UI Name: ${bf.warehouse_folder.ui_name || '{{OriginalFileName}} (default)'}`}
-                  >
-                    UI
-                  </Badge>
-                )}
-                {/* DL badge (green = custom, orange = default) */}
-                {bf.warehouse_folder && (
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "text-[10px] gap-0.5 font-normal",
-                      bf.warehouse_folder.download_name
-                        ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
-                        : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
-                    )}
-                    title={`Download Name: ${bf.warehouse_folder.download_name || '{{OriginalFileName}} (default)'}`}
-                  >
-                    DL
-                  </Badge>
-                )}
+                {/* UI badge */}
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "px-1 py-0",
+                    bf.warehouse_folder?.ui_name
+                      ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                      : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                  )}
+                >
+                  UI
+                </Badge>
+                {/* DL badge */}
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "px-1 py-0",
+                    bf.warehouse_folder?.download_name
+                      ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                      : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                  )}
+                >
+                  DL
+                </Badge>
+              </div>
+              {/* UI/DL name values row - green = custom, orange = default */}
+              <div className="flex items-center gap-4 pl-2 py-0.5">
+                <div className={cn(
+                  "flex items-center gap-1 font-mono",
+                  bf.warehouse_folder?.ui_name
+                    ? "text-green-700 dark:text-green-400"
+                    : "text-orange-600 dark:text-orange-400"
+                )}>
+                  <span className="text-[9px]">👁</span>
+                  <span>{bf.warehouse_folder?.ui_name || '(default)'}</span>
+                </div>
+                <div className={cn(
+                  "flex items-center gap-1 font-mono",
+                  bf.warehouse_folder?.download_name
+                    ? "text-green-700 dark:text-green-400"
+                    : "text-orange-600 dark:text-orange-400"
+                )}>
+                  <span className="text-[9px]">📥</span>
+                  <span>{bf.warehouse_folder?.download_name || '(default)'}</span>
+                </div>
               </div>
               {/* Document types linked to this folder - collapsible rows */}
               {bf.warehouse_folder?.document_types && bf.warehouse_folder.document_types.length > 0 && (
