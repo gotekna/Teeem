@@ -469,6 +469,104 @@ function FolderEditPanel({
   );
 }
 
+// SSoT (Feb 2026): Collapsible document types list with full details
+interface DocumentTypesListProps {
+  documentTypes: DocumentType[];
+  folderName: string;
+  folderPath: string;
+  onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string }) => void;
+}
+
+function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocumentType }: DocumentTypesListProps) {
+  const [isExpanded, setIsExpanded] = React.useState(false);
+
+  const total = documentTypes.length;
+  const configured = documentTypes.filter(dt => dt.ui_name && dt.download_name).length;
+  const allConfigured = configured === total;
+
+  return (
+    <div className="mt-1.5">
+      {/* Collapsible header */}
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-1.5 text-[9px] hover:bg-muted/50 rounded px-1 py-0.5 -ml-1"
+      >
+        {isExpanded ? (
+          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-3 w-3 text-muted-foreground" />
+        )}
+        <span className="text-muted-foreground">Docs:</span>
+        <span
+          className={`px-1 rounded ${
+            allConfigured
+              ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+              : 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
+          }`}
+        >
+          {configured}/{total}
+        </span>
+      </button>
+
+      {/* Expanded document types list */}
+      {isExpanded && (
+        <div className="mt-1 ml-3 border-l-2 border-muted pl-2 space-y-1">
+          {documentTypes.map(dt => {
+            const isConfigured = dt.ui_name && dt.download_name;
+            return (
+              <div
+                key={dt.id}
+                className="text-[9px] py-1 hover:bg-muted/30 rounded px-1 -ml-1 cursor-pointer group"
+                onClick={() => onEditDocumentType?.({
+                  id: dt.id,
+                  name: dt.name,
+                  abbreviation: dt.abbreviation,
+                  ui_name: dt.ui_name,
+                  download_name: dt.download_name,
+                  folder_name: folderName,
+                })}
+              >
+                {/* Document name row */}
+                <div className="flex items-center gap-2">
+                  <span className={`font-medium px-1 rounded ${
+                    isConfigured
+                      ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                      : 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
+                  }`}>
+                    {dt.abbreviation || dt.name}
+                  </span>
+                  <span className="text-muted-foreground">{dt.name}</span>
+                  <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+                {/* Path and templates */}
+                <div className="mt-0.5 pl-1 space-y-0.5 font-mono text-muted-foreground">
+                  <div className="flex gap-2">
+                    <span className="w-8 text-right">Path:</span>
+                    <span>{folderPath}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="w-8 text-right">UI:</span>
+                    <span className={dt.ui_name ? 'text-green-500' : 'text-orange-500'}>
+                      {dt.ui_name || '{{OriginalFileName}}'}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="w-8 text-right">DL:</span>
+                    <span className={dt.download_name ? 'text-green-500' : 'text-orange-500'}>
+                      {dt.download_name || '{{OriginalFileName}}'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // TreeNode component for folder hierarchy
 interface TreeNodeProps {
   node: FolderTreeNode;
@@ -503,6 +601,8 @@ interface TreeNodeProps {
   warehouseTypes: WarehouseTypeFromAPI[];
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
   onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string }) => void;
+  // SSoT (Feb 2026): Edit document type UI/DL names
+  onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string }) => void;
 }
 
 function TreeNode({
@@ -531,6 +631,7 @@ function TreeNode({
   scopeRootFolders,
   warehouseTypes,
   onEditWarehouseFolder,
+  onEditDocumentType,
 }: TreeNodeProps) {
   const hasChildren = node.children.length > 0;
   const hasTabs = node.tabs && node.tabs.length > 0;
@@ -849,7 +950,7 @@ function TreeNode({
                     {/* Document types count badge - green if all configured, orange if any missing UI/DL */}
                     {bf.warehouse_folder.document_types && bf.warehouse_folder.document_types.length > 0 && (() => {
                       const total = bf.warehouse_folder.document_types.length;
-                      const configured = bf.warehouse_folder.document_types.filter(dt => dt.display_name && dt.file_name).length;
+                      const configured = bf.warehouse_folder.document_types.filter(dt => dt.ui_name && dt.download_name).length;
                       const allConfigured = configured === total;
                       return (
                         <span
@@ -919,31 +1020,14 @@ function TreeNode({
                       {bf.warehouse_folder.download_name || '{{OriginalFileName}}'}
                     </span>
                   </div>
-                  {/* Document types linked to this folder - clickable, green=configured, orange=missing UI/DL */}
+                  {/* Document types linked to this folder - collapsible rows */}
                   {bf.warehouse_folder.document_types && bf.warehouse_folder.document_types.length > 0 && (
-                    <div className="flex items-start gap-1 mt-1">
-                      <span className="w-6 text-muted-foreground">Docs:</span>
-                      <div className="flex flex-wrap gap-1">
-                        {bf.warehouse_folder.document_types.map(dt => {
-                          const isConfigured = dt.display_name && dt.file_name;
-                          return (
-                            <a
-                              key={dt.id}
-                              href={`/settings/company/documents?tab=types&id=${dt.id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className={`px-1 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity ${
-                                isConfigured
-                                  ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                                  : 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
-                              }`}
-                              title={`${dt.name}${!isConfigured ? ' (UI/DL not configured)' : ''}`}
-                            >
-                              {dt.abbreviation || dt.name}
-                            </a>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    <DocumentTypesList
+                      documentTypes={bf.warehouse_folder.document_types}
+                      folderName={bf.name}
+                      folderPath={bf.full_path_template || bf.folder_path_template || ''}
+                      onEditDocumentType={onEditDocumentType}
+                    />
                   )}
                 </div>
               )}
@@ -1210,6 +1294,7 @@ function TreeNode({
               scopeRootFolders={scopeRootFolders}
               warehouseTypes={warehouseTypes}
               onEditWarehouseFolder={onEditWarehouseFolder}
+              onEditDocumentType={onEditDocumentType}
             />
           ))}
           {/* Show entity tabs (with document types) */}
@@ -1229,6 +1314,7 @@ function TreeNode({
                   onSaveEdit={onSaveTabEdit}
                   onCancelEdit={onCancelTabEdit}
                   onEditWarehouseFolder={onEditWarehouseFolder}
+                  onEditDocumentType={onEditDocumentType}
                 />
               ))}
             </div>
@@ -1335,6 +1421,8 @@ interface TabNodeProps {
   onCancelEdit: () => void;
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
   onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string }) => void;
+  // SSoT (Feb 2026): Edit document type UI/DL names
+  onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string }) => void;
 }
 
 function TabNode({
@@ -1348,6 +1436,7 @@ function TabNode({
   onSaveEdit,
   onCancelEdit,
   onEditWarehouseFolder,
+  onEditDocumentType,
 }: TabNodeProps) {
   const isEditing = editingTabId === tab.id;
   // SSoT (Feb 2026): Simple/complex distinction removed - all scopes use base_folders
@@ -1771,11 +1860,10 @@ function TabNode({
               style={{ paddingLeft: `${level * 16 + 58}px` }}
             >
               {tab.document_types!.map((dt) => {
-                // display_name contains the Document UI Name TEMPLATE (with tokens)
-                // file_name contains the Document Download Name TEMPLATE (with tokens)
+                // SSoT (Feb 2026): Consistent naming - ui_name and download_name
                 // name is the actual document type name like "Xero Invoice"
-                const uiNameTemplate = dt.display_name || dt.file_name || '';
-                const downloadTemplate = dt.file_name || '';
+                const uiNameTemplate = dt.ui_name || '';
+                const downloadTemplate = dt.download_name || '';
 
                 return (
                   <div key={dt.id} className="text-[10px] py-0.5">
@@ -1838,6 +1926,7 @@ function TabNode({
               onSaveEdit={onSaveEdit}
               onCancelEdit={onCancelEdit}
               onEditWarehouseFolder={onEditWarehouseFolder}
+              onEditDocumentType={onEditDocumentType}
             />
           ))}
         </>
@@ -2050,6 +2139,57 @@ export function WarehouseProviderTab() {
       console.error('Failed to save warehouse folder:', error);
     } finally {
       setSavingWarehouseFolder(false);
+    }
+  };
+
+  // SSoT (Feb 2026): Document type editing state
+  interface EditingDocumentType {
+    id: number;
+    name: string;
+    abbreviation?: string;
+    ui_name?: string;
+    download_name?: string;
+    folder_name?: string;  // Parent folder name for context
+  }
+  const [editingDocumentType, setEditingDocumentType] = React.useState<EditingDocumentType | null>(null);
+  const [savingDocumentType, setSavingDocumentType] = React.useState(false);
+
+  // SSoT (Feb 2026): Start editing a document type's UI/DL names
+  const startEditingDocumentType = (dt: EditingDocumentType) => {
+    setEditingDocumentType(dt);
+  };
+
+  // SSoT (Feb 2026): Save document type UI/DL names
+  const saveDocumentType = async (data: { ui_name: string; download_name: string }) => {
+    if (!editingDocumentType) return;
+
+    setSavingDocumentType(true);
+    try {
+      const response = await api.patch<{ success: boolean }>(`/api/v1/document_types/${editingDocumentType.id}`, {
+        document_type: {
+          ui_name: data.ui_name || null,
+          download_name: data.download_name || null,
+        }
+      });
+
+      if (response?.success) {
+        toast({
+          title: "Saved",
+          description: `Updated ${editingDocumentType.name}`,
+        });
+        setEditingDocumentType(null);
+        // Reload warehouse types to refresh document type UI/DL values
+        loadWarehouseTypes();
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save document type",
+        variant: "destructive",
+      });
+      console.error('Failed to save document type:', error);
+    } finally {
+      setSavingDocumentType(false);
     }
   };
 
@@ -3474,6 +3614,7 @@ export function WarehouseProviderTab() {
                     scopeRootFolders={scopeRootFoldersFromWarehouseTypes}
                     warehouseTypes={warehouseTypes}
                     onEditWarehouseFolder={startEditingWarehouseFolder}
+                    onEditDocumentType={startEditingDocumentType}
                   />
                 ))}
               </div>
@@ -3692,6 +3833,104 @@ export function WarehouseProviderTab() {
         onSave={saveWarehouseFolder}
         isSaving={savingWarehouseFolder}
       />
+
+      {/* Document Type Edit Dialog */}
+      <Dialog open={!!editingDocumentType} onOpenChange={(open) => !open && setEditingDocumentType(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Document Type</DialogTitle>
+            <DialogDescription>
+              {editingDocumentType?.name} {editingDocumentType?.abbreviation && `(${editingDocumentType.abbreviation})`}
+              {editingDocumentType?.folder_name && <span className="text-muted-foreground"> in {editingDocumentType.folder_name}</span>}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Available Tokens */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Available Tokens (click to copy)</Label>
+              <div className="flex flex-wrap gap-1">
+                {['{{OriginalFileName}}', '{{DocTypeName}}', '{{DocTypeCode}}', '{{Date}}', '{{ContactName}}', '{{CompanyCode}}', '{{JobCode}}'].map((token) => (
+                  <button
+                    key={token}
+                    type="button"
+                    className="px-1.5 py-0.5 text-[10px] font-mono bg-muted hover:bg-muted/80 rounded border cursor-pointer"
+                    onClick={() => {
+                      navigator.clipboard.writeText(token);
+                      toast({ title: 'Copied', description: `${token} copied to clipboard` });
+                    }}
+                    title={`Click to copy ${token}`}
+                  >
+                    {token}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* UI Name */}
+            <div className="space-y-2">
+              <Label htmlFor="dt_ui_name">UI Name Template</Label>
+              <Input
+                id="dt_ui_name"
+                value={editingDocumentType?.ui_name || ''}
+                onChange={(e) => setEditingDocumentType(prev => prev ? { ...prev, ui_name: e.target.value } : null)}
+                placeholder="e.g., {{DocTypeName}} - {{ContactName}}"
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                How this document type appears in the UI. Leave blank for original filename.
+              </p>
+            </div>
+
+            {/* Download Name */}
+            <div className="space-y-2">
+              <Label htmlFor="dt_download_name">Download Name Template</Label>
+              <Input
+                id="dt_download_name"
+                value={editingDocumentType?.download_name || ''}
+                onChange={(e) => setEditingDocumentType(prev => prev ? { ...prev, download_name: e.target.value } : null)}
+                placeholder="e.g., {{CompanyCode}} {{DocTypeName}} {{Date}}"
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Filename used when downloading. Leave blank for original filename.
+              </p>
+            </div>
+
+            {/* Status indicator */}
+            <div className="rounded-lg border bg-muted/50 p-3 space-y-1 text-sm">
+              <div className="flex gap-2 items-center">
+                <span className="text-muted-foreground">Status:</span>
+                {editingDocumentType?.ui_name && editingDocumentType?.download_name ? (
+                  <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                    Configured
+                  </span>
+                ) : (
+                  <span className="text-orange-600 dark:text-orange-400 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-orange-500" />
+                    Missing {!editingDocumentType?.ui_name && 'UI Name'}{!editingDocumentType?.ui_name && !editingDocumentType?.download_name && ' & '}{!editingDocumentType?.download_name && 'Download Name'}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingDocumentType(null)} disabled={savingDocumentType}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => saveDocumentType({
+                ui_name: editingDocumentType?.ui_name || '',
+                download_name: editingDocumentType?.download_name || '',
+              })}
+              disabled={savingDocumentType}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {savingDocumentType ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
