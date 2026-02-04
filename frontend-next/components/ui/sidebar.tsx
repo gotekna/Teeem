@@ -198,21 +198,37 @@ function SidebarContent({
       clearAllCachedRecords();
       console.log("[ClearCache] Records cache cleared");
 
-      // 3. Clear app localStorage (but not auth or sidebar preferences)
+      // 3. Clear app localStorage (but not auth, API config, or sidebar preferences)
+      // Keys to preserve: token, auth, session, sidebar, api_url, api_environment
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && !key.includes("token") && !key.includes("auth") && !key.includes("session") && !key.includes("sidebar")) {
+        if (
+          key &&
+          !key.includes("token") &&
+          !key.includes("auth") &&
+          !key.includes("session") &&
+          !key.includes("sidebar") &&
+          !key.includes("api_url") &&
+          !key.includes("api_environment")
+        ) {
           keysToRemove.push(key);
         }
       }
       keysToRemove.forEach((key) => localStorage.removeItem(key));
 
-      // 4. Clear sessionStorage (but not auth)
+      // 4. Clear sessionStorage (but not auth or API config)
       const sessionKeysToRemove: string[] = [];
       for (let i = 0; i < sessionStorage.length; i++) {
         const key = sessionStorage.key(i);
-        if (key && !key.includes("token") && !key.includes("auth") && !key.includes("session")) {
+        if (
+          key &&
+          !key.includes("token") &&
+          !key.includes("auth") &&
+          !key.includes("session") &&
+          !key.includes("api_url") &&
+          !key.includes("api_environment")
+        ) {
           sessionKeysToRemove.push(key);
         }
       }

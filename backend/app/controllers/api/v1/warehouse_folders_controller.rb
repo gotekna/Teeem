@@ -278,14 +278,15 @@ module Api
       # GET /api/v1/warehouse_folders/tree
       # Returns full folder tree for File Warehouse page
       # SSoT: All folder structure comes from warehouse_folders table
+      # Structure: Groups by first segment of folder_path (Corporate, Jobs, Contact, etc.)
       #
       # Response structure:
       # {
       #   success: true,
       #   data: {
       #     tree: [
-      #       { id: "wf-123", name: "Documents", type: "category", icon: "folder", fileCount: 0, children: [...] },
-      #       { id: "wf-124", name: "Plans", type: "category", icon: "folder", fileCount: 0, children: [...] },
+      #       { id: "base-corporate", name: "Corporate", type: "category", children: [...] },
+      #       { id: "base-jobs", name: "Jobs", type: "category", children: [...] },
       #       ...
       #     ],
       #     counts: { "jobs" => 1234, "corporate" => 567, ... },
@@ -293,17 +294,42 @@ module Api
       #   }
       # }
       def tree
-        # Get all root warehouse folders (parent_id: nil) with warehouse_enabled
-        root_folders = WarehouseFolder
+        # Get document counts
+        counts = fetch_warehouse_counts
+
+        # Get all enabled root folders with folder_path set
+        all_folders = WarehouseFolder
           .where(parent_id: nil, warehouse_enabled: true, enabled: true)
+          .where.not(folder_path: [nil, ''])
           .includes(:children)
           .order(:order_position, :display_name)
 
-        # Build tree recursively
-        tree = root_folders.map { |folder| build_tree_node(folder) }
+        # Group folders by first segment of folder_path (e.g., "Corporate", "Jobs", "Contact")
+        grouped = all_folders.group_by do |folder|
+          # Extract first segment: "Corporate/{{CompanyGroup}}/..." -> "Corporate"
+          folder.folder_path.to_s.split('/').first
+        end
 
-        # Get document counts per warehouse_type from WarehouseDocument
-        counts = fetch_warehouse_counts
+        # Build tree with base folders as root nodes
+        tree = grouped.map do |base_folder, folders|
+          next nil if base_folder.blank?
+
+          {
+            id: "base-#{base_folder.downcase.gsub(/\s+/, '-')}",
+            name: base_folder,
+            type: "category",
+            icon: base_folder_icon(base_folder),
+            warehouseType: folders.first&.warehouse_type,
+            folderPath: base_folder,
+            fullPath: base_folder,
+            fileCount: base_folder_count(base_folder, counts),
+            children: folders.map { |folder| build_tree_node(folder) }
+          }
+        end.compact
+
+        # Sort by common order: Jobs, Corporate, Contacts, Emails, Tasks, etc.
+        sort_order = %w[Jobs Corporate Contacts Contact Emails Tasks Users Warehousing Templates Cases Assets]
+        tree.sort_by! { |node| sort_order.index(node[:name]) || 999 }
 
         render json: {
           success: true,
@@ -316,6 +342,39 @@ module Api
       end
 
       private
+
+      # Map base folder name to icon
+      def base_folder_icon(name)
+        {
+          "Jobs" => "briefcase",
+          "Corporate" => "building2",
+          "Contact" => "contact",
+          "Contacts" => "contact",
+          "Emails" => "mail",
+          "Tasks" => "clipboard-list",
+          "Users" => "user",
+          "Warehousing" => "warehouse",
+          "Templates" => "file-text",
+          "Cases" => "folder",
+          "Assets" => "package"
+        }[name] || "folder"
+      end
+
+      # Get count for a base folder
+      def base_folder_count(name, counts)
+        mapping = {
+          "Jobs" => "jobs",
+          "Corporate" => "corporate",
+          "Contact" => "contacts",
+          "Contacts" => "contacts",
+          "Emails" => "emails",
+          "Tasks" => "tasks",
+          "Users" => "users",
+          "Warehousing" => "warehousing",
+          "Templates" => "templates"
+        }
+        counts[mapping[name]] || 0
+      end
 
       # Build a tree node from a WarehouseFolder
       def build_tree_node(folder, depth = 0)
@@ -331,8 +390,8 @@ module Api
           icon: folder.icon_name || "folder",
           warehouseType: folder.warehouse_type,
           folderPath: folder.folder_path,
-          fullPath: folder.folder_path,  # Use folder_path directly - it's the SSoT
-          fileCount: 0,  # Will be enriched by frontend from counts
+          fullPath: folder.folder_path,
+          fileCount: 0,
           children: depth < 5 ? children.map { |child| build_tree_node(child, depth + 1) } : []
         }
       end
