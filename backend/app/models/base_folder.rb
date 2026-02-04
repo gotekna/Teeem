@@ -32,6 +32,8 @@ class BaseFolder < ApplicationRecord
   }.freeze
   # Associations
   belongs_to :warehouse_type
+  belongs_to :parent, class_name: 'BaseFolder', optional: true
+  has_many :children, class_name: 'BaseFolder', foreign_key: :parent_id, dependent: :destroy
   has_many :warehouse_folders, dependent: :nullify
 
   # Validations

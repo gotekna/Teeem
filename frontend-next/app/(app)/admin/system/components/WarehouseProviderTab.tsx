@@ -474,7 +474,7 @@ interface DocumentTypesListProps {
   documentTypes: DocumentType[];
   folderName: string;
   folderPath: string;
-  onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string }) => void;
+  onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
 
 function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocumentType }: DocumentTypesListProps) {
@@ -525,6 +525,7 @@ function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocume
                   ui_name: dt.ui_name,
                   download_name: dt.download_name,
                   folder_name: folderName,
+                  folder_path: folderPath,
                 })}
               >
                 {/* Document name row */}
@@ -602,7 +603,7 @@ interface TreeNodeProps {
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
   onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string }) => void;
   // SSoT (Feb 2026): Edit document type UI/DL names
-  onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string }) => void;
+  onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
 
 function TreeNode({
@@ -906,8 +907,8 @@ function TreeNode({
 
         {/* Scope badges - show only PRIMARY scope (not child scopes like task_attachments) */}
         {/* SSoT (Feb 2026): Base folder indicators - show on LEAF nodes (no children) */}
-        {/* Lock icon for system folders, Folder icon for custom folders */}
-        {/* Settings button for folders with linked warehouse_folder (for UI/DL editing) */}
+        {/* Lock/Folder indicator + Settings button for base folders */}
+        {/* UI/DL badges moved to badges row below for consistency */}
         {node.baseFolders && node.baseFolders.length > 0 && node.children.length === 0 && (
           <div className="flex items-center gap-1 ml-1">
             {node.baseFolders.map((bf) => (
@@ -924,49 +925,6 @@ function TreeNode({
                     <Folder className="h-3 w-3 text-muted-foreground" />
                   )}
                 </span>
-                {/* UI/DL badges - green if custom, orange if default */}
-                {bf.warehouse_folder && (
-                  <>
-                    <span
-                      className={`text-[9px] px-1 rounded ${
-                        bf.warehouse_folder.ui_name
-                          ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                          : 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
-                      }`}
-                      title={`UI: ${bf.warehouse_folder.ui_name || '{{OriginalFileName}} (default)'}`}
-                    >
-                      UI
-                    </span>
-                    <span
-                      className={`text-[9px] px-1 rounded ${
-                        bf.warehouse_folder.download_name
-                          ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                          : 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
-                      }`}
-                      title={`DL: ${bf.warehouse_folder.download_name || '{{OriginalFileName}} (default)'}`}
-                    >
-                      DL
-                    </span>
-                    {/* Document types count badge - green if all configured, orange if any missing UI/DL */}
-                    {bf.warehouse_folder.document_types && bf.warehouse_folder.document_types.length > 0 && (() => {
-                      const total = bf.warehouse_folder.document_types.length;
-                      const configured = bf.warehouse_folder.document_types.filter(dt => dt.ui_name && dt.download_name).length;
-                      const allConfigured = configured === total;
-                      return (
-                        <span
-                          className={`text-[9px] px-1 rounded ${
-                            allConfigured
-                              ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                              : 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
-                          }`}
-                          title={`${configured}/${total} document types configured with UI/DL names`}
-                        >
-                          {configured}/{total} docs
-                        </span>
-                      );
-                    })()}
-                  </>
-                )}
                 {/* Edit button for folders with linked warehouse_folder */}
                 {bf.warehouse_folder && onEditWarehouseFolder && (
                   <button
@@ -975,11 +933,10 @@ function TreeNode({
                       onEditWarehouseFolder({
                         id: bf.warehouse_folder!.id,
                         display_name: bf.warehouse_folder!.display_name || bf.name,
-                        // SSoT: Load from warehouse_folder first, fallback to base_folder template
                         folder_path: bf.warehouse_folder!.folder_path || bf.full_path_template || bf.folder_path_template,
                         download_name: bf.warehouse_folder!.download_name,
                         ui_name: bf.warehouse_folder!.ui_name,
-                        base_folder_path_template: bf.folder_path_template,  // SSoT: Template from base_folders table
+                        base_folder_path_template: bf.folder_path_template,
                       });
                     }}
                     className="p-0.5 hover:bg-muted rounded"
@@ -995,41 +952,60 @@ function TreeNode({
       </div>
 
       {/* SSoT (Feb 2026): Show base folder details for LEAF nodes */}
-      {/* Always show folder path, UI name, and DL name for base folders */}
+      {/* Show folder path badge, UI/DL badges - matching WarehouseFoldersConfig style */}
       {node.baseFolders && node.baseFolders.length > 0 && node.children.length === 0 && (
         <div style={{ paddingLeft: `${level * 16 + 28}px` }}>
           {node.baseFolders.map((bf) => (
-            <div
-              key={bf.id}
-              className="text-[10px] text-muted-foreground font-mono space-y-0.5 mb-2"
-            >
-              <div>{bf.full_path_template || bf.folder_path_template || '—'}</div>
-              {/* Always show UI/DL fields for base folders with warehouse_folder */}
-              {/* Green = custom value saved, Orange = using default (original filename) */}
-              {bf.warehouse_folder && (
-                <div className="flex flex-col gap-0.5 text-[9px] mt-0.5">
-                  <div className="flex items-center gap-1">
-                    <span className="w-6">UI:</span>
-                    <span className={bf.warehouse_folder.ui_name ? 'text-green-500' : 'text-orange-500'}>
-                      {bf.warehouse_folder.ui_name || '{{OriginalFileName}}'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-6">DL:</span>
-                    <span className={bf.warehouse_folder.download_name ? 'text-green-500' : 'text-orange-500'}>
-                      {bf.warehouse_folder.download_name || '{{OriginalFileName}}'}
-                    </span>
-                  </div>
-                  {/* Document types linked to this folder - collapsible rows */}
-                  {bf.warehouse_folder.document_types && bf.warehouse_folder.document_types.length > 0 && (
-                    <DocumentTypesList
-                      documentTypes={bf.warehouse_folder.document_types}
-                      folderName={bf.name}
-                      folderPath={bf.full_path_template || bf.folder_path_template || ''}
-                      onEditDocumentType={onEditDocumentType}
-                    />
-                  )}
-                </div>
+            <div key={bf.id} className="mb-2">
+              {/* Badges row - folder path + UI + DL */}
+              <div className="flex items-center gap-1.5 flex-wrap py-0.5">
+                {/* Folder path badge (green) */}
+                <Badge
+                  variant="outline"
+                  className="text-[10px] gap-1 font-normal bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                >
+                  <FolderOpen className="h-3 w-3 shrink-0" />
+                  <span className="font-mono">{bf.full_path_template || bf.folder_path_template || '—'}</span>
+                </Badge>
+                {/* UI badge (green = custom, orange = default) */}
+                {bf.warehouse_folder && (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px] gap-0.5 font-normal",
+                      bf.warehouse_folder.ui_name
+                        ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                        : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                    )}
+                    title={`UI Name: ${bf.warehouse_folder.ui_name || '{{OriginalFileName}} (default)'}`}
+                  >
+                    UI
+                  </Badge>
+                )}
+                {/* DL badge (green = custom, orange = default) */}
+                {bf.warehouse_folder && (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px] gap-0.5 font-normal",
+                      bf.warehouse_folder.download_name
+                        ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                        : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                    )}
+                    title={`Download Name: ${bf.warehouse_folder.download_name || '{{OriginalFileName}} (default)'}`}
+                  >
+                    DL
+                  </Badge>
+                )}
+              </div>
+              {/* Document types linked to this folder - collapsible rows */}
+              {bf.warehouse_folder?.document_types && bf.warehouse_folder.document_types.length > 0 && (
+                <DocumentTypesList
+                  documentTypes={bf.warehouse_folder.document_types}
+                  folderName={bf.name}
+                  folderPath={bf.full_path_template || bf.folder_path_template || ''}
+                  onEditDocumentType={onEditDocumentType}
+                />
               )}
             </div>
           ))}
@@ -1297,8 +1273,8 @@ function TreeNode({
               onEditDocumentType={onEditDocumentType}
             />
           ))}
-          {/* Show entity tabs (with document types) */}
-          {/* SSoT: Entity identifier (e.g., {{JobCode}}) comes from warehouse_folders, not extracted from template */}
+          {/* Show entity tabs (from warehouse_folders with parent-child hierarchy) */}
+          {/* SSoT: Entity identifier (e.g., {{JobCode}}) comes from warehouse_folders */}
           {hasTabs && node.scopeKey && (
             <div className="ml-1">
               {node.tabs!.map((tab) => (
@@ -1422,7 +1398,7 @@ interface TabNodeProps {
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
   onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string }) => void;
   // SSoT (Feb 2026): Edit document type UI/DL names
-  onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string }) => void;
+  onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
 
 function TabNode({
@@ -1725,6 +1701,11 @@ function TabNode({
   const hasChildren = tab.children && tab.children.length > 0;
   const hasDocTypes = tab.document_types && tab.document_types.length > 0;
   const hasExpandableContent = hasChildren || hasDocTypes;
+
+  // Debug: Log children for tabs that should have them
+  if (tab.display_name === 'Xero' || tab.display_name === 'Financial') {
+    console.log(`[TabNode] ${tab.display_name} - children:`, tab.children?.length || 0, tab.children?.map(c => c.display_name));
+  }
   const storedFolderPath = tab.folder_path || tab.storage_folder_path;
 
   // FRC Fix (Feb 2026): Extract parent folder name from basePath (first static segment)
@@ -1757,14 +1738,23 @@ function TabNode({
     : (extractedName || tab.base_folder || tab.display_name || '');
 
   // Compute this tab's full path (for passing to children as their basePath)
-  // If basePath has {{TabName}}, replace it with folder name (root tabs)
-  // If basePath has NO placeholder, append folder name (child tabs inherit + add own folder)
+  // FRC Fix (Feb 2026): Handle both formats of folder_path_template:
+  // - Old format: just folder name (e.g., "Xero") - needs basePath prepended
+  // - New format: full path with tokens (e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero") - use as-is
   const hasPlaceholder = /\{\{TabName\}\}|\{\{TeeemXL\}\}/i.test(basePath);
-  const currentFullPath = folderName
-    ? hasPlaceholder
-      ? basePath.replace(/\{\{TabName\}\}/gi, folderName).replace(/\{\{TeeemXL\}\}/gi, folderName)
-      : `${basePath}/${folderName}`
-    : basePath;
+
+  // Check if storedFolderPath already contains scope tokens (meaning it's already a full path)
+  const pathAlreadyContainsScopeTokens = storedFolderPath &&
+    /\{\{(CompanyGroup|CompanyCode|JobCode|ContactName|Year|Month|Mailbox)\}\}/i.test(storedFolderPath);
+
+  // If stored path already has scope tokens, use it directly; otherwise build the full path
+  const currentFullPath = pathAlreadyContainsScopeTokens && storedFolderPath
+    ? storedFolderPath
+    : folderName
+      ? hasPlaceholder
+        ? basePath.replace(/\{\{TabName\}\}/gi, folderName).replace(/\{\{TeeemXL\}\}/gi, folderName)
+        : `${basePath}/${folderName}`
+      : basePath;
 
   // Collapse state for this tab node
   const [isCollapsed, setIsCollapsed] = React.useState(true);
@@ -1789,35 +1779,15 @@ function TabNode({
         )}
         <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
         {/* Show folder name (from folder_path), resolved if it contains tokens */}
-        <span className="text-sm">{resolveTemplatePreview(folderName || tab.display_name || '')}</span>
-        {/* UI/DL badges for this tab */}
-        <span
-          className={cn(
-            "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
-            tab.ui_name
-              ? "bg-green-500 text-white dark:bg-green-600"
-              : "bg-orange-500 text-white dark:bg-orange-600"
-          )}
-          title={`UI Name: ${tab.ui_name || '{{OriginalFileName}} (default)'}`}
-        >
-          UI
-        </span>
-        <span
-          className={cn(
-            "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
-            tab.download_name && tab.download_name !== '{{OriginalFileName}}'
-              ? "bg-green-500 text-white dark:bg-green-600"
-              : "bg-orange-500 text-white dark:bg-orange-600"
-          )}
-          title={`Download Name: ${tab.download_name || '{{OriginalFileName}} (default)'}`}
-        >
-          DL
-        </span>
-        {/* Show document type count if has doc types */}
+        <span className="text-sm font-medium">{resolveTemplatePreview(folderName || tab.display_name || '')}</span>
+        {/* Document type count badge */}
         {hasDocTypes && (
-          <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">
+          <Badge
+            variant="outline"
+            className="text-[10px] gap-1 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800"
+          >
             {tab.document_types!.length} {tab.document_types!.length === 1 ? 'type' : 'types'}
-          </span>
+          </Badge>
         )}
         {/* SSoT (Feb 2026): Edit button for UI/DL names */}
         {onEditWarehouseFolder && (
@@ -1841,18 +1811,57 @@ function TabNode({
           </button>
         )}
       </div>
-      {/* Collapsible content: folder path, document types, and children */}
+      {/* Folder path and badges row - matching WarehouseFoldersConfig style */}
+      {(folderName || basePath) && (
+        <div
+          className="flex items-center gap-1.5 flex-wrap py-0.5"
+          style={{ paddingLeft: `${level * 16 + 42}px` }}
+        >
+          {/* Folder path badge (green) */}
+          <Badge
+            variant="outline"
+            className="text-[10px] gap-1 font-normal bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+          >
+            <FolderOpen className="h-3 w-3 shrink-0" />
+            <span className="font-mono">{currentFullPath}</span>
+          </Badge>
+          {/* UI badge (green = custom, orange = default) */}
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-[10px] gap-0.5 font-normal",
+              tab.ui_name
+                ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+            )}
+            title={`UI Name: ${tab.ui_name || '{{OriginalFileName}} (default)'}`}
+          >
+            UI
+          </Badge>
+          {/* DL badge (green = custom, orange = default) */}
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-[10px] gap-0.5 font-normal",
+              tab.download_name && tab.download_name !== '{{OriginalFileName}}'
+                ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+            )}
+            title={`Download Name: ${tab.download_name || '{{OriginalFileName}} (default)'}`}
+          >
+            DL
+          </Badge>
+          {/* Sub-tabs count badge */}
+          {hasChildren && (
+            <Badge variant="secondary" className="text-[10px]">
+              {tab.children!.length} sub-tabs
+            </Badge>
+          )}
+        </div>
+      )}
+      {/* Collapsible content: document types and children */}
       {!isCollapsed && (
         <>
-          {/* Show FULL folder path: basePath (inherited) + tab folder name */}
-          {(folderName || basePath) && (
-            <div
-              className="text-[10px] text-muted-foreground font-mono py-0.5"
-              style={{ paddingLeft: `${level * 16 + 58}px` }}
-            >
-              📁 {currentFullPath}
-            </div>
-          )}
           {/* Show document types with their templates */}
           {hasDocTypes && (
             <div
@@ -1913,22 +1922,26 @@ function TabNode({
             </div>
           )}
           {/* Recursively render children - pass current full path as their basePath */}
-          {hasChildren && tab.children!.map((child) => (
-            <TabNode
-              key={child.id}
-              tab={child}
-              level={level + 1}
-              basePath={currentFullPath}
-              rootPath={rootPath}
-              scope={scope}
-              editingTabId={editingTabId}
-              onStartEdit={onStartEdit}
-              onSaveEdit={onSaveEdit}
-              onCancelEdit={onCancelEdit}
-              onEditWarehouseFolder={onEditWarehouseFolder}
-              onEditDocumentType={onEditDocumentType}
-            />
-          ))}
+          {hasChildren && (
+            <>
+              {tab.children!.map((child) => (
+                <TabNode
+                  key={child.id}
+                  tab={child}
+                  level={level + 1}
+                  basePath={currentFullPath}
+                  rootPath={rootPath}
+                  scope={scope}
+                  editingTabId={editingTabId}
+                  onStartEdit={onStartEdit}
+                  onSaveEdit={onSaveEdit}
+                  onCancelEdit={onCancelEdit}
+                  onEditWarehouseFolder={onEditWarehouseFolder}
+                  onEditDocumentType={onEditDocumentType}
+                />
+              ))}
+            </>
+          )}
         </>
       )}
     </div>
@@ -2065,6 +2078,15 @@ export function WarehouseProviderTab() {
         tabsByScope[scopeKey] = tabs;
       });
 
+      console.log('[loadWarehouseTabConfigs] Loaded tabs:', Object.entries(tabsByScope).map(([k, v]) => `${k}: ${v.length}`));
+      // Debug: Log tabs with children for corporate scope
+      if (tabsByScope['corporate']) {
+        tabsByScope['corporate'].forEach(tab => {
+          if (tab.children && tab.children.length > 0) {
+            console.log(`[loadWarehouseTabConfigs] ${tab.display_name} has ${tab.children.length} children:`, tab.children.map(c => c.display_name));
+          }
+        });
+      }
       setWarehouseTabConfigs(tabsByScope);
     } catch (error) {
       console.error("Failed to load entity tabs:", error);
@@ -2150,6 +2172,7 @@ export function WarehouseProviderTab() {
     ui_name?: string;
     download_name?: string;
     folder_name?: string;  // Parent folder name for context
+    folder_path?: string;  // Full folder path for context (e.g., Contact/Contacts/{{ContactName}}/Invoices)
   }
   const [editingDocumentType, setEditingDocumentType] = React.useState<EditingDocumentType | null>(null);
   const [savingDocumentType, setSavingDocumentType] = React.useState(false);
@@ -2293,10 +2316,26 @@ export function WarehouseProviderTab() {
     // Previously corporate/job/contact required document types - now all show tabs
     const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse', 'user', 'case', 'corporate', 'job', 'contact'];
 
-    // Helper: Filter tabs to warehouse-enabled only
+    // Helper: Check if tab or any descendant is warehouse-enabled OR has document types
+    // FRC (Feb 2026): Having document types implies warehouse storage is configured for those docs
+    const hasDescendantWarehouseEnabled = (tab: WarehouseTabConfig): boolean => {
+      const isEnabled = (tab.warehouse_enabled ?? tab.has_storage_folder) === true;
+      const hasDocTypes = tab.document_types && tab.document_types.length > 0;
+      const hasFolderPath = !!tab.folder_path;
+      // Tab is relevant if: warehouse_enabled, has doc types, or has folder path configured
+      if (isEnabled || hasDocTypes || hasFolderPath) return true;
+      if (tab.children && tab.children.length > 0) {
+        return tab.children.some(child => hasDescendantWarehouseEnabled(child));
+      }
+      return false;
+    };
+
+    // Helper: Filter tabs to warehouse-enabled only (includes parents if children are enabled)
+    // FRC (Feb 2026): Must include parent tabs if any children are warehouse-enabled
+    // Example: Financial parent may not be warehouse-enabled, but Invoices/Bills children are
     const filterWarehouseEnabledTabs = (tabs: WarehouseTabConfig[]): WarehouseTabConfig[] => {
       return tabs
-        .filter(tab => (tab.warehouse_enabled ?? tab.has_storage_folder) === true)
+        .filter(tab => hasDescendantWarehouseEnabled(tab))
         .map(tab => ({
           ...tab,
           children: tab.children ? filterWarehouseEnabledTabs(tab.children) : []
@@ -2310,6 +2349,7 @@ export function WarehouseProviderTab() {
       nodes.forEach(node => {
         if (node.scopeKey && entityTabs[node.scopeKey]) {
           const allTabs = entityTabs[node.scopeKey];
+          console.log(`[attachTabs] ${node.scopeKey}: ${allTabs.length} total tabs`, allTabs.map(t => t.display_name));
           // Scopes without doc types: show all warehouse-enabled tabs
           // Other scopes (contact, job, corporate): only show tabs with document types
           if (SCOPES_WITHOUT_DOC_TYPES.includes(node.scopeKey)) {
@@ -2317,6 +2357,7 @@ export function WarehouseProviderTab() {
           } else {
             node.tabs = filterTabsWithDocTypes(allTabs);
           }
+          console.log(`[attachTabs] ${node.scopeKey}: ${node.tabs?.length || 0} filtered tabs`, node.tabs?.map(t => t.display_name));
         }
         if (node.children.length > 0) {
           attachTabs(node.children);
@@ -2350,11 +2391,13 @@ export function WarehouseProviderTab() {
       });
     };
 
-    // SSoT (Feb 2026): Only attach base folders - no warehouse_folders tabs
-    // FRC: base_folders table is THE source of truth for folder structure
+    // Attach both base folders and tabs to the tree
     attachScopeBaseFolders(tree);
+    // SSoT (Feb 2026): Attach tabs (from warehouse_folders) to show parent-child hierarchy
+    // This includes tabs like Financial with children (Bank Details, Xero, Invoices, Bills)
+    attachTabs(tree);
     return tree;
-  }, [warehouseTypes, baseFoldersByScope]);
+  }, [warehouseTypes, baseFoldersByScope, entityTabs]);
 
   // SSoT (Feb 2026): Build scopeRootFolders from warehouse types
   // FRC: warehouse_type.folder_path_template IS the scope root path - no fallbacks
@@ -2605,12 +2648,13 @@ export function WarehouseProviderTab() {
     setExpandedPaths(new Set());
   }, []);
 
-  // Load storage config and warehouse types on mount
-  // SSoT (Feb 2026): Only load warehouse_types - no warehouse_folders
-  // FRC: base_folders (via warehouse_types API) is THE source of truth
+  // Load storage config, warehouse types, and tab configs on mount
+  // SSoT (Feb 2026): base_folders from warehouse_types, entity tabs from warehouse_folders
+  // FRC (Feb 2026): Must load tab configs for Financial/etc tabs to appear in tree
   React.useEffect(() => {
     loadConfig();
     loadWarehouseTypes();
+    loadWarehouseTabConfigs();  // Load entity tabs (Financial, Bank Details, etc.)
   }, []);
 
   const loadConfig = async () => {
@@ -3640,6 +3684,116 @@ export function WarehouseProviderTab() {
               Loading folders...
             </div>
           )}
+
+          {/* DEBUG: Corporate Entity Tabs Full Tree */}
+          {entityTabs['corporate'] && entityTabs['corporate'].length > 0 && (
+            <div className="mt-6 border-t pt-4">
+              <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                Corporate Entity Tabs ({entityTabs['corporate'].length} root tabs)
+              </h4>
+              <div className="bg-slate-50 dark:bg-slate-900 rounded-md p-3 font-mono text-xs space-y-1 max-h-[500px] overflow-auto">
+                {(() => {
+                  // Recursive function to render tab tree with full paths
+                  const renderTabTree = (tabs: WarehouseTabConfig[], basePath: string, depth: number): React.ReactNode => {
+                    return tabs.map((tab) => {
+                      // Check if folder_path already contains scope tokens (full path)
+                      const storedPath = tab.folder_path || '';
+                      const pathAlreadyContainsScopeTokens = storedPath &&
+                        /\{\{(CompanyGroup|CompanyCode|JobCode|ContactName|Year|Month|Mailbox)\}\}/i.test(storedPath);
+
+                      // Extract the last non-token folder segment from a path
+                      const extractFolderSegment = (path: string): string => {
+                        const parts = path.split('/').filter(Boolean);
+                        // Find the last non-token segment
+                        for (let i = parts.length - 1; i >= 0; i--) {
+                          if (!parts[i].startsWith('{{')) {
+                            return parts[i];
+                          }
+                        }
+                        return '';
+                      };
+
+                      // For display:
+                      // - Root tabs (depth 0) with scope tokens: use folder_path directly
+                      // - Child tabs (depth > 0): always build from basePath + display_name for accurate hierarchy
+                      // - Tabs without scope tokens: build from basePath + folder name
+                      let fullPath: string;
+                      if (depth === 0 && pathAlreadyContainsScopeTokens) {
+                        // Root tab with full path - use directly
+                        fullPath = storedPath;
+                      } else {
+                        // Build path from basePath + folder name (or display_name for children)
+                        // For children, prefer display_name to show actual hierarchy
+                        const folderName = depth > 0
+                          ? (tab.display_name || extractFolderSegment(storedPath) || '')
+                          : (extractFolderSegment(storedPath) || tab.base_folder || tab.display_name || '');
+                        fullPath = folderName
+                          ? (basePath ? `${basePath}/${folderName}` : folderName)
+                          : basePath;
+                      }
+
+                      // For passing to children: always use the computed fullPath
+                      const childBasePath = fullPath;
+
+                      const hasChildren = tab.children && tab.children.length > 0;
+                      const indent = '  '.repeat(depth);
+
+                      return (
+                        <div key={tab.id}>
+                          <div className="flex items-start gap-2">
+                            <span className="text-muted-foreground whitespace-pre">{indent}{depth > 0 ? '└─' : '📁'}</span>
+                            <div className="flex-1">
+                              <span className="font-semibold text-foreground">{tab.display_name}</span>
+                              <span className="text-muted-foreground ml-2">({tab.tab_key})</span>
+                              {tab.warehouse_enabled && (
+                                <Badge variant="outline" className="ml-2 text-[9px] bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                  warehouse
+                                </Badge>
+                              )}
+                              {tab.document_types && tab.document_types.length > 0 && (
+                                <Badge variant="outline" className="ml-1 text-[9px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                  {tab.document_types.length} docs
+                                </Badge>
+                              )}
+                              {hasChildren && (
+                                <Badge variant="secondary" className="ml-1 text-[9px]">
+                                  {tab.children!.length} children
+                                </Badge>
+                              )}
+                              <div className="text-green-600 dark:text-green-400">
+                                📂 {fullPath || '(no path)'}
+                              </div>
+                              {tab.ui_name && (
+                                <div className="text-orange-600 dark:text-orange-400">UI: {tab.ui_name}</div>
+                              )}
+                              {tab.download_name && (
+                                <div className="text-purple-600 dark:text-purple-400">DL: {tab.download_name}</div>
+                              )}
+                            </div>
+                          </div>
+                          {/* Render children recursively */}
+                          {hasChildren && renderTabTree(tab.children!, childBasePath, depth + 1)}
+                        </div>
+                      );
+                    });
+                  };
+
+                  // Get corporate scope template as base path
+                  const corporateBasePath = scopeRootFoldersFromWarehouseTypes['corporate'] || 'Corporate/{{CompanyGroup}}/{{CompanyCode}}';
+
+                  return (
+                    <>
+                      <div className="text-muted-foreground mb-2 pb-2 border-b">
+                        Base Path: <span className="text-blue-600 dark:text-blue-400">{corporateBasePath}</span>
+                      </div>
+                      {renderTabTree(entityTabs['corporate'], corporateBasePath, 0)}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -3845,6 +3999,16 @@ export function WarehouseProviderTab() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Full Folder Path */}
+            {editingDocumentType?.folder_path && (
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <Label className="text-xs text-muted-foreground">Full Folder Path</Label>
+                <div className="font-mono text-sm mt-1 text-foreground">
+                  {editingDocumentType.folder_path}
+                </div>
+              </div>
+            )}
+
             {/* Available Tokens */}
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Available Tokens (click to copy)</Label>

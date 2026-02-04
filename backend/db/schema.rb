@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_04_140000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_04_140001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -638,8 +638,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_04_140000) do
     t.integer "order_position", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "parent_id"
     t.index ["enabled"], name: "index_base_folders_on_enabled"
     t.index ["order_position"], name: "index_base_folders_on_order_position"
+    t.index ["parent_id"], name: "index_base_folders_on_parent_id"
     t.index ["warehouse_type_id", "name"], name: "idx_base_folders_unique_name", unique: true
     t.index ["warehouse_type_id"], name: "index_base_folders_on_warehouse_type_id"
   end
@@ -10775,6 +10777,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_04_140000) do
   add_foreign_key "bank_transactions", "bank_accounts"
   add_foreign_key "bank_transactions", "corporates", column: "company_id"
   add_foreign_key "bank_transactions", "tenants"
+  add_foreign_key "base_folders", "base_folders", column: "parent_id"
   add_foreign_key "base_folders", "warehouse_types"
   add_foreign_key "batch_operations", "jobs"
   add_foreign_key "batch_operations", "users"
