@@ -108,9 +108,9 @@ const defaultFormData: FormData = {
 };
 
 export function WarehouseTypesTab() {
-  // DEBUG VERSION MARKER - v3 with stale closure fix
+  // DEBUG VERSION MARKER - v4 with onChange debugging
   React.useEffect(() => {
-    console.log("🟣🟣🟣 [WarehouseTypesTab] COMPONENT MOUNTED - DEBUG VERSION v3 (stale closure fix) 🟣🟣🟣");
+    console.log("🟣🟣🟣 [WarehouseTypesTab] COMPONENT MOUNTED - DEBUG VERSION v4 (onChange debug) 🟣🟣🟣");
   }, []);
 
   const queryClient = useQueryClient();
@@ -681,9 +681,16 @@ export function WarehouseTypesTab() {
                   <Input
                     id="folder_path_template"
                     value={formData.folder_path_template}
-                    onChange={(e) =>
-                      setFormData(prev => ({ ...prev, folder_path_template: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      console.log("🔶🔶🔶 [folder_path_template] onChange fired!", {
+                        newValue: e.target.value,
+                        oldValue: formData.folder_path_template,
+                      });
+                      setFormData(prev => {
+                        console.log("🔶 setFormData prev.folder_path_template:", prev.folder_path_template);
+                        return { ...prev, folder_path_template: e.target.value };
+                      });
+                    }}
                     placeholder="{{TaskId}}/{{TaskName}}"
                     className="font-mono text-sm rounded-l-none"
                   />
@@ -714,8 +721,10 @@ export function WarehouseTypesTab() {
                         key={token}
                         type="button"
                         onClick={() => {
+                          console.log("🔷🔷🔷 [Token button] clicked:", token);
                           setFormData(prev => {
                             const current = prev.folder_path_template;
+                            console.log("🔷 Token: current value:", current);
                             let newPath: string;
                             if (!current) {
                               newPath = token;
@@ -724,6 +733,7 @@ export function WarehouseTypesTab() {
                             } else {
                               newPath = current + "/" + token;
                             }
+                            console.log("🔷 Token: new value:", newPath);
                             return { ...prev, folder_path_template: newPath };
                           });
                         }}

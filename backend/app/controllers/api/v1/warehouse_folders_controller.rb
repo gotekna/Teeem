@@ -275,7 +275,86 @@ module Api
         }
       end
 
+      # GET /api/v1/warehouse_folders/tree
+      # Returns full folder tree for File Warehouse page
+      # SSoT: All folder structure comes from warehouse_folders table
+      #
+      # Response structure:
+      # {
+      #   success: true,
+      #   data: {
+      #     tree: [
+      #       { id: "wf-123", name: "Documents", type: "category", icon: "folder", fileCount: 0, children: [...] },
+      #       { id: "wf-124", name: "Plans", type: "category", icon: "folder", fileCount: 0, children: [...] },
+      #       ...
+      #     ],
+      #     counts: { "jobs" => 1234, "corporate" => 567, ... },
+      #     total: 80149
+      #   }
+      # }
+      def tree
+        # Get all root warehouse folders (parent_id: nil) with warehouse_enabled
+        root_folders = WarehouseFolder
+          .where(parent_id: nil, warehouse_enabled: true, enabled: true)
+          .includes(:children)
+          .order(:order_position, :display_name)
+
+        # Build tree recursively
+        tree = root_folders.map { |folder| build_tree_node(folder) }
+
+        # Get document counts per warehouse_type from WarehouseDocument
+        counts = fetch_warehouse_counts
+
+        render json: {
+          success: true,
+          data: {
+            tree: tree,
+            counts: counts,
+            total: counts.values.sum
+          }
+        }
+      end
+
       private
+
+      # Build a tree node from a WarehouseFolder
+      def build_tree_node(folder, depth = 0)
+        # Get enabled children
+        children = folder.children
+          .where(warehouse_enabled: true, enabled: true)
+          .order(:order_position, :display_name)
+
+        {
+          id: "wf-#{folder.id}",
+          name: folder.display_name,
+          type: "category",
+          icon: folder.icon_name || "folder",
+          warehouseType: folder.warehouse_type,
+          folderPath: folder.folder_path,
+          fullPath: folder.effective_folder_path,
+          fileCount: 0,  # Will be enriched by frontend from counts
+          children: depth < 5 ? children.map { |child| build_tree_node(child, depth + 1) } : []
+        }
+      end
+
+      # Fetch document counts grouped by warehouse_type
+      def fetch_warehouse_counts
+        # Count WarehouseDocuments by source_type (which maps to warehouse_type)
+        counts = WarehouseDocument.group(:source_type).count
+
+        # Map source_type to standard count keys
+        {
+          "jobs" => counts["job"] || 0,
+          "corporate" => counts["corporate"] || 0,
+          "contacts" => counts["contact"] || 0,
+          "emails" => counts["email"] || 0,
+          "tasks" => counts["task"] || 0,
+          "users" => counts["user"] || 0,
+          "warehousing" => counts["warehouse"] || 0,
+          "templates" => counts["template"] || 0,
+          "total" => counts.values.sum
+        }
+      end
 
       def set_warehouse_folder
         @warehouse_folder = WarehouseFolder.find(params[:id])
