@@ -37,6 +37,44 @@ module Api
         }
       end
 
+      # GET /api/v1/warehouse_types/tree
+      # Returns warehouse types as a tree structure for the File Warehouse page
+      #
+      # Response structure:
+      # {
+      #   tree: [
+      #     {
+      #       id: "wt-job",
+      #       code: "job",
+      #       displayName: "Job",
+      #       iconName: "briefcase",
+      #       orderPosition: 1,
+      #       baseFolders: [{ id: "bf-123", name: "Plans", children: [...] }],
+      #       fileCount: 1234
+      #     }
+      #   ],
+      #   counts: { job: 1234, corporate: 500, ... },
+      #   total: 80149
+      # }
+      def tree
+        # Get enabled warehouse types with their base folders and nested warehouse folders
+        warehouse_types = WarehouseType.enabled.ordered.includes(
+          base_folders: { children: :children }
+        )
+
+        # Get document counts by source_type
+        document_counts = fetch_document_counts
+
+        render json: {
+          success: true,
+          data: {
+            tree: warehouse_types.map { |wt| warehouse_type_tree_node(wt, document_counts) },
+            counts: document_counts,
+            total: WarehouseDocument.count
+          }
+        }
+      end
+
       # GET /api/v1/warehouse_types/:id
       def show
         render json: {
@@ -259,6 +297,125 @@ module Api
           enabled: WarehouseType.enabled.count,
           system: WarehouseType.system_types.count,
           custom: WarehouseType.custom_types.count
+        }
+      end
+
+      # ═══════════════════════════════════════════════════════════════════════════
+      # Tree endpoint helper methods (Feb 2026)
+      # ═══════════════════════════════════════════════════════════════════════════
+
+      # Fetch document counts grouped by source_type
+      def fetch_document_counts
+        counts = WarehouseDocument.group(:source_type).count
+
+        # Map source_type to standard count keys (matches warehouse_type codes)
+        {
+          "job" => counts["job"] || 0,
+          "corporate" => counts["corporate"] || 0,
+          "contact" => counts["contact"] || 0,
+          "email" => counts["email"] || 0,
+          "task" => counts["task"] || 0,
+          "user" => counts["user"] || 0,
+          "warehouse" => counts["warehouse"] || 0,
+          "template" => counts["template"] || 0,
+          # Also provide legacy keys for backwards compatibility
+          "jobs" => counts["job"] || 0,
+          "contacts" => counts["contact"] || 0,
+          "emails" => counts["email"] || 0,
+          "tasks" => counts["task"] || 0,
+          "users" => counts["user"] || 0,
+          "warehousing" => counts["warehouse"] || 0,
+          "templates" => counts["template"] || 0
+        }
+      end
+
+      # Build a tree node for a warehouse type
+      def warehouse_type_tree_node(warehouse_type, counts)
+        # Get enabled base folders for this warehouse type
+        base_folders = warehouse_type.base_folders.enabled.ordered
+
+        # Get count for this warehouse type
+        file_count = counts[warehouse_type.code] || 0
+
+        {
+          id: "wt-#{warehouse_type.code}",
+          code: warehouse_type.code,
+          displayName: warehouse_type.display_name,
+          iconName: warehouse_type.icon_name,
+          orderPosition: warehouse_type.order_position,
+          folderPathTemplate: warehouse_type.folder_path_template,
+          fileCount: file_count,
+          baseFolders: base_folders.map { |bf| base_folder_tree_node(bf, warehouse_type) }
+        }
+      end
+
+      # Build a tree node for a base folder
+      def base_folder_tree_node(base_folder, warehouse_type)
+        # Get linked warehouse folder (bypass tenant scoping for config data)
+        warehouse_folder = ActsAsTenant.without_tenant do
+          WarehouseFolder.includes(:children, :document_types).find_by(base_folder_id: base_folder.id)
+        end
+
+        # Build full path template
+        wt_template = warehouse_type.folder_path_template.presence
+        ancestor_path = build_ancestor_path(base_folder)
+
+        full_template = if wt_template.blank?
+          ancestor_path
+        else
+          scope_root = wt_template.split('/').first
+          first_folder = ancestor_path.split('/').first
+          if first_folder == scope_root
+            ancestor_path
+          else
+            "#{wt_template}/#{ancestor_path}"
+          end
+        end
+
+        # Get children - either from base_folder.children or warehouse_folder.children
+        children = if warehouse_folder
+          warehouse_folder.children
+            .where(warehouse_enabled: true, enabled: true)
+            .order(:order_position, :display_name)
+            .map { |wf| warehouse_folder_tree_node(wf) }
+        else
+          base_folder.children.enabled.ordered.map { |bf| base_folder_tree_node(bf, warehouse_type) }
+        end
+
+        {
+          id: "bf-#{base_folder.id}",
+          name: base_folder.name,
+          parentId: base_folder.parent_id,
+          folderPathTemplate: full_template,
+          isSystem: base_folder.is_system,
+          children: children,
+          warehouseFolder: warehouse_folder ? {
+            id: warehouse_folder.id,
+            displayName: warehouse_folder.display_name,
+            folderPath: warehouse_folder.folder_path,
+            iconName: warehouse_folder.icon_name,
+            uiName: warehouse_folder.ui_name,
+            downloadName: warehouse_folder.download_name
+          } : nil
+        }
+      end
+
+      # Build a tree node for a warehouse folder (child tabs)
+      def warehouse_folder_tree_node(folder)
+        children = folder.children
+          .where(warehouse_enabled: true, enabled: true)
+          .order(:order_position, :display_name)
+
+        {
+          id: "wf-#{folder.id}",
+          name: folder.display_name,
+          type: "category",
+          iconName: folder.icon_name || "folder",
+          warehouseType: folder.warehouse_type,
+          folderPath: folder.folder_path,
+          fullPath: folder.folder_path,
+          fileCount: 0,
+          children: children.map { |child| warehouse_folder_tree_node(child) }
         }
       end
 

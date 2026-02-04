@@ -119,6 +119,7 @@ export function WarehouseTypesTab() {
   const [formData, setFormData] = React.useState<FormData>(defaultFormData);
   const [baseFolderToggles, setBaseFolderToggles] = React.useState<BaseFolderToggle[]>([]);
   const [baseFolderSearch, setBaseFolderSearch] = React.useState("");
+  const [showAvailableFolders, setShowAvailableFolders] = React.useState(false);
   const [showSystemTypes, setShowSystemTypes] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [sortField, setSortField] = React.useState<SortField>("code");
@@ -268,6 +269,7 @@ export function WarehouseTypesTab() {
     setFormData(defaultFormData);
     setBaseFolderToggles([]);
     setBaseFolderSearch("");
+    setShowAvailableFolders(false);
   };
 
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
@@ -292,20 +294,24 @@ export function WarehouseTypesTab() {
     console.log("🔴 formData:", JSON.stringify(formData));
     console.log("🔴 editingType:", editingType ? JSON.stringify({ id: editingType.id, code: editingType.code }) : "null");
 
-    // Reassign base folders if editing
+    // Update base folder assignments using the dedicated endpoint
+    // This handles BOTH adding AND removing folders from this warehouse type
     if (editingType && baseFolderToggles.length > 0) {
-      for (const toggle of baseFolderToggles) {
-        // If checked (enabled) but not currently assigned to this type → reassign it
-        if (toggle.enabled && toggle.warehouse_type_id !== editingType.id) {
-          try {
-            await updateBaseFolderMutation.mutateAsync({
-              id: toggle.id,
-              warehouse_type_id: editingType.id,
-            });
-          } catch (err) {
-            console.error(`Failed to reassign base folder ${toggle.id}:`, err);
-          }
-        }
+      const selectedFolderIds = baseFolderToggles
+        .filter(bf => bf.enabled)
+        .map(bf => bf.id);
+
+      console.log("🟣 [WarehouseTypes] Updating base folder assignments");
+      console.log("🟣 Selected folder IDs:", selectedFolderIds);
+
+      try {
+        await api.patch(`/api/v1/warehouse_types/${editingType.id}/update_base_folders`, {
+          base_folder_ids: selectedFolderIds,
+        });
+        console.log("🟣 Base folder assignments updated successfully");
+      } catch (err) {
+        console.error("Failed to update base folder assignments:", err);
+        toast.error("Failed to update base folder assignments");
       }
     }
 
@@ -614,36 +620,34 @@ export function WarehouseTypesTab() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">Code</Label>
-                <Input
-                  id="code"
-                  value={formData.code}
-                  onChange={(e) =>
-                    setFormData(prev => ({ ...prev, code: e.target.value.toLowerCase() }))
-                  }
-                  placeholder="e.g., job, contact, email"
-                  disabled={editingType?.is_system}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Lowercase letters, numbers, and underscores only
-                </p>
+            <div className="space-y-3 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="code">Code</Label>
+                  <Input
+                    id="code"
+                    value={formData.code}
+                    onChange={(e) =>
+                      setFormData(prev => ({ ...prev, code: e.target.value.toLowerCase() }))
+                    }
+                    placeholder="e.g., job"
+                    disabled={editingType?.is_system}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="display_name">Display Name</Label>
+                  <Input
+                    id="display_name"
+                    value={formData.display_name}
+                    onChange={(e) =>
+                      setFormData(prev => ({ ...prev, display_name: e.target.value }))
+                    }
+                    placeholder="e.g., Job"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="display_name">Display Name</Label>
-                <Input
-                  id="display_name"
-                  value={formData.display_name}
-                  onChange={(e) =>
-                    setFormData(prev => ({ ...prev, display_name: e.target.value }))
-                  }
-                  placeholder="e.g., Job, Contact, Email"
-                />
-              </div>
-
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
@@ -652,23 +656,35 @@ export function WarehouseTypesTab() {
                     setFormData(prev => ({ ...prev, description: e.target.value }))
                   }
                   placeholder="Optional description"
-                  rows={2}
+                  rows={1}
+                  className="min-h-[36px] resize-none"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="icon_name">Icon Name</Label>
-                <Input
-                  id="icon_name"
-                  value={formData.icon_name}
-                  onChange={(e) =>
-                    setFormData(prev => ({ ...prev, icon_name: e.target.value }))
-                  }
-                  placeholder="e.g., Briefcase, FileText"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Lucide icon name (optional)
-                </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="icon_name">Icon Name</Label>
+                  <Input
+                    id="icon_name"
+                    value={formData.icon_name}
+                    onChange={(e) =>
+                      setFormData(prev => ({ ...prev, icon_name: e.target.value }))
+                    }
+                    placeholder="e.g., Briefcase"
+                  />
+                </div>
+                <div className="flex items-end pb-1">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="enabled"
+                      checked={formData.enabled}
+                      onCheckedChange={(checked) =>
+                        setFormData(prev => ({ ...prev, enabled: checked as boolean }))
+                      }
+                    />
+                    <Label htmlFor="enabled">Enabled</Label>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -698,62 +714,58 @@ export function WarehouseTypesTab() {
                 <p className="text-xs text-muted-foreground">
                   Full path: <code className="bg-muted px-1 rounded">{formData.display_name || "TypeName"}/{formData.folder_path_template || "..."}</code>
                 </p>
-                <div className="text-xs text-muted-foreground space-y-2">
-                  <p>Click tokens to add:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {[
-                      { token: "{{JobCode}}", label: "JobCode" },
-                      { token: "{{JobName}}", label: "JobName" },
-                      { token: "{{ContactName}}", label: "ContactName" },
-                      { token: "{{CompanyCode}}", label: "CompanyCode" },
-                      { token: "{{CompanyGroup}}", label: "CompanyGroup" },
-                      { token: "{{UserName}}", label: "UserName" },
-                      { token: "{{TaskId}}", label: "TaskId" },
-                      { token: "{{TaskName}}", label: "TaskName" },
-                      { token: "{{CaseId}}", label: "CaseId" },
-                      { token: "{{CaseName}}", label: "CaseName" },
-                      { token: "{{AssetCode}}", label: "AssetCode" },
-                      { token: "{{Mailbox}}", label: "Mailbox" },
-                      { token: "{{Year}}", label: "Year" },
-                      { token: "{{Month}}", label: "Month" },
-                    ].map(({ token, label }) => (
-                      <button
-                        key={token}
-                        type="button"
-                        onClick={() => {
-                          console.log("🔷🔷🔷 [Token button] clicked:", token);
-                          setFormData(prev => {
-                            const current = prev.folder_path_template;
-                            console.log("🔷 Token: current value:", current);
-                            let newPath: string;
-                            if (!current) {
-                              newPath = token;
-                            } else if (current.endsWith("/")) {
-                              newPath = current + token;
-                            } else {
-                              newPath = current + "/" + token;
-                            }
-                            console.log("🔷 Token: new value:", newPath);
-                            return { ...prev, folder_path_template: newPath };
-                          });
-                        }}
-                        className="px-2 py-0.5 text-[10px] font-mono bg-muted hover:bg-muted/80 rounded border cursor-pointer transition-colors"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="text-xs text-muted-foreground">
+                  <span className="mr-1">Tokens:</span>
+                  {[
+                    { token: "{{JobCode}}", label: "JobCode" },
+                    { token: "{{JobName}}", label: "JobName" },
+                    { token: "{{ContactName}}", label: "ContactName" },
+                    { token: "{{CompanyCode}}", label: "CompanyCode" },
+                    { token: "{{CompanyGroup}}", label: "CompanyGroup" },
+                    { token: "{{UserName}}", label: "UserName" },
+                    { token: "{{TaskId}}", label: "TaskId" },
+                    { token: "{{TaskName}}", label: "TaskName" },
+                    { token: "{{CaseId}}", label: "CaseId" },
+                    { token: "{{CaseName}}", label: "CaseName" },
+                    { token: "{{AssetCode}}", label: "AssetCode" },
+                    { token: "{{Mailbox}}", label: "Mailbox" },
+                    { token: "{{Year}}", label: "Year" },
+                    { token: "{{Month}}", label: "Month" },
+                  ].map(({ token, label }) => (
+                    <button
+                      key={token}
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => {
+                          const current = prev.folder_path_template;
+                          let newPath: string;
+                          if (!current) {
+                            newPath = token;
+                          } else if (current.endsWith("/")) {
+                            newPath = current + token;
+                          } else {
+                            newPath = current + "/" + token;
+                          }
+                          return { ...prev, folder_path_template: newPath };
+                        });
+                      }}
+                      className="px-1.5 py-0.5 text-[10px] font-mono bg-muted hover:bg-muted/80 rounded border cursor-pointer transition-colors mr-1 mb-1"
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               {/* Base Folders - only show when editing */}
               {editingType && baseFolderToggles.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Base Folders</Label>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Select which folders are enabled for this warehouse type
-                  </p>
-                  {/* Search input for base folders */}
+                  <div className="flex items-center justify-between">
+                    <Label>Base Folders</Label>
+                    <span className="text-xs text-muted-foreground">
+                      {baseFolderToggles.filter(bf => bf.enabled).length} assigned
+                    </span>
+                  </div>
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -763,109 +775,45 @@ export function WarehouseTypesTab() {
                       className="pl-8 h-9"
                     />
                   </div>
-                  <div className="border rounded-md p-3 space-y-1 max-h-[200px] overflow-y-auto">
-                    {(() => {
-                      const filtered = baseFolderToggles
-                        .filter((bf) =>
-                          baseFolderSearch.trim() === "" ||
-                          bf.name.toLowerCase().includes(baseFolderSearch.toLowerCase()) ||
-                          bf.warehouse_type_name?.toLowerCase().includes(baseFolderSearch.toLowerCase())
-                        )
-                        .sort((a, b) => {
-                          if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
-                          return a.name.localeCompare(b.name);
-                        });
-
-                      const selected = filtered.filter(bf => bf.enabled);
-                      const available = filtered.filter(bf => !bf.enabled);
-
-                      return (
-                        <>
-                          {selected.length > 0 && (
-                            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide pb-1">
-                              Assigned ({selected.length})
-                            </div>
+                  <div className="border rounded-md p-2 max-h-[140px] overflow-y-auto">
+                    {baseFolderToggles
+                      .filter((bf) =>
+                        baseFolderSearch.trim() === "" ||
+                        bf.name.toLowerCase().includes(baseFolderSearch.toLowerCase())
+                      )
+                      .sort((a, b) => {
+                        if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+                        return a.name.localeCompare(b.name);
+                      })
+                      .map((bf) => (
+                        <div
+                          key={bf.id}
+                          className={cn(
+                            "flex items-center gap-2 hover:bg-muted/50 p-1 rounded",
+                            !bf.enabled && "opacity-50"
                           )}
-                          {selected.map((bf) => (
-                            <div
-                              key={bf.id}
-                              className="flex items-center gap-2 hover:bg-muted/50 p-1.5 rounded"
-                            >
-                              <Checkbox
-                                id={`bf-${bf.id}`}
-                                checked={bf.enabled}
-                                onCheckedChange={() => toggleBaseFolder(bf.id)}
-                              />
-                              <label
-                                htmlFor={`bf-${bf.id}`}
-                                className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
-                              >
-                                <Folder className="h-3 w-3 text-muted-foreground shrink-0" />
-                                <span className="truncate">{bf.name}</span>
-                                {bf.is_system && (
-                                  <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
-                                )}
-                              </label>
-                            </div>
-                          ))}
-                          {selected.length > 0 && available.length > 0 && (
-                            <div className="border-t my-2" />
-                          )}
-                          {available.length > 0 && (
-                            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide pb-1">
-                              Available ({available.length})
-                            </div>
-                          )}
-                          {available.map((bf) => (
-                            <div
-                              key={bf.id}
-                              className="flex items-center gap-2 hover:bg-muted/50 p-1.5 rounded opacity-60"
-                            >
-                              <Checkbox
-                                id={`bf-${bf.id}`}
-                                checked={bf.enabled}
-                                onCheckedChange={() => toggleBaseFolder(bf.id)}
-                              />
-                              <label
-                                htmlFor={`bf-${bf.id}`}
-                                className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
-                              >
-                                <Folder className="h-3 w-3 text-muted-foreground shrink-0" />
-                                <span className="truncate">{bf.name}</span>
-                                {bf.is_system && (
-                                  <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
-                                )}
-                                <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
-                                  ({bf.warehouse_type_name})
-                                </span>
-                              </label>
-                            </div>
-                          ))}
-                          {filtered.length === 0 && baseFolderSearch && (
-                            <p className="text-sm text-muted-foreground text-center py-2">
-                              No folders matching &quot;{baseFolderSearch}&quot;
-                            </p>
-                          )}
-                        </>
-                      );
-                    })()}
+                        >
+                          <Checkbox
+                            id={`bf-${bf.id}`}
+                            checked={bf.enabled}
+                            onCheckedChange={() => toggleBaseFolder(bf.id)}
+                          />
+                          <label
+                            htmlFor={`bf-${bf.id}`}
+                            className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
+                          >
+                            <Folder className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span className="truncate">{bf.name}</span>
+                          </label>
+                        </div>
+                      ))}
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="enabled"
-                  checked={formData.enabled}
-                  onCheckedChange={(checked) =>
-                    setFormData(prev => ({ ...prev, enabled: checked as boolean }))
-                  }
-                />
-                <Label htmlFor="enabled">Enabled</Label>
-              </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="pt-4 mt-2">
               <Button type="button" variant="outline" onClick={closeDialog}>
                 Cancel
               </Button>

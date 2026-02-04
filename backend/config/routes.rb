@@ -3044,6 +3044,7 @@ Rails.application.routes.draw do
       resources :warehouse_types do
         collection do
           get :options  # For select dropdowns
+          get :tree     # For File Warehouse page tree view
         end
         member do
           patch :update_base_folders  # Batch update base folder assignments

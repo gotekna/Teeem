@@ -134,6 +134,10 @@ interface TreeNode {
   fullPath?: string;
   // SSoT: Folder path template (e.g., "{{CompanyGroup}}/{{CompanyCode}}")
   pathTemplate?: string;
+  // SSoT: Source type for WarehouseDocument queries (e.g., "task", "email", "job")
+  sourceType?: string;
+  // SSoT: Is this a virtual folder (has template tokens, loads from DB not S3)?
+  isVirtual?: boolean;
   // Loading state progress
   progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };
   // External link - when set, double-clicking folder navigates to this URL
@@ -233,6 +237,7 @@ interface WarehouseTabFolder {
 }
 
 // SSoT: Warehouse folder tree from database (Feb 2026)
+// OLD format - kept for backwards compatibility during migration
 interface WarehouseTreeNode {
   id: string;
   name: string;
@@ -243,6 +248,47 @@ interface WarehouseTreeNode {
   fullPath: string | null;
   fileCount: number;
   children: WarehouseTreeNode[];
+}
+
+// NEW format: Warehouse type as top-level tree node (Feb 2026)
+interface WarehouseTypeTreeNode {
+  id: string;  // "wt-job", "wt-corporate", etc.
+  code: string;  // "job", "corporate", etc.
+  displayName: string;
+  iconName: string | null;
+  orderPosition: number;
+  folderPathTemplate: string | null;
+  fileCount: number;
+  baseFolders: BaseFolderTreeNode[];
+}
+
+interface BaseFolderTreeNode {
+  id: string;  // "bf-123"
+  name: string;
+  parentId: number | null;
+  folderPathTemplate: string | null;
+  isSystem: boolean;
+  children: WarehouseFolderTreeNode[];
+  warehouseFolder: {
+    id: number;
+    displayName: string;
+    folderPath: string | null;
+    iconName: string | null;
+    uiName: string | null;
+    downloadName: string | null;
+  } | null;
+}
+
+interface WarehouseFolderTreeNode {
+  id: string;  // "wf-456"
+  name: string;
+  type: "category";
+  iconName: string | null;
+  warehouseType: string | null;
+  folderPath: string | null;
+  fullPath: string | null;
+  fileCount: number;
+  children: WarehouseFolderTreeNode[];
 }
 
 // Icon mapping for all storage scopes - matches WarehouseProvider.SCOPE_FOLDERS
@@ -384,7 +430,7 @@ export default function AllDocumentsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("tree");
   const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["job", "corporate", "contact"]));
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["wt-job", "wt-corporate", "wt-contact"]));
   const [loading, setLoading] = useState(true);
   const [documents, setDocuments] = useState<{
     jobs: DocumentItem[];
@@ -464,9 +510,9 @@ export default function AllDocumentsPage() {
     people: ScopeHierarchyItem[];
   }>({ corporate: [], job: [], people: [] });
 
-  // SSoT: Warehouse folder tree from database (Feb 2026)
-  // This is THE source of truth for folder structure - configured in admin settings
-  const [warehouseTree, setWarehouseTree] = useState<WarehouseTreeNode[]>([]);
+  // SSoT: Warehouse types tree from database (Feb 2026)
+  // This is THE source of truth for folder structure - warehouse_types as top level
+  const [warehouseTypesTree, setWarehouseTypesTree] = useState<WarehouseTypeTreeNode[]>([]);
   const [warehouseTreeLoading, setWarehouseTreeLoading] = useState(true);
 
   // SSoT: S3 folder contents - loaded lazily when expanding folders
@@ -558,35 +604,35 @@ export default function AllDocumentsPage() {
     fetchStorageConfig();
   }, []);
 
-  // SSoT: Fetch folder tree from warehouse_folders table (Feb 2026)
-  // This is THE source of truth for folder structure - replaces S3 browsing
+  // SSoT: Fetch folder tree from warehouse_types table (Feb 2026)
+  // This is THE source of truth for folder structure - warehouse types as top level
   useEffect(() => {
-    const fetchWarehouseTree = async () => {
+    const fetchWarehouseTypesTree = async () => {
       setWarehouseTreeLoading(true);
       try {
         const response = await api.get<{
           success: boolean;
           data: {
-            tree: WarehouseTreeNode[];
+            tree: WarehouseTypeTreeNode[];
             counts: Record<string, number>;
             total: number;
           };
-        }>("/api/v1/warehouse_folders/tree");
+        }>("/api/v1/warehouse_types/tree");
 
         if (response?.success && response.data) {
-          setWarehouseTree(response.data.tree);
+          setWarehouseTypesTree(response.data.tree);
           // Update counts from the API response
           if (response.data.counts) {
             setCounts(prev => ({ ...prev, ...response.data.counts, total: response.data.total }));
           }
         }
       } catch (err) {
-        console.error("Failed to fetch warehouse folder tree:", err);
+        console.error("Failed to fetch warehouse types tree:", err);
       } finally {
         setWarehouseTreeLoading(false);
       }
     };
-    fetchWarehouseTree();
+    fetchWarehouseTypesTree();
   }, []);
 
   // SSoT: Fetch all configured folders from Entity Configurator
@@ -1241,14 +1287,16 @@ export default function AllDocumentsPage() {
   }, [documents, searchQuery]);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // SSoT: WAREHOUSE FOLDERS - Tree shows configured folder structure from database
-  // warehouse_folders table = SSoT for DISPLAY (admin-configured structure)
+  // SSoT: WAREHOUSE TYPES - Tree shows warehouse types as top level (Feb 2026)
+  // warehouse_types table = SSoT for TOP LEVEL (Job, Corporate, Contact, etc.)
+  // base_folders = Children of warehouse types
+  // warehouse_folders = Children of base folders (tabs)
   // S3 = SSoT for file contents (loaded on expand)
   // ═══════════════════════════════════════════════════════════════════════════
   const treeData = useMemo((): TreeNode[] => {
 
     // Map icon names to React components
-    const getIconComponent = (iconName: string, folderName: string): React.ReactNode => {
+    const getIconComponent = (iconName: string | null, folderName: string): React.ReactNode => {
       // First try the icon name from the database
       if (iconName && SCOPE_ICONS[iconName]) {
         return SCOPE_ICONS[iconName];
@@ -1270,16 +1318,13 @@ export default function AllDocumentsPage() {
       return <Folder className="h-4 w-4" />;
     };
 
-    // Convert WarehouseTreeNode to TreeNode recursively
-    const convertToTreeNode = (node: WarehouseTreeNode): TreeNode => {
-      // Check if S3 content has been loaded for this folder
-      const s3Data = node.fullPath ? s3Folders[node.fullPath] : undefined;
+    // Build S3 file nodes for a folder path
+    const buildS3FileNodes = (folderPath: string | null): TreeNode[] => {
+      if (!folderPath) return [];
+      const s3Data = s3Folders[folderPath];
+      if (!s3Data?.files) return [];
 
-      // Build children: first from warehouse_folders, then add S3 files if loaded
-      const warehouseChildren = node.children.map(convertToTreeNode);
-
-      // Add S3 files if the folder has been expanded and loaded
-      const s3Files: TreeNode[] = s3Data?.files?.map(file => ({
+      return s3Data.files.map(file => ({
         id: `s3-file-${(file.path || "").replace(/\//g, "-")}`,
         name: file.name,
         type: "file" as const,
@@ -1297,16 +1342,76 @@ export default function AllDocumentsPage() {
           createdAt: new Date().toISOString(),
           isImage: /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name),
         },
-      })) || [];
+      }));
+    };
+
+    // Convert WarehouseFolderTreeNode (tabs) to TreeNode recursively
+    // sourceType is passed down from warehouse type for WarehouseDocument queries
+    const convertWarehouseFolderToTreeNode = (folder: WarehouseFolderTreeNode, sourceType: string): TreeNode => {
+      const folderPath = folder.fullPath || folder.folderPath;
+      // Check if path contains template tokens (virtual folder)
+      const isVirtual = folderPath?.includes('{{') || false;
+      const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath); // Don't build S3 files for virtual folders
+      const children = folder.children.map(child => convertWarehouseFolderToTreeNode(child, sourceType));
 
       return {
-        id: node.id,
-        name: node.name,
+        id: folder.id,
+        name: folder.name,
         type: "category" as const,
-        icon: getIconComponent(node.icon, node.name),
-        fullPath: node.fullPath || node.folderPath || undefined,
-        fileCount: node.fileCount,
-        children: [...warehouseChildren, ...s3Files],
+        icon: getIconComponent(folder.iconName, folder.name),
+        fullPath: folderPath || undefined,
+        fileCount: folder.fileCount,
+        sourceType,
+        isVirtual,
+        children: [...children, ...s3Files],
+      };
+    };
+
+    // Convert BaseFolderTreeNode to TreeNode
+    // sourceType is passed down from warehouse type for WarehouseDocument queries
+    const convertBaseFolderToTreeNode = (baseFolder: BaseFolderTreeNode, sourceType: string): TreeNode => {
+      // Use warehouse folder's folder_path if available for S3 loading
+      const folderPath = baseFolder.warehouseFolder?.folderPath || baseFolder.folderPathTemplate;
+      // Check if path contains template tokens (virtual folder)
+      const isVirtual = folderPath?.includes('{{') || false;
+      const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath); // Don't build S3 files for virtual folders
+      const children = baseFolder.children.map(child => convertWarehouseFolderToTreeNode(child, sourceType));
+
+      return {
+        id: baseFolder.id,
+        name: baseFolder.warehouseFolder?.displayName || baseFolder.name,
+        type: "category" as const,
+        icon: getIconComponent(baseFolder.warehouseFolder?.iconName || null, baseFolder.name),
+        fullPath: folderPath || undefined,
+        pathTemplate: baseFolder.folderPathTemplate || undefined,
+        fileCount: 0,
+        sourceType,
+        isVirtual,
+        children: [...children, ...s3Files],
+      };
+    };
+
+    // Convert WarehouseTypeTreeNode to TreeNode (top level)
+    const convertWarehouseTypeToTreeNode = (warehouseType: WarehouseTypeTreeNode): TreeNode => {
+      // For warehouse types, the fullPath is the folder_path_template (e.g., "Jobs/{{JobCode}}")
+      const folderPath = warehouseType.folderPathTemplate?.split('/')[0]; // Get the root folder name
+      // Check if warehouse type has template tokens (virtual)
+      const isVirtual = warehouseType.folderPathTemplate?.includes('{{') || false;
+      const s3Files = isVirtual ? [] : (folderPath ? buildS3FileNodes(folderPath) : []);
+      // Pass sourceType (warehouse type code) to all children for WarehouseDocument queries
+      const children = warehouseType.baseFolders.map(bf => convertBaseFolderToTreeNode(bf, warehouseType.code));
+
+      return {
+        id: warehouseType.id,
+        name: warehouseType.displayName,
+        type: "category" as const,
+        icon: getIconComponent(warehouseType.iconName, warehouseType.code),
+        fullPath: folderPath || undefined,
+        pathTemplate: warehouseType.folderPathTemplate || undefined,
+        fileCount: warehouseType.fileCount,
+        sourceType: warehouseType.code,
+        isVirtual,
+        children: [...children, ...s3Files],
       };
     };
 
@@ -1319,13 +1424,94 @@ export default function AllDocumentsPage() {
       }];
     }
 
-    // Convert warehouse tree to TreeNode format
-    return warehouseTree.map(convertToTreeNode);
-  }, [warehouseTree, warehouseTreeLoading, s3Folders]);
+    // Convert warehouse types tree to TreeNode format
+    return warehouseTypesTree.map(convertWarehouseTypeToTreeNode);
+  }, [warehouseTypesTree, warehouseTreeLoading, s3Folders]);
 
-  // Toggle folder expansion and fetch S3 folders if needed
-  // SSoT: Pure S3 Browsing - ALL folders come from Wasabi
-  const toggleFolder = useCallback((folderId: string, folderPath?: string, externalLink?: string) => {
+  // Fetch files for virtual folders from WarehouseDocument table
+  // Virtual folders have template tokens ({{TaskId}}, {{JobCode}}) and can't use S3 browsing
+  const fetchVirtualFolderFiles = useCallback(async (sourceType: string, folderName: string, scopeKey: string) => {
+    // Already loaded or loading
+    if (s3Folders[scopeKey] || loadingS3Folders.has(scopeKey)) return;
+
+    setLoadingS3Folders(prev => new Set(prev).add(scopeKey));
+    try {
+      // Fetch from WarehouseDocument by source_type and optional folder filter
+      // Backend returns: { success, documents, folders, pagination }
+      // Note: Backend uses camelCase for document fields
+      const response = await api.get<{
+        success: boolean;
+        documents: Array<{
+          id: number;
+          displayName: string;  // UI name
+          sendName: string;     // Download filename
+          originalFilename: string;
+          folder: string;
+          fileSize: number;
+          mimeType: string;
+          source: string;       // source_type
+          createdAt: string;
+          fileUrl?: string;     // Pre-signed download URL
+          storagePath?: string;
+        }>;
+        folders: Array<{ name: string; count: number }>;
+        pagination: {
+          total: number;
+          limit: number;
+          offset: number;
+          has_more: boolean;
+        };
+      }>(`/api/v1/documents/warehouse?source_type=${encodeURIComponent(sourceType)}&folder=${encodeURIComponent(folderName)}&limit=500`);
+
+      if (response?.success) {
+        // Convert WarehouseDocument records to s3Folders format for UI compatibility
+        const files = (response.documents || []).map(doc => ({
+          name: doc.displayName || doc.sendName || doc.originalFilename,
+          path: `${sourceType}/${doc.folder || ''}/${doc.displayName}`.replace(/\/+/g, '/'),
+          size: doc.fileSize || 0,
+          content_type: doc.mimeType || 'application/octet-stream',
+          url: doc.fileUrl,
+          id: doc.id,
+          warehouse_document_id: doc.id,
+        }));
+
+        // Convert folders for drill-down
+        const folders = (response.folders || []).map(f => ({
+          name: f.name,
+          path: `${sourceType}/${folderName}/${f.name}`.replace(/\/+/g, '/'),
+          count: f.count,
+        }));
+
+        setS3Folders(prev => ({
+          ...prev,
+          [scopeKey]: { folders, files },
+        }));
+      }
+    } catch (err) {
+      console.error(`Failed to fetch virtual folder files for ${sourceType}/${folderName}:`, err);
+      // Set empty to prevent re-fetching
+      setS3Folders(prev => ({
+        ...prev,
+        [scopeKey]: { folders: [], files: [] },
+      }));
+    } finally {
+      setLoadingS3Folders(prev => {
+        const next = new Set(prev);
+        next.delete(scopeKey);
+        return next;
+      });
+    }
+  }, [s3Folders, loadingS3Folders]);
+
+  // Toggle folder expansion and fetch folder contents
+  // SSoT: Virtual folders load from WarehouseDocument, physical folders from S3
+  const toggleFolder = useCallback((
+    folderId: string,
+    folderPath?: string,
+    externalLink?: string,
+    sourceType?: string,
+    isVirtual?: boolean
+  ) => {
     // If folder has external link (e.g., Emails → /email), navigate instead of expanding
     if (externalLink) {
       router.push(externalLink);
@@ -1346,12 +1532,19 @@ export default function AllDocumentsPage() {
       return next;
     });
 
-    // If expanding (not collapsing), fetch S3 folder contents
-    // SSoT: All folders are S3-driven (Pure S3 Browsing)
-    if (!wasExpanded && folderPath) {
-      fetchS3Folders(folderPath);
+    // If expanding (not collapsing), fetch folder contents
+    if (!wasExpanded) {
+      if (isVirtual && sourceType) {
+        // Virtual folder - fetch from WarehouseDocument
+        // Use folderId as scope key for caching
+        const folderName = folderPath || '';
+        fetchVirtualFolderFiles(sourceType, folderName, folderId);
+      } else if (folderPath) {
+        // Physical folder - fetch from S3
+        fetchS3Folders(folderPath);
+      }
     }
-  }, [expandedFolders, fetchS3Folders, router]);
+  }, [expandedFolders, fetchS3Folders, fetchVirtualFolderFiles, router]);
 
   // Open file in new window (for double-click)
   const openFileInNewWindow = useCallback((doc: DocumentItem) => {
@@ -1805,16 +1998,18 @@ export default function AllDocumentsPage() {
     };
 
     const folderPath = getFolderPath();
+    // For virtual folders, use node.id as the cache key (since path has templates)
+    const cacheKey = node.isVirtual ? node.id : folderPath;
     // Check both folder loading and S3 folder loading states
-    const isLoading = loadingFolders.has(node.id) || (folderPath ? loadingS3Folders.has(folderPath) : false);
+    const isLoading = loadingFolders.has(node.id) || (cacheKey ? loadingS3Folders.has(cacheKey) : false);
     const loadedFiles = folderFiles[node.id] || [];
     const hasLoadedFiles = loadedFiles.length > 0;
-    // Check if S3 folder data is loaded for this path
-    const s3Data = folderPath ? s3Folders[folderPath] : null;
+    // Check if S3 folder data is loaded for this path (or node.id for virtual folders)
+    const s3Data = cacheKey ? s3Folders[cacheKey] : null;
     const hasS3Data = s3Data && (s3Data.folders.length > 0 || s3Data.files.length > 0);
     // FRC (Jan 2026): Also check if folder was LOADED (even if empty)
     // This ensures "No files in this folder" renders for empty folders
-    const s3DataLoaded = folderPath ? s3Folders[folderPath] !== undefined : false;
+    const s3DataLoaded = cacheKey ? s3Folders[cacheKey] !== undefined : false;
 
     return (
       <div key={node.id}>
@@ -1829,7 +2024,7 @@ export default function AllDocumentsPage() {
             if (node.isMailbox && node.mailboxEmail) {
               handleMailboxClick(node.mailboxEmail);
             } else {
-              toggleFolder(node.id, folderPath, node.externalLink);
+              toggleFolder(node.id, folderPath, node.externalLink, node.sourceType, node.isVirtual);
             }
           }}
           onDoubleClick={() => {
@@ -1840,9 +2035,9 @@ export default function AllDocumentsPage() {
           }}
           title={node.fullPath || undefined}
         >
-          {/* Show chevron if expandable (has children OR files OR is S3-driven folder)
+          {/* Show chevron if expandable (has children OR files OR is S3-driven folder OR is virtual folder)
               BUT NOT for mailbox folders (they open drawer) or external link folders (they navigate away) */}
-          {!node.externalLink && !node.isMailbox && (hasChildren || fileCount > 0 || node.id.startsWith("s3-folder-") || ["job", "corporate", "contact", "contacts"].includes(node.id)) ? (
+          {!node.externalLink && !node.isMailbox && (hasChildren || fileCount > 0 || node.isVirtual || node.id.startsWith("s3-folder-") || ["job", "corporate", "contact", "contacts"].includes(node.id)) ? (
             isLoading ? (
               <Loader2 className="h-4 w-4 text-muted-foreground animate-spin shrink-0" />
             ) : (
