@@ -1875,8 +1875,20 @@ function TabNode({
                 const downloadTemplate = dt.download_name || '';
 
                 return (
-                  <div key={dt.id} className="text-[10px] py-0.5">
-                    {/* Document type name (actual name, not template) */}
+                  <div
+                    key={dt.id}
+                    className="text-[10px] py-0.5 px-1 -mx-1 rounded hover:bg-muted/50 cursor-pointer group/dt"
+                    onClick={() => onEditDocumentType?.({
+                      id: dt.id,
+                      name: dt.name,
+                      abbreviation: dt.abbreviation,
+                      ui_name: dt.ui_name,
+                      download_name: dt.download_name,
+                      folder_name: folderName,
+                      folder_path: currentFullPath,
+                    })}
+                  >
+                    {/* Document type name with UI/DL badges */}
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-foreground">
                         {dt.name}
@@ -1884,32 +1896,50 @@ function TabNode({
                       {dt.abbreviation && (
                         <span className="text-muted-foreground/60 text-[9px]">({dt.abbreviation})</span>
                       )}
+                      {/* UI badge */}
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[9px] px-1 py-0 h-4",
+                          uiNameTemplate
+                            ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                            : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                        )}
+                        title={`UI: ${uiNameTemplate || '(default)'}`}
+                      >
+                        UI
+                      </Badge>
+                      {/* DL badge */}
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[9px] px-1 py-0 h-4",
+                          downloadTemplate
+                            ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                            : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                        )}
+                        title={`DL: ${downloadTemplate || '(default)'}`}
+                      >
+                        DL
+                      </Badge>
+                      {/* Edit indicator */}
+                      <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/dt:opacity-100 transition-opacity" />
                     </div>
-                    {/* Document UI Name and Download Name side by side */}
-                    <div className="flex items-start gap-8 pl-2 mt-0.5">
+                    {/* Document UI Name and Download Name side by side (shown on hover or when has values) */}
+                    <div className="flex items-start gap-8 pl-2 mt-0.5 text-muted-foreground/70">
                       {/* Document UI Name (left) */}
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] text-muted-foreground/50">👁</span>
-                          <span className="font-mono text-[8px] text-muted-foreground/60">
-                            {uiNameTemplate || '(default)'}
-                          </span>
-                        </div>
-                        <span className="font-mono text-[9px] text-green-700 dark:text-green-400 pl-4">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px]">👁</span>
+                        <span className="font-mono text-[9px]">
                           {uiNameTemplate
                             ? resolveTemplatePreview(uiNameTemplate, dt)
                             : '(default)'}
                         </span>
                       </div>
                       {/* Document Download Name (right) */}
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] text-muted-foreground/50">📥</span>
-                          <span className="font-mono text-[8px] text-muted-foreground/60">
-                            {downloadTemplate || '(default)'}
-                          </span>
-                        </div>
-                        <span className="font-mono text-[9px] text-blue-700 dark:text-blue-400 pl-4">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px]">📥</span>
+                        <span className="font-mono text-[9px]">
                           {downloadTemplate
                             ? resolveTemplatePreview(downloadTemplate, dt)
                             : '(default)'}
