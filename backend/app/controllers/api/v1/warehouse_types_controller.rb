@@ -194,7 +194,10 @@ module Api
               name: bf.name,
               folder_path_template: bf.folder_path_template,
               full_path_template: full_template,
-              path_preview: bf.path_preview
+              path_preview: bf.path_preview,
+              ui_name_template: bf.ui_name_template,
+              download_name_template: bf.download_name_template,
+              is_system: bf.is_system
             }
           end,
           can_delete: warehouse_type.can_delete?,

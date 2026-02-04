@@ -577,12 +577,18 @@ export function WarehouseTypesTab() {
                   <p>Click tokens to add:</p>
                   <div className="flex flex-wrap gap-1">
                     {[
-                      { token: "{{TaskId}}", label: "TaskId" },
-                      { token: "{{TaskName}}", label: "TaskName" },
                       { token: "{{JobCode}}", label: "JobCode" },
                       { token: "{{JobName}}", label: "JobName" },
                       { token: "{{ContactName}}", label: "ContactName" },
                       { token: "{{CompanyCode}}", label: "CompanyCode" },
+                      { token: "{{CompanyGroup}}", label: "CompanyGroup" },
+                      { token: "{{UserName}}", label: "UserName" },
+                      { token: "{{TaskId}}", label: "TaskId" },
+                      { token: "{{TaskName}}", label: "TaskName" },
+                      { token: "{{CaseId}}", label: "CaseId" },
+                      { token: "{{CaseName}}", label: "CaseName" },
+                      { token: "{{AssetCode}}", label: "AssetCode" },
+                      { token: "{{Mailbox}}", label: "Mailbox" },
                       { token: "{{Year}}", label: "Year" },
                       { token: "{{Month}}", label: "Month" },
                     ].map(({ token, label }) => (

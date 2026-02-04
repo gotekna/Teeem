@@ -86,8 +86,6 @@ interface FormData {
   warehouse_type_id: number | null;
   name: string;
   folder_path_template: string;
-  download_name_template: string;
-  ui_name_template: string;
   enabled: boolean;
   order_position: number;
 }
@@ -96,8 +94,6 @@ const defaultFormData: FormData = {
   warehouse_type_id: null,
   name: "",
   folder_path_template: "",
-  download_name_template: "",
-  ui_name_template: "",
   enabled: true,
   order_position: 0,
 };
@@ -206,25 +202,11 @@ export function BaseFoldersTab() {
 
   const openEditDialog = (folder: BaseFolder) => {
     setEditingFolder(folder);
-
-    // SSoT (Feb 2026): Database stores FULL path (e.g., "Asset/Service")
-    // Strip the warehouse type's base path prefix for editing
-    // User sees just the relative part in input, with prefix shown separately
-    let pathWithoutPrefix = folder.folder_path_template || "";
-    const selectedType = warehouseTypeOptions.find(wt => wt.value === folder.warehouse_type_id);
-    if (selectedType?.base_path) {
-      const prefix = `${selectedType.base_path}/`;
-      if (pathWithoutPrefix.startsWith(prefix)) {
-        pathWithoutPrefix = pathWithoutPrefix.slice(prefix.length);
-      }
-    }
-
+    // SSoT (Feb 2026): name IS the folder path - one field serves both purposes
     setFormData({
       warehouse_type_id: folder.warehouse_type_id,
       name: folder.name,
-      folder_path_template: pathWithoutPrefix,
-      download_name_template: folder.download_name_template || "",
-      ui_name_template: folder.ui_name_template || "",
+      folder_path_template: folder.name, // Same as name (SSoT)
       enabled: folder.enabled,
       order_position: folder.order_position,
     });
@@ -244,17 +226,11 @@ export function BaseFoldersTab() {
       return;
     }
 
-    // SSoT (Feb 2026): Save FULL path (prefix + user input)
-    // What you see in "Full path:" is what gets saved to database
-    const selectedType = warehouseTypeOptions.find(wt => wt.value === formData.warehouse_type_id);
-    const basePath = selectedType?.base_path;
-
+    // SSoT (Feb 2026): name IS the folder path - one field serves both purposes
     const dataToSave = {
       ...formData,
-      // Combine prefix + user input to create full path
-      folder_path_template: basePath && formData.folder_path_template
-        ? `${basePath}/${formData.folder_path_template}`
-        : formData.folder_path_template || basePath || "",
+      // Use name as folder_path_template (SSoT: one field, not two)
+      folder_path_template: formData.name,
     };
 
     if (editingFolder) {
@@ -592,94 +568,28 @@ export function BaseFoldersTab() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="name">Name (also used as folder path)</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
                   }
-                  placeholder="e.g., Jobs, Contacts, Emails"
-                  disabled={editingFolder?.is_system}
+                  placeholder="e.g., Responses, Attachments, Documents"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="folder_path_template">Folder Path Template</Label>
-                {(() => {
-                  const selectedType = warehouseTypeOptions.find(wt => wt.value === formData.warehouse_type_id);
-                  const basePath = selectedType?.base_path;
-
-                  return (
-                    <>
-                      <div className="flex items-center gap-0">
-                        {/* Fixed prefix showing warehouse type's base path */}
-                        {basePath && (
-                          <div className="px-3 py-2 text-sm font-mono bg-muted border border-r-0 rounded-l-md text-muted-foreground whitespace-nowrap">
-                            {basePath}/
-                          </div>
-                        )}
-                        <Input
-                          id="folder_path_template"
-                          value={formData.folder_path_template}
-                          onChange={(e) =>
-                            setFormData({ ...formData, folder_path_template: e.target.value })
-                          }
-                          placeholder={basePath ? "Subfolder name" : "e.g., Jobs/{{JobCode}}/{{Category}}"}
-                          className={`font-mono text-sm ${basePath ? "rounded-l-none" : ""}`}
-                        />
-                      </div>
-                      {basePath && formData.folder_path_template && (
-                        <p className="text-xs text-muted-foreground">
-                          Full path: <code className="bg-muted px-1 rounded">{basePath}/{formData.folder_path_template}</code>
-                        </p>
-                      )}
-                    </>
-                  );
-                })()}
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p>Use {"{{token}}"} for dynamic values:</p>
-                  <ul className="list-disc list-inside pl-2 space-y-0.5">
-                    <li><code className="text-[10px] bg-muted px-1 rounded">{"{{JobCode}}"}</code> - Job code (e.g., J-001)</li>
-                    <li><code className="text-[10px] bg-muted px-1 rounded">{"{{ContactName}}"}</code> - Contact name</li>
-                    <li><code className="text-[10px] bg-muted px-1 rounded">{"{{CompanyCode}}"}</code> - Company code</li>
-                    <li><code className="text-[10px] bg-muted px-1 rounded">{"{{Year}}"}</code> / <code className="text-[10px] bg-muted px-1 rounded">{"{{Month}}"}</code> - Date parts</li>
-                    <li><code className="text-[10px] bg-muted px-1 rounded">{"{{Mailbox}}"}</code> - <strong>Dynamic:</strong> Auto-expands to show all synced mailboxes</li>
-                  </ul>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="download_name_template">Download Name Template</Label>
-                <Input
-                  id="download_name_template"
-                  value={formData.download_name_template}
-                  onChange={(e) =>
-                    setFormData({ ...formData, download_name_template: e.target.value })
-                  }
-                  placeholder="e.g., {Subject} - {Date}.eml"
-                  className="font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Template for download filenames
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="ui_name_template">UI Name Template</Label>
-                <Input
-                  id="ui_name_template"
-                  value={formData.ui_name_template}
-                  onChange={(e) =>
-                    setFormData({ ...formData, ui_name_template: e.target.value })
-                  }
-                  placeholder="e.g., {Subject}"
-                  className="font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Template for display names in UI
-                </p>
-              </div>
+              {/* Full path preview - uses name as folder path */}
+              {(() => {
+                const selectedType = warehouseTypeOptions.find(wt => wt.value === formData.warehouse_type_id);
+                const basePath = selectedType?.base_path;
+                if (!basePath || !formData.name) return null;
+                return (
+                  <div className="text-xs text-muted-foreground">
+                    Full path: <code className="bg-muted px-1 rounded font-mono">{basePath}/{formData.name}</code>
+                  </div>
+                );
+              })()}
 
               <div className="flex items-center gap-2">
                 <Switch
@@ -693,20 +603,41 @@ export function BaseFoldersTab() {
               </div>
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={closeDialog}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
-              >
-                {createMutation.isPending || updateMutation.isPending
-                  ? "Saving..."
-                  : editingFolder
-                  ? "Update"
-                  : "Create"}
-              </Button>
+            <DialogFooter className="flex justify-between sm:justify-between">
+              {/* Delete button - only show for non-system folders when editing */}
+              {editingFolder && !editingFolder.is_system ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => {
+                    if (confirm(`Delete base folder "${editingFolder.name}"?`)) {
+                      deleteMutation.mutate(editingFolder.id);
+                      closeDialog();
+                    }
+                  }}
+                  disabled={deleteMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete
+                </Button>
+              ) : (
+                <div /> // Spacer
+              )}
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={closeDialog}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                >
+                  {createMutation.isPending || updateMutation.isPending
+                    ? "Saving..."
+                    : editingFolder
+                    ? "Update"
+                    : "Create"}
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </DialogContent>
