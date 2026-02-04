@@ -150,16 +150,21 @@ export function WarehouseTypesTab() {
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: FormData }) => {
-      return api.patch<{ success: boolean; data: WarehouseType }>(`/api/v1/warehouse_types/${id}`, {
+      console.log("[WarehouseTypes] updateMutation.mutationFn called", { id, data });
+      const response = await api.patch<{ success: boolean; data: WarehouseType }>(`/api/v1/warehouse_types/${id}`, {
         warehouse_type: data,
       });
+      console.log("[WarehouseTypes] updateMutation response", response);
+      return response;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("[WarehouseTypes] updateMutation.onSuccess", data);
       queryClient.invalidateQueries({ queryKey: ["warehouse-types"] });
       toast.success("Warehouse type updated successfully");
       closeDialog();
     },
     onError: (error: Error) => {
+      console.error("[WarehouseTypes] updateMutation.onError", error);
       toast.error(`Failed to update: ${error.message}`);
     },
   });
@@ -249,8 +254,8 @@ export function WarehouseTypesTab() {
     setBaseFolderSearch("");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) e.preventDefault();
 
     // Build full path with display_name prefix
     const dataToSave = {
@@ -259,6 +264,8 @@ export function WarehouseTypesTab() {
         ? `${formData.display_name}/${formData.folder_path_template}`
         : formData.display_name || "",
     };
+
+    console.log("[WarehouseTypes] handleSubmit called", { editingType: editingType?.id, dataToSave });
 
     // Reassign base folders if editing
     if (editingType && baseFolderToggles.length > 0) {
@@ -278,8 +285,10 @@ export function WarehouseTypesTab() {
     }
 
     if (editingType) {
+      console.log("[WarehouseTypes] Calling updateMutation.mutate for id:", editingType.id);
       updateMutation.mutate({ id: editingType.id, data: dataToSave });
     } else {
+      console.log("[WarehouseTypes] Calling createMutation.mutate");
       createMutation.mutate(dataToSave);
     }
   };
@@ -813,8 +822,9 @@ export function WarehouseTypesTab() {
                 Cancel
               </Button>
               <Button
-                type="submit"
+                type="button"
                 disabled={createMutation.isPending || updateMutation.isPending}
+                onClick={handleSubmit}
               >
                 {createMutation.isPending || updateMutation.isPending
                   ? "Saving..."

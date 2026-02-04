@@ -1736,8 +1736,9 @@ function TabNode({
   const hasPlaceholder = /\{\{TabName\}\}|\{\{TeeemXL\}\}/i.test(basePath);
 
   // Check if storedFolderPath already contains scope tokens (meaning it's already a full path)
+  // FRC (Feb 2026): Include ALL scope tokens, not just a subset
   const pathAlreadyContainsScopeTokens = storedFolderPath &&
-    /\{\{(CompanyGroup|CompanyCode|JobCode|ContactName|Year|Month|Mailbox)\}\}/i.test(storedFolderPath);
+    /\{\{(CompanyGroup|CompanyCode|JobCode|ContactName|CaseId|CaseName|AssetCode|TaskId|TaskName|Year|Month|Mailbox)\}\}/i.test(storedFolderPath);
 
   // If stored path already has scope tokens, use it directly; otherwise build the full path
   const currentFullPath = pathAlreadyContainsScopeTokens && storedFolderPath
