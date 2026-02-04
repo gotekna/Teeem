@@ -129,8 +129,11 @@ class BaseFolder < ApplicationRecord
     if wt_template.blank?
       ancestor_path
     else
+      # FRC (Feb 2026): Compare first FOLDER exactly, not string prefix
+      # "Assets".start_with?("Asset") was returning true incorrectly
       scope_root = wt_template.split('/').first
-      if ancestor_path.start_with?(scope_root)
+      first_folder = ancestor_path.split('/').first
+      if first_folder == scope_root
         ancestor_path
       else
         "#{wt_template}/#{ancestor_path}"

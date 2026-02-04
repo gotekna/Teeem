@@ -292,8 +292,10 @@ module Api
 
         # SSoT: Prepend scope root folder if path doesn't already include it
         # Task folders are stored as "Tasks/123/Attachments" but frontend sends "123/Attachments"
+        # FRC (Feb 2026): Compare first FOLDER exactly, not string prefix
         scope_root = scope_base_folder(scope)
-        full_path = if base_path.present? && scope_root.present? && !base_path.start_with?(scope_root)
+        first_folder = base_path.to_s.split('/').first
+        full_path = if base_path.present? && scope_root.present? && first_folder != scope_root
                       "#{scope_root}/#{base_path}"
                     else
                       base_path

@@ -197,9 +197,11 @@ module Api
               # No warehouse type template → just use ancestor path
               ancestor_path
             else
-              # Check if ancestor path already starts with the scope root
+              # FRC (Feb 2026): Compare first FOLDER exactly, not string prefix
+              # "Assets".start_with?("Asset") was returning true incorrectly
               scope_root = wt_template.split('/').first
-              if ancestor_path.start_with?(scope_root)
+              first_folder = ancestor_path.split('/').first
+              if first_folder == scope_root
                 # Already a full path → use as-is
                 ancestor_path
               else
