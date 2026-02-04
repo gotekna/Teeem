@@ -26,6 +26,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
@@ -90,8 +91,10 @@ interface FormData {
 interface BaseFolderToggle {
   id: number;
   name: string;
-  enabled: boolean;
+  enabled: boolean; // true = assigned to current warehouse type
   is_system: boolean;
+  warehouse_type_id: number;
+  warehouse_type_name: string;
 }
 
 const defaultFormData: FormData = {
@@ -110,6 +113,7 @@ export function WarehouseTypesTab() {
   const [editingType, setEditingType] = React.useState<WarehouseType | null>(null);
   const [formData, setFormData] = React.useState<FormData>(defaultFormData);
   const [baseFolderToggles, setBaseFolderToggles] = React.useState<BaseFolderToggle[]>([]);
+  const [baseFolderSearch, setBaseFolderSearch] = React.useState("");
   const [showSystemTypes, setShowSystemTypes] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [sortField, setSortField] = React.useState<SortField>("code");
@@ -174,11 +178,11 @@ export function WarehouseTypesTab() {
     },
   });
 
-  // Update base folder enabled status mutation
+  // Update base folder (reassign to different warehouse type)
   const updateBaseFolderMutation = useMutation({
-    mutationFn: async ({ id, enabled }: { id: number; enabled: boolean }) => {
+    mutationFn: async ({ id, warehouse_type_id }: { id: number; warehouse_type_id: number }) => {
       return api.patch<{ success: boolean }>(`/api/v1/base_folders/${id}`, {
-        base_folder: { enabled },
+        base_folder: { warehouse_type_id },
       });
     },
   });
@@ -212,18 +216,20 @@ export function WarehouseTypesTab() {
       order_position: type.order_position,
     });
 
-    // Fetch all base folders (including disabled) for this warehouse type
+    // Fetch ALL base folders (not filtered by type) so user can reassign them
     try {
-      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; enabled: boolean; is_system: boolean }> }>(
-        `/api/v1/base_folders?warehouse_type_id=${type.id}&include_disabled=true`
+      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; enabled: boolean; is_system: boolean; warehouse_type_id: number; warehouse_type_name: string }> }>(
+        `/api/v1/base_folders?include_disabled=true`
       );
       if (response?.data) {
         setBaseFolderToggles(
           response.data.map((bf) => ({
             id: bf.id,
             name: bf.name,
-            enabled: bf.enabled,
+            enabled: bf.warehouse_type_id === type.id, // Checked if belongs to this type
             is_system: bf.is_system,
+            warehouse_type_id: bf.warehouse_type_id,
+            warehouse_type_name: bf.warehouse_type_name,
           }))
         );
       }
@@ -240,6 +246,7 @@ export function WarehouseTypesTab() {
     setEditingType(null);
     setFormData(defaultFormData);
     setBaseFolderToggles([]);
+    setBaseFolderSearch("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -253,20 +260,18 @@ export function WarehouseTypesTab() {
         : formData.display_name || "",
     };
 
-    // Save base folder enabled states if editing
+    // Reassign base folders if editing
     if (editingType && baseFolderToggles.length > 0) {
-      // Find which base folders have changed
-      const originalFolders = editingType.base_folders;
       for (const toggle of baseFolderToggles) {
-        const original = originalFolders.find((bf) => bf.id === toggle.id);
-        // If the folder wasn't in the original list, it was disabled - so it's enabled now means it changed
-        // Or if enabled state differs from what we have
-        const wasEnabled = !!original;
-        if (wasEnabled !== toggle.enabled) {
+        // If checked (enabled) but not currently assigned to this type → reassign it
+        if (toggle.enabled && toggle.warehouse_type_id !== editingType.id) {
           try {
-            await updateBaseFolderMutation.mutateAsync({ id: toggle.id, enabled: toggle.enabled });
+            await updateBaseFolderMutation.mutateAsync({
+              id: toggle.id,
+              warehouse_type_id: editingType.id,
+            });
           } catch (err) {
-            console.error(`Failed to update base folder ${toggle.id}:`, err);
+            console.error(`Failed to reassign base folder ${toggle.id}:`, err);
           }
         }
       }
@@ -691,30 +696,102 @@ export function WarehouseTypesTab() {
                   <p className="text-xs text-muted-foreground mb-2">
                     Select which folders are enabled for this warehouse type
                   </p>
-                  <div className="border rounded-md p-3 space-y-2 max-h-[200px] overflow-y-auto">
-                    {baseFolderToggles.map((bf) => (
-                      <div
-                        key={bf.id}
-                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded"
-                        onClick={() => toggleBaseFolder(bf.id)}
-                      >
-                        <Checkbox
-                          id={`bf-${bf.id}`}
-                          checked={bf.enabled}
-                          onCheckedChange={() => toggleBaseFolder(bf.id)}
-                        />
-                        <label
-                          htmlFor={`bf-${bf.id}`}
-                          className="flex items-center gap-1 text-sm cursor-pointer flex-1"
-                        >
-                          <Folder className="h-3 w-3 text-muted-foreground" />
-                          {bf.name}
-                          {bf.is_system && (
-                            <Lock className="h-3 w-3 text-muted-foreground ml-1" />
+                  {/* Search input for base folders */}
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search folders..."
+                      value={baseFolderSearch}
+                      onChange={(e) => setBaseFolderSearch(e.target.value)}
+                      className="pl-8 h-9"
+                    />
+                  </div>
+                  <div className="border rounded-md p-3 space-y-1 max-h-[200px] overflow-y-auto">
+                    {(() => {
+                      const filtered = baseFolderToggles
+                        .filter((bf) =>
+                          baseFolderSearch.trim() === "" ||
+                          bf.name.toLowerCase().includes(baseFolderSearch.toLowerCase()) ||
+                          bf.warehouse_type_name?.toLowerCase().includes(baseFolderSearch.toLowerCase())
+                        )
+                        .sort((a, b) => {
+                          if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+                          return a.name.localeCompare(b.name);
+                        });
+
+                      const selected = filtered.filter(bf => bf.enabled);
+                      const available = filtered.filter(bf => !bf.enabled);
+
+                      return (
+                        <>
+                          {selected.length > 0 && (
+                            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide pb-1">
+                              Assigned ({selected.length})
+                            </div>
                           )}
-                        </label>
-                      </div>
-                    ))}
+                          {selected.map((bf) => (
+                            <div
+                              key={bf.id}
+                              className="flex items-center gap-2 hover:bg-muted/50 p-1.5 rounded"
+                            >
+                              <Checkbox
+                                id={`bf-${bf.id}`}
+                                checked={bf.enabled}
+                                onCheckedChange={() => toggleBaseFolder(bf.id)}
+                              />
+                              <label
+                                htmlFor={`bf-${bf.id}`}
+                                className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
+                              >
+                                <Folder className="h-3 w-3 text-muted-foreground shrink-0" />
+                                <span className="truncate">{bf.name}</span>
+                                {bf.is_system && (
+                                  <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
+                                )}
+                              </label>
+                            </div>
+                          ))}
+                          {selected.length > 0 && available.length > 0 && (
+                            <div className="border-t my-2" />
+                          )}
+                          {available.length > 0 && (
+                            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide pb-1">
+                              Available ({available.length})
+                            </div>
+                          )}
+                          {available.map((bf) => (
+                            <div
+                              key={bf.id}
+                              className="flex items-center gap-2 hover:bg-muted/50 p-1.5 rounded opacity-60"
+                            >
+                              <Checkbox
+                                id={`bf-${bf.id}`}
+                                checked={bf.enabled}
+                                onCheckedChange={() => toggleBaseFolder(bf.id)}
+                              />
+                              <label
+                                htmlFor={`bf-${bf.id}`}
+                                className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
+                              >
+                                <Folder className="h-3 w-3 text-muted-foreground shrink-0" />
+                                <span className="truncate">{bf.name}</span>
+                                {bf.is_system && (
+                                  <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
+                                )}
+                                <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+                                  ({bf.warehouse_type_name})
+                                </span>
+                              </label>
+                            </div>
+                          ))}
+                          {filtered.length === 0 && baseFolderSearch && (
+                            <p className="text-sm text-muted-foreground text-center py-2">
+                              No folders matching &quot;{baseFolderSearch}&quot;
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

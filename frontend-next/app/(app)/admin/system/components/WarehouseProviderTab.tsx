@@ -130,6 +130,8 @@ interface BaseFolderFromAPI {
     folder_path?: string;
     ui_name?: string;
     download_name?: string;
+    // SSoT (Feb 2026): Document types for tree view display
+    document_types?: DocumentType[];
   };
 }
 
@@ -845,6 +847,15 @@ function TreeNode({
                     >
                       DL
                     </span>
+                    {/* Document types count badge */}
+                    {bf.warehouse_folder.document_types && bf.warehouse_folder.document_types.length > 0 && (
+                      <span
+                        className="text-[9px] px-1 rounded bg-blue-500/20 text-blue-600 dark:text-blue-400"
+                        title={`Document Types: ${bf.warehouse_folder.document_types.map(dt => dt.name).join(', ')}`}
+                      >
+                        {bf.warehouse_folder.document_types.length} doc{bf.warehouse_folder.document_types.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
                   </>
                 )}
                 {/* Edit button for folders with linked warehouse_folder */}
@@ -900,6 +911,23 @@ function TreeNode({
                       {bf.warehouse_folder.download_name || '{{OriginalFileName}}'}
                     </span>
                   </div>
+                  {/* Document types linked to this folder */}
+                  {bf.warehouse_folder.document_types && bf.warehouse_folder.document_types.length > 0 && (
+                    <div className="flex items-start gap-1 mt-1">
+                      <span className="w-6 text-blue-500">Docs:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {bf.warehouse_folder.document_types.map(dt => (
+                          <span
+                            key={dt.id}
+                            className="px-1 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded"
+                            title={dt.name}
+                          >
+                            {dt.abbreviation || dt.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

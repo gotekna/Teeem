@@ -198,7 +198,7 @@ module Api
             end
 
             # SSoT (Feb 2026): Include linked warehouse_folder for UI/DL editing
-            wf = WarehouseFolder.find_by(base_folder_id: bf.id)
+            wf = WarehouseFolder.includes(:document_types).find_by(base_folder_id: bf.id)
 
             {
               id: bf.id,
@@ -212,7 +212,15 @@ module Api
                 display_name: wf.display_name,
                 folder_path: wf.folder_path,
                 ui_name: wf.ui_name,
-                download_name: wf.download_name
+                download_name: wf.download_name,
+                # SSoT (Feb 2026): Include document_types for tree view display
+                document_types: wf.document_types.map { |dt|
+                  {
+                    id: dt.id,
+                    name: dt.name,
+                    abbreviation: dt.abbreviation
+                  }
+                }
               } : nil
             }
           end,
