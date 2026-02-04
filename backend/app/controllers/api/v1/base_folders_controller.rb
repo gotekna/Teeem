@@ -131,7 +131,10 @@ module Api
           if bf_template.start_with?(scope_root)
             bf_template
           else
-            "#{wt_template}/#{bf_template}"
+            # Normalize: remove trailing slashes from wt_template, leading slashes from bf_template
+            normalized_wt = wt_template.chomp('/')
+            normalized_bf = bf_template.sub(/^\/+/, '')
+            "#{normalized_wt}/#{normalized_bf}"
           end
         end
 

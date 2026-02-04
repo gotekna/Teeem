@@ -547,10 +547,10 @@ export function BaseFoldersTab() {
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">
-                        {folder.full_path_template || folder.folder_path_template || "-"}
+                        {(folder.full_path_template || folder.folder_path_template || "-").replace(/\/\s*\//g, '/')}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {folder.path_preview || "-"}
+                        {(folder.path_preview || "-").replace(/\/\s*\//g, '/')}
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="text-xs">
@@ -658,13 +658,17 @@ export function BaseFoldersTab() {
               {/* Full path preview - uses name as folder path */}
               {(() => {
                 const selectedType = warehouseTypeOptions.find(wt => wt.value === formData.warehouse_type_id);
-                const basePath = selectedType?.base_path;
-                if (!basePath || !formData.name) return null;
-                // Avoid double slash if basePath already ends with /
-                const separator = basePath.endsWith('/') ? '' : '/';
+                const rawBasePath = selectedType?.base_path || '';
+                const rawName = formData.name || '';
+                if (!rawBasePath || !rawName) return null;
+                // Build full path, normalizing slashes
+                const fullPath = [rawBasePath, rawName]
+                  .map(p => p.trim().replace(/^\/+|\/+$/g, ''))  // Trim and remove leading/trailing slashes
+                  .filter(Boolean)
+                  .join('/');
                 return (
                   <div className="text-xs text-muted-foreground">
-                    Full path: <code className="bg-muted px-1 rounded font-mono">{basePath}{separator}{formData.name}</code>
+                    Full path: <code className="bg-muted px-1 rounded font-mono">{fullPath}</code>
                   </div>
                 );
               })()}

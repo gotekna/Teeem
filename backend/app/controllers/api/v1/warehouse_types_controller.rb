@@ -64,7 +64,15 @@ module Api
 
       # PATCH/PUT /api/v1/warehouse_types/:id
       def update
+        old_template = @warehouse_type.folder_path_template
+
         if @warehouse_type.update(warehouse_type_params)
+          # SSoT (Feb 2026): Cascade folder_path_template changes to base_folders and warehouse_folders
+          new_template = @warehouse_type.folder_path_template
+          if old_template != new_template
+            cascade_template_change(old_template, new_template)
+          end
+
           render json: {
             success: true,
             data: serialize_warehouse_type(@warehouse_type)
@@ -221,6 +229,50 @@ module Api
           system: WarehouseType.system_types.count,
           custom: WarehouseType.custom_types.count
         }
+      end
+
+      # SSoT (Feb 2026): Cascade folder_path_template changes to related records
+      # When a warehouse_type's template changes, update:
+      # 1. base_folders that have templates starting with the old prefix
+      # 2. warehouse_folders that reference those base_folders
+      def cascade_template_change(old_template, new_template)
+        return if old_template.blank? && new_template.blank?
+
+        # Normalize: remove trailing slashes for comparison
+        old_prefix = old_template&.chomp('/') || ''
+        new_prefix = new_template&.chomp('/') || ''
+
+        # Update base_folders that have folder_path_template starting with old prefix
+        @warehouse_type.base_folders.each do |bf|
+          next if bf.folder_path_template.blank?
+
+          if bf.folder_path_template.start_with?(old_prefix)
+            # Replace old prefix with new prefix
+            new_bf_template = bf.folder_path_template.sub(old_prefix, new_prefix)
+            bf.update_column(:folder_path_template, new_bf_template)
+
+            # Also update linked warehouse_folders
+            WarehouseFolder.where(base_folder_id: bf.id).find_each do |wf|
+              next if wf.folder_path.blank?
+
+              if wf.folder_path.start_with?(old_prefix)
+                new_wf_path = wf.folder_path.sub(old_prefix, new_prefix)
+                wf.update_column(:folder_path, new_wf_path)
+              end
+            end
+          end
+        end
+
+        # Also update any warehouse_folders directly linked to this warehouse_type
+        # (not through base_folder) that have paths starting with old prefix
+        WarehouseFolder.where(warehouse_type: @warehouse_type.code).find_each do |wf|
+          next if wf.folder_path.blank?
+
+          if wf.folder_path.start_with?(old_prefix)
+            new_wf_path = wf.folder_path.sub(old_prefix, new_prefix)
+            wf.update_column(:folder_path, new_wf_path)
+          end
+        end
       end
     end
   end
