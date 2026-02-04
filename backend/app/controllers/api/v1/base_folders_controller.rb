@@ -134,6 +134,8 @@ module Api
           order_position: base_folder.order_position,
           warehouse_folders_count: base_folder.warehouse_folders.count,
           can_delete: base_folder.can_delete?,
+          is_dynamic: base_folder.dynamic?,
+          dynamic_type: base_folder.dynamic_type,
           created_at: base_folder.created_at,
           updated_at: base_folder.updated_at
         }

@@ -16,7 +16,20 @@
 #   BaseFolder.for_warehouse_type("job").first.name  # => "Jobs"
 #   base_folder.folder_path_template                 # => "Jobs/{{JobCode}}"
 #
+# Dynamic Tokens:
+#   Some base folders use dynamic tokens that expand at runtime:
+#   - {{Mailbox}} - Expands to show all active synced mailboxes
+#
+#   Dynamic base folders don't represent real folders - they generate
+#   virtual folder structure from database data.
+#
 class BaseFolder < ApplicationRecord
+  # Dynamic tokens that generate virtual folder structure from database
+  # When folder_path_template contains one of these, the folder is "dynamic"
+  # and its contents are generated at runtime instead of being stored
+  DYNAMIC_TOKENS = {
+    '{{Mailbox}}' => :mailbox  # Generates folders from SyncedEmail.mailbox_owner_email
+  }.freeze
   # Associations
   belongs_to :warehouse_type
   has_many :warehouse_folders, dependent: :nullify
@@ -60,6 +73,26 @@ class BaseFolder < ApplicationRecord
 
   # Instance methods
 
+  # Check if this is a dynamic folder (contains dynamic tokens like {{Mailbox}})
+  # Dynamic folders generate their structure from database data at runtime
+  # @return [Boolean]
+  def dynamic?
+    return false if folder_path_template.blank?
+
+    DYNAMIC_TOKENS.keys.any? { |token| folder_path_template.include?(token) }
+  end
+
+  # Get the type of dynamic content this folder generates
+  # @return [Symbol, nil] :mailbox for {{Mailbox}}, nil if not dynamic
+  def dynamic_type
+    return nil if folder_path_template.blank?
+
+    DYNAMIC_TOKENS.each do |token, type|
+      return type if folder_path_template.include?(token)
+    end
+    nil
+  end
+
   # Check if this folder can be deleted
   def can_delete?
     return false if is_system
@@ -70,14 +103,19 @@ class BaseFolder < ApplicationRecord
 
   # Get the full display path preview
   # Replaces template tokens with example values
+  # Falls back to warehouse type's folder_path_template when base folder template is blank
   def path_preview
-    return name if folder_path_template.blank?
+    # Use warehouse type's folder_path_template if base folder template is blank
+    template = folder_path_template.presence || warehouse_type&.folder_path_template.presence
+    return name if template.blank?
 
-    preview = folder_path_template.dup
+    preview = template.dup
     preview.gsub!("{{JobCode}}", "J-001")
     preview.gsub!("{{ContactName}}", "John Smith")
     preview.gsub!("{{CompanyCode}}", "ABC")
     preview.gsub!("{{CompanyGroup}}", "ABC Group")
+    preview.gsub!("{{TaskId}}", "123")
+    preview.gsub!("{{TaskName}}", "Site Inspection")
     preview.gsub!("{{Year}}", Time.current.year.to_s)
     preview.gsub!("{{Month}}", Time.current.strftime("%B"))
     preview.gsub!("{{Mailbox}}", "inbox@example.com")
@@ -101,6 +139,8 @@ class BaseFolder < ApplicationRecord
       order_position: order_position,
       warehouse_folders_count: warehouse_folders.count,
       can_delete: can_delete?,
+      is_dynamic: dynamic?,
+      dynamic_type: dynamic_type,
       created_at: created_at,
       updated_at: updated_at
     }

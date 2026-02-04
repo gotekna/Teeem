@@ -18,6 +18,9 @@
 #   WarehouseType.codes                         # => Array of all enabled codes
 #
 class WarehouseType < ApplicationRecord
+  # Constants
+  UNASSIGNED_CODE = "unassigned".freeze
+
   # Associations
   has_many :base_folders, dependent: :destroy
   has_many :warehouse_folders, through: :base_folders
@@ -29,8 +32,9 @@ class WarehouseType < ApplicationRecord
   validates :display_name, presence: true
 
   # Scopes
-  scope :enabled, -> { where(enabled: true) }
-  scope :system_types, -> { where(is_system: true) }
+  scope :enabled, -> { where(enabled: true).where.not(code: UNASSIGNED_CODE) }
+  scope :visible, -> { where.not(code: UNASSIGNED_CODE) }
+  scope :system_types, -> { where(is_system: true).where.not(code: UNASSIGNED_CODE) }
   scope :custom_types, -> { where(is_system: false) }
   scope :ordered, -> { order(:order_position, :display_name) }
 
@@ -60,15 +64,34 @@ class WarehouseType < ApplicationRecord
     enabled.where("LOWER(code) = ?", code.to_s.downcase).exists?
   end
 
-  # Get codes for UI dropdown
-  # @return [Array<Hash>] Array of {value:, label:} hashes
+  # Get the unassigned warehouse type (used for orphaned base folders)
+  # @return [WarehouseType]
+  def self.unassigned
+    find_by!(code: UNASSIGNED_CODE)
+  end
+
+  # Get IDs for UI dropdown (base folders use warehouse_type_id FK)
+  # @return [Array<Hash>] Array of {value:, label:, code:, base_path:} hashes
   def self.options_for_select
     enabled.ordered.map do |wt|
-      { value: wt.code, label: wt.display_name }
+      # Build base_path: always starts with display_name, then folder_path_template tokens
+      base_path = if wt.folder_path_template.present?
+        # If template already starts with display_name, use as-is; otherwise prepend it
+        wt.folder_path_template.start_with?(wt.display_name) ? wt.folder_path_template : "#{wt.display_name}/#{wt.folder_path_template}"
+      else
+        wt.display_name
+      end
+
+      { value: wt.id, label: wt.display_name, code: wt.code, base_path: base_path }
     end
   end
 
   # Instance methods
+
+  # Check if this is the unassigned type
+  def unassigned?
+    code == UNASSIGNED_CODE
+  end
 
   # Check if this type can be deleted
   # System types and types with folders cannot be deleted

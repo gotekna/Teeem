@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Plus, Pencil, Trash2, Lock, FolderOpen, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, FolderOpen, Search, ArrowUpDown, ArrowUp, ArrowDown, Mail, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 type SortField = "warehouse_type_name" | "name" | "folder_path_template" | "warehouse_folders_count" | "enabled";
@@ -66,6 +66,8 @@ interface BaseFolder {
   order_position: number;
   warehouse_folders_count: number;
   can_delete: boolean;
+  is_dynamic?: boolean;
+  dynamic_type?: string;
   created_at: string;
   updated_at: string;
 }
@@ -77,7 +79,7 @@ interface BaseFoldersResponse {
 
 interface WarehouseTypesOptionsResponse {
   success: boolean;
-  data: Array<{ value: number; label: string; code: string }>;
+  data: Array<{ value: number; label: string; code: string; base_path: string }>;
 }
 
 interface FormData {
@@ -204,10 +206,23 @@ export function BaseFoldersTab() {
 
   const openEditDialog = (folder: BaseFolder) => {
     setEditingFolder(folder);
+
+    // SSoT (Feb 2026): Database stores FULL path (e.g., "Asset/Service")
+    // Strip the warehouse type's base path prefix for editing
+    // User sees just the relative part in input, with prefix shown separately
+    let pathWithoutPrefix = folder.folder_path_template || "";
+    const selectedType = warehouseTypeOptions.find(wt => wt.value === folder.warehouse_type_id);
+    if (selectedType?.base_path) {
+      const prefix = `${selectedType.base_path}/`;
+      if (pathWithoutPrefix.startsWith(prefix)) {
+        pathWithoutPrefix = pathWithoutPrefix.slice(prefix.length);
+      }
+    }
+
     setFormData({
       warehouse_type_id: folder.warehouse_type_id,
       name: folder.name,
-      folder_path_template: folder.folder_path_template || "",
+      folder_path_template: pathWithoutPrefix,
       download_name_template: folder.download_name_template || "",
       ui_name_template: folder.ui_name_template || "",
       enabled: folder.enabled,
@@ -228,10 +243,24 @@ export function BaseFoldersTab() {
       toast.error("Please select a warehouse type");
       return;
     }
+
+    // SSoT (Feb 2026): Save FULL path (prefix + user input)
+    // What you see in "Full path:" is what gets saved to database
+    const selectedType = warehouseTypeOptions.find(wt => wt.value === formData.warehouse_type_id);
+    const basePath = selectedType?.base_path;
+
+    const dataToSave = {
+      ...formData,
+      // Combine prefix + user input to create full path
+      folder_path_template: basePath && formData.folder_path_template
+        ? `${basePath}/${formData.folder_path_template}`
+        : formData.folder_path_template || basePath || "",
+    };
+
     if (editingFolder) {
-      updateMutation.mutate({ id: editingFolder.id, data: formData });
+      updateMutation.mutate({ id: editingFolder.id, data: dataToSave });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(dataToSave);
     }
   };
 
@@ -246,22 +275,6 @@ export function BaseFoldersTab() {
   };
 
   const warehouseTypeOptions = warehouseTypesData?.data || [];
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="h-8 w-8" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-destructive p-4">
-        Failed to load base folders: {error.message}
-      </div>
-    );
-  }
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -280,6 +293,7 @@ export function BaseFoldersTab() {
   };
 
   // Filter and sort base folders
+  // SSoT: All hooks MUST be called before any early returns (React Rules of Hooks)
   const rawFolders = data?.data || [];
 
   const baseFolders = React.useMemo(() => {
@@ -322,6 +336,23 @@ export function BaseFoldersTab() {
       return sortDirection === "asc" ? comparison : -comparison;
     });
   }, [rawFolders, searchQuery, sortField, sortDirection]);
+
+  // Early returns AFTER all hooks (React Rules of Hooks)
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Spinner className="h-8 w-8" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-destructive p-4">
+        Failed to load base folders: {error.message}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -450,10 +481,20 @@ export function BaseFoldersTab() {
                 </TableCell>
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-1">
-                    <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                    {folder.is_dynamic && folder.dynamic_type === "mailbox" ? (
+                      <Mail className="h-4 w-4 text-blue-500" />
+                    ) : (
+                      <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                    )}
                     {folder.name}
                     {folder.is_system && (
                       <Lock className="h-3 w-3 text-muted-foreground" />
+                    )}
+                    {folder.is_dynamic && (
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800">
+                        <Zap className="h-2.5 w-2.5 mr-0.5" />
+                        Dynamic
+                      </Badge>
                     )}
                   </div>
                 </TableCell>
@@ -522,9 +563,10 @@ export function BaseFoldersTab() {
                 <Label htmlFor="warehouse_type_id">Warehouse Type</Label>
                 <Select
                   value={formData.warehouse_type_id?.toString() || ""}
-                  onValueChange={(val) =>
-                    setFormData({ ...formData, warehouse_type_id: parseInt(val) })
-                  }
+                  onValueChange={(val) => {
+                    const selectedId = parseInt(val);
+                    setFormData({ ...formData, warehouse_type_id: selectedId });
+                  }}
                   disabled={editingFolder?.is_system}
                 >
                   <SelectTrigger id="warehouse_type_id">
@@ -538,6 +580,15 @@ export function BaseFoldersTab() {
                     ))}
                   </SelectContent>
                 </Select>
+                {/* Show the base path hint if a type is selected */}
+                {formData.warehouse_type_id && (() => {
+                  const selectedType = warehouseTypeOptions.find(wt => wt.value === formData.warehouse_type_id);
+                  return selectedType?.base_path ? (
+                    <p className="text-xs text-muted-foreground">
+                      Base path: <code className="bg-muted px-1 rounded">{selectedType.base_path}</code>
+                    </p>
+                  ) : null;
+                })()}
               </div>
 
               <div className="space-y-2">
@@ -555,18 +606,47 @@ export function BaseFoldersTab() {
 
               <div className="space-y-2">
                 <Label htmlFor="folder_path_template">Folder Path Template</Label>
-                <Input
-                  id="folder_path_template"
-                  value={formData.folder_path_template}
-                  onChange={(e) =>
-                    setFormData({ ...formData, folder_path_template: e.target.value })
-                  }
-                  placeholder="e.g., Jobs/{{JobCode}}/{{Category}}"
-                  className="font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use {"{{token}}"} for dynamic values
-                </p>
+                {(() => {
+                  const selectedType = warehouseTypeOptions.find(wt => wt.value === formData.warehouse_type_id);
+                  const basePath = selectedType?.base_path;
+
+                  return (
+                    <>
+                      <div className="flex items-center gap-0">
+                        {/* Fixed prefix showing warehouse type's base path */}
+                        {basePath && (
+                          <div className="px-3 py-2 text-sm font-mono bg-muted border border-r-0 rounded-l-md text-muted-foreground whitespace-nowrap">
+                            {basePath}/
+                          </div>
+                        )}
+                        <Input
+                          id="folder_path_template"
+                          value={formData.folder_path_template}
+                          onChange={(e) =>
+                            setFormData({ ...formData, folder_path_template: e.target.value })
+                          }
+                          placeholder={basePath ? "Subfolder name" : "e.g., Jobs/{{JobCode}}/{{Category}}"}
+                          className={`font-mono text-sm ${basePath ? "rounded-l-none" : ""}`}
+                        />
+                      </div>
+                      {basePath && formData.folder_path_template && (
+                        <p className="text-xs text-muted-foreground">
+                          Full path: <code className="bg-muted px-1 rounded">{basePath}/{formData.folder_path_template}</code>
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>Use {"{{token}}"} for dynamic values:</p>
+                  <ul className="list-disc list-inside pl-2 space-y-0.5">
+                    <li><code className="text-[10px] bg-muted px-1 rounded">{"{{JobCode}}"}</code> - Job code (e.g., J-001)</li>
+                    <li><code className="text-[10px] bg-muted px-1 rounded">{"{{ContactName}}"}</code> - Contact name</li>
+                    <li><code className="text-[10px] bg-muted px-1 rounded">{"{{CompanyCode}}"}</code> - Company code</li>
+                    <li><code className="text-[10px] bg-muted px-1 rounded">{"{{Year}}"}</code> / <code className="text-[10px] bg-muted px-1 rounded">{"{{Month}}"}</code> - Date parts</li>
+                    <li><code className="text-[10px] bg-muted px-1 rounded">{"{{Mailbox}}"}</code> - <strong>Dynamic:</strong> Auto-expands to show all synced mailboxes</li>
+                  </ul>
+                </div>
               </div>
 
               <div className="space-y-2">

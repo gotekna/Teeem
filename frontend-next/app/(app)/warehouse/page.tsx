@@ -74,6 +74,7 @@ import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { DocumentActions } from "@/components/documents/DocumentActions";
+import { MailboxDrawer } from "@/components/documents/MailboxDrawer";
 import { formatFileSize } from "@/utils/formatters";
 
 // Types for API response
@@ -135,10 +136,13 @@ interface TreeNode {
   pathTemplate?: string;
   // Loading state progress
   progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };
-  // External link - when set, clicking folder navigates to this URL instead of expanding
+  // External link - when set, double-clicking folder navigates to this URL
   externalLink?: string;
   // Mailbox count - shown on Emails folder to indicate synced mailboxes
   mailboxCount?: number;
+  // Mailbox folder - single-click opens drawer, double-click opens in new window
+  isMailbox?: boolean;
+  mailboxEmail?: string;
 }
 
 type ViewMode = "tree" | "list" | "gallery";
@@ -412,6 +416,12 @@ export default function AllDocumentsPage() {
   } | null>(null);
   const [isLoadingTaskQuestions, setIsLoadingTaskQuestions] = useState(false);
 
+  // Mailbox drawer state - single-click on mailbox folder opens drawer
+  const [mailboxDrawerOpen, setMailboxDrawerOpen] = useState(false);
+  const [selectedMailbox, setSelectedMailbox] = useState<string | null>(null);
+  // Double-click timer for mailbox folders
+  const mailboxClickTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // SSoT: Scope folder names from WarehouseProvider
   // Start empty - API will provide all scopes from WarehouseProvider.SCOPE_FOLDERS
   const [scopeFolders, setScopeFolders] = useState<ScopeFolders>({});
@@ -444,7 +454,7 @@ export default function AllDocumentsPage() {
   // SSoT: S3 folder contents - loaded lazily when expanding folders
   // This mirrors the exact Wasabi/S3 folder structure for OneDrive-like browsing
   const [s3Folders, setS3Folders] = useState<Record<string, {
-    folders: Array<{ name: string; path: string; count?: number; external_link?: string; mailbox_count?: number; expandable?: boolean }>;
+    folders: Array<{ name: string; path: string; count?: number; external_link?: string; mailbox_count?: number; expandable?: boolean; is_mailbox?: boolean; mailbox_email?: string }>;
     files: Array<{ name: string; path: string; size: number; content_type: string; url?: string; id?: number; type?: string; warehouse_document_id?: number }>;
     loading?: boolean;
     message?: string;
@@ -1231,10 +1241,13 @@ export default function AllDocumentsPage() {
           fullPath: folder.path,
           // Use folder's count from API (e.g., Emails count) or calculate from loaded subfolders
           fileCount: folder.count ?? (subfolderData ? subfolderData.folders.length + subfolderData.files.length : undefined),
-          // External link - clicking navigates instead of expanding (e.g., individual mailboxes)
+          // External link - double-clicking navigates to this URL (e.g., individual mailboxes)
           externalLink: folder.external_link,
           // Mailbox count - shown on Emails folder
           mailboxCount: folder.mailbox_count,
+          // Mailbox folder - single-click opens drawer, double-click opens external link
+          isMailbox: folder.is_mailbox,
+          mailboxEmail: folder.mailbox_email,
         };
       });
 
@@ -1339,6 +1352,31 @@ export default function AllDocumentsPage() {
       setPreviewDocument(doc);
       clickTimerRef.current = null;
     }, 200); // 200ms delay to detect double-click
+  }, []);
+
+  // Open mailbox drawer (for single-click on mailbox folder)
+  // Uses a delay to allow double-click to cancel and navigate instead
+  const handleMailboxClick = useCallback((mailboxEmail: string) => {
+    // Cancel any existing timer
+    if (mailboxClickTimerRef.current) {
+      clearTimeout(mailboxClickTimerRef.current);
+    }
+    // Set a new timer - if double-click happens, this will be cancelled
+    mailboxClickTimerRef.current = setTimeout(() => {
+      setSelectedMailbox(mailboxEmail);
+      setMailboxDrawerOpen(true);
+      mailboxClickTimerRef.current = null;
+    }, 200); // 200ms delay to detect double-click
+  }, []);
+
+  // Open mailbox in new window (for double-click on mailbox folder)
+  const handleMailboxDoubleClick = useCallback((externalLink: string) => {
+    // Cancel any pending single-click action
+    if (mailboxClickTimerRef.current) {
+      clearTimeout(mailboxClickTimerRef.current);
+      mailboxClickTimerRef.current = null;
+    }
+    window.open(externalLink, "_blank");
   }, []);
 
   // Start rename mode
@@ -1761,12 +1799,25 @@ export default function AllDocumentsPage() {
             node.type === "category" && "font-semibold"
           )}
           style={{ paddingLeft: `${paddingLeft + 12}px` }}
-          onClick={() => toggleFolder(node.id, folderPath, node.externalLink)}
+          onClick={() => {
+            // Mailbox folders: single-click opens drawer
+            if (node.isMailbox && node.mailboxEmail) {
+              handleMailboxClick(node.mailboxEmail);
+            } else {
+              toggleFolder(node.id, folderPath, node.externalLink);
+            }
+          }}
+          onDoubleClick={() => {
+            // Mailbox folders: double-click opens external link in new window
+            if (node.isMailbox && node.externalLink) {
+              handleMailboxDoubleClick(node.externalLink);
+            }
+          }}
           title={node.fullPath || undefined}
         >
           {/* Show chevron if expandable (has children OR files OR is S3-driven folder)
-              BUT NOT for external link folders (they navigate away, not expand) */}
-          {!node.externalLink && (hasChildren || fileCount > 0 || node.id.startsWith("s3-folder-") || ["job", "corporate", "contact", "contacts"].includes(node.id)) ? (
+              BUT NOT for mailbox folders (they open drawer) or external link folders (they navigate away) */}
+          {!node.externalLink && !node.isMailbox && (hasChildren || fileCount > 0 || node.id.startsWith("s3-folder-") || ["job", "corporate", "contact", "contacts"].includes(node.id)) ? (
             isLoading ? (
               <Loader2 className="h-4 w-4 text-muted-foreground animate-spin shrink-0" />
             ) : (
@@ -1804,8 +1855,15 @@ export default function AllDocumentsPage() {
               }
             </Badge>
           )}
-          {/* External link indicator for folders that navigate away (e.g., Emails → /email) */}
-          {node.externalLink && (
+          {/* Mailbox folder indicator - shows mail icon for drawer, external for double-click */}
+          {node.isMailbox && (
+            <div className="flex items-center gap-1" title="Click to open drawer, double-click to open in new window">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <ExternalLink className="h-3 w-3 text-muted-foreground/50" />
+            </div>
+          )}
+          {/* External link indicator for non-mailbox folders that navigate away */}
+          {node.externalLink && !node.isMailbox && (
             <ExternalLink className="h-4 w-4 text-muted-foreground" />
           )}
         </div>
@@ -2897,6 +2955,13 @@ export default function AllDocumentsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Mailbox Drawer - opens when clicking on a mailbox folder */}
+      <MailboxDrawer
+        mailbox={selectedMailbox || ""}
+        open={mailboxDrawerOpen}
+        onOpenChange={setMailboxDrawerOpen}
+      />
     </div>
   );
 }

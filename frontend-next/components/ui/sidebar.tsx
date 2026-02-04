@@ -133,8 +133,12 @@ function SidebarContent({
 
     consoleCapture.initialize();
     const unsubscribe = consoleCapture.subscribe((logs) => {
-      setLogCount(logs.length);
-      setErrorCount(logs.filter((log) => log.type === "error" || log.type === "warn").length);
+      // Defer state updates to avoid "Cannot update component while rendering another" error
+      // Console logs can be captured during other components' render cycles
+      queueMicrotask(() => {
+        setLogCount(logs.length);
+        setErrorCount(logs.filter((log) => log.type === "error" || log.type === "warn").length);
+      });
     });
 
     // Initial count

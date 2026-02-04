@@ -3045,6 +3045,9 @@ Rails.application.routes.draw do
         collection do
           get :options  # For select dropdowns
         end
+        member do
+          patch :update_base_folders  # Batch update base folder assignments
+        end
         resources :base_folders, only: [:index]  # Nested route for type-specific folders
       end
 

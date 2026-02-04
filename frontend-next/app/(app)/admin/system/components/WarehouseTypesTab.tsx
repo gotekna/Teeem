@@ -25,6 +25,12 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
 import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 
@@ -44,6 +50,7 @@ interface WarehouseType {
   display_name: string;
   description?: string;
   icon_name?: string;
+  folder_path_template?: string;
   is_system: boolean;
   enabled: boolean;
   order_position: number;
@@ -59,6 +66,8 @@ interface BaseFolder {
   name: string;
   folder_path_template?: string;
   path_preview?: string;
+  warehouse_type_name?: string;
+  warehouse_type_code?: string;
 }
 
 interface WarehouseTypesResponse {
@@ -77,6 +86,7 @@ interface FormData {
   display_name: string;
   description: string;
   icon_name: string;
+  folder_path_template: string;
   enabled: boolean;
   order_position: number;
 }
@@ -86,6 +96,7 @@ const defaultFormData: FormData = {
   display_name: "",
   description: "",
   icon_name: "",
+  folder_path_template: "",
   enabled: true,
   order_position: 0,
 };
@@ -99,6 +110,7 @@ export function WarehouseTypesTab() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [sortField, setSortField] = React.useState<SortField>("code");
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc");
+  const [editingBaseFoldersTypeId, setEditingBaseFoldersTypeId] = React.useState<number | null>(null);
 
   // Fetch warehouse types
   const { data, isLoading, error } = useQuery({
@@ -110,6 +122,18 @@ export function WarehouseTypesTab() {
       return response;
     },
   });
+
+  // Fetch all base folders for the multi-selector
+  const { data: allBaseFoldersData } = useQuery({
+    queryKey: ["all-base-folders"],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: BaseFolder[] }>(
+        "/api/v1/base_folders?include_disabled=true"
+      );
+      return response;
+    },
+  });
+  const allBaseFolders = allBaseFoldersData?.data || [];
 
   // Create mutation
   const createMutation = useMutation({
@@ -159,6 +183,24 @@ export function WarehouseTypesTab() {
     },
   });
 
+  // Update base folders mutation
+  const updateBaseFoldersMutation = useMutation({
+    mutationFn: async ({ id, baseFolderIds }: { id: number; baseFolderIds: number[] }) => {
+      return api.patch<{ success: boolean; data: WarehouseType }>(
+        `/api/v1/warehouse_types/${id}/update_base_folders`,
+        { base_folder_ids: baseFolderIds }
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["warehouse-types"] });
+      queryClient.invalidateQueries({ queryKey: ["all-base-folders"] });
+      toast.success("Base folders updated");
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update: ${error.message}`);
+    },
+  });
+
   const openCreateDialog = () => {
     setEditingType(null);
     setFormData(defaultFormData);
@@ -167,11 +209,22 @@ export function WarehouseTypesTab() {
 
   const openEditDialog = (type: WarehouseType) => {
     setEditingType(type);
+
+    // Strip the display_name prefix from folder_path_template for editing
+    let pathWithoutPrefix = type.folder_path_template || "";
+    const prefix = `${type.display_name}/`;
+    if (pathWithoutPrefix.startsWith(prefix)) {
+      pathWithoutPrefix = pathWithoutPrefix.slice(prefix.length);
+    } else if (pathWithoutPrefix === type.display_name) {
+      pathWithoutPrefix = "";
+    }
+
     setFormData({
       code: type.code,
       display_name: type.display_name,
       description: type.description || "",
       icon_name: type.icon_name || "",
+      folder_path_template: pathWithoutPrefix,
       enabled: type.enabled,
       order_position: type.order_position,
     });
@@ -186,10 +239,19 @@ export function WarehouseTypesTab() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Build full path with display_name prefix
+    const dataToSave = {
+      ...formData,
+      folder_path_template: formData.folder_path_template
+        ? `${formData.display_name}/${formData.folder_path_template}`
+        : formData.display_name || "",
+    };
+
     if (editingType) {
-      updateMutation.mutate({ id: editingType.id, data: formData });
+      updateMutation.mutate({ id: editingType.id, data: dataToSave });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(dataToSave);
     }
   };
 
@@ -202,22 +264,6 @@ export function WarehouseTypesTab() {
       deleteMutation.mutate(type.id);
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="h-8 w-8" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-destructive p-4">
-        Failed to load warehouse types: {error.message}
-      </div>
-    );
-  }
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -236,6 +282,7 @@ export function WarehouseTypesTab() {
   };
 
   // Filter and sort warehouse types
+  // SSoT: All hooks MUST be called before any early returns (React Rules of Hooks)
   const rawTypes = data?.data || [];
   const summary = data?.summary;
 
@@ -274,6 +321,23 @@ export function WarehouseTypesTab() {
       return sortDirection === "asc" ? comparison : -comparison;
     });
   }, [rawTypes, searchQuery, sortField, sortDirection]);
+
+  // Early returns AFTER all hooks (React Rules of Hooks)
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Spinner className="h-8 w-8" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-destructive p-4">
+        Failed to load warehouse types: {error.message}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -387,22 +451,80 @@ export function WarehouseTypesTab() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  {type.base_folders.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {type.base_folders.map((bf) => (
-                        <Badge
-                          key={bf.id}
-                          variant="secondary"
-                          className="text-xs font-normal"
-                        >
-                          <Folder className="h-3 w-3 mr-1" />
-                          {bf.name}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">No folders</span>
-                  )}
+                  <Popover
+                    open={editingBaseFoldersTypeId === type.id}
+                    onOpenChange={(open) => {
+                      if (open) {
+                        setEditingBaseFoldersTypeId(type.id);
+                      } else {
+                        setEditingBaseFoldersTypeId(null);
+                      }
+                    }}
+                  >
+                    <PopoverTrigger asChild>
+                      <button className="flex flex-wrap gap-1 cursor-pointer hover:bg-muted p-1 rounded min-h-[32px] w-full text-left">
+                        {type.base_folders.length > 0 ? (
+                          type.base_folders.map((bf) => (
+                            <Badge
+                              key={bf.id}
+                              variant="secondary"
+                              className="text-xs font-normal"
+                            >
+                              <Folder className="h-3 w-3 mr-1" />
+                              {bf.name}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground text-xs">Click to add folders</span>
+                        )}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-80 overflow-visible"
+                      align="start"
+                      side="top"
+                      sideOffset={5}
+                      collisionPadding={16}
+                      avoidCollisions={true}
+                    >
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-medium text-sm">Assign Base Folders</h4>
+                          <p className="text-xs text-muted-foreground">
+                            Select folders to assign to this type
+                          </p>
+                        </div>
+                        <div className="max-h-[280px] overflow-visible">
+                          <MultipleSelector
+                            value={type.base_folders.map((bf) => ({
+                              value: String(bf.id),
+                              label: bf.name,
+                            }))}
+                            defaultOptions={allBaseFolders.map((bf) => ({
+                              value: String(bf.id),
+                              // Show warehouse type to distinguish folders with same name
+                              label: bf.warehouse_type_name
+                                ? `${bf.name} (${bf.warehouse_type_name})`
+                                : bf.name,
+                            }))}
+                            onChange={(selected: Option[]) => {
+                              updateBaseFoldersMutation.mutate({
+                                id: type.id,
+                                baseFolderIds: selected.map((s) => Number(s.value)),
+                              });
+                            }}
+                            placeholder="Search folders..."
+                            emptyIndicator={
+                              <p className="text-center text-sm text-muted-foreground py-2">
+                                No folders found
+                              </p>
+                            }
+                            hidePlaceholderWhenSelected
+                          />
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </TableCell>
                 <TableCell>
                   <Badge variant={type.enabled ? "default" : "outline"}>
@@ -508,6 +630,63 @@ export function WarehouseTypesTab() {
                 <p className="text-xs text-muted-foreground">
                   Lucide icon name (optional)
                 </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="folder_path_template">Folder Path Template</Label>
+                <div className="flex items-center gap-0">
+                  {/* Fixed prefix showing warehouse type name */}
+                  <div className="px-3 py-2 text-sm font-mono bg-muted border border-r-0 rounded-l-md text-muted-foreground">
+                    {formData.display_name || "TypeName"}/
+                  </div>
+                  <Input
+                    id="folder_path_template"
+                    value={formData.folder_path_template}
+                    onChange={(e) =>
+                      setFormData({ ...formData, folder_path_template: e.target.value })
+                    }
+                    placeholder="{{TaskId}}/{{TaskName}}"
+                    className="font-mono text-sm rounded-l-none"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Full path: <code className="bg-muted px-1 rounded">{formData.display_name || "TypeName"}/{formData.folder_path_template || "..."}</code>
+                </p>
+                <div className="text-xs text-muted-foreground space-y-2">
+                  <p>Click tokens to add:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      { token: "{{TaskId}}", label: "TaskId" },
+                      { token: "{{TaskName}}", label: "TaskName" },
+                      { token: "{{JobCode}}", label: "JobCode" },
+                      { token: "{{JobName}}", label: "JobName" },
+                      { token: "{{ContactName}}", label: "ContactName" },
+                      { token: "{{CompanyCode}}", label: "CompanyCode" },
+                      { token: "{{Year}}", label: "Year" },
+                      { token: "{{Month}}", label: "Month" },
+                    ].map(({ token, label }) => (
+                      <button
+                        key={token}
+                        type="button"
+                        onClick={() => {
+                          const current = formData.folder_path_template;
+                          let newPath: string;
+                          if (!current) {
+                            newPath = token;
+                          } else if (current.endsWith("/")) {
+                            newPath = current + token;
+                          } else {
+                            newPath = current + "/" + token;
+                          }
+                          setFormData({ ...formData, folder_path_template: newPath });
+                        }}
+                        className="px-2 py-0.5 text-[10px] font-mono bg-muted hover:bg-muted/80 rounded border cursor-pointer transition-colors"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center gap-2">

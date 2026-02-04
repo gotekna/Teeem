@@ -47,6 +47,7 @@ import {
   BookOpen,
   ArrowRight,
   Layers,
+  Zap,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -161,14 +162,16 @@ interface BaseFolderFromAPI {
   id: number;
   name: string;
   folder_path_template?: string;
+  full_path_template?: string;  // SSoT: Full path including warehouse type's template
   path_preview?: string;
 }
 
-// WarehouseType from API (for base folders lookup)
+// WarehouseType from API (for base folders lookup and tree building)
 interface WarehouseTypeFromAPI {
   id: number;
   code: string;
   display_name: string;
+  folder_path_template?: string;  // e.g., "Tasks/{{TaskId}}/{{TaskName}}"
   base_folders: BaseFolderFromAPI[];
 }
 
@@ -1049,10 +1052,13 @@ function TreeNode({
         {/* Folder name and scope badge */}
         <span className="font-mono text-sm">{node.name}</span>
 
-        {/* Scope badges - show all scopes that share this path */}
+        {/* Scope badges - show only PRIMARY scope (not child scopes like task_attachments) */}
+        {/* Child scopes are shown via baseFolders chips instead */}
         {node.scopeKeys && node.scopeKeys.length > 0 && (
           <div className="flex items-center gap-1 ml-2">
-            {node.scopeKeys.map((sk) => (
+            {node.scopeKeys
+              .filter((sk) => !WAREHOUSE_TYPE_PARENTS[sk])  // Filter out child scopes
+              .map((sk) => (
               <div key={sk} className="flex items-center gap-1">
                 <Badge
                   variant="outline"
@@ -1150,12 +1156,25 @@ function TreeNode({
         const scopeUiName = uiNameTemplates[parentScopeKey] || '';
         const scopeDownloadName = downloadNameTemplates[parentScopeKey] || '';
 
+        // Check for dynamic tokens
+        const hasDynamicMailbox = displayPath.includes('{{Mailbox}}');
+
         return (
           <div
             className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono"
             style={{ paddingLeft: `${level * 16 + 28}px` }}
           >
             <span>{displayPath}</span>
+            {/* Dynamic token indicator for {{Mailbox}} */}
+            {hasDynamicMailbox && (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold bg-purple-500 text-white dark:bg-purple-600"
+                title="Dynamic: Auto-expands to show all synced mailboxes"
+              >
+                <Zap className="h-3 w-3" />
+                Dynamic
+              </span>
+            )}
             {/* UI Name indicator: green=custom, orange=default */}
             <span
               className={cn(
@@ -1940,8 +1959,10 @@ function TabNode({
                     return [rootPath, basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/gi, defaultFolderName)]
                       .filter(Boolean).join('/').replace(/\/+/g, '/');
                   }
-                  // Otherwise, append the folder name to the path
-                  return [rootPath, basePath, defaultFolderName]
+                  // FRC Fix (Feb 2026): Use extractedFolderName NOT defaultFolderName
+                  // When folder_path equals basePath, extractedFolderName is empty (correct - no additional folder)
+                  // defaultFolderName would incorrectly fallback to display_name and append it
+                  return [rootPath, basePath, extractedFolderName]
                     .filter(Boolean).join('/').replace(/\/+/g, '/');
                 })()}
               </span>
@@ -2200,6 +2221,8 @@ export function WarehouseProviderTab() {
   // SSoT (Feb 2026): Base folders by warehouse type code from /api/v1/warehouse_types
   // This is THE ONE source of truth for folder category chips (not warehouse_folders)
   const [baseFoldersByScope, setBaseFoldersByScope] = React.useState<Record<string, BaseFolderFromAPI[]>>({});
+  // SSoT (Feb 2026): Full warehouse types data for building folder tree
+  const [warehouseTypes, setWarehouseTypes] = React.useState<WarehouseTypeFromAPI[]>([]);
 
   // Warehouse stats for live preview
   interface WarehouseStats {
@@ -2277,7 +2300,7 @@ export function WarehouseProviderTab() {
   };
 
   // SSoT (Feb 2026): Fetch warehouse types to get base folders for each scope
-  // base_folders are THE ONE source for folder category chips
+  // base_folders are THE ONE source for folder category chips AND folder tree
   const loadWarehouseTypes = async () => {
     try {
       const response = await api.get<{
@@ -2286,7 +2309,10 @@ export function WarehouseProviderTab() {
       }>('/api/v1/warehouse_types');
 
       if (response?.success && response.data) {
-        // Build map of scope code → base_folders
+        // Store full warehouse types for tree building
+        setWarehouseTypes(response.data);
+
+        // Build map of scope code → base_folders for quick lookup
         const foldersByScope: Record<string, BaseFolderFromAPI[]> = {};
         response.data.forEach((wt) => {
           // Use the warehouse type code as the scope key (e.g., "task", "job", "email")
@@ -2299,10 +2325,25 @@ export function WarehouseProviderTab() {
     }
   };
 
-  // Build folder tree from warehouse_folders, attaching tabs to scope nodes
-  // SSoT: Use config from API (not formData which may have stale initial state)
+  // Build folder tree from base folders (SSoT: Feb 2026)
+  // FRC: base_folder.folder_path_template (or path_preview) IS the source of truth
   const folderTree = React.useMemo(() => {
-    const scopeFolders = config?.warehouse_folders || {};
+    const scopeFolders: Record<string, string> = {};
+
+    // Build from base folders - each base folder's path goes into the tree
+    // FRC: Use full_path_template which includes warehouse type's template
+    Object.entries(baseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
+      baseFolders.forEach((bf) => {
+        // full_path_template = base folder's template OR warehouse type's template
+        const path = bf.full_path_template;
+        if (path) {
+          // Create unique key for each base folder
+          const key = `${scopeCode}_${bf.name.toLowerCase().replace(/\s+/g, '_')}`;
+          scopeFolders[key] = path;
+        }
+      });
+    });
+
     const tree = buildFolderTree(scopeFolders);
 
     // Helper: Check if tab has doc types directly
@@ -2402,10 +2443,23 @@ export function WarehouseProviderTab() {
       });
     };
 
-    attachTabs(tree);
-    attachBaseFolders(tree);  // SSoT: Base folders for chips
+    // SSoT (Feb 2026): Only attach base folders - no warehouse_folders tabs
+    // FRC: base_folders table is THE source of truth for folder structure
+    attachBaseFolders(tree);
     return tree;
-  }, [config?.warehouse_folders, entityTabs, baseFoldersByScope]);
+  }, [warehouseTypes, baseFoldersByScope]);
+
+  // SSoT (Feb 2026): Build scopeRootFolders from warehouse types
+  // FRC: warehouse_type.folder_path_template IS the scope root path - no fallbacks
+  const scopeRootFoldersFromWarehouseTypes = React.useMemo(() => {
+    const folders: Record<string, string> = {};
+    warehouseTypes.forEach((wt) => {
+      if (wt.folder_path_template) {
+        folders[wt.code] = wt.folder_path_template;
+      }
+    });
+    return folders;
+  }, [warehouseTypes]);
 
   // Toggle tree node expansion
   const toggleExpanded = (path: string) => {
@@ -2670,11 +2724,12 @@ export function WarehouseProviderTab() {
     setExpandedPaths(new Set());
   }, []);
 
-  // Load storage config, entity tabs, and warehouse types on mount
+  // Load storage config and warehouse types on mount
+  // SSoT (Feb 2026): Only load warehouse_types - no warehouse_folders
+  // FRC: base_folders (via warehouse_types API) is THE source of truth
   React.useEffect(() => {
     loadConfig();
-    loadWarehouseTabConfigs();
-    loadWarehouseTypes();  // SSoT (Feb 2026): Load base folders from warehouse_types
+    loadWarehouseTypes();
   }, []);
 
   const loadConfig = async () => {
@@ -3227,6 +3282,25 @@ export function WarehouseProviderTab() {
                       </div>
                     </div>
                   </div>
+                  {/* Dynamic Tokens */}
+                  <div className="mt-4 pt-3 border-t">
+                    <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2 mb-2">
+                      <Zap className="h-3 w-3 text-purple-500" />
+                      Dynamic Tokens
+                    </h5>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Dynamic tokens auto-expand to show folders from database records:
+                    </p>
+                    <div className="text-xs space-y-1">
+                      <div>
+                        <code className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-1 rounded">{"{{Mailbox}}"}</code>
+                        <span className="text-muted-foreground ml-2">→ Shows all synced mailbox addresses as folders</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Single-click opens a drawer with emails. Double-click opens full email view in new window.
+                    </p>
+                  </div>
                   {/* Token Resolution Example */}
                   <div className="mt-4 pt-3 border-t">
                     <h5 className="text-xs font-medium mb-2">Example: Token Resolution</h5>
@@ -3677,7 +3751,7 @@ export function WarehouseProviderTab() {
                     onSaveTemplates={saveScopeTemplates}
                     virtualScopes={formData.virtual_warehouses}
                     onToggleVirtual={toggleVirtualScope}
-                    scopeRootFolders={formData.warehouse_folders || {}}
+                    scopeRootFolders={scopeRootFoldersFromWarehouseTypes}
                   />
                 ))}
               </div>
