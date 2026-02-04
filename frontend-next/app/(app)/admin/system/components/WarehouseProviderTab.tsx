@@ -104,14 +104,13 @@ function normalizeProviderType(apiValue: string | null | undefined): ProviderTyp
 type ScopeFolders = Record<string, string>;
 
 // Document type interface
-// Note: display_name contains the Document UI Name TEMPLATE (with tokens like {ContactName})
-// name contains the actual document type name like "Xero Invoice"
+// SSoT (Feb 2026): Consistent naming with WarehouseFolder - ui_name and download_name
 interface DocumentType {
   id: number;
   name: string;  // Actual doc type name: "Xero Invoice"
   abbreviation?: string;  // Short code: "XINV"
-  display_name?: string;  // Document UI Name TEMPLATE: "{ContactName} {DocTypeName} {Date}"
-  file_name?: string;  // Document Download Name TEMPLATE: "{ContactName} {DocTypeCode} {Date}"
+  ui_name?: string;  // Document UI Name TEMPLATE: "{ContactName} {DocTypeName} {Date}"
+  download_name?: string;  // Document Download Name TEMPLATE: "{ContactName} {DocTypeCode} {Date}"
 }
 
 // SSoT (Feb 2026): Base folders from warehouse_types API
@@ -847,15 +846,24 @@ function TreeNode({
                     >
                       DL
                     </span>
-                    {/* Document types count badge */}
-                    {bf.warehouse_folder.document_types && bf.warehouse_folder.document_types.length > 0 && (
-                      <span
-                        className="text-[9px] px-1 rounded bg-blue-500/20 text-blue-600 dark:text-blue-400"
-                        title={`Document Types: ${bf.warehouse_folder.document_types.map(dt => dt.name).join(', ')}`}
-                      >
-                        {bf.warehouse_folder.document_types.length} doc{bf.warehouse_folder.document_types.length !== 1 ? 's' : ''}
-                      </span>
-                    )}
+                    {/* Document types count badge - green if all configured, orange if any missing UI/DL */}
+                    {bf.warehouse_folder.document_types && bf.warehouse_folder.document_types.length > 0 && (() => {
+                      const total = bf.warehouse_folder.document_types.length;
+                      const configured = bf.warehouse_folder.document_types.filter(dt => dt.display_name && dt.file_name).length;
+                      const allConfigured = configured === total;
+                      return (
+                        <span
+                          className={`text-[9px] px-1 rounded ${
+                            allConfigured
+                              ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                              : 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
+                          }`}
+                          title={`${configured}/${total} document types configured with UI/DL names`}
+                        >
+                          {configured}/{total} docs
+                        </span>
+                      );
+                    })()}
                   </>
                 )}
                 {/* Edit button for folders with linked warehouse_folder */}
@@ -911,20 +919,29 @@ function TreeNode({
                       {bf.warehouse_folder.download_name || '{{OriginalFileName}}'}
                     </span>
                   </div>
-                  {/* Document types linked to this folder */}
+                  {/* Document types linked to this folder - clickable, green=configured, orange=missing UI/DL */}
                   {bf.warehouse_folder.document_types && bf.warehouse_folder.document_types.length > 0 && (
                     <div className="flex items-start gap-1 mt-1">
-                      <span className="w-6 text-blue-500">Docs:</span>
+                      <span className="w-6 text-muted-foreground">Docs:</span>
                       <div className="flex flex-wrap gap-1">
-                        {bf.warehouse_folder.document_types.map(dt => (
-                          <span
-                            key={dt.id}
-                            className="px-1 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded"
-                            title={dt.name}
-                          >
-                            {dt.abbreviation || dt.name}
-                          </span>
-                        ))}
+                        {bf.warehouse_folder.document_types.map(dt => {
+                          const isConfigured = dt.display_name && dt.file_name;
+                          return (
+                            <a
+                              key={dt.id}
+                              href={`/settings/company/documents?tab=types&id=${dt.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`px-1 py-0.5 rounded cursor-pointer hover:opacity-80 transition-opacity ${
+                                isConfigured
+                                  ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                                  : 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
+                              }`}
+                              title={`${dt.name}${!isConfigured ? ' (UI/DL not configured)' : ''}`}
+                            >
+                              {dt.abbreviation || dt.name}
+                            </a>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

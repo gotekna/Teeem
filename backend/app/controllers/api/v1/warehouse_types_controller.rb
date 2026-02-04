@@ -214,11 +214,14 @@ module Api
                 ui_name: wf.ui_name,
                 download_name: wf.download_name,
                 # SSoT (Feb 2026): Include document_types for tree view display
+                # ui_name/download_name show orange if missing, green if configured
                 document_types: wf.document_types.map { |dt|
                   {
                     id: dt.id,
                     name: dt.name,
-                    abbreviation: dt.abbreviation
+                    abbreviation: dt.abbreviation,
+                    ui_name: dt.ui_name,
+                    download_name: dt.download_name
                   }
                 }
               } : nil
