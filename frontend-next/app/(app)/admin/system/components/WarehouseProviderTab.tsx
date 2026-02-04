@@ -528,41 +528,40 @@ function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocume
                   folder_path: folderPath,
                 })}
               >
-                {/* Document name + UI/DL badges */}
-                <div className="flex items-center gap-2 flex-wrap">
+                {/* Document name */}
+                <div className="flex items-center gap-2">
                   <span className="font-medium text-foreground">
                     {dt.name}
                   </span>
                   {dt.abbreviation && (
                     <span className="text-muted-foreground">({dt.abbreviation})</span>
                   )}
-                  {/* UI badge */}
+                  <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+                {/* UI/DL badges with actual values */}
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                   <Badge
                     variant="outline"
                     className={cn(
-                      "text-[8px] px-1 py-0 h-3.5",
+                      "font-mono text-[8px]",
                       dt.ui_name
                         ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                         : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                     )}
-                    title={dt.ui_name || '(default)'}
                   >
-                    UI
+                    UI: {dt.ui_name || '(default)'}
                   </Badge>
-                  {/* DL badge */}
                   <Badge
                     variant="outline"
                     className={cn(
-                      "text-[8px] px-1 py-0 h-3.5",
+                      "font-mono text-[8px]",
                       dt.download_name
                         ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                         : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                     )}
-                    title={dt.download_name || '(default)'}
                   >
-                    DL
+                    DL: {dt.download_name || '(default)'}
                   </Badge>
-                  <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </div>
             );
@@ -962,40 +961,35 @@ function TreeNode({
         <div style={{ paddingLeft: `${level * 16 + 28}px` }}>
           {node.baseFolders.map((bf) => (
             <div key={bf.id} className="mb-2 text-[10px]">
-              {/* Full folder path + UI/DL badges */}
+              {/* Full folder path */}
+              <div className="font-mono text-muted-foreground py-0.5">
+                {bf.full_path_template || bf.folder_path_template || '—'}
+              </div>
+              {/* UI/DL badges with actual values - green if set, orange if default */}
               <div className="flex items-center gap-1.5 py-0.5 flex-wrap">
-                <Badge
-                  variant="outline"
-                  className="gap-1 font-normal bg-muted/50 border-muted-foreground/30 text-foreground"
-                >
-                  <FolderOpen className="h-3 w-3 shrink-0" />
-                  <span className="font-mono">{bf.full_path_template || bf.folder_path_template || '—'}</span>
-                </Badge>
-                {/* UI badge - green if custom, orange if default */}
+                {/* UI badge */}
                 <Badge
                   variant="outline"
                   className={cn(
-                    "font-normal cursor-default",
+                    "font-mono text-[10px]",
                     bf.warehouse_folder?.ui_name
                       ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                       : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                   )}
-                  title={bf.warehouse_folder?.ui_name || '(default)'}
                 >
-                  UI
+                  UI: {bf.warehouse_folder?.ui_name || '(default)'}
                 </Badge>
-                {/* DL badge - green if custom, orange if default */}
+                {/* DL badge */}
                 <Badge
                   variant="outline"
                   className={cn(
-                    "font-normal cursor-default",
+                    "font-mono text-[10px]",
                     bf.warehouse_folder?.download_name
                       ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                       : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                   )}
-                  title={bf.warehouse_folder?.download_name || '(default)'}
                 >
-                  DL
+                  DL: {bf.warehouse_folder?.download_name || '(default)'}
                 </Badge>
               </div>
               {/* Document types linked to this folder - collapsible rows */}
@@ -1888,7 +1882,7 @@ function TabNode({
                       folder_path: currentFullPath,
                     })}
                   >
-                    {/* Document type name with UI/DL badges */}
+                    {/* Document type name */}
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-foreground">
                         {dt.name}
@@ -1896,55 +1890,32 @@ function TabNode({
                       {dt.abbreviation && (
                         <span className="text-muted-foreground/60 text-[9px]">({dt.abbreviation})</span>
                       )}
-                      {/* UI badge */}
+                      <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/dt:opacity-100 transition-opacity" />
+                    </div>
+                    {/* UI/DL badges with actual values */}
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-[9px] px-1 py-0 h-4",
+                          "font-mono text-[8px]",
                           uiNameTemplate
                             ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                             : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                         )}
-                        title={`UI: ${uiNameTemplate || '(default)'}`}
                       >
-                        UI
+                        UI: {uiNameTemplate || '(default)'}
                       </Badge>
-                      {/* DL badge */}
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-[9px] px-1 py-0 h-4",
+                          "font-mono text-[8px]",
                           downloadTemplate
                             ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                             : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                         )}
-                        title={`DL: ${downloadTemplate || '(default)'}`}
                       >
-                        DL
+                        DL: {downloadTemplate || '(default)'}
                       </Badge>
-                      {/* Edit indicator */}
-                      <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/dt:opacity-100 transition-opacity" />
-                    </div>
-                    {/* Document UI Name and Download Name side by side (shown on hover or when has values) */}
-                    <div className="flex items-start gap-8 pl-2 mt-0.5 text-muted-foreground/70">
-                      {/* Document UI Name (left) */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[9px]">👁</span>
-                        <span className="font-mono text-[9px]">
-                          {uiNameTemplate
-                            ? resolveTemplatePreview(uiNameTemplate, dt)
-                            : '(default)'}
-                        </span>
-                      </div>
-                      {/* Document Download Name (right) */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[9px]">📥</span>
-                        <span className="font-mono text-[9px]">
-                          {downloadTemplate
-                            ? resolveTemplatePreview(downloadTemplate, dt)
-                            : '(default)'}
-                        </span>
-                      </div>
                     </div>
                   </div>
                 );
