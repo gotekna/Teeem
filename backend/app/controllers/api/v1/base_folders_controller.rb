@@ -117,25 +117,43 @@ module Api
         )
       end
 
-      def serialize_base_folder(base_folder)
-        # SSoT (Feb 2026): Compute full_path_template by combining warehouse type template + base folder template
-        wt_template = base_folder.warehouse_type&.folder_path_template.presence
-        bf_template = base_folder.folder_path_template.presence
+      # Build full path by walking up parent hierarchy
+      # e.g., Statement → Balance Sheet → Xero = "Xero/Balance Sheet/Statement"
+      def build_ancestor_path(base_folder)
+        path_parts = []
+        current = base_folder
 
-        full_template = if bf_template.blank?
-          wt_template || base_folder.name
-        elsif wt_template.blank?
-          bf_template
+        while current.present?
+          # Use folder_path_template if set, otherwise use name
+          part = current.folder_path_template.presence || current.name
+          path_parts.unshift(part)
+          current = current.parent
+        end
+
+        path_parts.join('/')
+      end
+
+      def serialize_base_folder(base_folder)
+        # SSoT (Feb 2026): Build full path by combining:
+        # 1. Warehouse type's base template
+        # 2. Ancestor path from parent hierarchy
+        wt_template = base_folder.warehouse_type&.folder_path_template.presence
+
+        # Build path from parent hierarchy
+        ancestor_path = build_ancestor_path(base_folder)
+
+        full_template = if wt_template.blank?
+          # No warehouse type template → just use ancestor path
+          ancestor_path
         else
-          # Check if base folder template is relative or absolute
+          # Check if ancestor path already starts with the scope root
           scope_root = wt_template.split('/').first
-          if bf_template.start_with?(scope_root)
-            bf_template
+          if ancestor_path.start_with?(scope_root)
+            # Already a full path → use as-is
+            ancestor_path
           else
-            # Normalize: remove trailing slashes from wt_template, leading slashes from bf_template
-            normalized_wt = wt_template.chomp('/')
-            normalized_bf = bf_template.sub(/^\/+/, '')
-            "#{normalized_wt}/#{normalized_bf}"
+            # Combine warehouse type template + ancestor path
+            "#{wt_template}/#{ancestor_path}"
           end
         end
 

@@ -133,4 +133,82 @@ namespace :base_folders do
       print_folder_tree(child, depth + 1)
     end
   end
+
+  desc "Create missing base_folders from warehouse_folders hierarchy"
+  task create_missing: :environment do
+    puts "=" * 60
+    puts "Creating missing base_folders from warehouse_folders"
+    puts "=" * 60
+
+    created_count = 0
+    skipped_count = 0
+    error_count = 0
+
+    # Process each warehouse_folder that has a parent
+    WarehouseFolder.where.not(parent_id: nil).includes(:parent).each do |child_wf|
+      parent_wf = child_wf.parent
+      next unless parent_wf
+
+      wt = WarehouseType.find_by(code: child_wf.warehouse_type)
+      next unless wt
+
+      # Check if base_folder already exists for this child
+      child_bf = BaseFolder.where(warehouse_type: wt)
+                          .where("name ILIKE ?", child_wf.display_name)
+                          .first
+
+      if child_bf
+        skipped_count += 1
+        next
+      end
+
+      # Find parent base_folder
+      parent_bf = BaseFolder.where(warehouse_type: wt)
+                           .where("name ILIKE ?", parent_wf.display_name)
+                           .first
+
+      unless parent_bf
+        puts "  ⚠️  No parent base_folder for: #{parent_wf.display_name} → #{child_wf.display_name}"
+        skipped_count += 1
+        next
+      end
+
+      # Create the missing base_folder
+      begin
+        new_bf = BaseFolder.create!(
+          warehouse_type: wt,
+          parent_id: parent_bf.id,
+          name: child_wf.display_name,
+          folder_path_template: child_wf.display_name, # Relative path, will be combined with parent
+          enabled: true,
+          is_system: false,
+          order_position: child_wf.order_position || 0
+        )
+        puts "  ✅ Created: #{parent_bf.name} → #{new_bf.name}"
+        created_count += 1
+      rescue => e
+        puts "  ❌ Error creating #{child_wf.display_name}: #{e.message}"
+        error_count += 1
+      end
+    end
+
+    puts "\n" + "=" * 60
+    puts "SUMMARY"
+    puts "=" * 60
+    puts "Created: #{created_count}"
+    puts "Skipped: #{skipped_count}"
+    puts "Errors:  #{error_count}"
+    puts "=" * 60
+
+    # Now sync hierarchy for newly created folders
+    if created_count > 0
+      puts "\nSyncing hierarchy for newly created folders..."
+      Rake::Task['base_folders:sync_hierarchy'].invoke
+    end
+  end
+
+  desc "Full sync: create missing base_folders then sync hierarchy"
+  task full_sync: :environment do
+    Rake::Task['base_folders:create_missing'].invoke
+  end
 end

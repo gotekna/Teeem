@@ -151,6 +151,22 @@ module Api
         )
       end
 
+      # Build full path by walking up parent hierarchy
+      # e.g., Statement → Balance Sheet → Xero = "Xero/Balance Sheet/Statement"
+      def build_ancestor_path(base_folder)
+        path_parts = []
+        current = base_folder
+
+        while current.present?
+          # Use folder_path_template if set, otherwise use name
+          part = current.folder_path_template.presence || current.name
+          path_parts.unshift(part)
+          current = current.parent
+        end
+
+        path_parts.join('/')
+      end
+
       def serialize_warehouse_type(warehouse_type)
         {
           id: warehouse_type.id,
@@ -165,35 +181,30 @@ module Api
           base_folders_count: warehouse_type.base_folders.count,
           base_folders: warehouse_type.base_folders.enabled.ordered.map do |bf|
             # SSoT (Feb 2026): Return full_path_template for tree building
-            # FRC: Combine warehouse type's template + base folder's template for full path
+            # FRC: Build full path by combining:
+            # 1. Warehouse type's base template (e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}")
+            # 2. Ancestor path from parent hierarchy (e.g., "Xero/Balance Sheet/Statement")
             #
-            # Logic:
-            # 1. If base folder has no template → use warehouse type's template
-            # 2. If base folder has a full path (starts with scope root like "Jobs/") → use as-is
-            # 3. If base folder has a relative path (like "Attachments") → prepend warehouse type's template
-            #
-            # Example: Task warehouse type has "Tasks/{{TaskId}}/{{TaskName}}"
-            #          Task Attachments base folder has "Attachments"
-            #          Full path = "Tasks/{{TaskId}}/{{TaskName}}/Attachments"
+            # Example: Corporate type has "Corporate/{{CompanyGroup}}/{{CompanyCode}}"
+            #          Statement has parent Balance Sheet, which has parent Xero
+            #          Full path = "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Balance Sheet/Statement"
             wt_template = warehouse_type.folder_path_template.presence
-            bf_template = bf.folder_path_template.presence
 
-            full_template = if bf_template.blank?
-              # No base folder template → use warehouse type's template
-              wt_template || bf.name
-            elsif wt_template.blank?
-              # No warehouse type template → use base folder template as-is
-              bf_template
+            # Build path from parent hierarchy
+            ancestor_path = build_ancestor_path(bf)
+
+            full_template = if wt_template.blank?
+              # No warehouse type template → just use ancestor path
+              ancestor_path
             else
-              # Both have templates - check if base folder is relative or absolute
-              # Extract the root folder from warehouse type template (e.g., "Tasks" from "Tasks/{{TaskId}}/{{TaskName}}")
+              # Check if ancestor path already starts with the scope root
               scope_root = wt_template.split('/').first
-              if bf_template.start_with?(scope_root)
-                # Base folder has full path (starts with scope root like "Jobs/") → use as-is
-                bf_template
+              if ancestor_path.start_with?(scope_root)
+                # Already a full path → use as-is
+                ancestor_path
               else
-                # Base folder has relative path → prepend warehouse type's template
-                "#{wt_template}/#{bf_template}"
+                # Combine warehouse type template + ancestor path
+                "#{wt_template}/#{ancestor_path}"
               end
             end
 
