@@ -25,16 +25,10 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
 import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 
-type SortField = "code" | "display_name" | "base_folders_count" | "enabled";
+type SortField = "code" | "display_name" | "folder_path_template" | "base_folders_count" | "enabled";
 type SortDirection = "asc" | "desc";
 
 /**
@@ -65,6 +59,7 @@ interface BaseFolder {
   id: number;
   name: string;
   folder_path_template?: string;
+  full_path_template?: string;
   path_preview?: string;
   warehouse_type_name?: string;
   warehouse_type_code?: string;
@@ -110,7 +105,6 @@ export function WarehouseTypesTab() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [sortField, setSortField] = React.useState<SortField>("code");
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc");
-  const [editingBaseFoldersTypeId, setEditingBaseFoldersTypeId] = React.useState<number | null>(null);
 
   // Fetch warehouse types
   const { data, isLoading, error } = useQuery({
@@ -122,18 +116,6 @@ export function WarehouseTypesTab() {
       return response;
     },
   });
-
-  // Fetch all base folders for the multi-selector
-  const { data: allBaseFoldersData } = useQuery({
-    queryKey: ["all-base-folders"],
-    queryFn: async () => {
-      const response = await api.get<{ success: boolean; data: BaseFolder[] }>(
-        "/api/v1/base_folders?include_disabled=true"
-      );
-      return response;
-    },
-  });
-  const allBaseFolders = allBaseFoldersData?.data || [];
 
   // Create mutation
   const createMutation = useMutation({
@@ -180,24 +162,6 @@ export function WarehouseTypesTab() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to delete: ${error.message}`);
-    },
-  });
-
-  // Update base folders mutation
-  const updateBaseFoldersMutation = useMutation({
-    mutationFn: async ({ id, baseFolderIds }: { id: number; baseFolderIds: number[] }) => {
-      return api.patch<{ success: boolean; data: WarehouseType }>(
-        `/api/v1/warehouse_types/${id}/update_base_folders`,
-        { base_folder_ids: baseFolderIds }
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["warehouse-types"] });
-      queryClient.invalidateQueries({ queryKey: ["all-base-folders"] });
-      toast.success("Base folders updated");
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to update: ${error.message}`);
     },
   });
 
@@ -311,6 +275,9 @@ export function WarehouseTypesTab() {
         case "display_name":
           comparison = a.display_name.localeCompare(b.display_name);
           break;
+        case "folder_path_template":
+          comparison = (a.folder_path_template || "").localeCompare(b.folder_path_template || "");
+          break;
         case "base_folders_count":
           comparison = a.base_folders.length - b.base_folders.length;
           break;
@@ -402,12 +369,21 @@ export function WarehouseTypesTab() {
                 </div>
               </TableHead>
               <TableHead
-                className="cursor-pointer hover:bg-muted/50"
+                className="w-[120px] cursor-pointer hover:bg-muted/50"
                 onClick={() => handleSort("display_name")}
               >
                 <div className="flex items-center">
                   Display Name
                   {getSortIcon("display_name")}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort("folder_path_template")}
+              >
+                <div className="flex items-center">
+                  Path Template
+                  {getSortIcon("folder_path_template")}
                 </div>
               </TableHead>
               <TableHead
@@ -450,81 +426,26 @@ export function WarehouseTypesTab() {
                     )}
                   </div>
                 </TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">
+                  {type.folder_path_template || "-"}
+                </TableCell>
                 <TableCell>
-                  <Popover
-                    open={editingBaseFoldersTypeId === type.id}
-                    onOpenChange={(open) => {
-                      if (open) {
-                        setEditingBaseFoldersTypeId(type.id);
-                      } else {
-                        setEditingBaseFoldersTypeId(null);
-                      }
-                    }}
-                  >
-                    <PopoverTrigger asChild>
-                      <button className="flex flex-wrap gap-1 cursor-pointer hover:bg-muted p-1 rounded min-h-[32px] w-full text-left">
-                        {type.base_folders.length > 0 ? (
-                          type.base_folders.map((bf) => (
-                            <Badge
-                              key={bf.id}
-                              variant="secondary"
-                              className="text-xs font-normal"
-                            >
-                              <Folder className="h-3 w-3 mr-1" />
-                              {bf.name}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="text-muted-foreground text-xs">Click to add folders</span>
-                        )}
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-80 overflow-visible"
-                      align="start"
-                      side="top"
-                      sideOffset={5}
-                      collisionPadding={16}
-                      avoidCollisions={true}
-                    >
-                      <div className="space-y-3">
-                        <div>
-                          <h4 className="font-medium text-sm">Assign Base Folders</h4>
-                          <p className="text-xs text-muted-foreground">
-                            Select folders to assign to this type
-                          </p>
-                        </div>
-                        <div className="max-h-[280px] overflow-visible">
-                          <MultipleSelector
-                            value={type.base_folders.map((bf) => ({
-                              value: String(bf.id),
-                              label: bf.name,
-                            }))}
-                            defaultOptions={allBaseFolders.map((bf) => ({
-                              value: String(bf.id),
-                              // Show warehouse type to distinguish folders with same name
-                              label: bf.warehouse_type_name
-                                ? `${bf.name} (${bf.warehouse_type_name})`
-                                : bf.name,
-                            }))}
-                            onChange={(selected: Option[]) => {
-                              updateBaseFoldersMutation.mutate({
-                                id: type.id,
-                                baseFolderIds: selected.map((s) => Number(s.value)),
-                              });
-                            }}
-                            placeholder="Search folders..."
-                            emptyIndicator={
-                              <p className="text-center text-sm text-muted-foreground py-2">
-                                No folders found
-                              </p>
-                            }
-                            hidePlaceholderWhenSelected
-                          />
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                  <div className="flex flex-wrap gap-1">
+                    {type.base_folders.length > 0 ? (
+                      type.base_folders.map((bf) => (
+                        <Badge
+                          key={bf.id}
+                          variant="secondary"
+                          className="text-xs font-normal"
+                        >
+                          <Folder className="h-3 w-3 mr-1" />
+                          {bf.name}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground text-xs">-</span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Badge variant={type.enabled ? "default" : "outline"}>
@@ -557,7 +478,7 @@ export function WarehouseTypesTab() {
             ))}
             {warehouseTypes.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   {searchQuery ? `No types matching "${searchQuery}"` : "No warehouse types found"}
                 </TableCell>
               </TableRow>

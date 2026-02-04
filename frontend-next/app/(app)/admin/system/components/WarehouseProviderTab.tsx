@@ -264,179 +264,6 @@ interface FolderTreeNode {
   baseFolders?: BaseFolderFromAPI[];  // SSoT (Feb 2026): Base folders from warehouse_types API
 }
 
-// SSoT: Known scope root folder names (first segment of paths that should appear at root)
-// These match DEFAULT_WAREHOUSE_FOLDERS in WarehouseProvider (Jan 2026 consolidation)
-// Note: 'People' merged into 'Contacts'
-// Note: 'Users' added for Teeem Docs (personal user documents - Jan 2026)
-const KNOWN_ROOT_FOLDERS = [
-  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Users', 'Teeem Docs', 'Warehouse', 'Warehousing', 'Shared', 'System',
-  // Added Jan 2026 - new warehouse scopes
-  'Cases', 'Assets', 'Financials', 'Payments', 'ESignatures', 'Templates'
-];
-
-// Build tree structure from flat scope folders
-function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
-  const root: FolderTreeNode[] = [];
-
-  // Sort entries by path for consistent tree building
-  // SSoT FIX (Jan 2026): Filter out null values before sorting to prevent crash
-  // API may return null values for scopes that haven't been configured
-  const entries = Object.entries(scopeFolders)
-    .filter(([, path]) => path !== null && path !== undefined)
-    .sort(([, a], [, b]) => a.localeCompare(b));
-
-  // Filter out paths that shouldn't be at root level:
-  // 1. Paths that start with {{ or [[ (placeholder at root level)
-  // 2. Paths that don't start with a known scope root folder (e.g., "ActiveStorage", "Attachments")
-  //    These are tab paths that should be relative to their scope but were stored incorrectly
-  const filteredEntries = entries.filter(([key, path]) => {
-    if (!path) return false;
-    // Skip paths that start with {{ or [[ (placeholder/literal at root level)
-    // {{Token}} = dynamic placeholder, [[Token]] = literal folder name placeholder
-    if (path.startsWith('{{') || path.startsWith('[[')) return false;
-    // Skip paths whose first segment isn't a known scope root folder
-    // This filters out "ActiveStorage", "Attachments", "Documents", "Revit", "Email Body" etc.
-    // that should be nested under their scope roots but aren't
-    const firstSegment = path.split('/')[0];
-    if (!KNOWN_ROOT_FOLDERS.includes(firstSegment)) {
-      // Exception: Keep scope root entries themselves (overview tabs for each scope)
-      // These have keys like 'email', 'warehouse', 'job', 'user', etc.
-      // SSoT: 'people' merged into 'contact' (Jan 2026 consolidation)
-      const isOverviewTab = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate', 'corporate', 'user'].includes(key);
-      // SSoT: Also keep child scopes (task_attachments, task_responses, etc.)
-      // They store suffix only (e.g., "Responses") and we compute full path later
-      const isChildScope = key in WAREHOUSE_TYPE_PARENTS;
-      if (!isOverviewTab && !isChildScope) return false;
-    }
-    return true;
-  });
-
-  // Main scope keys that should have scopeKey on their first folder, not the leaf
-  // SSoT: 'people' merged into 'contact' (Jan 2026 consolidation)
-  // SSoT: 'case' added for Case document management (Jan 2026)
-  // SSoT: 'asset' added for Asset Register documents (Jan 2026)
-  // SSoT: 'financial' added for Financial transaction receipts (Jan 2026)
-  // SSoT: 'compliance' added for job compliance docs (Jan 2026)
-  // SSoT: 'payment' added for subcontractor payment docs (Jan 2026)
-  // SSoT: 'bank_statement', 'template', 'esignature', 'plan' added (Jan 2026)
-  // SSoT: All scope keys that should show as badges in the tree view
-  // Includes sub-scopes like task_attachments, task_responses that need separate configuration
-  const mainScopeKeys = [
-    'email', 'warehouse', 'job', 'contact', 'task', 'corporate', 'user',
-    'case', 'case_documents', 'case_emails',
-    'asset', 'asset_expenses', 'asset_service', 'asset_readings',
-    'financial', 'financial_transactions',
-    'compliance', 'payment', 'payment_invoices', 'payment_proof',
-    'bank_statement', 'template',
-    'template_documents', 'template_bank_statements', 'template_invoices', 'template_email_signatures', 'template_pdf_fields',
-    'esignature', 'esignature_pending', 'esignature_completed',
-    'plan',
-    'task_attachments', 'task_responses',  // Task sub-scopes
-    'user_excel', 'user_word', 'user_powerpoint', 'user_pdf', 'user_notes',  // Teeem Docs sub-scopes
-  ];
-
-  filteredEntries.forEach(([key, path]) => {
-    if (!path) return;
-
-    // SSoT: Child scopes (task_attachments, task_responses, etc.) need parent path + suffix
-    // But DB may store full path or just suffix - need to extract suffix correctly
-    const parentKey = WAREHOUSE_TYPE_PARENTS[key];
-    let effectivePath = path;
-    if (parentKey) {
-      const parentPath = scopeFolders[parentKey];
-      if (parentPath) {
-        // Extract suffix from child's stored path (may be full path or just suffix)
-        let suffix = path;
-        if (path.startsWith(parentPath)) {
-          // Stored full path matches parent - extract suffix
-          suffix = path.substring(parentPath.length).replace(/^\//, '');
-        } else if (path.includes('/')) {
-          // Stored path doesn't match parent - extract differing parts
-          const pathParts = path.split('/');
-          const parentParts = parentPath.split('/');
-          let diffIndex = 0;
-          while (diffIndex < pathParts.length && diffIndex < parentParts.length && pathParts[diffIndex] === parentParts[diffIndex]) {
-            diffIndex++;
-          }
-          suffix = pathParts.slice(diffIndex).join('/');
-        }
-        // Child scope: combine parent base + extracted suffix
-        // e.g., "Tasks/{{TaskId}}/{{TaskName}}" + "Attachments" = "Tasks/{{TaskId}}/{{TaskName}}/Attachments"
-        effectivePath = suffix ? `${parentPath}/${suffix}`.replace(/\/+/g, '/') : parentPath;
-      }
-    }
-
-    // Split path but stop at first placeholder for folder building
-    // e.g., "Tasks/{{TaskStatus}}/{{JobName}}" → only create "Tasks" folder
-    const allParts = effectivePath.split('/').filter(Boolean);
-    const isMainScope = mainScopeKeys.includes(key);
-
-    // For main scopes, filter out placeholder parts but KEEP static parts after them
-    // e.g., "Jobs/{{JobCode}}/Compliance" → ['Jobs', 'Compliance']
-    // This allows compliance and plan scopes to create proper child nodes under Jobs
-    // FRC: Check both {{ (dynamic) and [[ (literal) placeholder syntax
-    const isPlaceholder = (p: string) => p.startsWith('{{') || p.startsWith('[[');
-    let parts = allParts;
-    if (isMainScope) {
-      // Filter out placeholder parts, keep all static parts
-      parts = allParts.filter(p => !isPlaceholder(p));
-      if (parts.length === 0) {
-        // Path is all placeholders - skip entirely
-        return;
-      }
-    }
-
-    let current = root;
-    let currentPath = '';
-
-    // Track actual static parts for determining leaf
-    const staticParts = parts.filter(p => !isPlaceholder(p));
-
-    parts.forEach((part, index) => {
-      // Skip placeholder parts entirely for tree building
-      if (isPlaceholder(part)) return;
-
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-      const staticIndex = staticParts.indexOf(part);
-      // SSoT (Feb 2026): Always put scope badge on FIRST static folder (root level)
-      // This keeps badges visible at top level, not buried in subfolders
-      const shouldSetScopeKey = staticIndex === 0;
-
-      // Look for existing node at this level
-      let node = current.find(n => n.name === part);
-
-      if (!node) {
-        // Only add main scope keys to scopeKeys (prevents duplicate badges from legacy variants like email-attachments)
-        const shouldAddAsScopeKey = shouldSetScopeKey && mainScopeKeys.includes(key);
-        node = {
-          name: part,
-          path: currentPath,
-          scopeKey: shouldAddAsScopeKey ? key : null,
-          scopeKeys: shouldAddAsScopeKey ? [key] : [],
-          children: [],
-        };
-        current.push(node);
-      } else if (shouldSetScopeKey && mainScopeKeys.includes(key)) {
-        // Multiple scopes share this path - add to scopeKeys array
-        // Only add main scope keys (prevents duplicate badges from legacy variants)
-        if (!node.scopeKeys.includes(key)) {
-          node.scopeKeys.push(key);
-        }
-        // SSoT: Main scope keys (email, job, task, etc.) should ALWAYS be the primary scopeKey
-        // because warehouse_folders only has entries for main scopes
-        // Without this, 'email-attachments' (alphabetically first) would steal primary from 'email'
-        if (!node.scopeKey || (isMainScope && !mainScopeKeys.includes(node.scopeKey))) {
-          node.scopeKey = key;
-        }
-      }
-
-      current = node.children;
-    });
-  });
-
-  return root;
-}
-
 // Get scope label from key (uses SCOPE_LABELS if defined, else snake_case to Title Case)
 function getScopeLabel(key: string): string {
   // Check SCOPE_LABELS first for custom labels (e.g., 'user' → 'Teeem Docs')
@@ -2326,25 +2153,53 @@ export function WarehouseProviderTab() {
   };
 
   // Build folder tree from base folders (SSoT: Feb 2026)
-  // FRC: base_folder.folder_path_template (or path_preview) IS the source of truth
+  // LIM: Direct tree build from base_folders - no intermediate transformation
   const folderTree = React.useMemo(() => {
-    const scopeFolders: Record<string, string> = {};
+    const root: FolderTreeNode[] = [];
+    const isPlaceholder = (p: string) => p.startsWith('{{') || p.startsWith('[[');
 
-    // Build from base folders - each base folder's path goes into the tree
-    // FRC: Use full_path_template which includes warehouse type's template
+    // Build tree directly from base folders
     Object.entries(baseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
       baseFolders.forEach((bf) => {
-        // full_path_template = base folder's template OR warehouse type's template
         const path = bf.full_path_template;
-        if (path) {
-          // Create unique key for each base folder
-          const key = `${scopeCode}_${bf.name.toLowerCase().replace(/\s+/g, '_')}`;
-          scopeFolders[key] = path;
-        }
+        if (!path || isPlaceholder(path.split('/')[0])) return;
+
+        // Parse path into static segments (skip placeholders)
+        const staticParts = path.split('/').filter(p => p && !isPlaceholder(p));
+        if (staticParts.length === 0) return;
+
+        let current = root;
+        let currentPath = '';
+
+        staticParts.forEach((part, index) => {
+          currentPath = currentPath ? `${currentPath}/${part}` : part;
+          const isFirstPart = index === 0;
+
+          let node = current.find(n => n.name === part);
+          if (!node) {
+            node = {
+              name: part,
+              path: currentPath,
+              scopeKey: isFirstPart ? scopeCode : null,
+              scopeKeys: isFirstPart ? [scopeCode] : [],
+              children: [],
+            };
+            current.push(node);
+          } else if (isFirstPart && !node.scopeKeys.includes(scopeCode)) {
+            node.scopeKeys.push(scopeCode);
+            // Keep first scopeKey as primary
+            if (!node.scopeKey) node.scopeKey = scopeCode;
+          }
+
+          current = node.children;
+        });
       });
     });
 
-    const tree = buildFolderTree(scopeFolders);
+    // Sort root nodes alphabetically
+    root.sort((a, b) => a.name.localeCompare(b.name));
+
+    const tree = root;
 
     // Helper: Check if tab has doc types directly
     const tabHasDocTypes = (tab: WarehouseTabConfig): boolean => {
@@ -2382,26 +2237,10 @@ export function WarehouseProviderTab() {
     // Previously corporate/job/contact required document types - now all show tabs
     const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse', 'user', 'case', 'corporate', 'job', 'contact'];
 
-    // Helper: Filter tabs for scopes without doc types (just warehouse enabled)
-    // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)
-    // SSoT (Feb 2026): Also exclude tabs whose tab_key matches a child scope in WAREHOUSE_TYPE_PARENTS
-    // BUT only if that child scope has a folder entry (will show as separate node with its own badge)
-    const CHILD_SCOPE_TAB_KEYS = Object.keys(WAREHOUSE_TYPE_PARENTS);
-    // SSoT: tab_key uses hyphens (email-attachments) but scope keys use underscores (email_attachments)
-    // Normalize both to underscores for comparison
-    const normalizeKey = (key: string) => key.replace(/-/g, '_');
+    // Helper: Filter tabs to warehouse-enabled only
     const filterWarehouseEnabledTabs = (tabs: WarehouseTabConfig[]): WarehouseTabConfig[] => {
       return tabs
-        .filter(tab => {
-          // Must be warehouse enabled
-          if ((tab.warehouse_enabled ?? tab.has_storage_folder) !== true) return false;
-          // Exclude tabs that match child scope keys ONLY if the scope has a folder entry
-          // (it will appear as a separate folder node with its own badge)
-          // If no folder entry exists, show the tab as a badge on the parent scope
-          const normalizedTabKey = normalizeKey(tab.tab_key);
-          if (CHILD_SCOPE_TAB_KEYS.includes(normalizedTabKey) && scopeFolders[normalizedTabKey]) return false;
-          return true;
-        })
+        .filter(tab => (tab.warehouse_enabled ?? tab.has_storage_folder) === true)
         .map(tab => ({
           ...tab,
           children: tab.children ? filterWarehouseEnabledTabs(tab.children) : []
