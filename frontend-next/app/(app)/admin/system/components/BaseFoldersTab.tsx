@@ -56,6 +56,9 @@ interface BaseFolder {
   warehouse_type_id: number;
   warehouse_type_code: string;
   warehouse_type_name: string;
+  parent_id: number | null;
+  parent_name: string | null;
+  children_count: number;
   name: string;
   folder_path_template?: string;
   full_path_template?: string;
@@ -83,6 +86,7 @@ interface WarehouseTypesOptionsResponse {
 
 interface FormData {
   warehouse_type_id: number | null;
+  parent_id: number | null;
   name: string;
   folder_path_template: string;
   enabled: boolean;
@@ -91,11 +95,18 @@ interface FormData {
 
 const defaultFormData: FormData = {
   warehouse_type_id: null,
+  parent_id: null,
   name: "",
   folder_path_template: "",
   enabled: true,
   order_position: 0,
 };
+
+// Tree node for hierarchical display
+interface TreeNode extends BaseFolder {
+  children: TreeNode[];
+  depth: number;
+}
 
 export function BaseFoldersTab() {
   const queryClient = useQueryClient();
@@ -217,6 +228,7 @@ export function BaseFoldersTab() {
     // SSoT (Feb 2026): name IS the folder path - one field serves both purposes
     setFormData({
       warehouse_type_id: folder.warehouse_type_id,
+      parent_id: folder.parent_id,
       name: folder.name,
       folder_path_template: folder.name, // Same as name (SSoT)
       enabled: folder.enabled,
@@ -344,6 +356,117 @@ export function BaseFoldersTab() {
       // Collapse all
       setCollapsedTypes(new Set(allTypeNames));
     }
+  };
+
+  // Build tree structure from flat folder list
+  // Groups by warehouse type, then builds parent-child hierarchy within each type
+  const buildTree = React.useCallback((folders: BaseFolder[]): Map<string, TreeNode[]> => {
+    const byType = new Map<string, TreeNode[]>();
+
+    // Group folders by warehouse type
+    const grouped = folders.reduce((acc, folder) => {
+      const type = folder.warehouse_type_name || folder.warehouse_type_code || "Unassigned";
+      if (!acc[type]) acc[type] = [];
+      acc[type].push(folder);
+      return acc;
+    }, {} as Record<string, BaseFolder[]>);
+
+    // For each type, build tree
+    Object.entries(grouped).forEach(([typeName, typeFolders]) => {
+      // Create a map of id -> TreeNode
+      const nodeMap = new Map<number, TreeNode>();
+      typeFolders.forEach(f => {
+        nodeMap.set(f.id, { ...f, children: [], depth: 0 });
+      });
+
+      // Build tree - connect children to parents
+      const roots: TreeNode[] = [];
+      nodeMap.forEach(node => {
+        if (node.parent_id && nodeMap.has(node.parent_id)) {
+          const parent = nodeMap.get(node.parent_id)!;
+          parent.children.push(node);
+        } else {
+          roots.push(node);
+        }
+      });
+
+      // Calculate depths
+      const setDepths = (nodes: TreeNode[], depth: number) => {
+        nodes.forEach(node => {
+          node.depth = depth;
+          if (node.children.length > 0) {
+            setDepths(node.children, depth + 1);
+          }
+        });
+      };
+      setDepths(roots, 0);
+
+      // Sort roots and children alphabetically
+      const sortNodes = (nodes: TreeNode[]) => {
+        nodes.sort((a, b) => a.name.localeCompare(b.name));
+        nodes.forEach(n => sortNodes(n.children));
+      };
+      sortNodes(roots);
+
+      byType.set(typeName, roots);
+    });
+
+    return byType;
+  }, []);
+
+  const folderTree = React.useMemo(() => buildTree(baseFolders), [baseFolders, buildTree]);
+
+  // Flatten tree for rendering with proper indentation info
+  const flattenTree = (nodes: TreeNode[], isLast: boolean[] = []): Array<{ node: TreeNode; isLast: boolean[] }> => {
+    const result: Array<{ node: TreeNode; isLast: boolean[] }> = [];
+    nodes.forEach((node, idx) => {
+      const nodeIsLast = idx === nodes.length - 1;
+      result.push({ node, isLast: [...isLast, nodeIsLast] });
+      if (node.children.length > 0 && !collapsedTypes.has(`folder-${node.id}`)) {
+        result.push(...flattenTree(node.children, [...isLast, nodeIsLast]));
+      }
+    });
+    return result;
+  };
+
+  // Get available parent options for a folder (same type, exclude self and descendants)
+  const getParentOptions = React.useCallback((warehouseTypeId: number | null, currentFolderId: number | null) => {
+    if (!warehouseTypeId) return [];
+
+    const sametype = baseFolders.filter(f => f.warehouse_type_id === warehouseTypeId);
+
+    // Get all descendant IDs to exclude (can't set a descendant as parent)
+    const getDescendantIds = (folderId: number): Set<number> => {
+      const ids = new Set<number>();
+      const children = sametype.filter(f => f.parent_id === folderId);
+      children.forEach(child => {
+        ids.add(child.id);
+        getDescendantIds(child.id).forEach(id => ids.add(id));
+      });
+      return ids;
+    };
+
+    const excludeIds = new Set<number>();
+    if (currentFolderId) {
+      excludeIds.add(currentFolderId);
+      getDescendantIds(currentFolderId).forEach(id => excludeIds.add(id));
+    }
+
+    return sametype.filter(f => !excludeIds.has(f.id));
+  }, [baseFolders]);
+
+  // Track collapsed folder nodes (for tree expand/collapse)
+  const toggleFolderCollapse = (folderId: number) => {
+    const key = `folder-${folderId}`;
+    setCollapsedTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
   };
 
   // Early returns AFTER all hooks (React Rules of Hooks)
@@ -488,19 +611,22 @@ export function BaseFoldersTab() {
           </TableHeader>
           <TableBody>
             {(() => {
-              // Group folders by warehouse type
-              const grouped = baseFolders.reduce((acc, folder) => {
-                const type = folder.warehouse_type_name || folder.warehouse_type_code || "Unassigned";
-                if (!acc[type]) acc[type] = [];
-                acc[type].push(folder);
-                return acc;
-              }, {} as Record<string, BaseFolder[]>);
+              // Get sorted type names from the tree
+              const sortedTypes = Array.from(folderTree.keys()).sort();
 
-              // Sort types alphabetically
-              const sortedTypes = Object.keys(grouped).sort();
+              // Count total folders for each type (including nested)
+              const countFolders = (nodes: TreeNode[]): number => {
+                return nodes.reduce((sum, n) => sum + 1 + countFolders(n.children), 0);
+              };
 
               return sortedTypes.map((typeName) => {
-                const isCollapsed = collapsedTypes.has(typeName);
+                const roots = folderTree.get(typeName) || [];
+                const isTypeCollapsed = collapsedTypes.has(typeName);
+                const totalCount = countFolders(roots);
+
+                // Flatten tree for this type
+                const flatFolders = !isTypeCollapsed ? flattenTree(roots) : [];
+
                 return (
                 <React.Fragment key={typeName}>
                   {/* Type Header Row - Clickable */}
@@ -510,7 +636,7 @@ export function BaseFoldersTab() {
                   >
                     <TableCell colSpan={6} className="py-2">
                       <div className="flex items-center gap-2">
-                        {isCollapsed ? (
+                        {isTypeCollapsed ? (
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         ) : (
                           <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -519,73 +645,124 @@ export function BaseFoldersTab() {
                           {typeName}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          ({grouped[typeName].length} folder{grouped[typeName].length !== 1 ? "s" : ""})
+                          ({totalCount} folder{totalCount !== 1 ? "s" : ""})
                         </span>
                       </div>
                     </TableCell>
                   </TableRow>
-                  {/* Folder Rows - Collapsible */}
-                  {!isCollapsed && grouped[typeName].map((folder) => (
-                    <TableRow key={folder.id}>
-                      <TableCell className="font-medium pl-6">
-                        <div className="flex items-center gap-1">
-                          {folder.is_dynamic && folder.dynamic_type === "mailbox" ? (
-                            <Mail className="h-4 w-4 text-blue-500" />
-                          ) : (
-                            <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                          )}
-                          {folder.name}
-                          {folder.is_system && (
-                            <Lock className="h-3 w-3 text-muted-foreground" />
-                          )}
-                          {folder.is_dynamic && (
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800">
-                              <Zap className="h-2.5 w-2.5 mr-0.5" />
-                              Dynamic
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {(folder.full_path_template || folder.folder_path_template || "-").replace(/\/\s*\//g, '/')}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {(folder.path_preview || "-").replace(/\/\s*\//g, '/')}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-xs">
-                          {folder.warehouse_folders_count}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={folder.enabled ? "default" : "outline"}>
-                          {folder.enabled ? "Yes" : "No"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => openEditDialog(folder)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          {!folder.is_system && (
+                  {/* Folder Rows - Tree structure */}
+                  {flatFolders.map(({ node: folder, isLast }) => {
+                    const hasChildren = folder.children.length > 0;
+                    const isFolderCollapsed = collapsedTypes.has(`folder-${folder.id}`);
+                    const depth = folder.depth;
+
+                    // Build tree line indicators
+                    const treeLines = isLast.slice(0, -1).map((last, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-block w-4 text-muted-foreground/50"
+                      >
+                        {!last ? "│" : " "}
+                      </span>
+                    ));
+
+                    const lastLine = isLast[isLast.length - 1];
+
+                    return (
+                      <TableRow key={folder.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center">
+                            {/* Tree indent lines */}
+                            <span className="font-mono text-xs text-muted-foreground/50 whitespace-pre">
+                              {treeLines}
+                              {depth > 0 && (
+                                <span className="inline-block w-4">{lastLine ? "└" : "├"}</span>
+                              )}
+                            </span>
+                            {/* Expand/collapse button for folders with children */}
+                            {hasChildren ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFolderCollapse(folder.id);
+                                }}
+                                className="p-0.5 hover:bg-muted rounded mr-1"
+                              >
+                                {isFolderCollapsed ? (
+                                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                ) : (
+                                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </button>
+                            ) : (
+                              <span className="w-5" /> // Spacer for alignment
+                            )}
+                            <div className="flex items-center gap-1">
+                              {folder.is_dynamic && folder.dynamic_type === "mailbox" ? (
+                                <Mail className="h-4 w-4 text-blue-500" />
+                              ) : (
+                                <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                              )}
+                              {folder.name}
+                              {folder.is_system && (
+                                <Lock className="h-3 w-3 text-muted-foreground" />
+                              )}
+                              {folder.is_dynamic && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800">
+                                  <Zap className="h-2.5 w-2.5 mr-0.5" />
+                                  Dynamic
+                                </Badge>
+                              )}
+                              {hasChildren && (
+                                <span className="text-[10px] text-muted-foreground ml-1">
+                                  ({folder.children_count})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {(folder.full_path_template || folder.folder_path_template || "-").replace(/\/\s*\//g, '/')}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {(folder.path_preview || "-").replace(/\/\s*\//g, '/')}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-xs">
+                            {folder.warehouse_folders_count}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={folder.enabled ? "default" : "outline"}>
+                            {folder.enabled ? "Yes" : "No"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => handleDelete(folder)}
+                              className="h-8 w-8"
+                              onClick={() => openEditDialog(folder)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Pencil className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            {!folder.is_system && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => handleDelete(folder)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </React.Fragment>
               );
               });
@@ -617,7 +794,8 @@ export function BaseFoldersTab() {
                   value={formData.warehouse_type_id?.toString() || ""}
                   onValueChange={(val) => {
                     const selectedId = parseInt(val);
-                    setFormData({ ...formData, warehouse_type_id: selectedId });
+                    // Clear parent when warehouse type changes (parent must be same type)
+                    setFormData({ ...formData, warehouse_type_id: selectedId, parent_id: null });
                   }}
                   disabled={editingFolder?.is_system}
                 >
@@ -642,6 +820,37 @@ export function BaseFoldersTab() {
                   ) : null;
                 })()}
               </div>
+
+              {/* Parent Folder Selection - Only show if warehouse type is selected */}
+              {formData.warehouse_type_id && (
+                <div className="space-y-2">
+                  <Label htmlFor="parent_id">Parent Folder (optional)</Label>
+                  <Select
+                    value={formData.parent_id?.toString() || "none"}
+                    onValueChange={(val) => {
+                      setFormData({
+                        ...formData,
+                        parent_id: val === "none" ? null : parseInt(val)
+                      });
+                    }}
+                  >
+                    <SelectTrigger id="parent_id">
+                      <SelectValue placeholder="None (root level)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None (root level)</SelectItem>
+                      {getParentOptions(formData.warehouse_type_id, editingFolder?.id || null).map((folder) => (
+                        <SelectItem key={folder.id} value={folder.id.toString()}>
+                          {folder.parent_name ? `${folder.parent_name} / ${folder.name}` : folder.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Select a parent to create a nested hierarchy within this warehouse type
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="name">Name (also used as folder path)</Label>

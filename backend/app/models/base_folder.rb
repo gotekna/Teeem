@@ -39,6 +39,9 @@ class BaseFolder < ApplicationRecord
   # Validations
   validates :name, presence: true
   validates :name, uniqueness: { scope: :warehouse_type_id, message: "already exists for this warehouse type" }
+  validate :parent_not_self
+  validate :parent_same_warehouse_type
+  validate :no_circular_reference
 
   # Scopes
   scope :enabled, -> { where(enabled: true) }
@@ -152,6 +155,37 @@ class BaseFolder < ApplicationRecord
     if is_system
       errors.add(:base, "System base folders cannot be deleted")
       throw(:abort)
+    end
+  end
+
+  def parent_not_self
+    return if parent_id.blank?
+
+    errors.add(:parent_id, "cannot be self") if parent_id == id
+  end
+
+  def parent_same_warehouse_type
+    return if parent_id.blank?
+
+    if parent&.warehouse_type_id != warehouse_type_id
+      errors.add(:parent_id, "must be from the same warehouse type")
+    end
+  end
+
+  def no_circular_reference
+    return if parent_id.blank?
+
+    # Walk up the parent chain to detect cycles
+    visited = Set.new([id])
+    current = parent
+
+    while current.present?
+      if visited.include?(current.id)
+        errors.add(:parent_id, "would create a circular reference")
+        return
+      end
+      visited.add(current.id)
+      current = current.parent
     end
   end
 end

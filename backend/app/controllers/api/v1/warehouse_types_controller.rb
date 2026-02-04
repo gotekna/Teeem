@@ -203,6 +203,9 @@ module Api
             {
               id: bf.id,
               name: bf.name,
+              parent_id: bf.parent_id,
+              parent_name: bf.parent&.name,
+              children_count: bf.children.count,
               folder_path_template: bf.folder_path_template,
               full_path_template: full_template,
               path_preview: bf.path_preview,

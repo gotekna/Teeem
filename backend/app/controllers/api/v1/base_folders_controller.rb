@@ -109,6 +109,7 @@ module Api
       def base_folder_params
         params.require(:base_folder).permit(
           :warehouse_type_id,
+          :parent_id,
           :name,
           :folder_path_template,
           :enabled,
@@ -143,6 +144,9 @@ module Api
           warehouse_type_id: base_folder.warehouse_type_id,
           warehouse_type_code: base_folder.warehouse_type_code,
           warehouse_type_name: base_folder.warehouse_type&.display_name,
+          parent_id: base_folder.parent_id,
+          parent_name: base_folder.parent&.name,
+          children_count: base_folder.children.count,
           name: base_folder.name,
           folder_path_template: base_folder.folder_path_template,
           full_path_template: full_template,
