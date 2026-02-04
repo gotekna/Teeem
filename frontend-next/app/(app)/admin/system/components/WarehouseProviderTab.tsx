@@ -160,6 +160,7 @@ interface WarehouseTabConfig {
   icon_name: string | null;
   folder_path?: string | null;
   base_folder?: string | null;  // SSoT: First segment of folder_path (from database)
+  base_folder_path_template?: string | null;  // SSoT: Template from base_folders table
   children?: WarehouseTabConfig[];
   document_types?: DocumentType[];
 }
@@ -499,7 +500,7 @@ interface TreeNodeProps {
   // SSoT (Feb 2026): All warehouse types for display_name lookup
   warehouseTypes: WarehouseTypeFromAPI[];
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
-  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string }) => void;
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string }) => void;
 }
 
 function TreeNode({
@@ -857,6 +858,7 @@ function TreeNode({
                         folder_path: bf.warehouse_folder!.folder_path || bf.full_path_template || bf.folder_path_template,
                         download_name: bf.warehouse_folder!.download_name,
                         ui_name: bf.warehouse_folder!.ui_name,
+                        base_folder_path_template: bf.folder_path_template,  // SSoT: Template from base_folders table
                       });
                     }}
                     className="p-0.5 hover:bg-muted rounded"
@@ -1286,7 +1288,7 @@ interface TabNodeProps {
   onSaveEdit: (tabId: number, path: string, displayName: string, sendNameTemplate: string) => void;
   onCancelEdit: () => void;
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
-  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string }) => void;
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string }) => void;
 }
 
 function TabNode({
@@ -1696,6 +1698,7 @@ function TabNode({
                 folder_path: tab.folder_path || tab.storage_folder_path || undefined,
                 download_name: tab.download_name || undefined,
                 ui_name: tab.ui_name || undefined,
+                base_folder_path_template: tab.base_folder_path_template || undefined,  // SSoT: Template from base_folders table
               });
             }}
           >
@@ -1855,6 +1858,7 @@ export function WarehouseProviderTab() {
     folder_path?: string;
     download_name?: string;
     ui_name?: string;
+    base_folder_path_template?: string;  // SSoT: Template from base_folders table (read-only)
   }
   const [editingWarehouseFolder, setEditingWarehouseFolder] = React.useState<EditingWarehouseFolder | null>(null);
   const [warehouseFolderEditForm, setWarehouseFolderEditForm] = React.useState({
@@ -3686,34 +3690,60 @@ export function WarehouseProviderTab() {
               </div>
             </div>
 
-            {/* Folder Path - Full editable path */}
+            {/* Full Warehouse Folder Path - Editable with greyed-out base path prefix */}
             <div className="space-y-2">
-              <Label htmlFor="folder_path">Folder Path</Label>
-              <Input
-                id="folder_path"
-                value={warehouseFolderEditForm.folder_path}
-                onChange={(e) => setWarehouseFolderEditForm(prev => ({ ...prev, folder_path: e.target.value }))}
-                placeholder="e.g., Tasks/{{TaskId}}/{{TaskName}}/Attachments"
-                className="font-mono text-sm"
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.classList.add('ring-2', 'ring-primary');
-                }}
-                onDragLeave={(e) => {
-                  e.currentTarget.classList.remove('ring-2', 'ring-primary');
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.classList.remove('ring-2', 'ring-primary');
-                  const token = e.dataTransfer.getData('text/plain');
-                  if (token) {
+              <Label htmlFor="folder_path">Full Warehouse Folder Path</Label>
+              <div className="flex items-center border rounded-md overflow-hidden">
+                {/* Base folder path prefix - read-only, greyed out */}
+                {editingWarehouseFolder?.base_folder_path_template && (
+                  <span className="px-3 py-2 bg-muted text-muted-foreground font-mono text-sm border-r whitespace-nowrap">
+                    {editingWarehouseFolder.base_folder_path_template}
+                  </span>
+                )}
+                {/* Editable suffix */}
+                <Input
+                  id="folder_path"
+                  value={
+                    // Show only the suffix after the base folder path
+                    editingWarehouseFolder?.base_folder_path_template && warehouseFolderEditForm.folder_path.startsWith(editingWarehouseFolder.base_folder_path_template)
+                      ? warehouseFolderEditForm.folder_path.slice(editingWarehouseFolder.base_folder_path_template.length)
+                      : warehouseFolderEditForm.folder_path
+                  }
+                  onChange={(e) => {
+                    const suffix = e.target.value;
+                    const basePath = editingWarehouseFolder?.base_folder_path_template || '';
                     setWarehouseFolderEditForm(prev => ({
                       ...prev,
-                      folder_path: prev.folder_path + token
+                      folder_path: basePath + suffix
                     }));
-                  }
-                }}
-              />
+                  }}
+                  placeholder=""
+                  className="font-mono text-sm border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.add('ring-2', 'ring-primary');
+                  }}
+                  onDragLeave={(e) => {
+                    e.currentTarget.classList.remove('ring-2', 'ring-primary');
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove('ring-2', 'ring-primary');
+                    const token = e.dataTransfer.getData('text/plain');
+                    if (token) {
+                      setWarehouseFolderEditForm(prev => {
+                        // Add / before token if current value doesn't end with /
+                        const currentPath = prev.folder_path;
+                        const separator = currentPath.endsWith('/') ? '' : '/';
+                        return {
+                          ...prev,
+                          folder_path: currentPath + separator + token
+                        };
+                      });
+                    }
+                  }}
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
                 Full folder path saved to warehouse_folders table.
               </p>
@@ -3805,14 +3835,13 @@ export function WarehouseProviderTab() {
                 Filename used when downloading. Include extension.
               </p>
             </div>
-            {editingWarehouseFolder && (
-              <div className="rounded-lg border bg-muted/50 p-3 space-y-1 text-sm">
-                <div className="flex gap-2">
-                  <span className="text-muted-foreground w-24">Path:</span>
-                  <span className="font-mono text-xs">{editingWarehouseFolder.folder_path || editingWarehouseFolder.display_name}</span>
-                </div>
+            {/* Live preview of full path */}
+            <div className="rounded-lg border bg-muted/50 p-3 space-y-1 text-sm">
+              <div className="flex gap-2">
+                <span className="text-muted-foreground w-24">Path:</span>
+                <span className="font-mono text-xs">{warehouseFolderEditForm.folder_path || editingWarehouseFolder?.display_name || ''}</span>
               </div>
-            )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingWarehouseFolder(null)}>

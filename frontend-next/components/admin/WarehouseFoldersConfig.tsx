@@ -2480,10 +2480,23 @@ export function WarehouseFoldersConfig({
                   )}
                 </div>
 
+                {/* Base Folder Path (read-only from base_folders table) */}
+                {editingTab?.base_folder_path_template && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Base Folder Path</Label>
+                    <div className="p-2 border rounded bg-muted/30 font-mono text-xs text-muted-foreground">
+                      {editingTab.base_folder_path_template}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Inherited from base folder configuration
+                    </p>
+                  </div>
+                )}
+
                 {/* Editable folder path (read-only for system tabs) */}
                 {/* SSoT: Show inherited base path as greyed-out prefix, then editable tab folder */}
                 <TokenBuilder
-                  label={editingTab?.is_system_tab ? "Folder Path (system-managed)" : "Folder Path"}
+                  label={editingTab?.is_system_tab ? "Full Warehouse Folder Path (system-managed)" : "Full Warehouse Folder Path"}
                   value={formData.folder_path ?? ""}
                   onChange={(value) =>
                     setFormData((prev) => ({

@@ -660,9 +660,11 @@ export function BaseFoldersTab() {
                 const selectedType = warehouseTypeOptions.find(wt => wt.value === formData.warehouse_type_id);
                 const basePath = selectedType?.base_path;
                 if (!basePath || !formData.name) return null;
+                // Avoid double slash if basePath already ends with /
+                const separator = basePath.endsWith('/') ? '' : '/';
                 return (
                   <div className="text-xs text-muted-foreground">
-                    Full path: <code className="bg-muted px-1 rounded font-mono">{basePath}/{formData.name}</code>
+                    Full path: <code className="bg-muted px-1 rounded font-mono">{basePath}{separator}{formData.name}</code>
                   </div>
                 );
               })()}
