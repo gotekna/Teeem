@@ -153,14 +153,14 @@ module Api
 
       # Build full path by walking up parent hierarchy
       # e.g., Statement → Balance Sheet → Xero = "Xero/Balance Sheet/Statement"
+      # ALWAYS use name (not folder_path_template) to avoid duplicating the warehouse type prefix
       def build_ancestor_path(base_folder)
         path_parts = []
         current = base_folder
 
         while current.present?
-          # Use folder_path_template if set, otherwise use name
-          part = current.folder_path_template.presence || current.name
-          path_parts.unshift(part)
+          # Always use name - folder_path_template may contain full paths that would duplicate
+          path_parts.unshift(current.name)
           current = current.parent
         end
 
