@@ -108,6 +108,11 @@ const defaultFormData: FormData = {
 };
 
 export function WarehouseTypesTab() {
+  // DEBUG VERSION MARKER - v2 with full debugging
+  React.useEffect(() => {
+    console.log("🟣🟣🟣 [WarehouseTypesTab] COMPONENT MOUNTED - DEBUG VERSION v2 🟣🟣🟣");
+  }, []);
+
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingType, setEditingType] = React.useState<WarehouseType | null>(null);
@@ -150,22 +155,33 @@ export function WarehouseTypesTab() {
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: FormData }) => {
-      console.log("[WarehouseTypes] updateMutation.mutationFn called", { id, data });
+      console.log("🟢🟢🟢 [WarehouseTypes] updateMutation.mutationFn EXECUTING 🟢🟢🟢");
+      console.log("🟢 API PATCH to:", `/api/v1/warehouse_types/${id}`);
+      console.log("🟢 Payload:", JSON.stringify({ warehouse_type: data }));
+
       const response = await api.patch<{ success: boolean; data: WarehouseType }>(`/api/v1/warehouse_types/${id}`, {
         warehouse_type: data,
       });
-      console.log("[WarehouseTypes] updateMutation response", response);
+
+      console.log("🟢🟢🟢 [WarehouseTypes] updateMutation API RESPONSE 🟢🟢🟢");
+      console.log("🟢 Response:", JSON.stringify(response));
       return response;
     },
+    onMutate: (variables) => {
+      console.log("🟡🟡🟡 [WarehouseTypes] updateMutation.onMutate 🟡🟡🟡", variables);
+    },
     onSuccess: (data) => {
-      console.log("[WarehouseTypes] updateMutation.onSuccess", data);
+      console.log("🟢🟢🟢 [WarehouseTypes] updateMutation.onSuccess 🟢🟢🟢", data);
       queryClient.invalidateQueries({ queryKey: ["warehouse-types"] });
       toast.success("Warehouse type updated successfully");
       closeDialog();
     },
     onError: (error: Error) => {
-      console.error("[WarehouseTypes] updateMutation.onError", error);
+      console.error("🔴🔴🔴 [WarehouseTypes] updateMutation.onError 🔴🔴🔴", error);
       toast.error(`Failed to update: ${error.message}`);
+    },
+    onSettled: (data, error) => {
+      console.log("⚪⚪⚪ [WarehouseTypes] updateMutation.onSettled ⚪⚪⚪", { data, error });
     },
   });
 
@@ -255,7 +271,14 @@ export function WarehouseTypesTab() {
   };
 
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
-    if (e) e.preventDefault();
+    // PRODUCTION DEBUG: Very visible trace
+    console.log("🔴🔴🔴 [WarehouseTypes] handleSubmit ENTRY POINT 🔴🔴🔴");
+    console.log("🔴 Event:", e?.type, e?.target);
+
+    if (e) {
+      e.preventDefault();
+      console.log("🔴 preventDefault called");
+    }
 
     // Build full path with display_name prefix
     const dataToSave = {
@@ -265,7 +288,9 @@ export function WarehouseTypesTab() {
         : formData.display_name || "",
     };
 
-    console.log("[WarehouseTypes] handleSubmit called", { editingType: editingType?.id, dataToSave });
+    console.log("🔴 [WarehouseTypes] handleSubmit called", { editingType: editingType?.id, dataToSave });
+    console.log("🔴 formData:", JSON.stringify(formData));
+    console.log("🔴 editingType:", editingType ? JSON.stringify({ id: editingType.id, code: editingType.code }) : "null");
 
     // Reassign base folders if editing
     if (editingType && baseFolderToggles.length > 0) {
@@ -285,11 +310,22 @@ export function WarehouseTypesTab() {
     }
 
     if (editingType) {
-      console.log("[WarehouseTypes] Calling updateMutation.mutate for id:", editingType.id);
-      updateMutation.mutate({ id: editingType.id, data: dataToSave });
+      console.log("🔴🔴🔴 [WarehouseTypes] About to call updateMutation.mutate for id:", editingType.id);
+      console.log("🔴 Payload:", JSON.stringify({ id: editingType.id, data: dataToSave }));
+      try {
+        updateMutation.mutate({ id: editingType.id, data: dataToSave });
+        console.log("🔴 updateMutation.mutate() was called successfully (async)");
+      } catch (err) {
+        console.error("🔴 updateMutation.mutate() threw:", err);
+      }
     } else {
-      console.log("[WarehouseTypes] Calling createMutation.mutate");
-      createMutation.mutate(dataToSave);
+      console.log("🔴🔴🔴 [WarehouseTypes] About to call createMutation.mutate");
+      try {
+        createMutation.mutate(dataToSave);
+        console.log("🔴 createMutation.mutate() was called successfully (async)");
+      } catch (err) {
+        console.error("🔴 createMutation.mutate() threw:", err);
+      }
     }
   };
 
@@ -824,7 +860,12 @@ export function WarehouseTypesTab() {
               <Button
                 type="button"
                 disabled={createMutation.isPending || updateMutation.isPending}
-                onClick={handleSubmit}
+                onClick={(e) => {
+                  console.log("🔵🔵🔵 [WarehouseTypes] UPDATE BUTTON CLICKED 🔵🔵🔵");
+                  console.log("🔵 Button event:", e.type);
+                  console.log("🔵 isPending:", createMutation.isPending, updateMutation.isPending);
+                  handleSubmit(e);
+                }}
               >
                 {createMutation.isPending || updateMutation.isPending
                   ? "Saving..."
