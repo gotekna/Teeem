@@ -26,6 +26,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 type SortField = "code" | "display_name" | "folder_path_template" | "base_folders_count" | "enabled";
@@ -86,6 +87,13 @@ interface FormData {
   order_position: number;
 }
 
+interface BaseFolderToggle {
+  id: number;
+  name: string;
+  enabled: boolean;
+  is_system: boolean;
+}
+
 const defaultFormData: FormData = {
   code: "",
   display_name: "",
@@ -101,6 +109,7 @@ export function WarehouseTypesTab() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingType, setEditingType] = React.useState<WarehouseType | null>(null);
   const [formData, setFormData] = React.useState<FormData>(defaultFormData);
+  const [baseFolderToggles, setBaseFolderToggles] = React.useState<BaseFolderToggle[]>([]);
   const [showSystemTypes, setShowSystemTypes] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [sortField, setSortField] = React.useState<SortField>("code");
@@ -165,13 +174,23 @@ export function WarehouseTypesTab() {
     },
   });
 
+  // Update base folder enabled status mutation
+  const updateBaseFolderMutation = useMutation({
+    mutationFn: async ({ id, enabled }: { id: number; enabled: boolean }) => {
+      return api.patch<{ success: boolean }>(`/api/v1/base_folders/${id}`, {
+        base_folder: { enabled },
+      });
+    },
+  });
+
   const openCreateDialog = () => {
     setEditingType(null);
     setFormData(defaultFormData);
+    setBaseFolderToggles([]);
     setIsDialogOpen(true);
   };
 
-  const openEditDialog = (type: WarehouseType) => {
+  const openEditDialog = async (type: WarehouseType) => {
     setEditingType(type);
 
     // Strip the display_name prefix from folder_path_template for editing
@@ -192,6 +211,27 @@ export function WarehouseTypesTab() {
       enabled: type.enabled,
       order_position: type.order_position,
     });
+
+    // Fetch all base folders (including disabled) for this warehouse type
+    try {
+      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; enabled: boolean; is_system: boolean }> }>(
+        `/api/v1/base_folders?warehouse_type_id=${type.id}&include_disabled=true`
+      );
+      if (response?.data) {
+        setBaseFolderToggles(
+          response.data.map((bf) => ({
+            id: bf.id,
+            name: bf.name,
+            enabled: bf.enabled,
+            is_system: bf.is_system,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to fetch base folders:", err);
+      setBaseFolderToggles([]);
+    }
+
     setIsDialogOpen(true);
   };
 
@@ -199,9 +239,10 @@ export function WarehouseTypesTab() {
     setIsDialogOpen(false);
     setEditingType(null);
     setFormData(defaultFormData);
+    setBaseFolderToggles([]);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Build full path with display_name prefix
@@ -212,11 +253,38 @@ export function WarehouseTypesTab() {
         : formData.display_name || "",
     };
 
+    // Save base folder enabled states if editing
+    if (editingType && baseFolderToggles.length > 0) {
+      // Find which base folders have changed
+      const originalFolders = editingType.base_folders;
+      for (const toggle of baseFolderToggles) {
+        const original = originalFolders.find((bf) => bf.id === toggle.id);
+        // If the folder wasn't in the original list, it was disabled - so it's enabled now means it changed
+        // Or if enabled state differs from what we have
+        const wasEnabled = !!original;
+        if (wasEnabled !== toggle.enabled) {
+          try {
+            await updateBaseFolderMutation.mutateAsync({ id: toggle.id, enabled: toggle.enabled });
+          } catch (err) {
+            console.error(`Failed to update base folder ${toggle.id}:`, err);
+          }
+        }
+      }
+    }
+
     if (editingType) {
       updateMutation.mutate({ id: editingType.id, data: dataToSave });
     } else {
       createMutation.mutate(dataToSave);
     }
+  };
+
+  const toggleBaseFolder = (folderId: number) => {
+    setBaseFolderToggles((prev) =>
+      prev.map((bf) =>
+        bf.id === folderId ? { ...bf, enabled: !bf.enabled } : bf
+      )
+    );
   };
 
   const handleDelete = (type: WarehouseType) => {
@@ -615,6 +683,41 @@ export function WarehouseTypesTab() {
                   </div>
                 </div>
               </div>
+
+              {/* Base Folders - only show when editing */}
+              {editingType && baseFolderToggles.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Base Folders</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Select which folders are enabled for this warehouse type
+                  </p>
+                  <div className="border rounded-md p-3 space-y-2 max-h-[200px] overflow-y-auto">
+                    {baseFolderToggles.map((bf) => (
+                      <div
+                        key={bf.id}
+                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded"
+                        onClick={() => toggleBaseFolder(bf.id)}
+                      >
+                        <Checkbox
+                          id={`bf-${bf.id}`}
+                          checked={bf.enabled}
+                          onCheckedChange={() => toggleBaseFolder(bf.id)}
+                        />
+                        <label
+                          htmlFor={`bf-${bf.id}`}
+                          className="flex items-center gap-1 text-sm cursor-pointer flex-1"
+                        >
+                          <Folder className="h-3 w-3 text-muted-foreground" />
+                          {bf.name}
+                          {bf.is_system && (
+                            <Lock className="h-3 w-3 text-muted-foreground ml-1" />
+                          )}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-2">
                 <Switch
