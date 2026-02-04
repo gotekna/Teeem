@@ -77,6 +77,7 @@ class WarehouseFolder < ApplicationRecord
   # Associations
   belongs_to :parent, class_name: 'WarehouseFolder', optional: true
   belongs_to :job, optional: true  # For per-job tabs
+  belongs_to :base_folder, optional: true  # FK to base_folders table (Feb 2026)
 
   has_many :children, class_name: 'WarehouseFolder', foreign_key: :parent_id, dependent: :destroy
 
@@ -125,7 +126,9 @@ class WarehouseFolder < ApplicationRecord
   end
 
   # Validations
-  validates :warehouse_type, presence: true, inclusion: { in: WAREHOUSE_TYPES }
+  # SSoT: warehouse_type validation now supports both constant (legacy) and database table
+  validates :warehouse_type, presence: true
+  validate :warehouse_type_valid
   validates :tab_key, presence: true
   validates :display_name, presence: true
   validates :tab_group, inclusion: { in: TAB_GROUPS }, allow_blank: true
@@ -1371,5 +1374,19 @@ class WarehouseFolder < ApplicationRecord
     return if display_mode != 'icon_only' # Only block icon_only mode
 
     errors.add(:display_mode, "Sub-tabs must show text to differentiate from siblings. Use 'both' or 'text_only' instead.")
+  end
+
+  # SSoT: Validate warehouse_type against both constant and database (Feb 2026)
+  # This provides backward compatibility during migration from constant to database
+  def warehouse_type_valid
+    return if warehouse_type.blank?
+
+    # First check the constant (legacy)
+    return if WAREHOUSE_TYPES.include?(warehouse_type)
+
+    # Then check the database (new SSoT)
+    return if WarehouseType.valid_code?(warehouse_type)
+
+    errors.add(:warehouse_type, "is not a valid warehouse type")
   end
 end

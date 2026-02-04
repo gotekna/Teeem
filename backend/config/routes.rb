@@ -3039,6 +3039,22 @@ Rails.application.routes.draw do
         end
       end
 
+      # Warehouse Types (SSoT: Database-driven warehouse types - Feb 2026)
+      # Replaces: hardcoded WAREHOUSE_TYPES constant
+      resources :warehouse_types do
+        collection do
+          get :options  # For select dropdowns
+        end
+        resources :base_folders, only: [:index]  # Nested route for type-specific folders
+      end
+
+      # Base Folders (SSoT: Base folder configuration per warehouse type - Feb 2026)
+      resources :base_folders do
+        collection do
+          get :grouped  # Grouped by warehouse type for UI
+        end
+      end
+
       # Warehouse Folders (SSoT: Unified tab configuration)
       # Replaces: legacy tab configuration (Jan 2026)
       resources :warehouse_folders do
