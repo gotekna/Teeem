@@ -528,36 +528,41 @@ function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocume
                   folder_path: folderPath,
                 })}
               >
-                {/* Document name row */}
-                <div className="flex items-center gap-2">
-                  <span className={`font-medium px-1 rounded ${
-                    isConfigured
-                      ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                      : 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
-                  }`}>
-                    {dt.abbreviation || dt.name}
+                {/* Document name + UI/DL badges */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-foreground">
+                    {dt.name}
                   </span>
-                  <span className="text-muted-foreground">{dt.name}</span>
+                  {dt.abbreviation && (
+                    <span className="text-muted-foreground">({dt.abbreviation})</span>
+                  )}
+                  {/* UI badge */}
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[8px] px-1 py-0 h-3.5",
+                      dt.ui_name
+                        ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                        : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                    )}
+                    title={dt.ui_name || '(default)'}
+                  >
+                    UI
+                  </Badge>
+                  {/* DL badge */}
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[8px] px-1 py-0 h-3.5",
+                      dt.download_name
+                        ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                        : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                    )}
+                    title={dt.download_name || '(default)'}
+                  >
+                    DL
+                  </Badge>
                   <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-                {/* Path and templates */}
-                <div className="mt-0.5 pl-1 space-y-0.5 font-mono text-muted-foreground">
-                  <div className="flex gap-2">
-                    <span className="w-8 text-right">Path:</span>
-                    <span>{folderPath}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="w-8 text-right">UI:</span>
-                    <span className={dt.ui_name ? 'text-green-500' : 'text-orange-500'}>
-                      {dt.ui_name || '{{OriginalFileName}}'}
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="w-8 text-right">DL:</span>
-                    <span className={dt.download_name ? 'text-green-500' : 'text-orange-500'}>
-                      {dt.download_name || '{{OriginalFileName}}'}
-                    </span>
-                  </div>
                 </div>
               </div>
             );
@@ -957,40 +962,41 @@ function TreeNode({
         <div style={{ paddingLeft: `${level * 16 + 28}px` }}>
           {node.baseFolders.map((bf) => (
             <div key={bf.id} className="mb-2 text-[10px]">
-              {/* Full folder path - plain text */}
-              <div className="font-mono text-muted-foreground py-0.5">
-                {bf.full_path_template || bf.folder_path_template || '—'}
-              </div>
-              {/* UI/DL name values - green = custom, orange = default */}
-              <div className="flex items-center gap-4 py-0.5">
-                <div className="flex items-center gap-1">
-                  <span className={cn(
-                    "font-medium",
+              {/* Full folder path + UI/DL badges */}
+              <div className="flex items-center gap-1.5 py-0.5 flex-wrap">
+                <Badge
+                  variant="outline"
+                  className="gap-1 font-normal bg-muted/50 border-muted-foreground/30 text-foreground"
+                >
+                  <FolderOpen className="h-3 w-3 shrink-0" />
+                  <span className="font-mono">{bf.full_path_template || bf.folder_path_template || '—'}</span>
+                </Badge>
+                {/* UI badge - green if custom, orange if default */}
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "font-normal cursor-default",
                     bf.warehouse_folder?.ui_name
-                      ? "text-green-700 dark:text-green-400"
-                      : "text-orange-600 dark:text-orange-400"
-                  )}>UI:</span>
-                  <span className={cn(
-                    "font-mono",
-                    bf.warehouse_folder?.ui_name
-                      ? "text-green-700 dark:text-green-400"
-                      : "text-orange-600 dark:text-orange-400"
-                  )}>{bf.warehouse_folder?.ui_name || '(default)'}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className={cn(
-                    "font-medium",
+                      ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                      : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                  )}
+                  title={bf.warehouse_folder?.ui_name || '(default)'}
+                >
+                  UI
+                </Badge>
+                {/* DL badge - green if custom, orange if default */}
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "font-normal cursor-default",
                     bf.warehouse_folder?.download_name
-                      ? "text-green-700 dark:text-green-400"
-                      : "text-orange-600 dark:text-orange-400"
-                  )}>DL:</span>
-                  <span className={cn(
-                    "font-mono",
-                    bf.warehouse_folder?.download_name
-                      ? "text-green-700 dark:text-green-400"
-                      : "text-orange-600 dark:text-orange-400"
-                  )}>{bf.warehouse_folder?.download_name || '(default)'}</span>
-                </div>
+                      ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                      : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                  )}
+                  title={bf.warehouse_folder?.download_name || '(default)'}
+                >
+                  DL
+                </Badge>
               </div>
               {/* Document types linked to this folder - collapsible rows */}
               {bf.warehouse_folder?.document_types && bf.warehouse_folder.document_types.length > 0 && (
