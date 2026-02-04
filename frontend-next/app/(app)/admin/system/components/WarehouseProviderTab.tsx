@@ -539,11 +539,11 @@ function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocume
                   <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
                 {/* UI/DL badges with actual values */}
-                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                   <Badge
                     variant="outline"
                     className={cn(
-                      "font-mono text-[8px]",
+                      "font-mono text-[9px]",
                       dt.ui_name
                         ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                         : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
@@ -554,7 +554,7 @@ function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocume
                   <Badge
                     variant="outline"
                     className={cn(
-                      "font-mono text-[8px]",
+                      "font-mono text-[9px]",
                       dt.download_name
                         ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                         : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
@@ -966,12 +966,11 @@ function TreeNode({
                 {bf.full_path_template || bf.folder_path_template || '—'}
               </div>
               {/* UI/DL badges with actual values - green if set, orange if default */}
-              <div className="flex items-center gap-1.5 py-0.5 flex-wrap">
-                {/* UI badge */}
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 <Badge
                   variant="outline"
                   className={cn(
-                    "font-mono text-[10px]",
+                    "font-mono text-[9px]",
                     bf.warehouse_folder?.ui_name
                       ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                       : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
@@ -979,11 +978,10 @@ function TreeNode({
                 >
                   UI: {bf.warehouse_folder?.ui_name || '(default)'}
                 </Badge>
-                {/* DL badge */}
                 <Badge
                   variant="outline"
                   className={cn(
-                    "font-mono text-[10px]",
+                    "font-mono text-[9px]",
                     bf.warehouse_folder?.download_name
                       ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                       : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
@@ -1893,11 +1891,11 @@ function TabNode({
                       <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/dt:opacity-100 transition-opacity" />
                     </div>
                     {/* UI/DL badges with actual values */}
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <Badge
                         variant="outline"
                         className={cn(
-                          "font-mono text-[8px]",
+                          "font-mono text-[9px]",
                           uiNameTemplate
                             ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                             : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
@@ -1908,7 +1906,7 @@ function TabNode({
                       <Badge
                         variant="outline"
                         className={cn(
-                          "font-mono text-[8px]",
+                          "font-mono text-[9px]",
                           downloadTemplate
                             ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                             : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
