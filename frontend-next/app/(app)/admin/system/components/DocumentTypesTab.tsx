@@ -585,9 +585,9 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
   }
 
   return (
-    <div className="flex flex-col h-full space-y-6">
+    <div className="flex flex-col h-full">
       {/* Header */}
-      <div>
+      <div className="shrink-0 mb-4">
         <h2 className="text-lg font-semibold">Document Types & Naming Conventions</h2>
         <p className="text-sm text-muted-foreground mt-1">
           Single source of truth for document types across Companies and Jobs. Click any cell to edit.
@@ -595,8 +595,8 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       </div>
 
       {/* Scope Filter Tabs */}
-      <Tabs value={scopeFilter} onValueChange={handleScopeChange}>
-        <TabsList className="grid w-full grid-cols-4 max-w-3xl">
+      <Tabs value={scopeFilter} onValueChange={handleScopeChange} className="flex flex-col flex-1 min-h-0">
+        <TabsList className="grid w-full grid-cols-4 max-w-3xl shrink-0">
           <TabsTrigger value="all" className="gap-2">
             All ({documentTypes.length})
           </TabsTrigger>
@@ -614,7 +614,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value={scopeFilter} className="mt-6 space-y-6">
+        <TabsContent value={scopeFilter} className="flex-1 min-h-0 mt-4">
       {/* Table - SSoT: Use slug, TeeemTableView resolves numeric ID */}
       {/* Add Record uses TeeemTableView's built-in modal via Foundation API */}
       <TeeemTableView

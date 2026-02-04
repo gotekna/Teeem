@@ -155,6 +155,23 @@ interface DocumentType {
   file_name?: string;  // Document Download Name TEMPLATE: "{ContactName} {DocTypeCode} {Date}"
 }
 
+// SSoT (Feb 2026): Base folders from warehouse_types API
+// These are THE ONE source of truth for folder categories shown as chips
+interface BaseFolderFromAPI {
+  id: number;
+  name: string;
+  folder_path_template?: string;
+  path_preview?: string;
+}
+
+// WarehouseType from API (for base folders lookup)
+interface WarehouseTypeFromAPI {
+  id: number;
+  code: string;
+  display_name: string;
+  base_folders: BaseFolderFromAPI[];
+}
+
 // WarehouseFolder interface for tabs under each scope
 interface WarehouseTabConfig {
   id: number;
@@ -240,7 +257,8 @@ interface FolderTreeNode {
   scopeKey: string | null;  // Primary scope key (first one added)
   scopeKeys: string[];  // ALL scope keys that share this path (for multi-scope folders like Tasks)
   children: FolderTreeNode[];
-  tabs?: WarehouseTabConfig[];  // Tabs under this scope folder
+  tabs?: WarehouseTabConfig[];  // Tabs under this scope folder (DEPRECATED for chips - use baseFolders)
+  baseFolders?: BaseFolderFromAPI[];  // SSoT (Feb 2026): Base folders from warehouse_types API
 }
 
 // SSoT: Known scope root folder names (first segment of paths that should appear at root)
@@ -1061,17 +1079,18 @@ function TreeNode({
 
         {/* SSoT (Feb 2026): Config link buttons removed for consistency - all scopes show tabs */}
 
-        {/* Individual tab badges */}
-        {hasTabs && (
+        {/* SSoT (Feb 2026): Base folder chips from warehouse_types API */}
+        {/* These are THE ONE source for folder category chips (not warehouse_folders) */}
+        {node.baseFolders && node.baseFolders.length > 0 && (
           <div className="flex items-center gap-1 ml-1">
-            {node.tabs!.map((tab) => (
+            {node.baseFolders.map((bf) => (
               <Badge
-                key={tab.id}
+                key={bf.id}
                 variant="secondary"
                 className="h-5 text-[10px] px-1.5"
-                title={`Tab: ${tab.display_name}`}
+                title={bf.folder_path_template ? `Path: ${bf.folder_path_template}` : bf.name}
               >
-                {tab.display_name}
+                {bf.name}
               </Badge>
             ))}
           </div>
@@ -2178,6 +2197,10 @@ export function WarehouseProviderTab() {
   const [entityTabs, setWarehouseTabConfigs] = React.useState<Record<string, WarehouseTabConfig[]>>({});
   const [loadingTabs, setLoadingTabs] = React.useState(false);
 
+  // SSoT (Feb 2026): Base folders by warehouse type code from /api/v1/warehouse_types
+  // This is THE ONE source of truth for folder category chips (not warehouse_folders)
+  const [baseFoldersByScope, setBaseFoldersByScope] = React.useState<Record<string, BaseFolderFromAPI[]>>({});
+
   // Warehouse stats for live preview
   interface WarehouseStats {
     warehouse_total: number;
@@ -2250,6 +2273,29 @@ export function WarehouseProviderTab() {
       console.error("Failed to load entity tabs:", error);
     } finally {
       setLoadingTabs(false);
+    }
+  };
+
+  // SSoT (Feb 2026): Fetch warehouse types to get base folders for each scope
+  // base_folders are THE ONE source for folder category chips
+  const loadWarehouseTypes = async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: WarehouseTypeFromAPI[];
+      }>('/api/v1/warehouse_types');
+
+      if (response?.success && response.data) {
+        // Build map of scope code → base_folders
+        const foldersByScope: Record<string, BaseFolderFromAPI[]> = {};
+        response.data.forEach((wt) => {
+          // Use the warehouse type code as the scope key (e.g., "task", "job", "email")
+          foldersByScope[wt.code] = wt.base_folders || [];
+        });
+        setBaseFoldersByScope(foldersByScope);
+      }
+    } catch (error) {
+      console.error("Failed to load warehouse types:", error);
     }
   };
 
@@ -2342,9 +2388,24 @@ export function WarehouseProviderTab() {
       });
     };
 
+    // SSoT (Feb 2026): Attach base folders from warehouse_types API
+    // base_folders are THE ONE source for folder category chips
+    const attachBaseFolders = (nodes: FolderTreeNode[]) => {
+      nodes.forEach(node => {
+        if (node.scopeKey && baseFoldersByScope[node.scopeKey]) {
+          // Use base_folders from warehouse_types as the chips
+          node.baseFolders = baseFoldersByScope[node.scopeKey];
+        }
+        if (node.children.length > 0) {
+          attachBaseFolders(node.children);
+        }
+      });
+    };
+
     attachTabs(tree);
+    attachBaseFolders(tree);  // SSoT: Base folders for chips
     return tree;
-  }, [config?.warehouse_folders, entityTabs]);
+  }, [config?.warehouse_folders, entityTabs, baseFoldersByScope]);
 
   // Toggle tree node expansion
   const toggleExpanded = (path: string) => {
@@ -2609,10 +2670,11 @@ export function WarehouseProviderTab() {
     setExpandedPaths(new Set());
   }, []);
 
-  // Load storage config and entity tabs on mount
+  // Load storage config, entity tabs, and warehouse types on mount
   React.useEffect(() => {
     loadConfig();
     loadWarehouseTabConfigs();
+    loadWarehouseTypes();  // SSoT (Feb 2026): Load base folders from warehouse_types
   }, []);
 
   const loadConfig = async () => {

@@ -25,8 +25,11 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Plus, Pencil, Trash2, Lock, Folder } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
+
+type SortField = "code" | "display_name" | "base_folders_count" | "enabled";
+type SortDirection = "asc" | "desc";
 
 /**
  * WarehouseTypesTab - Manage warehouse types and base folders
@@ -93,6 +96,9 @@ export function WarehouseTypesTab() {
   const [editingType, setEditingType] = React.useState<WarehouseType | null>(null);
   const [formData, setFormData] = React.useState<FormData>(defaultFormData);
   const [showSystemTypes, setShowSystemTypes] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [sortField, setSortField] = React.useState<SortField>("code");
+  const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc");
 
   // Fetch warehouse types
   const { data, isLoading, error } = useQuery({
@@ -213,8 +219,61 @@ export function WarehouseTypesTab() {
     );
   }
 
-  const warehouseTypes = data?.data || [];
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 ml-1" />;
+    return sortDirection === "asc"
+      ? <ArrowUp className="h-4 w-4 ml-1" />
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
+  // Filter and sort warehouse types
+  const rawTypes = data?.data || [];
   const summary = data?.summary;
+
+  const warehouseTypes = React.useMemo(() => {
+    let filtered = rawTypes;
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (type) =>
+          type.code.toLowerCase().includes(query) ||
+          type.display_name.toLowerCase().includes(query) ||
+          type.description?.toLowerCase().includes(query) ||
+          type.base_folders.some((bf) => bf.name.toLowerCase().includes(query))
+      );
+    }
+
+    // Sort
+    return [...filtered].sort((a, b) => {
+      let comparison = 0;
+      switch (sortField) {
+        case "code":
+          comparison = a.code.localeCompare(b.code);
+          break;
+        case "display_name":
+          comparison = a.display_name.localeCompare(b.display_name);
+          break;
+        case "base_folders_count":
+          comparison = a.base_folders.length - b.base_folders.length;
+          break;
+        case "enabled":
+          comparison = (a.enabled === b.enabled) ? 0 : a.enabled ? -1 : 1;
+          break;
+      }
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [rawTypes, searchQuery, sortField, sortDirection]);
 
   return (
     <div className="space-y-4">
@@ -227,6 +286,15 @@ export function WarehouseTypesTab() {
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search types..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 w-[200px]"
+            />
+          </div>
           <div className="flex items-center gap-2">
             <Switch
               id="show-system"
@@ -247,7 +315,8 @@ export function WarehouseTypesTab() {
       {/* Summary */}
       {summary && (
         <div className="flex gap-4 text-sm text-muted-foreground">
-          <span>Total: {summary.total}</span>
+          <span>Total: {rawTypes.length}</span>
+          {searchQuery && <span>Showing: {warehouseTypes.length}</span>}
           <span>Enabled: {summary.enabled}</span>
           <span>System: {summary.system}</span>
           <span>Custom: {summary.custom}</span>
@@ -259,10 +328,42 @@ export function WarehouseTypesTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[120px]">Code</TableHead>
-              <TableHead>Display Name</TableHead>
-              <TableHead>Base Folders</TableHead>
-              <TableHead className="w-[100px]">Enabled</TableHead>
+              <TableHead
+                className="w-[120px] cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort("code")}
+              >
+                <div className="flex items-center">
+                  Code
+                  {getSortIcon("code")}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort("display_name")}
+              >
+                <div className="flex items-center">
+                  Display Name
+                  {getSortIcon("display_name")}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort("base_folders_count")}
+              >
+                <div className="flex items-center">
+                  Base Folders
+                  {getSortIcon("base_folders_count")}
+                </div>
+              </TableHead>
+              <TableHead
+                className="w-[100px] cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort("enabled")}
+              >
+                <div className="flex items-center">
+                  Enabled
+                  {getSortIcon("enabled")}
+                </div>
+              </TableHead>
               <TableHead className="w-[100px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -335,7 +436,7 @@ export function WarehouseTypesTab() {
             {warehouseTypes.length === 0 && (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  No warehouse types found
+                  {searchQuery ? `No types matching "${searchQuery}"` : "No warehouse types found"}
                 </TableCell>
               </TableRow>
             )}

@@ -32,8 +32,11 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Plus, Pencil, Trash2, Lock, FolderOpen } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, FolderOpen, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
+
+type SortField = "warehouse_type_name" | "name" | "folder_path_template" | "warehouse_folders_count" | "enabled";
+type SortDirection = "asc" | "desc";
 
 /**
  * BaseFoldersTab - Manage base folders for warehouse types
@@ -104,6 +107,9 @@ export function BaseFoldersTab() {
   const [formData, setFormData] = React.useState<FormData>(defaultFormData);
   const [filterWarehouseType, setFilterWarehouseType] = React.useState<string>("all");
   const [showDisabled, setShowDisabled] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [sortField, setSortField] = React.useState<SortField>("warehouse_type_name");
+  const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc");
 
   // Fetch warehouse types for dropdown
   const { data: warehouseTypesData } = useQuery({
@@ -257,7 +263,65 @@ export function BaseFoldersTab() {
     );
   }
 
-  const baseFolders = data?.data || [];
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 ml-1" />;
+    return sortDirection === "asc"
+      ? <ArrowUp className="h-4 w-4 ml-1" />
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
+  // Filter and sort base folders
+  const rawFolders = data?.data || [];
+
+  const baseFolders = React.useMemo(() => {
+    let filtered = rawFolders;
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (folder) =>
+          folder.name.toLowerCase().includes(query) ||
+          folder.warehouse_type_name?.toLowerCase().includes(query) ||
+          folder.warehouse_type_code?.toLowerCase().includes(query) ||
+          folder.folder_path_template?.toLowerCase().includes(query)
+      );
+    }
+
+    // Sort
+    return [...filtered].sort((a, b) => {
+      let comparison = 0;
+      switch (sortField) {
+        case "warehouse_type_name":
+          comparison = (a.warehouse_type_name || a.warehouse_type_code).localeCompare(
+            b.warehouse_type_name || b.warehouse_type_code
+          );
+          break;
+        case "name":
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case "folder_path_template":
+          comparison = (a.folder_path_template || "").localeCompare(b.folder_path_template || "");
+          break;
+        case "warehouse_folders_count":
+          comparison = a.warehouse_folders_count - b.warehouse_folders_count;
+          break;
+        case "enabled":
+          comparison = (a.enabled === b.enabled) ? 0 : a.enabled ? -1 : 1;
+          break;
+      }
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [rawFolders, searchQuery, sortField, sortDirection]);
 
   return (
     <div className="space-y-4">
@@ -270,12 +334,21 @@ export function BaseFoldersTab() {
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search folders..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 w-[180px]"
+            />
+          </div>
           <div className="flex items-center gap-2">
             <Label htmlFor="filter-type" className="text-sm whitespace-nowrap">
-              Filter by type:
+              Type:
             </Label>
             <Select value={filterWarehouseType} onValueChange={setFilterWarehouseType}>
-              <SelectTrigger id="filter-type" className="w-[180px]">
+              <SelectTrigger id="filter-type" className="w-[140px]">
                 <SelectValue placeholder="All types" />
               </SelectTrigger>
               <SelectContent>
@@ -307,9 +380,10 @@ export function BaseFoldersTab() {
 
       {/* Summary */}
       <div className="flex gap-4 text-sm text-muted-foreground">
-        <span>Total: {baseFolders.length}</span>
-        <span>Enabled: {baseFolders.filter(f => f.enabled).length}</span>
-        <span>System: {baseFolders.filter(f => f.is_system).length}</span>
+        <span>Total: {rawFolders.length}</span>
+        {searchQuery && <span>Showing: {baseFolders.length}</span>}
+        <span>Enabled: {rawFolders.filter(f => f.enabled).length}</span>
+        <span>System: {rawFolders.filter(f => f.is_system).length}</span>
       </div>
 
       {/* Table */}
@@ -317,12 +391,52 @@ export function BaseFoldersTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[140px]">Warehouse Type</TableHead>
-              <TableHead className="w-[150px]">Name</TableHead>
-              <TableHead>Path Template</TableHead>
+              <TableHead
+                className="w-[140px] cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort("warehouse_type_name")}
+              >
+                <div className="flex items-center">
+                  Type
+                  {getSortIcon("warehouse_type_name")}
+                </div>
+              </TableHead>
+              <TableHead
+                className="w-[150px] cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort("name")}
+              >
+                <div className="flex items-center">
+                  Name
+                  {getSortIcon("name")}
+                </div>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort("folder_path_template")}
+              >
+                <div className="flex items-center">
+                  Path Template
+                  {getSortIcon("folder_path_template")}
+                </div>
+              </TableHead>
               <TableHead className="w-[200px]">Path Preview</TableHead>
-              <TableHead className="w-[80px]">Folders</TableHead>
-              <TableHead className="w-[80px]">Enabled</TableHead>
+              <TableHead
+                className="w-[80px] cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort("warehouse_folders_count")}
+              >
+                <div className="flex items-center">
+                  Folders
+                  {getSortIcon("warehouse_folders_count")}
+                </div>
+              </TableHead>
+              <TableHead
+                className="w-[80px] cursor-pointer hover:bg-muted/50"
+                onClick={() => handleSort("enabled")}
+              >
+                <div className="flex items-center">
+                  Enabled
+                  {getSortIcon("enabled")}
+                </div>
+              </TableHead>
               <TableHead className="w-[100px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -386,7 +500,7 @@ export function BaseFoldersTab() {
             {baseFolders.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                  No base folders found
+                  {searchQuery ? `No folders matching "${searchQuery}"` : "No base folders found"}
                 </TableCell>
               </TableRow>
             )}
