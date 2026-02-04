@@ -957,59 +957,39 @@ function TreeNode({
         <div style={{ paddingLeft: `${level * 16 + 28}px` }}>
           {node.baseFolders.map((bf) => (
             <div key={bf.id} className="mb-2 text-[10px]">
-              {/* Full path row */}
-              <div className="flex items-center gap-1.5 py-0.5">
-                <Badge
-                  variant="outline"
-                  className="gap-1 font-normal bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
-                >
-                  <FolderOpen className="h-3 w-3 shrink-0" />
-                  <span className="font-mono">{bf.full_path_template || bf.folder_path_template || '—'}</span>
-                </Badge>
-                {/* UI badge */}
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "px-1 py-0",
-                    bf.warehouse_folder?.ui_name
-                      ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
-                      : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
-                  )}
-                >
-                  UI
-                </Badge>
-                {/* DL badge */}
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "px-1 py-0",
-                    bf.warehouse_folder?.download_name
-                      ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
-                      : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
-                  )}
-                >
-                  DL
-                </Badge>
+              {/* Full folder path - plain text */}
+              <div className="font-mono text-muted-foreground py-0.5">
+                {bf.full_path_template || bf.folder_path_template || '—'}
               </div>
-              {/* UI/DL name values row - green = custom, orange = default */}
-              <div className="flex items-center gap-4 pl-2 py-0.5">
-                <div className={cn(
-                  "flex items-center gap-1 font-mono",
-                  bf.warehouse_folder?.ui_name
-                    ? "text-green-700 dark:text-green-400"
-                    : "text-orange-600 dark:text-orange-400"
-                )}>
-                  <span className="text-[9px]">👁</span>
-                  <span>{bf.warehouse_folder?.ui_name || '(default)'}</span>
+              {/* UI/DL name values - green = custom, orange = default */}
+              <div className="flex items-center gap-4 py-0.5">
+                <div className="flex items-center gap-1">
+                  <span className={cn(
+                    "font-medium",
+                    bf.warehouse_folder?.ui_name
+                      ? "text-green-700 dark:text-green-400"
+                      : "text-orange-600 dark:text-orange-400"
+                  )}>UI:</span>
+                  <span className={cn(
+                    "font-mono",
+                    bf.warehouse_folder?.ui_name
+                      ? "text-green-700 dark:text-green-400"
+                      : "text-orange-600 dark:text-orange-400"
+                  )}>{bf.warehouse_folder?.ui_name || '(default)'}</span>
                 </div>
-                <div className={cn(
-                  "flex items-center gap-1 font-mono",
-                  bf.warehouse_folder?.download_name
-                    ? "text-green-700 dark:text-green-400"
-                    : "text-orange-600 dark:text-orange-400"
-                )}>
-                  <span className="text-[9px]">📥</span>
-                  <span>{bf.warehouse_folder?.download_name || '(default)'}</span>
+                <div className="flex items-center gap-1">
+                  <span className={cn(
+                    "font-medium",
+                    bf.warehouse_folder?.download_name
+                      ? "text-green-700 dark:text-green-400"
+                      : "text-orange-600 dark:text-orange-400"
+                  )}>DL:</span>
+                  <span className={cn(
+                    "font-mono",
+                    bf.warehouse_folder?.download_name
+                      ? "text-green-700 dark:text-green-400"
+                      : "text-orange-600 dark:text-orange-400"
+                  )}>{bf.warehouse_folder?.download_name || '(default)'}</span>
                 </div>
               </div>
               {/* Document types linked to this folder - collapsible rows */}
