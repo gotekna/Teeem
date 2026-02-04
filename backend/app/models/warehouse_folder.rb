@@ -633,7 +633,7 @@ class WarehouseFolder < ApplicationRecord
       uses_custom_path: uses_custom_path,
       warehouse_type_override: warehouse_type_override || 'corporate',
       warehouse_base_path: warehouse_base_path,
-      base_folder_path_template: base_folder&.folder_path_template,  # SSoT: Template from base_folders table
+      base_folder_path_template: base_folder&.full_path_template,  # SSoT: Full path including ancestor hierarchy
       effective_warehouse_path: effective_warehouse_path,  # For UI display (keeps {{JobCode}})
       upload_path: upload_folder_path,  # For uploads (derived from effective_warehouse_path)
       inherited_template: inherited_template,

@@ -106,6 +106,38 @@ class BaseFolder < ApplicationRecord
     true
   end
 
+  # Build full path by walking up parent hierarchy
+  # e.g., Statement → Balance Sheet → Xero = "Xero/Balance Sheet/Statement"
+  def full_ancestor_path
+    path_parts = []
+    current = self
+
+    while current.present?
+      path_parts.unshift(current.name)
+      current = current.parent
+    end
+
+    path_parts.join('/')
+  end
+
+  # Full path template including warehouse type prefix and ancestor hierarchy
+  # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Balance Sheet/Statement"
+  def full_path_template
+    wt_template = warehouse_type&.folder_path_template.presence
+    ancestor_path = full_ancestor_path
+
+    if wt_template.blank?
+      ancestor_path
+    else
+      scope_root = wt_template.split('/').first
+      if ancestor_path.start_with?(scope_root)
+        ancestor_path
+      else
+        "#{wt_template}/#{ancestor_path}"
+      end
+    end
+  end
+
   # Get the full display path preview
   # Replaces template tokens with example values
   # Falls back to warehouse type's folder_path_template when base folder template is blank
