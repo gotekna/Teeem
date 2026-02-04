@@ -108,9 +108,9 @@ const defaultFormData: FormData = {
 };
 
 export function WarehouseTypesTab() {
-  // DEBUG VERSION MARKER - v2 with full debugging
+  // DEBUG VERSION MARKER - v3 with stale closure fix
   React.useEffect(() => {
-    console.log("🟣🟣🟣 [WarehouseTypesTab] COMPONENT MOUNTED - DEBUG VERSION v2 🟣🟣🟣");
+    console.log("🟣🟣🟣 [WarehouseTypesTab] COMPONENT MOUNTED - DEBUG VERSION v3 (stale closure fix) 🟣🟣🟣");
   }, []);
 
   const queryClient = useQueryClient();
@@ -621,7 +621,7 @@ export function WarehouseTypesTab() {
                   id="code"
                   value={formData.code}
                   onChange={(e) =>
-                    setFormData({ ...formData, code: e.target.value.toLowerCase() })
+                    setFormData(prev => ({ ...prev, code: e.target.value.toLowerCase() }))
                   }
                   placeholder="e.g., job, contact, email"
                   disabled={editingType?.is_system}
@@ -637,7 +637,7 @@ export function WarehouseTypesTab() {
                   id="display_name"
                   value={formData.display_name}
                   onChange={(e) =>
-                    setFormData({ ...formData, display_name: e.target.value })
+                    setFormData(prev => ({ ...prev, display_name: e.target.value }))
                   }
                   placeholder="e.g., Job, Contact, Email"
                 />
@@ -649,7 +649,7 @@ export function WarehouseTypesTab() {
                   id="description"
                   value={formData.description}
                   onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
+                    setFormData(prev => ({ ...prev, description: e.target.value }))
                   }
                   placeholder="Optional description"
                   rows={2}
@@ -662,7 +662,7 @@ export function WarehouseTypesTab() {
                   id="icon_name"
                   value={formData.icon_name}
                   onChange={(e) =>
-                    setFormData({ ...formData, icon_name: e.target.value })
+                    setFormData(prev => ({ ...prev, icon_name: e.target.value }))
                   }
                   placeholder="e.g., Briefcase, FileText"
                 />
@@ -682,7 +682,7 @@ export function WarehouseTypesTab() {
                     id="folder_path_template"
                     value={formData.folder_path_template}
                     onChange={(e) =>
-                      setFormData({ ...formData, folder_path_template: e.target.value })
+                      setFormData(prev => ({ ...prev, folder_path_template: e.target.value }))
                     }
                     placeholder="{{TaskId}}/{{TaskName}}"
                     className="font-mono text-sm rounded-l-none"
@@ -714,16 +714,18 @@ export function WarehouseTypesTab() {
                         key={token}
                         type="button"
                         onClick={() => {
-                          const current = formData.folder_path_template;
-                          let newPath: string;
-                          if (!current) {
-                            newPath = token;
-                          } else if (current.endsWith("/")) {
-                            newPath = current + token;
-                          } else {
-                            newPath = current + "/" + token;
-                          }
-                          setFormData({ ...formData, folder_path_template: newPath });
+                          setFormData(prev => {
+                            const current = prev.folder_path_template;
+                            let newPath: string;
+                            if (!current) {
+                              newPath = token;
+                            } else if (current.endsWith("/")) {
+                              newPath = current + token;
+                            } else {
+                              newPath = current + "/" + token;
+                            }
+                            return { ...prev, folder_path_template: newPath };
+                          });
                         }}
                         className="px-2 py-0.5 text-[10px] font-mono bg-muted hover:bg-muted/80 rounded border cursor-pointer transition-colors"
                       >
@@ -846,7 +848,7 @@ export function WarehouseTypesTab() {
                   id="enabled"
                   checked={formData.enabled}
                   onCheckedChange={(checked) =>
-                    setFormData({ ...formData, enabled: checked })
+                    setFormData(prev => ({ ...prev, enabled: checked as boolean }))
                   }
                 />
                 <Label htmlFor="enabled">Enabled</Label>

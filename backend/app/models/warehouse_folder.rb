@@ -14,10 +14,11 @@ class WarehouseFolder < ApplicationRecord
   # Model renamed: EntityTab → WarehouseFolder → WarehouseFolder (Jan 2026)
   self.table_name = 'warehouse_folders'
 
-  # NOTE: Multi-tenancy REMOVED (Jan 2026)
-  # WarehouseFolders are GLOBAL configuration shared across all tenants.
-  # All WarehouseFolders have company_group_id=NULL by design.
-  # The uniqueness validation still includes company_group_id for future per-tenant customization.
+  # Multi-tenancy RE-ENABLED (Feb 2026)
+  # WarehouseFolders are now per-tenant configuration, synced via Config Sync.
+  # This allows each tenant to have their own folder structure while still
+  # being able to sync from TEEEM master tenant.
+  acts_as_tenant :tenant
   #
   # Valid warehouse types (xero tabs are children of corporate/xero tab)
   # System warehouse types (email, warehouse, task, task_attachments, task_responses, user, case) are read-only in UI - is_system_tab: true
@@ -75,6 +76,7 @@ class WarehouseFolder < ApplicationRecord
 
 
   # Associations
+  belongs_to :tenant, optional: true  # Multi-tenancy (Feb 2026)
   belongs_to :parent, class_name: 'WarehouseFolder', optional: true
   belongs_to :job, optional: true  # For per-job tabs
   belongs_to :base_folder, optional: true  # FK to base_folders table (Feb 2026)

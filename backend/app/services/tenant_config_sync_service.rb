@@ -209,6 +209,23 @@ class TenantConfigSyncService
       sync_fields: [:name, :date, :region, :description, :recurring],
       description: "Regional public holidays",
       group: "operations"
+    },
+
+    # ============================================================================
+    # Warehouse Group
+    # ============================================================================
+    warehouse_folders: {
+      model: "WarehouseFolder",
+      name_field: :display_name,
+      match_fields: [:warehouse_type, :tab_key],
+      sync_fields: [:warehouse_type, :tab_key, :display_name, :description, :tab_group,
+                    :parent_id, :entity_filters, :order_position, :enabled, :icon_name,
+                    :component_name, :is_system_tab, :warehouse_enabled, :display_code,
+                    :uses_custom_path, :warehouse_type_override, :is_photo_category,
+                    :display_mode, :hidden_by_default, :is_cad_category, :xero_scope,
+                    :visibility_rule, :download_name, :folder_path, :ui_name, :base_folder],
+      description: "Warehouse folder tabs and structure",
+      group: "warehouse"
     }
   }.freeze
 
@@ -229,7 +246,8 @@ class TenantConfigSyncService
     "documents" => "Documents",
     "contacts" => "Contacts",
     "schedule" => "Schedule Master",
-    "operations" => "Operations"
+    "operations" => "Operations",
+    "warehouse" => "Warehouse"
   }.freeze
 
   # List all available config tables with counts
