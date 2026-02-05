@@ -74,6 +74,10 @@ class WarehouseFolder < ApplicationRecord
   # {{Name}} = dynamic placeholder (resolved elsewhere)
   LITERAL_FOLDER_PATTERN = /\A\[\[(.+)\]\]\z/.freeze
 
+  # SSoT: Alias storage_folder_path → folder_path for legacy code compatibility
+  # Several models (BankStatementReport, SmTaskPhoto, UserDocument) reference storage_folder_path
+  # but the actual column is folder_path. This alias ensures backward compatibility.
+  alias_attribute :storage_folder_path, :folder_path
 
   # Associations
   belongs_to :tenant, optional: true  # Multi-tenancy (Feb 2026)

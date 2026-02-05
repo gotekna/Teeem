@@ -362,17 +362,26 @@ class BankStatementReport < ApplicationRecord
   end
 
   # Upload file content to storage using SSoT folder structure from DocumentType system
-  # Path: /Shared Documents/00 TEEEM PRIVATE/{CompanyGroup}/{CompanyCode}/BANK/{filename}
+  # Path: /Shared Documents/00 TEEEM PRIVATE/{CompanyGroup}/{CompanyCode}/XERO/Bank/{filename}
   # SSoT: Uses WarehouseFolder.storage_folder_path for path resolution (WarehouseProvider for base)
   def upload_to_storage(content, filename)
-    # SSoT: WarehouseFolder (xero-bank-statement) → storage_folder_path is THE ONE source
-    # Path defined in Admin > Warehouse Folders > Bank Statement tab
-    warehouse_folder = WarehouseFolder.find_by(tab_key: 'xero-bank-statement')
-    unless warehouse_folder&.storage_folder_path.present?
-      Rails.logger.error("[BankStatementReport] SSoT missing: WarehouseFolder 'xero-bank-statement' has no storage_folder_path")
+    # SSoT: WarehouseFolder (bank_statement) → storage_folder_path is THE ONE source
+    # Path defined in Admin > Warehouse Config > Bank Statement folder
+    # FRC Fix (Feb 2026): Corrected tab_key from 'xero-bank-statement' to 'bank_statement'
+    warehouse_folder = WarehouseFolder.find_by(tab_key: 'bank_statement')
+
+    # Fallback: Use WarehouseProvider template if WarehouseFolder not found or has no path
+    path_template = warehouse_folder&.storage_folder_path
+    if path_template.blank?
+      # SSoT fallback: WarehouseProvider warehouse_folders['bank_statement']
+      path_template = WarehouseProvider.instance.warehouse_folders['bank_statement']
+      Rails.logger.info("[BankStatementReport] Using WarehouseProvider fallback path: #{path_template}")
+    end
+
+    unless path_template.present?
+      Rails.logger.error("[BankStatementReport] SSoT missing: No bank_statement path in WarehouseFolder or WarehouseProvider")
       return nil
     end
-    path_template = warehouse_folder.storage_folder_path
 
     # SSoT: Resolve placeholders in path template
     company_group = corporate&.group_name || "Other"
