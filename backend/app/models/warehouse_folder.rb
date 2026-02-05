@@ -52,10 +52,11 @@ class WarehouseFolder < ApplicationRecord
   # - overview: Main features and data display
   # - documents: File/folder tabs with SharePoint integration
   # - reports: Xero reports (P&L, Balance Sheet, etc.)
-  # - data: Xero data views (Accounts, Contacts, etc.)
-  # - setup: Configuration tabs (Connection, Settings)
-  # - system: System-managed tabs (email storage, warehousing) - read-only in UI
-  TAB_GROUPS = %w[overview documents reports data setup main system].freeze
+  # SSoT: Simplified to 2 groups (Feb 2026)
+  # - documents: User uploads files, Document Types can be linked
+  # - data: System-generated content (Xero, integrations), no Document Types
+  # Legacy values (overview, reports, setup, main, system) still accepted for backwards compat
+  TAB_GROUPS = %w[documents data overview reports setup main system].freeze
 
   # Display modes for tabs (SSoT: how tabs render in UI)
   # - both: Show icon + text (default)
@@ -96,6 +97,10 @@ class WarehouseFolder < ApplicationRecord
 
   # SSoT: Auto-sync tab_key from display_name (display_name is the source of truth)
   before_validation :sync_tab_key_from_display_name
+
+  # SSoT: Auto-compute folder_path from parent hierarchy when saving
+  # This ensures all warehouse-enabled folders have a complete path template
+  before_save :auto_compute_folder_path
 
   # FRC Guard (Feb 2026): Prevent clearing folder_path on root scopes
   # Empty folder_path removes scope from warehouse_folders_mapping, breaking the tree
@@ -747,17 +752,33 @@ class WarehouseFolder < ApplicationRecord
       where(warehouse_type: warehouse_type).order(:id).first
   end
 
+  # SSoT (Feb 2026): Default folder path templates per warehouse_type
+  # These match the frontend getDefaultTemplate function in WarehouseFoldersConfig.tsx
+  DEFAULT_FOLDER_PATH_TEMPLATES = {
+    'corporate' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}',
+    'job' => 'Jobs/{{JobCode}}',
+    'contact' => 'Contacts/{{ContactName}}',
+    'people' => 'Contacts/{{ContactName}}',  # Legacy alias
+    'email' => 'Emails/{{Year}}/{{Month}}',
+    'task' => 'Tasks/{{TaskId}}',
+    'task_attachments' => 'Tasks/{{TaskId}}/Attachments',
+    'task_responses' => 'Tasks/{{TaskId}}/Responses',
+    'warehouse' => 'Warehousing',
+    'user' => 'Teeem Docs/{{UserName}}'
+  }.freeze
+
   # SSoT (Feb 2026): Map warehouse_type → full folder_path template
   # Returns: { "job" => "Jobs/{{JobCode}}/Overview", "email" => "Emails/{{Year}}/{{Month}}", ... }
   # Used by: warehouse_provider.to_config_hash (frontend needs full paths)
-  # Prefers: tab_key == warehouse_type OR tab_key == 'overview' (the "root" tab for each type)
+  # Prefers: tab_key == warehouse_type OR tab_key == 'overview' OR tab_key == 'root'
   def self.warehouse_folders_mapping
     result = {}
 
-    # Get root folders - prefer tab_key matching warehouse_type or 'overview'
+    # Get root folders - prefer tab_key matching warehouse_type, 'overview', or 'root'
+    # FRC (Feb 2026): Added 'root' because corporate warehouse_type uses tab_key: 'root'
     WarehouseFolder.where(parent_id: nil)
                    .where.not(folder_path: [nil, ''])
-                   .where('tab_key = warehouse_type OR tab_key = ?', 'overview')
+                   .where('tab_key = warehouse_type OR tab_key IN (?)', %w[overview root])
                    .pluck(:warehouse_type, :folder_path)
                    .each do |warehouse_type, path|
       result[warehouse_type] = path if path.present?
@@ -771,6 +792,12 @@ class WarehouseFolder < ApplicationRecord
                    .pluck(:warehouse_type, :folder_path)
                    .each do |warehouse_type, path|
       result[warehouse_type] ||= path if path.present?
+    end
+
+    # FRC (Feb 2026): Provide default templates for warehouse_types without folder_path in DB
+    # This ensures frontend always has a template for each scope, even if not explicitly configured
+    DEFAULT_FOLDER_PATH_TEMPLATES.each do |warehouse_type, template|
+      result[warehouse_type] ||= template
     end
 
     result
@@ -1332,6 +1359,49 @@ class WarehouseFolder < ApplicationRecord
     if parent&.warehouse_enabled
       self.warehouse_enabled = true
       Rails.logger.info "[WarehouseFolder] Auto-inherited warehouse_enabled from parent '#{parent.display_name}' for tab '#{display_name}'"
+    end
+  end
+
+  # SSoT: Auto-compute folder_path from parent hierarchy when saving
+  # This ensures all warehouse-enabled folders have a complete path template
+  #
+  # Logic:
+  # 1. If folder_path is already explicitly set, keep it (user override)
+  # 2. If parent has folder_path, compute: parent.folder_path + "/" + display_name
+  # 3. If root folder (no parent), use: DEFAULT_FOLDER_PATH_TEMPLATES[warehouse_type] + "/" + display_name
+  #
+  # Examples:
+  #   Corporate (root, overview tab) → "Corporate/{{CompanyGroup}}/{{CompanyCode}}"
+  #   Xero (child of Corporate)      → "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero"
+  #   Bank (child of Xero)           → "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Bank"
+  #   Statement (child of Bank)      → "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Bank/Statement"
+  def auto_compute_folder_path
+    return unless warehouse_enabled  # Only for warehouse-enabled folders
+
+    # Skip if folder_path is already set (user explicitly configured it)
+    # But DO compute if blank - this is the auto-compute case
+    return if folder_path.present?
+
+    # Build the computed path
+    computed_path = if parent_id.present? && parent&.folder_path.present?
+      # Child folder: parent's path + "/" + display_name
+      "#{parent.folder_path}/#{display_name}"
+    else
+      # Root folder: use default template for this warehouse_type + "/" + display_name
+      # But skip for "overview" or "root" tabs which ARE the template itself
+      if tab_key.in?(%w[overview root]) && parent_id.nil?
+        # This is the root template tab - use the default template directly
+        DEFAULT_FOLDER_PATH_TEMPLATES[warehouse_type]
+      else
+        # This is a root-level content folder (not overview) - prepend the scope template
+        base_template = DEFAULT_FOLDER_PATH_TEMPLATES[warehouse_type]
+        base_template.present? ? "#{base_template}/#{display_name}" : display_name
+      end
+    end
+
+    if computed_path.present?
+      self.folder_path = computed_path
+      Rails.logger.info "[WarehouseFolder] Auto-computed folder_path for '#{display_name}': #{computed_path}"
     end
   end
 

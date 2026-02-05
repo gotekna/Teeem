@@ -2,6 +2,110 @@
 
 namespace :warehouse do
   namespace :folders do
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BACKFILL FOLDER_PATH ON WAREHOUSE_FOLDERS TABLE (Feb 2026)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # The folder_path column stores the complete path template for each folder.
+    # This ensures all warehouse-enabled folders have a path like:
+    #   "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Bank/Statement"
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    desc "Backfill folder_path for all warehouse-enabled WarehouseFolder records"
+    task backfill_folder_paths: :environment do
+      puts "=" * 60
+      puts "Backfilling folder_path for WarehouseFolder records..."
+      puts "=" * 60
+
+      updated_count = 0
+      skipped_count = 0
+      error_count = 0
+
+      # Get all warehouse_types that exist
+      warehouse_types = WarehouseFolder.distinct.pluck(:warehouse_type)
+
+      warehouse_types.each do |warehouse_type|
+        puts "\n[#{warehouse_type}]"
+
+        # Process in order: root folders first (they need folder_path for children to inherit)
+        process_folders_by_depth(warehouse_type, nil, 0) do |folder, depth|
+          indent = "  " * (depth + 1)
+
+          if folder.folder_path.present?
+            skipped_count += 1
+            next
+          end
+
+          # Reload parent to get latest folder_path
+          folder.parent&.reload if folder.parent_id.present?
+
+          if folder.save
+            updated_count += 1
+            puts "#{indent}+ #{folder.display_name} -> #{folder.folder_path}"
+          else
+            error_count += 1
+            puts "#{indent}! #{folder.display_name} - FAILED: #{folder.errors.full_messages.join(', ')}"
+          end
+        end
+      end
+
+      puts "\n" + "=" * 60
+      puts "Backfill complete!"
+      puts "  Updated: #{updated_count}"
+      puts "  Skipped (already had path): #{skipped_count}"
+      puts "  Errors: #{error_count}"
+      puts "=" * 60
+    end
+
+    desc "Show all WarehouseFolder records missing folder_path"
+    task missing_folder_paths: :environment do
+      puts "WarehouseFolder records WITHOUT folder_path:"
+      puts "=" * 60
+
+      folders = WarehouseFolder.where(warehouse_enabled: true)
+                               .where("folder_path IS NULL OR folder_path = ''")
+                               .includes(:parent)
+                               .order(:warehouse_type, :parent_id, :order_position)
+
+      if folders.empty?
+        puts "All warehouse-enabled folders have folder_path set!"
+      else
+        current_type = nil
+        folders.each do |folder|
+          if folder.warehouse_type != current_type
+            current_type = folder.warehouse_type
+            puts "\n#{current_type.upcase}:"
+          end
+
+          parent_name = folder.parent&.display_name || "(root)"
+          puts "  - #{folder.display_name} [parent: #{parent_name}] (id: #{folder.id})"
+        end
+
+        puts "\n" + "=" * 60
+        puts "Total: #{folders.count} folders missing folder_path"
+        puts "Run 'rails warehouse:folders:backfill_folder_paths' to fix"
+      end
+    end
+
+    # Helper to process folders depth-first (roots first, then children)
+    def process_folders_by_depth(warehouse_type, parent_id, depth, &block)
+      folders = WarehouseFolder.where(
+        warehouse_type: warehouse_type,
+        parent_id: parent_id,
+        warehouse_enabled: true
+      ).order(:order_position)
+
+      folders.find_each do |folder|
+        yield(folder, depth) if block_given?
+
+        # Recursively process children
+        process_folders_by_depth(warehouse_type, folder.id, depth + 1, &block)
+      end
+    end
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # LEGACY: RECOMPUTE WAREHOUSE_DOCUMENT FOLDER PATHS
+    # ═══════════════════════════════════════════════════════════════════════════
+
     desc "Recompute all folder paths from StorageConfiguration templates"
     task recompute_all: :environment do
       puts "Recomputing all WarehouseDocument folder paths from templates..."

@@ -333,11 +333,10 @@ export function WarehouseFoldersConfig({
   }, [storageConfig]);
 
   // SSoT: THE ONE function to get full storage path for a tab
-  // Handles storage_path_type override (e.g., Corporate tab using 'people' path)
+  // Uses scope template from storageConfig.warehouse_folders
   const getTabFullPath = React.useCallback((tab: WarehouseFolder, defaultScope: string): string => {
-    // Determine which scope folder to use based on storage_path_type override
-    const pathScope = tab.warehouse_type_override === 'corporate' ? 'people' : defaultScope;
-    const basePath = getBasePath(pathScope);
+    // Use the scope directly - warehouse_folders has templates like "Corporate/{{CompanyGroup}}/{{CompanyCode}}"
+    const basePath = getBasePath(defaultScope);
     const folderPath = tab.folder_path || tab.display_name;
     // Combine and normalize: collapse multiple slashes, strip trailing
     const fullPath = [basePath, folderPath].filter(Boolean).join('/');
@@ -1136,8 +1135,8 @@ export function WarehouseFoldersConfig({
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-20">CODE</TableHead>
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-48">NAME</TableHead>
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-24">STATUS</TableHead>
-                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">SEND NAME</TableHead>
-                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">DISPLAY NAME</TableHead>
+                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">UI NAME</TableHead>
+                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">DOWNLOAD NAME</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1177,8 +1176,8 @@ export function WarehouseFoldersConfig({
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.download_name || '—'}</TableCell>
-                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.ui_name || '—'}</TableCell>
+                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono break-all">{dt.ui_name || '—'}</TableCell>
+                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono break-all">{dt.download_name || '—'}</TableCell>
                       </TableRow>
                       {/* Example row with resolved values */}
                       <TableRow
@@ -1188,8 +1187,8 @@ export function WarehouseFoldersConfig({
                         <TableCell className="py-1 px-3 text-xs text-green-600 dark:text-green-400">↳ eg.</TableCell>
                         <TableCell className="py-1 px-3 text-xs text-muted-foreground italic"></TableCell>
                         <TableCell className="py-1 px-3"></TableCell>
-                        <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleFileName}</TableCell>
-                        <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleDisplayName}</TableCell>
+                        <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300 break-all">{exampleDisplayName}</TableCell>
+                        <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300 break-all">{exampleFileName}</TableCell>
                       </TableRow>
                     </React.Fragment>
                   );
@@ -1316,18 +1315,18 @@ export function WarehouseFoldersConfig({
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-xs gap-1 font-normal",
+                          "text-xs gap-1 font-normal max-w-none",
                           tab.uses_custom_path
                             ? "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                             : "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                         )}
                       >
                         <FolderOpen className="h-3 w-3 shrink-0" />
-                        <span>{getTabFullPath(tab, scope)}</span>
+                        <span className="break-all">{tab.effective_warehouse_path || tab.full_warehouse_path || getTabFullPath(tab, scope)}</span>
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-lg">
-                      <p className="font-mono text-xs break-all">{getTabFullPath(tab, scope)}</p>
+                      <p className="font-mono text-xs break-all">{tab.effective_warehouse_path || tab.full_warehouse_path || getTabFullPath(tab, scope)}</p>
                       <p className="text-muted-foreground mt-1">{tab.uses_custom_path ? "Custom path" : "Global template"}</p>
                     </TooltipContent>
                   </Tooltip>
@@ -2232,31 +2231,32 @@ export function WarehouseFoldersConfig({
                 </div>
               )}
 
-              {/* Tab Group - determines if this is a document tab */}
+              {/* Tab Group - SSoT: Only 2 groups (Jan 2026 simplification)
+                  - documents: User uploads files, Document Types enabled
+                  - data: System-generated content, no Document Types */}
               <div className="space-y-2">
                 <Label htmlFor="tab_group">Tab Group</Label>
                 <Select
-                  value={formData.tab_group || "documents"}
+                  value={formData.tab_group === 'documents' ? 'documents' : 'data'}
                   onValueChange={(value: TabGroup) =>
                     setFormData((prev) => ({ ...prev, tab_group: value }))
                   }
+                  disabled={editingTab?.is_system_tab}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={editingTab?.is_system_tab ? "opacity-60" : ""}>
                     <SelectValue placeholder="Select tab group" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="overview">Overview</SelectItem>
-                    <SelectItem value="documents">Documents (enables Document Types)</SelectItem>
-                    <SelectItem value="reports">Reports</SelectItem>
-                    <SelectItem value="data">Data</SelectItem>
-                    <SelectItem value="setup">Setup</SelectItem>
-                    <SelectItem value="main">Main</SelectItem>
+                    <SelectItem value="documents">Documents (user uploads)</SelectItem>
+                    <SelectItem value="data">Data (system-generated)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  {formData.tab_group === 'documents'
-                    ? "Document tabs can link to Document Types"
-                    : "Only 'Documents' group enables Document Types linking"}
+                  {editingTab?.is_system_tab
+                    ? "System tab - locked to Data"
+                    : formData.tab_group === 'documents'
+                      ? "Users can upload files here. Document Types can be linked."
+                      : "System-generated content. No document uploads allowed."}
                 </p>
               </div>
 

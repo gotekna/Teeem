@@ -68,6 +68,15 @@ module Api
 
       # POST /api/v1/document_types
       def create
+        # SSoT: Map camelCase to snake_case (frontend uses camelCase)
+        params[:document_type][:ui_name] = params[:document_type][:uiName] if params[:document_type][:uiName].present?
+        params[:document_type][:download_name] = params[:document_type][:downloadName] if params[:document_type][:downloadName].present?
+
+        # SSoT: Map entity_tab_ids to warehouse_folder_ids (frontend uses entity_tab_ids)
+        if params[:document_type][:entity_tab_ids].present? && !params[:document_type][:warehouse_folder_ids].present?
+          params[:document_type][:warehouse_folder_ids] = params[:document_type][:entity_tab_ids]
+        end
+
         # Handle form_number_mapping separately (arbitrary keys not supported by strong params)
         create_params = document_type_params.to_h
         if params[:document_type][:form_number_mapping].present?
@@ -91,6 +100,15 @@ module Api
 
       # PATCH/PUT /api/v1/document_types/:id
       def update
+        # SSoT: Map camelCase to snake_case (frontend uses camelCase)
+        params[:document_type][:ui_name] = params[:document_type][:uiName] if params[:document_type][:uiName].present?
+        params[:document_type][:download_name] = params[:document_type][:downloadName] if params[:document_type][:downloadName].present?
+
+        # SSoT: Map entity_tab_ids to warehouse_folder_ids (frontend uses entity_tab_ids)
+        if params[:document_type][:entity_tab_ids].present? && !params[:document_type][:warehouse_folder_ids].present?
+          params[:document_type][:warehouse_folder_ids] = params[:document_type][:entity_tab_ids]
+        end
+
         # Handle form_number_mapping separately (arbitrary keys not supported by strong params)
         update_params = document_type_params.to_h
         if params[:document_type][:form_number_mapping].present?
