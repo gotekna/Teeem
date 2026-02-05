@@ -358,6 +358,9 @@ module Api
           warehouse_folder_ids: warehouse_folders_data.map { |t| t[:id] },
           warehouse_folders: warehouse_folders_data,
           primary_warehouse_folder: primary_tab_data,
+          # Frontend compatibility: entity_tab_ids/entity_tabs (frontend uses these names)
+          entity_tab_ids: warehouse_folders_data.map { |t| t[:id] },
+          entity_tabs: warehouse_folders_data,
           scope: document_type.scope,
           file_extensions: document_type.file_extensions || [],
           target_folder: document_type.target_folder,
