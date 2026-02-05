@@ -592,7 +592,8 @@ export default function MicrosoftIntegrationPage() {
       <SharePointDelegatedConnection />
 
       {/* Organization Cards - Show each org as a separate card */}
-      <div className="space-y-3">
+      {/* FRC (Feb 2026): Use flex layout for scroll compatibility - space-y breaks in flex parents */}
+      <div className="flex flex-col gap-3">
         {/* Configured Organizations */}
         {configuredOrgs.map((org) => {
           // Find matching health info from health dashboard

@@ -109,6 +109,15 @@ interface DocumentType {
   id: number;
   name: string;  // Actual doc type name: "Xero Invoice"
   abbreviation?: string;  // Short code: "XINV"
+  is_primary?: boolean;  // SSoT (Feb 2026): Is this the primary folder for this doc type?
+  // SSoT (Feb 2026): Template fields with fallback chain
+  // Folder-specific override → document type default → folder default
+  ui_name_template?: string;  // Folder-specific override (null = use default)
+  download_name_template?: string;  // Folder-specific override (null = use default)
+  effective_ui_name_template?: string;  // Effective template (with fallback applied)
+  effective_download_name_template?: string;  // Effective template (with fallback applied)
+  has_template_overrides?: boolean;  // True if folder-specific override exists
+  // Legacy fields (kept for backward compatibility)
   ui_name?: string;  // Document UI Name TEMPLATE: "{ContactName} {DocTypeName} {Date}"
   download_name?: string;  // Document Download Name TEMPLATE: "{ContactName} {DocTypeCode} {Date}"
 }
@@ -543,36 +552,36 @@ function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocume
                   )}
                   <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-                {/* Full folder path */}
-                {folderPath && (
-                  <div className="text-[8px] text-muted-foreground font-mono truncate mt-0.5">
-                    📁 {folderPath}
-                  </div>
-                )}
-                {/* UI/DL badges with actual values */}
+                {/* SSoT (Feb 2026): UI/DL badges with effective templates (fallback chain applied) */}
                 <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                   <Badge
                     variant="outline"
                     className={cn(
                       "font-mono text-[9px]",
-                      dt.ui_name
+                      dt.effective_ui_name_template || dt.ui_name
                         ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                         : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                     )}
                   >
-                    UI: {dt.ui_name || '(default)'}
+                    UI: {dt.effective_ui_name_template || dt.ui_name || '(default)'}
                   </Badge>
                   <Badge
                     variant="outline"
                     className={cn(
                       "font-mono text-[9px]",
-                      dt.download_name
+                      dt.effective_download_name_template || dt.download_name
                         ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                         : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                     )}
                   >
-                    DL: {dt.download_name || '(default)'}
+                    DL: {dt.effective_download_name_template || dt.download_name || '(default)'}
                   </Badge>
+                  {/* Show indicator if folder has specific override */}
+                  {dt.has_template_overrides && (
+                    <Badge variant="outline" className="text-[8px] bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
+                      folder override
+                    </Badge>
+                  )}
                 </div>
               </div>
             );
@@ -984,32 +993,8 @@ function TreeNode({
               <div className="font-mono text-muted-foreground py-0.5">
                 {bf.full_path_template || bf.folder_path_template || '—'}
               </div>
-              {/* UI/DL badges with actual values - green if set, orange if default */}
-              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "font-mono text-[9px]",
-                    bf.warehouse_folder?.ui_name
-                      ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
-                      : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
-                  )}
-                >
-                  UI: {bf.warehouse_folder?.ui_name || '(default)'}
-                </Badge>
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "font-mono text-[9px]",
-                    bf.warehouse_folder?.download_name
-                      ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
-                      : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
-                  )}
-                >
-                  DL: {bf.warehouse_folder?.download_name || '(default)'}
-                </Badge>
-              </div>
-              {/* Document types linked to this folder - collapsible rows */}
+              {/* SSoT (Feb 2026): UI/DL badges REMOVED from folder level - now on join table per document type */}
+              {/* Document types linked to this folder - shows UI/DL per doc type */}
               {bf.warehouse_folder?.document_types && bf.warehouse_folder.document_types.length > 0 && (
                 <DocumentTypesList
                   documentTypes={bf.warehouse_folder.document_types}
@@ -1902,10 +1887,9 @@ function TabNode({
               style={{ paddingLeft: `${level * 16 + 58}px` }}
             >
               {tab.document_types!.map((dt) => {
-                // SSoT (Feb 2026): Consistent naming - ui_name and download_name
-                // name is the actual document type name like "Xero Invoice"
-                const uiNameTemplate = dt.ui_name || '';
-                const downloadTemplate = dt.download_name || '';
+                // SSoT (Feb 2026): Use effective templates (with fallback chain applied)
+                const uiNameTemplate = dt.effective_ui_name_template || dt.ui_name || '';
+                const downloadTemplate = dt.effective_download_name_template || dt.download_name || '';
 
                 return (
                   <div
@@ -1931,7 +1915,7 @@ function TabNode({
                       )}
                       <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/dt:opacity-100 transition-opacity" />
                     </div>
-                    {/* UI/DL badges with actual values */}
+                    {/* SSoT (Feb 2026): UI/DL badges with effective templates */}
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <Badge
                         variant="outline"
@@ -1955,6 +1939,12 @@ function TabNode({
                       >
                         DL: {downloadTemplate || '(default)'}
                       </Badge>
+                      {/* Show indicator if folder has specific override */}
+                      {dt.has_template_overrides && (
+                        <Badge variant="outline" className="text-[8px] bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
+                          folder override
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 );
