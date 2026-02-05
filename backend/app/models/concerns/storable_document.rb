@@ -45,8 +45,9 @@ module StorableDocument
     return if storage_provider.present?
     return unless respond_to?(:storage_provider=)
 
+    # FRC (Feb 2026): Use actual configured provider, no hardcoded defaults
     config = WarehouseProvider.instance rescue nil
-    self.storage_provider = config&.storage_provider_for_new_documents || "s3_compatible"
+    self.storage_provider = config&.storage_provider_for_new_documents
   end
 
   class_methods do
@@ -116,7 +117,10 @@ module StorableDocument
     storage_provider == "wasabi" && storage_path.present?
   end
 
-  # Check if file is still in SharePoint (needs migration)
+  # Check if file is in SharePoint (for migration purposes)
+  # FRC (Feb 2026): Legacy documents with blank storage_provider AND SharePoint IDs
+  # are assumed to be SharePoint documents (created before storage_provider tracking)
+  # New documents always have explicit storage_provider set
   def in_sharepoint?
     (storage_provider == "sharepoint" || storage_provider.blank?) &&
       (storage_item_id.present? || storage_file_id.present?)

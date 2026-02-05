@@ -393,6 +393,7 @@ module Api
               children_count: bf.children.count,
               folder_path_template: bf.folder_path_template,
               full_path_template: full_template,
+              scope_base_template: wt_template,  # SSoT: Warehouse type's base template for folder editor grey prefix
               path_preview: bf.path_preview,
               is_system: bf.is_system,
               warehouse_folder: wf ? {
@@ -401,6 +402,7 @@ module Api
                 folder_path: wf.folder_path,
                 ui_name: wf.ui_name,
                 download_name: wf.download_name,
+                parent_id: wf.parent_id,  # SSoT: For parent tab selection in editor
                 # SSoT (Feb 2026): Include document_types for tree view display
                 # ui_name/download_name show orange if missing, green if configured
                 document_types: wf.document_types.map { |dt|

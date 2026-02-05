@@ -453,6 +453,7 @@ module Api
           :xero_scope,  # SSoT: Which Xero account this tab uses (nil, "primary", or tenant_id)
           :download_name,  # SSoT: "Document Download Name" in UI
           :ui_name,  # SSoT: "Document UI Name" in UI (Feb 2026)
+          :base_folder_id,  # SSoT: Link to base_folder for path inheritance
           entity_filters: [],
           document_type_ids: []  # SSoT: Link document types to this tab
         )

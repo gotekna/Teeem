@@ -201,7 +201,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
-  const [documentProvider, setDocumentProvider] = useState<"sharepoint" | "s3_compatible">("sharepoint");
+  // SSoT: Provider type fetched from backend WarehouseProvider.instance.provider_type
+  // Default to null (loading) - never assume sharepoint, fetch actual provider first
+  const [documentProvider, setDocumentProvider] = useState<"sharepoint" | "s3_compatible" | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["root"]));
   const [treeViewDisplayMode, setTreeViewDisplayMode] = useState<"tree" | "gallery">("tree");
   const [jobFolderStatus, setJobFolderStatus] = useState<JobFolderStatus>({ loading: false, exists: false, webUrl: null });
@@ -859,7 +861,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           setDocumentProvider(providerResponse.data.document_provider as "sharepoint" | "s3_compatible");
         }
       } catch {
-        // Default to sharepoint if fetch fails
+        // Provider stays null if fetch fails - don't assume sharepoint
+        // This hides provider-specific tabs until we know the actual provider
       }
 
       const response = await api.get<{ connected: boolean; root_folder_path?: string; bucket?: string }>(

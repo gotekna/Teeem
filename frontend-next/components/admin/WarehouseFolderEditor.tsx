@@ -14,6 +14,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Save } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // SSoT (Feb 2026): THE ONE editor for warehouse folder settings
 // Used by WarehouseProviderTab.tsx and WarehouseFoldersConfig.tsx
@@ -25,14 +32,24 @@ export interface WarehouseFolderEditData {
   download_name?: string;
   ui_name?: string;
   base_folder_path_template?: string;
+  parent_id?: number | null;
+  base_folder_id?: number;
+}
+
+export interface ParentTabOption {
+  id: number;
+  display_name: string;
+  hierarchy_path?: string;  // Full path like "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Asset/Asset Expenses"
+  folder_path?: string;     // Actual folder_path from warehouse_folder
 }
 
 interface WarehouseFolderEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   folder: WarehouseFolderEditData | null;
-  onSave: (data: { folder_path: string; download_name: string; ui_name: string }) => Promise<void>;
+  onSave: (data: { folder_path: string; download_name: string; ui_name: string; parent_id?: number | null }) => Promise<void>;
   isSaving?: boolean;
+  parentTabs?: ParentTabOption[];  // Available parent tabs to choose from
 }
 
 const AVAILABLE_TOKENS = [
@@ -55,12 +72,14 @@ export function WarehouseFolderEditor({
   folder,
   onSave,
   isSaving = false,
+  parentTabs = [],
 }: WarehouseFolderEditorProps) {
   const { toast } = useToast();
   const [formData, setFormData] = React.useState({
     folder_path: '',
     download_name: '',
     ui_name: '',
+    parent_id: null as number | null,
   });
 
   // Initialize form when folder changes
@@ -70,9 +89,51 @@ export function WarehouseFolderEditor({
         folder_path: folder.folder_path || '',
         download_name: folder.download_name || '',
         ui_name: folder.ui_name || '',
+        parent_id: folder.parent_id ?? null,
       });
     }
   }, [folder]);
+
+  // SSoT: Compute effective base path based on selected parent
+  // When a parent is selected, the base path includes the parent's full path
+  const effectiveBasePath = React.useMemo(() => {
+    if (formData.parent_id) {
+      const selectedParent = parentTabs.find(p => p.id === formData.parent_id);
+      if (selectedParent) {
+        // Use the parent's folder_path or hierarchy_path, ensuring it ends with /
+        const parentPath = selectedParent.folder_path || selectedParent.hierarchy_path || '';
+        return parentPath.endsWith('/') ? parentPath : parentPath + '/';
+      }
+    }
+    // No parent selected - use the original base path
+    return folder?.base_folder_path_template || '';
+  }, [formData.parent_id, parentTabs, folder?.base_folder_path_template]);
+
+  // Track previous base path to detect changes
+  const prevBasePathRef = React.useRef(effectiveBasePath);
+
+  // SSoT: Update folder_path when parent changes (base path changes)
+  React.useEffect(() => {
+    const prevBasePath = prevBasePathRef.current;
+    if (prevBasePath !== effectiveBasePath && folder) {
+      // Use callback to get current folder_path safely
+      setFormData(prev => {
+        // Extract current suffix from old path
+        let suffix = prev.folder_path;
+        if (prevBasePath && suffix.startsWith(prevBasePath)) {
+          suffix = suffix.slice(prevBasePath.length);
+        } else if (folder.base_folder_path_template && suffix.startsWith(folder.base_folder_path_template)) {
+          suffix = suffix.slice(folder.base_folder_path_template.length);
+        }
+        // Rebuild path with new base
+        return {
+          ...prev,
+          folder_path: effectiveBasePath + suffix
+        };
+      });
+      prevBasePathRef.current = effectiveBasePath;
+    }
+  }, [effectiveBasePath, folder]);
 
   const handleSave = async () => {
     await onSave(formData);
@@ -84,6 +145,10 @@ export function WarehouseFolderEditor({
 
   // Get the suffix (editable part) of the folder path
   const getPathSuffix = () => {
+    // Try to match against effective base path first, then original base path
+    if (effectiveBasePath && formData.folder_path.startsWith(effectiveBasePath)) {
+      return formData.folder_path.slice(effectiveBasePath.length);
+    }
     if (folder?.base_folder_path_template && formData.folder_path.startsWith(folder.base_folder_path_template)) {
       return formData.folder_path.slice(folder.base_folder_path_template.length);
     }
@@ -92,10 +157,9 @@ export function WarehouseFolderEditor({
 
   // Update folder path from suffix
   const updatePathFromSuffix = (suffix: string) => {
-    const basePath = folder?.base_folder_path_template || '';
     setFormData(prev => ({
       ...prev,
-      folder_path: basePath + suffix
+      folder_path: effectiveBasePath + suffix
     }));
   };
 
@@ -141,6 +205,37 @@ export function WarehouseFolderEditor({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          {/* Parent Tab Selector */}
+          <div className="space-y-2">
+            <Label htmlFor="parent_tab">Parent Tab</Label>
+            <Select
+              value={formData.parent_id?.toString() || "none"}
+              onValueChange={(value) => setFormData(prev => ({
+                ...prev,
+                parent_id: value === "none" ? null : parseInt(value, 10)
+              }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select parent tab (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <span className="text-muted-foreground">No parent (root level)</span>
+                </SelectItem>
+                {parentTabs
+                  .filter(tab => tab.id !== folder?.id)  // Don't show self as parent option
+                  .map((tab) => (
+                    <SelectItem key={tab.id} value={tab.id.toString()}>
+                      {tab.hierarchy_path || tab.display_name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Choose a parent tab to nest this folder under.
+            </p>
+          </div>
+
           {/* Available Tokens */}
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground">Available Tokens (drag to field or click to copy)</Label>
@@ -171,10 +266,10 @@ export function WarehouseFolderEditor({
           <div className="space-y-2">
             <Label htmlFor="folder_path">Full Warehouse Folder Path</Label>
             <div className="flex items-center border rounded-md overflow-hidden">
-              {/* Base folder path prefix - read-only, greyed out */}
-              {folder?.base_folder_path_template && (
+              {/* Base folder path prefix - read-only, greyed out - updates based on selected parent */}
+              {effectiveBasePath && (
                 <span className="px-3 py-2 bg-muted text-muted-foreground font-mono text-sm border-r whitespace-nowrap">
-                  {folder.base_folder_path_template}
+                  {effectiveBasePath}
                 </span>
               )}
               {/* Editable suffix */}

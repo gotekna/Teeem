@@ -118,8 +118,12 @@ interface DocumentType {
 interface BaseFolderFromAPI {
   id: number;
   name: string;
+  parent_id?: number | null;  // SSoT: For parent folder hierarchy
+  parent_name?: string;       // SSoT: Parent folder name for display
+  children_count?: number;    // SSoT: Number of child folders
   folder_path_template?: string;
   full_path_template?: string;  // SSoT: Full path including warehouse type's template
+  scope_base_template?: string;  // SSoT: Warehouse type's base template (e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}")
   path_preview?: string;
   is_system?: boolean;  // System base folders can't be deleted (e.g., Task Attachments)
   // SSoT (Feb 2026): Linked warehouse_folder for UI/DL name editing
@@ -129,6 +133,7 @@ interface BaseFolderFromAPI {
     folder_path?: string;
     ui_name?: string;
     download_name?: string;
+    parent_id?: number | null;  // SSoT: For parent tab selection
     // SSoT (Feb 2026): Document types for tree view display
     document_types?: DocumentType[];
   };
@@ -605,7 +610,7 @@ interface TreeNodeProps {
   // SSoT (Feb 2026): All warehouse types for display_name lookup
   warehouseTypes: WarehouseTypeFromAPI[];
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
-  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string }) => void;
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null }) => void;
   // SSoT (Feb 2026): Edit document type UI/DL names
   onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
@@ -909,38 +914,46 @@ function TreeNode({
         {/* Folder name and scope badge */}
         <span className="font-mono text-sm">{node.name}</span>
 
-        {/* Scope badges - show only PRIMARY scope (not child scopes like task_attachments) */}
-        {/* SSoT (Feb 2026): Base folder indicators - show on LEAF nodes (no children) */}
-        {/* Lock/Folder indicator + Settings button for base folders */}
-        {/* UI/DL badges moved to badges row below for consistency */}
-        {node.baseFolders && node.baseFolders.length > 0 && node.children.length === 0 && (
+        {/* SSoT (Feb 2026): Base folder cog icon - show for ALL folders with baseFolders */}
+        {/* Removed leaf-only restriction so all folders (parent and child) get the edit cog */}
+        {node.baseFolders && node.baseFolders.length > 0 && (
           <div className="flex items-center gap-1 ml-1">
             {node.baseFolders.map((bf) => (
               <div key={bf.id} className="flex items-center gap-0.5">
-                <span
-                  className="p-0.5"
-                  title={bf.is_system
-                    ? `System folder (required by code): ${bf.name}`
-                    : `Base folder: ${bf.name}`}
-                >
-                  {bf.is_system ? (
-                    <Lock className="h-3 w-3 text-muted-foreground" />
-                  ) : (
-                    <Folder className="h-3 w-3 text-muted-foreground" />
-                  )}
-                </span>
-                {/* Edit button for folders with linked warehouse_folder */}
-                {bf.warehouse_folder && onEditWarehouseFolder && (
+                {/* Only show lock/folder icon on leaf nodes to reduce clutter */}
+                {node.children.length === 0 && (
+                  <span
+                    className="p-0.5"
+                    title={bf.is_system
+                      ? `System folder (required by code): ${bf.name}`
+                      : `Base folder: ${bf.name}`}
+                  >
+                    {bf.is_system ? (
+                      <Lock className="h-3 w-3 text-muted-foreground" />
+                    ) : (
+                      <Folder className="h-3 w-3 text-muted-foreground" />
+                    )}
+                  </span>
+                )}
+                {/* Edit button for ALL base folders - show cog whether or not warehouse_folder is linked */}
+                {onEditWarehouseFolder && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      // SSoT: Use warehouse type's base template (scope_base_template) as the grey prefix
+                      // e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}" for corporate folders
+                      const baseTemplate = bf.scope_base_template || '';
+                      // Ensure it ends with / for proper path building
+                      const basePath = baseTemplate && !baseTemplate.endsWith('/') ? baseTemplate + '/' : baseTemplate;
                       onEditWarehouseFolder({
-                        id: bf.warehouse_folder!.id,
-                        display_name: bf.warehouse_folder!.display_name || bf.name,
-                        folder_path: bf.warehouse_folder!.folder_path || bf.full_path_template || bf.folder_path_template,
-                        download_name: bf.warehouse_folder!.download_name,
-                        ui_name: bf.warehouse_folder!.ui_name,
-                        base_folder_path_template: bf.folder_path_template,
+                        id: bf.warehouse_folder?.id || 0,  // 0 = needs to be created
+                        display_name: bf.warehouse_folder?.display_name || bf.name,
+                        folder_path: bf.warehouse_folder?.folder_path || bf.full_path_template || bf.folder_path_template,
+                        download_name: bf.warehouse_folder?.download_name,
+                        ui_name: bf.warehouse_folder?.ui_name,
+                        base_folder_path_template: basePath,  // SSoT: Warehouse type's template (greyed out)
+                        base_folder_id: bf.id,  // Pass base_folder id for linking/creating
+                        parent_id: bf.warehouse_folder?.parent_id,  // Prefill current parent
                       });
                     }}
                     className="p-0.5 hover:bg-muted rounded"
@@ -1388,7 +1401,7 @@ interface TabNodeProps {
   onSaveEdit: (tabId: number, path: string, displayName: string, sendNameTemplate: string) => void;
   onCancelEdit: () => void;
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
-  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string }) => void;
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null }) => void;
   // SSoT (Feb 2026): Edit document type UI/DL names
   onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
@@ -1782,11 +1795,11 @@ function TabNode({
             {tab.document_types!.length} {tab.document_types!.length === 1 ? 'type' : 'types'}
           </Badge>
         )}
-        {/* SSoT (Feb 2026): Edit button for UI/DL names */}
+        {/* SSoT (Feb 2026): Edit button for UI/DL names - always visible, matches base folder cog style */}
         {onEditWarehouseFolder && (
           <button
             type="button"
-            className="p-0.5 rounded hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-0.5 rounded hover:bg-muted"
             title="Edit UI/DL name templates"
             onClick={(e) => {
               e.stopPropagation();
@@ -1800,7 +1813,7 @@ function TabNode({
               });
             }}
           >
-            <Settings className="h-3 w-3 text-muted-foreground" />
+            <Settings className="h-3 w-3 text-muted-foreground hover:text-foreground" />
           </button>
         )}
       </div>
@@ -2007,9 +2020,31 @@ export function WarehouseProviderTab() {
     download_name?: string;
     ui_name?: string;
     base_folder_path_template?: string;  // SSoT: Template from base_folders table (read-only)
+    parent_id?: number | null;
+    base_folder_id?: number;
   }
   const [editingWarehouseFolder, setEditingWarehouseFolder] = React.useState<EditingWarehouseFolder | null>(null);
   const [savingWarehouseFolder, setSavingWarehouseFolder] = React.useState(false);
+
+  // SSoT (Feb 2026): Build list of available parent tabs for the folder editor
+  // Use baseFoldersByScope since that's what populates the tree
+  const availableParentTabs = React.useMemo(() => {
+    const tabs: { id: number; display_name: string; hierarchy_path?: string; folder_path?: string }[] = [];
+    // Get all base folders that have linked warehouse_folders
+    Object.entries(baseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
+      baseFolders.forEach(bf => {
+        if (bf.warehouse_folder) {
+          tabs.push({
+            id: bf.warehouse_folder.id,
+            display_name: bf.warehouse_folder.display_name || bf.name,
+            hierarchy_path: bf.full_path_template || bf.name,
+            folder_path: bf.warehouse_folder.folder_path || bf.full_path_template,  // SSoT: For computing effective base path
+          });
+        }
+      });
+    });
+    return tabs.sort((a, b) => (a.hierarchy_path || '').localeCompare(b.hierarchy_path || ''));
+  }, [baseFoldersByScope]);
 
   // Warehouse stats for live preview
   interface WarehouseStats {
@@ -2109,6 +2144,7 @@ export function WarehouseProviderTab() {
         setWarehouseTypes(response.data);
 
         // Build map of scope code → base_folders for quick lookup
+        // SSoT: Backend now provides scope_base_template directly on each base folder
         const foldersByScope: Record<string, BaseFolderFromAPI[]> = {};
         response.data.forEach((wt) => {
           // Use the warehouse type code as the scope key (e.g., "task", "job", "email")
@@ -2129,23 +2165,57 @@ export function WarehouseProviderTab() {
 
   // SSoT (Feb 2026): Save warehouse folder path and UI/DL names
   // Used by WarehouseFolderEditor shared component
-  const saveWarehouseFolder = async (data: { folder_path: string; download_name: string; ui_name: string }) => {
+  // Creates new warehouse_folder if id=0, otherwise updates existing
+  const saveWarehouseFolder = async (data: { folder_path: string; download_name: string; ui_name: string; parent_id?: number | null }) => {
     if (!editingWarehouseFolder) return;
 
     setSavingWarehouseFolder(true);
     try {
-      const response = await api.patch<{ success: boolean }>(`/api/v1/warehouse_folders/${editingWarehouseFolder.id}`, {
-        warehouse_folder: {
-          folder_path: data.folder_path || null,
-          download_name: data.download_name || null,
-          ui_name: data.ui_name || null,
+      let response;
+
+      // Helper to create a new warehouse_folder
+      const createNew = async () => {
+        return await api.post<{ success: boolean }>('/api/v1/warehouse_folders', {
+          warehouse_folder: {
+            display_name: editingWarehouseFolder.display_name,
+            folder_path: data.folder_path || null,
+            download_name: data.download_name || null,
+            ui_name: data.ui_name || null,
+            parent_id: data.parent_id,
+            base_folder_id: editingWarehouseFolder.base_folder_id,
+            warehouse_type: 'corporate',  // Default - backend can override from base_folder
+            tab_key: editingWarehouseFolder.display_name.toLowerCase().replace(/\s+/g, '_'),
+          }
+        });
+      };
+
+      if (editingWarehouseFolder.id === 0 || !editingWarehouseFolder.id) {
+        // Create new warehouse_folder linked to base_folder
+        response = await createNew();
+      } else {
+        // Update existing warehouse_folder
+        try {
+          response = await api.patch<{ success: boolean }>(`/api/v1/warehouse_folders/${editingWarehouseFolder.id}`, {
+            warehouse_folder: {
+              folder_path: data.folder_path || null,
+              download_name: data.download_name || null,
+              ui_name: data.ui_name || null,
+              parent_id: data.parent_id,
+            }
+          });
+        } catch (patchError) {
+          // If update fails with 404, the record doesn't exist - create it instead
+          console.warn('[saveWarehouseFolder] Update failed, attempting create:', patchError);
+          response = await createNew();
         }
-      });
+      }
 
       if (response?.success) {
         toast({
           title: "Saved",
-          description: `Updated ${editingWarehouseFolder.display_name}`,
+          description: editingWarehouseFolder.id === 0
+            ? `Created ${editingWarehouseFolder.display_name}`
+            : `Updated ${editingWarehouseFolder.display_name}`,
         });
         setEditingWarehouseFolder(null);
         // Reload warehouse types and tab configs to refresh the tree with new UI/DL values
@@ -2260,8 +2330,8 @@ export function WarehouseProviderTab() {
           current = node.children;
         });
 
-        // SSoT (Feb 2026): Attach base folder to its LEAF node for editing
-        // This allows clicking on child folders like "Attachments" to edit them
+        // SSoT (Feb 2026): Attach base folder to its LEAF node only
+        // Each base_folder record corresponds to its final path segment
         if (lastNode) {
           const leafNode = lastNode as FolderTreeNode;
           if (!leafNode.baseFolders) {
@@ -2367,32 +2437,9 @@ export function WarehouseProviderTab() {
 
     // SSoT (Feb 2026): Attach ALL scope base folders to root nodes
     // This shows all base folders as chips on the scope root (e.g., Tasks shows Task, Task Attachments, Task Responses)
-    // Individual base folders are already attached to leaf nodes during tree building above
-    const attachScopeBaseFolders = (nodes: FolderTreeNode[]) => {
-      nodes.forEach(node => {
-        if (node.scopeKey && baseFoldersByScope[node.scopeKey]) {
-          // For root scope nodes: show ALL base folders for that scope
-          // Merge with any existing (don't overwrite leaf-attached base folders)
-          const scopeFolders = baseFoldersByScope[node.scopeKey];
-          if (!node.baseFolders) {
-            node.baseFolders = scopeFolders;
-          } else {
-            // Merge: add scope folders that aren't already present
-            scopeFolders.forEach(sf => {
-              if (!node.baseFolders!.find(existing => existing.id === sf.id)) {
-                node.baseFolders!.push(sf);
-              }
-            });
-          }
-        }
-        if (node.children.length > 0) {
-          attachScopeBaseFolders(node.children);
-        }
-      });
-    };
-
-    // Attach both base folders and tabs to the tree
-    attachScopeBaseFolders(tree);
+    // SSoT (Feb 2026): Base folders are attached to LEAF nodes only during tree building
+    // Root scope nodes (Corporate, Contacts, etc.) should NOT have baseFolders attached
+    // This prevents many cogs showing on parent folders - only leaf folders get the edit cog
     // SSoT (Feb 2026): Attach tabs (from warehouse_folders) to show parent-child hierarchy
     // This includes tabs like Financial with children (Bank Details, Xero, Invoices, Bills)
     attachTabs(tree);
@@ -3877,6 +3924,7 @@ export function WarehouseProviderTab() {
         folder={editingWarehouseFolder}
         onSave={saveWarehouseFolder}
         isSaving={savingWarehouseFolder}
+        parentTabs={availableParentTabs}
       />
 
       {/* Document Type Edit Dialog */}

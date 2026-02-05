@@ -51,8 +51,10 @@ module DocumentProviderAware
     @storage_config = WarehouseProvider.for_tenant(tenant)
 
     # SSoT: WarehouseProvider.provider_type determines which provider to use
-    # Only 3 types: sharepoint, s3_compatible, local
-    provider_type = @storage_config&.provider_type || "s3_compatible"
+    # FRC (Feb 2026): No hardcoded defaults - provider must be explicitly configured
+    provider_type = @storage_config&.provider_type
+
+    raise DocumentProviders::NotConnectedError, "Storage provider not configured for tenant" unless provider_type.present?
 
     @document_provider = case provider_type
     when "s3_compatible"
@@ -77,7 +79,10 @@ module DocumentProviderAware
     @storage_config = WarehouseProvider.for_organization(organization)
 
     # SSoT: Only 3 types - sharepoint, s3_compatible, local
-    provider_type = @storage_config&.provider_type || "s3_compatible"
+    # FRC (Feb 2026): No hardcoded defaults - provider must be explicitly configured
+    provider_type = @storage_config&.provider_type
+
+    raise DocumentProviders::NotConnectedError, "Storage provider not configured for organization" unless provider_type.present?
 
     @document_provider = case provider_type
     when "s3_compatible"

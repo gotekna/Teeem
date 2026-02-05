@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_05_103808) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_05_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6882,7 +6882,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_103808) do
     t.boolean "is_active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "document_provider", default: "sharepoint", null: false
+    t.string "document_provider", null: false
     t.bigint "document_provider_credential_id"
     t.bigint "tenant_id"
     t.bigint "company_id"
@@ -9709,7 +9709,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_103808) do
     t.string "logo_url"
     t.string "primary_color"
     t.string "secondary_color"
-    t.string "document_provider", default: "sharepoint"
+    t.string "document_provider"
     t.bigint "document_provider_credential_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -10125,7 +10125,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_103808) do
   end
 
   create_table "warehouse_providers", force: :cascade do |t|
-    t.string "provider_type", default: "sharepoint", null: false
+    t.string "provider_type", null: false
     t.string "status", default: "disconnected", null: false
     t.jsonb "connection_config", default: {}, null: false
     t.string "root_path", default: "/Shared Documents", null: false

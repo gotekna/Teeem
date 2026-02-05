@@ -1089,6 +1089,28 @@ export default function AllDocumentsPage() {
     }
   }, [loadingRecords, warehouseRecords]);
 
+  // FRC (Feb 2026): Fetch records for initially-expanded warehouse types on mount
+  // Without this, warehouse types like "Job" that are expanded by default won't
+  // load their records because handleTreeNodeExpand is never triggered
+  useEffect(() => {
+    // Only run once on mount, after warehouse tree is loaded
+    if (!warehouseTreeLoading && warehouseTypesTree.length > 0) {
+      // Get initially expanded warehouse types (those starting with "wt-")
+      const initiallyExpandedTypes = Array.from(expandedFolders)
+        .filter(id => id.startsWith("wt-"))
+        .map(id => id.replace("wt-", ""))
+        .filter(code => code !== "email"); // Email doesn't have record folders
+
+      // Fetch records for each expanded type
+      initiallyExpandedTypes.forEach(code => {
+        if (!warehouseRecords[code]) {
+          fetchRecords(code);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warehouseTreeLoading, warehouseTypesTree.length]);
+
   // Poll for active background jobs (folder reorganization)
   useEffect(() => {
     const pollJobProgress = async () => {

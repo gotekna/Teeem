@@ -145,10 +145,15 @@ class CreateQuoteTrackers < ActiveRecord::Migration[7.2]
       precon_tenant_id = precon_id ? execute("SELECT tenant_id FROM warehouse_folders WHERE id = #{precon_id}").first&.dig('tenant_id') : nil
       tenant_id_val = precon_tenant_id || execute("SELECT id FROM tenants ORDER BY id LIMIT 1").first&.dig('id')
 
+      # FRC Note (Feb 2026): MUST set warehouse_enabled=false for Foundation-backed tabs
+      # Otherwise inherit_warehouse_from_parent callback auto-sets warehouse_enabled=true
+      # from parent (PreCon), then warehouse:fix_folder_paths auto-populates folder_path,
+      # which makes frontend try to load SharePoint documents instead of the component.
       execute(<<-SQL.squish)
         INSERT INTO warehouse_folders (
           tenant_id, warehouse_type, tab_key, display_name, parent_id, tab_group,
           order_position, enabled, is_system_tab, icon_name, component_name,
+          warehouse_enabled,
           created_at, updated_at
         )
         VALUES (
@@ -158,11 +163,12 @@ class CreateQuoteTrackers < ActiveRecord::Migration[7.2]
           'Quote Tracker',
           #{precon_id || 'NULL'},
           'documents',
-          10,
+          -1,
           true,
           true,
           'clipboard-list',
           'JobQuoteTrackerTab',
+          false,
           NOW(), NOW()
         )
       SQL
