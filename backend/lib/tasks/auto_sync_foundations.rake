@@ -71,13 +71,19 @@ namespace :foundation do
             )
           end
 
-          # Remove stale columns (but NEVER system columns)
+          # Remove stale columns (but NEVER system columns or computed columns)
           missing.each do |col_name|
             # CRITICAL: Never delete system columns
             next if col_name.in?([ "id", "created_at", "updated_at" ])
 
             col = foundation.columns.find_by(column_name: col_name)
-            col&.destroy
+            next unless col
+
+            # CRITICAL: Never delete computed columns (Feb 2026)
+            # These are virtual columns that don't exist in DB but are populated by API
+            next if col.settings&.dig("computed") == true
+
+            col.destroy
           end
         end
 

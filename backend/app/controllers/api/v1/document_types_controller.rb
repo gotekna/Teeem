@@ -372,6 +372,10 @@ module Api
           },
           primary_folder_id: primary_tab_data&.dig(:id),
           primary_folder_name: primary_tab_data&.dig(:display_name),
+          # SSoT: Foundation columns for View Manager visibility (Feb 2026)
+          primary_folder: primary_tab_data&.dig(:display_name),
+          primary_folder_path: primary_tab_data&.dig(:hierarchy_path),
+          show_in_folders: warehouse_folders_data[1..]&.map { |f| f[:display_name] }&.join(", "),
           # SSoT: WarehouseFolder data (new field names)
           warehouse_folder_ids: warehouse_folders_data.map { |t| t[:id] },
           warehouse_folders: warehouse_folders_data,

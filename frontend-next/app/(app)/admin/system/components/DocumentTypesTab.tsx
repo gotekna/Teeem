@@ -123,34 +123,9 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       const dbColumns = response?.foundation?.columns || [];
       const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, DOCUMENT_TYPES_FOUNDATION_SLUG);
 
-      // Add computed display columns that don't exist in the database
-      const enhancedColumns = [
-        ...teeemColumns,
-        {
-          key: "primary_folder",
-          label: "Primary",
-          column_type: "single_line_text",
-          resizable: true,
-          sortable: true,
-          filterable: false,
-          width: 150,
-          editable: false,
-          tooltip: "Primary warehouse folder where this document type appears"
-        } as TableColumn,
-        {
-          key: "show_in",
-          label: "Show In",
-          column_type: "single_line_text",
-          resizable: true,
-          sortable: false,
-          filterable: false,
-          width: 200,
-          editable: false,
-          tooltip: "Additional folders where this document type also appears"
-        } as TableColumn
-      ];
-
-      setColumns(enhancedColumns);
+      // SSoT: primary_folder, primary_folder_path, and show_in_folders are now Foundation columns
+      // Added in migration 20260205101500 - no manual enhancement needed
+      setColumns(teeemColumns);
     } catch (err) {
       console.error("Failed to fetch columns:", err);
     }
@@ -358,11 +333,12 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
         </div>
       );
     }
+    // SSoT: primary_folder is now a Foundation column (Feb 2026)
     if (columnKey === "primary_folder") {
-      const primaryFolder = entry.folders?.find(f => f.is_primary);
-      const folderName = primaryFolder
-        ? (primaryFolder.parent_name ? `${primaryFolder.parent_name} > ${primaryFolder.name}` : primaryFolder.name)
-        : entry.primary_folder_name;
+      // Use API-provided primary_folder field, fallback to folders array
+      const folderName = (entry as Record<string, unknown>).primary_folder as string | undefined
+        || entry.primary_folder_name
+        || entry.folders?.find(f => f.is_primary)?.name;
       if (!folderName) return <span className="text-muted-foreground">-</span>;
       return (
         <Badge variant="default" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
@@ -370,23 +346,55 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
         </Badge>
       );
     }
-    if (columnKey === "show_in") {
-      const secondaryFolders = entry.folders?.filter(f => !f.is_primary) || [];
-      if (secondaryFolders.length === 0) return <span className="text-muted-foreground">-</span>;
+    // SSoT: primary_folder_path is now a Foundation column (Feb 2026)
+    if (columnKey === "primary_folder_path") {
+      const path = (entry as Record<string, unknown>).primary_folder_path as string | undefined;
+      if (!path) return <span className="text-muted-foreground">-</span>;
+      return (
+        <span className="text-xs text-muted-foreground font-mono">
+          {path}
+        </span>
+      );
+    }
+    // SSoT: show_in_folders is now a Foundation column (Feb 2026)
+    if (columnKey === "show_in_folders") {
+      const showIn = (entry as Record<string, unknown>).show_in_folders as string | undefined;
+      // Fallback to folders array for backwards compatibility
+      if (!showIn) {
+        const secondaryFolders = entry.folders?.filter(f => !f.is_primary) || [];
+        if (secondaryFolders.length === 0) return <span className="text-muted-foreground">-</span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {secondaryFolders.slice(0, 2).map(f => (
+              <Badge
+                key={f.id}
+                variant="secondary"
+                className="text-xs"
+              >
+                {f.name}
+              </Badge>
+            ))}
+            {secondaryFolders.length > 2 && (
+              <Badge variant="outline" className="text-xs">
+                +{secondaryFolders.length - 2}
+              </Badge>
+            )}
+          </div>
+        );
+      }
+      // Parse comma-separated folder names from API
+      const folderNames = showIn.split(", ").filter(Boolean);
+      if (folderNames.length === 0) return <span className="text-muted-foreground">-</span>;
       return (
         <div className="flex flex-wrap gap-1">
-          {secondaryFolders.slice(0, 2).map(f => (
-            <Badge
-              key={f.id}
-              variant="secondary"
-              className="text-xs"
-            >
-              {f.parent_name ? `${f.parent_name} > ${f.name}` : f.name}
+          {folderNames.slice(0, 2).map((name, idx) => (
+            <Badge key={idx} variant="secondary" className="text-xs">
+              {name}
             </Badge>
           ))}
-          {secondaryFolders.length > 2 && (
+          {folderNames.length > 2 && (
             <Badge variant="outline" className="text-xs">
-              +{secondaryFolders.length - 2}
+              +{folderNames.length - 2}
             </Badge>
           )}
         </div>

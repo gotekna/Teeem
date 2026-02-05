@@ -156,6 +156,8 @@ import {
   Lock,
   Unlock,
   Key,
+  // Folder variants
+  FolderHeart,
   type LucideIcon,
 } from "lucide-react";
 
@@ -318,6 +320,8 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   Lock,
   Unlock,
   Key,
+  // Folder variants
+  FolderHeart,
 };
 
 // List of available icons for the icon picker
