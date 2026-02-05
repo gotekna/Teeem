@@ -1016,7 +1016,7 @@ function TreeNode({
           ))}
         </div>
       )}
-      {/* For non-leaf nodes, show just the path */}
+      {/* For non-leaf nodes, show path AND document_types if any */}
       {node.children.length > 0 && (() => {
         const scopeKeys = node.scopeKeys || (node.scopeKey ? [node.scopeKey] : []);
         if (scopeKeys.length === 0 || isEditingThisNode) return null;
@@ -1027,25 +1027,40 @@ function TreeNode({
           .replace(/\/+/g, '/')
           .replace(/\/+$/, '');
 
-        if (!displayPath) return null;
-
         const hasDynamicMailbox = displayPath.includes('{{Mailbox}}');
 
+        // FRC (Feb 2026): Non-leaf nodes can also have document_types
+        // e.g., Statement folder has children (PDF Reports) AND document_types (X Bank Statement)
+        const baseFoldersWithDocTypes = (node.baseFolders || []).filter(
+          bf => bf.warehouse_folder?.document_types && bf.warehouse_folder.document_types.length > 0
+        );
+
         return (
-          <div
-            className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono"
-            style={{ paddingLeft: `${level * 16 + 28}px` }}
-          >
-            <span>{displayPath}</span>
-            {hasDynamicMailbox && (
-              <span
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold bg-purple-500 text-white dark:bg-purple-600"
-                title="Dynamic: Auto-expands to show all synced mailboxes"
-              >
-                <Zap className="h-3 w-3" />
-                Dynamic
-              </span>
+          <div style={{ paddingLeft: `${level * 16 + 28}px` }}>
+            {displayPath && (
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
+                <span>{displayPath}</span>
+                {hasDynamicMailbox && (
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold bg-purple-500 text-white dark:bg-purple-600"
+                    title="Dynamic: Auto-expands to show all synced mailboxes"
+                  >
+                    <Zap className="h-3 w-3" />
+                    Dynamic
+                  </span>
+                )}
+              </div>
             )}
+            {/* Document types for non-leaf nodes */}
+            {baseFoldersWithDocTypes.map(bf => (
+              <DocumentTypesList
+                key={bf.id}
+                documentTypes={bf.warehouse_folder!.document_types!}
+                folderName={bf.name}
+                folderPath={bf.full_path_template || bf.folder_path_template || ''}
+                onEditDocumentType={onEditDocumentType}
+              />
+            ))}
           </div>
         );
       })()}
