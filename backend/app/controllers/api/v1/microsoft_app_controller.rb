@@ -602,8 +602,10 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
     Rails.logger.info "[MicrosoftApp] Disconnect called - org_id: #{org_id}, org_name: #{org_name}, all params: #{params.to_unsafe_h}"
 
-    # SSoT: Use org-scoped credential lookup
-    credential = find_credential_with_org_context
+    # FRC (Feb 2026): For disconnect, we need to find credentials REGARDLESS of status.
+    # The normal find_credential_with_org_context excludes "dead" credentials, but you
+    # should absolutely be able to remove a dead credential - that's the whole point!
+    credential = find_credential_for_disconnect(org_id, org_name)
 
     if credential
       org_name = credential.name
@@ -1024,6 +1026,20 @@ class Api::V1::MicrosoftAppController < ApplicationController
                         "Pass organization_id parameter for proper isolation. " \
                         "Action: #{action_name}, Params: #{params.keys.join(', ')}"
       MicrosoftCredential.active_credential
+    end
+  end
+
+  # FRC (Feb 2026): Find credential for disconnect - includes ALL statuses including "dead"
+  # Unlike find_credential_with_org_context which filters out dead credentials,
+  # disconnect needs to find credentials regardless of status so they can be removed.
+  def find_credential_for_disconnect(org_id, org_name)
+    if org_id.present?
+      org = Organization.find_by(id: org_id)
+      # Find ANY credential for this org, including dead/disconnected
+      MicrosoftCredential.active.app_credentials.for_org(org).first if org
+    elsif org_name.present?
+      org = Organization.find_by_name_or_slug(org_name)
+      MicrosoftCredential.active.app_credentials.for_org(org).first if org
     end
   end
 
