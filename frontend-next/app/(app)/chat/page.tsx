@@ -620,14 +620,21 @@ export default function ChatPage() {
       c.type === "direct" && c.participants.some(p => p.id === selectedUser.id)
     );
 
+    // Check if last message was more than 15 minutes ago (treat as new session)
+    const isStaleConversation = existingConv?.last_message?.created_at
+      ? (Date.now() - new Date(existingConv.last_message.created_at).getTime()) > 15 * 60 * 1000
+      : true; // No messages = definitely show greeting
+
     if (existingConv) {
       setSelectedConversation(existingConv);
     } else {
-      // NEW conversation - add to list and auto-populate greeting
+      // NEW conversation - add to list
       setConversations(prev => [newConversation, ...prev]);
       setSelectedConversation(newConversation);
+    }
 
-      // Auto-populate greeting with first name (only for NEW conversations)
+    // Auto-populate greeting if NEW conversation OR 15+ mins since last message
+    if (!existingConv || isStaleConversation) {
       const firstName = selectedUser.name.split(' ')[0];
       setNewMessage(`Hi ${firstName}`);
     }
