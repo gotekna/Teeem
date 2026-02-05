@@ -8,13 +8,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import {
   MousePointer2,
@@ -29,11 +22,10 @@ import {
   ZoomOut,
   Undo2,
   Redo2,
-  Layers,
-  ChevronDown,
 } from "lucide-react";
 import type { TakeoffTool, TakeoffLayer } from "./types";
 import { TAKEOFF_TOOLS } from "./types";
+import { LayerManager } from "./LayerManager";
 
 // =============================================================================
 // Props
@@ -51,6 +43,11 @@ interface TakeoffToolbarProps {
   activeLayer: TakeoffLayer | null;
   layers: TakeoffLayer[];
   onLayerChange: (layer: TakeoffLayer) => void;
+  onCreateLayer: (name: string, color: string) => Promise<void>;
+  onUpdateLayer: (id: number, updates: Partial<TakeoffLayer>) => Promise<void>;
+  onDeleteLayer: (id: number) => Promise<void>;
+  onToggleLayerVisibility: (id: number, visible: boolean) => Promise<void>;
+  onToggleLayerLock: (id: number, locked: boolean) => Promise<void>;
 
   // Undo/Redo (optional)
   canUndo?: boolean;
@@ -90,6 +87,11 @@ export function TakeoffToolbar({
   activeLayer,
   layers,
   onLayerChange,
+  onCreateLayer,
+  onUpdateLayer,
+  onDeleteLayer,
+  onToggleLayerVisibility,
+  onToggleLayerLock,
   canUndo = false,
   canRedo = false,
   onUndo,
@@ -212,45 +214,17 @@ export function TakeoffToolbar({
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
-        {/* Layer Selector */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              <Layers className="h-4 w-4" />
-              <span
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: activeLayer?.color || "#6B7280" }}
-              />
-              <span className="max-w-[100px] truncate">
-                {activeLayer?.name || "Layer"}
-              </span>
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {layers.map((layer) => (
-              <DropdownMenuItem
-                key={layer.id}
-                onClick={() => onLayerChange(layer)}
-                className="gap-2"
-              >
-                <span
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: layer.color }}
-                />
-                <span>{layer.name}</span>
-                {layer.measurement_count > 0 && (
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {layer.measurement_count}
-                  </span>
-                )}
-              </DropdownMenuItem>
-            ))}
-            {layers.length === 0 && (
-              <DropdownMenuItem disabled>No layers</DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Layer Manager */}
+        <LayerManager
+          layers={layers}
+          activeLayer={activeLayer}
+          onLayerChange={onLayerChange}
+          onCreateLayer={onCreateLayer}
+          onUpdateLayer={onUpdateLayer}
+          onDeleteLayer={onDeleteLayer}
+          onToggleVisibility={onToggleLayerVisibility}
+          onToggleLock={onToggleLayerLock}
+        />
 
         <div className="flex-1" />
 

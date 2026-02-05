@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { TakeoffCanvas } from "@/components/takeoff/TakeoffCanvas";
 import { TakeoffToolbar } from "@/components/takeoff/TakeoffToolbar";
 import { TakeoffSidebar } from "@/components/takeoff/TakeoffSidebar";
+import { PricebookSelector } from "@/components/takeoff/PricebookSelector";
 import { useTakeoffPdf } from "@/components/takeoff/useTakeoffPdf";
 import type {
   TakeoffTool,
@@ -23,6 +24,7 @@ import type {
   CalibrationData,
   GeometryData,
   MeasurementSummary,
+  MeasurementCreateOptions,
 } from "@/components/takeoff/types";
 
 // =============================================================================
@@ -70,6 +72,10 @@ export default function DocsortTakeoffPage() {
   // Tool state
   const [currentTool, setCurrentTool] = React.useState<TakeoffTool>("select");
   const [zoom, setZoom] = React.useState(1);
+
+  // Pricebook selector state
+  const [pricebookSelectorOpen, setPricebookSelectorOpen] = React.useState(false);
+  const [measurementForPricebook, setMeasurementForPricebook] = React.useState<TakeoffMeasurement | null>(null);
 
   // Get current page scale
   const [currentPageNumber, setCurrentPageNumber] = React.useState(1);
@@ -138,6 +144,81 @@ export default function DocsortTakeoffPage() {
   React.useEffect(() => {
     fetchMeasurements();
   }, [fetchMeasurements]);
+
+  // =============================================================================
+  // Layer Management (Local only for standalone takeoff)
+  // =============================================================================
+
+  // Create layer (local only)
+  const handleCreateLayer = React.useCallback(
+    async (name: string, color: string) => {
+      const newLayer: TakeoffLayer = {
+        id: -Date.now(), // Negative temp ID for local layers
+        name,
+        color,
+        display_order: layers.length + 1,
+        visible: true,
+        locked: false,
+        measurement_count: 0,
+      };
+      setLayers((prev) => [...prev, newLayer]);
+      setActiveLayer(newLayer);
+    },
+    [layers.length]
+  );
+
+  // Update layer (local only)
+  const handleUpdateLayer = React.useCallback(
+    async (id: number, updates: Partial<TakeoffLayer>) => {
+      setLayers((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, ...updates } : l))
+      );
+      if (activeLayer?.id === id) {
+        setActiveLayer((prev) => (prev ? { ...prev, ...updates } : prev));
+      }
+    },
+    [activeLayer]
+  );
+
+  // Delete layer (local only)
+  const handleDeleteLayer = React.useCallback(
+    async (id: number) => {
+      setLayers((prev) => {
+        const remaining = prev.filter((l) => l.id !== id);
+        if (activeLayer?.id === id && remaining.length > 0) {
+          setActiveLayer(remaining[0]);
+        }
+        return remaining;
+      });
+    },
+    [activeLayer]
+  );
+
+  // Toggle layer visibility (local only)
+  const handleToggleLayerVisibility = React.useCallback(
+    async (id: number, visible: boolean) => {
+      setLayers((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, visible } : l))
+      );
+      if (activeLayer?.id === id) {
+        setActiveLayer((prev) => (prev ? { ...prev, visible } : prev));
+      }
+    },
+    [activeLayer]
+  );
+
+  // Toggle layer lock (local only)
+  const handleToggleLayerLock = React.useCallback(
+    async (id: number, locked: boolean) => {
+      setLayers((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, locked } : l))
+      );
+      if (activeLayer?.id === id) {
+        setActiveLayer((prev) => (prev ? { ...prev, locked } : prev));
+      }
+    },
+    [activeLayer]
+  );
 
   // =============================================================================
   // Handlers
@@ -209,7 +290,8 @@ export default function DocsortTakeoffPage() {
       type: TakeoffMeasurement["measurement_type"],
       geometryData: GeometryData,
       pixelValue: number,
-      pageNumber: number
+      pageNumber: number,
+      options?: MeasurementCreateOptions
     ) => {
       if (!itemId) return;
 
@@ -224,6 +306,8 @@ export default function DocsortTakeoffPage() {
             pixel_value: pixelValue,
             page_number: pageNumber,
             geometry_data: geometryData,
+            is_deduction: options?.isDeduction,
+            parent_measurement_id: options?.parentMeasurementId,
           },
         });
 
@@ -285,16 +369,99 @@ export default function DocsortTakeoffPage() {
     [selectedMeasurement, fetchMeasurements, toast]
   );
 
-  // Assign pricebook item
+  // Open pricebook selector for a measurement
   const handleAssignPricebook = React.useCallback(
     (measurementId: number) => {
-      toast({
-        title: "Coming Soon",
-        description: "Pricebook assignment will be available soon",
-      });
+      const measurement = measurements.find((m) => m.id === measurementId);
+      if (measurement) {
+        setMeasurementForPricebook(measurement);
+        setPricebookSelectorOpen(true);
+      }
     },
-    [toast]
+    [measurements]
   );
+
+  // Assign pricebook item to measurement
+  const handlePricebookSelect = React.useCallback(
+    async (pricebookItem: { id: number; code: string; name: string; current_price: number | null }) => {
+      if (!measurementForPricebook) return;
+
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: TakeoffMeasurement;
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/measurements/${measurementForPricebook.id}`, {
+          pricebook_item_id: pricebookItem.id,
+        });
+
+        if (response?.success && response?.data) {
+          setMeasurements((prev) =>
+            prev.map((m) => (m.id === measurementForPricebook.id ? response.data : m))
+          );
+          if (selectedMeasurement?.id === measurementForPricebook.id) {
+            setSelectedMeasurement(response.data);
+          }
+          fetchMeasurements();
+
+          toast({
+            title: "Pricebook Item Assigned",
+            description: `${pricebookItem.code} - ${pricebookItem.name}`,
+          });
+        } else {
+          throw new Error(response?.error || "Failed to assign");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to assign pricebook item";
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        });
+        throw err;
+      }
+    },
+    [measurementForPricebook, selectedMeasurement, fetchMeasurements, toast]
+  );
+
+  // Clear pricebook item from measurement
+  const handlePricebookClear = React.useCallback(async () => {
+    if (!measurementForPricebook) return;
+
+    try {
+      const response = await api.patch<{
+        success: boolean;
+        data: TakeoffMeasurement;
+        error?: string;
+      }>(`/api/v1/pdf_takeoff/measurements/${measurementForPricebook.id}`, {
+        pricebook_item_id: null,
+      });
+
+      if (response?.success && response?.data) {
+        setMeasurements((prev) =>
+          prev.map((m) => (m.id === measurementForPricebook.id ? response.data : m))
+        );
+        if (selectedMeasurement?.id === measurementForPricebook.id) {
+          setSelectedMeasurement(response.data);
+        }
+        fetchMeasurements();
+
+        toast({
+          title: "Pricebook Item Removed",
+        });
+      } else {
+        throw new Error(response?.error || "Failed to clear");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to clear pricebook item";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+      throw err;
+    }
+  }, [measurementForPricebook, selectedMeasurement, fetchMeasurements, toast]);
 
   // Generate purchase order - not available for standalone takeoff
   const handleGeneratePO = React.useCallback(async () => {
@@ -352,6 +519,11 @@ export default function DocsortTakeoffPage() {
         activeLayer={activeLayer}
         layers={layers}
         onLayerChange={setActiveLayer}
+        onCreateLayer={handleCreateLayer}
+        onUpdateLayer={handleUpdateLayer}
+        onDeleteLayer={handleDeleteLayer}
+        onToggleLayerVisibility={handleToggleLayerVisibility}
+        onToggleLayerLock={handleToggleLayerLock}
         isCalibrated={isCalibrated}
         scaleLabel={pageScale?.scale_label}
       />
@@ -435,6 +607,7 @@ export default function DocsortTakeoffPage() {
                 onMeasurementSelect={setSelectedMeasurement}
                 selectedMeasurement={selectedMeasurement}
                 activeLayer={activeLayer}
+                layers={layers}
                 currentTool={currentTool}
                 zoom={zoom}
                 onZoomChange={setZoom}
@@ -456,6 +629,15 @@ export default function DocsortTakeoffPage() {
           isLoading={false}
         />
       </div>
+
+      {/* Pricebook Selector Modal */}
+      <PricebookSelector
+        open={pricebookSelectorOpen}
+        onOpenChange={setPricebookSelectorOpen}
+        measurement={measurementForPricebook}
+        onSelect={handlePricebookSelect}
+        onClear={handlePricebookClear}
+      />
     </div>
   );
 }

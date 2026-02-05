@@ -929,6 +929,13 @@ function TreeNode({
 
         {/* Folder name and scope badge */}
         <span className="font-mono text-sm">{node.name}</span>
+        {/* DEBUG: Show source of this yellow folder node directly on UI */}
+        <span
+          className="text-[9px] bg-orange-500 text-white px-1 rounded ml-1"
+          title={`Source: ${node._source || 'folder-tree-node'}, path: ${node.path}, baseFolders: ${node.baseFolders?.map(bf => `ID:${bf.id}`).join(',') || 'none'}`}
+        >
+          {node._source ? node._source.split(':').slice(0,2).join(':') : `path:${node.path}`} | bf:{node.baseFolders?.map(bf => bf.id).join(',') || '∅'}
+        </span>
 
         {/* SSoT (Feb 2026): Base folder cog icon - show for ALL folders with baseFolders */}
         {/* Removed leaf-only restriction so all folders (parent and child) get the edit cog */}
@@ -1776,6 +1783,10 @@ function TabNode({
         <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
         {/* Show folder name (from folder_path), resolved if it contains tokens */}
         <span className="text-sm font-medium">{resolveTemplatePreview(folderName || tab.display_name || '')}</span>
+        {/* DEBUG: Show source of this tab directly on UI */}
+        <span className="text-[9px] bg-red-500 text-white px-1 rounded ml-1" title={`Source: warehouse_folders table, ID: ${tab.id}, scope: ${scope}, parent_id: ${tab.parent_id || 'null'}`}>
+          ID:{tab.id} | {scope} | parent:{tab.parent_id || 'root'}
+        </span>
         {/* Document type count badge */}
         {hasDocTypes && (
           <Badge

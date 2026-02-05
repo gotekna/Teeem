@@ -11,7 +11,7 @@ module Api
     #
     class PdfTakeoffController < ApplicationController
       before_action :authenticate_user!
-      before_action :set_job_plan, only: [:show, :calibrate, :measurements, :create_measurement]
+      before_action :set_job_plan, only: [:show, :calibrate, :measurements, :create_measurement, :generate_po]
       before_action :set_docsort_item, only: [:show_docsort, :calibrate_docsort, :measurements_docsort, :create_measurement_docsort]
       before_action :set_job, only: [:layers, :create_layer, :update_layer, :delete_layer]
 
@@ -178,6 +178,123 @@ module Api
 
         measurement.destroy
         render json: { success: true }
+      end
+
+      # PATCH /api/v1/pdf_takeoff/measurements/:id
+      # Update a measurement (primarily for pricebook assignment)
+      def update_measurement
+        measurement = UnrealMeasurement.find(params[:id])
+
+        # Verify user has access
+        if measurement.job.present?
+          unless measurement.job.accessible_by?(current_user)
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        elsif measurement.docsort_item.present?
+          unless measurement.docsort_item.tenant_id == current_tenant.id
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        end
+
+        update_params = {}
+        update_params[:pricebook_item_id] = params[:pricebook_item_id] if params.key?(:pricebook_item_id)
+        update_params[:category] = params[:category] if params.key?(:category)
+        update_params[:notes] = params[:notes] if params.key?(:notes)
+
+        if measurement.update(update_params)
+          render json: {
+            success: true,
+            data: measurement_json(measurement.reload)
+          }
+        else
+          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/pdf_takeoff/plans/:job_plan_id/generate_po
+      # Generate Purchase Order(s) from measurements
+      def generate_po
+        job = @job_plan.job
+
+        measurements = @job_plan.unreal_measurements
+                                .from_pdf_takeoff
+                                .where.not(pricebook_item_id: nil)
+                                .includes(:pricebook_item)
+
+        if measurements.empty?
+          return render json: {
+            success: false,
+            error: "No measurements with pricebook items found"
+          }, status: :unprocessable_entity
+        end
+
+        group_by = params[:group_by] || "supplier"
+
+        ActiveRecord::Base.transaction do
+          created_pos = []
+
+          # Group by supplier or category
+          grouped = if group_by == "supplier"
+                      measurements.group_by { |m| m.pricebook_item&.preferred_supplier_id }
+                    else
+                      measurements.group_by { |m| m.category || "General" }
+                    end
+
+          grouped.each do |group_key, group_measurements|
+            # Skip if no supplier (for supplier grouping)
+            if group_by == "supplier" && group_key.nil?
+              # Create PO without supplier
+              supplier = nil
+            else
+              supplier = group_by == "supplier" ? Contact.find_by(id: group_key) : nil
+            end
+
+            po = PurchaseOrder.create!(
+              job: job,
+              tenant: current_tenant,
+              supplier: supplier,
+              status: "draft",
+              order_date: Date.current,
+              source: "pdf_takeoff",
+              notes: "Generated from PDF Takeoff - #{@job_plan.display_name}"
+            )
+
+            # Create line items
+            group_measurements.each do |measurement|
+              po.line_items.create!(
+                pricebook_item: measurement.pricebook_item,
+                description: measurement.pricebook_item&.name || measurement.category,
+                quantity: measurement.net_value,
+                unit: measurement.unit,
+                unit_price: measurement.pricebook_item&.current_price || 0,
+                total_price: measurement.net_line_total || 0,
+                notes: "Measurement ID: #{measurement.id}"
+              )
+
+              # Mark measurement as converted to PO
+              measurement.update!(purchase_order_id: po.id)
+            end
+
+            created_pos << {
+              id: po.id,
+              supplier_name: supplier&.name || "No Supplier",
+              line_items_count: group_measurements.count,
+              total: group_measurements.sum { |m| m.net_line_total || 0 }
+            }
+          end
+
+          render json: {
+            success: true,
+            data: {
+              purchase_orders: created_pos,
+              total_pos: created_pos.count,
+              total_measurements: measurements.count
+            }
+          }
+        end
+      rescue StandardError => e
+        Rails.logger.error "[PdfTakeoff] Generate PO failed: #{e.message}"
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
       # =============================================================================

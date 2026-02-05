@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { TakeoffCanvas } from "@/components/takeoff/TakeoffCanvas";
 import { TakeoffToolbar } from "@/components/takeoff/TakeoffToolbar";
 import { TakeoffSidebar } from "@/components/takeoff/TakeoffSidebar";
+import { PricebookSelector } from "@/components/takeoff/PricebookSelector";
 import { useTakeoffPdf } from "@/components/takeoff/useTakeoffPdf";
 import type {
   TakeoffTool,
@@ -24,6 +25,7 @@ import type {
   GeometryData,
   MeasurementSummary,
   TakeoffPlanResponse,
+  MeasurementCreateOptions,
 } from "@/components/takeoff/types";
 
 // =============================================================================
@@ -55,6 +57,11 @@ export default function TakeoffPage() {
   // Tool state
   const [currentTool, setCurrentTool] = React.useState<TakeoffTool>("select");
   const [zoom, setZoom] = React.useState(1);
+
+  // Pricebook selector state
+  const [pricebookSelectorOpen, setPricebookSelectorOpen] = React.useState(false);
+  const [measurementForPricebook, setMeasurementForPricebook] = React.useState<TakeoffMeasurement | null>(null);
+  const [isGeneratingPO, setIsGeneratingPO] = React.useState(false);
 
   // Get current page scale
   const [currentPageNumber, setCurrentPageNumber] = React.useState(1);
@@ -148,6 +155,203 @@ export default function TakeoffPage() {
   }, [fetchMeasurements, fetchLayers]);
 
   // =============================================================================
+  // Layer Management Handlers
+  // =============================================================================
+
+  // Create layer
+  const handleCreateLayer = React.useCallback(
+    async (name: string, color: string) => {
+      if (!jobId) return;
+
+      try {
+        const response = await api.post<{
+          success: boolean;
+          data: { layer: TakeoffLayer };
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/jobs/${jobId}/layers`, {
+          layer: { name, color },
+        });
+
+        if (response?.success && response?.data) {
+          const newLayer = response.data.layer;
+          setLayers((prev) => [...prev, newLayer]);
+          setActiveLayer(newLayer);
+          toast({
+            title: "Layer Created",
+            description: `"${name}" layer created`,
+          });
+        } else {
+          throw new Error(response?.error || "Failed to create layer");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to create layer";
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        });
+        throw err;
+      }
+    },
+    [jobId, toast]
+  );
+
+  // Update layer
+  const handleUpdateLayer = React.useCallback(
+    async (id: number, updates: Partial<TakeoffLayer>) => {
+      if (!jobId) return;
+
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: { layer: TakeoffLayer };
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/jobs/${jobId}/layers/${id}`, {
+          layer: updates,
+        });
+
+        if (response?.success && response?.data) {
+          const updatedLayer = response.data.layer;
+          setLayers((prev) =>
+            prev.map((l) => (l.id === id ? updatedLayer : l))
+          );
+          if (activeLayer?.id === id) {
+            setActiveLayer(updatedLayer);
+          }
+          toast({
+            title: "Layer Updated",
+          });
+        } else {
+          throw new Error(response?.error || "Failed to update layer");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to update layer";
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        });
+        throw err;
+      }
+    },
+    [jobId, activeLayer, toast]
+  );
+
+  // Delete layer
+  const handleDeleteLayer = React.useCallback(
+    async (id: number) => {
+      if (!jobId) return;
+
+      try {
+        const response = await api.delete<{ success: boolean; error?: string }>(
+          `/api/v1/pdf_takeoff/jobs/${jobId}/layers/${id}`
+        );
+
+        if (response?.success) {
+          setLayers((prev) => {
+            const remaining = prev.filter((l) => l.id !== id);
+            // If we deleted the active layer, switch to first remaining
+            if (activeLayer?.id === id && remaining.length > 0) {
+              setActiveLayer(remaining[0]);
+            }
+            return remaining;
+          });
+          toast({
+            title: "Layer Deleted",
+          });
+        } else {
+          throw new Error(response?.error || "Failed to delete layer");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to delete layer";
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        });
+        throw err;
+      }
+    },
+    [jobId, activeLayer, toast]
+  );
+
+  // Toggle layer visibility
+  const handleToggleLayerVisibility = React.useCallback(
+    async (id: number, visible: boolean) => {
+      if (!jobId) return;
+
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: { layer: TakeoffLayer };
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/jobs/${jobId}/layers/${id}`, {
+          layer: { visible },
+        });
+
+        if (response?.success && response?.data) {
+          const updatedLayer = response.data.layer;
+          setLayers((prev) =>
+            prev.map((l) => (l.id === id ? updatedLayer : l))
+          );
+          if (activeLayer?.id === id) {
+            setActiveLayer(updatedLayer);
+          }
+        } else {
+          throw new Error(response?.error || "Failed to toggle visibility");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to toggle visibility";
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        });
+        throw err;
+      }
+    },
+    [jobId, activeLayer, toast]
+  );
+
+  // Toggle layer lock
+  const handleToggleLayerLock = React.useCallback(
+    async (id: number, locked: boolean) => {
+      if (!jobId) return;
+
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: { layer: TakeoffLayer };
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/jobs/${jobId}/layers/${id}`, {
+          layer: { locked },
+        });
+
+        if (response?.success && response?.data) {
+          const updatedLayer = response.data.layer;
+          setLayers((prev) =>
+            prev.map((l) => (l.id === id ? updatedLayer : l))
+          );
+          if (activeLayer?.id === id) {
+            setActiveLayer(updatedLayer);
+          }
+        } else {
+          throw new Error(response?.error || "Failed to toggle lock");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to toggle lock";
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        });
+        throw err;
+      }
+    },
+    [jobId, activeLayer, toast]
+  );
+
+  // =============================================================================
   // Handlers
   // =============================================================================
 
@@ -215,7 +419,8 @@ export default function TakeoffPage() {
       type: TakeoffMeasurement["measurement_type"],
       geometryData: GeometryData,
       pixelValue: number,
-      pageNumber: number
+      pageNumber: number,
+      options?: MeasurementCreateOptions
     ) => {
       if (!planId) return;
 
@@ -231,6 +436,8 @@ export default function TakeoffPage() {
             page_number: pageNumber,
             takeoff_layer_id: activeLayer?.id,
             geometry_data: geometryData,
+            is_deduction: options?.isDeduction,
+            parent_measurement_id: options?.parentMeasurementId,
           },
         });
 
@@ -292,26 +499,160 @@ export default function TakeoffPage() {
     [selectedMeasurement, fetchMeasurements, toast]
   );
 
-  // Assign pricebook item
+  // Open pricebook selector for a measurement
   const handleAssignPricebook = React.useCallback(
     (measurementId: number) => {
-      // TODO: Show pricebook selector modal
-      toast({
-        title: "Coming Soon",
-        description: "Pricebook assignment will be available soon",
-      });
+      const measurement = measurements.find((m) => m.id === measurementId);
+      if (measurement) {
+        setMeasurementForPricebook(measurement);
+        setPricebookSelectorOpen(true);
+      }
     },
-    [toast]
+    [measurements]
   );
+
+  // Assign pricebook item to measurement
+  const handlePricebookSelect = React.useCallback(
+    async (pricebookItem: { id: number; code: string; name: string; current_price: number | null }) => {
+      if (!measurementForPricebook) return;
+
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: TakeoffMeasurement;
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/measurements/${measurementForPricebook.id}`, {
+          pricebook_item_id: pricebookItem.id,
+        });
+
+        if (response?.success && response?.data) {
+          // Update measurement in list
+          setMeasurements((prev) =>
+            prev.map((m) => (m.id === measurementForPricebook.id ? response.data : m))
+          );
+          // Update selected measurement if it's the same
+          if (selectedMeasurement?.id === measurementForPricebook.id) {
+            setSelectedMeasurement(response.data);
+          }
+          // Refresh summary to get new totals
+          fetchMeasurements();
+
+          toast({
+            title: "Pricebook Item Assigned",
+            description: `${pricebookItem.code} - ${pricebookItem.name}`,
+          });
+        } else {
+          throw new Error(response?.error || "Failed to assign");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to assign pricebook item";
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        });
+        throw err;
+      }
+    },
+    [measurementForPricebook, selectedMeasurement, fetchMeasurements, toast]
+  );
+
+  // Clear pricebook item from measurement
+  const handlePricebookClear = React.useCallback(async () => {
+    if (!measurementForPricebook) return;
+
+    try {
+      const response = await api.patch<{
+        success: boolean;
+        data: TakeoffMeasurement;
+        error?: string;
+      }>(`/api/v1/pdf_takeoff/measurements/${measurementForPricebook.id}`, {
+        pricebook_item_id: null,
+      });
+
+      if (response?.success && response?.data) {
+        setMeasurements((prev) =>
+          prev.map((m) => (m.id === measurementForPricebook.id ? response.data : m))
+        );
+        if (selectedMeasurement?.id === measurementForPricebook.id) {
+          setSelectedMeasurement(response.data);
+        }
+        fetchMeasurements();
+
+        toast({
+          title: "Pricebook Item Removed",
+        });
+      } else {
+        throw new Error(response?.error || "Failed to clear");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to clear pricebook item";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+      throw err;
+    }
+  }, [measurementForPricebook, selectedMeasurement, fetchMeasurements, toast]);
 
   // Generate purchase order
   const handleGeneratePO = React.useCallback(async () => {
-    // TODO: Call sync_to_po endpoint
-    toast({
-      title: "Coming Soon",
-      description: "Purchase order generation will be available soon",
-    });
-  }, [toast]);
+    if (!planId) return;
+
+    // Check if there are measurements with pricebook items
+    const pricedMeasurements = measurements.filter((m) => m.pricebook_item);
+    if (pricedMeasurements.length === 0) {
+      toast({
+        title: "No Priced Items",
+        description: "Assign pricebook items to measurements before generating a PO",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingPO(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: {
+          purchase_orders: Array<{
+            id: number;
+            supplier_name: string;
+            line_items_count: number;
+            total: number;
+          }>;
+          total_pos: number;
+          total_measurements: number;
+        };
+        error?: string;
+      }>(`/api/v1/pdf_takeoff/plans/${planId}/generate_po`);
+
+      if (response?.success && response?.data) {
+        const { purchase_orders, total_pos, total_measurements } = response.data;
+        toast({
+          title: "Purchase Orders Created",
+          description: `Created ${total_pos} PO(s) with ${total_measurements} line items`,
+        });
+
+        // Navigate to first PO or show success
+        if (purchase_orders.length === 1) {
+          router.push(`/jobs/${jobId}/purchase-orders/${purchase_orders[0].id}`);
+        }
+      } else {
+        throw new Error(response?.error || "Failed to generate PO");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to generate purchase order";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPO(false);
+    }
+  }, [planId, jobId, measurements, router, toast]);
 
   // =============================================================================
   // Render
@@ -361,6 +702,11 @@ export default function TakeoffPage() {
         activeLayer={activeLayer}
         layers={layers}
         onLayerChange={setActiveLayer}
+        onCreateLayer={handleCreateLayer}
+        onUpdateLayer={handleUpdateLayer}
+        onDeleteLayer={handleDeleteLayer}
+        onToggleLayerVisibility={handleToggleLayerVisibility}
+        onToggleLayerLock={handleToggleLayerLock}
         isCalibrated={isCalibrated}
         scaleLabel={pageScale?.scale_label}
       />
@@ -444,6 +790,7 @@ export default function TakeoffPage() {
                 onMeasurementSelect={setSelectedMeasurement}
                 selectedMeasurement={selectedMeasurement}
                 activeLayer={activeLayer}
+                layers={layers}
                 currentTool={currentTool}
                 zoom={zoom}
                 onZoomChange={setZoom}
@@ -462,9 +809,18 @@ export default function TakeoffPage() {
           onMeasurementDelete={handleMeasurementDelete}
           onAssignPricebook={handleAssignPricebook}
           onGeneratePO={handleGeneratePO}
-          isLoading={false}
+          isLoading={isGeneratingPO}
         />
       </div>
+
+      {/* Pricebook Selector Modal */}
+      <PricebookSelector
+        open={pricebookSelectorOpen}
+        onOpenChange={setPricebookSelectorOpen}
+        measurement={measurementForPricebook}
+        onSelect={handlePricebookSelect}
+        onClear={handlePricebookClear}
+      />
     </div>
   );
 }

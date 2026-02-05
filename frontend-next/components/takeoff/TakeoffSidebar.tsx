@@ -334,24 +334,40 @@ function MeasurementItem({
         {is_deduction && "−"}{formatted_net_value}
       </span>
 
-      {/* Pricebook badge or assign button */}
-      {pricebook_item ? (
-        <Badge variant="outline" className="text-xs truncate max-w-[80px]">
-          {pricebook_item.code}
-        </Badge>
-      ) : (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 opacity-0 group-hover:opacity-100"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAssignPricebook();
-          }}
-        >
-          <Package className="h-3 w-3" />
-        </Button>
-      )}
+      {/* Pricebook info or assign button */}
+      <div className="flex items-center gap-1">
+        {pricebook_item ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAssignPricebook();
+            }}
+            className="flex items-center gap-1 hover:bg-muted rounded px-1"
+          >
+            <Badge variant="outline" className="text-xs truncate max-w-[60px]">
+              {pricebook_item.code}
+            </Badge>
+            {measurement.net_line_total != null && measurement.net_line_total > 0 && (
+              <span className="text-xs text-muted-foreground">
+                ${measurement.net_line_total.toFixed(0)}
+              </span>
+            )}
+          </button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 opacity-0 group-hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAssignPricebook();
+            }}
+            title="Assign pricebook item"
+          >
+            <Package className="h-3 w-3" />
+          </Button>
+        )}
+      </div>
 
       {/* Delete button */}
       <Button

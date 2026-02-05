@@ -12,6 +12,7 @@ import type {
   GeometryData,
   CalibrationData,
   DrawingStyle,
+  MeasurementCreateOptions,
 } from "./types";
 import { DEFAULT_DRAWING_STYLE } from "./types";
 
@@ -57,7 +58,8 @@ interface TakeoffCanvasProps {
     type: TakeoffMeasurement["measurement_type"],
     geometryData: GeometryData,
     pixelValue: number,
-    pageNumber: number
+    pageNumber: number,
+    options?: MeasurementCreateOptions
   ) => Promise<void>;
   onMeasurementDelete: (id: number) => Promise<void>;
   onMeasurementSelect: (measurement: TakeoffMeasurement | null) => void;
@@ -65,6 +67,7 @@ interface TakeoffCanvasProps {
 
   // Layer
   activeLayer: TakeoffLayer | null;
+  layers: TakeoffLayer[];  // For visibility filtering
 
   // Tool state
   currentTool: TakeoffTool;
@@ -94,6 +97,7 @@ export function TakeoffCanvas({
   onMeasurementSelect,
   selectedMeasurement,
   activeLayer,
+  layers,
   currentTool,
   drawingStyle = DEFAULT_DRAWING_STYLE,
   zoom,
@@ -184,8 +188,17 @@ export function TakeoffCanvas({
     );
     toRemove.forEach((obj) => canvas.remove(obj));
 
-    // Render each measurement
+    // Build set of hidden layer IDs
+    const hiddenLayerIds = new Set(
+      layers.filter((l) => !l.visible).map((l) => l.id)
+    );
+
+    // Render each measurement (skip hidden layers)
     measurements.forEach((m) => {
+      // Skip if measurement's layer is hidden
+      if (m.layer?.id && hiddenLayerIds.has(m.layer.id)) {
+        return;
+      }
       renderMeasurement(canvas, m);
     });
 
@@ -195,7 +208,7 @@ export function TakeoffCanvas({
     }
 
     canvas.renderAll();
-  }, [measurements, pageScale, zoom]);
+  }, [measurements, pageScale, zoom, layers]);
 
   useEffect(() => {
     renderMeasurements();
@@ -409,8 +422,15 @@ export function TakeoffCanvas({
     if (currentTool === "calibrate" && calibrationLine) {
       setCalibrationLine({ ...calibrationLine, end: point });
       renderTempCalibrationLine();
+    } else if (
+      (currentTool === "area" || currentTool === "linear" ||
+       currentTool === "perimeter" || currentTool === "deduction") &&
+      currentPoints.length > 0
+    ) {
+      // Render live preview while drawing polygon/polyline
+      renderTempDrawing(point);
     }
-  }, [isDrawing, currentTool, calibrationLine, zoom]);
+  }, [isDrawing, currentTool, calibrationLine, zoom, currentPoints, activeLayer]);
 
   const handleMouseUp = useCallback(() => {
     if (currentTool === "calibrate" && calibrationLine) {
@@ -497,7 +517,12 @@ export function TakeoffCanvas({
         ? "perimeter"
         : "length";
 
-    await onMeasurementCreate(measurementType, geometryData, pixelValue, pageNumber);
+    // Pass deduction flag if using deduction tool
+    const options: MeasurementCreateOptions | undefined = currentTool === "deduction"
+      ? { isDeduction: true }
+      : undefined;
+
+    await onMeasurementCreate(measurementType, geometryData, pixelValue, pageNumber, options);
 
     // Reset drawing state
     setCurrentPoints([]);
@@ -537,6 +562,124 @@ export function TakeoffCanvas({
     line.data = { isTempCalibration: true };
 
     canvas.add(line);
+    canvas.renderAll();
+  };
+
+  // Render temporary polygon/polyline while drawing (live preview)
+  const renderTempDrawing = (cursorPoint: Point) => {
+    const canvas = fabricRef.current;
+    if (!canvas || currentPoints.length === 0) return;
+
+    // Remove existing temp drawing objects
+    const toRemove = (canvas.getObjects() as FabricObjectWithData[]).filter(
+      (obj) => obj.data?.isTempDrawing
+    );
+    toRemove.forEach((obj) => canvas.remove(obj));
+
+    // Build points array with cursor position
+    const allPoints = [...currentPoints, cursorPoint];
+    const scaledPoints = allPoints.map((p) => ({
+      x: p.x * zoom,
+      y: p.y * zoom,
+    }));
+
+    const isPolygon = currentTool === "area" || currentTool === "perimeter" || currentTool === "deduction";
+    const color = activeLayer?.color || drawingStyle.strokeColor;
+
+    if (isPolygon) {
+      // Draw polygon preview with semi-transparent fill
+      const polygon = new fabric.Polygon(scaledPoints, {
+        fill: `${color}22`,  // ~13% opacity for preview
+        stroke: color,
+        strokeWidth: 2,
+        strokeDashArray: [5, 5],  // Dashed to show it's not final
+        selectable: false,
+      }) as FabricObjectWithData;
+      polygon.data = { isTempDrawing: true };
+      canvas.add(polygon);
+
+      // Calculate and show preview area
+      if (allPoints.length >= 3) {
+        const pixelArea = calculatePolygonArea(allPoints);
+        const centroid = calculateCentroid(scaledPoints);
+
+        // Convert to real-world units if calibrated
+        let areaText = `${pixelArea.toFixed(0)} px²`;
+        if (pageScale?.calibrated && pageScale.scale_factor) {
+          // scale_factor is mm per pixel, so mm² per pixel² = scale_factor²
+          const m2 = pixelArea * Math.pow(pageScale.scale_factor / 1000, 2);
+          areaText = `${m2.toFixed(2)} m²`;
+        }
+
+        const label = new fabric.FabricText(areaText, {
+          left: centroid.x,
+          top: centroid.y,
+          fontSize: drawingStyle.fontSize,
+          fill: color,
+          fontWeight: "bold",
+          backgroundColor: "rgba(255,255,255,0.9)",
+          originX: "center",
+          originY: "center",
+          selectable: false,
+        }) as FabricObjectWithData;
+        label.data = { isTempDrawing: true };
+        canvas.add(label);
+      }
+    } else {
+      // Draw polyline preview
+      const polyline = new fabric.Polyline(scaledPoints, {
+        fill: "transparent",
+        stroke: color,
+        strokeWidth: 2,
+        strokeDashArray: [5, 5],  // Dashed to show it's not final
+        selectable: false,
+      }) as FabricObjectWithData;
+      polyline.data = { isTempDrawing: true };
+      canvas.add(polyline);
+
+      // Calculate and show preview length
+      const pixelLength = calculatePolylineLength(allPoints);
+
+      // Convert to real-world units if calibrated
+      let lengthText = `${pixelLength.toFixed(0)} px`;
+      if (pageScale?.calibrated && pageScale.scale_factor) {
+        // scale_factor is mm per pixel
+        const meters = (pixelLength * pageScale.scale_factor) / 1000;
+        lengthText = `${meters.toFixed(2)} m`;
+      }
+
+      // Place label at midpoint of the line
+      const midIdx = Math.floor(scaledPoints.length / 2);
+      const midpoint = scaledPoints[midIdx] || scaledPoints[0];
+      const label = new fabric.FabricText(lengthText, {
+        left: midpoint.x,
+        top: midpoint.y - 20,
+        fontSize: drawingStyle.fontSize,
+        fill: color,
+        fontWeight: "bold",
+        backgroundColor: "rgba(255,255,255,0.9)",
+        originX: "center",
+        selectable: false,
+      }) as FabricObjectWithData;
+      label.data = { isTempDrawing: true };
+      canvas.add(label);
+    }
+
+    // Draw markers at each point
+    scaledPoints.forEach((p, i) => {
+      const marker = new fabric.Circle({
+        left: p.x - 5,
+        top: p.y - 5,
+        radius: 5,
+        fill: i === 0 ? "#fff" : color,  // First point is white (start indicator)
+        stroke: color,
+        strokeWidth: 2,
+        selectable: false,
+      }) as FabricObjectWithData;
+      marker.data = { isTempDrawing: true };
+      canvas.add(marker);
+    });
+
     canvas.renderAll();
   };
 
@@ -681,7 +824,12 @@ export function TakeoffCanvas({
       {/* Drawing instructions */}
       {isDrawing && currentTool !== "calibrate" && (
         <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-2 border shadow-sm text-sm">
-          Click to add points. Double-click or Enter to finish.
+          <div className="font-medium mb-1">
+            {currentPoints.length} point{currentPoints.length !== 1 ? "s" : ""} placed
+          </div>
+          <div className="text-muted-foreground">
+            Click to add points • Double-click or Enter to finish • Esc to cancel
+          </div>
         </div>
       )}
     </div>

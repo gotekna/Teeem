@@ -2360,7 +2360,11 @@ Rails.application.routes.draw do
         post "docsort/:docsort_item_id/measurements", action: :create_measurement_docsort
 
         # Measurement operations
+        patch "measurements/:id", action: :update_measurement
         delete "measurements/:id", action: :delete_measurement
+
+        # Generate Purchase Order from measurements
+        post "plans/:job_plan_id/generate_po", action: :generate_po
 
         # Layer operations
         get "jobs/:job_id/layers", action: :layers
