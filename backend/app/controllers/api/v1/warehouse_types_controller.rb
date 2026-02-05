@@ -378,12 +378,17 @@ module Api
               end
             end
 
-            # SSoT (Feb 2026): Include linked warehouse_folder for UI/DL editing
+            # SSoT (Feb 2026): Include linked warehouse_folder(s) for UI/DL editing
             # FRC (Feb 2026): Bypass tenant scoping - warehouse_folders are config data linked to base_folders
             # The tenant_id is for Config Sync, not for restricting admin access
-            wf = ActsAsTenant.without_tenant do
-              WarehouseFolder.includes(:document_types).find_by(base_folder_id: bf.id)
+            # FRC (Feb 2026): A base_folder can have MULTIPLE warehouse_folders - aggregate their document_types
+            warehouse_folders = ActsAsTenant.without_tenant do
+              WarehouseFolder.includes(:document_types).where(base_folder_id: bf.id)
             end
+            # Use first warehouse_folder for UI/DL editing (primary config)
+            wf = warehouse_folders.first
+            # Aggregate document_types from ALL warehouse_folders for this base_folder
+            all_document_types = warehouse_folders.flat_map(&:document_types).uniq(&:id)
 
             {
               id: bf.id,
@@ -403,9 +408,9 @@ module Api
                 ui_name: wf.ui_name,
                 download_name: wf.download_name,
                 parent_id: wf.parent_id,  # SSoT: For parent tab selection in editor
-                # SSoT (Feb 2026): Include document_types for tree view display
+                # SSoT (Feb 2026): Include document_types aggregated from ALL warehouse_folders
                 # ui_name/download_name show orange if missing, green if configured
-                document_types: wf.document_types.map { |dt|
+                document_types: all_document_types.map { |dt|
                   {
                     id: dt.id,
                     name: dt.name,

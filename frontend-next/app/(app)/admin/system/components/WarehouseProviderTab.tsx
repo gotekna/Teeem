@@ -1019,21 +1019,44 @@ function TreeNode({
       {/* For non-leaf nodes, show path AND document_types if any */}
       {node.children.length > 0 && (() => {
         const scopeKeys = node.scopeKeys || (node.scopeKey ? [node.scopeKey] : []);
-        if (scopeKeys.length === 0 || isEditingThisNode) return null;
+        const hasScopeKeys = scopeKeys.length > 0;
 
-        const primaryScopeKey = scopeKeys[0];
-        const displayPath = (scopeRootFolders[primaryScopeKey] || '')
-          .replace(/\{\{TeeemXL\}\}/gi, '{{TabName}}')
-          .replace(/\/+/g, '/')
-          .replace(/\/+$/, '');
-
-        const hasDynamicMailbox = displayPath.includes('{{Mailbox}}');
-
-        // FRC (Feb 2026): Non-leaf nodes can also have document_types
-        // e.g., Statement folder has children (PDF Reports) AND document_types (X Bank Statement)
+        // FRC (Feb 2026): Non-leaf nodes can have document_types even without scopeKeys
+        // e.g., Xero folder has children (Bank, Connection) AND document_types (X Bank Statement)
         const baseFoldersWithDocTypes = (node.baseFolders || []).filter(
           bf => bf.warehouse_folder?.document_types && bf.warehouse_folder.document_types.length > 0
         );
+
+        // DEBUG: Log Xero and Bank nodes
+        if (node.name === 'Xero' || node.name === 'Bank') {
+          console.log(`[TreeNode DEBUG] ${node.name}:`, {
+            hasChildren: node.children.length,
+            baseFolders: node.baseFolders?.length || 0,
+            baseFoldersWithDocTypes: baseFoldersWithDocTypes.length,
+            baseFoldersData: node.baseFolders?.map(bf => ({
+              id: bf.id,
+              name: bf.name,
+              wf: bf.warehouse_folder ? {
+                id: bf.warehouse_folder.id,
+                docTypes: bf.warehouse_folder.document_types?.length || 0
+              } : null
+            }))
+          });
+        }
+
+        // Show nothing if editing OR (no scope keys AND no doc types)
+        if (isEditingThisNode) return null;
+        if (!hasScopeKeys && baseFoldersWithDocTypes.length === 0) return null;
+
+        const primaryScopeKey = hasScopeKeys ? scopeKeys[0] : null;
+        const displayPath = primaryScopeKey
+          ? (scopeRootFolders[primaryScopeKey] || '')
+              .replace(/\{\{TeeemXL\}\}/gi, '{{TabName}}')
+              .replace(/\/+/g, '/')
+              .replace(/\/+$/, '')
+          : '';
+
+        const hasDynamicMailbox = displayPath.includes('{{Mailbox}}');
 
         return (
           <div style={{ paddingLeft: `${level * 16 + 28}px` }}>
