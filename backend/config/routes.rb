@@ -2350,12 +2350,16 @@ Rails.application.routes.draw do
         # Plan operations (for job-linked plans)
         get "plans/:job_plan_id", action: :show
         post "plans/:job_plan_id/calibrate", action: :calibrate
+        post "plans/:job_plan_id/detect_scale", action: :detect_scale
+        post "plans/:job_plan_id/detect_elements", action: :detect_elements
         get "plans/:job_plan_id/measurements", action: :measurements
         post "plans/:job_plan_id/measurements", action: :create_measurement
 
         # DocSort standalone takeoff (for plans not yet assigned to a job)
         get "docsort/:docsort_item_id", action: :show_docsort
         post "docsort/:docsort_item_id/calibrate", action: :calibrate_docsort
+        post "docsort/:docsort_item_id/detect_scale", action: :detect_scale_docsort
+        post "docsort/:docsort_item_id/detect_elements", action: :detect_elements_docsort
         get "docsort/:docsort_item_id/measurements", action: :measurements_docsort
         post "docsort/:docsort_item_id/measurements", action: :create_measurement_docsort
 
@@ -2371,6 +2375,17 @@ Rails.application.routes.draw do
         post "jobs/:job_id/layers", action: :create_layer
         patch "layers/:id", action: :update_layer
         delete "layers/:id", action: :delete_layer
+      end
+
+      # Takeoff Templates (measurement patterns)
+      resources :takeoff_templates, path: "pdf_takeoff/templates", only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          post :duplicate
+          post :record_usage
+        end
+        collection do
+          get :system_defaults
+        end
       end
 
       # Bill Payment Batches (ABA file generation)

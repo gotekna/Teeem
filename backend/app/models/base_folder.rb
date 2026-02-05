@@ -53,7 +53,9 @@ class BaseFolder < ApplicationRecord
   }
 
   # Callbacks
+  before_save :compute_full_path_template
   before_destroy :prevent_system_deletion
+  after_save :update_children_paths, if: :saved_change_to_folder_path_template?
 
   # Delegation
   delegate :code, to: :warehouse_type, prefix: true, allow_nil: true
@@ -192,6 +194,32 @@ class BaseFolder < ApplicationRecord
   end
 
   private
+
+  # SSoT (Feb 2026): Compute and store full path in folder_path_template
+  # This eliminates runtime computation - the stored value IS the full path
+  # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Bills & POs"
+  def compute_full_path_template
+    wt_template = warehouse_type&.folder_path_template.presence
+    ancestor_path = full_ancestor_path
+
+    self.folder_path_template = if wt_template.blank?
+      ancestor_path
+    else
+      # FRC: Compare first FOLDER exactly, not string prefix
+      scope_root = wt_template.split('/').first
+      first_folder = ancestor_path.split('/').first
+      if first_folder == scope_root
+        ancestor_path
+      else
+        "#{wt_template}/#{ancestor_path}"
+      end
+    end
+  end
+
+  # Cascade path changes to children when parent path changes
+  def update_children_paths
+    children.find_each(&:save)  # Triggers compute_full_path_template on each child
+  end
 
   def prevent_system_deletion
     if is_system

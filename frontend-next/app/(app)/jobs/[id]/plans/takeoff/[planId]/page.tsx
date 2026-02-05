@@ -27,6 +27,8 @@ import type {
   TakeoffPlanResponse,
   MeasurementCreateOptions,
 } from "@/components/takeoff/types";
+import type { DetectedElement } from "@/components/takeoff/ElementDetector";
+import type { TakeoffTemplate, TemplateStep } from "@/components/takeoff/TemplateSelector";
 
 // =============================================================================
 // Page Component
@@ -355,6 +357,25 @@ export default function TakeoffPage() {
   // Handlers
   // =============================================================================
 
+  // Handle AI scale detection result
+  const handleScaleDetected = React.useCallback(
+    async (scaleText: string, referenceMm: number) => {
+      // Update page scale with AI-detected values
+      if (!planId) return;
+
+      // The AI gives us the scale text and suggested reference length
+      // We need to prompt user to draw a calibration line OR auto-calibrate if possible
+      toast({
+        title: "Scale Detected",
+        description: `Detected scale: ${scaleText}. Please draw a calibration line to confirm.`,
+      });
+
+      // Set tool to calibrate mode
+      setCurrentTool("calibrate");
+    },
+    [planId, toast]
+  );
+
   // Calibrate scale
   const handleCalibrate = React.useCallback(
     async (data: CalibrationData) => {
@@ -463,6 +484,106 @@ export default function TakeoffPage() {
       }
     },
     [planId, activeLayer, toast]
+  );
+
+  // Handle AI element detection result
+  const handleElementsDetected = React.useCallback(
+    async (elements: DetectedElement[]) => {
+      if (!planId || !currentPage) return;
+
+      // Convert detected elements to measurements
+      let added = 0;
+      for (const element of elements) {
+        try {
+          // Calculate pixel value from normalized bbox
+          const pixelWidth = element.bbox.width * currentPage.width;
+          const pixelHeight = element.bbox.height * currentPage.height;
+
+          // Determine measurement type based on element type
+          let measurementType: TakeoffMeasurement["measurement_type"] = "length";
+          let pixelValue = 0;
+
+          if (element.type === "wall" || element.type === "beam") {
+            // Use length (diagonal of bbox as approximation)
+            measurementType = "length";
+            pixelValue = Math.sqrt(pixelWidth ** 2 + pixelHeight ** 2);
+          } else if (element.type === "door" || element.type === "window" || element.type === "opening") {
+            // Use the larger dimension as width
+            measurementType = "length";
+            pixelValue = Math.max(pixelWidth, pixelHeight);
+          } else if (element.type === "stair") {
+            // Use area
+            measurementType = "area";
+            pixelValue = pixelWidth * pixelHeight;
+          } else if (element.type === "column") {
+            // Use count
+            measurementType = "count";
+            pixelValue = 1;
+          }
+
+          // Create geometry from bbox
+          const geometryData: GeometryData = {
+            type: element.points.length > 0 ? "polygon" : "line",
+            points: element.points.length > 0
+              ? element.points.map(p => ({
+                  x: p.x * currentPage.width,
+                  y: p.y * currentPage.height
+                }))
+              : [
+                  { x: element.bbox.x * currentPage.width, y: element.bbox.y * currentPage.height },
+                  { x: (element.bbox.x + element.bbox.width) * currentPage.width, y: (element.bbox.y + element.bbox.height) * currentPage.height }
+                ],
+            canvasWidth: currentPage.width,
+            canvasHeight: currentPage.height,
+          };
+
+          // Create measurement
+          await handleMeasurementCreate(
+            measurementType,
+            geometryData,
+            pixelValue,
+            currentPageNumber
+          );
+          added++;
+        } catch (err) {
+          console.error(`Failed to create measurement for element ${element.id}:`, err);
+        }
+      }
+
+      toast({
+        title: "Elements Added",
+        description: `Created ${added} measurement${added !== 1 ? "s" : ""} from detected elements`,
+      });
+    },
+    [planId, currentPage, currentPageNumber, handleMeasurementCreate, toast]
+  );
+
+  // Handle template selection - start guided measurement workflow
+  const handleTemplateSelect = React.useCallback(
+    (template: TakeoffTemplate, steps: TemplateStep[]) => {
+      if (!steps.length) return;
+
+      // For now, just switch to the first step's measurement type
+      const firstStep = steps[0];
+      const toolMap: Record<string, TakeoffTool> = {
+        count: "count",
+        area: "area",
+        linear: "linear",
+        perimeter: "perimeter",
+      };
+
+      const tool = toolMap[firstStep.type] || "linear";
+      setCurrentTool(tool);
+
+      toast({
+        title: `Template: ${template.name}`,
+        description: `Step 1/${steps.length}: ${firstStep.label} - ${firstStep.prompt || `Use ${firstStep.type} tool`}`,
+      });
+
+      // TODO: Implement full template runner with step-by-step guidance
+      // The TemplateRunner component can be added to the UI for step tracking
+    },
+    [toast]
   );
 
   // Delete measurement
@@ -709,6 +830,16 @@ export default function TakeoffPage() {
         onToggleLayerLock={handleToggleLayerLock}
         isCalibrated={isCalibrated}
         scaleLabel={pageScale?.scale_label}
+        pageCanvas={currentPage?.canvas || null}
+        pageNumber={currentPageNumber}
+        pageWidth={currentPage?.width || 0}
+        pageHeight={currentPage?.height || 0}
+        planId={planId}
+        onScaleDetected={handleScaleDetected}
+        onElementsDetected={handleElementsDetected}
+        onTemplateSelect={handleTemplateSelect}
+        pdfUrl={pdfUrl}
+        onSyncComplete={fetchMeasurements}
       />
 
       {/* Main content */}

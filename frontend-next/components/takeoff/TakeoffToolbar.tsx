@@ -26,6 +26,10 @@ import {
 import type { TakeoffTool, TakeoffLayer } from "./types";
 import { TAKEOFF_TOOLS } from "./types";
 import { LayerManager } from "./LayerManager";
+import { ScaleDetector } from "./ScaleDetector";
+import { ElementDetector, type DetectedElement } from "./ElementDetector";
+import { TemplateSelector, type TakeoffTemplate, type TemplateStep } from "./TemplateSelector";
+import { OfflineIndicator } from "./OfflineIndicator";
 
 // =============================================================================
 // Props
@@ -58,6 +62,23 @@ interface TakeoffToolbarProps {
   // Scale status
   isCalibrated: boolean;
   scaleLabel?: string;
+
+  // AI Scale Detection
+  pageCanvas: HTMLCanvasElement | null;
+  pageNumber: number;
+  pageWidth: number;
+  pageHeight: number;
+  planId?: string;
+  docsortItemId?: string;
+  onScaleDetected: (scaleText: string, referenceMm: number) => void;
+  onElementsDetected: (elements: DetectedElement[]) => void;
+
+  // Templates
+  onTemplateSelect: (template: TakeoffTemplate, steps: TemplateStep[]) => void;
+
+  // Offline
+  pdfUrl?: string | null;
+  onSyncComplete?: () => void;
 }
 
 // =============================================================================
@@ -98,6 +119,17 @@ export function TakeoffToolbar({
   onRedo,
   isCalibrated,
   scaleLabel,
+  pageCanvas,
+  pageNumber,
+  pageWidth,
+  pageHeight,
+  planId,
+  docsortItemId,
+  onScaleDetected,
+  onElementsDetected,
+  onTemplateSelect,
+  pdfUrl,
+  onSyncComplete,
 }: TakeoffToolbarProps) {
   // Keyboard shortcuts
   React.useEffect(() => {
@@ -178,6 +210,28 @@ export function TakeoffToolbar({
           )}
         </div>
 
+        {/* AI Scale Detection */}
+        <ScaleDetector
+          planId={planId}
+          docsortItemId={docsortItemId}
+          pageNumber={pageNumber}
+          pageCanvas={pageCanvas}
+          onScaleDetected={onScaleDetected}
+          isCalibrated={isCalibrated}
+        />
+
+        {/* AI Element Detection */}
+        <ElementDetector
+          planId={planId}
+          docsortItemId={docsortItemId}
+          pageNumber={pageNumber}
+          pageCanvas={pageCanvas}
+          pageWidth={pageWidth}
+          pageHeight={pageHeight}
+          onElementsDetected={onElementsDetected}
+          isCalibrated={isCalibrated}
+        />
+
         <Separator orientation="vertical" className="h-6 mx-1" />
 
         {/* Measurement Tools */}
@@ -212,6 +266,12 @@ export function TakeoffToolbar({
           disabled={!isCalibrated}
         />
 
+        {/* Templates */}
+        <TemplateSelector
+          onTemplateSelect={onTemplateSelect}
+          disabled={!isCalibrated}
+        />
+
         <Separator orientation="vertical" className="h-6 mx-1" />
 
         {/* Layer Manager */}
@@ -227,6 +287,14 @@ export function TakeoffToolbar({
         />
 
         <div className="flex-1" />
+
+        {/* Offline Status */}
+        <OfflineIndicator
+          planId={planId}
+          docsortItemId={docsortItemId}
+          pdfUrl={pdfUrl}
+          onSyncComplete={onSyncComplete}
+        />
 
         {/* Undo/Redo */}
         {onUndo && onRedo && (

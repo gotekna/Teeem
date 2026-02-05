@@ -11,8 +11,8 @@ module Api
     #
     class PdfTakeoffController < ApplicationController
       before_action :authenticate_user!
-      before_action :set_job_plan, only: [:show, :calibrate, :measurements, :create_measurement, :generate_po]
-      before_action :set_docsort_item, only: [:show_docsort, :calibrate_docsort, :measurements_docsort, :create_measurement_docsort]
+      before_action :set_job_plan, only: [:show, :calibrate, :measurements, :create_measurement, :generate_po, :detect_scale, :detect_elements]
+      before_action :set_docsort_item, only: [:show_docsort, :calibrate_docsort, :measurements_docsort, :create_measurement_docsort, :detect_scale_docsort, :detect_elements_docsort]
       before_action :set_job, only: [:layers, :create_layer, :update_layer, :delete_layer]
 
       # GET /api/v1/pdf_takeoff/plans/:job_plan_id
@@ -93,6 +93,57 @@ module Api
         else
           render json: { success: false, errors: page_scale.errors.full_messages }, status: :unprocessable_entity
         end
+      end
+
+      # POST /api/v1/pdf_takeoff/plans/:job_plan_id/detect_scale
+      # AI-powered scale detection from page image
+      def detect_scale
+        unless params[:image_base64].present?
+          return render json: { success: false, error: "image_base64 is required" }, status: :unprocessable_entity
+        end
+
+        service = PdfScaleDetectionService.new
+        result = service.detect_scale(
+          image_base64: params[:image_base64],
+          media_type: params[:media_type] || "image/png"
+        )
+
+        # Store AI detection result on the page scale if detected
+        if result[:detected] && params[:page_number].present?
+          page_scale = PageScale.find_or_initialize_by(
+            job_plan: @job_plan,
+            page_number: params[:page_number].to_i
+          )
+          page_scale.tenant = current_tenant
+          page_scale.ai_detected_scale = result[:scale_text]
+          page_scale.ai_confidence = result[:confidence]
+          page_scale.save
+        end
+
+        render json: {
+          success: true,
+          data: result
+        }
+      end
+
+      # POST /api/v1/pdf_takeoff/plans/:job_plan_id/detect_elements
+      # AI-powered detection of walls, doors, windows and other architectural elements
+      def detect_elements
+        unless params[:image_base64].present?
+          return render json: { success: false, error: "image_base64 is required" }, status: :unprocessable_entity
+        end
+
+        service = PdfElementDetectionService.new
+        result = service.detect_elements(
+          image_base64: params[:image_base64],
+          media_type: params[:media_type] || "image/png",
+          element_types: params[:element_types]
+        )
+
+        render json: {
+          success: true,
+          data: result
+        }
       end
 
       # GET /api/v1/pdf_takeoff/plans/:job_plan_id/measurements
@@ -369,6 +420,57 @@ module Api
         else
           render json: { success: false, errors: page_scale.errors.full_messages }, status: :unprocessable_entity
         end
+      end
+
+      # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/detect_scale
+      # AI-powered scale detection from page image (docsort)
+      def detect_scale_docsort
+        unless params[:image_base64].present?
+          return render json: { success: false, error: "image_base64 is required" }, status: :unprocessable_entity
+        end
+
+        service = PdfScaleDetectionService.new
+        result = service.detect_scale(
+          image_base64: params[:image_base64],
+          media_type: params[:media_type] || "image/png"
+        )
+
+        # Store AI detection result on the page scale if detected
+        if result[:detected] && params[:page_number].present?
+          page_scale = PageScale.find_or_initialize_by(
+            docsort_item: @docsort_item,
+            page_number: params[:page_number].to_i
+          )
+          page_scale.tenant = current_tenant
+          page_scale.ai_detected_scale = result[:scale_text]
+          page_scale.ai_confidence = result[:confidence]
+          page_scale.save
+        end
+
+        render json: {
+          success: true,
+          data: result
+        }
+      end
+
+      # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/detect_elements
+      # AI-powered detection of walls, doors, windows and other architectural elements (docsort)
+      def detect_elements_docsort
+        unless params[:image_base64].present?
+          return render json: { success: false, error: "image_base64 is required" }, status: :unprocessable_entity
+        end
+
+        service = PdfElementDetectionService.new
+        result = service.detect_elements(
+          image_base64: params[:image_base64],
+          media_type: params[:media_type] || "image/png",
+          element_types: params[:element_types]
+        )
+
+        render json: {
+          success: true,
+          data: result
+        }
       end
 
       # GET /api/v1/pdf_takeoff/docsort/:docsort_item_id/measurements

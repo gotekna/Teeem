@@ -15,6 +15,8 @@ import type {
   MeasurementCreateOptions,
 } from "./types";
 import { DEFAULT_DRAWING_STYLE } from "./types";
+import { useSnapPoints, type SnapConfig } from "./useSnapPoints";
+import { SnapIndicator, SnapPointsLayer } from "./SnapIndicator";
 
 // =============================================================================
 // Fabric.js Type Extensions
@@ -78,6 +80,10 @@ interface TakeoffCanvasProps {
   // Zoom
   zoom: number;
   onZoomChange: (zoom: number) => void;
+
+  // Snap configuration
+  snapConfig?: Partial<SnapConfig>;
+  showSnapPoints?: boolean;  // Debug: show all available snap points
 }
 
 // =============================================================================
@@ -102,6 +108,8 @@ export function TakeoffCanvas({
   drawingStyle = DEFAULT_DRAWING_STYLE,
   zoom,
   onZoomChange,
+  snapConfig,
+  showSnapPoints = false,
 }: TakeoffCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
@@ -113,6 +121,26 @@ export function TakeoffCanvas({
 
   // Count marker state
   const [nextCountLabel, setNextCountLabel] = useState(1);
+
+  // Snap state
+  const [cursorPoint, setCursorPoint] = useState<Point | null>(null);
+  const [snapResult, setSnapResult] = useState<{
+    snapped: Point;
+    isSnapped: boolean;
+    snapType: "endpoint" | "intersection" | "midpoint" | "perpendicular" | "edge" | null;
+  } | null>(null);
+
+  // Initialize snap points hook
+  const { findSnapPoint, getVisibleSnapPoints } = useSnapPoints({
+    measurements: measurements.map(m => ({
+      id: m.id,
+      geometry_data: m.geometry_data,
+    })),
+    pageWidth,
+    pageHeight,
+    zoom,
+    config: snapConfig,
+  });
 
   // =============================================================================
   // Canvas Setup
@@ -389,7 +417,11 @@ export function TakeoffCanvas({
     const canvas = fabricRef.current;
     if (!canvas || !e.pointer) return;
 
-    const point = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
+    const rawPoint = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
+
+    // Apply snapping for measurement tools
+    const shouldSnap = ["count", "area", "linear", "perimeter", "deduction", "calibrate"].includes(currentTool);
+    const { snapped: point } = shouldSnap ? findSnapPoint(rawPoint.x, rawPoint.y) : { snapped: rawPoint };
 
     switch (currentTool) {
       case "calibrate":
@@ -412,12 +444,28 @@ export function TakeoffCanvas({
         setCurrentPoints((prev) => [...prev, point]);
         break;
     }
-  }, [currentTool, zoom]);
+  }, [currentTool, zoom, findSnapPoint]);
 
   const handleMouseMove = useCallback((e: fabric.TPointerEventInfo) => {
-    if (!isDrawing || !e.pointer) return;
+    if (!e.pointer) return;
 
-    const point = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
+    const rawPoint = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
+
+    // Always check for snap points when using measurement tools (for visual feedback)
+    const shouldSnap = ["count", "area", "linear", "perimeter", "deduction", "calibrate"].includes(currentTool);
+    if (shouldSnap) {
+      const snap = findSnapPoint(rawPoint.x, rawPoint.y);
+      setCursorPoint(rawPoint);
+      setSnapResult(snap);
+    } else {
+      setCursorPoint(null);
+      setSnapResult(null);
+    }
+
+    // Only update drawing if actively drawing
+    if (!isDrawing) return;
+
+    const point = shouldSnap && snapResult?.isSnapped ? snapResult.snapped : rawPoint;
 
     if (currentTool === "calibrate" && calibrationLine) {
       setCalibrationLine({ ...calibrationLine, end: point });
@@ -430,7 +478,7 @@ export function TakeoffCanvas({
       // Render live preview while drawing polygon/polyline
       renderTempDrawing(point);
     }
-  }, [isDrawing, currentTool, calibrationLine, zoom, currentPoints, activeLayer]);
+  }, [isDrawing, currentTool, calibrationLine, zoom, currentPoints, activeLayer, findSnapPoint, snapResult]);
 
   const handleMouseUp = useCallback(() => {
     if (currentTool === "calibrate" && calibrationLine) {
@@ -796,6 +844,17 @@ export function TakeoffCanvas({
   // Render
   // =============================================================================
 
+  // Get visible snap points for the current viewport (for debug overlay)
+  const visibleSnapPoints = React.useMemo(() => {
+    if (!showSnapPoints) return [];
+    return getVisibleSnapPoints({
+      x: 0,
+      y: 0,
+      width: pageWidth,
+      height: pageHeight,
+    });
+  }, [showSnapPoints, getVisibleSnapPoints, pageWidth, pageHeight]);
+
   return (
     <div className="relative overflow-hidden">
       <canvas
@@ -805,6 +864,34 @@ export function TakeoffCanvas({
           cursor: getCursorForTool(currentTool),
         }}
       />
+
+      {/* SVG overlay for snap indicators */}
+      <svg
+        className="absolute inset-0 pointer-events-none"
+        width={pageWidth * zoom}
+        height={pageHeight * zoom}
+        style={{ overflow: "visible" }}
+      >
+        {/* Debug: Show all available snap points */}
+        <SnapPointsLayer
+          snapPoints={visibleSnapPoints}
+          zoom={zoom}
+          showAll={showSnapPoints}
+        />
+
+        {/* Active snap indicator at cursor */}
+        {snapResult && (
+          <SnapIndicator
+            point={snapResult.isSnapped ? {
+              x: snapResult.snapped.x * zoom,
+              y: snapResult.snapped.y * zoom,
+            } : null}
+            snapType={snapResult.snapType}
+            zoom={zoom}
+            isSnapped={snapResult.isSnapped}
+          />
+        )}
+      </svg>
 
       {/* Scale indicator */}
       {pageScale?.calibrated && (
@@ -818,6 +905,14 @@ export function TakeoffCanvas({
       {!pageScale?.calibrated && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-amber-500/90 text-white rounded-lg px-4 py-2 text-sm font-medium shadow-lg">
           Page not calibrated - Use Calibrate tool to set scale
+        </div>
+      )}
+
+      {/* Snap status indicator */}
+      {snapResult?.isSnapped && (
+        <div className="absolute top-4 right-4 bg-green-500/90 text-white rounded-lg px-3 py-1.5 text-xs font-medium shadow-lg flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+          Snap: {snapResult.snapType}
         </div>
       )}
 

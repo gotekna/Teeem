@@ -660,7 +660,7 @@ function TreeNode({
   onEditDocumentType,
 }: TreeNodeProps) {
   const hasChildren = node.children.length > 0;
-  const hasTabs = node.tabs && node.tabs.length > 0;
+  // SSoT (Feb 2026): hasTabs removed - tree built from base_folders only, not warehouse_folders tabs
   // Check if we're editing ANY scope in this node's scopeKeys
   const isEditingThisNode = editingKey && node.scopeKeys?.includes(editingKey);
   // The currently editing scope key (could be different from node.scopeKey when multiple scopes share path)
@@ -700,7 +700,7 @@ function TreeNode({
     const template = scopeTemplates[sk] || '';
     return template && !configLinks[sk];
   });
-  const hasExpandableContent = hasChildren || hasTabs || hasTemplatePreview;
+  const hasExpandableContent = hasChildren || hasTemplatePreview;  // hasTabs removed (Feb 2026)
   const isExpanded = expandedPaths.has(node.path);
   const [configLinkUrl, setConfigLinkUrl] = React.useState(initialConfigLink);
   const [isSaving, setIsSaving] = React.useState(false);
@@ -963,18 +963,25 @@ function TreeNode({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      // SSoT: Use warehouse type's base template (scope_base_template) as the grey prefix
-                      // e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}" for corporate folders
-                      const baseTemplate = bf.scope_base_template || '';
+                      // SSoT: Use base folder's FULL path template as the grey prefix
+                      // e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Trust" for Trust folder
+                      // The entire base_folder path is read-only - user can only add subfolders
+                      const baseTemplate = bf.full_path_template || bf.folder_path_template || '';
                       // Ensure it ends with / for proper path building
                       const basePath = baseTemplate && !baseTemplate.endsWith('/') ? baseTemplate + '/' : baseTemplate;
+                      // Calculate editable portion: strip base path prefix from stored folder_path
+                      // If folder_path equals or starts with baseTemplate, the editable part is what's after
+                      const storedPath = bf.warehouse_folder?.folder_path || '';
+                      const editablePart = storedPath.startsWith(baseTemplate)
+                        ? storedPath.slice(baseTemplate.length).replace(/^\/+/, '')  // Strip prefix and leading slash
+                        : (storedPath === baseTemplate ? '' : storedPath);  // Empty if same as base, otherwise keep
                       onEditWarehouseFolder({
                         id: bf.warehouse_folder?.id || 0,  // 0 = needs to be created
                         display_name: bf.warehouse_folder?.display_name || bf.name,
-                        folder_path: bf.warehouse_folder?.folder_path || bf.full_path_template || bf.folder_path_template,
+                        folder_path: editablePart,  // Only the part AFTER the grey prefix
                         download_name: bf.warehouse_folder?.download_name,
                         ui_name: bf.warehouse_folder?.ui_name,
-                        base_folder_path_template: basePath,  // SSoT: Warehouse type's template (greyed out)
+                        base_folder_path_template: basePath,  // SSoT: Full base folder path (greyed out)
                         base_folder_id: bf.id,  // Pass base_folder id for linking/creating
                         parent_id: bf.warehouse_folder?.parent_id,  // Prefill current parent
                       });
@@ -1298,28 +1305,9 @@ function TreeNode({
               onEditDocumentType={onEditDocumentType}
             />
           ))}
-          {/* Show entity tabs (from warehouse_folders with parent-child hierarchy) */}
-          {/* SSoT: Entity identifier (e.g., {{JobCode}}) comes from warehouse_folders */}
-          {hasTabs && node.scopeKey && (
-            <div className="ml-1">
-              {node.tabs!.map((tab) => (
-                <TabNode
-                  key={tab.id}
-                  tab={tab}
-                  level={level + 1}
-                  basePath={normalizePathDisplay(scopeRootFolders[node.scopeKey!] || fullPath)}
-                  rootPath={rootPath}
-                  scope={node.scopeKey!}
-                  editingTabId={editingTabId}
-                  onStartEdit={onStartTabEdit}
-                  onSaveEdit={onSaveTabEdit}
-                  onCancelEdit={onCancelTabEdit}
-                  onEditWarehouseFolder={onEditWarehouseFolder}
-                  onEditDocumentType={onEditDocumentType}
-                />
-              ))}
-            </div>
-          )}
+          {/* SSoT (Feb 2026): warehouse_folders tabs REMOVED from tree rendering */}
+          {/* Tree is built from base_folders ONLY. warehouse_folders stores config (UI/DL names, doc types) */}
+          {/* Document types are shown within base folder expanded view, not as separate blue tabs */}
         </div>
       )}
     </div>
@@ -2671,7 +2659,7 @@ export function WarehouseProviderTab() {
     const allPaths = new Set<string>();
     const collectPaths = (nodes: FolderTreeNode[]) => {
       nodes.forEach(node => {
-        const hasExpandableContent = node.children.length > 0 || (node.tabs && node.tabs.length > 0);
+        const hasExpandableContent = node.children.length > 0;  // tabs removed (Feb 2026)
         if (hasExpandableContent) {
           allPaths.add(node.path);
           collectPaths(node.children);
