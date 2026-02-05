@@ -856,22 +856,31 @@ class WarehouseFolder < ApplicationRecord
   # but not overwrite user customizations (display_name, order, etc.)
   # ════════════════════════════════════════════════════════════════════════════
   private_class_method def self.seed_tab!(attrs)
-    tab = find_or_initialize_by(warehouse_type: attrs[:warehouse_type], tab_key: attrs[:tab_key])
+    tab = find_by(warehouse_type: attrs[:warehouse_type], tab_key: attrs[:tab_key])
 
-    # is_system_tab is SYSTEM-MANAGED - always enforce from seed (SSoT)
-    tab.is_system_tab = attrs[:is_system_tab] if attrs.key?(:is_system_tab)
-
-    # All other properties are USER-MANAGED - only set on new records
-    if tab.new_record?
-      tab.assign_attributes(attrs.except(:warehouse_type, :tab_key, :is_system_tab))
+    # If tab doesn't exist, we can't create it without a tenant
+    # This is expected - the tenant-specific tabs are created by TenantSeederService
+    # This seed only UPDATES existing tabs to set is_system_tab
+    if tab.nil?
+      Rails.logger.debug "[WarehouseFolder.seed_tab!] Tab not found: #{attrs[:warehouse_type]}/#{attrs[:tab_key]} - skipping"
+      return nil
     end
 
-    tab.save!
+    # is_system_tab is SYSTEM-MANAGED - always enforce from seed (SSoT)
+    if attrs.key?(:is_system_tab) && tab.is_system_tab != attrs[:is_system_tab]
+      tab.update_column(:is_system_tab, attrs[:is_system_tab])
+      Rails.logger.info "[WarehouseFolder.seed_tab!] Updated #{attrs[:warehouse_type]}/#{attrs[:tab_key]} is_system_tab=#{attrs[:is_system_tab]}"
+    end
+
     tab
   end
 
   # Seed system tabs for all warehouse_types
+  # NOTE: This only UPDATES existing tabs to set is_system_tab = true
+  # It does NOT create new tabs (those are created per-tenant by TenantSeederService)
   def self.seed_system_tabs!
+    before_count = where(is_system_tab: true).count
+
     # Corporate Entity tabs
     seed_corporate_warehouse_folders!
 
@@ -899,7 +908,9 @@ class WarehouseFolder < ApplicationRecord
     # Legacy storage tabs (migrated from scope_folders)
     seed_legacy_storage_tabs!
 
-    Rails.logger.info "[WarehouseFolder] Seeded #{count} total tabs"
+    after_count = where(is_system_tab: true).count
+    updated_count = after_count - before_count
+    Rails.logger.info "[WarehouseFolder] System tabs: #{after_count} total (#{updated_count} newly marked as system)"
   end
 
   # Corporate entity tabs
