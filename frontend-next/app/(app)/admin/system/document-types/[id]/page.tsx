@@ -2405,7 +2405,8 @@ export default function DocumentTypeDetailPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
                   {getAvailablePlaceholders().map((placeholder: any, idx: number) => {
-                    const isBlue = placeholder.color === "blue";
+                    const colorClasses = PLACEHOLDER_COLOR_CLASSES[placeholder.color as keyof typeof PLACEHOLDER_COLOR_CLASSES]
+                      || PLACEHOLDER_COLOR_CLASSES.gray;
                     return (
                     <React.Fragment key={`${placeholder.code}-${idx}`}>
                       {/* Short code */}
@@ -2415,17 +2416,14 @@ export default function DocumentTypeDetailPage() {
                         onDragEnd={handleDragEnd}
                         className={cn(
                           "cursor-grab active:cursor-grabbing px-1.5 py-1 rounded border",
-                          isBlue
-                            ? "bg-blue-50 border-blue-200 dark:bg-blue-900/50"
-                            : "bg-green-50 border-green-200 dark:bg-green-900/50",
+                          colorClasses.bg,
+                          colorClasses.border,
                           draggedPlaceholder === placeholder.code && draggedFromField === "source" && "opacity-50"
                         )}
                       >
                         <div className={cn(
                           "text-[9px] font-mono font-medium",
-                          isBlue
-                            ? "text-blue-700 dark:text-blue-300"
-                            : "text-green-700 dark:text-green-300"
+                          colorClasses.text
                         )}>
                           {(placeholder.label || placeholder.code).replace(/[{}]/g, '')}
                         </div>
@@ -2443,17 +2441,14 @@ export default function DocumentTypeDetailPage() {
                           onDragEnd={handleDragEnd}
                           className={cn(
                             "cursor-grab active:cursor-grabbing px-1.5 py-1 rounded border",
-                            isBlue
-                              ? "bg-blue-50 border-blue-200 dark:bg-blue-900/50"
-                              : "bg-green-50 border-green-200 dark:bg-green-900/50",
+                            colorClasses.bg,
+                            colorClasses.border,
                             draggedPlaceholder === placeholder.longCode && draggedFromField === "source" && "opacity-50"
                           )}
                         >
                           <div className={cn(
                             "text-[9px] font-mono font-medium truncate",
-                            isBlue
-                              ? "text-blue-700 dark:text-blue-300"
-                              : "text-green-700 dark:text-green-300"
+                            colorClasses.text
                           )}>
                             {placeholder.longCode.replace(/[{}]/g, '')}
                           </div>
