@@ -154,8 +154,8 @@ export const SearchInput = memo(function SearchInput({
   const currentMode = SEARCH_MODES.find(m => m.id === localMode) || SEARCH_MODES[0];
 
   return (
-    <div className="flex items-center gap-2 flex-1">
-      <div className="relative flex-1 max-w-md">
+    <div className="flex items-center gap-2">
+      <div className="relative w-64 md:w-80">
         {serverSearchLoading ? (
           <Spinner size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         ) : (

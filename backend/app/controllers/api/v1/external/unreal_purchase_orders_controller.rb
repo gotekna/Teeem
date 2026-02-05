@@ -80,11 +80,12 @@ module Api
           ActiveRecord::Base.transaction do
             Rails.logger.info "[Unreal PO] Starting transaction for job_id=#{job.id}, task_number=#{task_number}"
 
+            # SSoT: Use notes (aliased to description column) - description column hidden from UI
             purchase_order = PurchaseOrder.create!(
               job_id: job.id,
               tenant_id: job.tenant_id,
               sm_task_id: sm_task.id,
-              description: sm_task.name,
+              notes: sm_task.name,
               special_instructions: estimator_notes,
               status: "draft",
               source: "unreal_engine",

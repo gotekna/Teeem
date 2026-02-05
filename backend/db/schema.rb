@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_05_140000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8728,7 +8728,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_140000) do
     t.integer "stage"
     t.integer "assigned_role"
     t.jsonb "predecessor_ids", default: []
-    t.string "header_gantt"
+    t.integer "header_gantt"
     t.boolean "create_po_on_job_start", default: false
     t.boolean "has_subtasks", default: false
     t.integer "subtask_count"

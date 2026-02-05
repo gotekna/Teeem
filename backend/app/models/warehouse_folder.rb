@@ -1336,7 +1336,7 @@ class WarehouseFolder < ApplicationRecord
   # If someone tries to clear it, restore the previous value
   def prevent_clearing_root_folder_path
     return unless parent_id.nil?  # Only guard root scopes
-    return unless folder_path_changed?  # Only check if folder_path was changed
+    return unless will_save_change_to_folder_path?  # Only check if folder_path was changed
 
     # If new folder_path is blank but old one wasn't, restore the old value
     if folder_path.blank? && folder_path_was.present?

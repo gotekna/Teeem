@@ -403,10 +403,10 @@ module Api
             end
 
             grouped.each do |group_key, group_measurements|
-              # Create PO
+              # Create PO (SSoT: use notes alias for description column - hidden from UI)
               po = PurchaseOrder.create!(
                 job_id: job.id,
-                description: "3D Takeoff - #{group_by == 'supplier' ? 'Supplier' : group_key}",
+                notes: "3D Takeoff - #{group_by == 'supplier' ? 'Supplier' : group_key}",
                 status: "draft",
                 source: "unreal_takeoff",
                 supplier_id: group_by == "supplier" ? group_key : nil
