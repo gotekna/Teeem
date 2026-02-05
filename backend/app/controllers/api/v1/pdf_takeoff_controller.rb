@@ -1,0 +1,325 @@
+# frozen_string_literal: true
+
+module Api
+  module V1
+    # PdfTakeoffController - API for browser-based PDF measurement takeoff
+    #
+    # Ultra PDF Takeoff - Bluebeam competitor built into TEEEM
+    # Supports: scale calibration, count, area, linear, perimeter measurements
+    #
+    # Key differentiator: Pricebook → PO integration (measure → price → PO in one click)
+    #
+    class PdfTakeoffController < ApplicationController
+      before_action :authenticate_user!
+      before_action :set_job_plan, only: [:show, :calibrate, :measurements, :create_measurement]
+      before_action :set_job, only: [:layers, :create_layer, :update_layer, :delete_layer]
+
+      # GET /api/v1/pdf_takeoff/plans/:job_plan_id
+      # Get plan details with page scales for takeoff
+      def show
+        revisions = @job_plan.revisions.order(revision_date: :desc).map do |rev|
+          {
+            id: rev.id,
+            revision: rev.revision,
+            revision_date: rev.revision_date,
+            is_on_issue: rev.is_on_issue,
+            file_name: rev.file_name,
+            download_url: rev.download_url
+          }
+        end
+
+        page_scales = @job_plan.page_scales.map do |ps|
+          {
+            id: ps.id,
+            page_number: ps.page_number,
+            scale_factor: ps.scale_factor,
+            scale_label: ps.display_scale,
+            calibrated: ps.calibrated?,
+            calibration_line: ps.line_coordinates,
+            reference_length_mm: ps.reference_length_mm
+          }
+        end
+
+        render json: {
+          success: true,
+          data: {
+            job_plan: {
+              id: @job_plan.id,
+              display_name: @job_plan.display_name,
+              job_id: @job_plan.job_id,
+              job_code: @job_plan.job.job_code
+            },
+            current_revision: @job_plan.current_revision&.slice(:id, :revision, :file_name, :download_url),
+            revisions: revisions,
+            page_scales: page_scales
+          }
+        }
+      end
+
+      # POST /api/v1/pdf_takeoff/plans/:job_plan_id/calibrate
+      # Set scale calibration for a page
+      def calibrate
+        page_number = params[:page_number]&.to_i || 1
+
+        page_scale = PageScale.find_or_initialize_by(
+          job_plan: @job_plan,
+          page_number: page_number
+        )
+        page_scale.tenant = current_tenant
+
+        success = page_scale.set_calibration(
+          reference_mm: params[:reference_length_mm].to_f,
+          line_start: { x: params[:line_start_x].to_f, y: params[:line_start_y].to_f },
+          line_end: { x: params[:line_end_x].to_f, y: params[:line_end_y].to_f },
+          canvas_width: params[:canvas_width]&.to_f,
+          canvas_height: params[:canvas_height]&.to_f,
+          user: current_user
+        )
+
+        if success
+          render json: {
+            success: true,
+            data: {
+              id: page_scale.id,
+              page_number: page_scale.page_number,
+              scale_factor: page_scale.scale_factor,
+              scale_label: page_scale.display_scale,
+              calibrated: true,
+              calibration_line: page_scale.line_coordinates,
+              reference_length_mm: page_scale.reference_length_mm
+            }
+          }
+        else
+          render json: { success: false, errors: page_scale.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/pdf_takeoff/plans/:job_plan_id/measurements
+      # Get measurements for a plan (optionally filtered by page)
+      def measurements
+        scope = UnrealMeasurement.where(job_plan: @job_plan).from_pdf_takeoff
+
+        scope = scope.for_page(params[:page_number].to_i) if params[:page_number].present?
+        scope = scope.non_deductions unless params[:include_deductions] == "true"
+
+        measurements = scope.includes(:takeoff_layer, :pricebook_item, :deductions).map do |m|
+          measurement_json(m)
+        end
+
+        render json: {
+          success: true,
+          data: {
+            measurements: measurements,
+            summary: calculate_summary(scope)
+          }
+        }
+      end
+
+      # POST /api/v1/pdf_takeoff/plans/:job_plan_id/measurements
+      # Create a new measurement
+      def create_measurement
+        measurement = UnrealMeasurement.new(measurement_params)
+        measurement.job = @job_plan.job
+        measurement.job_plan = @job_plan
+        measurement.source = "pdf_takeoff"
+        measurement.session_id ||= SecureRandom.uuid
+
+        # Get page scale for conversion if needed
+        if params[:page_number].present? && params[:pixel_value].present?
+          page_scale = PageScale.find_by(job_plan: @job_plan, page_number: params[:page_number])
+          if page_scale&.calibrated?
+            measurement.value = convert_measurement(
+              params[:pixel_value].to_f,
+              params[:measurement_type],
+              page_scale
+            )
+          end
+        end
+
+        # Auto-assign to General layer if none specified
+        if measurement.takeoff_layer_id.blank?
+          measurement.takeoff_layer = TakeoffLayer.general_layer_for(@job_plan.job)
+        end
+
+        # Set display label for counts
+        if measurement.measurement_type == "count" && measurement.display_label.blank?
+          max_label = UnrealMeasurement.where(job_plan: @job_plan, measurement_type: "count")
+                                       .from_pdf_takeoff
+                                       .maximum(:display_label)&.to_i || 0
+          measurement.display_label = (max_label + 1).to_s
+        end
+
+        if measurement.save
+          render json: {
+            success: true,
+            data: measurement_json(measurement)
+          }, status: :created
+        else
+          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # DELETE /api/v1/pdf_takeoff/measurements/:id
+      # Delete a measurement
+      def delete_measurement
+        measurement = UnrealMeasurement.find(params[:id])
+
+        # Verify user has access (measurement belongs to their job)
+        unless measurement.job.accessible_by?(current_user)
+          return render json: { success: false, error: "Access denied" }, status: :forbidden
+        end
+
+        measurement.destroy
+        render json: { success: true }
+      end
+
+      # =============================================================================
+      # Layer Management
+      # =============================================================================
+
+      # GET /api/v1/pdf_takeoff/jobs/:job_id/layers
+      def layers
+        layers = @job.takeoff_layers.ordered.map do |layer|
+          {
+            id: layer.id,
+            name: layer.name,
+            color: layer.color,
+            display_order: layer.display_order,
+            visible: layer.visible,
+            locked: layer.locked,
+            measurement_count: layer.measurement_count
+          }
+        end
+
+        # Create default layers if none exist
+        if layers.empty?
+          TakeoffLayer.create_defaults_for(@job)
+          return layers # Re-fetch
+        end
+
+        render json: { success: true, data: { layers: layers } }
+      end
+
+      # POST /api/v1/pdf_takeoff/jobs/:job_id/layers
+      def create_layer
+        layer = @job.takeoff_layers.build(layer_params)
+        layer.tenant = current_tenant
+
+        if layer.save
+          render json: {
+            success: true,
+            data: {
+              id: layer.id,
+              name: layer.name,
+              color: layer.color,
+              display_order: layer.display_order,
+              visible: layer.visible,
+              locked: layer.locked,
+              measurement_count: 0
+            }
+          }, status: :created
+        else
+          render json: { success: false, errors: layer.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # PATCH /api/v1/pdf_takeoff/layers/:id
+      def update_layer
+        layer = TakeoffLayer.find(params[:id])
+
+        if layer.update(layer_params)
+          render json: { success: true, data: layer.as_json }
+        else
+          render json: { success: false, errors: layer.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # DELETE /api/v1/pdf_takeoff/layers/:id
+      def delete_layer
+        layer = TakeoffLayer.find(params[:id])
+
+        # Move measurements to General layer before deleting
+        if layer.measurements.any?
+          general = TakeoffLayer.general_layer_for(layer.job)
+          layer.measurements.update_all(takeoff_layer_id: general.id)
+        end
+
+        layer.destroy
+        render json: { success: true }
+      end
+
+      private
+
+      def set_job_plan
+        @job_plan = JobPlan.find(params[:job_plan_id] || params[:id])
+      end
+
+      def set_job
+        @job = Job.find(params[:job_id])
+      end
+
+      def measurement_params
+        params.require(:measurement).permit(
+          :measurement_type, :value, :unit, :category, :subcategory, :notes,
+          :page_number, :takeoff_layer_id, :is_deduction, :parent_measurement_id,
+          :display_label, :color, :pricebook_item_id, :session_id,
+          geometry_data: {}
+        )
+      end
+
+      def layer_params
+        params.require(:layer).permit(:name, :color, :display_order, :visible, :locked)
+      end
+
+      def measurement_json(m)
+        {
+          id: m.id,
+          measurement_type: m.measurement_type,
+          value: m.value,
+          net_value: m.net_value,
+          formatted_value: m.formatted_value,
+          formatted_net_value: m.formatted_net_value,
+          unit: m.unit,
+          category: m.category,
+          page_number: m.page_number,
+          display_label: m.label,
+          color: m.effective_color,
+          is_deduction: m.deduction?,
+          parent_measurement_id: m.parent_measurement_id,
+          geometry_data: m.geometry_data,
+          layer: m.takeoff_layer&.slice(:id, :name, :color),
+          pricebook_item: m.pricebook_item&.slice(:id, :name, :code, :current_price),
+          line_total: m.line_total,
+          net_line_total: m.net_line_total,
+          created_at: m.created_at
+        }
+      end
+
+      def calculate_summary(measurements)
+        {
+          total_count: measurements.count,
+          by_type: {
+            area: measurements.by_type("area").sum(:value).round(2),
+            length: measurements.by_type("length").sum(:value).round(2),
+            perimeter: measurements.by_type("perimeter").sum(:value).round(2),
+            count: measurements.by_type("count").sum(:value).to_i
+          },
+          total_cost: measurements.with_pricebook_item.sum { |m| m.net_line_total || 0 }.round(2)
+        }
+      end
+
+      def convert_measurement(pixel_value, measurement_type, page_scale)
+        case measurement_type
+        when "area"
+          page_scale.pixel_area_to_m2(pixel_value)
+        when "length", "perimeter"
+          page_scale.pixel_length_to_m(pixel_value)
+        when "count"
+          pixel_value # Count doesn't need conversion
+        else
+          pixel_value
+        end
+      end
+    end
+  end
+end

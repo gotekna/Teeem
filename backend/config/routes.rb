@@ -2345,6 +2345,24 @@ Rails.application.routes.draw do
         end
       end
 
+      # PDF Takeoff - Browser-based Bluebeam competitor (Feb 2026)
+      namespace :pdf_takeoff do
+        # Plan operations
+        get "plans/:job_plan_id", action: :show
+        post "plans/:job_plan_id/calibrate", action: :calibrate
+        get "plans/:job_plan_id/measurements", action: :measurements
+        post "plans/:job_plan_id/measurements", action: :create_measurement
+
+        # Measurement operations
+        delete "measurements/:id", action: :delete_measurement
+
+        # Layer operations
+        get "jobs/:job_id/layers", action: :layers
+        post "jobs/:job_id/layers", action: :create_layer
+        patch "layers/:id", action: :update_layer
+        delete "layers/:id", action: :delete_layer
+      end
+
       # Bill Payment Batches (ABA file generation)
       resources :bill_payment_batches, only: [ :index, :show, :create, :update, :destroy ] do
         collection do

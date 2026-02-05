@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_06_100003) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6955,6 +6955,30 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_100003) do
     t.index ["route_pattern"], name: "index_page_help_contents_on_route_pattern", unique: true
   end
 
+  create_table "page_scales", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "job_plan_id", null: false
+    t.bigint "job_plan_revision_id"
+    t.integer "page_number", default: 1, null: false
+    t.decimal "scale_factor", precision: 15, scale: 8
+    t.decimal "reference_length_mm", precision: 15, scale: 4
+    t.decimal "reference_length_px", precision: 15, scale: 4
+    t.string "scale_label"
+    t.jsonb "calibration_line", default: {}
+    t.string "ai_detected_scale"
+    t.decimal "ai_confidence", precision: 5, scale: 4
+    t.bigint "calibrated_by_id"
+    t.datetime "calibrated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["calibrated_by_id"], name: "index_page_scales_on_calibrated_by_id"
+    t.index ["job_plan_id", "page_number"], name: "index_page_scales_on_job_plan_id_and_page_number", unique: true
+    t.index ["job_plan_id"], name: "index_page_scales_on_job_plan_id"
+    t.index ["job_plan_revision_id", "page_number"], name: "index_page_scales_on_job_plan_revision_id_and_page_number"
+    t.index ["job_plan_revision_id"], name: "index_page_scales_on_job_plan_revision_id"
+    t.index ["tenant_id"], name: "index_page_scales_on_tenant_id"
+  end
+
   create_table "pay_now_requests", force: :cascade do |t|
     t.bigint "purchase_order_id", null: false
     t.bigint "contact_id", null: false
@@ -9472,6 +9496,22 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_100003) do
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
   end
 
+  create_table "takeoff_layers", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "job_id", null: false
+    t.string "name", null: false
+    t.string "color", default: "#3B82F6", null: false
+    t.integer "display_order", default: 0, null: false
+    t.boolean "visible", default: true, null: false
+    t.boolean "locked", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "display_order"], name: "index_takeoff_layers_on_job_id_and_display_order"
+    t.index ["job_id", "name"], name: "index_takeoff_layers_on_job_id_and_name", unique: true
+    t.index ["job_id"], name: "index_takeoff_layers_on_job_id"
+    t.index ["tenant_id"], name: "index_takeoff_layers_on_tenant_id"
+  end
+
   create_table "task_action_items", force: :cascade do |t|
     t.bigint "sm_task_id", null: false
     t.string "text", null: false
@@ -9871,15 +9911,28 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_100003) do
     t.datetime "synced_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "page_number"
+    t.bigint "takeoff_layer_id"
+    t.boolean "is_deduction", default: false, null: false
+    t.bigint "parent_measurement_id"
+    t.string "source", default: "unreal"
+    t.string "display_label"
+    t.string "color"
     t.index ["category"], name: "index_unreal_measurements_on_category"
+    t.index ["is_deduction"], name: "index_unreal_measurements_on_is_deduction"
     t.index ["job_colour_selection_id"], name: "index_unreal_measurements_on_job_colour_selection_id"
     t.index ["job_id", "session_id"], name: "index_unreal_measurements_on_job_id_and_session_id"
     t.index ["job_id"], name: "index_unreal_measurements_on_job_id"
+    t.index ["job_plan_id", "page_number"], name: "index_unreal_measurements_on_job_plan_id_and_page_number"
     t.index ["job_plan_id"], name: "index_unreal_measurements_on_job_plan_id"
     t.index ["measurement_type"], name: "index_unreal_measurements_on_measurement_type"
+    t.index ["page_number"], name: "index_unreal_measurements_on_page_number"
+    t.index ["parent_measurement_id"], name: "index_unreal_measurements_on_parent_measurement_id"
     t.index ["pricebook_item_id"], name: "index_unreal_measurements_on_pricebook_item_id"
     t.index ["session_id"], name: "index_unreal_measurements_on_session_id"
+    t.index ["source"], name: "index_unreal_measurements_on_source"
     t.index ["synced_to_po_id"], name: "index_unreal_measurements_on_synced_to_po_id"
+    t.index ["takeoff_layer_id"], name: "index_unreal_measurements_on_takeoff_layer_id"
   end
 
   create_table "unreal_variables", force: :cascade do |t|
@@ -11458,6 +11511,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_100003) do
   add_foreign_key "organizations", "corporates", column: "company_id"
   add_foreign_key "organizations", "tenants"
   add_foreign_key "page_help_contents", "users", column: "last_updated_by_id"
+  add_foreign_key "page_scales", "job_plan_revisions"
+  add_foreign_key "page_scales", "job_plans"
+  add_foreign_key "page_scales", "tenants"
+  add_foreign_key "page_scales", "users", column: "calibrated_by_id"
   add_foreign_key "pay_now_requests", "contacts"
   add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
   add_foreign_key "pay_now_requests", "payments"
@@ -11691,6 +11748,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_100003) do
   add_foreign_key "synced_emails", "email_mailboxes"
   add_foreign_key "synced_emails", "tenants"
   add_foreign_key "table_health_checks", "foundations"
+  add_foreign_key "takeoff_layers", "jobs"
+  add_foreign_key "takeoff_layers", "tenants"
   add_foreign_key "task_action_items", "sm_tasks"
   add_foreign_key "task_action_items", "sm_tasks", column: "delegated_task_id"
   add_foreign_key "task_action_items", "task_action_items", column: "parent_item_id"
@@ -11735,6 +11794,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_100003) do
   add_foreign_key "unreal_measurements", "jobs"
   add_foreign_key "unreal_measurements", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "unreal_measurements", "purchase_orders", column: "synced_to_po_id"
+  add_foreign_key "unreal_measurements", "takeoff_layers"
+  add_foreign_key "unreal_measurements", "unreal_measurements", column: "parent_measurement_id"
   add_foreign_key "user_absences", "users"
   add_foreign_key "user_absences", "users", column: "approved_by_id"
   add_foreign_key "user_dictionary_words", "users"
