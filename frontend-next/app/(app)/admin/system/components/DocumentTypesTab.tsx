@@ -441,11 +441,11 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
     }
   }, [signatureModalDocType, toast]);
 
-  // Handle row double-click - navigate to detail page
-  // Single-click selects row (default behavior), double-click opens detail
+  // Handle row double-click - open in new tab
+  // Single-click selects row (default behavior), double-click opens detail in new tab
   const handleRowDoubleClick = React.useCallback((row: DocumentType) => {
-    router.push(`${basePath}/${row.id}`);
-  }, [router, basePath]);
+    window.open(`${basePath}/${row.id}`, '_blank');
+  }, [basePath]);
 
   // Custom cell renderer for tabs display and badges
   const customCellRenderer = (entry: DocumentType, columnKey: string) => {
