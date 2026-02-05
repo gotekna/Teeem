@@ -244,12 +244,10 @@ export default function DocumentTypeDetailPage() {
           children: (tab.children || []).map(mapTabRecursive)
         });
 
-        // SSoT: Fetch ALL tabs from ALL scopes and group by scope
-        // This creates a hierarchy: Corporate > tabs, Job > tabs, Contact > tabs
-        // SSoT: Include ALL scopes that can have document tabs
-        // FRC Fix (Feb 2026): Added 'document' scope - was missing, causing Documents/XERO etc. to not appear
+        // SSoT: Fetch ALL tabs from the THREE valid scopes for document types
+        // Document types can ONLY be linked to: corporate, job, or contact tabs
+        // The "document" warehouse_type is for storage folders, not document type assignment
         const scopeConfig = [
-          { apiScope: 'document', displayName: 'Documents', icon: '📄' },
           { apiScope: 'corporate', displayName: 'Corporate', icon: '🏢' },
           { apiScope: 'job', displayName: 'Job', icon: '📋' },
           { apiScope: 'contact', displayName: 'Contact', icon: '👤' }
@@ -1482,7 +1480,7 @@ export default function DocumentTypeDetailPage() {
                               {scopeIdx > 0 && <SelectSeparator />}
                               {/* Scope header */}
                               <SelectLabel className="text-xs font-semibold text-foreground px-2 py-1.5 bg-muted/50">
-                                {scopeGroup.tab_key === 'document' ? '📄' : scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
+                                {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
                               </SelectLabel>
                               {/* Tabs within this scope */}
                               {filteredTabs.map((tab: any, tabIdx: number) => {
@@ -1661,7 +1659,7 @@ export default function DocumentTypeDetailPage() {
                                 {scopeIdx > 0 && <SelectSeparator />}
                                 {/* Scope header */}
                                 <SelectLabel className="text-xs font-semibold text-foreground px-2 py-1.5 bg-muted/50">
-                                  {scopeGroup.tab_key === 'document' ? '📄' : scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
+                                  {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
                                 </SelectLabel>
                                 {/* Tabs within this scope */}
                                 {availableTabs.map((tab: any, tabIdx: number) => {

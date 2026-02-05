@@ -443,9 +443,10 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
 
   // Handle row double-click - open in new tab
   // Single-click selects row (default behavior), double-click opens detail in new tab
+  // Always use admin path since that's where the editor lives (SSoT)
   const handleRowDoubleClick = React.useCallback((row: DocumentType) => {
-    window.open(`${basePath}/${row.id}`, '_blank');
-  }, [basePath]);
+    window.open(`/admin/system/document-types/${row.id}`, '_blank');
+  }, []);
 
   // Custom cell renderer for tabs display and badges
   const customCellRenderer = (entry: DocumentType, columnKey: string) => {
@@ -459,7 +460,8 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           <button
             onClick={(e) => {
               e.stopPropagation();
-              router.push(`${basePath}/${entry.id}`);
+              // Always use admin path since that's where the editor lives (SSoT)
+              router.push(`/admin/system/document-types/${entry.id}`);
             }}
             className="text-left text-primary hover:underline font-medium flex-1"
             title="Click to open full editor"
