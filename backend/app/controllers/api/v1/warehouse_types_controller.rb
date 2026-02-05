@@ -194,44 +194,43 @@ module Api
         offset = (params[:offset] || 0).to_i
         search = params[:search]&.strip
 
-        # Get records based on warehouse type code
-        records = case @warehouse_type.code
+        # Get base scope (without select) for counting, then add select for pagination
+        # FRC: Don't call .count on a scope with .select(multiple columns) - PostgreSQL fails
+        base_scope = case @warehouse_type.code
         when 'job'
-          scope = Job.select(:id, :name, :location, :job_code)
+          scope = Job.all
           scope = scope.where("name ILIKE ? OR job_code ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
           scope.order(created_at: :desc)
         when 'contact'
-          # Note: Don't use select() here - Contact model has callbacks that need other fields
           scope = Contact.all
           scope = scope.where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?", "%#{search}%", "%#{search}%", "%#{search}%") if search.present?
           scope.order(:display_name)
         when 'corporate'
-          # SSoT: Corporate links to Contact for identity. Get name from linked contact's display_name
-          scope = Corporate.select(:id, :code).includes(:company_group, :contact)
+          scope = Corporate.includes(:company_group, :contact)
           scope = scope.joins(:contact).where("contacts.display_name ILIKE ? OR corporates.code ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
           scope.order("contacts.display_name")
         when 'task'
-          scope = SmTask.select(:id, :name, :description)
+          scope = SmTask.all
           scope = scope.where("name ILIKE ? OR description ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
           scope.order(created_at: :desc)
         when 'user'
-          scope = User.select(:id, :first_name, :last_name, :email)
+          scope = User.all
           scope = scope.where("first_name ILIKE ? OR last_name ILIKE ? OR email ILIKE ?", "%#{search}%", "%#{search}%", "%#{search}%") if search.present?
           scope.order(:first_name)
         when 'email'
           # Emails don't have individual record folders - return empty
-          []
+          nil
         else
-          []
+          nil
         end
 
-        # Skip pagination for empty array results
-        if records.is_a?(Array)
+        # Skip pagination for nil/empty results
+        if base_scope.nil?
           total = 0
           paginated_records = []
         else
-          total = records.count
-          paginated_records = records.limit(limit).offset(offset).to_a
+          total = base_scope.count
+          paginated_records = base_scope.limit(limit).offset(offset).to_a
         end
 
         render json: {
