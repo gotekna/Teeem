@@ -35,6 +35,10 @@ class DocsortItem < ApplicationRecord
   # Polymorphic routing target
   belongs_to :routed_to, polymorphic: true, optional: true
 
+  # Standalone takeoff associations (Feb 2026)
+  has_many :unreal_measurements, dependent: :destroy
+  has_many :page_scales, dependent: :destroy
+
   # Constants
   SOURCES = %w[upload email api forward].freeze
   STATUSES = %w[pending classifying classified processing completed error archived].freeze

@@ -12,8 +12,9 @@
 #
 class UnrealMeasurement < ApplicationRecord
   # Associations
-  belongs_to :job
+  belongs_to :job, optional: true  # Optional for DocSort standalone takeoff
   belongs_to :job_plan, optional: true
+  belongs_to :docsort_item, optional: true  # For standalone takeoff from DocSort
   belongs_to :pricebook_item, class_name: "PricebookItem", optional: true
   belongs_to :job_colour_selection, optional: true
   belongs_to :synced_to_po, class_name: "PurchaseOrder", optional: true
@@ -29,6 +30,13 @@ class UnrealMeasurement < ApplicationRecord
   validates :value, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validates :unit, presence: true
   validates :source, inclusion: { in: %w[unreal pdf_takeoff manual] }, allow_nil: true
+  validate :job_or_docsort_present
+
+  # Custom validation: must belong to either a job or a docsort_item
+  def job_or_docsort_present
+    return if job_id.present? || docsort_item_id.present?
+    errors.add(:base, "Measurement must belong to either a job or a docsort_item")
+  end
 
   # Scopes
   scope :by_session, ->(session_id) { where(session_id: session_id) }
@@ -45,6 +53,8 @@ class UnrealMeasurement < ApplicationRecord
   scope :non_deductions, -> { where(is_deduction: [false, nil]) }
   scope :for_page, ->(page_num) { where(page_number: page_num) }
   scope :for_layer, ->(layer) { where(takeoff_layer: layer) }
+  scope :for_docsort, ->(docsort_item) { where(docsort_item: docsort_item) }
+  scope :standalone, -> { where.not(docsort_item_id: nil).where(job_id: nil) }
 
   # Callbacks
   before_validation :set_default_unit, on: :create

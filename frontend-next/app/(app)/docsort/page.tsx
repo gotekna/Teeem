@@ -18,6 +18,7 @@ import {
   CurrencyDollarIcon,
   ClipboardDocumentListIcon,
 } from "@heroicons/react/24/outline";
+import { Ruler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -708,6 +709,17 @@ export default function DocsortPage() {
                         Download
                       </a>
                     </Button>
+
+                    {/* Open in Takeoff - for plan documents */}
+                    {selectedItem.document_type === "plan" && selectedItem.content_type === "application/pdf" && (
+                      <Button
+                        variant="outline"
+                        onClick={() => router.push(`/takeoff/docsort/${selectedItem.id}`)}
+                      >
+                        <Ruler className="h-4 w-4 mr-2" />
+                        Open in Takeoff
+                      </Button>
+                    )}
 
                     {!selectedItem.routed_to_type && (
                       <Button

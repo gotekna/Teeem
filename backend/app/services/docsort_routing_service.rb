@@ -120,11 +120,16 @@ class DocsortRoutingService
       )
     end
 
+    # Transfer measurements and page scales from DocSort standalone takeoff (Feb 2026)
+    transfer_takeoff_data_to_job_plan(job_plan)
+
     {
       success: true,
       routed_to_type: 'JobPlan',
       routed_to_id: job_plan.id,
-      message: "Routed to Job #{job.job_code}"
+      message: "Routed to Job #{job.job_code}",
+      measurements_transferred: @item.unreal_measurements.count,
+      page_scales_transferred: @item.page_scales.count
     }
   end
 
@@ -270,6 +275,43 @@ class DocsortRoutingService
   # ========================================
   # Helper Methods
   # ========================================
+
+  # Transfer takeoff measurements and page scales from DocSort to JobPlan (Feb 2026)
+  # Called when routing a plan to a job - preserves any measurements taken before job assignment
+  def transfer_takeoff_data_to_job_plan(job_plan)
+    return if @item.nil?
+
+    job = job_plan.job
+
+    # Transfer page scales
+    @item.page_scales.each do |scale|
+      PageScale.create!(
+        tenant: scale.tenant,
+        job_plan: job_plan,
+        page_number: scale.page_number,
+        scale_factor: scale.scale_factor,
+        reference_length_mm: scale.reference_length_mm,
+        reference_length_px: scale.reference_length_px,
+        scale_label: scale.scale_label,
+        calibration_line: scale.calibration_line,
+        ai_detected_scale: scale.ai_detected_scale,
+        ai_confidence: scale.ai_confidence,
+        calibrated_by: scale.calibrated_by,
+        calibrated_at: scale.calibrated_at
+      )
+    end
+
+    # Transfer measurements - update to link to job and job_plan instead of docsort_item
+    @item.unreal_measurements.each do |measurement|
+      measurement.update!(
+        job: job,
+        job_plan: job_plan
+        # Keep docsort_item_id for audit trail
+      )
+    end
+
+    Rails.logger.info "[DocsortRoutingService] Transferred #{@item.page_scales.count} page scales and #{@item.unreal_measurements.count} measurements to JobPlan #{job_plan.id}"
+  end
 
   # Try to detect job from various context clues
   def detect_job_context

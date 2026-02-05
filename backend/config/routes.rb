@@ -2347,11 +2347,17 @@ Rails.application.routes.draw do
 
       # PDF Takeoff - Browser-based Bluebeam competitor (Feb 2026)
       namespace :pdf_takeoff do
-        # Plan operations
+        # Plan operations (for job-linked plans)
         get "plans/:job_plan_id", action: :show
         post "plans/:job_plan_id/calibrate", action: :calibrate
         get "plans/:job_plan_id/measurements", action: :measurements
         post "plans/:job_plan_id/measurements", action: :create_measurement
+
+        # DocSort standalone takeoff (for plans not yet assigned to a job)
+        get "docsort/:docsort_item_id", action: :show_docsort
+        post "docsort/:docsort_item_id/calibrate", action: :calibrate_docsort
+        get "docsort/:docsort_item_id/measurements", action: :measurements_docsort
+        post "docsort/:docsort_item_id/measurements", action: :create_measurement_docsort
 
         # Measurement operations
         delete "measurements/:id", action: :delete_measurement

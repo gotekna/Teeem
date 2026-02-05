@@ -12,6 +12,7 @@ module Api
     class PdfTakeoffController < ApplicationController
       before_action :authenticate_user!
       before_action :set_job_plan, only: [:show, :calibrate, :measurements, :create_measurement]
+      before_action :set_docsort_item, only: [:show_docsort, :calibrate_docsort, :measurements_docsort, :create_measurement_docsort]
       before_action :set_job, only: [:layers, :create_layer, :update_layer, :delete_layer]
 
       # GET /api/v1/pdf_takeoff/plans/:job_plan_id
@@ -164,13 +165,156 @@ module Api
       def delete_measurement
         measurement = UnrealMeasurement.find(params[:id])
 
-        # Verify user has access (measurement belongs to their job)
-        unless measurement.job.accessible_by?(current_user)
-          return render json: { success: false, error: "Access denied" }, status: :forbidden
+        # Verify user has access (measurement belongs to their job or docsort_item)
+        if measurement.job.present?
+          unless measurement.job.accessible_by?(current_user)
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        elsif measurement.docsort_item.present?
+          unless measurement.docsort_item.tenant_id == current_tenant.id
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
         end
 
         measurement.destroy
         render json: { success: true }
+      end
+
+      # =============================================================================
+      # DocSort Standalone Takeoff (Feb 2026)
+      # =============================================================================
+
+      # GET /api/v1/pdf_takeoff/docsort/:docsort_item_id
+      # Get docsort item details with page scales for standalone takeoff
+      def show_docsort
+        page_scales = @docsort_item.page_scales.map do |ps|
+          {
+            id: ps.id,
+            page_number: ps.page_number,
+            scale_factor: ps.scale_factor,
+            scale_label: ps.display_scale,
+            calibrated: ps.calibrated?,
+            calibration_line: ps.line_coordinates,
+            reference_length_mm: ps.reference_length_mm
+          }
+        end
+
+        render json: {
+          success: true,
+          data: {
+            docsort_item: {
+              id: @docsort_item.id,
+              display_name: @docsort_item.display_name,
+              document_type: @docsort_item.document_type,
+              original_filename: @docsort_item.original_filename
+            },
+            download_url: @docsort_item.download_url,
+            page_scales: page_scales
+          }
+        }
+      end
+
+      # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/calibrate
+      # Set scale calibration for a page on a docsort item
+      def calibrate_docsort
+        page_number = params[:page_number]&.to_i || 1
+
+        page_scale = PageScale.find_or_initialize_by(
+          docsort_item: @docsort_item,
+          page_number: page_number
+        )
+        page_scale.tenant = current_tenant
+
+        success = page_scale.set_calibration(
+          reference_mm: params[:reference_length_mm].to_f,
+          line_start: { x: params[:line_start_x].to_f, y: params[:line_start_y].to_f },
+          line_end: { x: params[:line_end_x].to_f, y: params[:line_end_y].to_f },
+          canvas_width: params[:canvas_width]&.to_f,
+          canvas_height: params[:canvas_height]&.to_f,
+          user: current_user
+        )
+
+        if success
+          render json: {
+            success: true,
+            data: {
+              page_scale: {
+                id: page_scale.id,
+                page_number: page_scale.page_number,
+                scale_factor: page_scale.scale_factor,
+                scale_label: page_scale.display_scale,
+                calibrated: true,
+                calibration_line: page_scale.line_coordinates,
+                reference_length_mm: page_scale.reference_length_mm
+              }
+            }
+          }
+        else
+          render json: { success: false, errors: page_scale.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/pdf_takeoff/docsort/:docsort_item_id/measurements
+      # Get measurements for a docsort item
+      def measurements_docsort
+        scope = @docsort_item.unreal_measurements.from_pdf_takeoff
+
+        scope = scope.for_page(params[:page_number].to_i) if params[:page_number].present?
+        scope = scope.non_deductions unless params[:include_deductions] == "true"
+
+        measurements = scope.includes(:takeoff_layer, :pricebook_item, :deductions).map do |m|
+          measurement_json(m)
+        end
+
+        render json: {
+          success: true,
+          data: {
+            measurements: measurements,
+            summary: calculate_summary(scope)
+          }
+        }
+      end
+
+      # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/measurements
+      # Create a new measurement on a docsort item
+      def create_measurement_docsort
+        measurement = UnrealMeasurement.new(measurement_params)
+        measurement.docsort_item = @docsort_item
+        measurement.source = "pdf_takeoff"
+        measurement.session_id ||= SecureRandom.uuid
+
+        # Get page scale for conversion if needed
+        if params[:page_number].present? && params[:pixel_value].present?
+          page_scale = PageScale.find_by(docsort_item: @docsort_item, page_number: params[:page_number])
+          if page_scale&.calibrated?
+            measurement.value = convert_measurement(
+              params[:pixel_value].to_f,
+              params[:measurement_type],
+              page_scale
+            )
+          end
+        end
+
+        # Set display label for counts
+        if measurement.measurement_type == "count" && measurement.display_label.blank?
+          max_label = @docsort_item.unreal_measurements
+                                   .where(measurement_type: "count")
+                                   .from_pdf_takeoff
+                                   .maximum(:display_label)&.to_i || 0
+          measurement.display_label = (max_label + 1).to_s
+        end
+
+        if measurement.save
+          render json: {
+            success: true,
+            data: {
+              measurement: measurement_json(measurement),
+              summary: calculate_summary(@docsort_item.unreal_measurements.from_pdf_takeoff)
+            }
+          }, status: :created
+        else
+          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+        end
       end
 
       # =============================================================================
@@ -252,6 +396,14 @@ module Api
 
       def set_job_plan
         @job_plan = JobPlan.find(params[:job_plan_id] || params[:id])
+      end
+
+      def set_docsort_item
+        @docsort_item = DocsortItem.find(params[:docsort_item_id])
+        # Verify tenant access
+        unless @docsort_item.tenant_id == current_tenant.id
+          render json: { success: false, error: "Access denied" }, status: :forbidden
+        end
       end
 
       def set_job

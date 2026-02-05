@@ -6957,7 +6957,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
 
   create_table "page_scales", force: :cascade do |t|
     t.bigint "tenant_id", null: false
-    t.bigint "job_plan_id", null: false
+    t.bigint "job_plan_id"
     t.bigint "job_plan_revision_id"
     t.integer "page_number", default: 1, null: false
     t.decimal "scale_factor", precision: 15, scale: 8
@@ -6971,7 +6971,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
     t.datetime "calibrated_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "docsort_item_id"
     t.index ["calibrated_by_id"], name: "index_page_scales_on_calibrated_by_id"
+    t.index ["docsort_item_id"], name: "index_page_scales_on_docsort_item_id"
     t.index ["job_plan_id", "page_number"], name: "index_page_scales_on_job_plan_id_and_page_number", unique: true
     t.index ["job_plan_id"], name: "index_page_scales_on_job_plan_id"
     t.index ["job_plan_revision_id", "page_number"], name: "index_page_scales_on_job_plan_revision_id_and_page_number"
@@ -9895,7 +9897,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
   end
 
   create_table "unreal_measurements", force: :cascade do |t|
-    t.bigint "job_id", null: false
+    t.bigint "job_id"
     t.bigint "job_plan_id"
     t.bigint "pricebook_item_id"
     t.bigint "job_colour_selection_id"
@@ -9918,7 +9920,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
     t.string "source", default: "unreal"
     t.string "display_label"
     t.string "color"
+    t.bigint "docsort_item_id"
     t.index ["category"], name: "index_unreal_measurements_on_category"
+    t.index ["docsort_item_id"], name: "index_unreal_measurements_on_docsort_item_id"
     t.index ["is_deduction"], name: "index_unreal_measurements_on_is_deduction"
     t.index ["job_colour_selection_id"], name: "index_unreal_measurements_on_job_colour_selection_id"
     t.index ["job_id", "session_id"], name: "index_unreal_measurements_on_job_id_and_session_id"
@@ -11511,6 +11515,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
   add_foreign_key "organizations", "corporates", column: "company_id"
   add_foreign_key "organizations", "tenants"
   add_foreign_key "page_help_contents", "users", column: "last_updated_by_id"
+  add_foreign_key "page_scales", "docsort_items"
   add_foreign_key "page_scales", "job_plan_revisions"
   add_foreign_key "page_scales", "job_plans"
   add_foreign_key "page_scales", "tenants"
@@ -11789,6 +11794,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
   add_foreign_key "trial_invitations", "tenants", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "invited_by_user_id", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "sent_from_user_id", on_delete: :nullify
+  add_foreign_key "unreal_measurements", "docsort_items"
   add_foreign_key "unreal_measurements", "job_colour_selections"
   add_foreign_key "unreal_measurements", "job_plans"
   add_foreign_key "unreal_measurements", "jobs"

@@ -245,6 +245,7 @@ interface FolderTreeNode {
   children: FolderTreeNode[];
   tabs?: WarehouseTabConfig[];  // Tabs under this scope folder (DEPRECATED for chips - use baseFolders)
   baseFolders?: BaseFolderFromAPI[];  // SSoT (Feb 2026): Base folders from warehouse_types API
+  _source?: string;  // DEBUG: Track where this node was created from (e.g., "base_folder:87:Invoices")
 }
 
 // SSoT (Feb 2026): Get scope label from warehouse type display_name or convert code to Title Case
@@ -2111,8 +2112,18 @@ export function WarehouseProviderTab() {
         response.data.forEach((wt) => {
           // Use the warehouse type code as the scope key (e.g., "task", "job", "email")
           foldersByScope[wt.code] = wt.base_folders || [];
+
+          // DEBUG: Log base folders from API for each warehouse type
+          if (wt.base_folders && wt.base_folders.length > 0) {
+            console.log(`[loadWarehouseTypes] Scope "${wt.code}" has ${wt.base_folders.length} base_folders from API:`,
+              wt.base_folders.map(bf => ({ id: bf.id, name: bf.name, path: bf.full_path_template })));
+          }
         });
         setBaseFoldersByScope(foldersByScope);
+
+        // DEBUG: Summary of all base folders
+        console.log('[loadWarehouseTypes] Total base_folders by scope:',
+          Object.entries(foldersByScope).map(([k, v]) => `${k}: ${v.length}`).join(', '));
       }
     } catch (error) {
       console.error("Failed to load warehouse types:", error);
@@ -2254,8 +2265,14 @@ export function WarehouseProviderTab() {
     const root: FolderTreeNode[] = [];
     const isPlaceholder = (p: string) => p.startsWith('{{') || p.startsWith('[[');
 
+    // DEBUG: Track sources of each node
+    console.log('[folderTree] Building tree from baseFoldersByScope:', Object.keys(baseFoldersByScope));
+
     // Build tree directly from base folders
     Object.entries(baseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
+      console.log(`[folderTree] Processing scope "${scopeCode}" with ${baseFolders.length} base folders:`,
+        baseFolders.map(bf => `ID:${bf.id} "${bf.name}" path:${bf.full_path_template}`));
+
       baseFolders.forEach((bf) => {
         const path = bf.full_path_template;
         if (!path || isPlaceholder(path.split('/')[0])) return;
@@ -2280,8 +2297,10 @@ export function WarehouseProviderTab() {
               scopeKey: isFirstPart ? scopeCode : null,
               scopeKeys: isFirstPart ? [scopeCode] : [],
               children: [],
+              _source: `base_folder:${bf.id}:${bf.name}`, // DEBUG: Track source
             };
             current.push(node);
+            console.log(`[folderTree] Created node "${part}" from base_folder ID:${bf.id} "${bf.name}" (scope: ${scopeCode})`);
           } else if (isFirstPart && !node.scopeKeys.includes(scopeCode)) {
             node.scopeKeys.push(scopeCode);
             // Keep first scopeKey as primary
@@ -2302,6 +2321,7 @@ export function WarehouseProviderTab() {
           // Only add if not already present
           if (!leafNode.baseFolders.find((existing: BaseFolderFromAPI) => existing.id === bf.id)) {
             leafNode.baseFolders.push(bf);
+            console.log(`[folderTree] Attached base_folder ID:${bf.id} "${bf.name}" to leaf node "${leafNode.name}"`);
           }
         }
       });
@@ -2309,6 +2329,9 @@ export function WarehouseProviderTab() {
 
     // Sort root nodes alphabetically
     root.sort((a, b) => a.name.localeCompare(b.name));
+
+    // DEBUG: Log final tree structure
+    console.log('[folderTree] Final root nodes:', root.map(n => `"${n.name}" (scope:${n.scopeKey}, baseFolders:${n.baseFolders?.length || 0})`));
 
     const tree = root;
 
