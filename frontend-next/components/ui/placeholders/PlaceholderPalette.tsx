@@ -1,18 +1,18 @@
 "use client";
 
 /**
- * TokenPalette - Searchable palette of available placeholder tokens
+ * PlaceholderPalette - Searchable palette of available placeholder tokens
  *
  * THE ONE component for showing available placeholders to insert.
  * See: frontend-next/lib/component-registry.ts
  *
  * Usage:
  * ```tsx
- * import { TokenPalette } from "@/components/ui/tokens";
+ * import { PlaceholderPalette } from "@/components/ui/placeholders";
  *
- * <TokenPalette
+ * <PlaceholderPalette
  *   scope="company"
- *   onSelect={(code) => insertToken(code)}
+ *   onSelect={(code) => insertPlaceholder(code)}
  *   showLongVariants
  * />
  * ```
@@ -30,12 +30,12 @@ import {
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
 
-export interface TokenPaletteProps {
+export interface PlaceholderPaletteProps {
   /** Scope of placeholders to show */
   scope?: PlaceholderScope;
   /** Custom list of placeholders (overrides scope) */
   placeholders?: PlaceholderToken[];
-  /** Callback when a token is selected */
+  /** Callback when a placeholder is selected */
   onSelect: (code: string, isLong: boolean) => void;
   /** Whether to show long variants column */
   showLongVariants?: boolean;
@@ -49,7 +49,7 @@ export interface TokenPaletteProps {
   header?: string;
 }
 
-export function TokenPalette({
+export function PlaceholderPalette({
   scope = "all",
   placeholders: customPlaceholders,
   onSelect,
@@ -58,7 +58,7 @@ export function TokenPalette({
   className,
   maxHeight = "400px",
   header = "Placeholders",
-}: TokenPaletteProps) {
+}: PlaceholderPaletteProps) {
   const [search, setSearch] = React.useState("");
 
   const allPlaceholders = customPlaceholders || getPlaceholders(scope);
@@ -206,3 +206,7 @@ function TokenPaletteItem({
     />
   );
 }
+
+// Backwards compatibility aliases (DEPRECATED - use PlaceholderPalette)
+export type TokenPaletteProps = PlaceholderPaletteProps;
+export const TokenPalette = PlaceholderPalette;

@@ -1,23 +1,23 @@
 "use client";
 
 /**
- * TokenBuilder - Draggable placeholder tokens with preview
+ * PlaceholderBuilder - Draggable placeholder tokens with preview
  *
  * THE ONE component for building template strings with placeholders.
  * Used for document file naming, display names, email templates, etc.
  * See: frontend-next/lib/component-registry.ts
  *
  * Features:
- * - Click palette items to add tokens
- * - Drag tokens within template to reorder
- * - Click X to remove tokens
+ * - Click palette items to add placeholders
+ * - Drag placeholders within template to reorder
+ * - Click X to remove placeholders
  * - Live preview of resolved template
  *
  * Usage:
  * ```tsx
- * import { TokenBuilder } from "@/components/ui/tokens";
+ * import { PlaceholderBuilder } from "@/components/ui/placeholders";
  *
- * <TokenBuilder
+ * <PlaceholderBuilder
  *   value="{CompanyCode} - {Description}"
  *   onChange={(newValue) => setTemplate(newValue)}
  *   scope="company"
@@ -58,7 +58,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { createDndSensors } from "@/components/ui/dnd/dnd-config";
 
-export interface TokenBuilderProps {
+export interface PlaceholderBuilderProps {
   /** Current template value */
   value: string;
   /** Callback when value changes */
@@ -223,7 +223,7 @@ function DefaultToken({ item }: { item: TokenItem }) {
   );
 }
 
-export function TokenBuilder({
+export function PlaceholderBuilder({
   value,
   onChange,
   scope = "all",
@@ -598,3 +598,7 @@ export function TokenBuilder({
     </div>
   );
 }
+
+// Backwards compatibility aliases (DEPRECATED - use PlaceholderBuilder)
+export type TokenBuilderProps = PlaceholderBuilderProps;
+export const TokenBuilder = PlaceholderBuilder;

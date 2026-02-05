@@ -1,19 +1,19 @@
 "use client";
 
 /**
- * TokenBadge - Individual draggable token badge
+ * PlaceholderBadge - Individual draggable placeholder badge
  *
  * THE ONE component for displaying placeholder tokens in template builders.
  * See: frontend-next/lib/component-registry.ts
  *
  * Usage:
  * ```tsx
- * import { TokenBadge } from "@/components/ui/tokens";
+ * import { PlaceholderBadge } from "@/components/ui/placeholders";
  *
- * <TokenBadge
+ * <PlaceholderBadge
  *   code="{CompanyCode}"
  *   color="purple"
- *   onRemove={() => removeToken(index)}
+ *   onRemove={() => removePlaceholder(index)}
  *   draggable
  * />
  * ```
@@ -27,20 +27,20 @@ import {
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
 
-export interface TokenBadgeProps {
+export interface PlaceholderBadgeProps {
   /** The placeholder code, e.g., "{CompanyCode}" */
   code: string;
   /** Color variant */
   color?: PlaceholderColor;
-  /** Whether the token can be removed */
+  /** Whether the placeholder can be removed */
   removable?: boolean;
   /** Callback when remove is clicked */
   onRemove?: () => void;
-  /** Whether the token is draggable */
+  /** Whether the placeholder is draggable */
   draggable?: boolean;
   /** Drag event handlers (from useDraggable or useSortable) */
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
-  /** Whether the token is currently being dragged */
+  /** Whether the placeholder is currently being dragged */
   isDragging?: boolean;
   /** Size variant */
   size?: "sm" | "md" | "lg";
@@ -62,7 +62,7 @@ const iconSizes = {
   lg: "h-3.5 w-3.5",
 };
 
-export function TokenBadge({
+export function PlaceholderBadge({
   code,
   color = "gray",
   removable = false,
@@ -73,7 +73,7 @@ export function TokenBadge({
   size = "md",
   className,
   onClick,
-}: TokenBadgeProps) {
+}: PlaceholderBadgeProps) {
   const colorClasses = PLACEHOLDER_COLOR_CLASSES[color];
 
   return (
@@ -120,3 +120,7 @@ export function TokenBadge({
     </span>
   );
 }
+
+// Backwards compatibility aliases (DEPRECATED - use PlaceholderBadge)
+export type TokenBadgeProps = PlaceholderBadgeProps;
+export const TokenBadge = PlaceholderBadge;

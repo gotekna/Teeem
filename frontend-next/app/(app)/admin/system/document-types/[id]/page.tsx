@@ -51,8 +51,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import MultipleSelector from "@/components/ui/multiple-selector";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
-// Token Components - SSoT for placeholder handling
-import { TokenBadge } from "@/components/ui/tokens";
+// Placeholder Components - SSoT for placeholder handling
+import { PlaceholderBadge } from "@/components/ui/placeholders";
 import { Spinner } from "@/components/ui/spinner";
 import {
   type PlaceholderToken,

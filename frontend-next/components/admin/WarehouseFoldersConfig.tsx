@@ -3,7 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { resolveWithExamples, resolveStoragePath, STORAGE_PLACEHOLDERS } from "@/lib/placeholders";
-import { TokenBuilder } from "@/components/ui/tokens";
+import { PlaceholderBuilder } from "@/components/ui/placeholders";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -1842,7 +1842,7 @@ export function WarehouseFoldersConfig({
 
                       {/* Folder Path template with token builder - drag and drop enabled */}
                       {/* SSoT: inherited_template from API (computed from storage_path_type) takes precedence */}
-                      <TokenBuilder
+                      <PlaceholderBuilder
                         label={labelWithStatus("Folder Path")}
                         value={folderPathTemplate || editingTab?.inherited_template || getDefaultTemplate(scope)}
                         onChange={setFolderPathTemplate}
@@ -1888,7 +1888,7 @@ export function WarehouseFoldersConfig({
                       })()}
 
                       {/* Document Download Name template */}
-                      <TokenBuilder
+                      <PlaceholderBuilder
                         label={labelWithStatus("Document Download Name")}
                         value={fileNameTemplate}
                         onChange={setFileNameTemplate}
@@ -1951,7 +1951,7 @@ export function WarehouseFoldersConfig({
                         </div>
 
                         {/* Attachments Folder Path template */}
-                        <TokenBuilder
+                        <PlaceholderBuilder
                           label={labelWithStatus("Folder Path")}
                           value={attachmentsPathTemplate ?? getDefaultTemplate('email')}
                           onChange={setAttachmentsPathTemplate}
@@ -1987,7 +1987,7 @@ export function WarehouseFoldersConfig({
                         })()}
 
                         {/* Document Download Name template for attachments */}
-                        <TokenBuilder
+                        <PlaceholderBuilder
                           label={labelWithStatus("Document Download Name")}
                           value={attachmentsFileNameTemplate}
                           onChange={setAttachmentsFileNameTemplate}
@@ -2071,7 +2071,7 @@ export function WarehouseFoldersConfig({
                                 </div>
 
                                 {/* Folder Path Template */}
-                                <TokenBuilder
+                                <PlaceholderBuilder
                                   label={labelWithStatus("Folder Path")}
                                   value={template}
                                   onChange={(val) => setWarehouseScopeTemplate(config.id, val)}
@@ -2091,7 +2091,7 @@ export function WarehouseFoldersConfig({
                                 </div>
 
                                 {/* Document Download Name Template */}
-                                <TokenBuilder
+                                <PlaceholderBuilder
                                   label={labelWithStatus("Document Download Name")}
                                   value={fileNameTpl}
                                   onChange={(val) => setWarehouseScopeFileNameTemplate(config.id, val)}
@@ -2495,7 +2495,7 @@ export function WarehouseFoldersConfig({
 
                 {/* Editable folder path (read-only for system tabs) */}
                 {/* SSoT: Show inherited base path as greyed-out prefix, then editable tab folder */}
-                <TokenBuilder
+                <PlaceholderBuilder
                   label={editingTab?.is_system_tab ? "Full Warehouse Folder Path (system-managed)" : "Full Warehouse Folder Path"}
                   value={formData.folder_path ?? ""}
                   onChange={(value) =>

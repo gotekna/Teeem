@@ -65,7 +65,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
-import { TokenBuilder, resolveWithExamples } from "@/components/ui/tokens";
+import { PlaceholderBuilder, resolveWithExamples } from "@/components/ui/placeholders";
 import { getWarehouseScopeForType } from "@/lib/placeholders";
 import Link from "next/link";
 import { WarehouseFolderEditor, WarehouseFolderEditData } from "@/components/admin/WarehouseFolderEditor";
@@ -353,7 +353,7 @@ function FolderEditPanel({
             </div>
           ) : (
             // Editable when not inherited
-            <TokenBuilder
+            <PlaceholderBuilder
               value={baseFolderValue || ''}
               onChange={onBaseFolderChange || (() => {})}
               scope={getWarehouseScopeForType(scope)}
@@ -373,7 +373,7 @@ function FolderEditPanel({
       )}
 
       {/* 3. Folder Path (TokenBuilder) */}
-      <TokenBuilder
+      <PlaceholderBuilder
         label={<span className={cn(labelClass, "font-medium")}>Folder Path</span>}
         value={folderPath}
         onChange={onFolderPathChange}
@@ -400,7 +400,7 @@ function FolderEditPanel({
       {folderSuffixButtons}
 
       {/* 5. Document UI Name (TokenBuilder) */}
-      <TokenBuilder
+      <PlaceholderBuilder
         label={<span className={cn(labelClass, "font-medium")}>Document UI Name</span>}
         value={uiNameValue}
         onChange={onUiNameChange}
@@ -412,7 +412,7 @@ function FolderEditPanel({
       />
 
       {/* 6. Document Download Name (TokenBuilder) */}
-      <TokenBuilder
+      <PlaceholderBuilder
         label={
           <span className={cn(labelClass, "font-medium")}>
             Document Download Name
@@ -1071,7 +1071,7 @@ function TreeNode({
             </div>
 
             {/* SSoT (Feb 2026): Folder Path - base_folder.full_path_template is the SSoT */}
-            <TokenBuilder
+            <PlaceholderBuilder
               label={<span className="text-xs font-medium">Folder Path</span>}
               value={folderTemplate}
               onChange={handleFolderTemplateChange}
@@ -1176,7 +1176,7 @@ function TreeNode({
             )}
 
             {/* Document UI Name Template (what user sees in File Warehouse) */}
-            <TokenBuilder
+            <PlaceholderBuilder
               label={<span className="text-xs font-medium">Document UI Name</span>}
               value={uiNameTemplate}
               onChange={handleUiNameTemplateChange}
@@ -1188,7 +1188,7 @@ function TreeNode({
             />
 
             {/* Document Download Name Template (filename when downloading) */}
-            <TokenBuilder
+            <PlaceholderBuilder
               label={<span className="text-xs font-medium">Document Download Name</span>}
               value={downloadNameTemplate}
               onChange={handleDownloadNameTemplateChange}
@@ -1561,7 +1561,7 @@ function TabNode({
 
             {/* 3. Folder Path - the folder name in storage */}
             <div className="space-y-1">
-              <TokenBuilder
+              <PlaceholderBuilder
                 label={<span className="text-[11px] font-medium text-muted-foreground">Folder Path</span>}
                 value={editPath}
                 onChange={setEditPath}
@@ -1592,7 +1592,7 @@ function TabNode({
 
             {/* 4. Document UI Name - what users see in UI */}
             <div className="space-y-1">
-              <TokenBuilder
+              <PlaceholderBuilder
                 label={<span className="text-[11px] font-medium text-muted-foreground">Document UI Name</span>}
                 value={editDisplayName}
                 onChange={setEditDisplayName}
@@ -1607,7 +1607,7 @@ function TabNode({
 
             {/* 5. Document Download Name template */}
             <div className="space-y-1">
-              <TokenBuilder
+              <PlaceholderBuilder
                 label={
                   <span className="text-[11px] font-medium text-muted-foreground">
                     Document Download Name

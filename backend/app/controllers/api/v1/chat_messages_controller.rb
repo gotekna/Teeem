@@ -115,9 +115,9 @@ class Api::V1::ChatMessagesController < ApplicationController
     end
 
     # Get most recent 100, then reverse to chronological order (oldest first)
+    # SSoT: storage_blob replaced ActiveStorage (Jan 2026)
     @messages = base_query
-      .includes(:user)
-      .with_attached_file
+      .includes(:user, :storage_blob)
       .reorder(created_at: :desc)  # Get newest first
       .limit(100)
       .to_a  # Convert to array
@@ -125,7 +125,8 @@ class Api::V1::ChatMessagesController < ApplicationController
 
     messages_with_files = @messages.map do |msg|
       json = msg.as_json(include: { user: {} }, methods: [ :formatted_timestamp, :file_url ])
-      if msg.file.attached? || msg.storage_reference.present?
+      # SSoT: Use has_file? (storage_blob based) - ActiveStorage was removed (Jan 2026)
+      if msg.has_file?
         json[:has_file] = true
         # SSoT: Use storage_reference, keep key for backwards compat
         json[:sharepoint_file_id] = msg.storage_reference

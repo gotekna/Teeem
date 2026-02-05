@@ -623,16 +623,17 @@ export default function ChatPage() {
     if (existingConv) {
       setSelectedConversation(existingConv);
     } else {
+      // NEW conversation - add to list and auto-populate greeting
       setConversations(prev => [newConversation, ...prev]);
       setSelectedConversation(newConversation);
+
+      // Auto-populate greeting with first name (only for NEW conversations)
+      const firstName = selectedUser.name.split(' ')[0];
+      setNewMessage(`Hi ${firstName}`);
     }
 
     setShowNewChatDialog(false);
     setUserSearchQuery("");
-
-    // Auto-populate greeting with first name
-    const firstName = selectedUser.name.split(' ')[0];
-    setNewMessage(`Hi ${firstName}`);
   };
 
   // Filter users for search

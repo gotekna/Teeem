@@ -436,6 +436,15 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Date}", au_date)
     format.gsub!("{Folder}", folder.presence || "GENERAL")
 
+    # Invoice/PO placeholders (Jan 2026 - added to SSoT)
+    format.gsub!("{InvoiceNum}", "INV-001234")
+    format.gsub!("{InvoiceNumber}", "INV-001234")
+    format.gsub!("{PONum}", "PO-0056")
+    format.gsub!("{PONumber}", "PO-0056")
+
+    # Original file name placeholder (for catch-all document types)
+    format.gsub!("{OriginalFileName}", "Document.pdf")
+
     # Time/DateTime placeholders
     current_time = TenantSetting.now
     time_24h = current_time.strftime("%H:%M")
@@ -507,6 +516,17 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Description}", description.presence || name.to_s.split(" - ").last.to_s)
     format.gsub!("{Date}", au_date)
     format.gsub!("{Folder}", folder.presence || "GENERAL")
+
+    # Invoice/PO placeholders (Jan 2026 - added to SSoT)
+    # These would typically be passed via description or a dedicated parameter
+    format.gsub!("{InvoiceNum}", description.presence || "INV-001234")
+    format.gsub!("{InvoiceNumber}", description.presence || "INV-001234")
+    format.gsub!("{PONum}", description.presence || "PO-0056")
+    format.gsub!("{PONumber}", description.presence || "PO-0056")
+
+    # Original file name placeholder (for catch-all document types)
+    # Caller should provide file_extension to reconstruct original filename if needed
+    format.gsub!("{OriginalFileName}", "Document")
 
     # Time/DateTime placeholders
     current_time = TenantSetting.now
