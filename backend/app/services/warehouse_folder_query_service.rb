@@ -88,7 +88,25 @@ class WarehouseFolderQueryService
     tabs = tabs.for_entity_type(@entity_type) if @entity_type.present?
     tabs = tabs.for_group(@tab_group) if @tab_group.present?
 
-    tabs.to_a
+    result = tabs.to_a
+
+    # DEBUG: Log what tabs are loaded and identify potential duplicates
+    Rails.logger.info "[WarehouseFolderQueryService] warehouse_type=#{@warehouse_type}, loaded #{result.size} tabs"
+    root_tabs = result.select { |t| t.parent_id.nil? }
+    Rails.logger.info "[WarehouseFolderQueryService] Root tabs (#{root_tabs.size}): #{root_tabs.map { |t| "#{t.id}:#{t.display_name}" }.join(', ')}"
+
+    # Check for duplicate names at root
+    root_names = root_tabs.map(&:display_name)
+    duplicates = root_names.select { |name| root_names.count(name) > 1 }.uniq
+    if duplicates.any?
+      Rails.logger.error "[WarehouseFolderQueryService] DUPLICATE ROOT TABS DETECTED: #{duplicates.join(', ')}"
+      duplicates.each do |name|
+        dupe_tabs = root_tabs.select { |t| t.display_name == name }
+        dupe_tabs.each { |t| Rails.logger.error "  - ID #{t.id}: #{t.display_name} (created: #{t.created_at})" }
+      end
+    end
+
+    result
   end
 
   # Single grouped query for document counts
