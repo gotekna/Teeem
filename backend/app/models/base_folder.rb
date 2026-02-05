@@ -143,10 +143,12 @@ class BaseFolder < ApplicationRecord
 
   # Get the full display path preview
   # Replaces template tokens with example values
-  # Falls back to warehouse type's folder_path_template when base folder template is blank
+  # SSoT: Uses full_path_template to include ancestor hierarchy
   def path_preview
-    # Use warehouse type's folder_path_template if base folder template is blank
-    template = folder_path_template.presence || warehouse_type&.folder_path_template.presence
+    # FRC (Feb 2026): Use full_path_template to include ancestor hierarchy
+    # Was using folder_path_template which doesn't include parent folders
+    # e.g., "Expenses" under "Assets" now shows "Corporate/.../Assets/Expenses" not just "Expenses"
+    template = full_path_template.presence
     return name if template.blank?
 
     preview = template.dup

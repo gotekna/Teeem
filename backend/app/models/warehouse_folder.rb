@@ -752,8 +752,9 @@ class WarehouseFolder < ApplicationRecord
       where(warehouse_type: warehouse_type).order(:id).first
   end
 
-  # SSoT (Feb 2026): Default folder path templates per warehouse_type
-  # These match the frontend getDefaultTemplate function in WarehouseFoldersConfig.tsx
+  # DEPRECATED (Feb 2026): Use WarehouseType.folder_path_template instead
+  # SSoT is now the warehouse_types table, not this hardcoded constant
+  # Kept for reference only - will be removed in future cleanup
   DEFAULT_FOLDER_PATH_TEMPLATES = {
     'corporate' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}',
     'job' => 'Jobs/{{JobCode}}',
@@ -767,37 +768,22 @@ class WarehouseFolder < ApplicationRecord
     'user' => 'Teeem Docs/{{UserName}}'
   }.freeze
 
-  # SSoT (Feb 2026): Map warehouse_type → full folder_path template
-  # Returns: { "job" => "Jobs/{{JobCode}}/Overview", "email" => "Emails/{{Year}}/{{Month}}", ... }
-  # Used by: warehouse_provider.to_config_hash (frontend needs full paths)
-  # Prefers: tab_key == warehouse_type OR tab_key == 'overview' OR tab_key == 'root'
+  # SSoT (Feb 2026): Map warehouse_type → base folder_path template
+  # Returns: { "job" => "Job/{{JobCode}}/{{JobName}}", "corporate" => "Corporate/{{CompanyGroup}}/{{CompanyCode}}", ... }
+  # Used by: warehouse_provider.to_config_hash (frontend needs base paths)
+  #
+  # FRC (Feb 2026): SSoT is WarehouseType.folder_path_template - NO hardcoded fallbacks
+  # Individual WarehouseFolder.folder_path is for DOCUMENT folders only (tab_group=documents)
+  # System folders (tab_group=data) do NOT have folder_path because they don't store documents
   def self.warehouse_folders_mapping
     result = {}
 
-    # Get root folders - prefer tab_key matching warehouse_type, 'overview', or 'root'
-    # FRC (Feb 2026): Added 'root' because corporate warehouse_type uses tab_key: 'root'
-    WarehouseFolder.where(parent_id: nil)
-                   .where.not(folder_path: [nil, ''])
-                   .where('tab_key = warehouse_type OR tab_key IN (?)', %w[overview root])
-                   .pluck(:warehouse_type, :folder_path)
-                   .each do |warehouse_type, path|
-      result[warehouse_type] = path if path.present?
-    end
-
-    # Fallback: for any warehouse_type not yet in result, use first folder found
-    WarehouseFolder.where(parent_id: nil)
-                   .where.not(folder_path: [nil, ''])
-                   .where.not(warehouse_type: result.keys)
-                   .order(:id)
-                   .pluck(:warehouse_type, :folder_path)
-                   .each do |warehouse_type, path|
-      result[warehouse_type] ||= path if path.present?
-    end
-
-    # FRC (Feb 2026): Provide default templates for warehouse_types without folder_path in DB
-    # This ensures frontend always has a template for each scope, even if not explicitly configured
-    DEFAULT_FOLDER_PATH_TEMPLATES.each do |warehouse_type, template|
-      result[warehouse_type] ||= template
+    # SSoT: Get base templates from WarehouseType table
+    # This is THE ONE source for warehouse type base paths - no fallbacks
+    WarehouseType.where.not(folder_path_template: [nil, ''])
+                 .pluck(:code, :folder_path_template)
+                 .each do |code, template|
+      result[code] = template if template.present?
     end
 
     result
@@ -1368,35 +1354,34 @@ class WarehouseFolder < ApplicationRecord
   # Logic:
   # 1. If folder_path is already explicitly set, keep it (user override)
   # 2. If parent has folder_path, compute: parent.folder_path + "/" + display_name
-  # 3. If root folder (no parent), use: DEFAULT_FOLDER_PATH_TEMPLATES[warehouse_type] + "/" + display_name
+  # 3. If root folder (no parent), use: WarehouseType.folder_path_template + "/" + display_name
+  #
+  # FRC (Feb 2026): SSoT is WarehouseType.folder_path_template - NOT hardcoded constant
   #
   # Examples:
-  #   Corporate (root, overview tab) → "Corporate/{{CompanyGroup}}/{{CompanyCode}}"
-  #   Xero (child of Corporate)      → "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero"
-  #   Bank (child of Xero)           → "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Bank"
-  #   Statement (child of Bank)      → "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Bank/Statement"
+  #   Advice (root, documents tab)   → "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Advice"
+  #   PDF Reports (child of Bank)    → "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Bank/PDF Reports"
   def auto_compute_folder_path
-    return unless warehouse_enabled  # Only for warehouse-enabled folders
+    return unless warehouse_enabled  # Only for warehouse-enabled folders (tab_group=documents)
 
     # Skip if folder_path is already set (user explicitly configured it)
     # But DO compute if blank - this is the auto-compute case
     return if folder_path.present?
 
+    # SSoT: Get base template from WarehouseType table
+    wt = WarehouseType.find_by(code: warehouse_type)
+    base_template = wt&.folder_path_template
+
     # Build the computed path
     computed_path = if parent_id.present? && parent&.folder_path.present?
       # Child folder: parent's path + "/" + display_name
       "#{parent.folder_path}/#{display_name}"
+    elsif base_template.present?
+      # Root document folder: base template + "/" + display_name
+      "#{base_template}/#{display_name}"
     else
-      # Root folder: use default template for this warehouse_type + "/" + display_name
-      # But skip for "overview" or "root" tabs which ARE the template itself
-      if tab_key.in?(%w[overview root]) && parent_id.nil?
-        # This is the root template tab - use the default template directly
-        DEFAULT_FOLDER_PATH_TEMPLATES[warehouse_type]
-      else
-        # This is a root-level content folder (not overview) - prepend the scope template
-        base_template = DEFAULT_FOLDER_PATH_TEMPLATES[warehouse_type]
-        base_template.present? ? "#{base_template}/#{display_name}" : display_name
-      end
+      # No base template configured - just use display_name
+      display_name
     end
 
     if computed_path.present?
