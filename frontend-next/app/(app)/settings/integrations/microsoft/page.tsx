@@ -1087,12 +1087,12 @@ function OrganizationCard({
               </>
             )}
 
-            {org.status === "error" && (
+            {(org.status === "error" || org.status === "dead") && (
               <>
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Connection Error</AlertTitle>
-                  <AlertDescription>{org.last_error || "Unknown error"}</AlertDescription>
+                  <AlertTitle>{org.status === "dead" ? "Token Expired" : "Connection Error"}</AlertTitle>
+                  <AlertDescription>{org.last_error || (org.status === "dead" ? "The Microsoft authentication token has expired. Please reconnect to restore access." : "Unknown error")}</AlertDescription>
                 </Alert>
                 <div className="flex items-center gap-2">
                   <Button variant="default" size="sm" onClick={handleRetryConsent} disabled={retrying}>
