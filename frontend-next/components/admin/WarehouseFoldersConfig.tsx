@@ -888,6 +888,7 @@ export function WarehouseFoldersConfig({
       is_cad_category: tab.is_cad_category || false,  // SSoT: Explicit CAD/Revit category flag
       display_mode: tab.display_mode || 'both',  // SSoT: Display mode
       hidden_by_default: tab.hidden_by_default || false,  // SSoT: Hidden by default
+      is_system_tab: tab.is_system_tab || false,  // SSoT: System lock
     });
     // setEditingTab updates URL with tabId and action=edit
     setEditingTab(tab);
@@ -951,6 +952,7 @@ export function WarehouseFoldersConfig({
           is_cad_category: formData.is_cad_category,  // SSoT: Explicit CAD/Revit category flag
           display_mode: formData.display_mode,  // SSoT: Display mode
           hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
+          is_system_tab: formData.is_system_tab,  // SSoT: System lock
         };
         await updateTab(editingTab.id, updateParams);
         // Refetch used icons after update (icon may have changed)
@@ -990,6 +992,7 @@ export function WarehouseFoldersConfig({
           is_cad_category: formData.is_cad_category,  // SSoT: Explicit CAD/Revit category flag
           display_mode: formData.display_mode,  // SSoT: Display mode
           hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
+          is_system_tab: formData.is_system_tab,  // SSoT: System lock
         };
         await createTab(createParams);
         // Refetch used icons after create (new icon added)
@@ -2253,7 +2256,7 @@ export function WarehouseFoldersConfig({
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   {editingTab?.is_system_tab
-                    ? "System tab - locked to Data"
+                    ? "System tab - type cannot be changed"
                     : formData.tab_group === 'documents'
                       ? "Users can upload files here. Document Types can be linked."
                       : "System-generated content. No document uploads allowed."}
@@ -2493,10 +2496,10 @@ export function WarehouseFoldersConfig({
                   </div>
                 )}
 
-                {/* Editable folder path (read-only for system tabs) */}
+                {/* Editable folder path */}
                 {/* SSoT: Show inherited base path as greyed-out prefix, then editable tab folder */}
                 <PlaceholderBuilder
-                  label={editingTab?.is_system_tab ? "Full Warehouse Folder Path (system-managed)" : "Full Warehouse Folder Path"}
+                  label="Full Warehouse Folder Path"
                   value={formData.folder_path ?? ""}
                   onChange={(value) =>
                     setFormData((prev) => ({
@@ -2538,7 +2541,6 @@ export function WarehouseFoldersConfig({
                   })}
                   showPreview={false}
                   placeholder="Enter folder name or click tokens..."
-                  disabled={editingTab?.is_system_tab}
                 />
 
                 {/* Full path preview - uses ACTUAL tab names, not generic examples */}

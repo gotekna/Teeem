@@ -360,9 +360,32 @@ class WarehouseFolder < ApplicationRecord
   end
 
   # Check if this tab can be deleted
+  # Blocked by: is_system_tab (required for system), documents, or children
   def can_delete?
     return false if is_system_tab
-    document_count == 0
+    document_count == 0 && children.enabled.empty?
+  end
+
+  # Get the reason why deletion is blocked (for user-friendly error messages)
+  def deletion_blocked_reason
+    return nil if can_delete?
+
+    # System tabs cannot be deleted - they're required for the system to function
+    return "System tabs cannot be deleted" if is_system_tab
+
+    reasons = []
+    doc_count = document_count
+    child_count = children.enabled.count
+
+    if doc_count > 0
+      reasons << "#{doc_count} document#{'s' if doc_count != 1}"
+    end
+
+    if child_count > 0
+      reasons << "#{child_count} sub-tab#{'s' if child_count != 1}"
+    end
+
+    "Cannot delete: has #{reasons.join(' and ')}"
   end
 
   # Count documents linked to this tab
@@ -822,6 +845,31 @@ class WarehouseFolder < ApplicationRecord
     send(:seed_task_tabs!)
   end
 
+  # ════════════════════════════════════════════════════════════════════════════
+  # SSoT: Seed helper that respects property ownership
+  # ════════════════════════════════════════════════════════════════════════════
+  # Property Ownership:
+  #   - is_system_tab: SYSTEM-MANAGED → Always enforced from seed
+  #   - All other properties: USER-MANAGED → Only set on NEW records
+  #
+  # Why: Running seed should enforce system properties on existing tabs,
+  # but not overwrite user customizations (display_name, order, etc.)
+  # ════════════════════════════════════════════════════════════════════════════
+  private_class_method def self.seed_tab!(attrs)
+    tab = find_or_initialize_by(warehouse_type: attrs[:warehouse_type], tab_key: attrs[:tab_key])
+
+    # is_system_tab is SYSTEM-MANAGED - always enforce from seed (SSoT)
+    tab.is_system_tab = attrs[:is_system_tab] if attrs.key?(:is_system_tab)
+
+    # All other properties are USER-MANAGED - only set on new records
+    if tab.new_record?
+      tab.assign_attributes(attrs.except(:warehouse_type, :tab_key, :is_system_tab))
+    end
+
+    tab.save!
+    tab
+  end
+
   # Seed system tabs for all warehouse_types
   def self.seed_system_tabs!
     # Corporate Entity tabs
@@ -859,15 +907,16 @@ class WarehouseFolder < ApplicationRecord
   # Base folder: "Corporate" (stored on root tab)
   private_class_method def self.seed_corporate_warehouse_folders!
     # Root tab - defines the base folder for this warehouse_type
-    find_or_create_by!(warehouse_type: 'corporate', tab_key: 'root') do |tab|
-      tab.display_name = 'Root'
-      tab.tab_group = 'system'
-      tab.order_position = -1
-      tab.enabled = true
-      tab.is_system_tab = true
-      tab.warehouse_enabled = true
-      # warehouse_folder removed - now derived from WarehouseProvider.warehouse_folders
-    end
+    seed_tab!(
+      warehouse_type: 'corporate',
+      tab_key: 'root',
+      is_system_tab: true,
+      display_name: 'Root',
+      tab_group: 'system',
+      order_position: -1,
+      enabled: true,
+      warehouse_enabled: true
+    )
 
     # Overview sub-tabs
     overview_tabs = [
@@ -883,14 +932,16 @@ class WarehouseFolder < ApplicationRecord
     ]
 
     overview_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(warehouse_type: 'corporate', tab_key: attrs[:tab_key]) do |tab|
-        tab.display_name = attrs[:display_name]
-        tab.tab_group = 'overview'
-        tab.entity_filters = attrs[:entity_filters]
-        tab.order_position = idx
-        tab.enabled = true
-        tab.is_system_tab = true
-      end
+      seed_tab!(
+        warehouse_type: 'corporate',
+        tab_key: attrs[:tab_key],
+        is_system_tab: true,
+        display_name: attrs[:display_name],
+        tab_group: 'overview',
+        entity_filters: attrs[:entity_filters],
+        order_position: idx,
+        enabled: true
+      )
     end
 
     # Document folder tabs
@@ -898,16 +949,17 @@ class WarehouseFolder < ApplicationRecord
 
     document_tabs.each_with_index do |name, idx|
       tab_key = name.downcase.gsub(/\s+/, '-')
-      find_or_create_by!(warehouse_type: 'corporate', tab_key: tab_key) do |tab|
-        tab.display_name = name
-        tab.tab_group = 'documents'
-        tab.entity_filters = %w[Company Trust Superfund Charity]
-        tab.order_position = idx + 100
-        tab.enabled = true
-        tab.is_system_tab = true
-        tab.warehouse_enabled = true
-        # warehouse_folder removed - derived from WarehouseProvider.warehouse_folders
-      end
+      seed_tab!(
+        warehouse_type: 'corporate',
+        tab_key: tab_key,
+        is_system_tab: true,
+        display_name: name,
+        tab_group: 'documents',
+        entity_filters: %w[Company Trust Superfund Charity],
+        order_position: idx + 100,
+        enabled: true,
+        warehouse_enabled: true
+      )
     end
 
     # Feature tabs (Documents browser, Data view, Activity log)
@@ -918,15 +970,17 @@ class WarehouseFolder < ApplicationRecord
     ]
 
     feature_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(warehouse_type: 'corporate', tab_key: attrs[:tab_key]) do |tab|
-        tab.display_name = attrs[:display_name]
-        tab.tab_group = 'overview'
-        tab.entity_filters = %w[Company Trust Superfund Charity]
-        tab.order_position = idx + 200
-        tab.enabled = true
-        tab.is_system_tab = true
-        tab.component_name = attrs[:component_name]
-      end
+      seed_tab!(
+        warehouse_type: 'corporate',
+        tab_key: attrs[:tab_key],
+        is_system_tab: true,
+        display_name: attrs[:display_name],
+        tab_group: 'overview',
+        entity_filters: %w[Company Trust Superfund Charity],
+        order_position: idx + 200,
+        enabled: true,
+        component_name: attrs[:component_name]
+      )
     end
   end
 
@@ -935,15 +989,16 @@ class WarehouseFolder < ApplicationRecord
   # Base folder: "Contacts" (stored on overview tab)
   private_class_method def self.seed_contact_tabs!
     # Overview/root tab - defines the base folder for this warehouse_type
-    find_or_create_by!(warehouse_type: 'contact', tab_key: 'overview') do |tab|
-      tab.display_name = 'Overview'
-      tab.tab_group = 'overview'
-      tab.order_position = 0
-      tab.enabled = true
-      tab.is_system_tab = true
-      tab.warehouse_enabled = true
-      # warehouse_folder removed - now derived from WarehouseProvider.warehouse_folders
-    end
+    seed_tab!(
+      warehouse_type: 'contact',
+      tab_key: 'overview',
+      is_system_tab: true,
+      display_name: 'Overview',
+      tab_group: 'overview',
+      order_position: 0,
+      enabled: true,
+      warehouse_enabled: true
+    )
 
     # Other contact tabs (non-storage)
     contact_tabs = [
@@ -957,13 +1012,15 @@ class WarehouseFolder < ApplicationRecord
     ]
 
     contact_tabs.each do |attrs|
-      find_or_create_by!(warehouse_type: 'contact', tab_key: attrs[:tab_key]) do |tab|
-        tab.display_name = attrs[:display_name]
-        tab.tab_group = attrs[:tab_group]
-        tab.order_position = attrs[:order]
-        tab.enabled = true
-        tab.is_system_tab = true
-      end
+      seed_tab!(
+        warehouse_type: 'contact',
+        tab_key: attrs[:tab_key],
+        is_system_tab: true,
+        display_name: attrs[:display_name],
+        tab_group: attrs[:tab_group],
+        order_position: attrs[:order],
+        enabled: true
+      )
     end
   end
 
@@ -977,15 +1034,16 @@ class WarehouseFolder < ApplicationRecord
   # Base folder: "Jobs" (stored on overview tab)
   private_class_method def self.seed_job_tabs!
     # Overview/root tab - defines the base folder for this warehouse_type
-    find_or_create_by!(warehouse_type: 'job', tab_key: 'overview') do |tab|
-      tab.display_name = 'Overview'
-      tab.tab_group = 'overview'
-      tab.order_position = 0
-      tab.enabled = true
-      tab.is_system_tab = true
-      tab.warehouse_enabled = true
-      # warehouse_folder removed - now derived from WarehouseProvider.warehouse_folders
-    end
+    seed_tab!(
+      warehouse_type: 'job',
+      tab_key: 'overview',
+      is_system_tab: true,
+      display_name: 'Overview',
+      tab_group: 'overview',
+      order_position: 0,
+      enabled: true,
+      warehouse_enabled: true
+    )
 
     # Other job tabs (non-storage)
     job_tabs = [
@@ -998,13 +1056,15 @@ class WarehouseFolder < ApplicationRecord
     ]
 
     job_tabs.each do |attrs|
-      find_or_create_by!(warehouse_type: 'job', tab_key: attrs[:tab_key]) do |tab|
-        tab.display_name = attrs[:display_name]
-        tab.tab_group = attrs[:tab_group]
-        tab.order_position = attrs[:order]
-        tab.enabled = true
-        tab.is_system_tab = true
-      end
+      seed_tab!(
+        warehouse_type: 'job',
+        tab_key: attrs[:tab_key],
+        is_system_tab: true,
+        display_name: attrs[:display_name],
+        tab_group: attrs[:tab_group],
+        order_position: attrs[:order],
+        enabled: true
+      )
     end
   end
 
@@ -1015,15 +1075,16 @@ class WarehouseFolder < ApplicationRecord
 
     folder_tabs.each_with_index do |name, idx|
       tab_key = name.downcase.gsub(/\s+/, '-')
-      find_or_create_by!(warehouse_type: 'document', tab_key: tab_key) do |tab|
-        tab.display_name = name
-        tab.tab_group = 'documents'
-        tab.order_position = idx
-        tab.enabled = true
-        tab.is_system_tab = true
-        tab.warehouse_enabled = true
-        # warehouse_folder removed - derived from WarehouseProvider.warehouse_folders
-      end
+      seed_tab!(
+        warehouse_type: 'document',
+        tab_key: tab_key,
+        is_system_tab: true,
+        display_name: name,
+        tab_group: 'documents',
+        order_position: idx,
+        enabled: true,
+        warehouse_enabled: true
+      )
     end
   end
 
@@ -1050,18 +1111,19 @@ class WarehouseFolder < ApplicationRecord
     ]
 
     task_document_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(warehouse_type: 'task', tab_key: attrs[:tab_key]) do |tab|
-        tab.display_name = attrs[:display_name]
-        tab.tab_group = 'documents'
-        tab.order_position = idx + 10
-        tab.enabled = true
-        tab.is_system_tab = true
-        tab.icon_name = attrs[:icon]
-        tab.warehouse_enabled = true
-        # warehouse_folder removed - derived from WarehouseProvider.warehouse_folders
-        tab.is_photo_category = attrs[:is_photo] || false
-        tab.is_cad_category = attrs[:is_cad] || false
-      end
+      seed_tab!(
+        warehouse_type: 'task',
+        tab_key: attrs[:tab_key],
+        is_system_tab: true,
+        display_name: attrs[:display_name],
+        tab_group: 'documents',
+        order_position: idx + 10,
+        enabled: true,
+        icon_name: attrs[:icon],
+        warehouse_enabled: true,
+        is_photo_category: attrs[:is_photo] || false,
+        is_cad_category: attrs[:is_cad] || false
+      )
     end
 
     Rails.logger.info "[WarehouseFolder] Seeded #{where(warehouse_type: 'task').count} task tabs"
@@ -1073,17 +1135,17 @@ class WarehouseFolder < ApplicationRecord
   # Template: "Tasks/{{TaskId}}/{{TaskName}}/Attachments"
   private_class_method def self.seed_task_attachments_tabs!
     # Overview/root tab - defines the base folder for this warehouse_type
-    # SSoT: warehouse_folder on overview tab = warehouse_type base folder
-    find_or_create_by!(warehouse_type: 'task_attachments', tab_key: 'overview') do |tab|
-      tab.display_name = 'Overview'
-      tab.tab_group = 'overview'
-      tab.order_position = 0
-      tab.enabled = true
-      tab.is_system_tab = true
-      tab.icon_name = 'FolderOpen'  # Using FolderOpen for Overview (Paperclip reserved for Attachments)
-      tab.warehouse_enabled = true
-      # warehouse_folder removed - now derived from WarehouseProvider.warehouse_folders
-    end
+    seed_tab!(
+      warehouse_type: 'task_attachments',
+      tab_key: 'overview',
+      is_system_tab: true,
+      display_name: 'Overview',
+      tab_group: 'overview',
+      order_position: 0,
+      enabled: true,
+      icon_name: 'FolderOpen',
+      warehouse_enabled: true
+    )
 
     # Document folder tabs for task attachments
     task_attachment_tabs = [
@@ -1093,17 +1155,18 @@ class WarehouseFolder < ApplicationRecord
     ]
 
     task_attachment_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(warehouse_type: 'task_attachments', tab_key: attrs[:tab_key]) do |tab|
-        tab.display_name = attrs[:display_name]
-        tab.tab_group = 'documents'
-        tab.order_position = idx + 10
-        tab.enabled = true
-        tab.is_system_tab = true
-        tab.icon_name = attrs[:icon]
-        tab.warehouse_enabled = true
-        # warehouse_folder removed - derived from WarehouseProvider.warehouse_folders
-        tab.is_photo_category = attrs[:is_photo] || false
-      end
+      seed_tab!(
+        warehouse_type: 'task_attachments',
+        tab_key: attrs[:tab_key],
+        is_system_tab: true,
+        display_name: attrs[:display_name],
+        tab_group: 'documents',
+        order_position: idx + 10,
+        enabled: true,
+        icon_name: attrs[:icon],
+        warehouse_enabled: true,
+        is_photo_category: attrs[:is_photo] || false
+      )
     end
 
     Rails.logger.info "[WarehouseFolder] Seeded #{where(warehouse_type: 'task_attachments').count} task_attachments tabs"
@@ -1120,17 +1183,17 @@ class WarehouseFolder < ApplicationRecord
   # Template: "Tasks/{{TaskId}}/{{TaskName}}/Responses"
   private_class_method def self.seed_task_responses_tabs!
     # Overview/root tab - defines the base folder for this warehouse_type
-    # SSoT: warehouse_folder on overview tab = warehouse_type base folder
-    find_or_create_by!(warehouse_type: 'task_responses', tab_key: 'overview') do |tab|
-      tab.display_name = 'Overview'
-      tab.tab_group = 'overview'
-      tab.order_position = 0
-      tab.enabled = true
-      tab.is_system_tab = true
-      tab.icon_name = 'FolderOpen'  # Using FolderOpen for Overview (FileOutput reserved for Responses)
-      tab.warehouse_enabled = true
-      # warehouse_folder removed - now derived from WarehouseProvider.warehouse_folders
-    end
+    seed_tab!(
+      warehouse_type: 'task_responses',
+      tab_key: 'overview',
+      is_system_tab: true,
+      display_name: 'Overview',
+      tab_group: 'overview',
+      order_position: 0,
+      enabled: true,
+      icon_name: 'FolderOpen',
+      warehouse_enabled: true
+    )
 
     # Document folder tabs for task responses
     task_response_tabs = [
@@ -1139,16 +1202,17 @@ class WarehouseFolder < ApplicationRecord
     ]
 
     task_response_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(warehouse_type: 'task_responses', tab_key: attrs[:tab_key]) do |tab|
-        tab.display_name = attrs[:display_name]
-        tab.tab_group = 'documents'
-        tab.order_position = idx + 10
-        tab.enabled = true
-        tab.is_system_tab = true
-        tab.icon_name = attrs[:icon]
-        tab.warehouse_enabled = true
-        # warehouse_folder removed - derived from WarehouseProvider.warehouse_folders
-      end
+      seed_tab!(
+        warehouse_type: 'task_responses',
+        tab_key: attrs[:tab_key],
+        is_system_tab: true,
+        display_name: attrs[:display_name],
+        tab_group: 'documents',
+        order_position: idx + 10,
+        enabled: true,
+        icon_name: attrs[:icon],
+        warehouse_enabled: true
+      )
     end
 
     Rails.logger.info "[WarehouseFolder] Seeded #{where(warehouse_type: 'task_responses').count} task_responses tabs"
@@ -1165,36 +1229,36 @@ class WarehouseFolder < ApplicationRecord
   # Template: "Emails/{{Mailbox}}/{{Year}}/{{Month}}"
   private_class_method def self.seed_email_tabs!
     # Overview/root tab - defines the base folder for this warehouse_type
-    # SSoT: warehouse_folder on overview tab = warehouse_type base folder
-    find_or_create_by!(warehouse_type: 'email', tab_key: 'overview') do |tab|
-      tab.display_name = 'Overview'
-      tab.tab_group = 'overview'
-      tab.order_position = 0
-      tab.enabled = true
-      tab.is_system_tab = true
-      tab.icon_name = 'Mail'
-      tab.warehouse_enabled = true
-      # warehouse_folder removed - now derived from WarehouseProvider.warehouse_folders
-    end
+    seed_tab!(
+      warehouse_type: 'email',
+      tab_key: 'overview',
+      is_system_tab: true,
+      display_name: 'Overview',
+      tab_group: 'overview',
+      order_position: 0,
+      enabled: true,
+      icon_name: 'Mail',
+      warehouse_enabled: true
+    )
 
     # Document folder tabs for email storage
-    # These represent the subfolders within the email base folder
     email_document_tabs = [
       { tab_key: 'email-body', display_name: 'Email Body', icon: 'FileText', folder: 'Email Body' },
       { tab_key: 'attachments', display_name: 'Attachments', icon: 'Paperclip', folder: 'Attachments' }
     ]
 
     email_document_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(warehouse_type: 'email', tab_key: attrs[:tab_key]) do |tab|
-        tab.display_name = attrs[:display_name]
-        tab.tab_group = 'documents'
-        tab.order_position = idx + 10
-        tab.enabled = true
-        tab.is_system_tab = true
-        tab.icon_name = attrs[:icon]
-        tab.warehouse_enabled = true
-        # warehouse_folder removed - derived from WarehouseProvider.warehouse_folders
-      end
+      seed_tab!(
+        warehouse_type: 'email',
+        tab_key: attrs[:tab_key],
+        is_system_tab: true,
+        display_name: attrs[:display_name],
+        tab_group: 'documents',
+        order_position: idx + 10,
+        enabled: true,
+        icon_name: attrs[:icon],
+        warehouse_enabled: true
+      )
     end
 
     Rails.logger.info "[WarehouseFolder] Seeded #{where(warehouse_type: 'email').count} email tabs"
@@ -1217,21 +1281,19 @@ class WarehouseFolder < ApplicationRecord
   #
   private_class_method def self.seed_legacy_storage_tabs!
     # Warehouse root tab - defines the base folder for warehouse warehouse_type
-    # Note: Using 'Root' as display_name to avoid tab_key sync changing 'root' to 'warehouse'
-    find_or_create_by!(warehouse_type: 'warehouse', tab_key: 'root') do |tab|
-      tab.display_name = 'Root'
-      tab.tab_group = 'system'
-      tab.order_position = -1
-      tab.enabled = true
-      tab.is_system_tab = true
-      tab.icon_name = nil  # No icon to avoid conflicts
-      tab.warehouse_enabled = true
-      # warehouse_folder removed - now derived from WarehouseProvider.warehouse_folders
-    end
+    seed_tab!(
+      warehouse_type: 'warehouse',
+      tab_key: 'root',
+      is_system_tab: true,
+      display_name: 'Root',
+      tab_group: 'system',
+      order_position: -1,
+      enabled: true,
+      icon_name: nil,
+      warehouse_enabled: true
+    )
 
     # Users storage paths (separate root folder "Users")
-    # Note: These are under warehouse warehouse_type but with their own base folder
-    # Using unique icons to avoid icon_uniqueness_for_root_tabs validation conflict
     users_storage_tabs = [
       { tab_key: 'users', folder: 'Users', display_name: 'Users', icon: 'UserCircle' },
       { tab_key: 'user_photos', folder: 'Users/Photos', display_name: 'User Photos', icon: 'Camera' },
@@ -1240,20 +1302,20 @@ class WarehouseFolder < ApplicationRecord
     ]
 
     users_storage_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(warehouse_type: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
-        tab.display_name = attrs[:display_name]
-        tab.tab_group = 'system'
-        tab.order_position = idx + 100
-        tab.enabled = true
-        tab.is_system_tab = true
-        tab.icon_name = attrs[:icon]
-        tab.warehouse_enabled = true
-        # warehouse_folder removed - derived from WarehouseProvider.warehouse_folders
-      end
+      seed_tab!(
+        warehouse_type: 'warehouse',
+        tab_key: attrs[:tab_key],
+        is_system_tab: true,
+        display_name: attrs[:display_name],
+        tab_group: 'system',
+        order_position: idx + 100,
+        enabled: true,
+        icon_name: attrs[:icon],
+        warehouse_enabled: true
+      )
     end
 
     # Warehousing sub-folders
-    # Using unique icons to avoid icon_uniqueness_for_root_tabs validation conflict
     warehousing_storage_tabs = [
       { tab_key: 'bill_inbox', folder: 'Warehousing/BillInbox', display_name: 'Bill Inbox', icon: 'ReceiptText' },
       { tab_key: 'chat', folder: 'Warehousing/Chat', display_name: 'Chat', icon: 'MessagesSquare' },
@@ -1265,20 +1327,20 @@ class WarehouseFolder < ApplicationRecord
     ]
 
     warehousing_storage_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(warehouse_type: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
-        tab.display_name = attrs[:display_name]
-        tab.tab_group = 'system'
-        tab.order_position = idx + 200
-        tab.enabled = true
-        tab.is_system_tab = true
-        tab.icon_name = attrs[:icon]
-        tab.warehouse_enabled = true
-        # warehouse_folder removed - derived from WarehouseProvider.warehouse_folders
-      end
+      seed_tab!(
+        warehouse_type: 'warehouse',
+        tab_key: attrs[:tab_key],
+        is_system_tab: true,
+        display_name: attrs[:display_name],
+        tab_group: 'system',
+        order_position: idx + 200,
+        enabled: true,
+        icon_name: attrs[:icon],
+        warehouse_enabled: true
+      )
     end
 
     # Document type storage paths (file type specific folders)
-    # Using unique icons to avoid icon_uniqueness_for_root_tabs validation conflict
     document_type_tabs = [
       { tab_key: 'excel_documents', folder: 'Warehousing/Excel', display_name: 'Excel Documents', icon: 'Table2' },
       { tab_key: 'word_documents', folder: 'Warehousing/Word', display_name: 'Word Documents', icon: 'FileEdit' },
@@ -1287,20 +1349,20 @@ class WarehouseFolder < ApplicationRecord
     ]
 
     document_type_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(warehouse_type: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
-        tab.display_name = attrs[:display_name]
-        tab.tab_group = 'system'
-        tab.order_position = idx + 300
-        tab.enabled = true
-        tab.is_system_tab = true
-        tab.icon_name = attrs[:icon]
-        tab.warehouse_enabled = true
-        # warehouse_folder removed - derived from WarehouseProvider.warehouse_folders
-      end
+      seed_tab!(
+        warehouse_type: 'warehouse',
+        tab_key: attrs[:tab_key],
+        is_system_tab: true,
+        display_name: attrs[:display_name],
+        tab_group: 'system',
+        order_position: idx + 300,
+        enabled: true,
+        icon_name: attrs[:icon],
+        warehouse_enabled: true
+      )
     end
 
     # Other storage paths
-    # Using unique icons to avoid conflicts
     other_storage_tabs = [
       { tab_key: 'active_storage', folder: 'ActiveStorage', display_name: 'Active Storage', icon: 'Database' },
       { tab_key: 'custom', folder: 'Documents', display_name: 'Custom Documents', icon: 'FolderArchive' },
@@ -1308,16 +1370,17 @@ class WarehouseFolder < ApplicationRecord
     ]
 
     other_storage_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(warehouse_type: 'warehouse', tab_key: attrs[:tab_key]) do |tab|
-        tab.display_name = attrs[:display_name]
-        tab.tab_group = 'system'
-        tab.order_position = idx + 400
-        tab.enabled = true
-        tab.is_system_tab = true
-        tab.icon_name = attrs[:icon]
-        tab.warehouse_enabled = true
-        # warehouse_folder removed - derived from WarehouseProvider.warehouse_folders
-      end
+      seed_tab!(
+        warehouse_type: 'warehouse',
+        tab_key: attrs[:tab_key],
+        is_system_tab: true,
+        display_name: attrs[:display_name],
+        tab_group: 'system',
+        order_position: idx + 400,
+        enabled: true,
+        icon_name: attrs[:icon],
+        warehouse_enabled: true
+      )
     end
 
     Rails.logger.info "[WarehouseFolder] Seeded #{where(warehouse_type: 'warehouse', tab_group: 'system').count} legacy storage tabs"

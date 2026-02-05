@@ -73,15 +73,9 @@ module Api
 
       # DELETE /api/v1/warehouse_folders/:id
       def destroy
-        # Check if can be deleted
+        # Check if can be deleted - uses deletion_blocked_reason for user-friendly message
         unless @warehouse_folder.can_delete?
-          error_msg = if @warehouse_folder.is_system_tab
-            "System tabs cannot be deleted. You can disable them instead."
-          else
-            "This tab contains #{@warehouse_folder.document_count} documents. Move or delete them first."
-          end
-
-          return render json: { success: false, error: error_msg }, status: :unprocessable_entity
+          return render json: { success: false, error: @warehouse_folder.deletion_blocked_reason }, status: :unprocessable_entity
         end
 
         @warehouse_folder.destroy
@@ -454,6 +448,7 @@ module Api
           :download_name,  # SSoT: "Document Download Name" in UI
           :ui_name,  # SSoT: "Document UI Name" in UI (Feb 2026)
           :base_folder_id,  # SSoT: Link to base_folder for path inheritance
+          :is_system_tab,  # SSoT: System-locked tabs cannot be deleted
           entity_filters: [],
           document_type_ids: []  # SSoT: Link document types to this tab
         )
