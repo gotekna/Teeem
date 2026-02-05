@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_05_103807) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_05_103808) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -11474,7 +11474,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_103807) do
   add_foreign_key "quote_responses", "contacts"
   add_foreign_key "quote_responses", "portal_users", column: "responded_by_portal_user_id"
   add_foreign_key "quote_responses", "quote_requests"
-  add_foreign_key "quote_trackers", "contacts"
+  add_foreign_key "quote_trackers", "contact_persons", column: "contact_id"
   add_foreign_key "quote_trackers", "contacts", column: "supplier_id"
   add_foreign_key "quote_trackers", "jobs"
   add_foreign_key "quote_trackers", "sm_trades"

@@ -3856,16 +3856,9 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         </TabsContent>
 
         {/* Tables Tab - Gold Standard Table pattern for SM lookup tables */}
-        {/* [1] TABS CONTENT (BLUE) - absolute inset-0 flex flex-col */}
-        <TabsContent value="tables" className="absolute inset-0 flex flex-col data-[state=inactive]:hidden border-4 border-blue-500 bg-blue-100/20 dark:bg-blue-900/20">
-          <div className="absolute top-0 left-0 bg-blue-600 text-white px-2 py-1 text-xs font-bold z-50">
-            [1] TABSCONTENT (BLUE) - absolute inset-0 flex flex-col
-          </div>
-          {/* [2] Table selector (GREEN) - shrink-0 */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0 border-4 border-green-500 bg-green-100/30 dark:bg-green-900/20 relative">
-            <div className="absolute top-0 left-0 bg-green-600 text-white px-2 py-1 text-xs font-bold z-50">
-              [2] SELECTOR (GREEN) - shrink-0
-            </div>
+        <TabsContent value="tables" className="absolute inset-0 flex flex-col data-[state=inactive]:hidden">
+          {/* Table selector - horizontal tabs */}
+          <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0">
             {LOOKUP_TABLES.map((table) => (
               <Button
                 key={table.id}
@@ -3884,17 +3877,11 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             </p>
           </div>
 
-          {/* [3] Full-height Gold Standard Table (PURPLE) - flex-1 min-h-0 */}
-          <div className="flex-1 min-h-0 overflow-hidden border-4 border-purple-500 bg-purple-100/30 dark:bg-purple-900/20 relative">
-            <div className="absolute top-0 left-0 bg-purple-600 text-white px-2 py-1 text-xs font-bold z-50">
-              [3] TABLE CONTAINER (PURPLE) - flex-1 min-h-0 overflow-hidden
-            </div>
+          {/* Full-height Gold Standard Table */}
+          <div className="flex-1 min-h-0 overflow-hidden">
             {LOOKUP_TABLES.map((table) => (
               selectedLookupTable === table.id && (
-                <div key={`${table.id}-${lookupTableRefreshKey}`} className="h-full border-4 border-orange-500 bg-orange-100/30 dark:bg-orange-900/20 relative">
-                  <div className="absolute top-0 right-0 bg-orange-600 text-white px-2 py-1 text-xs font-bold z-50">
-                    [4] INNER DIV (ORANGE) - h-full
-                  </div>
+                <div key={`${table.id}-${lookupTableRefreshKey}`} className="h-full">
                   <TeeemTableView
                     entries={[]}
                     foundationId={table.id}

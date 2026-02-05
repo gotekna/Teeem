@@ -82,7 +82,7 @@ class WarehouseFolderQueryService
   def preload_tabs
     tabs = WarehouseFolder.for_warehouse_type(@warehouse_type)
                     .global
-                    .includes(:document_types, :parent)
+                    .includes(:warehouse_folder_document_types, :document_types, :parent)
 
     tabs = tabs.enabled unless @include_disabled
     tabs = tabs.for_entity_type(@entity_type) if @entity_type.present?
@@ -127,15 +127,19 @@ class WarehouseFolderQueryService
   end
 
   # Pre-build document_types JSON for all tabs
+  # SSoT: Includes is_primary flag from join table (Feb 2026 fix)
   def build_document_types_json(all_tabs)
     all_tabs.each_with_object({}) do |tab, hash|
       hash[tab.id] = tab.document_types.map do |dt|
+        # Get is_primary from preloaded join table (avoids N+1)
+        join = tab.warehouse_folder_document_types.find { |j| j.document_type_id == dt.id }
         {
           id: dt.id,
           name: dt.name,
           ui_name: dt.ui_name,
           abbreviation: dt.abbreviation,
-          download_name: dt.download_name
+          download_name: dt.download_name,
+          is_primary: join&.is_primary || false  # SSoT: Primary/secondary link flag
         }
       end
     end

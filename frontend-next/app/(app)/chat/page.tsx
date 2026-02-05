@@ -629,6 +629,10 @@ export default function ChatPage() {
 
     setShowNewChatDialog(false);
     setUserSearchQuery("");
+
+    // Auto-populate greeting with first name
+    const firstName = selectedUser.name.split(' ')[0];
+    setNewMessage(`Hi ${firstName}`);
   };
 
   // Filter users for search

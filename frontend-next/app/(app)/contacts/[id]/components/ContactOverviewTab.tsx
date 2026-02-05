@@ -98,6 +98,17 @@ export function ContactOverviewTab({
   const [searchingPerson, setSearchingPerson] = useState(false);
   const [savingPersonLink, setSavingPersonLink] = useState(false);
 
+  // ContactPerson (employees) state
+  const [showAddContactPerson, setShowAddContactPerson] = useState(false);
+  const [savingContactPerson, setSavingContactPerson] = useState(false);
+  const [newContactPerson, setNewContactPerson] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    role: "",
+    is_primary: false,
+  });
+
   // Load related entities
   useEffect(() => {
     if (contact.id) {
@@ -439,6 +450,58 @@ export function ContactOverviewTab({
       setSavingPersonLink(false);
     }
   }, [contact.id, personSearchQuery, onContactUpdate, toast]);
+
+  // Create a new ContactPerson (employee record)
+  const createContactPerson = useCallback(async () => {
+    if (!newContactPerson.first_name.trim()) {
+      toast({
+        title: "First name required",
+        description: "Please enter a first name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingContactPerson(true);
+    try {
+      await api.post(`/api/v1/contacts/${contact.id}/contact_persons`, {
+        contact_person: {
+          first_name: newContactPerson.first_name.trim(),
+          last_name: newContactPerson.last_name.trim(),
+          email: newContactPerson.email.trim() || null,
+          role: newContactPerson.role || null,
+          is_primary: newContactPerson.is_primary,
+        },
+      });
+
+      // Refresh contact to get updated contact_persons list
+      const contactRes = await api.get<{ contact: Contact }>(`/api/v1/contacts/${contact.id}`);
+      onContactUpdate(contactRes.contact);
+
+      // Reset form
+      setShowAddContactPerson(false);
+      setNewContactPerson({
+        first_name: "",
+        last_name: "",
+        email: "",
+        role: "",
+        is_primary: false,
+      });
+
+      toast({
+        title: "Contact person added",
+        description: `Added ${newContactPerson.first_name} ${newContactPerson.last_name}`,
+      });
+    } catch (err) {
+      toast({
+        title: "Error adding contact person",
+        description: err instanceof Error ? err.message : "Failed to add contact person",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingContactPerson(false);
+    }
+  }, [contact.id, newContactPerson, onContactUpdate, toast]);
 
   // Reorder company relationships (for DnD)
   const reorderCompanyLinks = useCallback(async (newOrder: ContactRelationship[]) => {
@@ -1324,48 +1387,140 @@ export function ContactOverviewTab({
           )}
 
           {/* Contact Persons Card - for companies */}
-          {contact.contact_persons && contact.contact_persons.length > 0 && (
+          {canHaveEmployees(contact.entity_type) && (
             <Card>
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-3 flex flex-row items-center justify-between">
                 <CardTitle className="text-sm font-medium">
                   Contact Persons
-                  <Badge variant="secondary" className="ml-2 text-xs">
-                    {contact.contact_persons.length}
-                  </Badge>
+                  {contact.contact_persons && contact.contact_persons.length > 0 && (
+                    <Badge variant="secondary" className="ml-2 text-xs">
+                      {contact.contact_persons.length}
+                    </Badge>
+                  )}
                 </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setShowAddContactPerson(true)}
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add
+                </Button>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="space-y-1">
-                  {contact.contact_persons.map((person) => (
-                    <div
-                      key={person.id}
-                      className="flex items-center gap-3 py-2 px-3 -mx-3 rounded-md bg-muted/30"
+                {/* Add Contact Person Form */}
+                {showAddContactPerson && (
+                  <div className="p-3 border rounded-lg bg-muted/30 mb-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        placeholder="First name *"
+                        value={newContactPerson.first_name}
+                        onChange={(e) => setNewContactPerson(p => ({ ...p, first_name: e.target.value }))}
+                        className="h-8 text-sm"
+                      />
+                      <Input
+                        placeholder="Last name"
+                        value={newContactPerson.last_name}
+                        onChange={(e) => setNewContactPerson(p => ({ ...p, last_name: e.target.value }))}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <Input
+                      type="email"
+                      placeholder="Email"
+                      value={newContactPerson.email}
+                      onChange={(e) => setNewContactPerson(p => ({ ...p, email: e.target.value }))}
+                      className="h-8 text-sm"
+                    />
+                    <select
+                      value={newContactPerson.role}
+                      onChange={(e) => setNewContactPerson(p => ({ ...p, role: e.target.value }))}
+                      className="w-full h-8 text-sm px-3 rounded-md border bg-background"
                     >
-                      <div className="h-8 w-8 rounded-full bg-muted dark:bg-slate-800 flex items-center justify-center">
-                        <Users className="h-4 w-4 text-muted-foreground dark:text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium truncate">
-                            {person.first_name} {person.last_name}
-                          </span>
-                          {person.is_primary && (
-                            <Badge variant="secondary" className="text-[10px] shrink-0">
-                              Primary
-                            </Badge>
-                          )}
-                        </div>
-                        {(person.role || person.email) && (
-                          <div className="text-xs text-muted-foreground truncate">
-                            {person.role && <span>{person.role}</span>}
-                            {person.role && person.email && <span> · </span>}
-                            {person.email && <span>{person.email}</span>}
-                          </div>
-                        )}
+                      <option value="">Select role...</option>
+                      <option value="Accounts">Accounts</option>
+                      <option value="Quoting">Quoting</option>
+                      <option value="Rep">Rep</option>
+                      <option value="Orders">Orders</option>
+                      <option value="Maintenance">Maintenance</option>
+                      <option value="Management">Management</option>
+                      <option value="General">General</option>
+                    </select>
+                    <div className="flex items-center justify-between pt-1">
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={newContactPerson.is_primary}
+                          onChange={(e) => setNewContactPerson(p => ({ ...p, is_primary: e.target.checked }))}
+                          className="h-3.5 w-3.5"
+                        />
+                        Primary contact
+                      </label>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => {
+                            setShowAddContactPerson(false);
+                            setNewContactPerson({ first_name: "", last_name: "", email: "", role: "", is_primary: false });
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-7 px-3 text-xs"
+                          onClick={createContactPerson}
+                          disabled={savingContactPerson || !newContactPerson.first_name.trim()}
+                        >
+                          {savingContactPerson ? <Spinner size={12} className="mr-1" /> : null}
+                          Save
+                        </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
+
+                {/* Existing Contact Persons */}
+                {contact.contact_persons && contact.contact_persons.length > 0 ? (
+                  <div className="space-y-1">
+                    {contact.contact_persons.map((person) => (
+                      <div
+                        key={person.id}
+                        className="flex items-center gap-3 py-2 px-3 -mx-3 rounded-md bg-muted/30"
+                      >
+                        <div className="h-8 w-8 rounded-full bg-muted dark:bg-slate-800 flex items-center justify-center">
+                          <Users className="h-4 w-4 text-muted-foreground dark:text-muted-foreground" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium truncate">
+                              {person.first_name} {person.last_name}
+                            </span>
+                            {person.is_primary && (
+                              <Badge variant="secondary" className="text-[10px] shrink-0">
+                                Primary
+                              </Badge>
+                            )}
+                          </div>
+                          {(person.role || person.email) && (
+                            <div className="text-xs text-muted-foreground truncate">
+                              {person.role && <span>{person.role}</span>}
+                              {person.role && person.email && <span> · </span>}
+                              {person.email && <span>{person.email}</span>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : !showAddContactPerson ? (
+                  <div className="text-sm text-muted-foreground text-center py-3">
+                    No contact persons yet
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           )}

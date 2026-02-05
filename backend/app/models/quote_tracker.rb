@@ -16,7 +16,7 @@ class QuoteTracker < ApplicationRecord
   belongs_to :job
   belongs_to :sm_trade, optional: true  # Category
   belongs_to :supplier, class_name: 'Contact', optional: true
-  belongs_to :contact, class_name: 'Contact', optional: true
+  belongs_to :contact, class_name: 'ContactPerson', optional: true  # Employee at supplier
 
   # Validations
   validates :job, presence: true
