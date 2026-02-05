@@ -1338,7 +1338,7 @@ Rails.application.routes.draw do
         member do
           put :user_mailbox_access, action: :update_user_mailbox_access
           put :toggle_sync_all
-          put :docsort_mailbox, action: :update_docsort_mailbox  # Configure DocSort shared mailbox
+          # NOTE (Feb 2026): docsort_mailbox route REMOVED - now in TenantSettings (SSoT)
           post :sync  # Trigger full email sync for this organization
         end
       end

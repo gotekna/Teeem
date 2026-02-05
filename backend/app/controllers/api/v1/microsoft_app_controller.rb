@@ -52,8 +52,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
           admin_consent_granted_by: credential.admin_consent_granted_by,
           last_sync_at: credential.try(:last_sync_at) || credential.try(:last_synced_at),
           last_error: credential.try(:last_error) || credential.try(:error_message),
-          token_valid: !credential.token_expired?,
-          docsort_mailbox: credential.sync_config&.dig("docsort_mailbox")
+          token_valid: !credential.token_expired?
+          # NOTE (Feb 2026): docsort_mailbox MOVED to TenantSettings (SSoT)
         }
       end
 
@@ -570,40 +570,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
     }
   end
 
-  # PUT /api/v1/microsoft_app/:id/docsort_mailbox
-  # Configure the DocSort mailbox for this organization
-  # This mailbox will be monitored for incoming documents to classify and route
-  def update_docsort_mailbox
-    unless current_user_admin?
-      return render json: { error: "Only admins can configure DocSort mailbox" }, status: :forbidden
-    end
-
-    credential = MicrosoftCredential.find_by(id: params[:id])
-    unless credential
-      return render json: { error: "Organization not found" }, status: :not_found
-    end
-
-    docsort_mailbox = params[:docsort_mailbox]&.strip&.downcase
-    docsort_mailbox = nil if docsort_mailbox.blank?
-
-    # Validate email format if provided
-    if docsort_mailbox.present? && !docsort_mailbox.match?(URI::MailTo::EMAIL_REGEXP)
-      return render json: { error: "Invalid email address format" }, status: :unprocessable_entity
-    end
-
-    # Update sync_config with docsort_mailbox
-    existing_config = credential.sync_config || {}
-    new_sync_config = existing_config.merge("docsort_mailbox" => docsort_mailbox)
-    credential.update!(sync_config: new_sync_config)
-
-    render json: {
-      success: true,
-      docsort_mailbox: docsort_mailbox,
-      message: docsort_mailbox ?
-        "DocSort mailbox set to #{docsort_mailbox}. Emails to this address will be classified and routed." :
-        "DocSort mailbox removed for #{credential.name}."
-    }
-  end
+  # NOTE (Feb 2026): update_docsort_mailbox REMOVED
+  # DocSort mailbox is now configured via TenantSettings.monitored_mailbox_docsort (SSoT)
+  # Configure at: Settings > Company > Email Config
 
   # POST /api/v1/microsoft_app/:id/sync
   # Trigger a full email sync for this organization

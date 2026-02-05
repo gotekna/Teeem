@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_06_100002) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_06_100003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9723,6 +9723,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_100002) do
     t.string "custom_email_signature_name", default: "Company Custom"
     t.boolean "force_email_signature", default: false
     t.string "forced_signature_style"
+    t.string "monitored_mailbox_docsort", comment: "SSoT: Email address for DocSort inbox (AI document classification)"
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"

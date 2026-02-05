@@ -270,6 +270,10 @@ class TenantSetting < ApplicationRecord
     instance.monitored_mailbox_newcase.presence
   end
 
+  def self.monitored_mailbox_docsort
+    instance.monitored_mailbox_docsort.presence
+  end
+
   # Get email config hash for API responses
   def self.email_config
     {
@@ -278,7 +282,8 @@ class TenantSetting < ApplicationRecord
         pay: monitored_mailbox_pay,
         newtask: monitored_mailbox_newtask,
         newjob: monitored_mailbox_newjob,
-        newcase: monitored_mailbox_newcase
+        newcase: monitored_mailbox_newcase,
+        docsort: monitored_mailbox_docsort
       }
     }
   end

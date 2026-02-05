@@ -27,6 +27,7 @@ interface EmailConfig {
     newtask: string;
     newjob: string;
     newcase: string;
+    docsort: string;
   };
 }
 
@@ -40,6 +41,7 @@ export function EmailConfigTab() {
     monitored_mailbox_newtask: "",
     monitored_mailbox_newjob: "",
     monitored_mailbox_newcase: "",
+    monitored_mailbox_docsort: "",
   });
 
   // Load email config on mount
@@ -60,6 +62,7 @@ export function EmailConfigTab() {
           monitored_mailbox_newtask: response.data.monitored_mailboxes?.newtask || "",
           monitored_mailbox_newjob: response.data.monitored_mailboxes?.newjob || "",
           monitored_mailbox_newcase: response.data.monitored_mailboxes?.newcase || "",
+          monitored_mailbox_docsort: response.data.monitored_mailboxes?.docsort || "",
         });
       }
     } catch (error) {
@@ -232,6 +235,23 @@ export function EmailConfigTab() {
               />
               <p className="text-xs text-muted-foreground">
                 Emails here trigger case creation proposals
+              </p>
+            </div>
+
+            {/* DocSort Mailbox */}
+            <div className="space-y-2">
+              <Label htmlFor="mailbox_docsort" className="flex items-center gap-1">
+                <Inbox className="h-3 w-3 text-cyan-500 dark:text-cyan-400" />
+                DocSort Inbox
+              </Label>
+              <Input
+                id="mailbox_docsort"
+                value={formData.monitored_mailbox_docsort}
+                onChange={(e) => handleChange("monitored_mailbox_docsort", e.target.value)}
+                placeholder="docsort@example.com"
+              />
+              <p className="text-xs text-muted-foreground">
+                Documents here are AI-classified and routed automatically
               </p>
             </div>
           </div>

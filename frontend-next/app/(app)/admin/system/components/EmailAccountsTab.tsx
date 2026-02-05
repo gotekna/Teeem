@@ -156,6 +156,8 @@ interface MS365Organization {
   mailboxes: string[];
   user_mailbox_access: Record<string, string[]>; // user_id -> mailbox emails
   sync_all: boolean; // Jan 2026: Option B - sync ALL tenant mailboxes
+  // NOTE (Feb 2026): docsort_mailbox MOVED to TenantSettings (SSoT)
+  // Configure at: Settings > Company > Warehouse Config > Email Config
 }
 
 interface TeeemUser {
@@ -190,6 +192,7 @@ function MS365MailboxAccessConfig() {
   const [syncAllState, setSyncAllState] = useState<Record<number, boolean>>({});
   const [togglingSyncAll, setTogglingSyncAll] = useState<number | null>(null);
   const [syncingOrgId, setSyncingOrgId] = useState<number | null>(null);
+  // NOTE (Feb 2026): docsortMailboxes REMOVED - now in TenantSettings (SSoT)
 
   // Trigger a full sync for an MS365 organization
   const handleSyncOrg = async (orgId: number) => {
@@ -319,6 +322,9 @@ function MS365MailboxAccessConfig() {
     return localAccess[orgId]?.[userId]?.includes(mailbox) || false;
   };
 
+  // NOTE (Feb 2026): saveDocsortMailbox REMOVED - now in TenantSettings
+  // Configure DocSort at: Settings > Company > Warehouse Config > Email Config
+
   // SSoT: Check if user has auto-access to mailbox (their own email)
   const isAutoAccess = (userEmail: string, mailbox: string): boolean => {
     return userEmail?.toLowerCase() === mailbox?.toLowerCase();
@@ -429,6 +435,8 @@ function MS365MailboxAccessConfig() {
             </div>
           </CardHeader>
           <CardContent>
+            {/* NOTE (Feb 2026): DocSort mailbox config MOVED to TenantSettings
+                Configure at: Settings > Company > Warehouse Config > Email Config */}
             {org.mailboxes.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">
                 No mailboxes found. Try reconnecting or check permissions.
