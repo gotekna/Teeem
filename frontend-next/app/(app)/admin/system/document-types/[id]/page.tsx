@@ -165,6 +165,7 @@ export default function DocumentTypeDetailPage() {
   const [jobs, setJobs] = React.useState<Array<{id: number; name: string; code: string}>>([]);
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [tabSearch, setTabSearch] = React.useState(""); // Search filter for Primary/Secondary tab dropdowns
+  const [scopeFilter, setScopeFilter] = React.useState<'all' | 'corporate' | 'job' | 'contact'>('all'); // Filter tabs by scope
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
   const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number | string; name: string; tab_key?: string; storage_path?: string; isScope?: boolean; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children?: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }> }>>([]); // SSoT: Scope-first hierarchy (Corporate > Job > Contact > tabs)
@@ -243,9 +244,9 @@ export default function DocumentTypeDetailPage() {
           tab_group: tab.tab_group,
           // SSoT: Include storage path for display in dropdown
           storage_path: tab.effective_storage_path || tab.storage_folder_path || tab.hierarchy_path,
-          // Filter children to only 'documents' tab_group (exclude 'data' system-generated tabs)
+          // Filter children to only 'documents' tab_group with warehouse_enabled (can receive uploads)
           children: (tab.children || [])
-            .filter((c: any) => c.tab_group === 'documents')
+            .filter((c: any) => c.tab_group === 'documents' && c.warehouse_enabled)
             .map(mapTabRecursive)
         });
 
@@ -265,9 +266,11 @@ export default function DocumentTypeDetailPage() {
           try {
             const scopeData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/warehouse_folders?scope=${scopeCfg.apiScope}`);
             if (scopeData.success && scopeData.data?.tabs) {
-              // SSoT: Only 'documents' tab_group can store user uploads and have Document Types (Feb 2026)
-              // Filter out 'data' tabs (system-generated content like Xero transactions)
-              const documentTabs = scopeData.data.tabs.filter((t: any) => t.tab_group === 'documents');
+              // SSoT: Only 'documents' tab_group with warehouse_enabled can store user uploads (Feb 2026)
+              // Filter out 'data' tabs and tabs that can't receive documents
+              const documentTabs = scopeData.data.tabs.filter((t: any) =>
+                t.tab_group === 'documents' && t.warehouse_enabled
+              );
 
               // Add to all tabs for lookup
               allTabsFromAllScopes.push(...scopeData.data.tabs.map(mapTabRecursive));
@@ -1410,9 +1413,37 @@ export default function DocumentTypeDetailPage() {
             {/* Tab View - Primary Tab */}
             <div className="space-y-2">
               <Label>Primary Tab</Label>
+              {/* Scope filter buttons */}
+              <div className="flex gap-1 mb-1">
+                {[
+                  { key: 'all', label: 'All', icon: '' },
+                  { key: 'corporate', label: 'Corporate', icon: '🏢' },
+                  { key: 'job', label: 'Job', icon: '📋' },
+                  { key: 'contact', label: 'Contact', icon: '👤' },
+                ].map((scope) => (
+                  <button
+                    key={scope.key}
+                    type="button"
+                    onClick={() => setScopeFilter(scope.key as typeof scopeFilter)}
+                    className={cn(
+                      "px-2 py-1 text-xs rounded-md border transition-colors",
+                      scopeFilter === scope.key
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background hover:bg-muted border-input"
+                    )}
+                  >
+                    {scope.icon} {scope.label}
+                  </button>
+                ))}
+              </div>
               {(() => {
                 const selectedId = documentType.entity_tab_ids?.[0];
                 const searchLower = tabSearch.toLowerCase();
+
+                // Filter hierarchy by selected scope
+                const filteredHierarchy = scopeFilter === 'all'
+                  ? folderHierarchy
+                  : folderHierarchy.filter(sg => sg.tab_key === scopeFilter);
 
                 // Filter function to check if tab/subtab matches search
                 const matchesSearch = (name: string, path?: string) => {
@@ -1466,8 +1497,8 @@ export default function DocumentTypeDetailPage() {
                           )}
                         </div>
                       </div>
-                      {/* SSoT: Scope-first hierarchy - Corporate > Job > Contact */}
-                      {folderHierarchy.map((scopeGroup, scopeIdx) => {
+                      {/* SSoT: Scope-first hierarchy - filtered by selected scope */}
+                      {filteredHierarchy.map((scopeGroup, scopeIdx) => {
                         // Scope groups are headers (not selectable)
                         if (scopeGroup.isScope) {
                           // Filter tabs within this scope based on search
@@ -1539,7 +1570,11 @@ export default function DocumentTypeDetailPage() {
                         return null;
                       })}
                       {/* No results message */}
-                      {tabSearch && folderHierarchy.every(scopeGroup => {
+                      {filteredHierarchy.length === 0 ? (
+                        <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                          No tabs in {scopeFilter === 'all' ? 'any scope' : scopeFilter}
+                        </div>
+                      ) : tabSearch && filteredHierarchy.every(scopeGroup => {
                         if (!scopeGroup.isScope) return true;
                         return (scopeGroup.children || []).every((tab: any) => {
                           if (!tab.id) return true;
@@ -1550,7 +1585,7 @@ export default function DocumentTypeDetailPage() {
                         });
                       }) && (
                         <div className="px-4 py-3 text-sm text-muted-foreground text-center">
-                          No tabs matching &quot;{tabSearch}&quot;
+                          No tabs matching &quot;{tabSearch}&quot;{scopeFilter !== 'all' && ` in ${scopeFilter}`}
                         </div>
                       )}
                     </SelectContent>
@@ -1589,6 +1624,11 @@ export default function DocumentTypeDetailPage() {
                 const isTabAvailable = (tabId: number) =>
                   tabId !== primaryId && !secondaryIds.includes(tabId);
 
+                // Filter hierarchy by selected scope (same as primary dropdown)
+                const filteredHierarchy = scopeFilter === 'all'
+                  ? folderHierarchy
+                  : folderHierarchy.filter(sg => sg.tab_key === scopeFilter);
+
                 return (
                   <div className="space-y-2">
                     {/* Display selected secondary tabs */}
@@ -1609,6 +1649,29 @@ export default function DocumentTypeDetailPage() {
                         );})}
                       </div>
                     )}
+                    {/* Scope filter buttons for secondary tabs */}
+                    <div className="flex gap-1">
+                      {[
+                        { key: 'all', label: 'All', icon: '' },
+                        { key: 'corporate', label: 'Corporate', icon: '🏢' },
+                        { key: 'job', label: 'Job', icon: '📋' },
+                        { key: 'contact', label: 'Contact', icon: '👤' },
+                      ].map((scope) => (
+                        <button
+                          key={scope.key}
+                          type="button"
+                          onClick={() => setScopeFilter(scope.key as typeof scopeFilter)}
+                          className={cn(
+                            "px-2 py-0.5 text-[10px] rounded border transition-colors",
+                            scopeFilter === scope.key
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background hover:bg-muted border-input"
+                          )}
+                        >
+                          {scope.icon} {scope.label}
+                        </button>
+                      ))}
+                    </div>
                     {/* Add secondary tab dropdown - SSoT: Scope-first hierarchy with search */}
                     <Select
                       value=""
@@ -1641,7 +1704,7 @@ export default function DocumentTypeDetailPage() {
                             )}
                           </div>
                         </div>
-                        {folderHierarchy.map((scopeGroup, scopeIdx) => {
+                        {filteredHierarchy.map((scopeGroup, scopeIdx) => {
                           // Scope groups are headers (not selectable)
                           if (scopeGroup.isScope) {
                             // Filter to available tabs/subtabs within this scope that match search
@@ -1713,7 +1776,11 @@ export default function DocumentTypeDetailPage() {
                           return null;
                         })}
                         {/* No results message */}
-                        {tabSearch && folderHierarchy.every(scopeGroup => {
+                        {filteredHierarchy.length === 0 ? (
+                          <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                            No tabs in {scopeFilter === 'all' ? 'any scope' : scopeFilter}
+                          </div>
+                        ) : tabSearch && filteredHierarchy.every(scopeGroup => {
                           if (!scopeGroup.isScope) return true;
                           return (scopeGroup.children || []).every((tab: any) => {
                             const tabIsAvailable = tab.id && isTabAvailable(tab.id);
@@ -1728,7 +1795,7 @@ export default function DocumentTypeDetailPage() {
                           });
                         }) && (
                           <div className="px-4 py-3 text-sm text-muted-foreground text-center">
-                            No tabs matching &quot;{tabSearch}&quot;
+                            No tabs matching &quot;{tabSearch}&quot;{scopeFilter !== 'all' && ` in ${scopeFilter}`}
                           </div>
                         )}
                       </SelectContent>

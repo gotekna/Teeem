@@ -543,6 +543,12 @@ function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocume
                   )}
                   <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
+                {/* Full folder path */}
+                {folderPath && (
+                  <div className="text-[8px] text-muted-foreground font-mono truncate mt-0.5">
+                    📁 {folderPath}
+                  </div>
+                )}
                 {/* UI/DL badges with actual values */}
                 <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                   <Badge
@@ -1026,23 +1032,6 @@ function TreeNode({
         const baseFoldersWithDocTypes = (node.baseFolders || []).filter(
           bf => bf.warehouse_folder?.document_types && bf.warehouse_folder.document_types.length > 0
         );
-
-        // DEBUG: Log Xero and Bank nodes
-        if (node.name === 'Xero' || node.name === 'Bank') {
-          console.log(`[TreeNode DEBUG] ${node.name}:`, {
-            hasChildren: node.children.length,
-            baseFolders: node.baseFolders?.length || 0,
-            baseFoldersWithDocTypes: baseFoldersWithDocTypes.length,
-            baseFoldersData: node.baseFolders?.map(bf => ({
-              id: bf.id,
-              name: bf.name,
-              wf: bf.warehouse_folder ? {
-                id: bf.warehouse_folder.id,
-                docTypes: bf.warehouse_folder.document_types?.length || 0
-              } : null
-            }))
-          });
-        }
 
         // Show nothing if editing OR (no scope keys AND no doc types)
         if (isEditingThisNode) return null;
