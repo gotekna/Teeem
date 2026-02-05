@@ -3051,6 +3051,8 @@ Rails.application.routes.draw do
         end
         resources :base_folders, only: [:index]  # Nested route for type-specific folders
       end
+      # Custom route for fetching records by warehouse type code (not id)
+      get 'warehouse_types/:code/records', to: 'warehouse_types#records', as: :warehouse_type_records
 
       # Base Folders (SSoT: Base folder configuration per warehouse type - Feb 2026)
       resources :base_folders do

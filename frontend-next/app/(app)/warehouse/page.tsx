@@ -125,7 +125,7 @@ interface AllDocumentsResponse {
 interface TreeNode {
   id: string;
   name: string;
-  type: "category" | "parent" | "folder" | "file" | "loading";
+  type: "category" | "parent" | "folder" | "file" | "loading" | "record" | "load-more";
   children?: TreeNode[];
   file?: DocumentItem;
   icon?: React.ReactNode;
@@ -147,6 +147,12 @@ interface TreeNode {
   // Mailbox folder - single-click opens drawer, double-click opens in new window
   isMailbox?: boolean;
   mailboxEmail?: string;
+  // Record node (Feb 2026) - for showing actual database records
+  recordNode?: RecordNode;
+  // Warehouse type code for record nodes
+  warehouseTypeCode?: string;
+  // Load more callback for pagination
+  onLoadMore?: () => void;
 }
 
 type ViewMode = "tree" | "list" | "gallery";
@@ -258,6 +264,7 @@ interface WarehouseTypeTreeNode {
   iconName: string | null;
   orderPosition: number;
   folderPathTemplate: string | null;
+  pathPreview?: string;
   fileCount: number;
   baseFolders: BaseFolderTreeNode[];
 }
@@ -267,6 +274,7 @@ interface BaseFolderTreeNode {
   name: string;
   parentId: number | null;
   folderPathTemplate: string | null;
+  pathPreview?: string;
   isSystem: boolean;
   children: WarehouseFolderTreeNode[];
   warehouseFolder: {
@@ -289,6 +297,23 @@ interface WarehouseFolderTreeNode {
   fullPath: string | null;
   fileCount: number;
   children: WarehouseFolderTreeNode[];
+}
+
+// Database record node (Feb 2026)
+// Represents actual jobs, contacts, corporate companies loaded on demand
+interface RecordNode {
+  id: number;
+  name: string;
+  subtitle?: string;
+  code?: string;
+}
+
+// Pagination response from records API
+interface RecordsPagination {
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
 }
 
 // Icon mapping for all storage scopes - matches WarehouseProvider.SCOPE_FOLDERS
@@ -514,6 +539,14 @@ export default function AllDocumentsPage() {
   // This is THE source of truth for folder structure - warehouse_types as top level
   const [warehouseTypesTree, setWarehouseTypesTree] = useState<WarehouseTypeTreeNode[]>([]);
   const [warehouseTreeLoading, setWarehouseTreeLoading] = useState(true);
+
+  // Records per warehouse type (Feb 2026) - loaded on demand when expanding warehouse type
+  // Key is warehouse type code (e.g., "job", "contact", "corporate")
+  const [warehouseRecords, setWarehouseRecords] = useState<Record<string, {
+    records: RecordNode[];
+    pagination: RecordsPagination;
+  }>>({});
+  const [loadingRecords, setLoadingRecords] = useState<Set<string>>(new Set());
 
   // SSoT: S3 folder contents - loaded lazily when expanding folders
   // This mirrors the exact Wasabi/S3 folder structure for OneDrive-like browsing
@@ -1008,6 +1041,54 @@ export default function AllDocumentsPage() {
   // NOTE (Feb 2026): S3 root folder fetch removed - using warehouse_folders/tree instead
   // S3 folders are now only fetched when user expands a folder to see files
 
+  // Fetch records for a warehouse type (Feb 2026)
+  // Called when user expands a warehouse type node in the tree
+  const fetchRecords = useCallback(async (warehouseTypeCode: string, offset = 0) => {
+    // Skip if already loading or already have data (unless loading more)
+    if (loadingRecords.has(warehouseTypeCode) && offset === 0) return;
+    if (offset === 0 && warehouseRecords[warehouseTypeCode]) return;
+
+    setLoadingRecords(prev => new Set(prev).add(warehouseTypeCode));
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          records: RecordNode[];
+          pagination: RecordsPagination;
+        };
+      }>(`/api/v1/warehouse_types/${warehouseTypeCode}/records`, {
+        params: { limit: 50, offset }
+      });
+
+      if (response?.success && response.data) {
+        setWarehouseRecords(prev => ({
+          ...prev,
+          [warehouseTypeCode]: {
+            records: offset === 0
+              ? response.data.records
+              : [...(prev[warehouseTypeCode]?.records || []), ...response.data.records],
+            pagination: response.data.pagination
+          }
+        }));
+      }
+    } catch (err) {
+      console.error(`Failed to fetch records for ${warehouseTypeCode}:`, err);
+      // Set empty to prevent re-fetching
+      if (offset === 0) {
+        setWarehouseRecords(prev => ({
+          ...prev,
+          [warehouseTypeCode]: { records: [], pagination: { total: 0, limit: 50, offset: 0, has_more: false } }
+        }));
+      }
+    } finally {
+      setLoadingRecords(prev => {
+        const next = new Set(prev);
+        next.delete(warehouseTypeCode);
+        return next;
+      });
+    }
+  }, [loadingRecords, warehouseRecords]);
+
   // Poll for active background jobs (folder reorganization)
   useEffect(() => {
     const pollJobProgress = async () => {
@@ -1383,11 +1464,79 @@ export default function AllDocumentsPage() {
         type: "category" as const,
         icon: getIconComponent(baseFolder.warehouseFolder?.iconName || null, baseFolder.name),
         fullPath: folderPath || undefined,
-        pathTemplate: baseFolder.folderPathTemplate || undefined,
+        pathTemplate: baseFolder.pathPreview || baseFolder.folderPathTemplate || undefined,
         fileCount: 0,
         sourceType,
         isVirtual,
         children: [...children, ...s3Files],
+      };
+    };
+
+    // Convert a RecordNode to TreeNode (Feb 2026)
+    // Record nodes show actual database records (jobs, contacts, etc.) with base folders as children
+    const convertRecordToTreeNode = (record: RecordNode, warehouseType: WarehouseTypeTreeNode): TreeNode => {
+      // Get the appropriate icon for this record type
+      const recordIcon = getIconComponent(warehouseType.iconName, warehouseType.code);
+
+      // Display name: code + name (e.g., "J-001 Smith Residence")
+      const displayName = record.code ? `${record.code} ${record.name}` : record.name;
+
+      // Helper to find child base folders of a given parent
+      const findChildBaseFolders = (parentId: number | null): BaseFolderTreeNode[] => {
+        return warehouseType.baseFolders.filter(bf => {
+          // Extract numeric ID from "bf-123" format
+          const bfParentId = bf.parentId;
+          if (parentId === null) {
+            return bfParentId === null;
+          }
+          return bfParentId === parentId;
+        });
+      };
+
+      // Recursively convert base folder with its child base folders
+      const convertBaseFolderWithHierarchy = (baseFolder: BaseFolderTreeNode): TreeNode => {
+        const folderPath = baseFolder.warehouseFolder?.folderPath || baseFolder.folderPathTemplate;
+        const isVirtual = folderPath?.includes('{{') || false;
+        const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath);
+
+        // Get warehouse folder children (tabs)
+        const warehouseFolderChildren = baseFolder.children.map(child =>
+          convertWarehouseFolderToTreeNode(child, warehouseType.code)
+        );
+
+        // Get child base folders (hierarchical folders like PreCon > BA Approval)
+        // Extract numeric ID from "bf-123" format
+        const numericId = parseInt(baseFolder.id.replace('bf-', ''), 10);
+        const childBaseFolders = findChildBaseFolders(numericId);
+        const childBaseFolderNodes = childBaseFolders.map(child => convertBaseFolderWithHierarchy(child));
+
+        return {
+          id: baseFolder.id,
+          name: baseFolder.warehouseFolder?.displayName || baseFolder.name,
+          type: "category" as const,
+          icon: getIconComponent(baseFolder.warehouseFolder?.iconName || null, baseFolder.name),
+          fullPath: folderPath || undefined,
+          pathTemplate: baseFolder.pathPreview || baseFolder.folderPathTemplate || undefined,
+          fileCount: 0,
+          sourceType: warehouseType.code,
+          isVirtual,
+          children: [...childBaseFolderNodes, ...warehouseFolderChildren, ...s3Files],
+        };
+      };
+
+      // Get only root-level base folders (parentId === null) and build hierarchy from there
+      const rootBaseFolders = findChildBaseFolders(null);
+      const children = rootBaseFolders.map(bf => convertBaseFolderWithHierarchy(bf));
+
+      return {
+        id: `record-${warehouseType.code}-${record.id}`,
+        name: displayName,
+        type: "record" as const,
+        icon: recordIcon,
+        recordNode: record,
+        warehouseTypeCode: warehouseType.code,
+        sourceType: warehouseType.code,
+        children,
       };
     };
 
@@ -1398,8 +1547,42 @@ export default function AllDocumentsPage() {
       // Check if warehouse type has template tokens (virtual)
       const isVirtual = warehouseType.folderPathTemplate?.includes('{{') || false;
       const s3Files = isVirtual ? [] : (folderPath ? buildS3FileNodes(folderPath) : []);
-      // Pass sourceType (warehouse type code) to all children for WarehouseDocument queries
-      const children = warehouseType.baseFolders.map(bf => convertBaseFolderToTreeNode(bf, warehouseType.code));
+
+      // Get loaded records for this warehouse type (Feb 2026)
+      const recordData = warehouseRecords[warehouseType.code];
+      const isLoadingRecordsForType = loadingRecords.has(warehouseType.code);
+
+      // Build children:
+      // - If records are loaded, show records as children (each record has base folders)
+      // - If records are loading, show loading indicator
+      // - If no records yet (not expanded), show base folders directly (existing behavior)
+      let children: TreeNode[] = [];
+
+      if (recordData?.records?.length > 0) {
+        // Records loaded - show each record with its folder structure
+        children = recordData.records.map(r => convertRecordToTreeNode(r, warehouseType));
+
+        // Add "Load more" node if there are more records
+        if (recordData.pagination?.has_more) {
+          children.push({
+            id: `load-more-${warehouseType.code}`,
+            name: `Load more (${recordData.pagination.total - recordData.records.length} remaining)`,
+            type: "load-more" as const,
+            warehouseTypeCode: warehouseType.code,
+          });
+        }
+      } else if (isLoadingRecordsForType) {
+        // Loading records - show loading indicator
+        children = [{
+          id: `loading-records-${warehouseType.code}`,
+          name: "Loading records...",
+          type: "loading" as const,
+        }];
+      } else {
+        // No records loaded yet - show base folders directly (existing behavior)
+        // This is for when the warehouse type is collapsed or doesn't support records
+        children = warehouseType.baseFolders.map(bf => convertBaseFolderToTreeNode(bf, warehouseType.code));
+      }
 
       return {
         id: warehouseType.id,
@@ -1407,7 +1590,7 @@ export default function AllDocumentsPage() {
         type: "category" as const,
         icon: getIconComponent(warehouseType.iconName, warehouseType.code),
         fullPath: folderPath || undefined,
-        pathTemplate: warehouseType.folderPathTemplate || undefined,
+        pathTemplate: warehouseType.pathPreview || warehouseType.folderPathTemplate || undefined,
         fileCount: warehouseType.fileCount,
         sourceType: warehouseType.code,
         isVirtual,
@@ -1426,7 +1609,7 @@ export default function AllDocumentsPage() {
 
     // Convert warehouse types tree to TreeNode format
     return warehouseTypesTree.map(convertWarehouseTypeToTreeNode);
-  }, [warehouseTypesTree, warehouseTreeLoading, s3Folders]);
+  }, [warehouseTypesTree, warehouseTreeLoading, s3Folders, warehouseRecords, loadingRecords]);
 
   // Fetch files for virtual folders from WarehouseDocument table
   // Virtual folders have template tokens ({{TaskId}}, {{JobCode}}) and can't use S3 browsing
@@ -1534,7 +1717,15 @@ export default function AllDocumentsPage() {
 
     // If expanding (not collapsing), fetch folder contents
     if (!wasExpanded) {
-      if (isVirtual && sourceType) {
+      // Check if this is a warehouse type node (e.g., "wt-job", "wt-corporate")
+      // These nodes should fetch records when expanded
+      if (folderId.startsWith("wt-")) {
+        const warehouseTypeCode = folderId.replace("wt-", "");
+        // Fetch records for this warehouse type (unless email which doesn't have record folders)
+        if (warehouseTypeCode !== "email") {
+          fetchRecords(warehouseTypeCode);
+        }
+      } else if (isVirtual && sourceType) {
         // Virtual folder - fetch from WarehouseDocument
         // Use folderId as scope key for caching
         const folderName = folderPath || '';
@@ -1544,7 +1735,7 @@ export default function AllDocumentsPage() {
         fetchS3Folders(folderPath);
       }
     }
-  }, [expandedFolders, fetchS3Folders, fetchVirtualFolderFiles, router]);
+  }, [expandedFolders, fetchS3Folders, fetchVirtualFolderFiles, fetchRecords, router]);
 
   // Open file in new window (for double-click)
   const openFileInNewWindow = useCallback((doc: DocumentItem) => {
@@ -1862,6 +2053,73 @@ export default function AllDocumentsPage() {
                   <> &middot; ~{Math.ceil(progress.remaining_seconds / 60)} min remaining</>
                 )}
               </p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Load more button - for paginated records (Feb 2026)
+    if (node.type === "load-more") {
+      const warehouseTypeCode = node.warehouseTypeCode;
+      const isLoadingMore = warehouseTypeCode ? loadingRecords.has(warehouseTypeCode) : false;
+      const recordData = warehouseTypeCode ? warehouseRecords[warehouseTypeCode] : null;
+      const currentOffset = recordData?.records?.length || 0;
+
+      return (
+        <div
+          key={node.id}
+          className="flex items-center gap-2 py-2 px-3 hover:bg-muted/50 rounded-md cursor-pointer text-primary"
+          style={{ paddingLeft: `${paddingLeft + 12}px` }}
+          onClick={() => {
+            if (warehouseTypeCode && !isLoadingMore) {
+              fetchRecords(warehouseTypeCode, currentOffset);
+            }
+          }}
+        >
+          {isLoadingMore ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+          <span className="text-sm">{node.name}</span>
+        </div>
+      );
+    }
+
+    // Record node - shows actual database record (job, contact, etc.) (Feb 2026)
+    if (node.type === "record") {
+      const hasChildren = node.children && node.children.length > 0;
+
+      return (
+        <div key={node.id}>
+          <div
+            className={cn(
+              "flex items-center gap-2 py-2 px-3 hover:bg-muted/50 rounded-md cursor-pointer",
+              isExpanded && "bg-muted/30"
+            )}
+            style={{ paddingLeft: `${paddingLeft}px` }}
+            onClick={() => toggleFolder(node.id, node.fullPath, node.externalLink, node.sourceType, node.isVirtual)}
+          >
+            <ChevronRight
+              className={cn(
+                "h-4 w-4 transition-transform shrink-0",
+                isExpanded && "rotate-90",
+                !hasChildren && "invisible"
+              )}
+            />
+            {node.icon || <Folder className="h-4 w-4" />}
+            <span className="flex-1 truncate font-medium">{node.name}</span>
+            {node.recordNode?.subtitle && (
+              <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                {node.recordNode.subtitle}
+              </span>
+            )}
+          </div>
+          {/* Render children when expanded */}
+          {isExpanded && hasChildren && (
+            <div>
+              {node.children?.map(child => renderTreeNode(child, depth + 1))}
             </div>
           )}
         </div>

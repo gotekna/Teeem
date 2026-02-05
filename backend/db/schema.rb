@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_04_140001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_05_103807) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7794,6 +7794,32 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_04_140001) do
     t.index ["submitted_at"], name: "index_quote_responses_on_submitted_at"
   end
 
+  create_table "quote_trackers", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "job_id", null: false
+    t.bigint "sm_trade_id"
+    t.bigint "supplier_id"
+    t.bigint "contact_id"
+    t.string "contact_email"
+    t.date "requested_date"
+    t.boolean "received", default: false
+    t.date "date_received"
+    t.string "quote_number"
+    t.decimal "price_quoted", precision: 12, scale: 2
+    t.date "valid_to"
+    t.text "quote_request_instructions"
+    t.text "estimating_notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_quote_trackers_on_contact_id"
+    t.index ["job_id"], name: "index_quote_trackers_on_job_id"
+    t.index ["sm_trade_id"], name: "index_quote_trackers_on_sm_trade_id"
+    t.index ["supplier_id"], name: "index_quote_trackers_on_supplier_id"
+    t.index ["tenant_id", "job_id"], name: "index_quote_trackers_on_tenant_id_and_job_id"
+    t.index ["tenant_id", "supplier_id"], name: "index_quote_trackers_on_tenant_id_and_supplier_id"
+    t.index ["tenant_id"], name: "index_quote_trackers_on_tenant_id"
+  end
+
   create_table "rain_logs", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.date "date", null: false
@@ -9981,8 +10007,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_04_140001) do
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
-  create_table "versions", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "versions", force: :cascade do |t|
     t.integer "current_version", default: 101, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -11449,6 +11474,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_04_140001) do
   add_foreign_key "quote_responses", "contacts"
   add_foreign_key "quote_responses", "portal_users", column: "responded_by_portal_user_id"
   add_foreign_key "quote_responses", "quote_requests"
+  add_foreign_key "quote_trackers", "contacts"
+  add_foreign_key "quote_trackers", "contacts", column: "supplier_id"
+  add_foreign_key "quote_trackers", "jobs"
+  add_foreign_key "quote_trackers", "sm_trades"
+  add_foreign_key "quote_trackers", "tenants"
   add_foreign_key "rain_logs", "jobs"
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
   add_foreign_key "recipe_categories", "recipe_categories", column: "parent_id"

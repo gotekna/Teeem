@@ -151,11 +151,16 @@ class BaseFolder < ApplicationRecord
 
     preview = template.dup
     preview.gsub!("{{JobCode}}", "J-001")
+    preview.gsub!("{{JobName}}", "Smith Residence")
     preview.gsub!("{{ContactName}}", "John Smith")
     preview.gsub!("{{CompanyCode}}", "ABC")
     preview.gsub!("{{CompanyGroup}}", "ABC Group")
     preview.gsub!("{{TaskId}}", "123")
     preview.gsub!("{{TaskName}}", "Site Inspection")
+    preview.gsub!("{{CaseId}}", "456")
+    preview.gsub!("{{CaseName}}", "Insurance Claim")
+    preview.gsub!("{{UserName}}", "John Doe")
+    preview.gsub!("{{TabName}}", "Sales")
     preview.gsub!("{{Year}}", Time.current.year.to_s)
     preview.gsub!("{{Month}}", Time.current.strftime("%B"))
     preview.gsub!("{{Mailbox}}", "inbox@example.com")

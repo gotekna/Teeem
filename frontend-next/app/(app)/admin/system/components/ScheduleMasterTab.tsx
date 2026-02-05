@@ -2438,7 +2438,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         </TabsList>
 
         {/* Tab content container - flex-1 to fill remaining space, relative for absolute children */}
-        <div className="flex-1 min-h-0 relative mt-2">
+        <div className="flex-1 min-h-0 relative mt-2 h-full">
           <TabsContent value="schedule-templates" className="absolute inset-0 overflow-auto px-4 pt-4 space-y-6 data-[state=inactive]:hidden">
           <div className="flex items-center justify-between">
             <div>
@@ -3856,9 +3856,16 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         </TabsContent>
 
         {/* Tables Tab - Gold Standard Table pattern for SM lookup tables */}
-        <TabsContent value="tables" className="absolute inset-0 flex flex-col data-[state=inactive]:hidden">
-          {/* Table selector - horizontal tabs */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0">
+        {/* [1] TABS CONTENT (BLUE) - absolute inset-0 flex flex-col */}
+        <TabsContent value="tables" className="absolute inset-0 flex flex-col data-[state=inactive]:hidden border-4 border-blue-500 bg-blue-100/20 dark:bg-blue-900/20">
+          <div className="absolute top-0 left-0 bg-blue-600 text-white px-2 py-1 text-xs font-bold z-50">
+            [1] TABSCONTENT (BLUE) - absolute inset-0 flex flex-col
+          </div>
+          {/* [2] Table selector (GREEN) - shrink-0 */}
+          <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30 shrink-0 border-4 border-green-500 bg-green-100/30 dark:bg-green-900/20 relative">
+            <div className="absolute top-0 left-0 bg-green-600 text-white px-2 py-1 text-xs font-bold z-50">
+              [2] SELECTOR (GREEN) - shrink-0
+            </div>
             {LOOKUP_TABLES.map((table) => (
               <Button
                 key={table.id}
@@ -3877,19 +3884,26 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             </p>
           </div>
 
-          {/* Full-height Gold Standard Table */}
-          <div className="flex-1 min-h-0">
+          {/* [3] Full-height Gold Standard Table (PURPLE) - flex-1 min-h-0 */}
+          <div className="flex-1 min-h-0 overflow-hidden border-4 border-purple-500 bg-purple-100/30 dark:bg-purple-900/20 relative">
+            <div className="absolute top-0 left-0 bg-purple-600 text-white px-2 py-1 text-xs font-bold z-50">
+              [3] TABLE CONTAINER (PURPLE) - flex-1 min-h-0 overflow-hidden
+            </div>
             {LOOKUP_TABLES.map((table) => (
               selectedLookupTable === table.id && (
-                <TeeemTableView
-                  key={`${table.id}-${lookupTableRefreshKey}`}
-                  entries={[]}
-                  foundationId={table.id}
-                  tableName={table.name}
-                  enableExport={true}
-                  autoFetchRecords
-                  onRefresh={() => setLookupTableRefreshKey(k => k + 1)}
-                />
+                <div key={`${table.id}-${lookupTableRefreshKey}`} className="h-full border-4 border-orange-500 bg-orange-100/30 dark:bg-orange-900/20 relative">
+                  <div className="absolute top-0 right-0 bg-orange-600 text-white px-2 py-1 text-xs font-bold z-50">
+                    [4] INNER DIV (ORANGE) - h-full
+                  </div>
+                  <TeeemTableView
+                    entries={[]}
+                    foundationId={table.id}
+                    tableName={table.name}
+                    enableExport={true}
+                    autoFetchRecords
+                    onRefresh={() => setLookupTableRefreshKey(k => k + 1)}
+                  />
+                </div>
               )
             ))}
           </div>

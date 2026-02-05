@@ -119,6 +119,7 @@ export function BaseFoldersTab() {
   const [sortField, setSortField] = React.useState<SortField>("warehouse_type_name");
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc");
   const [collapsedTypes, setCollapsedTypes] = React.useState<Set<string>>(new Set());
+  const [hasInitializedCollapse, setHasInitializedCollapse] = React.useState(false);
 
   const toggleTypeCollapse = (typeName: string) => {
     setCollapsedTypes(prev => {
@@ -345,6 +346,14 @@ export function BaseFoldersTab() {
     });
     return types;
   }, [baseFolders]);
+
+  // Collapse all types by default when data first loads
+  React.useEffect(() => {
+    if (!hasInitializedCollapse && allTypeNames.size > 0) {
+      setCollapsedTypes(new Set(allTypeNames));
+      setHasInitializedCollapse(true);
+    }
+  }, [hasInitializedCollapse, allTypeNames]);
 
   const allCollapsed = allTypeNames.size > 0 && collapsedTypes.size === allTypeNames.size;
 

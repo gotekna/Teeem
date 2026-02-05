@@ -9,6 +9,7 @@ module Api
     #
     class WarehouseTypesController < ApplicationController
       before_action :set_warehouse_type, only: [:show, :update, :destroy, :update_base_folders]
+      before_action :set_warehouse_type_by_code, only: [:records]
 
       # GET /api/v1/warehouse_types
       def index
@@ -171,10 +172,140 @@ module Api
         }
       end
 
+      # GET /api/v1/warehouse_types/:code/records
+      # Returns actual database records for a warehouse type (lazy-loaded on tree expand)
+      #
+      # Params:
+      #   - code: Warehouse type code (job, contact, corporate, etc.)
+      #   - limit: Max records per page (default 50, max 100)
+      #   - offset: Pagination offset (default 0)
+      #   - search: Optional search query
+      #
+      # Response:
+      # {
+      #   success: true,
+      #   data: {
+      #     records: [{ id, name, subtitle, code }, ...],
+      #     pagination: { total, limit, offset, has_more }
+      #   }
+      # }
+      def records
+        limit = (params[:limit] || 50).to_i.clamp(1, 100)
+        offset = (params[:offset] || 0).to_i
+        search = params[:search]&.strip
+
+        # Get records based on warehouse type code
+        records = case @warehouse_type.code
+        when 'job'
+          scope = Job.select(:id, :name, :location, :job_code)
+          scope = scope.where("name ILIKE ? OR job_code ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
+          scope.order(created_at: :desc)
+        when 'contact'
+          # Note: Don't use select() here - Contact model has callbacks that need other fields
+          scope = Contact.all
+          scope = scope.where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?", "%#{search}%", "%#{search}%", "%#{search}%") if search.present?
+          scope.order(:display_name)
+        when 'corporate'
+          # SSoT: Corporate links to Contact for identity. Get name from linked contact's display_name
+          scope = Corporate.select(:id, :code).includes(:company_group, :contact)
+          scope = scope.joins(:contact).where("contacts.display_name ILIKE ? OR corporates.code ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
+          scope.order("contacts.display_name")
+        when 'task'
+          scope = SmTask.select(:id, :name, :description)
+          scope = scope.where("name ILIKE ? OR description ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
+          scope.order(created_at: :desc)
+        when 'user'
+          scope = User.select(:id, :first_name, :last_name, :email)
+          scope = scope.where("first_name ILIKE ? OR last_name ILIKE ? OR email ILIKE ?", "%#{search}%", "%#{search}%", "%#{search}%") if search.present?
+          scope.order(:first_name)
+        when 'email'
+          # Emails don't have individual record folders - return empty
+          []
+        else
+          []
+        end
+
+        # Skip pagination for empty array results
+        if records.is_a?(Array)
+          total = 0
+          paginated_records = []
+        else
+          total = records.count
+          paginated_records = records.limit(limit).offset(offset).to_a
+        end
+
+        render json: {
+          success: true,
+          data: {
+            records: paginated_records.map { |r| serialize_record(r, @warehouse_type.code) },
+            pagination: {
+              total: total,
+              limit: limit,
+              offset: offset,
+              has_more: offset + limit < total
+            }
+          }
+        }
+      end
+
       private
 
       def set_warehouse_type
         @warehouse_type = WarehouseType.find(params[:id])
+      end
+
+      def set_warehouse_type_by_code
+        @warehouse_type = WarehouseType.find_by!(code: params[:code])
+      end
+
+      # Serialize a record for the records API response
+      def serialize_record(record, warehouse_type_code)
+        case warehouse_type_code
+        when 'job'
+          job_code = record.job_code.present? ? record.job_code : "J-#{record.id.to_s.rjust(3, '0')}"
+          {
+            id: record.id,
+            name: record.name || "Job ##{record.id}",
+            subtitle: record.location,
+            code: job_code
+          }
+        when 'contact'
+          {
+            id: record.id,
+            name: record.display_name || "#{record.first_name} #{record.last_name}".strip,
+            subtitle: record.company_name_or_trust,
+            code: nil
+          }
+        when 'corporate'
+          # SSoT: Corporate links to Contact for identity - get name from contact's display_name
+          {
+            id: record.id,
+            name: record.contact&.display_name || "Corporate ##{record.id}",
+            subtitle: record.company_group&.name,
+            code: record.code
+          }
+        when 'task'
+          {
+            id: record.id,
+            name: record.name || "Task ##{record.id}",
+            subtitle: record.description&.truncate(50),
+            code: "T-#{record.id}"
+          }
+        when 'user'
+          {
+            id: record.id,
+            name: "#{record.first_name} #{record.last_name}".strip,
+            subtitle: record.email,
+            code: nil
+          }
+        else
+          {
+            id: record.id,
+            name: record.try(:name) || record.try(:title) || "Record #{record.id}",
+            subtitle: nil,
+            code: nil
+          }
+        end
       end
 
       def warehouse_type_params
@@ -344,6 +475,7 @@ module Api
           iconName: warehouse_type.icon_name,
           orderPosition: warehouse_type.order_position,
           folderPathTemplate: warehouse_type.folder_path_template,
+          pathPreview: resolve_template_tokens(warehouse_type.folder_path_template),
           fileCount: file_count,
           baseFolders: base_folders.map { |bf| base_folder_tree_node(bf, warehouse_type) }
         }
@@ -387,6 +519,7 @@ module Api
           name: base_folder.name,
           parentId: base_folder.parent_id,
           folderPathTemplate: full_template,
+          pathPreview: base_folder.path_preview,
           isSystem: base_folder.is_system,
           children: children,
           warehouseFolder: warehouse_folder ? {
@@ -467,6 +600,28 @@ module Api
             end
           end
         end
+      end
+
+      # Helper to resolve template tokens to example values for preview display
+      def resolve_template_tokens(template)
+        return nil if template.blank?
+
+        preview = template.dup
+        preview.gsub!("{{JobCode}}", "J-001")
+        preview.gsub!("{{JobName}}", "Smith Residence")
+        preview.gsub!("{{ContactName}}", "John Smith")
+        preview.gsub!("{{CompanyCode}}", "ABC")
+        preview.gsub!("{{CompanyGroup}}", "ABC Group")
+        preview.gsub!("{{TaskId}}", "123")
+        preview.gsub!("{{TaskName}}", "Site Inspection")
+        preview.gsub!("{{CaseId}}", "456")
+        preview.gsub!("{{CaseName}}", "Insurance Claim")
+        preview.gsub!("{{UserName}}", "John Doe")
+        preview.gsub!("{{TabName}}", "Sales")
+        preview.gsub!("{{Year}}", Time.current.year.to_s)
+        preview.gsub!("{{Month}}", Time.current.strftime("%B"))
+        preview.gsub!("{{Mailbox}}", "inbox@example.com")
+        preview
       end
     end
   end

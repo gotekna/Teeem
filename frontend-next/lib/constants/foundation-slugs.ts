@@ -146,6 +146,7 @@ export const FOUNDATION_SLUGS = {
   // ═══════════════════════════════════════════════════════════════════════════
   // Quotes & Requests
   // ═══════════════════════════════════════════════════════════════════════════
+  QUOTE_TRACKER: 'quote-tracker',  // ⚠️ HYPHEN - PreCon quote tracking
   QUOTE_REQUESTS: 'quote_requests',
   QUOTE_REQUEST_CONTACTS: 'quote_request_contacts',
   QUOTE_RESPONSES: 'quote_responses',
@@ -244,6 +245,7 @@ export const HYPHENATED_SLUGS = [
   'price-histories',
   'pricebook-items',
   'purchase-orders',
+  'quote-tracker',
   'sm-resources',
   'sm-schedule-master',
   'sm-tasks',

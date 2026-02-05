@@ -68,7 +68,7 @@ export default function OperationsSettingsPage() {
         </TabsList>
 
         <div className="flex-1 min-h-0 mt-4 relative">
-          <TabsContent value="schedule-master" className="absolute inset-0">
+          <TabsContent value="schedule-master" className="absolute inset-0 h-full">
             <ScheduleMasterTab basePath="/settings/operations/schedule-master" />
           </TabsContent>
           <TabsContent value="sm-tasks" className="absolute inset-0 overflow-auto">
