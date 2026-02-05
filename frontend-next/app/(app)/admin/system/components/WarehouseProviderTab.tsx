@@ -243,9 +243,8 @@ interface FolderTreeNode {
   scopeKey: string | null;  // Primary scope key (first one added)
   scopeKeys: string[];  // ALL scope keys that share this path (for multi-scope folders like Tasks)
   children: FolderTreeNode[];
-  tabs?: WarehouseTabConfig[];  // Tabs under this scope folder (DEPRECATED for chips - use baseFolders)
+  tabs?: WarehouseTabConfig[];  // Tabs under this scope folder (DEPRECATED - tabs removed Feb 2026)
   baseFolders?: BaseFolderFromAPI[];  // SSoT (Feb 2026): Base folders from warehouse_types API
-  _source?: string;  // DEBUG: Track where this node was created from (e.g., "base_folder:87:Invoices")
 }
 
 // SSoT (Feb 2026): Get scope label from warehouse type display_name or convert code to Title Case
@@ -929,13 +928,6 @@ function TreeNode({
 
         {/* Folder name and scope badge */}
         <span className="font-mono text-sm">{node.name}</span>
-        {/* DEBUG: Show source of this yellow folder node directly on UI */}
-        <span
-          className="text-[9px] bg-orange-500 text-white px-1 rounded ml-1"
-          title={`Source: ${node._source || 'folder-tree-node'}, path: ${node.path}, baseFolders: ${node.baseFolders?.map(bf => `ID:${bf.id}`).join(',') || 'none'}`}
-        >
-          {node._source ? node._source.split(':').slice(0,2).join(':') : `path:${node.path}`} | bf:{node.baseFolders?.map(bf => bf.id).join(',') || '∅'}
-        </span>
 
         {/* SSoT (Feb 2026): Base folder cog icon - show for ALL folders with baseFolders */}
         {/* Removed leaf-only restriction so all folders (parent and child) get the edit cog */}
@@ -1771,10 +1763,6 @@ function TabNode({
         <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
         {/* Show folder name (from folder_path), resolved if it contains tokens */}
         <span className="text-sm font-medium">{resolveTemplatePreview(folderName || tab.display_name || '')}</span>
-        {/* DEBUG: Show source of this tab directly on UI */}
-        <span className="text-[9px] bg-red-500 text-white px-1 rounded ml-1" title={`Source: warehouse_folders table, ID: ${tab.id}, scope: ${scope}, parent_id: ${tab.parent_id || 'null'}`}>
-          ID:{tab.id} | {scope} | parent:{tab.parent_id || 'root'}
-        </span>
         {/* Document type count badge */}
         {hasDocTypes && (
           <Badge
@@ -2296,10 +2284,8 @@ export function WarehouseProviderTab() {
               scopeKey: isFirstPart ? scopeCode : null,
               scopeKeys: isFirstPart ? [scopeCode] : [],
               children: [],
-              _source: `base_folder:${bf.id}:${bf.name}`, // DEBUG: Track source
             };
             current.push(node);
-            console.log(`[folderTree] Created node "${part}" from base_folder ID:${bf.id} "${bf.name}" (scope: ${scopeCode})`);
           } else if (isFirstPart && !node.scopeKeys.includes(scopeCode)) {
             node.scopeKeys.push(scopeCode);
             // Keep first scopeKey as primary
