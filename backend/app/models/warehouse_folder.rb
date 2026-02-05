@@ -14,10 +14,11 @@ class WarehouseFolder < ApplicationRecord
   # Model renamed: EntityTab → WarehouseFolder → WarehouseFolder (Jan 2026)
   self.table_name = 'warehouse_folders'
 
-  # NOTE: Multi-tenancy REMOVED (Jan 2026)
-  # WarehouseFolders are GLOBAL configuration shared across all tenants.
-  # All WarehouseFolders have company_group_id=NULL by design.
-  # The uniqueness validation still includes company_group_id for future per-tenant customization.
+  # Multi-tenancy RE-ENABLED (Feb 2026)
+  # WarehouseFolders are now per-tenant configuration, synced via Config Sync.
+  # This allows each tenant to have their own folder structure while still
+  # being able to sync from TEEEM master tenant.
+  acts_as_tenant :tenant
   #
   # Valid warehouse types (xero tabs are children of corporate/xero tab)
   # System warehouse types (email, warehouse, task, task_attachments, task_responses, user, case) are read-only in UI - is_system_tab: true
@@ -75,8 +76,10 @@ class WarehouseFolder < ApplicationRecord
 
 
   # Associations
+  belongs_to :tenant, optional: true  # Multi-tenancy (Feb 2026)
   belongs_to :parent, class_name: 'WarehouseFolder', optional: true
   belongs_to :job, optional: true  # For per-job tabs
+  belongs_to :base_folder, optional: true  # FK to base_folders table (Feb 2026)
 
   has_many :children, class_name: 'WarehouseFolder', foreign_key: :parent_id, dependent: :destroy
 
@@ -125,7 +128,9 @@ class WarehouseFolder < ApplicationRecord
   end
 
   # Validations
-  validates :warehouse_type, presence: true, inclusion: { in: WAREHOUSE_TYPES }
+  # SSoT: warehouse_type validation now supports both constant (legacy) and database table
+  validates :warehouse_type, presence: true
+  validate :warehouse_type_valid
   validates :tab_key, presence: true
   validates :display_name, presence: true
   validates :tab_group, inclusion: { in: TAB_GROUPS }, allow_blank: true
@@ -630,6 +635,7 @@ class WarehouseFolder < ApplicationRecord
       uses_custom_path: uses_custom_path,
       warehouse_type_override: warehouse_type_override || 'corporate',
       warehouse_base_path: warehouse_base_path,
+      base_folder_path_template: base_folder&.full_path_template,  # SSoT: Full path including ancestor hierarchy
       effective_warehouse_path: effective_warehouse_path,  # For UI display (keeps {{JobCode}})
       upload_path: upload_folder_path,  # For uploads (derived from effective_warehouse_path)
       inherited_template: inherited_template,
@@ -702,14 +708,22 @@ class WarehouseFolder < ApplicationRecord
   # FRC (Feb 2026): Filter OUT internal/system folders with [[...]] syntax
   # These are template folders (e.g., [[Email Body]]/{{Subject}}) not user-visible roots
   # Example: "email" should map to "Emails", not "[[Email Body]]"
+  #
+  # FRC (Feb 2026): Use raw SQL because `belongs_to :base_folder` association
+  # shadows the `base_folder` string column, causing ActiveRecord queries to fail
   def self.warehouse_type_to_base_folder
     result = {}
-    # First pass: Get user-visible folders (no [[ in base_folder)
-    WarehouseFolder.where.not(base_folder: [nil, ''])
-                   .where("base_folder NOT LIKE '%[[%'")
-                   .distinct
-                   .pluck(:warehouse_type, :base_folder)
-                   .each do |warehouse_type, base|
+    # Use raw SQL to bypass the base_folder association shadowing issue
+    sql = <<-SQL
+      SELECT DISTINCT warehouse_type, base_folder
+      FROM warehouse_folders
+      WHERE base_folder IS NOT NULL
+        AND base_folder != ''
+        AND base_folder NOT LIKE '%[[%'
+    SQL
+    connection.execute(sql).each do |row|
+      warehouse_type = row['warehouse_type']
+      base = row['base_folder']
       result[warehouse_type] ||= base if base.present?
     end
     result
@@ -1371,5 +1385,19 @@ class WarehouseFolder < ApplicationRecord
     return if display_mode != 'icon_only' # Only block icon_only mode
 
     errors.add(:display_mode, "Sub-tabs must show text to differentiate from siblings. Use 'both' or 'text_only' instead.")
+  end
+
+  # SSoT: Validate warehouse_type against both constant and database (Feb 2026)
+  # This provides backward compatibility during migration from constant to database
+  def warehouse_type_valid
+    return if warehouse_type.blank?
+
+    # First check the constant (legacy)
+    return if WAREHOUSE_TYPES.include?(warehouse_type)
+
+    # Then check the database (new SSoT)
+    return if WarehouseType.valid_code?(warehouse_type)
+
+    errors.add(:warehouse_type, "is not a valid warehouse type")
   end
 end

@@ -275,7 +275,145 @@ module Api
         }
       end
 
+      # GET /api/v1/warehouse_folders/tree
+      # Returns full folder tree for File Warehouse page
+      # SSoT: All folder structure comes from warehouse_folders table
+      # Structure: Groups by first segment of folder_path (Corporate, Jobs, Contact, etc.)
+      #
+      # Response structure:
+      # {
+      #   success: true,
+      #   data: {
+      #     tree: [
+      #       { id: "base-corporate", name: "Corporate", type: "category", children: [...] },
+      #       { id: "base-jobs", name: "Jobs", type: "category", children: [...] },
+      #       ...
+      #     ],
+      #     counts: { "jobs" => 1234, "corporate" => 567, ... },
+      #     total: 80149
+      #   }
+      # }
+      def tree
+        # Get document counts
+        counts = fetch_warehouse_counts
+
+        # Get all enabled root folders with folder_path set
+        all_folders = WarehouseFolder
+          .where(parent_id: nil, warehouse_enabled: true, enabled: true)
+          .where.not(folder_path: [nil, ''])
+          .includes(:children)
+          .order(:order_position, :display_name)
+
+        # Group folders by first segment of folder_path (e.g., "Corporate", "Jobs", "Contact")
+        grouped = all_folders.group_by do |folder|
+          # Extract first segment: "Corporate/{{CompanyGroup}}/..." -> "Corporate"
+          folder.folder_path.to_s.split('/').first
+        end
+
+        # Build tree with base folders as root nodes
+        tree = grouped.map do |base_folder, folders|
+          next nil if base_folder.blank?
+
+          {
+            id: "base-#{base_folder.downcase.gsub(/\s+/, '-')}",
+            name: base_folder,
+            type: "category",
+            icon: base_folder_icon(base_folder),
+            warehouseType: folders.first&.warehouse_type,
+            folderPath: base_folder,
+            fullPath: base_folder,
+            fileCount: base_folder_count(base_folder, counts),
+            children: folders.map { |folder| build_tree_node(folder) }
+          }
+        end.compact
+
+        # Sort by common order: Jobs, Corporate, Contacts, Emails, Tasks, etc.
+        sort_order = %w[Jobs Corporate Contacts Contact Emails Tasks Users Warehousing Templates Cases Assets]
+        tree.sort_by! { |node| sort_order.index(node[:name]) || 999 }
+
+        render json: {
+          success: true,
+          data: {
+            tree: tree,
+            counts: counts,
+            total: counts.values.sum
+          }
+        }
+      end
+
       private
+
+      # Map base folder name to icon
+      def base_folder_icon(name)
+        {
+          "Jobs" => "briefcase",
+          "Corporate" => "building2",
+          "Contact" => "contact",
+          "Contacts" => "contact",
+          "Emails" => "mail",
+          "Tasks" => "clipboard-list",
+          "Users" => "user",
+          "Warehousing" => "warehouse",
+          "Templates" => "file-text",
+          "Cases" => "folder",
+          "Assets" => "package"
+        }[name] || "folder"
+      end
+
+      # Get count for a base folder
+      def base_folder_count(name, counts)
+        mapping = {
+          "Jobs" => "jobs",
+          "Corporate" => "corporate",
+          "Contact" => "contacts",
+          "Contacts" => "contacts",
+          "Emails" => "emails",
+          "Tasks" => "tasks",
+          "Users" => "users",
+          "Warehousing" => "warehousing",
+          "Templates" => "templates"
+        }
+        counts[mapping[name]] || 0
+      end
+
+      # Build a tree node from a WarehouseFolder
+      def build_tree_node(folder, depth = 0)
+        # Get enabled children
+        children = folder.children
+          .where(warehouse_enabled: true, enabled: true)
+          .order(:order_position, :display_name)
+
+        {
+          id: "wf-#{folder.id}",
+          name: folder.display_name,
+          type: "category",
+          icon: folder.icon_name || "folder",
+          warehouseType: folder.warehouse_type,
+          folderPath: folder.folder_path,
+          fullPath: folder.folder_path,
+          fileCount: 0,
+          children: depth < 5 ? children.map { |child| build_tree_node(child, depth + 1) } : []
+        }
+      end
+
+      # Fetch document counts grouped by warehouse_type
+      def fetch_warehouse_counts
+        # Count WarehouseDocuments by source_type (which maps to warehouse_type)
+        counts = WarehouseDocument.group(:source_type).count
+
+        # Map source_type to standard count keys
+        {
+          "jobs" => counts["job"] || 0,
+          "corporate" => counts["corporate"] || 0,
+          "contacts" => counts["contact"] || 0,
+          "emails" => counts["email"] || 0,
+          "tasks" => counts["task"] || 0,
+          "users" => counts["user"] || 0,
+          "warehousing" => counts["warehouse"] || 0,
+          "templates" => counts["template"] || 0,
+          "total" => counts.values.sum
+        }
+      end
 
       def set_warehouse_folder
         @warehouse_folder = WarehouseFolder.find(params[:id])
@@ -315,6 +453,7 @@ module Api
           :xero_scope,  # SSoT: Which Xero account this tab uses (nil, "primary", or tenant_id)
           :download_name,  # SSoT: "Document Download Name" in UI
           :ui_name,  # SSoT: "Document UI Name" in UI (Feb 2026)
+          :base_folder_id,  # SSoT: Link to base_folder for path inheritance
           entity_filters: [],
           document_type_ids: []  # SSoT: Link document types to this tab
         )

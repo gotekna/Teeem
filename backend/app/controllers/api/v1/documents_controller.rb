@@ -292,8 +292,10 @@ module Api
 
         # SSoT: Prepend scope root folder if path doesn't already include it
         # Task folders are stored as "Tasks/123/Attachments" but frontend sends "123/Attachments"
+        # FRC (Feb 2026): Compare first FOLDER exactly, not string prefix
         scope_root = scope_base_folder(scope)
-        full_path = if base_path.present? && scope_root.present? && !base_path.start_with?(scope_root)
+        first_folder = base_path.to_s.split('/').first
+        full_path = if base_path.present? && scope_root.present? && first_folder != scope_root
                       "#{scope_root}/#{base_path}"
                     else
                       base_path
@@ -639,8 +641,8 @@ module Api
           folders = folders.sort_by { |f| f[:name].to_s.downcase }
           files = []
         elsif path == "Emails"
-          # Emails folder expanded: Show individual mailboxes with links to their email page
-          # Each mailbox is clickable and navigates to /email?mailbox=xxx
+          # Emails folder expanded: Show individual mailboxes
+          # Single-click opens drawer with emails, double-click opens /email?mailbox=xxx
           mailboxes = SyncedEmail.where.not(mailbox_owner_email: [ nil, "" ])
                                   .group(:mailbox_owner_email)
                                   .count
@@ -650,7 +652,9 @@ module Api
               name: email,
               path: "Emails/#{email}",
               count: count,
-              external_link: "/email?mailbox=#{CGI.escape(email)}"  # Opens this mailbox in email page
+              is_mailbox: true,                                      # Flag for frontend drawer handling
+              mailbox_email: email,                                  # Email address for API calls
+              external_link: "/email?mailbox=#{CGI.escape(email)}"   # For double-click new window
             }
           end.sort_by { |f| f[:name].to_s.downcase }
           files = []

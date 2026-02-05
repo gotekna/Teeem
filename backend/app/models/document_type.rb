@@ -6,6 +6,9 @@ class DocumentType < ApplicationRecord
   # Note: corporate_company_documents and job_documents associations REMOVED (Jan 2026) - tables dropped
   # SSoT: WarehouseDocument is now THE ONE table for document metadata
 
+  # SSoT: WarehouseType association (Feb 2026 - database-driven warehouse types)
+  belongs_to :warehouse_type, optional: true
+
   # SSoT: WarehouseFolder associations (renamed: legacy tabs → StorageLocation → WarehouseFolder, Jan 2026)
   has_many :warehouse_folder_document_types, foreign_key: :document_type_id, dependent: :destroy
   has_many :warehouse_folders, through: :warehouse_folder_document_types

@@ -353,13 +353,14 @@ interface StorageStatus {
 
 /**
  * Get the current storage provider type
+ * FRC (Feb 2026): Return actual configured provider, no hardcoded defaults
  */
-export async function getStorageProviderType(): Promise<string> {
+export async function getStorageProviderType(): Promise<string | null> {
   try {
     const response = await api.get<StorageStatus>("/api/v1/documents/status");
-    return response?.provider_type || "sharepoint";
+    return response?.provider_type || null;
   } catch {
-    return "sharepoint";
+    return null;
   }
 }
 
@@ -397,6 +398,14 @@ export async function uploadPhoto(
   // Check provider type
   const providerType = await getStorageProviderType();
   console.log("[uploadPhoto] Storage provider:", providerType);
+
+  // FRC (Feb 2026): Fail early if no provider configured
+  if (!providerType) {
+    return {
+      success: false,
+      error: "Storage provider not configured. Please configure storage in Settings > Connections.",
+    };
+  }
 
   if (providerType === "sharepoint") {
     // Use direct SharePoint upload (faster)

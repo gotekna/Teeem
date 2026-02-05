@@ -41,8 +41,9 @@ module Api
         sp = storage_params
 
         # Get provider type and normalize legacy values (s3/wasabi → s3_compatible)
-        raw_type = sp[:provider_type].presence || storage_config.provider_type || "s3_compatible"
-        provider_type = %w[s3 wasabi].include?(raw_type) ? "s3_compatible" : raw_type
+        # FRC (Feb 2026): No hardcoded defaults - use param or existing config
+        raw_type = sp[:provider_type].presence || storage_config.provider_type
+        provider_type = raw_type.present? ? (%w[s3 wasabi].include?(raw_type) ? "s3_compatible" : raw_type) : nil
 
         # Build connection_config based on provider type
         connection_config = storage_config.connection_config || {}

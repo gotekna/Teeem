@@ -110,6 +110,10 @@ const JobEstimatorTab = dynamic(() => import("@/components/jobs/JobEstimatorTab"
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const JobQuoteTrackerTab = dynamic(() => import("@/components/jobs/JobQuoteTrackerTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
 const JobBudgetTab = dynamic(() => import("@/components/jobs/JobBudgetTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
@@ -195,6 +199,7 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "people": JobPeopleTab,
   "purchase-orders": JobPurchaseOrdersTab,
   "estimates": JobEstimatorTab,
+  "quote-tracker": JobQuoteTrackerTab,
   "boq": JobBOQTab,
   "activity": JobActivityTab,
   "schedule": JobScheduleTab,

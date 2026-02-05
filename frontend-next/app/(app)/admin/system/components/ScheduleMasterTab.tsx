@@ -2438,7 +2438,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         </TabsList>
 
         {/* Tab content container - flex-1 to fill remaining space, relative for absolute children */}
-        <div className="flex-1 min-h-0 relative mt-2">
+        <div className="flex-1 min-h-0 relative mt-2 h-full">
           <TabsContent value="schedule-templates" className="absolute inset-0 overflow-auto px-4 pt-4 space-y-6 data-[state=inactive]:hidden">
           <div className="flex items-center justify-between">
             <div>
@@ -3878,18 +3878,19 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
           </div>
 
           {/* Full-height Gold Standard Table */}
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-hidden">
             {LOOKUP_TABLES.map((table) => (
               selectedLookupTable === table.id && (
-                <TeeemTableView
-                  key={`${table.id}-${lookupTableRefreshKey}`}
-                  entries={[]}
-                  foundationId={table.id}
-                  tableName={table.name}
-                  enableExport={true}
-                  autoFetchRecords
-                  onRefresh={() => setLookupTableRefreshKey(k => k + 1)}
-                />
+                <div key={`${table.id}-${lookupTableRefreshKey}`} className="h-full">
+                  <TeeemTableView
+                    entries={[]}
+                    foundationId={table.id}
+                    tableName={table.name}
+                    enableExport={true}
+                    autoFetchRecords
+                    onRefresh={() => setLookupTableRefreshKey(k => k + 1)}
+                  />
+                </div>
               )
             ))}
           </div>

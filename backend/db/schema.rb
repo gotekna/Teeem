@@ -629,6 +629,23 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
     t.index ["xero_transaction_id"], name: "index_bank_transactions_on_xero_transaction_id", unique: true
   end
 
+  create_table "base_folders", force: :cascade do |t|
+    t.bigint "warehouse_type_id", null: false
+    t.string "name", null: false
+    t.string "folder_path_template"
+    t.boolean "is_system", default: false, null: false
+    t.boolean "enabled", default: true, null: false
+    t.integer "order_position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "parent_id"
+    t.index ["enabled"], name: "index_base_folders_on_enabled"
+    t.index ["order_position"], name: "index_base_folders_on_order_position"
+    t.index ["parent_id"], name: "index_base_folders_on_parent_id"
+    t.index ["warehouse_type_id", "name"], name: "idx_base_folders_unique_name", unique: true
+    t.index ["warehouse_type_id"], name: "index_base_folders_on_warehouse_type_id"
+  end
+
   create_table "basiq_credentials", force: :cascade do |t|
     t.string "owner_type", null: false
     t.bigint "owner_id", null: false
@@ -2302,6 +2319,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
     t.jsonb "filename_patterns", default: []
     t.jsonb "signature_field_config", default: []
     t.bigint "tenant_id"
+    t.bigint "warehouse_type_id"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["file_extensions"], name: "index_document_types_on_file_extensions", using: :gin
@@ -2310,6 +2328,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
     t.index ["scope"], name: "index_document_types_on_scope"
     t.index ["supports_versioning"], name: "index_document_types_on_supports_versioning"
     t.index ["tenant_id"], name: "index_document_types_on_tenant_id"
+    t.index ["warehouse_type_id"], name: "index_document_types_on_warehouse_type_id"
   end
 
   create_table "document_verification_feedbacks", force: :cascade do |t|
@@ -6863,7 +6882,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
     t.boolean "is_active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "document_provider", default: "sharepoint", null: false
+    t.string "document_provider", null: false
     t.bigint "document_provider_credential_id"
     t.bigint "tenant_id"
     t.bigint "company_id"
@@ -7773,6 +7792,32 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
     t.index ["responded_by_portal_user_id"], name: "index_quote_responses_on_responded_by_portal_user_id"
     t.index ["status"], name: "index_quote_responses_on_status"
     t.index ["submitted_at"], name: "index_quote_responses_on_submitted_at"
+  end
+
+  create_table "quote_trackers", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "job_id", null: false
+    t.bigint "sm_trade_id"
+    t.bigint "supplier_id"
+    t.bigint "contact_id"
+    t.string "contact_email"
+    t.date "requested_date"
+    t.boolean "received", default: false
+    t.date "date_received"
+    t.string "quote_number"
+    t.decimal "price_quoted", precision: 12, scale: 2
+    t.date "valid_to"
+    t.text "quote_request_instructions"
+    t.text "estimating_notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_quote_trackers_on_contact_id"
+    t.index ["job_id"], name: "index_quote_trackers_on_job_id"
+    t.index ["sm_trade_id"], name: "index_quote_trackers_on_sm_trade_id"
+    t.index ["supplier_id"], name: "index_quote_trackers_on_supplier_id"
+    t.index ["tenant_id", "job_id"], name: "index_quote_trackers_on_tenant_id_and_job_id"
+    t.index ["tenant_id", "supplier_id"], name: "index_quote_trackers_on_tenant_id_and_supplier_id"
+    t.index ["tenant_id"], name: "index_quote_trackers_on_tenant_id"
   end
 
   create_table "rain_logs", force: :cascade do |t|
@@ -9664,7 +9709,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
     t.string "logo_url"
     t.string "primary_color"
     t.string "secondary_color"
-    t.string "document_provider", default: "sharepoint"
+    t.string "document_provider"
     t.bigint "document_provider_credential_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -10064,7 +10109,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
     t.string "folder_path"
     t.string "ui_name"
     t.string "base_folder"
+    t.bigint "base_folder_id"
     t.index ["base_folder"], name: "index_warehouse_folders_on_base_folder"
+    t.index ["base_folder_id"], name: "index_warehouse_folders_on_base_folder_id"
     t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
     t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_warehouse_folders_on_job_id"
@@ -10078,7 +10125,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
   end
 
   create_table "warehouse_providers", force: :cascade do |t|
-    t.string "provider_type", default: "sharepoint", null: false
+    t.string "provider_type", null: false
     t.string "status", default: "disconnected", null: false
     t.jsonb "connection_config", default: {}, null: false
     t.string "root_path", default: "/Shared Documents", null: false
@@ -10094,6 +10141,22 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
     t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
     t.index ["tenant_id"], name: "index_storage_configurations_on_tenant_id_unique", unique: true
     t.index ["tenant_id"], name: "index_warehouse_providers_on_tenant_id"
+  end
+
+  create_table "warehouse_types", force: :cascade do |t|
+    t.string "code", null: false
+    t.string "display_name", null: false
+    t.text "description"
+    t.string "icon_name"
+    t.boolean "is_system", default: false, null: false
+    t.boolean "enabled", default: true, null: false
+    t.integer "order_position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "folder_path_template"
+    t.index ["code"], name: "index_warehouse_types_on_code", unique: true
+    t.index ["enabled"], name: "index_warehouse_types_on_enabled"
+    t.index ["order_position"], name: "index_warehouse_types_on_order_position"
   end
 
   create_table "whs_action_items", force: :cascade do |t|
@@ -10739,6 +10802,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
   add_foreign_key "bank_transactions", "bank_accounts"
   add_foreign_key "bank_transactions", "corporates", column: "company_id"
   add_foreign_key "bank_transactions", "tenants"
+  add_foreign_key "base_folders", "base_folders", column: "parent_id"
+  add_foreign_key "base_folders", "warehouse_types"
   add_foreign_key "batch_operations", "jobs"
   add_foreign_key "batch_operations", "users"
   add_foreign_key "bill_inboxes", "bpmn_process_instances"
@@ -10875,6 +10940,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
   add_foreign_key "document_tasks", "storage_blobs"
   add_foreign_key "document_templates", "tenants"
   add_foreign_key "document_types", "tenants"
+  add_foreign_key "document_types", "warehouse_types"
   add_foreign_key "document_verification_feedbacks", "users"
   add_foreign_key "e_signature_certificates", "e_signature_requests"
   add_foreign_key "e_signature_events", "e_signature_requests"
@@ -11408,6 +11474,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
   add_foreign_key "quote_responses", "contacts"
   add_foreign_key "quote_responses", "portal_users", column: "responded_by_portal_user_id"
   add_foreign_key "quote_responses", "quote_requests"
+  add_foreign_key "quote_trackers", "contact_persons", column: "contact_id"
+  add_foreign_key "quote_trackers", "contacts", column: "supplier_id"
+  add_foreign_key "quote_trackers", "jobs"
+  add_foreign_key "quote_trackers", "sm_trades"
+  add_foreign_key "quote_trackers", "tenants"
   add_foreign_key "rain_logs", "jobs"
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
   add_foreign_key "recipe_categories", "recipe_categories", column: "parent_id"
@@ -11636,6 +11707,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143451) do
   add_foreign_key "warehouse_documents", "warehouse_documents", column: "parent_document_id", on_delete: :nullify, validate: false
   add_foreign_key "warehouse_folder_document_types", "document_types"
   add_foreign_key "warehouse_folder_document_types", "warehouse_folders"
+  add_foreign_key "warehouse_folders", "base_folders"
   add_foreign_key "warehouse_folders", "jobs"
   add_foreign_key "warehouse_folders", "tenants"
   add_foreign_key "warehouse_folders", "warehouse_folders", column: "parent_id"

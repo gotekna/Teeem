@@ -2,6 +2,14 @@
 
 import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +55,9 @@ import {
   BookOpen,
   ArrowRight,
   Layers,
+  Zap,
+  Lock,
+  Plus,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -57,64 +68,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { TokenBuilder, resolveWithExamples } from "@/components/ui/tokens";
 import { getWarehouseScopeForType } from "@/lib/placeholders";
 import Link from "next/link";
+import { WarehouseFolderEditor, WarehouseFolderEditData } from "@/components/admin/WarehouseFolderEditor";
 
-// SSoT: Simple scopes have inline editing (no document types)
-// Note: 'overview' is needed because the Tasks folder can have scopeKey='overview'
-// (from WarehouseTabConfig.scope_base_folders when tab_key='overview' shares path with 'task')
-// Note: 'user' added for Teeem Docs (personal user documents)
-const SIMPLE_SCOPES = ['email', 'warehouse', 'task', 'user', 'overview'];
-// SSoT: Complex scopes need separate tab (have document types, entity filters)
-const COMPLEX_SCOPES = ['corporate', 'job', 'contact'];
-
-// SSoT: Warehouse types that inherit path from a parent type
-// These store only their suffix (e.g., "Attachments") and inherit the base from parent
-// Backend and frontend MUST match - WarehouseProvider.WAREHOUSE_TYPE_PARENTS is THE SSoT
-//
-// Example: task_attachments stores "Attachments", path_for(:task_attachments) returns
-// "Tasks/{{TaskId}}/{{TaskName}}/Attachments" (parent path + suffix)
-const WAREHOUSE_TYPE_PARENTS: Record<string, string> = {
-  'task_attachments': 'task',
-  'task_responses': 'task',
-  'case_documents': 'case',
-  'case_emails': 'case',
-  'email_body': 'email',
-  'email_attachments': 'email',
-  'asset_expenses': 'asset',
-  'asset_service': 'asset',
-  'asset_readings': 'asset',
-  'user_excel': 'user',
-  'user_word': 'user',
-  'user_powerpoint': 'user',
-  'user_pdf': 'user',
-  'user_notes': 'user',
-};
-
-// Human-readable labels for scope links
-const SCOPE_LABELS: Record<string, string> = {
-  corporate: 'Corporate',
-  job: 'Jobs',
-  contact: 'Contacts',
-  user: 'Teeem Docs',
-  // Teeem Docs sub-scopes (Feb 2026)
-  user_excel: 'Excel',
-  user_word: 'Word',
-  user_powerpoint: 'PowerPoint',
-  user_pdf: 'PDF',
-  user_notes: 'Notes',
-  // Email sub-scopes
-  email_body: 'Email Body',
-  email_attachments: 'Attachments',
-  // Warehousing sub-scopes
-  chat: 'Chat',
-  bill_inbox: 'Bill Inbox',
-  notebook: 'Notes',
-  // Template sub-scopes (Jan 2026)
-  template_documents: 'Document Templates',
-  template_bank_statements: 'Bank Statements',
-  template_invoices: 'Invoice Templates',
-  template_email_signatures: 'Email Signatures',
-  template_pdf_fields: 'PDF Fields',
-};
+// SSoT (Feb 2026): All warehouse type config now comes from database
+// - base_folder.full_path_template is the SSoT for folder paths
+// - warehouseTypes.display_name for scope labels
+// - No parent-child derivation needed - base_folders store complete paths
 
 // SSoT: Provider types match WarehouseProvider.PROVIDER_TYPES
 // Backend consolidates wasabi/s3 into s3_compatible
@@ -145,14 +104,48 @@ function normalizeProviderType(apiValue: string | null | undefined): ProviderTyp
 type ScopeFolders = Record<string, string>;
 
 // Document type interface
-// Note: display_name contains the Document UI Name TEMPLATE (with tokens like {ContactName})
-// name contains the actual document type name like "Xero Invoice"
+// SSoT (Feb 2026): Consistent naming with WarehouseFolder - ui_name and download_name
 interface DocumentType {
   id: number;
   name: string;  // Actual doc type name: "Xero Invoice"
   abbreviation?: string;  // Short code: "XINV"
-  display_name?: string;  // Document UI Name TEMPLATE: "{ContactName} {DocTypeName} {Date}"
-  file_name?: string;  // Document Download Name TEMPLATE: "{ContactName} {DocTypeCode} {Date}"
+  ui_name?: string;  // Document UI Name TEMPLATE: "{ContactName} {DocTypeName} {Date}"
+  download_name?: string;  // Document Download Name TEMPLATE: "{ContactName} {DocTypeCode} {Date}"
+}
+
+// SSoT (Feb 2026): Base folders from warehouse_types API
+// These are THE ONE source of truth for folder categories shown as chips
+interface BaseFolderFromAPI {
+  id: number;
+  name: string;
+  parent_id?: number | null;  // SSoT: For parent folder hierarchy
+  parent_name?: string;       // SSoT: Parent folder name for display
+  children_count?: number;    // SSoT: Number of child folders
+  folder_path_template?: string;
+  full_path_template?: string;  // SSoT: Full path including warehouse type's template
+  scope_base_template?: string;  // SSoT: Warehouse type's base template (e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}")
+  path_preview?: string;
+  is_system?: boolean;  // System base folders can't be deleted (e.g., Task Attachments)
+  // SSoT (Feb 2026): Linked warehouse_folder for UI/DL name editing
+  warehouse_folder?: {
+    id: number;
+    display_name: string;
+    folder_path?: string;
+    ui_name?: string;
+    download_name?: string;
+    parent_id?: number | null;  // SSoT: For parent tab selection
+    // SSoT (Feb 2026): Document types for tree view display
+    document_types?: DocumentType[];
+  };
+}
+
+// WarehouseType from API (for base folders lookup and tree building)
+interface WarehouseTypeFromAPI {
+  id: number;
+  code: string;
+  display_name: string;
+  folder_path_template?: string;  // e.g., "Tasks/{{TaskId}}/{{TaskName}}"
+  base_folders: BaseFolderFromAPI[];
 }
 
 // WarehouseFolder interface for tabs under each scope
@@ -174,6 +167,7 @@ interface WarehouseTabConfig {
   icon_name: string | null;
   folder_path?: string | null;
   base_folder?: string | null;  // SSoT: First segment of folder_path (from database)
+  base_folder_path_template?: string | null;  // SSoT: Template from base_folders table
   children?: WarehouseTabConfig[];
   document_types?: DocumentType[];
 }
@@ -240,187 +234,17 @@ interface FolderTreeNode {
   scopeKey: string | null;  // Primary scope key (first one added)
   scopeKeys: string[];  // ALL scope keys that share this path (for multi-scope folders like Tasks)
   children: FolderTreeNode[];
-  tabs?: WarehouseTabConfig[];  // Tabs under this scope folder
+  tabs?: WarehouseTabConfig[];  // Tabs under this scope folder (DEPRECATED for chips - use baseFolders)
+  baseFolders?: BaseFolderFromAPI[];  // SSoT (Feb 2026): Base folders from warehouse_types API
 }
 
-// SSoT: Known scope root folder names (first segment of paths that should appear at root)
-// These match DEFAULT_WAREHOUSE_FOLDERS in WarehouseProvider (Jan 2026 consolidation)
-// Note: 'People' merged into 'Contacts'
-// Note: 'Users' added for Teeem Docs (personal user documents - Jan 2026)
-const KNOWN_ROOT_FOLDERS = [
-  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Users', 'Teeem Docs', 'Warehouse', 'Warehousing', 'Shared', 'System',
-  // Added Jan 2026 - new warehouse scopes
-  'Cases', 'Assets', 'Financials', 'Payments', 'ESignatures', 'Templates'
-];
-
-// Build tree structure from flat scope folders
-function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
-  const root: FolderTreeNode[] = [];
-
-  // Sort entries by path for consistent tree building
-  // SSoT FIX (Jan 2026): Filter out null values before sorting to prevent crash
-  // API may return null values for scopes that haven't been configured
-  const entries = Object.entries(scopeFolders)
-    .filter(([, path]) => path !== null && path !== undefined)
-    .sort(([, a], [, b]) => a.localeCompare(b));
-
-  // Filter out paths that shouldn't be at root level:
-  // 1. Paths that start with {{ or [[ (placeholder at root level)
-  // 2. Paths that don't start with a known scope root folder (e.g., "ActiveStorage", "Attachments")
-  //    These are tab paths that should be relative to their scope but were stored incorrectly
-  const filteredEntries = entries.filter(([key, path]) => {
-    if (!path) return false;
-    // Skip paths that start with {{ or [[ (placeholder/literal at root level)
-    // {{Token}} = dynamic placeholder, [[Token]] = literal folder name placeholder
-    if (path.startsWith('{{') || path.startsWith('[[')) return false;
-    // Skip paths whose first segment isn't a known scope root folder
-    // This filters out "ActiveStorage", "Attachments", "Documents", "Revit", "Email Body" etc.
-    // that should be nested under their scope roots but aren't
-    const firstSegment = path.split('/')[0];
-    if (!KNOWN_ROOT_FOLDERS.includes(firstSegment)) {
-      // Exception: Keep scope root entries themselves (overview tabs for each scope)
-      // These have keys like 'email', 'warehouse', 'job', 'user', etc.
-      // SSoT: 'people' merged into 'contact' (Jan 2026 consolidation)
-      const isOverviewTab = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate', 'corporate', 'user'].includes(key);
-      // SSoT: Also keep child scopes (task_attachments, task_responses, etc.)
-      // They store suffix only (e.g., "Responses") and we compute full path later
-      const isChildScope = key in WAREHOUSE_TYPE_PARENTS;
-      if (!isOverviewTab && !isChildScope) return false;
-    }
-    return true;
-  });
-
-  // Main scope keys that should have scopeKey on their first folder, not the leaf
-  // SSoT: 'people' merged into 'contact' (Jan 2026 consolidation)
-  // SSoT: 'case' added for Case document management (Jan 2026)
-  // SSoT: 'asset' added for Asset Register documents (Jan 2026)
-  // SSoT: 'financial' added for Financial transaction receipts (Jan 2026)
-  // SSoT: 'compliance' added for job compliance docs (Jan 2026)
-  // SSoT: 'payment' added for subcontractor payment docs (Jan 2026)
-  // SSoT: 'bank_statement', 'template', 'esignature', 'plan' added (Jan 2026)
-  // SSoT: All scope keys that should show as badges in the tree view
-  // Includes sub-scopes like task_attachments, task_responses that need separate configuration
-  const mainScopeKeys = [
-    'email', 'warehouse', 'job', 'contact', 'task', 'corporate', 'user',
-    'case', 'case_documents', 'case_emails',
-    'asset', 'asset_expenses', 'asset_service', 'asset_readings',
-    'financial', 'financial_transactions',
-    'compliance', 'payment', 'payment_invoices', 'payment_proof',
-    'bank_statement', 'template',
-    'template_documents', 'template_bank_statements', 'template_invoices', 'template_email_signatures', 'template_pdf_fields',
-    'esignature', 'esignature_pending', 'esignature_completed',
-    'plan',
-    'task_attachments', 'task_responses',  // Task sub-scopes
-    'user_excel', 'user_word', 'user_powerpoint', 'user_pdf', 'user_notes',  // Teeem Docs sub-scopes
-  ];
-
-  filteredEntries.forEach(([key, path]) => {
-    if (!path) return;
-
-    // SSoT: Child scopes (task_attachments, task_responses, etc.) need parent path + suffix
-    // But DB may store full path or just suffix - need to extract suffix correctly
-    const parentKey = WAREHOUSE_TYPE_PARENTS[key];
-    let effectivePath = path;
-    if (parentKey) {
-      const parentPath = scopeFolders[parentKey];
-      if (parentPath) {
-        // Extract suffix from child's stored path (may be full path or just suffix)
-        let suffix = path;
-        if (path.startsWith(parentPath)) {
-          // Stored full path matches parent - extract suffix
-          suffix = path.substring(parentPath.length).replace(/^\//, '');
-        } else if (path.includes('/')) {
-          // Stored path doesn't match parent - extract differing parts
-          const pathParts = path.split('/');
-          const parentParts = parentPath.split('/');
-          let diffIndex = 0;
-          while (diffIndex < pathParts.length && diffIndex < parentParts.length && pathParts[diffIndex] === parentParts[diffIndex]) {
-            diffIndex++;
-          }
-          suffix = pathParts.slice(diffIndex).join('/');
-        }
-        // Child scope: combine parent base + extracted suffix
-        // e.g., "Tasks/{{TaskId}}/{{TaskName}}" + "Attachments" = "Tasks/{{TaskId}}/{{TaskName}}/Attachments"
-        effectivePath = suffix ? `${parentPath}/${suffix}`.replace(/\/+/g, '/') : parentPath;
-      }
-    }
-
-    // Split path but stop at first placeholder for folder building
-    // e.g., "Tasks/{{TaskStatus}}/{{JobName}}" → only create "Tasks" folder
-    const allParts = effectivePath.split('/').filter(Boolean);
-    const isMainScope = mainScopeKeys.includes(key);
-
-    // For main scopes, filter out placeholder parts but KEEP static parts after them
-    // e.g., "Jobs/{{JobCode}}/Compliance" → ['Jobs', 'Compliance']
-    // This allows compliance and plan scopes to create proper child nodes under Jobs
-    // FRC: Check both {{ (dynamic) and [[ (literal) placeholder syntax
-    const isPlaceholder = (p: string) => p.startsWith('{{') || p.startsWith('[[');
-    let parts = allParts;
-    if (isMainScope) {
-      // Filter out placeholder parts, keep all static parts
-      parts = allParts.filter(p => !isPlaceholder(p));
-      if (parts.length === 0) {
-        // Path is all placeholders - skip entirely
-        return;
-      }
-    }
-
-    let current = root;
-    let currentPath = '';
-
-    // Track actual static parts for determining leaf
-    const staticParts = parts.filter(p => !isPlaceholder(p));
-
-    parts.forEach((part, index) => {
-      // Skip placeholder parts entirely for tree building
-      if (isPlaceholder(part)) return;
-
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-      const staticIndex = staticParts.indexOf(part);
-      // SSoT (Feb 2026): Always put scope badge on FIRST static folder (root level)
-      // This keeps badges visible at top level, not buried in subfolders
-      const shouldSetScopeKey = staticIndex === 0;
-
-      // Look for existing node at this level
-      let node = current.find(n => n.name === part);
-
-      if (!node) {
-        // Only add main scope keys to scopeKeys (prevents duplicate badges from legacy variants like email-attachments)
-        const shouldAddAsScopeKey = shouldSetScopeKey && mainScopeKeys.includes(key);
-        node = {
-          name: part,
-          path: currentPath,
-          scopeKey: shouldAddAsScopeKey ? key : null,
-          scopeKeys: shouldAddAsScopeKey ? [key] : [],
-          children: [],
-        };
-        current.push(node);
-      } else if (shouldSetScopeKey && mainScopeKeys.includes(key)) {
-        // Multiple scopes share this path - add to scopeKeys array
-        // Only add main scope keys (prevents duplicate badges from legacy variants)
-        if (!node.scopeKeys.includes(key)) {
-          node.scopeKeys.push(key);
-        }
-        // SSoT: Main scope keys (email, job, task, etc.) should ALWAYS be the primary scopeKey
-        // because warehouse_folders only has entries for main scopes
-        // Without this, 'email-attachments' (alphabetically first) would steal primary from 'email'
-        if (!node.scopeKey || (isMainScope && !mainScopeKeys.includes(node.scopeKey))) {
-          node.scopeKey = key;
-        }
-      }
-
-      current = node.children;
-    });
-  });
-
-  return root;
-}
-
-// Get scope label from key (uses SCOPE_LABELS if defined, else snake_case to Title Case)
-function getScopeLabel(key: string): string {
-  // Check SCOPE_LABELS first for custom labels (e.g., 'user' → 'Teeem Docs')
-  if (SCOPE_LABELS[key]) {
-    return SCOPE_LABELS[key];
+// SSoT (Feb 2026): Get scope label from warehouse type display_name or convert code to Title Case
+// warehouseTypes lookup is passed in where available, otherwise falls back to code conversion
+function getScopeLabel(key: string, warehouseTypes?: WarehouseTypeFromAPI[]): string {
+  // Look up display_name from warehouseTypes if available
+  if (warehouseTypes) {
+    const wt = warehouseTypes.find(t => t.code === key);
+    if (wt?.display_name) return wt.display_name;
   }
   // Fallback: convert snake_case to Title Case
   return key
@@ -433,20 +257,6 @@ function getScopeLabel(key: string): string {
 function normalizePathDisplay(path: string | null | undefined): string {
   if (!path) return '';
   return path.replace(/\{\{TeeemXL\}\}/gi, '{{TabName}}');
-}
-
-// Check if a scopeKey belongs to a simple scope (warehouse, email, task families)
-function isSimpleScopeKey(scopeKey: string | null): boolean {
-  if (!scopeKey) return false;
-  // Direct simple scopes
-  if (SIMPLE_SCOPES.includes(scopeKey)) return true;
-  // Sub-scopes of simple scopes (e.g., bill_inbox is under warehouse)
-  const simpleSubScopes = [
-    'bill_inbox', 'chat', 'excel_documents', 'notes', 'powerpoint_documents',
-    'pricebook_photos', 'templates', 'bank_statements', 'contracts', 'word_documents',
-    'email_attachments'
-  ];
-  return simpleSubScopes.includes(scopeKey);
 }
 
 // ============================================================================
@@ -664,6 +474,109 @@ function FolderEditPanel({
   );
 }
 
+// SSoT (Feb 2026): Collapsible document types list with full details
+interface DocumentTypesListProps {
+  documentTypes: DocumentType[];
+  folderName: string;
+  folderPath: string;
+  onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
+}
+
+function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocumentType }: DocumentTypesListProps) {
+  const [isExpanded, setIsExpanded] = React.useState(false);
+
+  const total = documentTypes.length;
+  const configured = documentTypes.filter(dt => dt.ui_name && dt.download_name).length;
+  const allConfigured = configured === total;
+
+  return (
+    <div className="mt-1.5">
+      {/* Collapsible header */}
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-1.5 text-[9px] hover:bg-muted/50 rounded px-1 py-0.5 -ml-1"
+      >
+        {isExpanded ? (
+          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-3 w-3 text-muted-foreground" />
+        )}
+        <span className="text-muted-foreground">Docs:</span>
+        <span
+          className={`px-1 rounded ${
+            allConfigured
+              ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+              : 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
+          }`}
+        >
+          {configured}/{total}
+        </span>
+      </button>
+
+      {/* Expanded document types list */}
+      {isExpanded && (
+        <div className="mt-1 ml-3 border-l-2 border-muted pl-2 space-y-1">
+          {documentTypes.map(dt => {
+            const isConfigured = dt.ui_name && dt.download_name;
+            return (
+              <div
+                key={dt.id}
+                className="text-[9px] py-1 hover:bg-muted/30 rounded px-1 -ml-1 cursor-pointer group"
+                onClick={() => onEditDocumentType?.({
+                  id: dt.id,
+                  name: dt.name,
+                  abbreviation: dt.abbreviation,
+                  ui_name: dt.ui_name,
+                  download_name: dt.download_name,
+                  folder_name: folderName,
+                  folder_path: folderPath,
+                })}
+              >
+                {/* Document name */}
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-foreground">
+                    {dt.name}
+                  </span>
+                  {dt.abbreviation && (
+                    <span className="text-muted-foreground">({dt.abbreviation})</span>
+                  )}
+                  <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+                {/* UI/DL badges with actual values */}
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "font-mono text-[9px]",
+                      dt.ui_name
+                        ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                        : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                    )}
+                  >
+                    UI: {dt.ui_name || '(default)'}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "font-mono text-[9px]",
+                      dt.download_name
+                        ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                        : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                    )}
+                  >
+                    DL: {dt.download_name || '(default)'}
+                  </Badge>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // TreeNode component for folder hierarchy
 interface TreeNodeProps {
   node: FolderTreeNode;
@@ -694,6 +607,12 @@ interface TreeNodeProps {
   onToggleVirtual: (scopeKey: string, isVirtual: boolean) => Promise<void>;
   // SSoT: warehouse_folders - full path patterns like Jobs/{{JobCode}}
   scopeRootFolders: Record<string, string>;
+  // SSoT (Feb 2026): All warehouse types for display_name lookup
+  warehouseTypes: WarehouseTypeFromAPI[];
+  // SSoT (Feb 2026): Edit warehouse folder UI/DL names
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null }) => void;
+  // SSoT (Feb 2026): Edit document type UI/DL names
+  onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
 
 function TreeNode({
@@ -720,6 +639,9 @@ function TreeNode({
   virtualScopes,
   onToggleVirtual,
   scopeRootFolders,
+  warehouseTypes,
+  onEditWarehouseFolder,
+  onEditDocumentType,
 }: TreeNodeProps) {
   const hasChildren = node.children.length > 0;
   const hasTabs = node.tabs && node.tabs.length > 0;
@@ -734,51 +656,12 @@ function TreeNode({
   // Use editingKey when available, otherwise primary scopeKey
   const activeScopeKey = currentEditingScopeKey || node.scopeKey;
 
-  // SSoT: Load folder template from warehouse_folders (the source of truth)
-  // For child types, extract suffix from full path (full path - parent path)
+  // SSoT (Feb 2026): Load folder template directly from scopeRootFolders
+  // base_folder.full_path_template is the SSoT - no parent-child derivation needed
   const getInitialFolderTemplate = (scopeKey: string | null | undefined): string => {
     if (!scopeKey) return '';
-
-    const parentKey = WAREHOUSE_TYPE_PARENTS[scopeKey];
-    if (parentKey) {
-      // Child type: extract suffix from SSoT full path
-      const fullPath = scopeRootFolders[scopeKey] || '';
-      const parentPath = scopeRootFolders[parentKey] || '';
-
-      // If full path includes parent path, extract suffix
-      if (fullPath && parentPath && fullPath.startsWith(parentPath)) {
-        return fullPath.substring(parentPath.length).replace(/^\//, '');
-      }
-
-      // Legacy/migration: DB might store only suffix (e.g., "Attachments" not full path)
-      // If stored value doesn't start with parent, treat it as the suffix itself
-      if (fullPath && !fullPath.includes('/')) {
-        return fullPath;
-      }
-
-      // DB has mismatched path (e.g., "Tasks/{{TaskId}}/Attachments" when parent is "Tasks/{{TaskId}}/{{TaskName}}")
-      // Extract the LAST segment as the suffix (e.g., "Attachments")
-      if (fullPath) {
-        const parts = fullPath.split('/');
-        // Find the part that differs from parent - usually the last segment
-        const parentParts = parentPath.split('/');
-        // Skip common prefix parts, take the rest as suffix
-        let diffIndex = 0;
-        while (diffIndex < parts.length && diffIndex < parentParts.length && parts[diffIndex] === parentParts[diffIndex]) {
-          diffIndex++;
-        }
-        // Return the differing parts (usually just the last segment like "Attachments")
-        const suffixParts = parts.slice(diffIndex);
-        if (suffixParts.length > 0) {
-          return suffixParts.join('/');
-        }
-      }
-
-      return '';
-    }
-
-    // Parent type: use stored template (or empty)
-    return scopeTemplates[scopeKey] || '';
+    // Return full path template from base_folder (SSoT)
+    return scopeRootFolders[scopeKey] || scopeTemplates[scopeKey] || '';
   };
 
   const [folderTemplate, setFolderTemplate] = React.useState(
@@ -945,9 +828,9 @@ function TreeNode({
     setUiNameTemplate(value);
   };
 
-  // Determine if this node is in a simple scope context (for inline editing)
-  const isInSimpleScope = parentScopeKey ? SIMPLE_SCOPES.includes(parentScopeKey) : false;
-  const isSimpleScopeChild = isInSimpleScope && node.scopeKey && !SIMPLE_SCOPES.includes(node.scopeKey);
+  // SSoT (Feb 2026): Simple/complex distinction removed - all scopes use base_folders
+  const isInSimpleScope = false;
+  const isSimpleScopeChild = false;
 
   // Reset edit value and templates when editing starts or switches to a different scope
   // IMPORTANT: Only initialize templates when SCOPE actually changes, not when props update after save
@@ -1031,105 +914,122 @@ function TreeNode({
         {/* Folder name and scope badge */}
         <span className="font-mono text-sm">{node.name}</span>
 
-        {/* Scope badges - show all scopes that share this path */}
-        {node.scopeKeys && node.scopeKeys.length > 0 && (
-          <div className="flex items-center gap-1 ml-2">
-            {node.scopeKeys.map((sk) => (
-              <div key={sk} className="flex items-center gap-1">
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "h-5 text-[10px] px-1.5 bg-background cursor-pointer hover:bg-muted transition-colors",
-                    editingKey === sk && "ring-2 ring-primary"
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Auto-expand folder to show edit panel and children
-                    if (!expandedPaths.has(node.path)) {
-                      onToggle(node.path);
-                    }
-                    onStartEdit(sk);
-                  }}
-                  title="Click to edit path"
-                >
-                  {getScopeLabel(sk)}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* SSoT (Feb 2026): Config link buttons removed for consistency - all scopes show tabs */}
-
-        {/* Individual tab badges */}
-        {hasTabs && (
+        {/* SSoT (Feb 2026): Base folder cog icon - show for ALL folders with baseFolders */}
+        {/* Removed leaf-only restriction so all folders (parent and child) get the edit cog */}
+        {node.baseFolders && node.baseFolders.length > 0 && (
           <div className="flex items-center gap-1 ml-1">
-            {node.tabs!.map((tab) => (
-              <Badge
-                key={tab.id}
-                variant="secondary"
-                className="h-5 text-[10px] px-1.5"
-                title={`Tab: ${tab.display_name}`}
-              >
-                {tab.display_name}
-              </Badge>
+            {node.baseFolders.map((bf) => (
+              <div key={bf.id} className="flex items-center gap-0.5">
+                {/* Only show lock/folder icon on leaf nodes to reduce clutter */}
+                {node.children.length === 0 && (
+                  <span
+                    className="p-0.5"
+                    title={bf.is_system
+                      ? `System folder (required by code): ${bf.name}`
+                      : `Base folder: ${bf.name}`}
+                  >
+                    {bf.is_system ? (
+                      <Lock className="h-3 w-3 text-muted-foreground" />
+                    ) : (
+                      <Folder className="h-3 w-3 text-muted-foreground" />
+                    )}
+                  </span>
+                )}
+                {/* Edit button for ALL base folders - show cog whether or not warehouse_folder is linked */}
+                {onEditWarehouseFolder && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // SSoT: Use warehouse type's base template (scope_base_template) as the grey prefix
+                      // e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}" for corporate folders
+                      const baseTemplate = bf.scope_base_template || '';
+                      // Ensure it ends with / for proper path building
+                      const basePath = baseTemplate && !baseTemplate.endsWith('/') ? baseTemplate + '/' : baseTemplate;
+                      onEditWarehouseFolder({
+                        id: bf.warehouse_folder?.id || 0,  // 0 = needs to be created
+                        display_name: bf.warehouse_folder?.display_name || bf.name,
+                        folder_path: bf.warehouse_folder?.folder_path || bf.full_path_template || bf.folder_path_template,
+                        download_name: bf.warehouse_folder?.download_name,
+                        ui_name: bf.warehouse_folder?.ui_name,
+                        base_folder_path_template: basePath,  // SSoT: Warehouse type's template (greyed out)
+                        base_folder_id: bf.id,  // Pass base_folder id for linking/creating
+                        parent_id: bf.warehouse_folder?.parent_id,  // Prefill current parent
+                      });
+                    }}
+                    className="p-0.5 hover:bg-muted rounded"
+                    title="Edit UI/DL names"
+                  >
+                    <Settings className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* SSoT: Show warehouse_folders path pattern under folder name */}
-      {(() => {
-        // Get ALL scope keys for this node
+      {/* SSoT (Feb 2026): Show base folder details for LEAF nodes */}
+      {/* Show folder path, UI/DL names - matching WarehouseFoldersConfig style */}
+      {node.baseFolders && node.baseFolders.length > 0 && node.children.length === 0 && (
+        <div style={{ paddingLeft: `${level * 16 + 28}px` }}>
+          {node.baseFolders.map((bf) => (
+            <div key={bf.id} className="mb-2 text-[10px]">
+              {/* Full folder path */}
+              <div className="font-mono text-muted-foreground py-0.5">
+                {bf.full_path_template || bf.folder_path_template || '—'}
+              </div>
+              {/* UI/DL badges with actual values - green if set, orange if default */}
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "font-mono text-[9px]",
+                    bf.warehouse_folder?.ui_name
+                      ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                      : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                  )}
+                >
+                  UI: {bf.warehouse_folder?.ui_name || '(default)'}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "font-mono text-[9px]",
+                    bf.warehouse_folder?.download_name
+                      ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                      : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                  )}
+                >
+                  DL: {bf.warehouse_folder?.download_name || '(default)'}
+                </Badge>
+              </div>
+              {/* Document types linked to this folder - collapsible rows */}
+              {bf.warehouse_folder?.document_types && bf.warehouse_folder.document_types.length > 0 && (
+                <DocumentTypesList
+                  documentTypes={bf.warehouse_folder.document_types}
+                  folderName={bf.name}
+                  folderPath={bf.full_path_template || bf.folder_path_template || ''}
+                  onEditDocumentType={onEditDocumentType}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {/* For non-leaf nodes, show just the path */}
+      {node.children.length > 0 && (() => {
         const scopeKeys = node.scopeKeys || (node.scopeKey ? [node.scopeKey] : []);
         if (scopeKeys.length === 0 || isEditingThisNode) return null;
 
-        // Find the parent scope (not a child of another scope)
-        // This ensures we show the full base path, not a child suffix
-        const parentScopeKey = scopeKeys.find(sk => !WAREHOUSE_TYPE_PARENTS[sk]) || scopeKeys[0];
-
-        // For child scopes (task_attachments, task_responses, etc.), compute path from parent
-        const isChildScope = !!WAREHOUSE_TYPE_PARENTS[parentScopeKey];
-        let displayPath: string;
-
-        if (isChildScope) {
-          // Child scope: show parent's path + this scope's suffix
-          const actualParentKey = WAREHOUSE_TYPE_PARENTS[parentScopeKey];
-          const parentPath = actualParentKey ? scopeRootFolders[actualParentKey] : '';
-          const storedPath = scopeRootFolders[parentScopeKey] || '';
-
-          // Extract suffix: if stored path starts with parent path, take the rest; otherwise use stored path
-          let suffix = storedPath;
-          if (parentPath && storedPath.startsWith(parentPath)) {
-            suffix = storedPath.substring(parentPath.length).replace(/^\//, '');
-          } else if (storedPath.includes('/')) {
-            // Stored path doesn't match parent - extract last part as suffix
-            const parts = storedPath.split('/');
-            suffix = parts[parts.length - 1];
-          }
-
-          // Combine parent path + suffix
-          displayPath = parentPath && suffix
-            ? `${parentPath}/${suffix}`.replace(/\/+/g, '/')
-            : parentPath || storedPath;
-        } else {
-          // Parent scope: use stored path directly
-          const rootFolderPath = scopeRootFolders[parentScopeKey];
-          if (!rootFolderPath) return null;
-          displayPath = rootFolderPath;
-        }
-
-        // Strip legacy {{TeeemXL}} from display, keep {{TabName}} (clearer)
-        displayPath = displayPath
+        const primaryScopeKey = scopeKeys[0];
+        const displayPath = (scopeRootFolders[primaryScopeKey] || '')
           .replace(/\{\{TeeemXL\}\}/gi, '{{TabName}}')
           .replace(/\/+/g, '/')
           .replace(/\/+$/, '');
 
         if (!displayPath) return null;
 
-        // Get UI/Download name status for this scope
-        const scopeUiName = uiNameTemplates[parentScopeKey] || '';
-        const scopeDownloadName = downloadNameTemplates[parentScopeKey] || '';
+        const hasDynamicMailbox = displayPath.includes('{{Mailbox}}');
 
         return (
           <div
@@ -1137,30 +1037,15 @@ function TreeNode({
             style={{ paddingLeft: `${level * 16 + 28}px` }}
           >
             <span>{displayPath}</span>
-            {/* UI Name indicator: green=custom, orange=default */}
-            <span
-              className={cn(
-                "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
-                scopeUiName
-                  ? "bg-green-500 text-white dark:bg-green-600"
-                  : "bg-orange-500 text-white dark:bg-orange-600"
-              )}
-              title={`UI Name: ${scopeUiName || '{{OriginalFileName}} (default)'}`}
-            >
-              UI
-            </span>
-            {/* Download Name indicator: green=custom, orange=default */}
-            <span
-              className={cn(
-                "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
-                scopeDownloadName
-                  ? "bg-green-500 text-white dark:bg-green-600"
-                  : "bg-orange-500 text-white dark:bg-orange-600"
-              )}
-              title={`Download Name: ${scopeDownloadName || '{{OriginalFileName}} (default)'}`}
-            >
-              DL
-            </span>
+            {hasDynamicMailbox && (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold bg-purple-500 text-white dark:bg-purple-600"
+                title="Dynamic: Auto-expands to show all synced mailboxes"
+              >
+                <Zap className="h-3 w-3" />
+                Dynamic
+              </span>
+            )}
           </div>
         );
       })()}
@@ -1185,48 +1070,7 @@ function TreeNode({
               </p>
             </div>
 
-            {/* Base Folder - read-only for child types, editable for parent types */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                Base Folder
-                {currentEditingScopeKey && WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey] && (
-                  <span className="text-muted-foreground/70 ml-1">
-                    (inherited from {WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]?.replace('_', ' ')})
-                  </span>
-                )}
-              </label>
-              {currentEditingScopeKey && WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey] ? (
-                // SSoT: Child types show parent's base folder as read-only
-                <div className="bg-muted/50 border border-muted rounded px-3 py-2">
-                  <span className="font-mono text-sm text-muted-foreground">
-                    {normalizePathDisplay(scopeRootFolders[WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]]) || editValue}
-                  </span>
-                </div>
-              ) : (
-                // Parent types can edit their base folder with TokenBuilder (prevents typos)
-                <TokenBuilder
-                  value={editValue}
-                  onChange={(val) => {
-                    setEditValue(val);
-                    hasModified.current = true;
-                    setHasUnsavedChanges(true);
-                  }}
-                  scope={getWarehouseScopeForType(currentEditingScopeKey || '')}
-                  showPreview={false}
-                  separator="/"
-                  placeholder="Click tokens to build base folder..."
-                  defaultExpanded={false}
-                />
-              )}
-              <p className="text-[10px] text-muted-foreground">
-                {currentEditingScopeKey && WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]
-                  ? `Base path inherited from ${WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]?.replace('_', ' ')}. Edit the Folder Path below to set the suffix.`
-                  : 'Storage folder path. Use the same path for related types to group them on one row.'
-                }
-              </p>
-            </div>
-
-            {/* Folder Template */}
+            {/* SSoT (Feb 2026): Folder Path - base_folder.full_path_template is the SSoT */}
             <TokenBuilder
               label={<span className="text-xs font-medium">Folder Path</span>}
               value={folderTemplate}
@@ -1236,30 +1080,16 @@ function TreeNode({
               separator="/"
               placeholder="Click tokens to build folder path..."
               defaultExpanded={false}
-              prefixValue={
-                // Only child scopes show inherited parent path as greyed prefix
-                // Top-level scopes edit their base folder directly (no prefix)
-                currentEditingScopeKey && WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]
-                  ? normalizePathDisplay(scopeRootFolders[WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]])
-                  : undefined
-              }
             />
+            <p className="text-[10px] text-muted-foreground -mt-2">
+              Full path template from base_folder. Use tokens like {'{{JobCode}}'} for dynamic paths.
+            </p>
 
-            {/* Full Path Preview - directly under Folder Path for immediate feedback */}
-            {/* SSoT: For parent types, folderTemplate already includes base folder (e.g., "Tasks/{{TaskId}}")
-                For child types, we need parent's base folder + child's suffix template */}
+            {/* Full Path Preview */}
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2 -mt-2">
               <span className="text-xs text-muted-foreground">Full Path: </span>
               <span className="font-mono text-sm text-green-700 dark:text-green-400">
-                {normalizePathDisplay([
-                  rootPath,
-                  currentEditingScopeKey && WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]
-                    // Child type: parent's base folder + child's suffix template
-                    ? [scopeRootFolders[WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]] || editValue, folderTemplate].filter(Boolean).join('/')
-                    // Parent type: folderTemplate already includes base folder (e.g., "Tasks/{{TaskId}}/{{TaskName}}")
-                    // FRC Fix (Feb 2026): Don't add editValue separately - it's already the first segment of folderTemplate
-                    : folderTemplate || editValue
-                ].filter(Boolean).join('/').replace(/\/+/g, '/'))}
+                {normalizePathDisplay([rootPath, folderTemplate].filter(Boolean).join('/').replace(/\/+/g, '/'))}
               </span>
             </div>
 
@@ -1413,93 +1243,10 @@ function TreeNode({
         </div>
       )}
 
-      {/* Expanded content: Children OR Tabs (tabs take priority for scopes) */}
+      {/* Expanded content: Children OR Tabs */}
       {isExpanded && hasExpandableContent && (
         <div>
-          {/* For simple scopes WITHOUT config link: show folder template preview */}
-          {/* Complex scopes with config links have their folder structure defined in entity tabs (SSoT) */}
-          {/* When multiple scopes share a path, show ALL their template previews */}
-          {node.scopeKeys?.length > 0 && !isEditingThisNode && (
-            <div className="ml-1">
-              {/* Render ALL scope templates as nested preview folders */}
-              {(() => {
-                // Collect all templates from all scopes sharing this path
-                const allTemplates: Array<{ scopeKey: string; template: string; downloadName: string }> = [];
-                for (const sk of node.scopeKeys) {
-                  const template = scopeTemplates[sk] || '';
-                  const downloadName = downloadNameTemplates[sk] || '';
-                  // Skip COMPLEX_SCOPES - they show via tabs section exclusively (job, contact, corporate)
-                  // Skip scopes with config links (they show tabs instead)
-                  if (!COMPLEX_SCOPES.includes(sk) && !configLinks[sk] && template) {
-                    allTemplates.push({ scopeKey: sk, template, downloadName });
-                  }
-                }
-
-                // Build a merged tree structure from all templates
-                // This handles the case where multiple scopes share the same prefix (e.g., {{TaskId}})
-                const templateTree: Map<string, { parts: string[]; scopeKey: string; downloadName: string }[]> = new Map();
-                for (const { scopeKey, template, downloadName } of allTemplates) {
-                  const parts = template.split('/').filter(Boolean);
-                  const key = parts[0] || ''; // First part as the grouping key
-                  if (!templateTree.has(key)) {
-                    templateTree.set(key, []);
-                  }
-                  templateTree.get(key)!.push({ parts, scopeKey, downloadName });
-                }
-
-                // Render the merged tree
-                const rendered: React.ReactNode[] = [];
-                for (const [firstPart, items] of templateTree) {
-                  if (!firstPart) continue;
-
-                  // Render the first part - resolve placeholders to examples (e.g., {{TeeemXL}} → TeeemXL)
-                  rendered.push(
-                    <div
-                      key={`first-${firstPart}`}
-                      className="flex items-center gap-1 py-0.5 px-1"
-                      style={{ paddingLeft: `${(level + 1) * 16 + 4}px` }}
-                    >
-                      <span className="w-5" />
-                      <Folder className="h-3.5 w-3.5 text-amber-500/50 flex-shrink-0" />
-                      <span className="font-mono text-xs text-muted-foreground italic">
-                        {resolveWithExamples(firstPart)}
-                      </span>
-                    </div>
-                  );
-
-                  // Render the remaining parts for each scope - resolve placeholders to examples
-                  for (const { parts, scopeKey, downloadName } of items) {
-                    const remainingParts = parts.slice(1);
-                    let currentLevel = level + 2;
-                    for (let idx = 0; idx < remainingParts.length; idx++) {
-                      const part = remainingParts[idx];
-                      const isLast = idx === remainingParts.length - 1;
-                      rendered.push(
-                        <div
-                          key={`${scopeKey}-${parts.join('-')}-${idx}`}
-                          className="flex items-center gap-1 py-0.5 px-1"
-                          style={{ paddingLeft: `${currentLevel++ * 16 + 4}px` }}
-                        >
-                          <span className="w-5" />
-                          <Folder className="h-3.5 w-3.5 text-amber-500/50 flex-shrink-0" />
-                          <span className="font-mono text-xs text-muted-foreground italic">
-                            {resolveWithExamples(part)}
-                          </span>
-                          {isLast && downloadName && (
-                            <span className="ml-2 text-[10px] text-muted-foreground/60">
-                              → {resolveWithExamples(downloadName)}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    }
-                  }
-                }
-                return rendered;
-              })()}
-            </div>
-          )}
-          {/* Show child folders (warehouse scope subfolders like Assets, XERO/Bank for Corporate) */}
+          {/* Show child folders */}
           {hasChildren && node.children.map((child) => (
             <TreeNode
               key={child.path}
@@ -1526,10 +1273,13 @@ function TreeNode({
               virtualScopes={virtualScopes}
               onToggleVirtual={onToggleVirtual}
               scopeRootFolders={scopeRootFolders}
+              warehouseTypes={warehouseTypes}
+              onEditWarehouseFolder={onEditWarehouseFolder}
+              onEditDocumentType={onEditDocumentType}
             />
           ))}
-          {/* Show entity tabs (with document types) */}
-          {/* SSoT: Entity identifier (e.g., {{JobCode}}) comes from warehouse_folders, not extracted from template */}
+          {/* Show entity tabs (from warehouse_folders with parent-child hierarchy) */}
+          {/* SSoT: Entity identifier (e.g., {{JobCode}}) comes from warehouse_folders */}
           {hasTabs && node.scopeKey && (
             <div className="ml-1">
               {node.tabs!.map((tab) => (
@@ -1544,6 +1294,8 @@ function TreeNode({
                   onStartEdit={onStartTabEdit}
                   onSaveEdit={onSaveTabEdit}
                   onCancelEdit={onCancelTabEdit}
+                  onEditWarehouseFolder={onEditWarehouseFolder}
+                  onEditDocumentType={onEditDocumentType}
                 />
               ))}
             </div>
@@ -1648,6 +1400,10 @@ interface TabNodeProps {
   onStartEdit: (tabId: number) => void;
   onSaveEdit: (tabId: number, path: string, displayName: string, sendNameTemplate: string) => void;
   onCancelEdit: () => void;
+  // SSoT (Feb 2026): Edit warehouse folder UI/DL names
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null }) => void;
+  // SSoT (Feb 2026): Edit document type UI/DL names
+  onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
 
 function TabNode({
@@ -1660,9 +1416,12 @@ function TabNode({
   onStartEdit,
   onSaveEdit,
   onCancelEdit,
+  onEditWarehouseFolder,
+  onEditDocumentType,
 }: TabNodeProps) {
   const isEditing = editingTabId === tab.id;
-  const isSimpleScope = SIMPLE_SCOPES.includes(scope);
+  // SSoT (Feb 2026): Simple/complex distinction removed - all scopes use base_folders
+  const isSimpleScope = false;
 
   // Extract just the folder name from stored path (strip base path if present)
   const extractFolderName = (storedPath: string | null | undefined, base: string): string => {
@@ -1921,8 +1680,10 @@ function TabNode({
                     return [rootPath, basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/gi, defaultFolderName)]
                       .filter(Boolean).join('/').replace(/\/+/g, '/');
                   }
-                  // Otherwise, append the folder name to the path
-                  return [rootPath, basePath, defaultFolderName]
+                  // FRC Fix (Feb 2026): Use extractedFolderName NOT defaultFolderName
+                  // When folder_path equals basePath, extractedFolderName is empty (correct - no additional folder)
+                  // defaultFolderName would incorrectly fallback to display_name and append it
+                  return [rootPath, basePath, extractedFolderName]
                     .filter(Boolean).join('/').replace(/\/+/g, '/');
                 })()}
               </span>
@@ -1945,6 +1706,11 @@ function TabNode({
   const hasChildren = tab.children && tab.children.length > 0;
   const hasDocTypes = tab.document_types && tab.document_types.length > 0;
   const hasExpandableContent = hasChildren || hasDocTypes;
+
+  // Debug: Log children for tabs that should have them
+  if (tab.display_name === 'Xero' || tab.display_name === 'Financial') {
+    console.log(`[TabNode] ${tab.display_name} - children:`, tab.children?.length || 0, tab.children?.map(c => c.display_name));
+  }
   const storedFolderPath = tab.folder_path || tab.storage_folder_path;
 
   // FRC Fix (Feb 2026): Extract parent folder name from basePath (first static segment)
@@ -1977,14 +1743,24 @@ function TabNode({
     : (extractedName || tab.base_folder || tab.display_name || '');
 
   // Compute this tab's full path (for passing to children as their basePath)
-  // If basePath has {{TabName}}, replace it with folder name (root tabs)
-  // If basePath has NO placeholder, append folder name (child tabs inherit + add own folder)
+  // FRC Fix (Feb 2026): Handle both formats of folder_path_template:
+  // - Old format: just folder name (e.g., "Xero") - needs basePath prepended
+  // - New format: full path with tokens (e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero") - use as-is
   const hasPlaceholder = /\{\{TabName\}\}|\{\{TeeemXL\}\}/i.test(basePath);
-  const currentFullPath = folderName
-    ? hasPlaceholder
-      ? basePath.replace(/\{\{TabName\}\}/gi, folderName).replace(/\{\{TeeemXL\}\}/gi, folderName)
-      : `${basePath}/${folderName}`
-    : basePath;
+
+  // Check if storedFolderPath already contains scope tokens (meaning it's already a full path)
+  // FRC (Feb 2026): Include ALL scope tokens, not just a subset
+  const pathAlreadyContainsScopeTokens = storedFolderPath &&
+    /\{\{(CompanyGroup|CompanyCode|JobCode|ContactName|CaseId|CaseName|AssetCode|TaskId|TaskName|Year|Month|Mailbox)\}\}/i.test(storedFolderPath);
+
+  // If stored path already has scope tokens, use it directly; otherwise build the full path
+  const currentFullPath = pathAlreadyContainsScopeTokens && storedFolderPath
+    ? storedFolderPath
+    : folderName
+      ? hasPlaceholder
+        ? basePath.replace(/\{\{TabName\}\}/gi, folderName).replace(/\{\{TeeemXL\}\}/gi, folderName)
+        : `${basePath}/${folderName}`
+      : basePath;
 
   // Collapse state for this tab node
   const [isCollapsed, setIsCollapsed] = React.useState(true);
@@ -2009,49 +1785,89 @@ function TabNode({
         )}
         <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
         {/* Show folder name (from folder_path), resolved if it contains tokens */}
-        <span className="text-sm">{resolveTemplatePreview(folderName || tab.display_name || '')}</span>
-        {/* UI/DL badges for this tab */}
-        <span
-          className={cn(
-            "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
-            tab.ui_name
-              ? "bg-green-500 text-white dark:bg-green-600"
-              : "bg-orange-500 text-white dark:bg-orange-600"
-          )}
-          title={`UI Name: ${tab.ui_name || '{{OriginalFileName}} (default)'}`}
-        >
-          UI
-        </span>
-        <span
-          className={cn(
-            "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
-            tab.download_name && tab.download_name !== '{{OriginalFileName}}'
-              ? "bg-green-500 text-white dark:bg-green-600"
-              : "bg-orange-500 text-white dark:bg-orange-600"
-          )}
-          title={`Download Name: ${tab.download_name || '{{OriginalFileName}} (default)'}`}
-        >
-          DL
-        </span>
-        {/* Show document type count if has doc types */}
+        <span className="text-sm font-medium">{resolveTemplatePreview(folderName || tab.display_name || '')}</span>
+        {/* Document type count badge */}
         {hasDocTypes && (
-          <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">
+          <Badge
+            variant="outline"
+            className="text-[10px] gap-1 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800"
+          >
             {tab.document_types!.length} {tab.document_types!.length === 1 ? 'type' : 'types'}
-          </span>
+          </Badge>
+        )}
+        {/* SSoT (Feb 2026): Edit button for UI/DL names - always visible, matches base folder cog style */}
+        {onEditWarehouseFolder && (
+          <button
+            type="button"
+            className="p-0.5 rounded hover:bg-muted"
+            title="Edit UI/DL name templates"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditWarehouseFolder({
+                id: tab.id,
+                display_name: tab.display_name,
+                folder_path: tab.folder_path || tab.storage_folder_path || undefined,
+                download_name: tab.download_name || undefined,
+                ui_name: tab.ui_name || undefined,
+                base_folder_path_template: tab.base_folder_path_template || undefined,  // SSoT: Template from base_folders table
+              });
+            }}
+          >
+            <Settings className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+          </button>
         )}
       </div>
-      {/* Collapsible content: folder path, document types, and children */}
+      {/* Folder path and badges row - matching WarehouseFoldersConfig style */}
+      {(folderName || basePath) && (
+        <div
+          className="flex items-center gap-1.5 flex-wrap py-0.5"
+          style={{ paddingLeft: `${level * 16 + 42}px` }}
+        >
+          {/* Folder path badge (green) */}
+          <Badge
+            variant="outline"
+            className="text-[10px] gap-1 font-normal bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+          >
+            <FolderOpen className="h-3 w-3 shrink-0" />
+            <span className="font-mono">{currentFullPath}</span>
+          </Badge>
+          {/* UI badge (green = custom, orange = default) */}
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-[10px] gap-0.5 font-normal",
+              tab.ui_name
+                ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+            )}
+            title={`UI Name: ${tab.ui_name || '{{OriginalFileName}} (default)'}`}
+          >
+            UI
+          </Badge>
+          {/* DL badge (green = custom, orange = default) */}
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-[10px] gap-0.5 font-normal",
+              tab.download_name && tab.download_name !== '{{OriginalFileName}}'
+                ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+            )}
+            title={`Download Name: ${tab.download_name || '{{OriginalFileName}} (default)'}`}
+          >
+            DL
+          </Badge>
+          {/* Sub-tabs count badge */}
+          {hasChildren && (
+            <Badge variant="secondary" className="text-[10px]">
+              {tab.children!.length} sub-tabs
+            </Badge>
+          )}
+        </div>
+      )}
+      {/* Collapsible content: document types and children */}
       {!isCollapsed && (
         <>
-          {/* Show FULL folder path: basePath (inherited) + tab folder name */}
-          {(folderName || basePath) && (
-            <div
-              className="text-[10px] text-muted-foreground font-mono py-0.5"
-              style={{ paddingLeft: `${level * 16 + 58}px` }}
-            >
-              📁 {currentFullPath}
-            </div>
-          )}
           {/* Show document types with their templates */}
           {hasDocTypes && (
             <div
@@ -2059,15 +1875,26 @@ function TabNode({
               style={{ paddingLeft: `${level * 16 + 58}px` }}
             >
               {tab.document_types!.map((dt) => {
-                // display_name contains the Document UI Name TEMPLATE (with tokens)
-                // file_name contains the Document Download Name TEMPLATE (with tokens)
+                // SSoT (Feb 2026): Consistent naming - ui_name and download_name
                 // name is the actual document type name like "Xero Invoice"
-                const uiNameTemplate = dt.display_name || dt.file_name || '';
-                const downloadTemplate = dt.file_name || '';
+                const uiNameTemplate = dt.ui_name || '';
+                const downloadTemplate = dt.download_name || '';
 
                 return (
-                  <div key={dt.id} className="text-[10px] py-0.5">
-                    {/* Document type name (actual name, not template) */}
+                  <div
+                    key={dt.id}
+                    className="text-[10px] py-0.5 px-1 -mx-1 rounded hover:bg-muted/50 cursor-pointer group/dt"
+                    onClick={() => onEditDocumentType?.({
+                      id: dt.id,
+                      name: dt.name,
+                      abbreviation: dt.abbreviation,
+                      ui_name: dt.ui_name,
+                      download_name: dt.download_name,
+                      folder_name: folderName,
+                      folder_path: currentFullPath,
+                    })}
+                  >
+                    {/* Document type name */}
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-foreground">
                         {dt.name}
@@ -2075,37 +1902,32 @@ function TabNode({
                       {dt.abbreviation && (
                         <span className="text-muted-foreground/60 text-[9px]">({dt.abbreviation})</span>
                       )}
+                      <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/dt:opacity-100 transition-opacity" />
                     </div>
-                    {/* Document UI Name and Download Name side by side */}
-                    <div className="flex items-start gap-8 pl-2 mt-0.5">
-                      {/* Document UI Name (left) */}
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] text-muted-foreground/50">👁</span>
-                          <span className="font-mono text-[8px] text-muted-foreground/60">
-                            {uiNameTemplate || '(default)'}
-                          </span>
-                        </div>
-                        <span className="font-mono text-[9px] text-green-700 dark:text-green-400 pl-4">
-                          {uiNameTemplate
-                            ? resolveTemplatePreview(uiNameTemplate, dt)
-                            : '(default)'}
-                        </span>
-                      </div>
-                      {/* Document Download Name (right) */}
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] text-muted-foreground/50">📥</span>
-                          <span className="font-mono text-[8px] text-muted-foreground/60">
-                            {downloadTemplate || '(default)'}
-                          </span>
-                        </div>
-                        <span className="font-mono text-[9px] text-blue-700 dark:text-blue-400 pl-4">
-                          {downloadTemplate
-                            ? resolveTemplatePreview(downloadTemplate, dt)
-                            : '(default)'}
-                        </span>
-                      </div>
+                    {/* UI/DL badges with actual values */}
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "font-mono text-[9px]",
+                          uiNameTemplate
+                            ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                            : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                        )}
+                      >
+                        UI: {uiNameTemplate || '(default)'}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "font-mono text-[9px]",
+                          downloadTemplate
+                            ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
+                            : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
+                        )}
+                      >
+                        DL: {downloadTemplate || '(default)'}
+                      </Badge>
                     </div>
                   </div>
                 );
@@ -2113,20 +1935,26 @@ function TabNode({
             </div>
           )}
           {/* Recursively render children - pass current full path as their basePath */}
-          {hasChildren && tab.children!.map((child) => (
-            <TabNode
-              key={child.id}
-              tab={child}
-              level={level + 1}
-              basePath={currentFullPath}
-              rootPath={rootPath}
-              scope={scope}
-              editingTabId={editingTabId}
-              onStartEdit={onStartEdit}
-              onSaveEdit={onSaveEdit}
-              onCancelEdit={onCancelEdit}
-            />
-          ))}
+          {hasChildren && (
+            <>
+              {tab.children!.map((child) => (
+                <TabNode
+                  key={child.id}
+                  tab={child}
+                  level={level + 1}
+                  basePath={currentFullPath}
+                  rootPath={rootPath}
+                  scope={scope}
+                  editingTabId={editingTabId}
+                  onStartEdit={onStartEdit}
+                  onSaveEdit={onSaveEdit}
+                  onCancelEdit={onCancelEdit}
+                  onEditWarehouseFolder={onEditWarehouseFolder}
+                  onEditDocumentType={onEditDocumentType}
+                />
+              ))}
+            </>
+          )}
         </>
       )}
     </div>
@@ -2177,6 +2005,46 @@ export function WarehouseProviderTab() {
   // Entity tabs for each scope
   const [entityTabs, setWarehouseTabConfigs] = React.useState<Record<string, WarehouseTabConfig[]>>({});
   const [loadingTabs, setLoadingTabs] = React.useState(false);
+
+  // SSoT (Feb 2026): Base folders by warehouse type code from /api/v1/warehouse_types
+  // This is THE ONE source of truth for folder category chips (not warehouse_folders)
+  const [baseFoldersByScope, setBaseFoldersByScope] = React.useState<Record<string, BaseFolderFromAPI[]>>({});
+  // SSoT (Feb 2026): Full warehouse types data for building folder tree
+  const [warehouseTypes, setWarehouseTypes] = React.useState<WarehouseTypeFromAPI[]>([]);
+
+  // SSoT (Feb 2026): Edit warehouse folder UI/DL names
+  interface EditingWarehouseFolder {
+    id: number;
+    display_name: string;
+    folder_path?: string;
+    download_name?: string;
+    ui_name?: string;
+    base_folder_path_template?: string;  // SSoT: Template from base_folders table (read-only)
+    parent_id?: number | null;
+    base_folder_id?: number;
+  }
+  const [editingWarehouseFolder, setEditingWarehouseFolder] = React.useState<EditingWarehouseFolder | null>(null);
+  const [savingWarehouseFolder, setSavingWarehouseFolder] = React.useState(false);
+
+  // SSoT (Feb 2026): Build list of available parent tabs for the folder editor
+  // Use baseFoldersByScope since that's what populates the tree
+  const availableParentTabs = React.useMemo(() => {
+    const tabs: { id: number; display_name: string; hierarchy_path?: string; folder_path?: string }[] = [];
+    // Get all base folders that have linked warehouse_folders
+    Object.entries(baseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
+      baseFolders.forEach(bf => {
+        if (bf.warehouse_folder) {
+          tabs.push({
+            id: bf.warehouse_folder.id,
+            display_name: bf.warehouse_folder.display_name || bf.name,
+            hierarchy_path: bf.full_path_template || bf.name,
+            folder_path: bf.warehouse_folder.folder_path || bf.full_path_template,  // SSoT: For computing effective base path
+          });
+        }
+      });
+    });
+    return tabs.sort((a, b) => (a.hierarchy_path || '').localeCompare(b.hierarchy_path || ''));
+  }, [baseFoldersByScope]);
 
   // Warehouse stats for live preview
   interface WarehouseStats {
@@ -2245,6 +2113,15 @@ export function WarehouseProviderTab() {
         tabsByScope[scopeKey] = tabs;
       });
 
+      console.log('[loadWarehouseTabConfigs] Loaded tabs:', Object.entries(tabsByScope).map(([k, v]) => `${k}: ${v.length}`));
+      // Debug: Log tabs with children for corporate scope
+      if (tabsByScope['corporate']) {
+        tabsByScope['corporate'].forEach(tab => {
+          if (tab.children && tab.children.length > 0) {
+            console.log(`[loadWarehouseTabConfigs] ${tab.display_name} has ${tab.children.length} children:`, tab.children.map(c => c.display_name));
+          }
+        });
+      }
       setWarehouseTabConfigs(tabsByScope);
     } catch (error) {
       console.error("Failed to load entity tabs:", error);
@@ -2253,11 +2130,225 @@ export function WarehouseProviderTab() {
     }
   };
 
-  // Build folder tree from warehouse_folders, attaching tabs to scope nodes
-  // SSoT: Use config from API (not formData which may have stale initial state)
+  // SSoT (Feb 2026): Fetch warehouse types to get base folders for each scope
+  // base_folders are THE ONE source for folder category chips AND folder tree
+  const loadWarehouseTypes = async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: WarehouseTypeFromAPI[];
+      }>('/api/v1/warehouse_types');
+
+      if (response?.success && response.data) {
+        // Store full warehouse types for tree building
+        setWarehouseTypes(response.data);
+
+        // Build map of scope code → base_folders for quick lookup
+        // SSoT: Backend now provides scope_base_template directly on each base folder
+        const foldersByScope: Record<string, BaseFolderFromAPI[]> = {};
+        response.data.forEach((wt) => {
+          // Use the warehouse type code as the scope key (e.g., "task", "job", "email")
+          foldersByScope[wt.code] = wt.base_folders || [];
+        });
+        setBaseFoldersByScope(foldersByScope);
+      }
+    } catch (error) {
+      console.error("Failed to load warehouse types:", error);
+    }
+  };
+
+  // SSoT (Feb 2026): Start editing a warehouse folder's path and UI/DL names
+  // Opens the WarehouseFolderEditor shared component with the selected folder
+  const startEditingWarehouseFolder = (folder: EditingWarehouseFolder) => {
+    setEditingWarehouseFolder(folder);
+  };
+
+  // SSoT (Feb 2026): Save warehouse folder path and UI/DL names
+  // Used by WarehouseFolderEditor shared component
+  // Creates new warehouse_folder if id=0, otherwise updates existing
+  const saveWarehouseFolder = async (data: { folder_path: string; download_name: string; ui_name: string; parent_id?: number | null }) => {
+    if (!editingWarehouseFolder) return;
+
+    setSavingWarehouseFolder(true);
+    try {
+      let response;
+
+      // Helper to create a new warehouse_folder
+      const createNew = async () => {
+        return await api.post<{ success: boolean }>('/api/v1/warehouse_folders', {
+          warehouse_folder: {
+            display_name: editingWarehouseFolder.display_name,
+            folder_path: data.folder_path || null,
+            download_name: data.download_name || null,
+            ui_name: data.ui_name || null,
+            parent_id: data.parent_id,
+            base_folder_id: editingWarehouseFolder.base_folder_id,
+            warehouse_type: 'corporate',  // Default - backend can override from base_folder
+            tab_key: editingWarehouseFolder.display_name.toLowerCase().replace(/\s+/g, '_'),
+          }
+        });
+      };
+
+      if (editingWarehouseFolder.id === 0 || !editingWarehouseFolder.id) {
+        // Create new warehouse_folder linked to base_folder
+        response = await createNew();
+      } else {
+        // Update existing warehouse_folder
+        try {
+          response = await api.patch<{ success: boolean }>(`/api/v1/warehouse_folders/${editingWarehouseFolder.id}`, {
+            warehouse_folder: {
+              folder_path: data.folder_path || null,
+              download_name: data.download_name || null,
+              ui_name: data.ui_name || null,
+              parent_id: data.parent_id,
+            }
+          });
+        } catch (patchError) {
+          // If update fails with 404, the record doesn't exist - create it instead
+          console.warn('[saveWarehouseFolder] Update failed, attempting create:', patchError);
+          response = await createNew();
+        }
+      }
+
+      if (response?.success) {
+        toast({
+          title: "Saved",
+          description: editingWarehouseFolder.id === 0
+            ? `Created ${editingWarehouseFolder.display_name}`
+            : `Updated ${editingWarehouseFolder.display_name}`,
+        });
+        setEditingWarehouseFolder(null);
+        // Reload warehouse types and tab configs to refresh the tree with new UI/DL values
+        loadWarehouseTypes();
+        loadWarehouseTabConfigs();
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save warehouse folder",
+        variant: "destructive",
+      });
+      console.error('Failed to save warehouse folder:', error);
+    } finally {
+      setSavingWarehouseFolder(false);
+    }
+  };
+
+  // SSoT (Feb 2026): Document type editing state
+  interface EditingDocumentType {
+    id: number;
+    name: string;
+    abbreviation?: string;
+    ui_name?: string;
+    download_name?: string;
+    folder_name?: string;  // Parent folder name for context
+    folder_path?: string;  // Full folder path for context (e.g., Contact/Contacts/{{ContactName}}/Invoices)
+  }
+  const [editingDocumentType, setEditingDocumentType] = React.useState<EditingDocumentType | null>(null);
+  const [savingDocumentType, setSavingDocumentType] = React.useState(false);
+
+  // SSoT (Feb 2026): Start editing a document type's UI/DL names
+  const startEditingDocumentType = (dt: EditingDocumentType) => {
+    setEditingDocumentType(dt);
+  };
+
+  // SSoT (Feb 2026): Save document type UI/DL names
+  const saveDocumentType = async (data: { ui_name: string; download_name: string }) => {
+    if (!editingDocumentType) return;
+
+    setSavingDocumentType(true);
+    try {
+      const response = await api.patch<{ success: boolean }>(`/api/v1/document_types/${editingDocumentType.id}`, {
+        document_type: {
+          ui_name: data.ui_name || null,
+          download_name: data.download_name || null,
+        }
+      });
+
+      if (response?.success) {
+        toast({
+          title: "Saved",
+          description: `Updated ${editingDocumentType.name}`,
+        });
+        setEditingDocumentType(null);
+        // Reload warehouse types to refresh document type UI/DL values
+        loadWarehouseTypes();
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save document type",
+        variant: "destructive",
+      });
+      console.error('Failed to save document type:', error);
+    } finally {
+      setSavingDocumentType(false);
+    }
+  };
+
+  // Build folder tree from base folders (SSoT: Feb 2026)
+  // LIM: Direct tree build from base_folders - no intermediate transformation
   const folderTree = React.useMemo(() => {
-    const scopeFolders = config?.warehouse_folders || {};
-    const tree = buildFolderTree(scopeFolders);
+    const root: FolderTreeNode[] = [];
+    const isPlaceholder = (p: string) => p.startsWith('{{') || p.startsWith('[[');
+
+    // Build tree directly from base folders
+    Object.entries(baseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
+      baseFolders.forEach((bf) => {
+        const path = bf.full_path_template;
+        if (!path || isPlaceholder(path.split('/')[0])) return;
+
+        // Parse path into static segments (skip placeholders)
+        const staticParts = path.split('/').filter(p => p && !isPlaceholder(p));
+        if (staticParts.length === 0) return;
+
+        let current = root;
+        let currentPath = '';
+        let lastNode: FolderTreeNode | null = null;
+
+        staticParts.forEach((part, index) => {
+          currentPath = currentPath ? `${currentPath}/${part}` : part;
+          const isFirstPart = index === 0;
+
+          let node = current.find(n => n.name === part);
+          if (!node) {
+            node = {
+              name: part,
+              path: currentPath,
+              scopeKey: isFirstPart ? scopeCode : null,
+              scopeKeys: isFirstPart ? [scopeCode] : [],
+              children: [],
+            };
+            current.push(node);
+          } else if (isFirstPart && !node.scopeKeys.includes(scopeCode)) {
+            node.scopeKeys.push(scopeCode);
+            // Keep first scopeKey as primary
+            if (!node.scopeKey) node.scopeKey = scopeCode;
+          }
+
+          lastNode = node;
+          current = node.children;
+        });
+
+        // SSoT (Feb 2026): Attach base folder to its LEAF node only
+        // Each base_folder record corresponds to its final path segment
+        if (lastNode) {
+          const leafNode = lastNode as FolderTreeNode;
+          if (!leafNode.baseFolders) {
+            leafNode.baseFolders = [];
+          }
+          // Only add if not already present
+          if (!leafNode.baseFolders.find((existing: BaseFolderFromAPI) => existing.id === bf.id)) {
+            leafNode.baseFolders.push(bf);
+          }
+        }
+      });
+    });
+
+    // Sort root nodes alphabetically
+    root.sort((a, b) => a.name.localeCompare(b.name));
+
+    const tree = root;
 
     // Helper: Check if tab has doc types directly
     const tabHasDocTypes = (tab: WarehouseTabConfig): boolean => {
@@ -2295,26 +2386,26 @@ export function WarehouseProviderTab() {
     // Previously corporate/job/contact required document types - now all show tabs
     const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse', 'user', 'case', 'corporate', 'job', 'contact'];
 
-    // Helper: Filter tabs for scopes without doc types (just warehouse enabled)
-    // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)
-    // SSoT (Feb 2026): Also exclude tabs whose tab_key matches a child scope in WAREHOUSE_TYPE_PARENTS
-    // BUT only if that child scope has a folder entry (will show as separate node with its own badge)
-    const CHILD_SCOPE_TAB_KEYS = Object.keys(WAREHOUSE_TYPE_PARENTS);
-    // SSoT: tab_key uses hyphens (email-attachments) but scope keys use underscores (email_attachments)
-    // Normalize both to underscores for comparison
-    const normalizeKey = (key: string) => key.replace(/-/g, '_');
+    // Helper: Check if tab or any descendant is warehouse-enabled OR has document types
+    // FRC (Feb 2026): Having document types implies warehouse storage is configured for those docs
+    const hasDescendantWarehouseEnabled = (tab: WarehouseTabConfig): boolean => {
+      const isEnabled = (tab.warehouse_enabled ?? tab.has_storage_folder) === true;
+      const hasDocTypes = tab.document_types && tab.document_types.length > 0;
+      const hasFolderPath = !!tab.folder_path;
+      // Tab is relevant if: warehouse_enabled, has doc types, or has folder path configured
+      if (isEnabled || hasDocTypes || hasFolderPath) return true;
+      if (tab.children && tab.children.length > 0) {
+        return tab.children.some(child => hasDescendantWarehouseEnabled(child));
+      }
+      return false;
+    };
+
+    // Helper: Filter tabs to warehouse-enabled only (includes parents if children are enabled)
+    // FRC (Feb 2026): Must include parent tabs if any children are warehouse-enabled
+    // Example: Financial parent may not be warehouse-enabled, but Invoices/Bills children are
     const filterWarehouseEnabledTabs = (tabs: WarehouseTabConfig[]): WarehouseTabConfig[] => {
       return tabs
-        .filter(tab => {
-          // Must be warehouse enabled
-          if ((tab.warehouse_enabled ?? tab.has_storage_folder) !== true) return false;
-          // Exclude tabs that match child scope keys ONLY if the scope has a folder entry
-          // (it will appear as a separate folder node with its own badge)
-          // If no folder entry exists, show the tab as a badge on the parent scope
-          const normalizedTabKey = normalizeKey(tab.tab_key);
-          if (CHILD_SCOPE_TAB_KEYS.includes(normalizedTabKey) && scopeFolders[normalizedTabKey]) return false;
-          return true;
-        })
+        .filter(tab => hasDescendantWarehouseEnabled(tab))
         .map(tab => ({
           ...tab,
           children: tab.children ? filterWarehouseEnabledTabs(tab.children) : []
@@ -2328,6 +2419,7 @@ export function WarehouseProviderTab() {
       nodes.forEach(node => {
         if (node.scopeKey && entityTabs[node.scopeKey]) {
           const allTabs = entityTabs[node.scopeKey];
+          console.log(`[attachTabs] ${node.scopeKey}: ${allTabs.length} total tabs`, allTabs.map(t => t.display_name));
           // Scopes without doc types: show all warehouse-enabled tabs
           // Other scopes (contact, job, corporate): only show tabs with document types
           if (SCOPES_WITHOUT_DOC_TYPES.includes(node.scopeKey)) {
@@ -2335,6 +2427,7 @@ export function WarehouseProviderTab() {
           } else {
             node.tabs = filterTabsWithDocTypes(allTabs);
           }
+          console.log(`[attachTabs] ${node.scopeKey}: ${node.tabs?.length || 0} filtered tabs`, node.tabs?.map(t => t.display_name));
         }
         if (node.children.length > 0) {
           attachTabs(node.children);
@@ -2342,9 +2435,28 @@ export function WarehouseProviderTab() {
       });
     };
 
+    // SSoT (Feb 2026): Attach ALL scope base folders to root nodes
+    // This shows all base folders as chips on the scope root (e.g., Tasks shows Task, Task Attachments, Task Responses)
+    // SSoT (Feb 2026): Base folders are attached to LEAF nodes only during tree building
+    // Root scope nodes (Corporate, Contacts, etc.) should NOT have baseFolders attached
+    // This prevents many cogs showing on parent folders - only leaf folders get the edit cog
+    // SSoT (Feb 2026): Attach tabs (from warehouse_folders) to show parent-child hierarchy
+    // This includes tabs like Financial with children (Bank Details, Xero, Invoices, Bills)
     attachTabs(tree);
     return tree;
-  }, [config?.warehouse_folders, entityTabs]);
+  }, [warehouseTypes, baseFoldersByScope, entityTabs]);
+
+  // SSoT (Feb 2026): Build scopeRootFolders from warehouse types
+  // FRC: warehouse_type.folder_path_template IS the scope root path - no fallbacks
+  const scopeRootFoldersFromWarehouseTypes = React.useMemo(() => {
+    const folders: Record<string, string> = {};
+    warehouseTypes.forEach((wt) => {
+      if (wt.folder_path_template) {
+        folders[wt.code] = wt.folder_path_template;
+      }
+    });
+    return folders;
+  }, [warehouseTypes]);
 
   // Toggle tree node expansion
   const toggleExpanded = (path: string) => {
@@ -2456,39 +2568,13 @@ export function WarehouseProviderTab() {
     });
 
     try {
-      // SSoT: warehouse_folders stores the FULL path - this is the source of truth
-      // UI shows parent portion greyed out for child types, but we save the complete path
-      const isChildType = !!WAREHOUSE_TYPE_PARENTS[scopeKey];
-      const parentKey = WAREHOUSE_TYPE_PARENTS[scopeKey];
+      // SSoT (Feb 2026): base_folder.full_path_template is the SSoT
+      // folderTemplate already contains the complete path - save it directly
+      const warehouseFolderValue = folderTemplate
+        .replace(/\/+/g, '/')
+        .replace(/\/+$/, '');
 
-      console.log('🔵 [saveScopeTemplates] Child type check:', { isChildType, parentKey, parentPath: parentKey ? formData.warehouse_folders[parentKey] : null });
-
-      // For child types: parent's base folder + suffix (full path)
-      // For parent types: folderTemplate already includes baseFolder (e.g., "Tasks/{{TaskId}}/{{TaskName}}")
-      // FRC Fix (Feb 2026): Don't combine baseFolder + folderTemplate for parent types - causes duplication
-      let warehouseFolderValue: string;
-      if (isChildType && parentKey) {
-        // Child type: parent's base folder + suffix (full path)
-        warehouseFolderValue = [formData.warehouse_folders[parentKey], folderTemplate]
-            .filter(Boolean)
-            .join('/')
-            .replace(/\/+/g, '/')
-            .replace(/\/+$/, '');
-      } else if (folderTemplate && folderTemplate.startsWith(baseFolder)) {
-        // Parent type: folderTemplate already includes baseFolder, use as-is
-        warehouseFolderValue = folderTemplate
-            .replace(/\/+/g, '/')
-            .replace(/\/+$/, '');
-      } else {
-        // Parent type: combine baseFolder + folderTemplate
-        warehouseFolderValue = [baseFolder, folderTemplate]
-            .filter(Boolean)
-            .join('/')
-            .replace(/\/+/g, '/')
-            .replace(/\/+$/, '');
-      }
-
-      console.log('🔵 [saveScopeTemplates] Computed warehouseFolderValue:', warehouseFolderValue);
+      console.log('🔵 [saveScopeTemplates] Saving folder path:', warehouseFolderValue);
 
       // FRC Guard (Feb 2026): Prevent saving empty folder_path for root scopes
       // This would remove the scope from the tree entirely and break folder storage
@@ -2609,10 +2695,13 @@ export function WarehouseProviderTab() {
     setExpandedPaths(new Set());
   }, []);
 
-  // Load storage config and entity tabs on mount
+  // Load storage config, warehouse types, and tab configs on mount
+  // SSoT (Feb 2026): base_folders from warehouse_types, entity tabs from warehouse_folders
+  // FRC (Feb 2026): Must load tab configs for Financial/etc tabs to appear in tree
   React.useEffect(() => {
     loadConfig();
-    loadWarehouseTabConfigs();
+    loadWarehouseTypes();
+    loadWarehouseTabConfigs();  // Load entity tabs (Financial, Bank Details, etc.)
   }, []);
 
   const loadConfig = async () => {
@@ -2950,27 +3039,6 @@ export function WarehouseProviderTab() {
                 </div>
               </div>
 
-              {/* Parent-Child Relationships */}
-              <div className="space-y-3">
-                <h4 className="font-medium flex items-center gap-2">
-                  <Link2 className="h-4 w-4 text-orange-500" />
-                  Scopes Using Suffix Derivation
-                </h4>
-                <p className="text-xs text-muted-foreground">
-                  These scopes store only a suffix and derive their base path from the parent.
-                  Task scopes use full paths instead (no derivation).
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                  {Object.entries(WAREHOUSE_TYPE_PARENTS).map(([child, parent]) => (
-                    <div key={child} className="rounded border p-2 bg-card">
-                      <span className="text-muted-foreground">{parent}</span>
-                      <ArrowRight className="h-3 w-3 inline mx-1 text-muted-foreground" />
-                      <span className="font-medium">{child.replace(/_/g, ' ')}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               {/* Root Path Source */}
               <div className="space-y-3">
                 <h4 className="font-medium flex items-center gap-2">
@@ -3164,6 +3232,25 @@ export function WarehouseProviderTab() {
                         <div><code className="bg-muted px-1 rounded">{"{{OriginalFileName}}"}</code> → <span className="text-muted-foreground">invoice.pdf</span></div>
                       </div>
                     </div>
+                  </div>
+                  {/* Dynamic Tokens */}
+                  <div className="mt-4 pt-3 border-t">
+                    <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-2 mb-2">
+                      <Zap className="h-3 w-3 text-purple-500" />
+                      Dynamic Tokens
+                    </h5>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Dynamic tokens auto-expand to show folders from database records:
+                    </p>
+                    <div className="text-xs space-y-1">
+                      <div>
+                        <code className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-1 rounded">{"{{Mailbox}}"}</code>
+                        <span className="text-muted-foreground ml-2">→ Shows all synced mailbox addresses as folders</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Single-click opens a drawer with emails. Double-click opens full email view in new window.
+                    </p>
                   </div>
                   {/* Token Resolution Example */}
                   <div className="mt-4 pt-3 border-t">
@@ -3615,7 +3702,10 @@ export function WarehouseProviderTab() {
                     onSaveTemplates={saveScopeTemplates}
                     virtualScopes={formData.virtual_warehouses}
                     onToggleVirtual={toggleVirtualScope}
-                    scopeRootFolders={formData.warehouse_folders || {}}
+                    scopeRootFolders={scopeRootFoldersFromWarehouseTypes}
+                    warehouseTypes={warehouseTypes}
+                    onEditWarehouseFolder={startEditingWarehouseFolder}
+                    onEditDocumentType={startEditingDocumentType}
                   />
                 ))}
               </div>
@@ -3641,6 +3731,7 @@ export function WarehouseProviderTab() {
               Loading folders...
             </div>
           )}
+
         </CardContent>
       </Card>
 
@@ -3825,6 +3916,124 @@ export function WarehouseProviderTab() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Warehouse Folder Edit Dialog - SSoT shared component */}
+      <WarehouseFolderEditor
+        open={!!editingWarehouseFolder}
+        onOpenChange={(open) => !open && setEditingWarehouseFolder(null)}
+        folder={editingWarehouseFolder}
+        onSave={saveWarehouseFolder}
+        isSaving={savingWarehouseFolder}
+        parentTabs={availableParentTabs}
+      />
+
+      {/* Document Type Edit Dialog */}
+      <Dialog open={!!editingDocumentType} onOpenChange={(open) => !open && setEditingDocumentType(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Document Type</DialogTitle>
+            <DialogDescription>
+              {editingDocumentType?.name} {editingDocumentType?.abbreviation && `(${editingDocumentType.abbreviation})`}
+              {editingDocumentType?.folder_name && <span className="text-muted-foreground"> in {editingDocumentType.folder_name}</span>}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Full Folder Path */}
+            {editingDocumentType?.folder_path && (
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <Label className="text-xs text-muted-foreground">Full Folder Path</Label>
+                <div className="font-mono text-sm mt-1 text-foreground">
+                  {editingDocumentType.folder_path}
+                </div>
+              </div>
+            )}
+
+            {/* Available Tokens */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Available Tokens (click to copy)</Label>
+              <div className="flex flex-wrap gap-1">
+                {['{{OriginalFileName}}', '{{DocTypeName}}', '{{DocTypeCode}}', '{{Date}}', '{{ContactName}}', '{{CompanyCode}}', '{{JobCode}}'].map((token) => (
+                  <button
+                    key={token}
+                    type="button"
+                    className="px-1.5 py-0.5 text-[10px] font-mono bg-muted hover:bg-muted/80 rounded border cursor-pointer"
+                    onClick={() => {
+                      navigator.clipboard.writeText(token);
+                      toast({ title: 'Copied', description: `${token} copied to clipboard` });
+                    }}
+                    title={`Click to copy ${token}`}
+                  >
+                    {token}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* UI Name */}
+            <div className="space-y-2">
+              <Label htmlFor="dt_ui_name">UI Name Template</Label>
+              <Input
+                id="dt_ui_name"
+                value={editingDocumentType?.ui_name || ''}
+                onChange={(e) => setEditingDocumentType(prev => prev ? { ...prev, ui_name: e.target.value } : null)}
+                placeholder="e.g., {{DocTypeName}} - {{ContactName}}"
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                How this document type appears in the UI. Leave blank for original filename.
+              </p>
+            </div>
+
+            {/* Download Name */}
+            <div className="space-y-2">
+              <Label htmlFor="dt_download_name">Download Name Template</Label>
+              <Input
+                id="dt_download_name"
+                value={editingDocumentType?.download_name || ''}
+                onChange={(e) => setEditingDocumentType(prev => prev ? { ...prev, download_name: e.target.value } : null)}
+                placeholder="e.g., {{CompanyCode}} {{DocTypeName}} {{Date}}"
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Filename used when downloading. Leave blank for original filename.
+              </p>
+            </div>
+
+            {/* Status indicator */}
+            <div className="rounded-lg border bg-muted/50 p-3 space-y-1 text-sm">
+              <div className="flex gap-2 items-center">
+                <span className="text-muted-foreground">Status:</span>
+                {editingDocumentType?.ui_name && editingDocumentType?.download_name ? (
+                  <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                    Configured
+                  </span>
+                ) : (
+                  <span className="text-orange-600 dark:text-orange-400 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-orange-500" />
+                    Missing {!editingDocumentType?.ui_name && 'UI Name'}{!editingDocumentType?.ui_name && !editingDocumentType?.download_name && ' & '}{!editingDocumentType?.download_name && 'Download Name'}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingDocumentType(null)} disabled={savingDocumentType}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => saveDocumentType({
+                ui_name: editingDocumentType?.ui_name || '',
+                download_name: editingDocumentType?.download_name || '',
+              })}
+              disabled={savingDocumentType}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {savingDocumentType ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

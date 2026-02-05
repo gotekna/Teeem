@@ -207,7 +207,7 @@ class ContactDataQualityService
 
     xero_tenant_count = @contact.external_links
                                 .where(source: "xero")
-                                .select("DISTINCT tenant_id")
+                                .select("DISTINCT xero_org_id")
                                 .count
 
     if xero_tenant_count > 1

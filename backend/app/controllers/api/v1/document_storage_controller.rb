@@ -49,7 +49,16 @@ module Api
         response.headers['Expires'] = '0'
 
         storage_config = WarehouseProvider.instance
-        provider = storage_config&.provider_type || "s3_compatible"
+        # FRC (Feb 2026): No hardcoded defaults - return actual configured provider
+        provider = storage_config&.provider_type
+
+        unless provider.present?
+          return render json: {
+            connected: false,
+            provider_type: nil,
+            error: "Storage provider not configured"
+          }
+        end
 
         case provider
         when "s3_compatible"
@@ -1738,7 +1747,8 @@ module Api
               size: doc.file_size,
               web_url: doc.web_url,
               # Storage provider routing - frontend uses this to determine download method
-              storage_provider: doc.storage_provider || "sharepoint",
+              # FRC (Feb 2026): Use actual configured provider, no hardcoded defaults
+              storage_provider: doc.storage_provider || WarehouseProvider.instance&.provider_type,
               # S3 storage path for display (e.g., "teeem-tekna/jobs/49/finance/invoice.pdf")
               storage_path: doc.storage_path,
               # SSoT download URL - works for both SharePoint and S3
@@ -2532,7 +2542,15 @@ module Api
         begin
           # SSoT: Only serve documents from current storage provider (no fallback)
           storage_config = WarehouseProvider.instance
-          doc_provider = document.meta("storage_provider") || storage_config.provider_type || "sharepoint"
+          # FRC (Feb 2026): Use actual configured provider, no hardcoded defaults
+          doc_provider = document.meta("storage_provider") || storage_config.provider_type
+
+          unless doc_provider
+            return render json: {
+              error: "Storage provider not configured",
+              reason: "Document has no storage_provider and no provider is configured"
+            }, status: :service_unavailable
+          end
 
           unless storage_config.document_in_current_provider?(doc_provider)
             return render json: {
@@ -2592,7 +2610,15 @@ module Api
         begin
           # SSoT: Only serve documents from current storage provider (no fallback)
           storage_config = WarehouseProvider.instance
-          doc_provider = document.meta("storage_provider") || storage_config.provider_type || "sharepoint"
+          # FRC (Feb 2026): Use actual configured provider, no hardcoded defaults
+          doc_provider = document.meta("storage_provider") || storage_config.provider_type
+
+          unless doc_provider
+            return render json: {
+              error: "Storage provider not configured",
+              reason: "Document has no storage_provider and no provider is configured"
+            }, status: :service_unavailable
+          end
 
           unless storage_config.document_in_current_provider?(doc_provider)
             return render json: {

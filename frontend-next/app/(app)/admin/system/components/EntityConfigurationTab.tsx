@@ -5,11 +5,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WarehouseFoldersConfig } from "@/components/admin/WarehouseFoldersConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { WarehouseProviderTab } from "./WarehouseProviderTab";
+import { WarehouseTablesTab } from "./WarehouseTablesTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { ConfigSyncTab } from "./ConfigSyncTab";
 import { AdminConfigSyncTab } from "./AdminConfigSyncTab";
 import { TenantSyncPullTab } from "./TenantSyncPullTab";
-import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw } from "lucide-react";
+import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw, Database } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useSidebar } from "@/contexts/SidebarContext";
@@ -45,6 +46,16 @@ const scopes = [
     showDocumentTypes: false,
     isEntityTab: false,
     isStorageConfig: true,  // SSoT: Provider-agnostic (was isSharePointConfig)
+  },
+  {
+    id: "warehouse_tables",  // SSoT: Database-driven warehouse types & base folders (Feb 2026)
+    label: "Warehouse Tables",
+    icon: Database,
+    showEntityFilters: false,
+    showSharePointPaths: false,
+    showDocumentTypes: false,
+    isEntityTab: false,
+    isWarehouseTables: true,
   },
   {
     id: "document_types",
@@ -115,6 +126,7 @@ const SCOPE_LABELS: Record<string, string> = {
   contact: "Contacts",
   document_types: "Document Types",
   warehouse_folders: "Warehouse Folders",
+  warehouse_tables: "Warehouse Tables",
   email_config: "Email Config",
   sync: "Sync",
 };
@@ -222,6 +234,8 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
                 />
               ) : "isStorageConfig" in scope && scope.isStorageConfig ? (
                 <WarehouseProviderTab />
+              ) : "isWarehouseTables" in scope && scope.isWarehouseTables ? (
+                <WarehouseTablesTab />
               ) : "isEmailConfig" in scope && scope.isEmailConfig ? (
                 <EmailConfigTab />
               ) : "isConfigSync" in scope && scope.isConfigSync ? (

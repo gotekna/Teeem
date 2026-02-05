@@ -54,8 +54,8 @@ class Organization < ApplicationRecord
     storage_config&.provider_type == 's3_compatible' && storage_config&.credential_id.present?
   end
 
-  # Check if SharePoint storage is enabled (default)
-  # SSoT (Feb 2026): Uses WarehouseProvider.provider_type
+  # Check if SharePoint storage is enabled
+  # FRC (Feb 2026): Only true if explicitly configured as sharepoint
   def sharepoint_storage_enabled?
     storage_config&.provider_type == 'sharepoint'
   end

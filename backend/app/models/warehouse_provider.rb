@@ -145,17 +145,20 @@ class WarehouseProvider < ApplicationRecord
 
   # Create default configuration for a tenant
   # SSoT: Folder paths are in warehouse_folders table (Feb 2026 consolidation)
+  # FRC (Feb 2026): No hardcoded defaults - provider must be explicitly configured
   def self.create_default_for_tenant(tenant)
     return nil unless tenant
 
-    provider = tenant.document_provider || "s3_compatible"
+    # Use tenant's configured provider (may be nil if not yet configured)
+    provider = tenant.document_provider
 
     # SSoT: Root path differs by provider
     # - SharePoint: /Shared Documents (Microsoft convention)
     # - S3/Wasabi/local: / (bucket root - bucket name is separate)
+    # - nil/unconfigured: / (will be updated when provider is configured)
     root = case provider
            when "sharepoint" then "/Shared Documents"
-           else "/" # S3, Wasabi, s3_compatible, local all use bucket/folder root
+           else "/" # S3, Wasabi, s3_compatible, local, nil all use bucket/folder root
            end
 
     create!(

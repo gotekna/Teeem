@@ -145,14 +145,15 @@ module Api
             # Document storage breakdown (Tekna tenant only - org-wide)
             # SSoT (Jan 2026): Uses WarehouseDocument with StorageBlob
             document_storage = if org_name == "Tekna"
-              doc_by_provider = { "s3_compatible" => 0, "sharepoint" => 0 }
+              doc_by_provider = { "s3_compatible" => 0, "sharepoint" => 0, "unknown" => 0 }
               # Group WarehouseDocuments by storage provider in metadata
               WarehouseDocument.joins(:storage_blob).find_each do |wd|
-                provider = wd.meta("storage_provider") || WarehouseProvider.instance&.provider_type || "sharepoint"
+                # FRC (Feb 2026): Use actual configured provider, no hardcoded defaults
+                provider = wd.meta("storage_provider") || WarehouseProvider.instance&.provider_type
                 normalized = case provider
                              when "s3_compatible", "wasabi", "s3" then "s3_compatible"
-                             when "sharepoint", nil then "sharepoint"
-                             else "s3_compatible"
+                             when "sharepoint" then "sharepoint"
+                             else "unknown"
                              end
                 doc_by_provider[normalized] += 1
               end
@@ -297,7 +298,8 @@ module Api
       def document_provider
         # SSoT: WarehouseProvider is THE ONE source for storage config
         warehouse_provider = WarehouseProvider.instance rescue nil
-        current_provider = warehouse_provider&.provider_type || "sharepoint"
+        # FRC (Feb 2026): Return actual configured provider, no hardcoded defaults
+        current_provider = warehouse_provider&.provider_type
         current_bucket = warehouse_provider&.bucket
         # SSoT: credential_id from WarehouseProvider (polymorphic)
         current_credential_id = warehouse_provider&.credential_id
@@ -502,8 +504,13 @@ module Api
 
       # GET /api/v1/organization/estimate_migration
       # Estimates time and resources for migration
+      # FRC (Feb 2026): Require from_provider param, no hardcoded defaults
       def estimate_migration
-        from_provider = params[:from_provider] || 'sharepoint'
+        from_provider = params[:from_provider]
+
+        unless from_provider.present?
+          return render json: { success: false, error: "from_provider parameter required" }, status: :bad_request
+        end
 
         result = DocumentMigrationService.estimate_migration(from: from_provider)
 
@@ -694,12 +701,13 @@ module Api
         ms_credential = MicrosoftCredential.connected.first rescue nil
 
         # Determine actual provider based on what's connected (prioritize S3 if active)
+        # FRC (Feb 2026): No hardcoded defaults - return actual configured provider or nil
         actual_provider_type = if s3_credential&.status == "connected"
           "s3_compatible"
         elsif ms_credential&.status == "connected"
           "sharepoint"
         else
-          storage_config&.provider_type || "s3_compatible"
+          storage_config&.provider_type # May be nil if not configured
         end
 
         actual_connected = case actual_provider_type

@@ -246,10 +246,15 @@ class Tenant < ApplicationRecord
     warehouse_provider&.provider_type == 's3_compatible' && warehouse_provider&.credential_id.present?
   end
 
-  # Check if SharePoint storage is enabled (default)
-  # SSoT (Feb 2026): Uses WarehouseProvider.provider_type
+  # Check if SharePoint storage is enabled
+  # FRC (Feb 2026): Only true if explicitly configured as sharepoint, not if nil/unconfigured
   def sharepoint_storage_enabled?
-    warehouse_provider&.provider_type == 'sharepoint' || warehouse_provider&.provider_type.nil?
+    warehouse_provider&.provider_type == 'sharepoint'
+  end
+
+  # Check if any storage provider is configured
+  def storage_configured?
+    warehouse_provider&.provider_type.present?
   end
 
   # =============================================================================

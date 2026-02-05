@@ -958,7 +958,8 @@ interface OrgDocumentProvider {
 function DocumentStorageProvider() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
-  const [selectedProvider, setSelectedProvider] = React.useState<string>("sharepoint");
+  // FRC (Feb 2026): Don't default to sharepoint - wait for API to return actual provider
+  const [selectedProvider, setSelectedProvider] = React.useState<string>("");
   const [selectedCredentialId, setSelectedCredentialId] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [showConfig, setShowConfig] = React.useState(false);
@@ -1013,7 +1014,8 @@ function DocumentStorageProvider() {
 
         // SSoT Fix (Jan 2026): Map "s3_compatible" to actual provider type from credential
         // Backend returns generic "s3_compatible", but dropdown needs specific provider (wasabi, backblaze_b2, etc.)
-        let provider = response.data.document_provider || "sharepoint";
+        // FRC (Feb 2026): Don't default to sharepoint - use actual configured provider or empty string
+        let provider = response.data.document_provider || "";
         if (provider === "s3_compatible" && response.data.document_provider_credential_id) {
           const activeCredential = response.data.s3_credentials?.find(
             (c) => c.id === response.data.document_provider_credential_id
