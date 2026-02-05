@@ -71,7 +71,6 @@ export default function JobsPageClient({
         tableName="Jobs"
         onView={handleView}
         onEdit={handleEdit}
-        onRowClick={handleView}
         onRowDoubleClick={handleRowDoubleClick}
         enableExport
         enableImport

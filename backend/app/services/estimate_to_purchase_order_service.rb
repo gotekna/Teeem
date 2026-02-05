@@ -47,12 +47,12 @@ class EstimateToPurchaseOrderService
     # Track if any items need review
     needs_review = supplier_id.nil?
 
-    # Create the PO
+    # Create the PO (SSoT: use notes alias for description column - hidden from UI)
     po = PurchaseOrder.create!(
       construction_id: @construction.id,
       estimate_id: @estimate.id,
       supplier_id: supplier_id,
-      description: "Auto-generated from #{@estimate.source} estimate",
+      notes: "Auto-generated from #{@estimate.source} estimate",
       status: "draft",
       required_date: 14.days.from_now.to_date,
       delivery_address: @construction.title,

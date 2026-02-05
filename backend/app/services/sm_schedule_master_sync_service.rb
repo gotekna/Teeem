@@ -20,7 +20,7 @@
 #
 # PROTECTED (system identity only):
 # - id, created_at, updated_at, created_by_id, updated_by_id
-# - sm_schedule_master_id, job_id, construction_id, saas_customer_id
+# - sm_schedule_master_id, job_id, saas_customer_id
 #
 # INTELLIGENT MATCHING (for unlinked tasks):
 # - 95%+ similarity: Auto-link without asking
@@ -1135,7 +1135,7 @@ class SmScheduleMasterSyncService
 
     task = SmTask.new(
       # Core identifiers
-      construction_id: job.id,
+      job_id: job.id,
       sm_schedule_master_id: template_row.id,
       task_number: template_task_number,
       sequence_order: next_sequence,

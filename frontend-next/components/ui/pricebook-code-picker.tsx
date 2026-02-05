@@ -125,17 +125,19 @@ export function PricebookCodePicker({
       clearTimeout(searchTimeoutRef.current);
     }
 
-    searchTimeoutRef.current = setTimeout(() => {
-      loadItems(query);
-    }, 300);
-  }, [loadItems]);
-
-  // Load on first interaction
-  const handleFocus = React.useCallback(() => {
+    // If no items loaded yet, load immediately (first interaction)
+    // Otherwise debounce the search
     if (!hasLoaded) {
-      loadItems();
+      loadItems(query);
+    } else {
+      searchTimeoutRef.current = setTimeout(() => {
+        loadItems(query);
+      }, 300);
     }
-  }, [hasLoaded, loadItems]);
+  }, [loadItems, hasLoaded]);
+
+  // Load items when dropdown opens (triggered by onInputChange with empty string)
+  // This is now handled by the ComboboxDropdown's focus mechanism
 
   // Format price for display
   const formatPrice = (price?: number) => {
@@ -166,55 +168,60 @@ export function PricebookCodePicker({
   }, [value, comboboxItems]);
 
   return (
-    <div onFocus={handleFocus}>
-      <ComboboxDropdown
-        items={comboboxItems}
-        selectedItem={selectedComboboxItem}
-        onSelect={(item: PricebookComboboxItem) => onSelect(item.pricebookItem)}
-        placeholder={placeholder}
-        disabled={disabled}
-        isLoading={isLoading}
-        clearable={clearable}
-        onClear={() => onSelect(null)}
-        onInputChange={handleInputChange}
-        disableInternalFilter
-        className={className}
-        popoverProps={{ className: "w-[400px]" }}
-        renderListItem={({ isChecked, item }) => {
-          const price = item.pricebookItem.active_price ?? item.pricebookItem.current_price;
-          return (
-            <div className="flex items-center justify-between gap-2 w-full">
-              <div className="flex items-center gap-2 min-w-0">
-                <Tag className="h-4 w-4 text-muted-foreground shrink-0" />
-                <div className="min-w-0">
-                  <div className="font-medium text-sm truncate">{item.pricebookItem.item_code}</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {item.pricebookItem.item_name}
-                  </div>
+    <ComboboxDropdown
+      items={comboboxItems}
+      selectedItem={selectedComboboxItem}
+      onSelect={(item: PricebookComboboxItem) => onSelect(item.pricebookItem)}
+      placeholder={placeholder}
+      disabled={disabled}
+      isLoading={isLoading}
+      clearable={clearable}
+      onClear={() => onSelect(null)}
+      onInputChange={handleInputChange}
+      disableInternalFilter
+      className={className}
+      popoverProps={{ className: "w-[800px]" }}
+      renderListItem={({ isChecked, item }) => {
+        const price = item.pricebookItem.active_price ?? item.pricebookItem.current_price;
+        return (
+          <div className="flex items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-2 min-w-0">
+              <Tag className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="min-w-0">
+                <div className="font-medium text-sm truncate">{item.pricebookItem.item_code}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {item.pricebookItem.item_name}
                 </div>
               </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
               {showPrice && price !== undefined && price !== null && (
-                <div className="flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400 shrink-0">
+                <div className="flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400">
                   <DollarSign className="h-3 w-3" />
                   {formatPrice(price)?.replace("$", "")}
                 </div>
               )}
+              {item.pricebookItem.default_supplier && (
+                <span className="text-xs text-muted-foreground">
+                  · {item.pricebookItem.default_supplier.display_name || item.pricebookItem.default_supplier.name}
+                </span>
+              )}
             </div>
-          );
-        }}
-        renderSelectedItem={(item) => {
-          if (showPriceInSelection) {
-            const price = item.pricebookItem.active_price ?? item.pricebookItem.current_price;
-            return `${item.pricebookItem.item_code} - ${formatPrice(price) || ""}`;
-          }
-          return item.pricebookItem.item_code;
-        }}
-        emptyResults={
-          searchQuery && !isLoading
-            ? "No pricebook items found"
-            : "Type to search pricebook..."
+          </div>
+        );
+      }}
+      renderSelectedItem={(item) => {
+        if (showPriceInSelection) {
+          const price = item.pricebookItem.active_price ?? item.pricebookItem.current_price;
+          return `${item.pricebookItem.item_code} - ${formatPrice(price) || ""}`;
         }
-      />
-    </div>
+        return item.pricebookItem.item_code;
+      }}
+      emptyResults={
+        searchQuery && !isLoading
+          ? "No pricebook items found"
+          : "Type to search pricebook..."
+      }
+    />
   );
 }

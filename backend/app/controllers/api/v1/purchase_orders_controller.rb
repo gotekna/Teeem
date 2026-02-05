@@ -92,7 +92,12 @@ module Api
               methods: [ :site_supervisor_info ]
             },
             line_items: {
-              include: { pricebook_item: { methods: [ :active_price ] } },
+              include: {
+                pricebook_item: {
+                  methods: [ :active_price ],
+                  include: { default_supplier: { methods: [ :display_name ] } }
+                }
+              },
               methods: [ :price_drift, :price_outdated?, :price_status, :price_status_label ]
             },
             document_tasks: {
@@ -462,11 +467,11 @@ module Api
           return
         end
 
-        # Build PO from lookup result
+        # Build PO from lookup result (SSoT: use notes alias for description column - hidden from UI)
         @purchase_order = PurchaseOrder.new(
           construction_id: params[:job_id],
           supplier_id: lookup_result[:supplier].id,
-          description: params[:task_description],
+          notes: params[:task_description],
           delivery_address: lookup_result[:metadata][:delivery_address],
           status: params[:status] || "draft",
           required_date: params[:required_date],
@@ -511,10 +516,11 @@ module Api
           )
 
           if lookup_result[:success]
+            # SSoT: use notes alias for description column - hidden from UI
             purchase_order = PurchaseOrder.new(
               construction_id: params[:job_id],
               supplier_id: lookup_result[:supplier].id,
-              description: po_request[:task_description],
+              notes: po_request[:task_description],
               delivery_address: lookup_result[:metadata][:delivery_address],
               status: po_request[:status] || "draft",
               required_date: po_request[:required_date],
@@ -863,7 +869,11 @@ module Api
       end
 
       def set_purchase_order
-        @purchase_order = PurchaseOrder.includes(:line_items, :supplier, :job).find_by_slug(params[:id])
+        @purchase_order = PurchaseOrder.includes(
+          { line_items: { pricebook_item: :default_supplier } },
+          :supplier,
+          :job
+        ).find_by_slug(params[:id])
         raise ActiveRecord::RecordNotFound unless @purchase_order
       end
 

@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useUrlState } from "@/hooks/useUrlState";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
-import { PricebookDetailDrawer } from "@/components/pricebook/PricebookDetailDrawer";
 import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
 import type { ViewData } from "@/lib/server/foundation-api";
 
@@ -50,44 +48,10 @@ export default function PricebookPageClient({
   initialTotalCount,
 }: PricebookPageClientProps) {
   const router = useRouter();
-
-  // SSoT: Drawer state managed by useUrlState hook
-  const [urlState, setUrlState] = useUrlState({
-    itemId: null as string | null,
-  });
-
-  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Read URL params to open drawer on mount/URL change
-  useEffect(() => {
-    if (urlState.itemId) {
-      const id = parseInt(urlState.itemId, 10);
-      if (!isNaN(id)) {
-        setSelectedItemId(id);
-        setDrawerOpen(true);
-      }
-    } else {
-      setDrawerOpen(false);
-      setSelectedItemId(null);
-    }
-  }, [urlState.itemId]);
-
-  // Handle drawer open change - sync to URL
-  const handleDrawerOpenChange = useCallback((open: boolean) => {
-    if (!open) {
-      setUrlState({ itemId: null });
-    }
-  }, [setUrlState]);
-
-  // Handle row double-click - open drawer via URL
+  // Handle row double-click - navigate to detail page
   const handleRowDoubleClick = useCallback((row: TableRow) => {
-    setUrlState({ itemId: String(row.id) });
-  }, [setUrlState]);
-
-  // Handle row click - navigate to detail page
-  const handleRowClick = useCallback((row: TableRow) => {
     const item = row as { id: number; item_code?: string };
     if (item.item_code) {
       const slug = slugifyPricebookCode(item.item_code);
@@ -129,7 +93,6 @@ export default function PricebookPageClient({
         enableExport
         enableImport
         onRefresh={handleRefresh}
-        onRowClick={handleRowClick}
         onRowDoubleClick={handleRowDoubleClick}
         onRowUpdate={handleRowUpdate}
         addRowLabel="Add Item"
@@ -152,13 +115,6 @@ export default function PricebookPageClient({
         autoFetchRecords
         // Start with all groups collapsed (user sees categories first)
         initialGroupsCollapsed
-      />
-
-      {/* Pricebook Detail Drawer */}
-      <PricebookDetailDrawer
-        itemId={selectedItemId}
-        open={drawerOpen}
-        onOpenChange={handleDrawerOpenChange}
       />
     </TablePage>
   );

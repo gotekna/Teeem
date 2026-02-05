@@ -97,6 +97,11 @@ interface PricebookItem {
   current_price?: number; // From pricebook search API
   unit_of_measure?: string;
   gst_code?: string;
+  default_supplier?: {
+    id: number;
+    display_name?: string;
+    name?: string;
+  };
 }
 
 // GST codes and their tax rates
@@ -372,6 +377,10 @@ export default function PurchaseOrderDetailPage() {
   const [savingPdf, setSavingPdf] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
+
+  // Refresh prices confirmation dialog
+  const [refreshPricesDialogOpen, setRefreshPricesDialogOpen] = useState(false);
+  const [itemsToResetCount, setItemsToResetCount] = useState(0);
 
   const { toast } = useToast();
 
@@ -1068,6 +1077,39 @@ export default function PurchaseOrderDetailPage() {
     setLineItems(updated);
   };
 
+  // Refresh all line item prices from their linked pricebook items
+  const refreshPricesFromPricebook = () => {
+    // Count how many prices will be reset
+    const itemsToReset = lineItems.filter(
+      (item) => item.pricebook_item?.active_price != null &&
+        Number(item.unit_price) !== Number(item.pricebook_item.active_price)
+    );
+
+    if (itemsToReset.length === 0) {
+      return; // Nothing to reset
+    }
+
+    // Show confirmation dialog
+    setItemsToResetCount(itemsToReset.length);
+    setRefreshPricesDialogOpen(true);
+  };
+
+  // Execute the price refresh after confirmation
+  const executeRefreshPrices = () => {
+    const updated = lineItems.map((item) => {
+      // Only update items that have a linked pricebook item with an active price
+      if (item.pricebook_item?.active_price != null) {
+        return {
+          ...item,
+          unit_price: item.pricebook_item.active_price,
+        };
+      }
+      return item;
+    });
+    setLineItems(updated);
+    setRefreshPricesDialogOpen(false);
+  };
+
   // Calculate totals with per-line GST rates
   const calculateTotals = useCallback(() => {
     const activeItems = lineItems.filter((item) => !item._destroy);
@@ -1142,7 +1184,7 @@ export default function PurchaseOrderDetailPage() {
   }
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 pb-24">
       {/* Header */}
       <div className="flex items-start gap-4">
         <BackButton fallbackHref="/purchase_orders" className="mt-1" />
@@ -1324,23 +1366,28 @@ export default function PurchaseOrderDetailPage() {
             <RefreshCw className={cn("h-4 w-4 mr-2", loadingSyncPreview && "animate-spin")} />
             Sync with Schedule
           </Button>
-          {hasChanges() && (
-            <>
-              <Button onClick={handleDiscard} variant="outline" disabled={saving}>
-                Discard Changes
-              </Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? (
-                  <>
-                    <Spinner className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
-              </Button>
-            </>
-          )}
+          <Button
+            onClick={handleDiscard}
+            variant="outline"
+            disabled={saving}
+            className={cn(!hasChanges() && "invisible")}
+          >
+            Discard Changes
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className={cn(!hasChanges() && "invisible")}
+          >
+            {saving ? (
+              <>
+                <Spinner className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
+          </Button>
         </div>
       </div>
 
@@ -1592,10 +1639,10 @@ export default function PurchaseOrderDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={loadPurchaseOrder}
-              disabled={loading}
+              onClick={refreshPricesFromPricebook}
+              title="Reset all prices to their pricebook values"
             >
-              {loading ? "Refreshing..." : "Refresh Prices"}
+              Refresh Prices
             </Button>
           </div>
 
@@ -1603,14 +1650,14 @@ export default function PurchaseOrderDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[150px] py-2">CODE</TableHead>
-                  <TableHead className="py-2">DESCRIPTION</TableHead>
-                  <TableHead className="w-[70px] text-right py-2">QTY</TableHead>
-                  <TableHead className="w-[100px] text-right py-2">UNIT PRICE</TableHead>
-                  <TableHead className="w-[100px] py-2">GST TYPE</TableHead>
-                  <TableHead className="w-[100px] text-right py-2">SUBTOTAL</TableHead>
-                  <TableHead className="w-[80px] text-right py-2">GST</TableHead>
-                  <TableHead className="w-[100px] text-right py-2">TOTAL</TableHead>
+                  <TableHead className="w-[150px] py-2 border-r">CODE</TableHead>
+                  <TableHead className="py-2 border-r">DESCRIPTION</TableHead>
+                  <TableHead className="w-[90px] text-right py-2 border-r">QTY</TableHead>
+                  <TableHead className="w-[90px] text-right py-2 border-r">PRICE</TableHead>
+                  <TableHead className="w-[80px] py-2 border-r">TAX</TableHead>
+                  <TableHead className="w-[100px] text-right py-2 border-r">SUBTOTAL</TableHead>
+                  <TableHead className="w-[80px] text-right py-2 border-r">GST</TableHead>
+                  <TableHead className="w-[100px] text-right py-2 border-r">TOTAL</TableHead>
                   <TableHead className="w-[50px] py-2"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1664,8 +1711,8 @@ export default function PurchaseOrderDetailPage() {
                     className="h-auto"
                     style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                   >
-                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
-                      <div className="flex items-center gap-1">
+                    <TableCell className="py-1 border-b border-r" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
+                      <div className="flex flex-col">
                         <PricebookCodePicker
                           value={item.pricebook_item ? {
                             id: item.pricebook_item.id,
@@ -1674,6 +1721,7 @@ export default function PurchaseOrderDetailPage() {
                             current_price: item.pricebook_item.current_price,
                             active_price: item.pricebook_item.active_price,
                             gst_code: item.pricebook_item.gst_code,
+                            default_supplier: item.pricebook_item.default_supplier,
                           } : null}
                           onSelect={(pbItem) => {
                             if (pbItem) {
@@ -1684,26 +1732,22 @@ export default function PurchaseOrderDetailPage() {
                                 current_price: pbItem.current_price,
                                 active_price: pbItem.active_price,
                                 gst_code: pbItem.gst_code,
+                                default_supplier: pbItem.default_supplier,
                               });
                             }
                           }}
                           placeholder="Search items..."
                           showPrice
+                          className="border-0 rounded-none shadow-none focus-visible:ring-0"
                         />
-                        {item.pricebook_item?.item_code && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 shrink-0"
-                            onClick={() => window.open(`/pricebook/${item.pricebook_item!.item_code}`, '_blank')}
-                            title="Open in Price Book"
-                          >
-                            <ExternalLink className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                          </Button>
+                        {item.pricebook_item?.default_supplier && (
+                          <div className="px-3 pb-1 -mt-1 text-xs text-muted-foreground truncate">
+                            {item.pricebook_item.default_supplier.display_name || item.pricebook_item.default_supplier.name}
+                          </div>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
+                    <TableCell className="py-1 border-b border-r" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Input
                         value={item.description}
                         onChange={(e) => updateLineItem(originalIndex, "description", e.target.value)}
@@ -1712,31 +1756,33 @@ export default function PurchaseOrderDetailPage() {
                         style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                       />
                     </TableCell>
-                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
+                    <TableCell className="py-1 border-b border-r" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Input
                         type="number"
                         value={item.quantity}
                         onChange={(e) =>
                           updateLineItem(originalIndex, "quantity", parseFloat(e.target.value) || 0)
                         }
+                        onFocus={(e) => e.target.select()}
                         className={cn(
-                          "text-right text-sm h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
-                          shouldGreyOut && "text-muted-foreground"
+                          "text-right text-base h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+                          shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground"
                         )}
                         style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                         min={0}
                       />
                     </TableCell>
-                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
+                    <TableCell className="py-1 border-b border-r" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Input
                         type="number"
                         value={item.unit_price}
                         onChange={(e) =>
                           updateLineItem(originalIndex, "unit_price", parseFloat(e.target.value) || 0)
                         }
+                        onFocus={(e) => e.target.select()}
                         className={cn(
-                          "text-right text-sm h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
-                          shouldGreyOut && "text-muted-foreground",
+                          "text-right text-base h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+                          shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground",
                           hasPriceChanged && "text-orange-600 dark:text-orange-400 font-semibold"
                         )}
                         style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
@@ -1744,7 +1790,7 @@ export default function PurchaseOrderDetailPage() {
                         step={0.01}
                       />
                     </TableCell>
-                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
+                    <TableCell className="py-1 border-b border-r" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       {/* GST Type selector - disabled if pricebook item is selected */}
                       <Popover>
                         <PopoverTrigger asChild>
@@ -1794,13 +1840,13 @@ export default function PurchaseOrderDetailPage() {
                         )}
                       </Popover>
                     </TableCell>
-                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
+                    <TableCell className={cn("text-right py-1 text-base border-b border-r", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       {formatCurrency((item.quantity || 0) * (item.unit_price || 0))}
                     </TableCell>
-                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
+                    <TableCell className={cn("text-right py-1 text-base border-b border-r", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       {formatCurrency((item.quantity || 0) * (item.unit_price || 0) * getGstRate(item.gst_code))}
                     </TableCell>
-                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "font-medium")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
+                    <TableCell className={cn("text-right py-1 text-base border-b border-r", shouldGreyOut ? "text-muted-foreground" : "font-medium")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       {formatCurrency((item.quantity || 0) * (item.unit_price || 0) * (1 + getGstRate(item.gst_code)))}
                     </TableCell>
                     <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
@@ -2181,6 +2227,43 @@ export default function PurchaseOrderDetailPage() {
                   Send Email
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Refresh Prices Confirmation Dialog */}
+      <Dialog open={refreshPricesDialogOpen} onOpenChange={setRefreshPricesDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Refresh Prices
+            </DialogTitle>
+            <DialogDescription>
+              This will reset {itemsToResetCount} price{itemsToResetCount > 1 ? 's' : ''} to their current pricebook values.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500 mt-0.5" />
+              <div className="text-sm text-amber-800 dark:text-amber-200">
+                <p className="font-medium">This cannot be undone</p>
+                <p className="mt-1 text-amber-700 dark:text-amber-300">
+                  Any manual price adjustments you&apos;ve made will be overwritten with the pricebook values.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRefreshPricesDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={executeRefreshPrices}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh Prices
             </Button>
           </DialogFooter>
         </DialogContent>

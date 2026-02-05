@@ -335,11 +335,12 @@ class SmScheduleMasterTemplateCopyService
 
   def create_po_for_task(task, template_row)
     # Create the Purchase Order
+    # SSoT: Use notes (aliased to description column) - description column hidden from UI
     po = PurchaseOrder.new(
       job_id: job.id,
       supplier_id: template_row.po_supplier_id,
       status: "draft",
-      description: "Auto-created from template: #{template_row.name}",
+      notes: "Auto-created from template: #{template_row.name}",
       required_date: task.start_date,
       created_by_id: user&.id
     )

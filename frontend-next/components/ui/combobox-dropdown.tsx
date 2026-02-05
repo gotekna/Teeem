@@ -284,6 +284,8 @@ export function ComboboxDropdown<T extends ComboboxItem>({
         disabled={item.disabled}
         className={cn(
           "cursor-pointer whitespace-nowrap",
+          // Override cmdk's aria-selected:bg-accent with visible colors
+          "aria-selected:bg-blue-100 aria-selected:text-foreground dark:aria-selected:bg-blue-900/40",
           isHighlighted && "bg-blue-100 dark:bg-blue-900/40",
           className
         )}
@@ -387,9 +389,9 @@ export function ComboboxDropdown<T extends ComboboxItem>({
         />
       )}
 
-      <CommandList ref={listRef} className="max-h-[300px] overflow-y-auto overflow-x-hidden">
+      <CommandList ref={listRef} className="max-h-[300px] min-h-[100px] overflow-y-auto overflow-x-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center py-6">
+          <div className="flex items-center justify-center min-h-[100px]">
             <Spinner size={20} className="text-muted-foreground" />
           </div>
         ) : (
@@ -412,12 +414,15 @@ export function ComboboxDropdown<T extends ComboboxItem>({
     return (
       <Popover open={open} onOpenChange={(isOpen) => {
         setOpen(isOpen);
-        if (!isOpen) {
+        if (isOpen) {
+          // Focus input when opening so user can type immediately
+          setTimeout(() => inputRef.current?.focus(), 0);
+        } else {
           setInputValue(""); // Clear search when closing
         }
       }}>
         <PopoverTrigger asChild disabled={disabled} className="w-full">
-          <div className="relative w-full">
+          <div className="relative w-full h-9 overflow-hidden">
             {/* Hidden input for search when open */}
             <input
               ref={inputRef}
@@ -429,6 +434,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
                 if (!open) {
                   setOpen(true);
                   setInputValue(""); // Only clear when first opening
+                  onInputChange?.(""); // Trigger initial load
                 }
               }}
               placeholder={placeholder as string ?? "Search..."}
