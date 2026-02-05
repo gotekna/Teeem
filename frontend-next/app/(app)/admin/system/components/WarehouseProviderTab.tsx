@@ -1510,33 +1510,10 @@ function TabNode({
         onClick={!isEditing ? (e) => { e.stopPropagation(); onStartEdit(tab.id); } : undefined}
         title={!isEditing ? "Click to edit" : undefined}
       >
-        {/* Tab header row - show folder name from folder_path (resolved) */}
+        {/* Tab header row - SSoT (Feb 2026): UI/DL badges REMOVED - now on document types via join table */}
         <div className="flex items-center gap-1 mb-2">
           <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
           <span className="text-sm font-medium">{resolveTemplatePreview(defaultFolderName || tab.display_name || '')}</span>
-          {/* UI/DL badges for this tab */}
-          <span
-            className={cn(
-              "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
-              tab.ui_name
-                ? "bg-green-500 text-white dark:bg-green-600"
-                : "bg-orange-500 text-white dark:bg-orange-600"
-            )}
-            title={`UI Name: ${tab.ui_name || '{{OriginalFileName}} (default)'}`}
-          >
-            UI
-          </span>
-          <span
-            className={cn(
-              "px-1.5 py-0.5 rounded text-[9px] font-sans font-semibold",
-              tab.download_name && tab.download_name !== '{{OriginalFileName}}'
-                ? "bg-green-500 text-white dark:bg-green-600"
-                : "bg-orange-500 text-white dark:bg-orange-600"
-            )}
-            title={`Download Name: ${tab.download_name || '{{OriginalFileName}} (default)'}`}
-          >
-            DL
-          </span>
           {!isEditing && (
             <span className="text-[10px] text-muted-foreground ml-2 opacity-0 group-hover:opacity-100">(click to edit)</span>
           )}
@@ -1835,40 +1812,8 @@ function TabNode({
           className="flex items-center gap-1.5 flex-wrap py-0.5"
           style={{ paddingLeft: `${level * 16 + 42}px` }}
         >
-          {/* Folder path badge (green) */}
-          <Badge
-            variant="outline"
-            className="text-[10px] gap-1 font-normal bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
-          >
-            <FolderOpen className="h-3 w-3 shrink-0" />
-            <span className="font-mono">{currentFullPath}</span>
-          </Badge>
-          {/* UI badge (green = custom, orange = default) */}
-          <Badge
-            variant="outline"
-            className={cn(
-              "text-[10px] gap-0.5 font-normal",
-              tab.ui_name
-                ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
-                : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
-            )}
-            title={`UI Name: ${tab.ui_name || '{{OriginalFileName}} (default)'}`}
-          >
-            UI
-          </Badge>
-          {/* DL badge (green = custom, orange = default) */}
-          <Badge
-            variant="outline"
-            className={cn(
-              "text-[10px] gap-0.5 font-normal",
-              tab.download_name && tab.download_name !== '{{OriginalFileName}}'
-                ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
-                : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
-            )}
-            title={`Download Name: ${tab.download_name || '{{OriginalFileName}} (default)'}`}
-          >
-            DL
-          </Badge>
+          {/* SSoT (Feb 2026): Folder path badges REMOVED - redundant since all follow same template pattern */}
+          {/* UI/DL badges also removed from folder level - now on document types via join table */}
           {/* Sub-tabs count badge */}
           {hasChildren && (
             <Badge variant="secondary" className="text-[10px]">

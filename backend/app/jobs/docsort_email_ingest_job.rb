@@ -1,15 +1,19 @@
 # frozen_string_literal: true
 
-# DocsortEmailIngestJob - Sync emails from docsort@tekna.com.au shared mailbox
+# DocsortEmailIngestJob - Sync emails from organization's docsort shared mailbox
+#
+# Multi-tenant: Each organization can configure their docsort mailbox in sync_config.
+# Set sync_config["docsort_mailbox"] = "docsort@company.com" on MicrosoftCredential.
 #
 # Creates DocsortItem records for:
 # - Each email (for classification/routing of email content)
 # - Each attachment (for classification/routing of attached files)
 #
 # Usage:
-#   DocsortEmailIngestJob.perform_now                    # Incremental sync
-#   DocsortEmailIngestJob.perform_now('full')            # Full sync
-#   DocsortEmailIngestJob.perform_later                  # Background incremental
+#   DocsortEmailIngestJob.perform_now                              # All orgs with docsort configured
+#   DocsortEmailIngestJob.perform_now('full')                      # Full sync all orgs
+#   DocsortEmailIngestJob.perform_now('incremental', organization_id: 1)  # Single org
+#   DocsortEmailIngestJob.perform_later                            # Background incremental
 #
 class DocsortEmailIngestJob < ApplicationJob
   queue_as :default
@@ -22,58 +26,87 @@ class DocsortEmailIngestJob < ApplicationJob
   discard_on ActiveRecord::RecordNotFound
 
   # Configuration
-  DOCSORT_MAILBOX = 'docsort@tekna.com.au'.freeze
   SYNC_LOOKBACK_DAYS = 7 # For incremental, look back 7 days
   SYNC_FULL_DAYS = 90    # For full sync, look back 90 days
 
   def perform(sync_type = 'incremental', organization_id: nil)
-    @credential = find_credential(organization_id)
+    results = { orgs_processed: 0, total_items: 0, errors: [] }
 
-    unless @credential&.status == 'connected'
-      Rails.logger.info "[DocsortEmailIngest] Skipping - Microsoft app not connected"
-      return { success: false, error: 'Microsoft app not connected' }
+    # Find credentials with docsort_mailbox configured
+    credentials = find_docsort_credentials(organization_id)
+
+    if credentials.empty?
+      Rails.logger.info "[DocsortEmailIngest] No organizations have docsort_mailbox configured"
+      return { success: true, message: 'No docsort mailboxes configured', **results }
     end
+
+    credentials.each do |credential|
+      result = sync_credential(credential, sync_type)
+      results[:orgs_processed] += 1
+      results[:total_items] += result[:items_created] || 0
+      results[:errors].concat(result[:errors]) if result[:errors].any?
+    end
+
+    Rails.logger.info "[DocsortEmailIngest] Completed: #{results[:orgs_processed]} orgs, #{results[:total_items]} items"
+    { success: results[:errors].empty?, **results }
+  end
+
+  private
+
+  def find_docsort_credentials(organization_id)
+    base_scope = MicrosoftCredential.app_credentials.where(status: 'connected')
+
+    if organization_id.present?
+      # Single org mode
+      base_scope.where(organization_id: organization_id)
+                .where("sync_config->>'docsort_mailbox' IS NOT NULL")
+    else
+      # All orgs with docsort configured
+      base_scope.where("sync_config->>'docsort_mailbox' IS NOT NULL")
+    end
+  end
+
+  def sync_credential(credential, sync_type)
+    @credential = credential
+    @docsort_mailbox = credential.sync_config['docsort_mailbox']
+
+    Rails.logger.info "[DocsortEmailIngest] Syncing #{@docsort_mailbox} for #{credential.name}"
 
     # Determine sync window
     since = case sync_type
             when 'full'
               SYNC_FULL_DAYS.days.ago
             else
-              [@credential.last_sync_at&.-(2.hours) || SYNC_LOOKBACK_DAYS.days.ago,
+              [credential.last_sync_at&.-(2.hours) || SYNC_LOOKBACK_DAYS.days.ago,
                SYNC_LOOKBACK_DAYS.days.ago].min
             end
 
-    Rails.logger.info "[DocsortEmailIngest] Starting #{sync_type} sync for #{DOCSORT_MAILBOX} since #{since}"
-
-    total_items = 0
+    items_created = 0
     errors = []
 
     begin
-      client = MicrosoftAppGraphClient.new(@credential)
+      client = MicrosoftAppGraphClient.new(credential)
 
       # Get all folders for the docsort mailbox
-      folders = client.get_user_mail_folders(DOCSORT_MAILBOX)
+      folders = client.get_user_mail_folders(@docsort_mailbox)
       inbox_folder = folders.find { |f| f[:name] == 'Inbox' }
 
       unless inbox_folder
-        Rails.logger.warn "[DocsortEmailIngest] No Inbox folder found for #{DOCSORT_MAILBOX}"
-        return { success: false, error: 'No Inbox folder found' }
+        Rails.logger.warn "[DocsortEmailIngest] No Inbox folder found for #{@docsort_mailbox}"
+        return { items_created: 0, errors: ["No Inbox folder for #{@docsort_mailbox}"] }
       end
 
       # Sync only the Inbox folder (ignore Sent, Junk, etc.)
       items_created = sync_folder(client, inbox_folder, since)
-      total_items += items_created
 
-      Rails.logger.info "[DocsortEmailIngest] Completed: #{total_items} items created"
+      Rails.logger.info "[DocsortEmailIngest] #{credential.name}: #{items_created} items created"
     rescue StandardError => e
-      Rails.logger.error "[DocsortEmailIngest] Error: #{e.message}"
-      errors << e.message
+      Rails.logger.error "[DocsortEmailIngest] Error for #{credential.name}: #{e.message}"
+      errors << "#{credential.name}: #{e.message}"
     end
 
-    { success: errors.empty?, total_items: total_items, errors: errors }
+    { items_created: items_created, errors: errors }
   end
-
-  private
 
   def sync_folder(client, folder, since)
     items_created = 0
@@ -83,7 +116,7 @@ class DocsortEmailIngestJob < ApplicationJob
 
     loop do
       emails = client.get_user_emails(
-        DOCSORT_MAILBOX,
+        @docsort_mailbox,
         folder: folder[:id],
         top: 50,
         since: since,
@@ -212,7 +245,7 @@ class DocsortEmailIngestJob < ApplicationJob
         conversation_id: email_data['conversationId'],
         importance: email_data['importance'],
         outlook_id: email_data['id'],
-        mailbox_owner_email: DOCSORT_MAILBOX,
+        mailbox_owner_email: @docsort_mailbox,
         folder_name: 'Inbox',
         microsoft_credential_id: @credential.id,
         first_synced_at: Time.current,
@@ -292,7 +325,7 @@ class DocsortEmailIngestJob < ApplicationJob
   end
 
   def fetch_attachments(client, message_id)
-    client.get_email_attachments(DOCSORT_MAILBOX, message_id)
+    client.get_email_attachments(@docsort_mailbox, message_id)
   rescue StandardError => e
     Rails.logger.error "[DocsortEmailIngest] Error fetching attachments: #{e.message}"
     []
@@ -321,16 +354,6 @@ class DocsortEmailIngestJob < ApplicationJob
     attachments.all? do |att|
       att['@odata.type'] != '#microsoft.graph.fileAttachment' || skip_attachment?(att)
     end
-  end
-
-  def find_credential(organization_id)
-    if organization_id.present?
-      org = Organization.find_by(id: organization_id)
-      return MicrosoftCredential.active_for_org(org) if org
-    end
-
-    # Fallback to first active app credential
-    MicrosoftCredential.app_credentials.active.first
   end
 
   def extract_text_from_html(html_content)
