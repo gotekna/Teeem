@@ -6,8 +6,9 @@ module Api
       # GET /api/v1/document_types
       # PERFORMANCE: Eager load warehouse_folders to prevent N+1 queries in serialize_document_type
       # P95 was 1.4s due to N+1; with eager loading should be <200ms
+      # SSoT: Include join table to ensure is_primary flag is available
       def index
-        @document_types = DocumentType.includes(warehouse_folders: :parent)
+        @document_types = DocumentType.includes(warehouse_folder_document_types: { warehouse_folder: :parent })
 
         # Filter by scope (company, job, both)
         if params[:scope].present?
@@ -330,18 +331,28 @@ module Api
 
       def serialize_document_type(document_type)
         # SSoT: WarehouseFolder data (replaces deprecated document_type_folders)
-        warehouse_folders_data = document_type.warehouse_folders.ordered.map do |tab|
+        # Use warehouse_folder_document_types to get is_primary flag and proper ordering
+        # Sort by is_primary DESC so primary folder is first, then by order_position
+        folder_joins = document_type.warehouse_folder_document_types
+                                    .includes(:warehouse_folder)
+                                    .sort_by { |wfdt| [ wfdt.is_primary ? 0 : 1, wfdt.warehouse_folder&.order_position || 999 ] }
+
+        warehouse_folders_data = folder_joins.filter_map do |wfdt|
+          tab = wfdt.warehouse_folder
+          next unless tab
+
           {
             id: tab.id,
             tab_key: tab.tab_key,
             display_name: tab.display_name,
             hierarchy_path: tab.hierarchy_path,
             parent_id: tab.parent_id,
-            parent_name: tab.parent&.display_name
+            parent_name: tab.parent&.display_name,
+            is_primary: wfdt.is_primary
           }
         end
 
-        primary_tab_data = warehouse_folders_data.first
+        primary_tab_data = warehouse_folders_data.find { |f| f[:is_primary] } || warehouse_folders_data.first
 
         {
           id: document_type.id,
@@ -375,7 +386,7 @@ module Api
           # SSoT: Foundation columns for View Manager visibility (Feb 2026)
           primary_folder: primary_tab_data&.dig(:display_name),
           primary_folder_path: primary_tab_data&.dig(:hierarchy_path),
-          show_in_folders: warehouse_folders_data[1..]&.map { |f| f[:display_name] }&.join(", "),
+          show_in_folders: warehouse_folders_data.reject { |f| f[:is_primary] }.map { |f| f[:display_name] }.join(", ").presence,
           # SSoT: WarehouseFolder data (new field names)
           warehouse_folder_ids: warehouse_folders_data.map { |t| t[:id] },
           warehouse_folders: warehouse_folders_data,
