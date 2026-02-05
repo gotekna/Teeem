@@ -402,6 +402,12 @@
       "tips": ["Use templates for proper formatting", "Preview before importing", "Check for duplicates"],
       "tasks": ["Upload import file", "Map columns", "Preview data", "Run import"]
     },
+    "/docsort": {
+      "title": "DocSort",
+      "description": "Universal document inbox with AI classification and routing.",
+      "tips": ["Drag and drop files to upload", "AI automatically classifies documents", "High confidence items route automatically", "Override classification if needed"],
+      "tasks": ["Upload documents", "Review classifications", "Route to Bill Inbox", "Route to job files", "Archive irrelevant items"]
+    },
     "/leads": {
       "title": "Leads",
       "description": "Track sales leads and opportunities.",

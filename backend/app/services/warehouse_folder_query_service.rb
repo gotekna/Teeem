@@ -127,19 +127,34 @@ class WarehouseFolderQueryService
   end
 
   # Pre-build document_types JSON for all tabs
-  # SSoT: Includes is_primary flag from join table (Feb 2026 fix)
+  # SSoT (Feb 2026): Includes templates with fallback chain from join table
+  # Template resolution: join table override → document type default → folder default
   def build_document_types_json(all_tabs)
     all_tabs.each_with_object({}) do |tab, hash|
       hash[tab.id] = tab.document_types.map do |dt|
-        # Get is_primary from preloaded join table (avoids N+1)
+        # Get join record from preloaded association (avoids N+1)
         join = tab.warehouse_folder_document_types.find { |j| j.document_type_id == dt.id }
+
+        # Compute effective templates using fallback chain
+        effective_ui = join&.ui_name_template.presence || dt.ui_name.presence || tab.ui_name.presence
+        effective_dl = join&.download_name_template.presence || dt.download_name.presence || tab.download_name.presence
+
         {
           id: dt.id,
           name: dt.name,
-          ui_name: dt.ui_name,
           abbreviation: dt.abbreviation,
-          download_name: dt.download_name,
-          is_primary: join&.is_primary || false  # SSoT: Primary/secondary link flag
+          is_primary: join&.is_primary || false,
+          # SSoT (Feb 2026): Templates with fallback chain
+          # Raw folder-specific templates (nil if not overridden)
+          ui_name_template: join&.ui_name_template,
+          download_name_template: join&.download_name_template,
+          # Effective templates (with fallback chain applied)
+          effective_ui_name_template: effective_ui,
+          effective_download_name_template: effective_dl,
+          has_template_overrides: join&.ui_name_template.present? || join&.download_name_template.present?,
+          # Legacy fields (for backward compatibility)
+          ui_name: effective_ui,
+          download_name: effective_dl
         }
       end
     end

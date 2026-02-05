@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_05_143452) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_06_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2209,6 +2209,49 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143452) do
     t.index ["declaration_date"], name: "index_dividends_on_declaration_date"
     t.index ["dividend_type"], name: "index_dividends_on_dividend_type"
     t.index ["status"], name: "index_dividends_on_status"
+  end
+
+  create_table "docsort_items", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "storage_blob_id"
+    t.bigint "warehouse_document_id"
+    t.bigint "synced_email_id"
+    t.bigint "uploaded_by_id"
+    t.string "source", default: "upload", null: false
+    t.string "status", default: "pending", null: false
+    t.string "document_type"
+    t.decimal "classification_confidence", precision: 5, scale: 4
+    t.jsonb "classification_result", default: {}
+    t.string "original_filename"
+    t.string "content_type"
+    t.integer "file_size"
+    t.string "from_email"
+    t.string "subject"
+    t.string "routed_to_type"
+    t.bigint "routed_to_id"
+    t.datetime "routed_at"
+    t.boolean "user_override", default: false
+    t.bigint "overridden_by_id"
+    t.datetime "overridden_at"
+    t.jsonb "metadata", default: {}
+    t.text "error_message"
+    t.datetime "processed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["classification_confidence"], name: "index_docsort_items_on_classification_confidence"
+    t.index ["created_at"], name: "index_docsort_items_on_created_at"
+    t.index ["document_type"], name: "index_docsort_items_on_document_type"
+    t.index ["overridden_by_id"], name: "index_docsort_items_on_overridden_by_id"
+    t.index ["routed_to_type", "routed_to_id"], name: "index_docsort_items_on_routed_to_type_and_routed_to_id"
+    t.index ["source"], name: "index_docsort_items_on_source"
+    t.index ["status"], name: "index_docsort_items_on_status"
+    t.index ["storage_blob_id"], name: "index_docsort_items_on_storage_blob_id"
+    t.index ["synced_email_id"], name: "index_docsort_items_on_synced_email_id"
+    t.index ["tenant_id", "document_type"], name: "index_docsort_items_on_tenant_id_and_document_type"
+    t.index ["tenant_id", "status"], name: "index_docsort_items_on_tenant_id_and_status"
+    t.index ["tenant_id"], name: "index_docsort_items_on_tenant_id"
+    t.index ["uploaded_by_id"], name: "index_docsort_items_on_uploaded_by_id"
+    t.index ["warehouse_document_id"], name: "index_docsort_items_on_warehouse_document_id"
   end
 
   create_table "document_activities", force: :cascade do |t|
@@ -10071,8 +10114,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143452) do
     t.boolean "is_primary", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "ui_name_template"
+    t.string "download_name_template"
     t.index ["document_type_id", "is_primary"], name: "idx_warehouse_folder_doc_types_primary"
     t.index ["document_type_id"], name: "index_warehouse_folder_document_types_on_document_type_id"
+    t.index ["download_name_template"], name: "idx_wfdt_download_name_template", where: "(download_name_template IS NOT NULL)"
+    t.index ["ui_name_template"], name: "idx_wfdt_ui_name_template", where: "(ui_name_template IS NOT NULL)"
     t.index ["warehouse_folder_id", "document_type_id"], name: "idx_warehouse_folder_doc_types_unique", unique: true
     t.index ["warehouse_folder_id"], name: "index_warehouse_folder_document_types_on_warehouse_folder_id"
   end
@@ -10933,6 +10980,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_05_143452) do
   add_foreign_key "dividend_payments", "contacts", column: "shareholder_id"
   add_foreign_key "dividend_payments", "dividends"
   add_foreign_key "dividends", "corporates", column: "company_id"
+  add_foreign_key "docsort_items", "storage_blobs"
+  add_foreign_key "docsort_items", "synced_emails"
+  add_foreign_key "docsort_items", "tenants"
+  add_foreign_key "docsort_items", "users", column: "overridden_by_id"
+  add_foreign_key "docsort_items", "users", column: "uploaded_by_id"
+  add_foreign_key "docsort_items", "warehouse_documents"
   add_foreign_key "document_activities", "users"
   add_foreign_key "document_duplicate_reviews", "cases"
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"

@@ -2331,6 +2331,19 @@ Rails.application.routes.draw do
         end
       end
 
+      # DocSort - Universal Document Inbox
+      resources :docsort, only: [:index, :show, :create, :destroy] do
+        collection do
+          get :stats
+        end
+        member do
+          post :classify
+          post :route
+          patch :override
+          get :download
+        end
+      end
+
       # Bill Payment Batches (ABA file generation)
       resources :bill_payment_batches, only: [ :index, :show, :create, :update, :destroy ] do
         collection do

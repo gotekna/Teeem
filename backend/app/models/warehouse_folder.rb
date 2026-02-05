@@ -136,6 +136,68 @@ class WarehouseFolder < ApplicationRecord
     warehouse_folder_document_types.pluck(:document_type_id)
   end
 
+  # ════════════════════════════════════════════════════════════════════════════════
+  # SSoT: Document Type Template Methods (Feb 2026)
+  # These methods provide access to document type templates with folder-specific overrides
+  # ════════════════════════════════════════════════════════════════════════════════
+
+  # Get all document types with their effective templates for this folder
+  # Returns array of hashes with template info (optimized for File Warehouse tree)
+  # @return [Array<Hash>] Document types with effective templates
+  def document_types_with_templates
+    warehouse_folder_document_types.includes(:document_type).map do |join|
+      dt = join.document_type
+      {
+        id: dt.id,
+        name: dt.name,
+        abbreviation: dt.abbreviation,
+        is_primary: join.is_primary,
+        # Raw folder-specific templates (nil if not overridden)
+        ui_name_template: join.ui_name_template,
+        download_name_template: join.download_name_template,
+        # Effective templates (with fallback chain applied)
+        effective_ui_name_template: join.effective_ui_name_template,
+        effective_download_name_template: join.effective_download_name_template,
+        has_template_overrides: join.has_template_overrides?
+      }
+    end
+  end
+
+  # Get the effective UI name template for a specific document type in this folder
+  # @param document_type_id [Integer] The document type ID
+  # @return [String, nil] The effective template
+  def effective_ui_name_template_for(document_type_id)
+    join = warehouse_folder_document_types.find_by(document_type_id: document_type_id)
+    join&.effective_ui_name_template
+  end
+
+  # Get the effective download name template for a specific document type in this folder
+  # @param document_type_id [Integer] The document type ID
+  # @return [String, nil] The effective template
+  def effective_download_name_template_for(document_type_id)
+    join = warehouse_folder_document_types.find_by(document_type_id: document_type_id)
+    join&.effective_download_name_template
+  end
+
+  # Set templates for a document type in this folder (creates override)
+  # @param document_type_id [Integer] The document type ID
+  # @param ui_name_template [String, nil] The UI name template override
+  # @param download_name_template [String, nil] The download name template override
+  def set_document_type_templates(document_type_id, ui_name_template: nil, download_name_template: nil)
+    join = warehouse_folder_document_types.find_or_create_by(document_type_id: document_type_id)
+    join.update(
+      ui_name_template: ui_name_template,
+      download_name_template: download_name_template
+    )
+  end
+
+  # Clear template overrides for a document type in this folder (revert to defaults)
+  # @param document_type_id [Integer] The document type ID
+  def clear_document_type_templates(document_type_id)
+    join = warehouse_folder_document_types.find_by(document_type_id: document_type_id)
+    join&.update(ui_name_template: nil, download_name_template: nil)
+  end
+
   # Validations
   # SSoT: warehouse_type validation now supports both constant (legacy) and database table
   validates :warehouse_type, presence: true
@@ -682,10 +744,18 @@ class WarehouseFolder < ApplicationRecord
         {
           id: dt.id,
           name: dt.name,
-          ui_name: dt.ui_name,
           abbreviation: dt.abbreviation,
-          download_name: dt.download_name,
-          is_primary: join&.is_primary || false  # SSoT: Include primary/secondary flag
+          is_primary: join&.is_primary || false,
+          # SSoT (Feb 2026): Templates with fallback chain
+          # Folder-specific override → document type default → folder default
+          ui_name_template: join&.ui_name_template,
+          download_name_template: join&.download_name_template,
+          effective_ui_name_template: join&.effective_ui_name_template || dt.ui_name,
+          effective_download_name_template: join&.effective_download_name_template || dt.download_name,
+          has_template_overrides: join&.has_template_overrides? || false,
+          # Legacy fields (for backward compatibility)
+          ui_name: join&.effective_ui_name_template || dt.ui_name,
+          download_name: join&.effective_download_name_template || dt.download_name
         }
       },
       # Legacy alias (scope only - SharePoint/storage aliases REMOVED Jan 2026, use warehouse_* instead)
@@ -705,6 +775,84 @@ class WarehouseFolder < ApplicationRecord
   # Legacy alias
   def self.nested_tabs_for_scope(scope_name, entity_type: nil)
     nested_tabs_for_warehouse_type(scope_name, entity_type: entity_type)
+  end
+
+  # ════════════════════════════════════════════════════════════════════════════════
+  # SSoT: File Warehouse Tree Builder (Feb 2026)
+  # Single query to build the complete tree with all data needed for File Warehouse
+  # ════════════════════════════════════════════════════════════════════════════════
+
+  # Build complete File Warehouse tree from warehouse_folders (THE ONE SSoT)
+  #
+  # Returns all data needed for File Warehouse in a single optimized query:
+  # - Folder hierarchy with full paths
+  # - Document types per folder
+  # - UI/DL name templates per document type (with folder-specific overrides)
+  # - Tenant-scoped data
+  #
+  # @param tenant_id [Integer, nil] Tenant ID to scope the query (optional)
+  # @return [Array<Hash>] Tree structure for File Warehouse
+  #
+  # Example:
+  #   WarehouseFolder.file_warehouse_tree(tenant_id: 1)
+  #   # => [
+  #   #   { warehouse_type: "job", display_name: "Jobs", folder_path: "Jobs/{{JobCode}}", ...
+  #   #     document_types: [{ name: "Invoice", effective_ui_name_template: "INV-{Date}", ... }],
+  #   #     children: [...] }
+  #   # ]
+  #
+  def self.file_warehouse_tree(tenant_id: nil)
+    # Single query with all associations needed for the tree
+    scope = includes(
+      :warehouse_folder_document_types,
+      :document_types,
+      :base_folder,
+      children: {
+        warehouse_folder_document_types: :document_type,
+        children: { warehouse_folder_document_types: :document_type }
+      }
+    )
+      .where(warehouse_enabled: true)
+      .enabled
+      .ordered
+
+    # Scope to tenant if provided
+    scope = scope.where(tenant_id: tenant_id) if tenant_id.present?
+
+    # Group by warehouse_type for organized output
+    by_type = scope.group_by(&:warehouse_type)
+
+    # Build tree structure per warehouse_type
+    by_type.map do |warehouse_type, folders|
+      root_folders = folders.select { |f| f.parent_id.nil? }
+      {
+        warehouse_type: warehouse_type,
+        folders: root_folders.map { |f| build_tree_node(f, folders) }
+      }
+    end
+  end
+
+  # Build a tree node for file_warehouse_tree
+  # @param folder [WarehouseFolder] The folder to build
+  # @param all_folders [Array<WarehouseFolder>] All folders (for finding children)
+  # @return [Hash] Tree node
+  def self.build_tree_node(folder, all_folders)
+    children = all_folders.select { |f| f.parent_id == folder.id }
+
+    {
+      id: folder.id,
+      display_name: folder.display_name,
+      tab_key: folder.tab_key,
+      folder_path: folder.folder_path,
+      base_folder: folder.read_attribute(:base_folder),
+      base_folder_path_template: folder.base_folder&.full_path_template,
+      icon_name: folder.icon_name,
+      order_position: folder.order_position,
+      # Document types with effective templates (SSoT: Feb 2026)
+      document_types: folder.document_types_with_templates,
+      # Recursive children
+      children: children.map { |c| build_tree_node(c, all_folders) }
+    }
   end
 
   # SSoT: Get warehouse folder paths from WarehouseFolder

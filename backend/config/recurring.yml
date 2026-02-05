@@ -382,6 +382,17 @@ email_reminders:
   schedule: every 5 minutes
 
 # ============================================
+# DOCSORT - Universal Document Inbox
+# ============================================
+# Sync docsort@tekna.com.au mailbox for document classification
+# Creates DocsortItem records for incoming emails and attachments
+# Triggers AI classification and auto-routing
+docsort_email_ingest:
+  class: DocsortEmailIngestJob
+  queue: default
+  schedule: every 15 minutes
+
+# ============================================
 # EMAIL TO JOB / EMAIL TO TASK
 # ============================================
 # Process emails sent to newjob@tekna.com.au and create job proposals
