@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-# BaseFolder - SSoT for folder configuration per warehouse type (tenant-scoped)
+# WarehouseFolder - SSoT for folder configuration per warehouse type (tenant-scoped)
 #
 # ╔═══════════════════════════════════════════════════════════════════════════════╗
 # ║  SSoT: THE ONE Table for Folder Configuration (Feb 2026)                       ║
 # ║                                                                                ║
-# ║  This table REPLACES warehouse_folders. All folder config is now here.         ║
-# ║  Each tenant has their own folder structure via acts_as_tenant.                ║
+# ║  This is THE ONE source for all folder configuration. Each tenant has their   ║
+# ║  own folder structure via acts_as_tenant.                                      ║
 # ║                                                                                ║
 # ║  Path Computation (NOT stored, computed at runtime):                           ║
 # ║    warehouse_type.folder_path_template + parent_chain + folder_segment + suffix║
@@ -14,16 +14,16 @@
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 #
 # Usage:
-#   BaseFolder.for_warehouse_type("job").first.name  # => "Jobs"
-#   base_folder.full_folder_path                     # => "Job/{{JobCode}}/{{JobName}}/Photo"
-#   base_folder.document_types                       # => [DocumentType, ...]
+#   WarehouseFolder.for_warehouse_type("job").first.name  # => "Jobs"
+#   warehouse_folder.full_folder_path                     # => "Job/{{JobCode}}/{{JobName}}/Photo"
+#   warehouse_folder.document_types                       # => [DocumentType, ...]
 #
 # Dynamic Tokens:
-#   Some base folders use dynamic tokens that expand at runtime:
+#   Some warehouse folders use dynamic tokens that expand at runtime:
 #   - {{Mailbox}} - Expands to show all active synced mailboxes
 #
-class BaseFolder < ApplicationRecord
-  # Multi-tenancy - REQUIRED for all base_folders
+class WarehouseFolder < ApplicationRecord
+  # Multi-tenancy - REQUIRED for all warehouse_folders
   acts_as_tenant :tenant
 
   # Dynamic tokens that generate virtual folder structure from database
@@ -42,13 +42,13 @@ class BaseFolder < ApplicationRecord
 
   # Associations
   belongs_to :warehouse_type
-  belongs_to :parent, class_name: 'BaseFolder', optional: true
+  belongs_to :parent, class_name: 'WarehouseFolder', optional: true
   belongs_to :job, optional: true  # job_id: null = global template, job_id: X = job-specific override
-  has_many :children, class_name: 'BaseFolder', foreign_key: :parent_id, dependent: :destroy
+  has_many :children, class_name: 'WarehouseFolder', foreign_key: :parent_id, dependent: :destroy
 
-  # Document type associations (SSoT - replaces warehouse_folder_document_types)
-  has_many :base_folder_document_types, dependent: :destroy
-  has_many :document_types, through: :base_folder_document_types
+  # Document type associations (SSoT)
+  has_many :warehouse_folder_document_types, dependent: :destroy
+  has_many :document_types, through: :warehouse_folder_document_types
 
   # Validations
   validates :name, presence: true
@@ -138,7 +138,7 @@ class BaseFolder < ApplicationRecord
   end
 
   # Get ancestor chain for breadcrumbs (excluding self)
-  # @return [Array<BaseFolder>] Array of ancestor folders
+  # @return [Array<WarehouseFolder>] Array of ancestor folders
   def ancestor_chain
     chain = []
     current = parent
@@ -162,35 +162,35 @@ class BaseFolder < ApplicationRecord
   end
 
   # ════════════════════════════════════════════════════════════════════════════════
-  # SSoT: Document Type Methods (replaces warehouse_folder methods)
+  # SSoT: Document Type Methods
   # ════════════════════════════════════════════════════════════════════════════════
 
   # Set document types by IDs
   def document_type_ids=(ids)
     ids = Array(ids).map(&:to_i).reject(&:zero?)
-    existing_ids = base_folder_document_types.pluck(:document_type_id)
+    existing_ids = warehouse_folder_document_types.pluck(:document_type_id)
 
     # Remove old assignments (only secondary ones)
-    base_folder_document_types
+    warehouse_folder_document_types
       .where.not(document_type_id: ids)
       .where(is_primary: false)
       .destroy_all
 
     # Add new assignments as secondary
     (ids - existing_ids).each do |doc_type_id|
-      base_folder_document_types.create(document_type_id: doc_type_id, is_primary: false)
+      warehouse_folder_document_types.create(document_type_id: doc_type_id, is_primary: false)
     end
   end
 
   # Get document type IDs
   def document_type_ids
-    base_folder_document_types.pluck(:document_type_id)
+    warehouse_folder_document_types.pluck(:document_type_id)
   end
 
   # Get all document types with their effective templates
   # @return [Array<Hash>] Document types with template info
   def document_types_with_templates
-    base_folder_document_types.includes(:document_type).map do |join|
+    warehouse_folder_document_types.includes(:document_type).map do |join|
       dt = join.document_type
       {
         id: dt.id,
@@ -207,7 +207,7 @@ class BaseFolder < ApplicationRecord
   end
 
   # ════════════════════════════════════════════════════════════════════════════════
-  # SSoT: UI Methods (replaces warehouse_folder methods)
+  # SSoT: UI Methods
   # ════════════════════════════════════════════════════════════════════════════════
 
   # Get effective icon name (inherits from parent)
@@ -223,7 +223,11 @@ class BaseFolder < ApplicationRecord
   end
 
   # Get the type of dynamic content this folder generates
+  # SSoT: Check is_mailbox flag first, then fallback to token detection
   def dynamic_type
+    # Explicit mailbox flag takes precedence (safely check column exists)
+    return :mailbox if respond_to?(:is_mailbox) && is_mailbox
+
     return nil if folder_segment.blank?
 
     DYNAMIC_TOKENS.each do |token, type|
@@ -236,7 +240,7 @@ class BaseFolder < ApplicationRecord
   def can_delete?
     return false if is_system || is_system_tab
     return false if children.exists?
-    return false if base_folder_document_types.exists?
+    return false if warehouse_folder_document_types.exists?
 
     true
   end
@@ -248,7 +252,7 @@ class BaseFolder < ApplicationRecord
 
     reasons = []
     reasons << "#{children.count} sub-folders" if children.exists?
-    reasons << "#{base_folder_document_types.count} linked document types" if base_folder_document_types.exists?
+    reasons << "#{warehouse_folder_document_types.count} linked document types" if warehouse_folder_document_types.exists?
 
     "Cannot delete: has #{reasons.join(' and ')}"
   end
@@ -278,7 +282,7 @@ class BaseFolder < ApplicationRecord
   end
 
   # ════════════════════════════════════════════════════════════════════════════════
-  # SSoT: Class Methods (replaces warehouse_folder class methods)
+  # SSoT: Class Methods
   # ════════════════════════════════════════════════════════════════════════════════
 
   # Get all enabled tabs for a warehouse type, ordered
@@ -306,34 +310,43 @@ class BaseFolder < ApplicationRecord
     for_warehouse_type(type_code).find_by(name: name)
   end
 
-  # Get base folders for UI dropdown (grouped by warehouse type)
+  # Get warehouse folders for UI dropdown (grouped by warehouse type)
   def self.grouped_options_for_select
-    enabled.ordered.includes(:warehouse_type).group_by { |bf| bf.warehouse_type&.display_name }.transform_values do |folders|
-      folders.map { |bf| { value: bf.id, label: bf.display_name || bf.name } }
+    enabled.ordered.includes(:warehouse_type).group_by { |wf| wf.warehouse_type&.display_name }.transform_values do |folders|
+      folders.map { |wf| { value: wf.id, label: wf.display_name || wf.name } }
     end
   end
 
   # ════════════════════════════════════════════════════════════════════════════════
   # SSoT: Methods for WarehouseProvider integration
-  # These replace WarehouseFolder class methods (Feb 2026)
   # ════════════════════════════════════════════════════════════════════════════════
 
-  # Get the base folder for a warehouse type (root folder)
+  # Get the warehouse folder for a warehouse type (root folder)
   # @param type_key [String] The warehouse type code (e.g., "job", "contact")
-  # @return [BaseFolder, nil] The root folder for the warehouse type
-  def self.base_folder_for(type_key)
+  # @return [WarehouseFolder, nil] The root folder for the warehouse type
+  def self.warehouse_folder_for(type_key)
     for_warehouse_type(type_key).root_folders.first
   end
 
-  # Get mapping of warehouse type codes to base folder names
+  # Alias for backwards compatibility
+  def self.base_folder_for(type_key)
+    warehouse_folder_for(type_key)
+  end
+
+  # Get mapping of warehouse type codes to warehouse folder names
   # @return [Hash] { "job" => "Jobs", "contact" => "Contacts", ... }
-  def self.warehouse_type_to_base_folder
+  def self.warehouse_type_to_warehouse_folder
     result = {}
     root_folders.includes(:warehouse_type).each do |folder|
       next unless folder.warehouse_type
       result[folder.warehouse_type.code] = folder.display_name || folder.name
     end
     result
+  end
+
+  # Alias for backwards compatibility
+  def self.warehouse_type_to_base_folder
+    warehouse_type_to_warehouse_folder
   end
 
   # Get list of available warehouse type codes
@@ -423,6 +436,7 @@ class BaseFolder < ApplicationRecord
       is_cad_category: is_cad_category,
       is_system: is_system,
       is_system_tab: is_system_tab,
+      is_mailbox: is_mailbox,
       enabled: enabled,
       order_position: order_position,
       entity_filters: entity_filters || [],
@@ -434,7 +448,7 @@ class BaseFolder < ApplicationRecord
       is_dynamic: dynamic?,
       dynamic_type: dynamic_type,
       children_count: children.count,
-      document_types_count: base_folder_document_types.count,
+      document_types_count: warehouse_folder_document_types.count,
       created_at: created_at,
       updated_at: updated_at
     }
@@ -462,6 +476,7 @@ class BaseFolder < ApplicationRecord
       component_name: component_name,
       is_system_tab: is_system_tab,
       is_system: is_system,
+      is_mailbox: is_mailbox,
       dynamic_type: dynamic_type,
       visibility_rule: visibility_rule,
       xero_scope: xero_scope,

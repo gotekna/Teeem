@@ -37,7 +37,8 @@ export interface WarehouseFolder {
   component_name: string | null;
   is_system_tab: boolean;
   is_system?: boolean;  // SSoT: System folder (system-generated content)
-  dynamic_type?: 'mailbox' | null;  // SSoT: Dynamic folder type (e.g., mailbox for email folders)
+  is_mailbox?: boolean;  // SSoT: Mailbox folder (shows synced email mailboxes)
+  dynamic_type?: 'mailbox' | null;  // SSoT: Dynamic folder type (computed from is_mailbox or folder_segment tokens)
   // SSoT: Visibility rules - when this tab is shown/hidden
   visibility_rule: string | null;  // Human-readable condition (e.g., "Has Xero links AND is supplier")
   // SSoT: Xero integration fields
@@ -113,6 +114,7 @@ export interface WarehouseFolderCreateParams {
   display_mode?: TabDisplayMode;  // SSoT: How tab renders
   hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
   is_system_tab?: boolean;  // SSoT: System-locked tabs cannot be deleted
+  is_mailbox?: boolean;  // SSoT: Mailbox folder flag
 }
 
 export interface WarehouseFolderUpdateParams {
@@ -136,6 +138,7 @@ export interface WarehouseFolderUpdateParams {
   display_mode?: TabDisplayMode;  // SSoT: How tab renders
   hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
   is_system_tab?: boolean;  // SSoT: System-locked tabs cannot be deleted
+  is_mailbox?: boolean;  // SSoT: Mailbox folder flag
 }
 
 export interface ReorderTabParams {

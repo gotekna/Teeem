@@ -19,10 +19,11 @@
  */
 
 import * as React from "react";
-import { Search, Briefcase, Mail, Building2, Calendar, FileText, FolderTree, ListFilter, Wrench } from "lucide-react";
+import { Search, Briefcase, Mail, Building2, Calendar, FileText, FolderTree, ListFilter, Wrench, ChevronDown, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   type PlaceholderToken,
   type PlaceholderScope,
@@ -97,8 +98,9 @@ const CATEGORY_CONFIG: Record<TokenCategory, CategoryConfig> = {
 // Get category for a token
 function getTokenCategory(token: PlaceholderToken): TokenCategory {
   // Check in priority order (more specific first)
-  if (CATEGORY_CONFIG.task.match(token)) return "task";
+  // Email before task so [[Email Attachments]] categorizes as email not task
   if (CATEGORY_CONFIG.email.match(token)) return "email";
+  if (CATEGORY_CONFIG.task.match(token)) return "task";
   if (CATEGORY_CONFIG.job.match(token)) return "job";
   if (CATEGORY_CONFIG.company.match(token)) return "company";
   if (CATEGORY_CONFIG.date.match(token)) return "date";
@@ -126,6 +128,10 @@ export interface PlaceholderPaletteProps {
   maxHeight?: string;
   /** Header text */
   header?: string;
+  /** Make the palette collapsible */
+  collapsible?: boolean;
+  /** Default collapsed state (only used if collapsible=true) */
+  defaultCollapsed?: boolean;
 }
 
 export function PlaceholderPalette({
@@ -138,9 +144,12 @@ export function PlaceholderPalette({
   className,
   maxHeight = "400px",
   header = "Placeholders",
+  collapsible = false,
+  defaultCollapsed = true,
 }: PlaceholderPaletteProps) {
   const [search, setSearch] = React.useState("");
   const [category, setCategory] = React.useState<TokenCategory>("all");
+  const [isOpen, setIsOpen] = React.useState(!defaultCollapsed);
 
   const allPlaceholders = customPlaceholders || getPlaceholders(scope);
 
@@ -169,26 +178,9 @@ export function PlaceholderPalette({
     return result;
   }, [allPlaceholders, search, category]);
 
-  return (
-    <div className={cn("flex flex-col border rounded-none bg-background", className)}>
-      {/* Header */}
-      <div className="px-3 py-2 border-b bg-muted/50">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">{header}</span>
-          {showSearch && (
-            <div className="relative w-32">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-              <Input
-                placeholder="Search..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-7 pl-7 text-xs"
-              />
-            </div>
-          )}
-        </div>
-      </div>
-
+  // Content that can be collapsed
+  const paletteContent = (
+    <>
       {/* Category Filter Buttons - SSoT (Feb 2026) */}
       {showCategoryFilter && (
         <div className="flex flex-wrap gap-1 px-3 py-2 border-b bg-muted/30">
@@ -243,6 +235,63 @@ export function PlaceholderPalette({
           )}
         </div>
       </ScrollArea>
+    </>
+  );
+
+  // Header content (shared between collapsible and non-collapsible modes)
+  const headerContent = (
+    <div className="flex items-center justify-between w-full">
+      <div className="flex items-center gap-2">
+        {collapsible && (
+          isOpen ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          )
+        )}
+        <span className="text-sm font-medium">{header}</span>
+        {collapsible && !isOpen && (
+          <span className="text-xs text-muted-foreground">
+            ({filteredPlaceholders.length} tokens)
+          </span>
+        )}
+      </div>
+      {showSearch && isOpen && (
+        <div className="relative w-32" onClick={(e) => e.stopPropagation()}>
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+          <Input
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-7 pl-7 text-xs"
+          />
+        </div>
+      )}
+    </div>
+  );
+
+  if (collapsible) {
+    return (
+      <Collapsible open={isOpen} onOpenChange={setIsOpen} className={cn("flex flex-col border rounded-none bg-background", className)}>
+        <CollapsibleTrigger asChild>
+          <div className="px-3 py-2 border-b bg-muted/50 cursor-pointer hover:bg-muted/70 transition-colors">
+            {headerContent}
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          {paletteContent}
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  }
+
+  return (
+    <div className={cn("flex flex-col border rounded-none bg-background", className)}>
+      {/* Header */}
+      <div className="px-3 py-2 border-b bg-muted/50">
+        {headerContent}
+      </div>
+      {paletteContent}
     </div>
   );
 }

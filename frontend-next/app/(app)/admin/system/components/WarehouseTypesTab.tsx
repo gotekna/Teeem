@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown, Briefcase, Mail, Building2, Calendar, FileText, ListFilter, Wrench } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown, Briefcase, Mail, Building2, Calendar, FileText, ListFilter, Wrench, ChevronDown, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -96,10 +97,12 @@ interface FormData {
 interface BaseFolderToggle {
   id: number;
   name: string;
-  enabled: boolean; // true = assigned to current warehouse type
+  enabled: boolean; // true = assigned to current warehouse type (including all children)
   is_system: boolean;
   warehouse_type_id: number;
   warehouse_type_name: string;
+  parent_id: number | null;      // null = root folder
+  children_ids: number[];        // All descendant IDs (recursive)
 }
 
 // =====================================================================
@@ -170,8 +173,9 @@ const TOKEN_CATEGORY_CONFIG: Record<TokenCategory, TokenCategoryConfig> = {
 // Get category for a token (matches PlaceholderPalette logic)
 function getTokenCategory(token: PlaceholderToken): TokenCategory {
   // Check in priority order (more specific first)
-  if (TOKEN_CATEGORY_CONFIG.task.match(token)) return "task";
+  // Email before task so [[Email Attachments]] categorizes as email not task
   if (TOKEN_CATEGORY_CONFIG.email.match(token)) return "email";
+  if (TOKEN_CATEGORY_CONFIG.task.match(token)) return "task";
   if (TOKEN_CATEGORY_CONFIG.job.match(token)) return "job";
   if (TOKEN_CATEGORY_CONFIG.company.match(token)) return "company";
   if (TOKEN_CATEGORY_CONFIG.date.match(token)) return "date";
@@ -203,6 +207,7 @@ export function WarehouseTypesTab() {
   const [baseFolderToggles, setBaseFolderToggles] = React.useState<BaseFolderToggle[]>([]);
   const [baseFolderSearch, setBaseFolderSearch] = React.useState("");
   const [tokenCategory, setTokenCategory] = React.useState<TokenCategory>("all");
+  const [tokensExpanded, setTokensExpanded] = React.useState(false);
   const [showAvailableFolders, setShowAvailableFolders] = React.useState(false);
   const [showSystemTypes, setShowSystemTypes] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -323,20 +328,42 @@ export function WarehouseTypesTab() {
     });
 
     // Fetch ALL base folders (not filtered by type) so user can reassign them
+    // Build tree structure to show only root folders with inheritance
     try {
-      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; enabled: boolean; is_system: boolean; warehouse_type_id: number; warehouse_type_name: string }> }>(
+      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; parent_id: number | null; enabled: boolean; is_system: boolean; warehouse_type_id: number; warehouse_type_name: string }> }>(
         `/api/v1/base_folders?include_disabled=true`
       );
       if (response?.data) {
+        // Build a map for quick lookups
+        const folderMap = new Map(response.data.map(bf => [bf.id, bf]));
+
+        // Recursive function to get all descendant IDs
+        const getDescendantIds = (folderId: number): number[] => {
+          const children = response.data.filter(bf => bf.parent_id === folderId);
+          return children.flatMap(c => [c.id, ...getDescendantIds(c.id)]);
+        };
+
+        // Only include root folders (parent_id is null) in toggles
+        const rootFolders = response.data.filter(bf => bf.parent_id === null);
         setBaseFolderToggles(
-          response.data.map((bf) => ({
-            id: bf.id,
-            name: bf.name,
-            enabled: bf.warehouse_type_id === type.id, // Checked if belongs to this type
-            is_system: bf.is_system,
-            warehouse_type_id: bf.warehouse_type_id,
-            warehouse_type_name: bf.warehouse_type_name,
-          }))
+          rootFolders.map((bf) => {
+            const childIds = getDescendantIds(bf.id);
+            const allIds = [bf.id, ...childIds];
+            // Folder is "enabled" if it AND all children belong to this warehouse type
+            const allAssigned = allIds.every(id =>
+              folderMap.get(id)?.warehouse_type_id === type.id
+            );
+            return {
+              id: bf.id,
+              name: bf.name,
+              enabled: allAssigned,
+              is_system: bf.is_system,
+              warehouse_type_id: bf.warehouse_type_id,
+              warehouse_type_name: bf.warehouse_type_name,
+              parent_id: bf.parent_id,
+              children_ids: childIds,
+            };
+          })
         );
       }
     } catch (err) {
@@ -380,22 +407,26 @@ export function WarehouseTypesTab() {
 
     // Update base folder assignments using the dedicated endpoint
     // This handles BOTH adding AND removing folders from this warehouse type
+    // When a root folder is selected, include ALL its children (inheritance)
     if (editingType && baseFolderToggles.length > 0) {
       const selectedFolderIds = baseFolderToggles
         .filter(bf => bf.enabled)
-        .map(bf => bf.id);
+        .flatMap(bf => [bf.id, ...bf.children_ids]);  // Include children
 
       console.log("🟣 [WarehouseTypes] Updating base folder assignments");
       console.log("🟣 Selected folder IDs:", selectedFolderIds);
+      console.log("🟣 baseFolderToggles state:", baseFolderToggles.map(bf => ({ id: bf.id, name: bf.name, enabled: bf.enabled })));
 
       try {
-        await api.patch(`/api/v1/warehouse_types/${editingType.id}/update_base_folders`, {
+        const response = await api.patch(`/api/v1/warehouse_types/${editingType.id}/update_base_folders`, {
           base_folder_ids: selectedFolderIds,
         });
-        console.log("🟣 Base folder assignments updated successfully");
-      } catch (err) {
+        console.log("🟣 Base folder assignments updated successfully", response);
+      } catch (err: any) {
         console.error("Failed to update base folder assignments:", err);
-        toast.error("Failed to update base folder assignments");
+        console.error("Error details:", err?.response?.data || err?.message || err);
+        toast.error("Failed to update base folder assignments - changes not saved");
+        return; // Don't continue if base folder update fails
       }
     }
 
@@ -798,73 +829,92 @@ export function WarehouseTypesTab() {
                 <p className="text-xs text-muted-foreground">
                   Full path: <code className="bg-muted px-1 rounded">{formData.display_name || "TypeName"}/{formData.folder_path_template || "..."}</code>
                 </p>
-                <div className="text-xs text-muted-foreground space-y-2">
-                  {/* Category Filter Buttons - SSoT (Feb 2026) */}
-                  <div className="flex flex-wrap gap-1">
-                    <span className="mr-1 self-center">Tokens:</span>
-                    {(["all", "job", "task", "email", "company", "date", "folder", "other"] as TokenCategory[]).map((cat) => {
-                      const config = TOKEN_CATEGORY_CONFIG[cat];
-                      const Icon = config.icon;
-                      const isActive = tokenCategory === cat;
-                      return (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setTokenCategory(cat)}
-                          className={cn(
-                            "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium border transition-all",
-                            isActive
-                              ? config.color + " ring-1 ring-offset-0 ring-primary/50"
-                              : "bg-background hover:bg-muted text-muted-foreground border-muted-foreground/30 hover:border-muted-foreground/50"
-                          )}
-                        >
-                          <Icon className="h-2.5 w-2.5" />
-                          <span>{config.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {/* Token Buttons - SSoT: Uses STORAGE_PLACEHOLDERS from lib/placeholders.ts */}
-                  <div className="flex flex-wrap">
-                    {STORAGE_PLACEHOLDERS
-                      .filter(t => tokenCategory === "all" || getTokenCategory(t) === tokenCategory)
-                      .map((token) => {
-                        const colorClasses = PLACEHOLDER_COLOR_CLASSES[token.color];
-                        // Extract display label from code (remove braces)
-                        const label = token.code.replace(/[\{\}\[\]]/g, "");
+                <Collapsible open={tokensExpanded} onOpenChange={setTokensExpanded}>
+                  <CollapsibleTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {tokensExpanded ? (
+                        <ChevronDown className="h-3 w-3" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3" />
+                      )}
+                      <span>Tokens</span>
+                      {!tokensExpanded && (
+                        <span className="text-[10px]">
+                          ({STORAGE_PLACEHOLDERS.filter(t => tokenCategory === "all" || getTokenCategory(t) === tokenCategory).length} available)
+                        </span>
+                      )}
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="text-xs text-muted-foreground space-y-2 mt-2">
+                    {/* Category Filter Buttons - SSoT (Feb 2026) */}
+                    <div className="flex flex-wrap gap-1">
+                      {(["all", "job", "task", "email", "company", "date", "folder", "other"] as TokenCategory[]).map((cat) => {
+                        const config = TOKEN_CATEGORY_CONFIG[cat];
+                        const Icon = config.icon;
+                        const isActive = tokenCategory === cat;
                         return (
                           <button
-                            key={token.code}
+                            key={cat}
                             type="button"
-                            onClick={() => {
-                              setFormData(prev => {
-                                const current = prev.folder_path_template;
-                                let newPath: string;
-                                if (!current) {
-                                  newPath = token.code;
-                                } else if (current.endsWith("/")) {
-                                  newPath = current + token.code;
-                                } else {
-                                  newPath = current + "/" + token.code;
-                                }
-                                return { ...prev, folder_path_template: newPath };
-                              });
-                            }}
-                            title={token.description || token.example}
+                            onClick={() => setTokenCategory(cat)}
                             className={cn(
-                              "px-1.5 py-0.5 text-[10px] font-mono rounded border cursor-pointer transition-colors mr-1 mb-1",
-                              colorClasses.bg,
-                              colorClasses.text,
-                              colorClasses.border,
-                              "hover:opacity-80"
+                              "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium border transition-all",
+                              isActive
+                                ? config.color + " ring-1 ring-offset-0 ring-primary/50"
+                                : "bg-background hover:bg-muted text-muted-foreground border-muted-foreground/30 hover:border-muted-foreground/50"
                             )}
                           >
-                            {label}
+                            <Icon className="h-2.5 w-2.5" />
+                            <span>{config.label}</span>
                           </button>
                         );
                       })}
-                  </div>
-                </div>
+                    </div>
+                    {/* Token Buttons - SSoT: Uses STORAGE_PLACEHOLDERS from lib/placeholders.ts */}
+                    <div className="flex flex-wrap">
+                      {STORAGE_PLACEHOLDERS
+                        .filter(t => tokenCategory === "all" || getTokenCategory(t) === tokenCategory)
+                        .map((token) => {
+                          const colorClasses = PLACEHOLDER_COLOR_CLASSES[token.color];
+                          // Extract display label from code (remove braces)
+                          const label = token.code.replace(/[\{\}\[\]]/g, "");
+                          return (
+                            <button
+                              key={token.code}
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => {
+                                  const current = prev.folder_path_template;
+                                  let newPath: string;
+                                  if (!current) {
+                                    newPath = token.code;
+                                  } else if (current.endsWith("/")) {
+                                    newPath = current + token.code;
+                                  } else {
+                                    newPath = current + "/" + token.code;
+                                  }
+                                  return { ...prev, folder_path_template: newPath };
+                                });
+                              }}
+                              title={token.description || token.example}
+                              className={cn(
+                                "px-1.5 py-0.5 text-[10px] font-mono rounded border cursor-pointer transition-colors mr-1 mb-1",
+                                colorClasses.bg,
+                                colorClasses.text,
+                                colorClasses.border,
+                                "hover:opacity-80"
+                              )}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
 
               {/* Base Folders - only show when editing */}
@@ -873,9 +923,15 @@ export function WarehouseTypesTab() {
                   <div className="flex items-center justify-between">
                     <Label>Base Folders</Label>
                     <span className="text-xs text-muted-foreground">
-                      {baseFolderToggles.filter(bf => bf.enabled).length} assigned
+                      {/* Total count including children */}
+                      {baseFolderToggles
+                        .filter(bf => bf.enabled)
+                        .reduce((sum, bf) => sum + 1 + bf.children_ids.length, 0)} folders assigned
                     </span>
                   </div>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Selecting a folder includes all its subfolders
+                  </p>
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -914,6 +970,11 @@ export function WarehouseTypesTab() {
                           >
                             <Folder className="h-3 w-3 text-muted-foreground shrink-0" />
                             <span className="truncate">{bf.name}</span>
+                            {bf.children_ids.length > 0 && (
+                              <span className="text-xs text-muted-foreground shrink-0">
+                                (+{bf.children_ids.length})
+                              </span>
+                            )}
                           </label>
                         </div>
                       ))}

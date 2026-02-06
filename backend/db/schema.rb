@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_06_161702) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -678,6 +678,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.bigint "job_id"
     t.boolean "uses_custom_path", default: false
     t.boolean "is_system_tab", default: false
+    t.boolean "is_mailbox", default: false, null: false
     t.index ["enabled"], name: "index_base_folders_on_enabled"
     t.index ["entity_filters"], name: "index_base_folders_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_base_folders_on_job_id"

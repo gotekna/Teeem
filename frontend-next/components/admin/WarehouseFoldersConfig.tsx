@@ -888,6 +888,7 @@ export function WarehouseFoldersConfig({
       warehouse_type_override: 'corporate',  // SSoT: Default to corporate path
       is_photo_category: false,  // SSoT: Explicit photo category flag
       is_cad_category: false,  // SSoT: Explicit CAD/Revit category flag
+      is_mailbox: false,  // SSoT: Mailbox folder flag
       display_mode: 'both',  // SSoT: Default display mode
       hidden_by_default: false,  // SSoT: Default visibility
     });
@@ -920,6 +921,7 @@ export function WarehouseFoldersConfig({
       document_type_ids: tab.document_types?.map((dt: any) => dt.id) || [],
       is_photo_category: tab.is_photo_category || false,  // SSoT: Explicit photo category flag
       is_cad_category: tab.is_cad_category || false,  // SSoT: Explicit CAD/Revit category flag
+      is_mailbox: tab.is_mailbox || false,  // SSoT: Mailbox folder flag
       display_mode: tab.display_mode || 'both',  // SSoT: Display mode
       hidden_by_default: tab.hidden_by_default || false,  // SSoT: Hidden by default
       is_system_tab: tab.is_system_tab || false,  // SSoT: System lock
@@ -984,6 +986,7 @@ export function WarehouseFoldersConfig({
           document_type_ids: formData.document_type_ids,
           is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
           is_cad_category: formData.is_cad_category,  // SSoT: Explicit CAD/Revit category flag
+          is_mailbox: formData.is_mailbox,  // SSoT: Mailbox folder flag
           display_mode: formData.display_mode,  // SSoT: Display mode
           hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
           is_system_tab: formData.is_system_tab,  // SSoT: System lock
@@ -1024,6 +1027,7 @@ export function WarehouseFoldersConfig({
           warehouse_type_override: formData.warehouse_type_override,  // SSoT: Path type for contacts
           is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
           is_cad_category: formData.is_cad_category,  // SSoT: Explicit CAD/Revit category flag
+          is_mailbox: formData.is_mailbox,  // SSoT: Mailbox folder flag
           display_mode: formData.display_mode,  // SSoT: Display mode
           hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
           is_system_tab: formData.is_system_tab,  // SSoT: System lock
@@ -1343,7 +1347,7 @@ export function WarehouseFoldersConfig({
                 </Tooltip>
               </TooltipProvider>
             )}
-            {tab.dynamic_type === 'mailbox' && (
+            {(tab.is_mailbox || tab.dynamic_type === 'mailbox') && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -2496,6 +2500,26 @@ export function WarehouseFoldersConfig({
                   </Label>
                   <p className="text-xs text-muted-foreground">
                     Show Revit, DWG, and Datasmith files with upload
+                  </p>
+                </div>
+              </div>
+
+              {/* Mailbox checkbox - SSoT: Flag for email mailbox folders */}
+              <div className="flex items-center space-x-3 pt-4 mt-4 border-t">
+                <Checkbox
+                  id="is_mailbox_basic"
+                  checked={formData.is_mailbox || false}
+                  onCheckedChange={(checked) =>
+                    setFormData((prev) => ({ ...prev, is_mailbox: checked === true }))
+                  }
+                  disabled={editingTab?.is_system_tab}
+                />
+                <div>
+                  <Label htmlFor="is_mailbox_basic" className={cn("text-sm cursor-pointer font-medium", editingTab?.is_system_tab && "opacity-60")}>
+                    Mailbox Folder
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Shows synced email mailboxes dynamically
                   </p>
                 </div>
               </div>

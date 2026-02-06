@@ -252,20 +252,10 @@ export const JOB_PLACEHOLDERS: PlaceholderToken[] = [
   {
     code: "{JobName}",
     example: "05 Wategors",
+    longCode: "{JobAddress}",
+    longExample: "Lot 5 Wategois Street Claamvale",
     color: "orange",
-    description: "Job name/title (short)",
-  },
-  {
-    code: "{JobTitle}",
-    example: "83 West Ridge",
-    color: "orange",
-    description: "Job title (full)",
-  },
-  {
-    code: "{JobAddress}",
-    example: "Lot 5 Wategois Street Claamvale",
-    color: "orange",
-    description: "Full job address",
+    description: "Job name (short) / Full address (long)",
   },
   {
     code: "{LotNumber}",
@@ -489,6 +479,18 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     example: "Claamvale",
     color: "orange",
     description: "Suburb",
+  },
+  {
+    code: "{{JobType}}",
+    example: "New Build",
+    color: "orange",
+    description: "Job type (e.g., New Build, Renovation)",
+  },
+  {
+    code: "{{JobStatus}}",
+    example: "Active",
+    color: "orange",
+    description: "Job status (e.g., Active, Completed)",
   },
   {
     code: "{{TaskId}}",
@@ -1169,6 +1171,8 @@ export function resolveStoragePath(template: string): string {
     "{{CategoryCode}}": "ConD",
     "{{JobName}}": "Tulum Street Jimboomba",
     "{{JobTitle}}": "Tulum Street Jimboomba QLD",
+    "{{JobType}}": "New Build",
+    "{{JobStatus}}": "Active",
     // Double brace format - Company examples
     "{{CompanyGroup}}": "Teeem Group",
     "{{CompanyCode}}": "TH",
