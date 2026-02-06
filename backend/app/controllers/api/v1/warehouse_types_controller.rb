@@ -401,6 +401,7 @@ module Api
               scope_base_template: wt_template,  # SSoT: Warehouse type's base template for folder editor grey prefix
               path_preview: bf.path_preview,
               is_system: bf.is_system,
+              warehouse_type_code: warehouse_type.code,  # SSoT (Feb 2026): Pass to frontend for correct warehouse_folder creation
               warehouse_folder: wf ? {
                 id: wf.id,
                 display_name: wf.display_name,

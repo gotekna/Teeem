@@ -135,6 +135,7 @@ interface BaseFolderFromAPI {
   scope_base_template?: string;  // SSoT: Warehouse type's base template (e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}")
   path_preview?: string;
   is_system?: boolean;  // System base folders can't be deleted (e.g., Task Attachments)
+  warehouse_type_code?: string;  // SSoT (Feb 2026): Warehouse type code for correct folder creation
   // SSoT (Feb 2026): Linked warehouse_folder for UI/DL name editing
   warehouse_folder?: {
     id: number;
@@ -531,26 +532,42 @@ function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocume
             return (
               <div
                 key={dt.id}
-                className="text-[9px] py-1 hover:bg-muted/30 rounded px-1 -ml-1 cursor-pointer group"
-                onClick={() => onEditDocumentType?.({
-                  id: dt.id,
-                  name: dt.name,
-                  abbreviation: dt.abbreviation,
-                  ui_name: dt.ui_name,
-                  download_name: dt.download_name,
-                  folder_name: folderName,
-                  folder_path: folderPath,
-                })}
+                className="text-[9px] py-1 hover:bg-muted/30 rounded px-1 -ml-1 group"
               >
-                {/* Document name */}
+                {/* Document name - click opens document type page */}
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-foreground">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(`/admin/system/document-types/${dt.id}`, '_blank');
+                    }}
+                    className="font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer text-left"
+                  >
                     {dt.name}
-                  </span>
+                  </button>
                   {dt.abbreviation && (
                     <span className="text-muted-foreground">({dt.abbreviation})</span>
                   )}
-                  <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditDocumentType?.({
+                        id: dt.id,
+                        name: dt.name,
+                        abbreviation: dt.abbreviation,
+                        ui_name: dt.ui_name,
+                        download_name: dt.download_name,
+                        folder_name: folderName,
+                        folder_path: folderPath,
+                      });
+                    }}
+                    className="p-0.5 hover:bg-muted rounded"
+                    title="Edit document type settings"
+                  >
+                    <Pencil className="h-2.5 w-2.5 text-muted-foreground hover:text-foreground transition-colors" />
+                  </button>
                 </div>
                 {/* SSoT (Feb 2026): UI/DL badges with effective templates (fallback chain applied) */}
                 <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -625,7 +642,7 @@ interface TreeNodeProps {
   // SSoT (Feb 2026): All warehouse types for display_name lookup
   warehouseTypes: WarehouseTypeFromAPI[];
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
-  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null }) => void;
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null; warehouse_type?: string }) => void;
   // SSoT (Feb 2026): Edit document type UI/DL names
   onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
@@ -976,6 +993,7 @@ function TreeNode({
                         base_folder_path_template: basePath,  // SSoT: Full base folder path (greyed out)
                         base_folder_id: bf.id,  // Pass base_folder id for linking/creating
                         parent_id: bf.warehouse_folder?.parent_id,  // Prefill current parent
+                        warehouse_type: bf.warehouse_type_code,  // SSoT (Feb 2026): From base_folder for correct folder creation
                       });
                     }}
                     className="p-0.5 hover:bg-muted rounded"
@@ -1401,7 +1419,7 @@ interface TabNodeProps {
   onSaveEdit: (tabId: number, path: string, displayName: string, sendNameTemplate: string) => void;
   onCancelEdit: () => void;
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
-  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null }) => void;
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null; warehouse_type?: string }) => void;
   // SSoT (Feb 2026): Edit document type UI/DL names
   onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
@@ -1787,6 +1805,7 @@ function TabNode({
                 download_name: tab.download_name || undefined,
                 ui_name: tab.ui_name || undefined,
                 base_folder_path_template: tab.base_folder_path_template || undefined,  // SSoT: Template from base_folders table
+                warehouse_type: tab.scope,  // SSoT (Feb 2026): Pass scope for correct warehouse_type
               });
             }}
           >
@@ -1972,6 +1991,7 @@ export function WarehouseProviderTab() {
     base_folder_path_template?: string;  // SSoT: Template from base_folders table (read-only)
     parent_id?: number | null;
     base_folder_id?: number;
+    warehouse_type?: string;  // SSoT (Feb 2026): From base_folder's warehouse_type_code
   }
   const [editingWarehouseFolder, setEditingWarehouseFolder] = React.useState<EditingWarehouseFolder | null>(null);
   const [savingWarehouseFolder, setSavingWarehouseFolder] = React.useState(false);
@@ -2135,7 +2155,7 @@ export function WarehouseProviderTab() {
 
       // Helper to create a new warehouse_folder
       const createNew = async () => {
-        return await api.post<{ success: boolean }>('/api/v1/warehouse_folders', {
+        const payload = {
           warehouse_folder: {
             display_name: editingWarehouseFolder.display_name,
             folder_path: data.folder_path || null,
@@ -2143,10 +2163,11 @@ export function WarehouseProviderTab() {
             ui_name: data.ui_name || null,
             parent_id: data.parent_id,
             base_folder_id: editingWarehouseFolder.base_folder_id,
-            warehouse_type: 'corporate',  // Default - backend can override from base_folder
+            warehouse_type: editingWarehouseFolder.warehouse_type || 'corporate',  // SSoT (Feb 2026): Use passed type from base_folder
             tab_key: editingWarehouseFolder.display_name.toLowerCase().replace(/\s+/g, '_'),
           }
-        });
+        };
+        return await api.post<{ success: boolean }>('/api/v1/warehouse_folders', payload);
       };
 
       if (editingWarehouseFolder.id === 0 || !editingWarehouseFolder.id) {

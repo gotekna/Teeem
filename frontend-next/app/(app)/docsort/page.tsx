@@ -150,7 +150,7 @@ export default function DocsortPage() {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("active");
-  const [typeFilter, setTypeFilter] = useState<string>("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Load items and stats
@@ -159,10 +159,10 @@ export default function DocsortPage() {
       const params = new URLSearchParams();
       if (statusFilter === "active") {
         params.set("active", "true");
-      } else if (statusFilter) {
+      } else if (statusFilter && statusFilter !== "all") {
         params.set("status", statusFilter);
       }
-      if (typeFilter) params.set("document_type", typeFilter);
+      if (typeFilter && typeFilter !== "all") params.set("document_type", typeFilter);
       if (searchQuery) params.set("search", searchQuery);
 
       const [itemsResponse, statsResponse] = await Promise.all([
@@ -458,7 +458,7 @@ export default function DocsortPage() {
                 <SelectItem value="classified">Classified</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
                 <SelectItem value="error">Errors</SelectItem>
-                <SelectItem value="">All</SelectItem>
+                <SelectItem value="all">All</SelectItem>
               </SelectContent>
             </Select>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -466,7 +466,7 @@ export default function DocsortPage() {
                 <SelectValue placeholder="Document Type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Types</SelectItem>
+                <SelectItem value="all">All Types</SelectItem>
                 {DOCUMENT_TYPES.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
                     {type.label}

@@ -28,13 +28,14 @@
  */
 
 import * as React from "react";
-import { Plus, GripVertical, X, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, GripVertical, X, Search, ChevronDown, ChevronUp, Briefcase, Mail, Building2, Calendar, FileText, FolderTree, ListFilter, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   type PlaceholderScope,
   type PlaceholderToken,
+  type PlaceholderColor,
   parseTemplate,
   buildTemplate,
   resolveWithExamples,
@@ -42,6 +43,80 @@ import {
   getPlaceholders,
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
+
+// Category definitions for grouping tokens
+type TokenCategory = "all" | "job" | "task" | "email" | "company" | "date" | "folder" | "other";
+
+interface CategoryConfig {
+  label: string;
+  icon: React.ElementType;
+  color: string;
+  match: (token: PlaceholderToken) => boolean;
+}
+
+const CATEGORY_CONFIG: Record<TokenCategory, CategoryConfig> = {
+  all: {
+    label: "All",
+    icon: ListFilter,
+    color: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600",
+    match: () => true,
+  },
+  job: {
+    label: "Job",
+    icon: Briefcase,
+    color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+    match: (t) => /\{?\{?Job|LotNumber|StreetName|Suburb|Project/i.test(t.code),
+  },
+  task: {
+    label: "Task",
+    icon: Wrench,
+    color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+    match: (t) => /\{?\{?Task|Attachment|Response|\[\[Attachment|\[\[Response/i.test(t.code),
+  },
+  email: {
+    label: "Email",
+    icon: Mail,
+    color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700",
+    match: (t) => /\{?\{?Subject|Sender|Received|Mailbox|\[\[Email/i.test(t.code),
+  },
+  company: {
+    label: "Company",
+    icon: Building2,
+    color: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700",
+    match: (t) => /\{?\{?Company|Case|Asset(?!Name)|Person|User/i.test(t.code),
+  },
+  date: {
+    label: "Date",
+    icon: Calendar,
+    color: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700",
+    match: (t) => /\{?\{?Date|Year|Month|Time|FY|Period|YYYY|DDMM/i.test(t.code),
+  },
+  folder: {
+    label: "Folder",
+    icon: FolderTree,
+    color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700",
+    match: (t) => /\{?\{?Tab|Category|Folder|SubTab|\[\[Teeem/i.test(t.code),
+  },
+  other: {
+    label: "Other",
+    icon: FileText,
+    color: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600",
+    match: (t) => /\{?\{?Original|Sequence|Uploaded|Doc|Status|Notebook|Context/i.test(t.code),
+  },
+};
+
+// Get category for a token
+function getTokenCategory(token: PlaceholderToken): TokenCategory {
+  // Check in priority order (more specific first)
+  if (CATEGORY_CONFIG.task.match(token)) return "task";
+  if (CATEGORY_CONFIG.email.match(token)) return "email";
+  if (CATEGORY_CONFIG.job.match(token)) return "job";
+  if (CATEGORY_CONFIG.company.match(token)) return "company";
+  if (CATEGORY_CONFIG.date.match(token)) return "date";
+  if (CATEGORY_CONFIG.folder.match(token)) return "folder";
+  if (CATEGORY_CONFIG.other.match(token)) return "other";
+  return "other";
+}
 import {
   DndContext,
   DragOverlay,
@@ -246,23 +321,47 @@ export function PlaceholderBuilder({
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [paletteExpanded, setPaletteExpanded] = React.useState(defaultExpanded);
   const [search, setSearch] = React.useState("");
+  const [categoryFilter, setCategoryFilter] = React.useState<TokenCategory>("all");
   const inputRef = React.useRef<HTMLInputElement>(null);
   const sensors = createDndSensors();
 
   // Get placeholders
   const allPlaceholders = customPlaceholders || getPlaceholders(scope);
 
-  // Filter placeholders by search
+  // Get available categories (only show categories that have tokens)
+  const availableCategories = React.useMemo(() => {
+    const categories = new Set<TokenCategory>();
+    categories.add("all"); // Always show "All"
+    allPlaceholders.forEach((p) => {
+      categories.add(getTokenCategory(p));
+    });
+    // Return in display order
+    const order: TokenCategory[] = ["all", "job", "task", "email", "company", "date", "folder", "other"];
+    return order.filter((c) => categories.has(c));
+  }, [allPlaceholders]);
+
+  // Filter placeholders by category and search
   const filteredPlaceholders = React.useMemo(() => {
-    if (!search.trim()) return allPlaceholders;
-    const query = search.toLowerCase();
-    return allPlaceholders.filter(
-      (p) =>
-        p.code.toLowerCase().includes(query) ||
-        p.example.toLowerCase().includes(query) ||
-        p.description?.toLowerCase().includes(query)
-    );
-  }, [allPlaceholders, search]);
+    let filtered = allPlaceholders;
+
+    // Filter by category
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((p) => getTokenCategory(p) === categoryFilter);
+    }
+
+    // Filter by search
+    if (search.trim()) {
+      const query = search.toLowerCase();
+      filtered = filtered.filter(
+        (p) =>
+          p.code.toLowerCase().includes(query) ||
+          p.example.toLowerCase().includes(query) ||
+          p.description?.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  }, [allPlaceholders, categoryFilter, search]);
 
   // Parse current value into tokens with unique IDs
   // When separator is "/" (folder paths), hide separator-only text tokens
@@ -519,6 +618,31 @@ export function PlaceholderBuilder({
 
           {paletteExpanded && (
             <div className="border-t">
+              {/* Category Filter Buttons */}
+              <div className="p-2 border-b bg-background flex flex-wrap gap-1">
+                {availableCategories.map((cat) => {
+                  const config = CATEGORY_CONFIG[cat];
+                  const Icon = config.icon;
+                  const isActive = categoryFilter === cat;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCategoryFilter(cat)}
+                      className={cn(
+                        "inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border transition-all",
+                        isActive
+                          ? config.color + " ring-2 ring-offset-1 ring-primary/50"
+                          : "bg-background hover:bg-muted text-muted-foreground border-muted-foreground/30 hover:border-muted-foreground/50"
+                      )}
+                    >
+                      <Icon className="h-3 w-3" />
+                      <span>{config.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* Search and Custom Text */}
               <div className="p-2 border-b bg-background flex gap-2">
                 <div className="relative flex-1">
@@ -578,7 +702,10 @@ export function PlaceholderBuilder({
                   );
                 })}
                 {filteredPlaceholders.length === 0 && (
-                  <span className="text-xs text-muted-foreground p-2 col-span-2">No tokens found</span>
+                  <span className="text-xs text-muted-foreground p-2 col-span-2">
+                    No tokens found{categoryFilter !== "all" && ` in ${CATEGORY_CONFIG[categoryFilter].label}`}
+                    {search && ` matching "${search}"`}
+                  </span>
                 )}
               </div>
             </div>

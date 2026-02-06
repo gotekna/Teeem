@@ -1162,11 +1162,18 @@ export function WarehouseFoldersConfig({
                     <React.Fragment key={dt.id}>
                       {/* Template row */}
                       <TableRow
-                        className="border-b hover:bg-muted/50 cursor-pointer"
-                        onDoubleClick={() => window.open(`/admin/system/document-types/${dt.id}`, '_blank')}
+                        className="border-b hover:bg-muted/50"
                       >
                         <TableCell className="py-1.5 px-3 font-mono text-xs">{dt.abbreviation || '—'}</TableCell>
-                        <TableCell className="py-1.5 px-3">{dt.name}</TableCell>
+                        <TableCell className="py-1.5 px-3">
+                          <button
+                            onClick={() => window.open(`/admin/system/document-types/${dt.id}`, '_blank')}
+                            className="text-left text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                            title="Click to edit document type"
+                          >
+                            {dt.name}
+                          </button>
+                        </TableCell>
                         <TableCell className="py-1.5 px-3">
                           {/* SSoT: is_primary flag indicates primary vs secondary link */}
                           {dt.is_primary ? (
@@ -1184,8 +1191,7 @@ export function WarehouseFoldersConfig({
                       </TableRow>
                       {/* Example row with resolved values */}
                       <TableRow
-                        className="border-b last:border-0 hover:bg-muted/50 cursor-pointer bg-green-50/50 dark:bg-green-900/10"
-                        onDoubleClick={() => window.open(`/admin/system/document-types/${dt.id}`, '_blank')}
+                        className="border-b last:border-0 hover:bg-muted/50 bg-green-50/50 dark:bg-green-900/10"
                       >
                         <TableCell className="py-1 px-3 text-xs text-green-600 dark:text-green-400">↳ eg.</TableCell>
                         <TableCell className="py-1 px-3 text-xs text-muted-foreground italic"></TableCell>

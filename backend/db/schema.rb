@@ -9514,6 +9514,25 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
     t.index ["tenant_id"], name: "index_takeoff_layers_on_tenant_id"
   end
 
+  create_table "takeoff_templates", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "created_by_id"
+    t.string "name", null: false
+    t.string "description"
+    t.string "category"
+    t.boolean "is_system", default: false
+    t.boolean "is_active", default: true
+    t.jsonb "configuration", default: {}, null: false
+    t.integer "usage_count", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_takeoff_templates_on_created_by_id"
+    t.index ["tenant_id", "category"], name: "index_takeoff_templates_on_tenant_id_and_category"
+    t.index ["tenant_id", "is_active"], name: "index_takeoff_templates_on_tenant_id_and_is_active"
+    t.index ["tenant_id", "name"], name: "index_takeoff_templates_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id"], name: "index_takeoff_templates_on_tenant_id"
+  end
+
   create_table "task_action_items", force: :cascade do |t|
     t.bigint "sm_task_id", null: false
     t.string "text", null: false
@@ -11755,6 +11774,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
   add_foreign_key "table_health_checks", "foundations"
   add_foreign_key "takeoff_layers", "jobs"
   add_foreign_key "takeoff_layers", "tenants"
+  add_foreign_key "takeoff_templates", "tenants"
+  add_foreign_key "takeoff_templates", "users", column: "created_by_id"
   add_foreign_key "task_action_items", "sm_tasks"
   add_foreign_key "task_action_items", "sm_tasks", column: "delegated_task_id"
   add_foreign_key "task_action_items", "task_action_items", column: "parent_item_id"
