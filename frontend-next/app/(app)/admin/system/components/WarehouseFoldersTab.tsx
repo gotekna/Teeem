@@ -295,7 +295,7 @@ export function WarehouseFoldersTab() {
 
   // Filter and sort warehouse folders
   // SSoT: All hooks MUST be called before any early returns (React Rules of Hooks)
-  const rawFolders = data?.data || [];
+  const rawFolders = Array.isArray(data?.data) ? data.data : [];
 
   const warehouseFolders = React.useMemo(() => {
     let filtered = rawFolders;
