@@ -4,10 +4,12 @@ module Api
       before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate, :detect_signature_fields ]
 
       # GET /api/v1/document_types
-      # PERFORMANCE: Eager load warehouse_folders to prevent N+1 queries in serialize_document_type
+      # PERFORMANCE: Eager load base_folders to prevent N+1 queries in serialize_document_type
       # P95 was 1.4s due to N+1; with eager loading should be <200ms
+      # SSoT: Include join table to ensure is_primary flag is available
+      # SSoT (Feb 2026): Use base_folder_document_types/base_folder (warehouse_* are deprecated aliases)
       def index
-        @document_types = DocumentType.includes(warehouse_folders: :parent)
+        @document_types = DocumentType.includes(base_folder_document_types: { base_folder: :parent })
 
         # Filter by scope (company, job, both)
         if params[:scope].present?
@@ -29,9 +31,9 @@ module Api
 
         # Optionally group by folder
         if params[:grouped] == "true"
-          # SSoT: folder is computed from primary WarehouseFolder - group in Ruby after query
-          # Include warehouse_folders association for folder computation
-          types = @document_types.active.includes(warehouse_folder_document_types: :warehouse_folder).order(:name)
+          # SSoT: folder is computed from primary BaseFolder - group in Ruby after query
+          # Include base_folders association for folder computation
+          types = @document_types.active.includes(base_folder_document_types: :base_folder).order(:name)
           grouped = types.group_by(&:folder).sort_by { |folder, _| folder || "" }.to_h
           render json: {
             success: true,
@@ -68,6 +70,15 @@ module Api
 
       # POST /api/v1/document_types
       def create
+        # SSoT: Map camelCase to snake_case (frontend uses camelCase)
+        params[:document_type][:ui_name] = params[:document_type][:uiName] if params[:document_type][:uiName].present?
+        params[:document_type][:download_name] = params[:document_type][:downloadName] if params[:document_type][:downloadName].present?
+
+        # SSoT: Map entity_tab_ids to warehouse_folder_ids (frontend uses entity_tab_ids)
+        if params[:document_type][:entity_tab_ids].present? && !params[:document_type][:warehouse_folder_ids].present?
+          params[:document_type][:warehouse_folder_ids] = params[:document_type][:entity_tab_ids]
+        end
+
         # Handle form_number_mapping separately (arbitrary keys not supported by strong params)
         create_params = document_type_params.to_h
         if params[:document_type][:form_number_mapping].present?
@@ -91,6 +102,15 @@ module Api
 
       # PATCH/PUT /api/v1/document_types/:id
       def update
+        # SSoT: Map camelCase to snake_case (frontend uses camelCase)
+        params[:document_type][:ui_name] = params[:document_type][:uiName] if params[:document_type][:uiName].present?
+        params[:document_type][:download_name] = params[:document_type][:downloadName] if params[:document_type][:downloadName].present?
+
+        # SSoT: Map entity_tab_ids to warehouse_folder_ids (frontend uses entity_tab_ids)
+        if params[:document_type][:entity_tab_ids].present? && !params[:document_type][:warehouse_folder_ids].present?
+          params[:document_type][:warehouse_folder_ids] = params[:document_type][:entity_tab_ids]
+        end
+
         # Handle form_number_mapping separately (arbitrary keys not supported by strong params)
         update_params = document_type_params.to_h
         if params[:document_type][:form_number_mapping].present?
@@ -311,19 +331,30 @@ module Api
       end
 
       def serialize_document_type(document_type)
-        # SSoT: WarehouseFolder data (replaces deprecated document_type_folders)
-        warehouse_folders_data = document_type.warehouse_folders.ordered.map do |tab|
+        # SSoT: BaseFolder data (replaces deprecated document_type_folders)
+        # Use base_folder_document_types to get is_primary flag and proper ordering
+        # Sort by is_primary DESC so primary folder is first, then by order_position
+        # SSoT (Feb 2026): Use base_folder_document_types/base_folder (warehouse_* are deprecated aliases)
+        folder_joins = document_type.base_folder_document_types
+                                    .includes(:base_folder)
+                                    .sort_by { |bfdt| [ bfdt.is_primary ? 0 : 1, bfdt.base_folder&.order_position || 999 ] }
+
+        warehouse_folders_data = folder_joins.filter_map do |bfdt|
+          tab = bfdt.base_folder
+          next unless tab
+
           {
             id: tab.id,
             tab_key: tab.tab_key,
             display_name: tab.display_name,
-            hierarchy_path: tab.hierarchy_path,
+            hierarchy_path: tab.full_ancestor_path,  # SSoT: BaseFolder uses full_ancestor_path
             parent_id: tab.parent_id,
-            parent_name: tab.parent&.display_name
+            parent_name: tab.parent&.display_name,
+            is_primary: bfdt.is_primary
           }
         end
 
-        primary_tab_data = warehouse_folders_data.first
+        primary_tab_data = warehouse_folders_data.find { |f| f[:is_primary] } || warehouse_folders_data.first
 
         {
           id: document_type.id,
@@ -354,6 +385,10 @@ module Api
           },
           primary_folder_id: primary_tab_data&.dig(:id),
           primary_folder_name: primary_tab_data&.dig(:display_name),
+          # SSoT: Foundation columns for View Manager visibility (Feb 2026)
+          primary_folder: primary_tab_data&.dig(:display_name),
+          primary_folder_path: primary_tab_data&.dig(:hierarchy_path),
+          show_in_folders: warehouse_folders_data.reject { |f| f[:is_primary] }.map { |f| f[:display_name] }.join(", ").presence,
           # SSoT: WarehouseFolder data (new field names)
           warehouse_folder_ids: warehouse_folders_data.map { |t| t[:id] },
           warehouse_folders: warehouse_folders_data,
@@ -385,11 +420,12 @@ module Api
       end
 
       def all_available_tabs
-        # SSoT: Get all document tabs from WarehouseFolder (replaces old DocumentFolder)
-        WarehouseFolder.for_warehouse_type('corporate')
-                 .for_group('documents')
+        # SSoT (Feb 2026): Get all document tabs from BaseFolder (THE ONE table)
+        BaseFolder.for_warehouse_type('corporate')
+                 .where(tab_group: 'documents')
+                 .where(warehouse_enabled: true)
                  .enabled
-                 .root_tabs
+                 .root_folders
                  .ordered
                  .includes(children: :children)
                  .map do |tab|

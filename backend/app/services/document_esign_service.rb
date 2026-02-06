@@ -168,8 +168,8 @@ class DocumentEsignService
     base_path = WarehouseProvider.instance.path_for(:jobs)
     job_folder = "#{job.id} - #{job.name}"
 
-    # SSoT: Use WarehouseFolder for folder name instead of hardcoding
-    documents_tab = WarehouseFolder.find_by(warehouse_type: "job", tab_key: "documents")
+    # SSoT (Feb 2026): Use BaseFolder for folder name instead of hardcoding
+    documents_tab = BaseFolder.for_warehouse_type("job").find_by(tab_key: "documents")
     folder_name = documents_tab&.display_name || "Documents"
 
     "#{base_path}/#{job_folder}/#{folder_name}"

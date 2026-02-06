@@ -57,7 +57,7 @@ class TemplatePackItem < ApplicationRecord
     when "document_types" then DocumentType
     when "sm_schedule_master_templates" then SmScheduleMasterTemplate
     when "public_holidays" then PublicHoliday
-    when "warehouse_folders" then WarehouseFolder
+    when "warehouse_folders" then BaseFolder
     else
       raise ArgumentError, "Unknown item type: #{item_type}"
     end

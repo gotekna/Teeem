@@ -2046,7 +2046,7 @@ module Api
             source_type: parent_doc.source_type,
             linkable: job,
             storage_blob: blob,
-            display_name: signed_filename,
+            ui_name: signed_filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
             original_filename: signed_filename,
             folder: folder_path,
             metadata: {

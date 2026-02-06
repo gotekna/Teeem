@@ -1,5 +1,5 @@
 /**
- * Token Components - SSoT for placeholder/template builders
+ * Placeholder Components - SSoT for placeholder/template builders
  *
  * This module provides standardized components for building template strings
  * with placeholder tokens. Used for document naming, file paths, email templates, etc.
@@ -8,16 +8,16 @@
  * See: frontend-next/lib/placeholders.ts (placeholder definitions)
  *
  * Components:
- * - TokenBadge: Individual placeholder token display
- * - TokenPalette: Searchable palette of available placeholders
- * - TokenBuilder: Complete template builder with tokens and preview
+ * - PlaceholderBadge: Individual placeholder token display
+ * - PlaceholderPalette: Searchable palette of available placeholders
+ * - PlaceholderBuilder: Complete template builder with tokens and preview
  *
  * Usage:
  * ```tsx
- * import { TokenBuilder, TokenPalette, TokenBadge } from "@/components/ui/tokens";
+ * import { PlaceholderBuilder, PlaceholderPalette, PlaceholderBadge } from "@/components/ui/placeholders";
  *
  * // Full template builder
- * <TokenBuilder
+ * <PlaceholderBuilder
  *   value="{CompanyCode} - {Description}"
  *   onChange={setValue}
  *   scope="company"
@@ -25,14 +25,14 @@
  * />
  *
  * // Just the palette (for custom implementations)
- * <TokenPalette
+ * <PlaceholderPalette
  *   scope="job"
  *   onSelect={(code) => insertAtCursor(code)}
  *   showLongVariants
  * />
  *
- * // Individual token badge
- * <TokenBadge
+ * // Individual placeholder badge
+ * <PlaceholderBadge
  *   code="{JobCode}"
  *   color="orange"
  *   removable
@@ -41,10 +41,18 @@
  * ```
  */
 
-// Components
-export { TokenBadge, type TokenBadgeProps } from "./TokenBadge";
-export { TokenPalette, type TokenPaletteProps } from "./TokenPalette";
-export { TokenBuilder, type TokenBuilderProps } from "./TokenBuilder";
+// Components - NEW names (use these)
+export { PlaceholderBadge, type PlaceholderBadgeProps } from "./PlaceholderBadge";
+export { PlaceholderPalette, type PlaceholderPaletteProps } from "./PlaceholderPalette";
+export { PlaceholderBuilder, type PlaceholderBuilderProps } from "./PlaceholderBuilder";
+
+// Backwards compatibility aliases (DEPRECATED - use new Placeholder* names)
+export { PlaceholderBadge as TokenBadge } from "./PlaceholderBadge";
+export { PlaceholderPalette as TokenPalette } from "./PlaceholderPalette";
+export { PlaceholderBuilder as TokenBuilder } from "./PlaceholderBuilder";
+export type { PlaceholderBadgeProps as TokenBadgeProps } from "./PlaceholderBadge";
+export type { PlaceholderPaletteProps as TokenPaletteProps } from "./PlaceholderPalette";
+export type { PlaceholderBuilderProps as TokenBuilderProps } from "./PlaceholderBuilder";
 
 // Re-export placeholder utilities for convenience
 export {

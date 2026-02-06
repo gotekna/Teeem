@@ -592,7 +592,8 @@ export default function MicrosoftIntegrationPage() {
       <SharePointDelegatedConnection />
 
       {/* Organization Cards - Show each org as a separate card */}
-      <div className="space-y-3">
+      {/* FRC (Feb 2026): Use flex layout for scroll compatibility - space-y breaks in flex parents */}
+      <div className="flex flex-col gap-3">
         {/* Configured Organizations */}
         {configuredOrgs.map((org) => {
           // Find matching health info from health dashboard
@@ -1086,12 +1087,12 @@ function OrganizationCard({
               </>
             )}
 
-            {org.status === "error" && (
+            {(org.status === "error" || org.status === "dead") && (
               <>
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Connection Error</AlertTitle>
-                  <AlertDescription>{org.last_error || "Unknown error"}</AlertDescription>
+                  <AlertTitle>{org.status === "dead" ? "Token Expired" : "Connection Error"}</AlertTitle>
+                  <AlertDescription>{org.last_error || (org.status === "dead" ? "The Microsoft authentication token has expired. Please reconnect to restore access." : "Unknown error")}</AlertDescription>
                 </Alert>
                 <div className="flex items-center gap-2">
                   <Button variant="default" size="sm" onClick={handleRetryConsent} disabled={retrying}>

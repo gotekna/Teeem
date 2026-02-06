@@ -168,13 +168,13 @@ module Api
           parent_name: base_folder.parent&.name,
           children_count: base_folder.children.count,
           name: base_folder.name,
-          folder_path_template: base_folder.folder_path_template,
+          folder_path_template: base_folder.folder_segment,  # SSoT (Feb 2026): column renamed to folder_segment
           full_path_template: full_template,
           path_preview: base_folder.path_preview,
           is_system: base_folder.is_system,
           enabled: base_folder.enabled,
           order_position: base_folder.order_position,
-          warehouse_folders_count: base_folder.warehouse_folders.count,
+          warehouse_folders_count: 0,  # SSoT (Feb 2026): warehouse_folders removed - now using base_folders directly
           can_delete: base_folder.can_delete?,
           is_dynamic: base_folder.dynamic?,
           dynamic_type: base_folder.dynamic_type,

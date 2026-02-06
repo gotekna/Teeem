@@ -167,31 +167,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       const response = await api.get<AuthResponse>('/api/v1/auth/me');
       if (response.success && response.user) {
-        // Check if we need to redirect to a different frontend (auto-login environment check)
-        // Same logic as login - if frontend_url differs from current origin, redirect
-        if (
-          response.frontend_url &&
-          typeof window !== 'undefined' &&
-          response.frontend_url !== window.location.origin
-        ) {
-          // Get existing token from localStorage
-          const existingToken = getStorageItem<string>(STORAGE_KEYS.TOKEN, '');
-          if (existingToken) {
-            // Redirect to the correct frontend with token for cross-domain login
-            const redirectUrl = new URL('/login', response.frontend_url);
-            redirectUrl.searchParams.set('token', existingToken);
-            redirectUrl.searchParams.set('redirect', window.location.pathname);
-            if (response.api_url) {
-              redirectUrl.searchParams.set('api_url', response.api_url);
-            }
-            if (response.environment) {
-              redirectUrl.searchParams.set('environment', response.environment);
-            }
-            console.log('Auto-login redirect: wrong frontend, redirecting to', response.frontend_url);
-            window.location.href = redirectUrl.toString();
-            return; // Don't setLoading(false) - page is redirecting
-          }
-        }
+        // ⚠️ DO NOT REDIRECT based on frontend_url (Jan 2026)
+        // ════════════════════════════════════════════════════════════════════
+        // Why: Developers need to work on ANY environment (production, beta,
+        // staging, local, sam-dev, rob-dev) without being forced to one.
+        //
+        // Root cause of "hard refresh logs me out" bug:
+        // 1. Hard refresh clears localStorage
+        // 2. Cookie recovery restores token ✅
+        // 3. checkAuth() was redirecting to different domain based on tenant's api_environment
+        // 4. On new domain, cookie doesn't exist (cookies are domain-specific!)
+        // 5. User appears logged out
+        //
+        // Fix: Stay on current frontend. The stored api_url determines which
+        // backend to use - frontend_url redirect is unnecessary and harmful.
+        // ════════════════════════════════════════════════════════════════════
 
         setUser(response.user);
         // Only apply user's preferred theme on initial page load
@@ -245,27 +235,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       if (response?.success && response.token && response.user) {
-        // Check if we need to redirect to a different frontend deployment
-        // (e.g., staging company → teeem-staging.vercel.app)
-        if (
-          response.frontend_url &&
-          typeof window !== 'undefined' &&
-          response.frontend_url !== window.location.origin
-        ) {
-          // Redirect to the correct frontend with token in URL for cross-domain login
-          const redirectUrl = new URL('/login', response.frontend_url);
-          redirectUrl.searchParams.set('token', response.token);
-          redirectUrl.searchParams.set('redirect', '/dashboard');
-          if (response.api_url) {
-            redirectUrl.searchParams.set('api_url', response.api_url);
-          }
-          if (response.environment) {
-            redirectUrl.searchParams.set('environment', response.environment);
-          }
-          window.location.href = redirectUrl.toString();
-          // Return success but the page will redirect
-          return { success: true };
-        }
+        // ⚠️ DO NOT REDIRECT based on frontend_url (Jan 2026)
+        // Same reason as checkAuth - developers need to work on any environment.
+        // The api_url from response will be stored and used for all API calls,
+        // so the user will talk to the correct backend regardless of which
+        // frontend they're on.
 
         setAuthToken(response.token, rememberMe);
         setToken(response.token);

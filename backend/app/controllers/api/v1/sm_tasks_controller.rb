@@ -1200,7 +1200,7 @@ module Api
         # Folder path comes from WarehouseProvider template (warehouse_folders['task_attachments'])
         folder_path = WarehouseProvider.instance.resolve_virtual_path(:task_attachments, { TaskId: @task.id })
         doc = WarehouseDocument.create!(
-          display_name: file.original_filename,
+          ui_name: file.original_filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
           storage_blob: blob,
           source_type: "task",
           folder: folder_path,
@@ -1309,7 +1309,7 @@ module Api
           # Folder path comes from WarehouseProvider template (warehouse_folders['task_attachments'])
           folder_path = WarehouseProvider.instance.resolve_virtual_path(:task_attachments, { TaskId: @task.id })
           doc = WarehouseDocument.create!(
-            display_name: filename,
+            ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
             storage_blob: blob,
             source_type: "task",
             folder: folder_path,

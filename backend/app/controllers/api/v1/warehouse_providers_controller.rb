@@ -88,40 +88,49 @@ module Api
         # - download_name_templates column REMOVED - stored per-tab in warehouse_folders.download_name
         # - ui_name_templates column REMOVED - stored per-tab in warehouse_folders.ui_name
 
-        # SSoT: Save folder_path templates to warehouse_folders table per-warehouse_type
+        # SSoT (Feb 2026): Save folder_path_suffix templates to BaseFolder per-warehouse_type
         # This is THE ONE place where custom folder templates (like {{Year}}) are stored
         if sp.key?(:warehouse_folders)
           sp[:warehouse_folders].to_h.each do |warehouse_type, template|
-            folder = WarehouseFolder.base_folder_for(warehouse_type)
-            folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
-            # FRC Guard (Feb 2026): Don't clear folder_path for root scopes
-            # Empty folder_path removes scope from tree and breaks file storage
-            if template.present?
-              folder.update!(folder_path: template)
-              Rails.logger.info "[WarehouseProvider] Saved folder_path for #{warehouse_type}: #{template}"
+            folder = BaseFolder.base_folder_for(warehouse_type)
+            if folder
+              # FRC Guard (Feb 2026): Don't clear folder_path_suffix for root scopes
+              # Empty folder_path removes scope from tree and breaks file storage
+              if template.present?
+                folder.update!(folder_path_suffix: template)
+                Rails.logger.info "[WarehouseProvider] Saved folder_path_suffix for #{warehouse_type}: #{template}"
+              else
+                Rails.logger.warn "[WarehouseProvider] Skipping empty folder_path_suffix for #{warehouse_type} - would break storage"
+              end
             else
-              Rails.logger.warn "[WarehouseProvider] Skipping empty folder_path for #{warehouse_type} - would break storage"
+              Rails.logger.warn "[WarehouseProvider] BaseFolder not found for warehouse_type: #{warehouse_type}"
             end
           end
         end
 
-        # SSoT: Save download_name templates to warehouse_folders table per-warehouse_type
+        # SSoT (Feb 2026): Save download_name_template to BaseFolder per-warehouse_type
         if sp.key?(:download_names)
           sp[:download_names].to_h.each do |warehouse_type, template|
-            folder = WarehouseFolder.base_folder_for(warehouse_type)
-            folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
-            folder.update!(download_name: template.presence)
-            Rails.logger.info "[WarehouseProvider] Saved download_name for #{warehouse_type}: #{template}"
+            folder = BaseFolder.base_folder_for(warehouse_type)
+            if folder
+              folder.update!(download_name_template: template.presence)
+              Rails.logger.info "[WarehouseProvider] Saved download_name_template for #{warehouse_type}: #{template}"
+            else
+              Rails.logger.warn "[WarehouseProvider] BaseFolder not found for warehouse_type: #{warehouse_type}"
+            end
           end
         end
 
-        # SSoT: Save ui_name templates to warehouse_folders table per-warehouse_type
+        # SSoT (Feb 2026): Save ui_name_template to BaseFolder per-warehouse_type
         if sp.key?(:ui_name_templates)
           sp[:ui_name_templates].to_h.each do |warehouse_type, template|
-            folder = WarehouseFolder.base_folder_for(warehouse_type)
-            folder ||= WarehouseFolder.create!(warehouse_type: warehouse_type, parent_id: nil, tab_key: warehouse_type, display_name: warehouse_type.titleize)
-            folder.update!(ui_name: template.presence)
-            Rails.logger.info "[WarehouseProvider] Saved ui_name for #{warehouse_type}: #{template}"
+            folder = BaseFolder.base_folder_for(warehouse_type)
+            if folder
+              folder.update!(ui_name_template: template.presence)
+              Rails.logger.info "[WarehouseProvider] Saved ui_name_template for #{warehouse_type}: #{template}"
+            else
+              Rails.logger.warn "[WarehouseProvider] BaseFolder not found for warehouse_type: #{warehouse_type}"
+            end
           end
         end
 

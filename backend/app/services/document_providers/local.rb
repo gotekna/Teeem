@@ -328,18 +328,22 @@ module DocumentProviders
       filename.to_s.gsub(/[<>:"|?*\\]/, "_").strip
     end
 
-    def create_subfolders_from_warehouse_folders(parent_path)
-      root_tabs = WarehouseFolder.for_jobs
+    # SSoT (Feb 2026): Create subfolders from BaseFolder hierarchy
+    def create_subfolders_from_base_folders(parent_path)
+      root_folders = BaseFolder.for_jobs
                            .where(warehouse_enabled: true)
                            .enabled
-                           .root_tabs
+                           .root_folders
                            .ordered
                            .includes(children: { children: :children })
 
-      root_tabs.each do |tab|
-        create_warehouse_folder_recursive(tab, parent_path)
+      root_folders.each do |folder|
+        create_base_folder_recursive(folder, parent_path)
       end
     end
+
+    # Alias for backwards compatibility
+    alias_method :create_subfolders_from_warehouse_folders, :create_subfolders_from_base_folders
 
     def create_warehouse_folder_recursive(tab, parent_path)
       folder_path = File.join(parent_path, tab.display_name)

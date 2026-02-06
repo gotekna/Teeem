@@ -1025,7 +1025,7 @@ class SyncedEmail < ApplicationRecord
       WarehouseDocument.create!(
         documentable: self,
         storage_blob_id: blob.id,
-        display_name: filename,
+        ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
         original_filename: filename,
         folder: 'Emails/Attachments',
         source_type: 'email_attachment',
@@ -1081,7 +1081,7 @@ class SyncedEmail < ApplicationRecord
     create_warehouse_document!(
       source_type: "email",
       folder: virtual_folder_path,
-      display_name: subject.presence || "No Subject",
+      ui_name: subject.presence || "No Subject",  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: "#{id}.eml",
       storage_blob: blob,
       metadata: {

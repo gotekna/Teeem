@@ -112,7 +112,7 @@ import {
   type CardMoveEvent,
   type CardReorderEvent,
 } from "@/components/ui/kanban";
-import { TokenBadge, TokenPalette, TokenBuilder } from "@/components/ui/tokens";
+import { PlaceholderBadge, PlaceholderPalette, PlaceholderBuilder } from "@/components/ui/placeholders";
 
 // Specialized Components (Tier 4)
 import { PDFViewer } from "@/components/ui/pdf-viewer";
@@ -1034,19 +1034,19 @@ function ItemBadgeDemo() {
   );
 }
 
-function TokenBadgeDemo() {
+function PlaceholderBadgeDemo() {
   return (
     <div className="flex flex-wrap gap-2">
-      <TokenBadge code="{CompanyCode}" color="purple" />
-      <TokenBadge code="{JobCode}" color="orange" />
-      <TokenBadge code="{DocType}" color="blue" />
-      <TokenBadge code="{Date}" color="green" />
-      <TokenBadge code="{Custom}" color="gray" removable onRemove={() => {}} />
+      <PlaceholderBadge code="{CompanyCode}" color="purple" />
+      <PlaceholderBadge code="{JobCode}" color="orange" />
+      <PlaceholderBadge code="{DocType}" color="blue" />
+      <PlaceholderBadge code="{Date}" color="green" />
+      <PlaceholderBadge code="{Custom}" color="gray" removable onRemove={() => {}} />
     </div>
   );
 }
 
-function TokenPaletteDemo() {
+function PlaceholderPaletteDemo() {
   const [selectedCode, setSelectedCode] = React.useState<string | null>(null);
   return (
     <div className="space-y-2">
@@ -1055,7 +1055,7 @@ function TokenPaletteDemo() {
           Selected: <code className="bg-muted px-1 rounded">{selectedCode}</code>
         </p>
       )}
-      <TokenPalette
+      <PlaceholderPalette
         scope="company"
         onSelect={(code) => setSelectedCode(code)}
         showLongVariants
@@ -1065,11 +1065,11 @@ function TokenPaletteDemo() {
   );
 }
 
-function TokenBuilderDemo() {
+function PlaceholderBuilderDemo() {
   const [template, setTemplate] = React.useState("{CompanyCode} - {Description}");
   return (
     <div className="max-w-md">
-      <TokenBuilder
+      <PlaceholderBuilder
         value={template}
         onChange={setTemplate}
         scope="document"
@@ -1478,9 +1478,9 @@ const COMPONENT_DEMOS: Record<string, () => React.ReactNode> = {
   "drag-handle": DragHandleDemo,
   "position-badge": PositionBadgeDemo,
   "item-badge": ItemBadgeDemo,
-  "token-badge": TokenBadgeDemo,
-  "token-palette": TokenPaletteDemo,
-  "token-builder": TokenBuilderDemo,
+  "placeholder-badge": PlaceholderBadgeDemo,
+  "placeholder-palette": PlaceholderPaletteDemo,
+  "placeholder-builder": PlaceholderBuilderDemo,
   // Sortable components
   "sortable-list": SortableListDemo,
   "sortable-item": SortableItemDemo,

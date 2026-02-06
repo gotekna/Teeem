@@ -14,11 +14,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
   Building2,
   Briefcase,
   Users,
@@ -28,7 +23,6 @@ import { SignatureFieldConfigModal, type SignatureFieldConfig } from "@/componen
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { Checkbox } from "@/components/ui/checkbox";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
@@ -36,17 +30,6 @@ import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/col
 
 // SSoT: Use slug for Foundation lookup - numeric IDs differ per environment
 const DOCUMENT_TYPES_FOUNDATION_SLUG = "document_types";
-
-interface FolderOption {
-  id: number;
-  name: string;
-  label: string;
-  description?: string;
-  parent_id?: number | null;
-  parent_name?: string;
-  entity_types?: string[];
-  children?: FolderOption[];
-}
 
 interface DocumentTypeFolder {
   id: number;
@@ -65,8 +48,7 @@ interface DocumentType extends TableRow {
   primary_tab?: string;
   folder?: string;
   tabs?: string[];
-  tabs_display?: string;
-  // New folder lookup fields
+  // Folder lookup fields
   folder_ids?: number[];
   folders?: DocumentTypeFolder[];
   primary_folder_id?: number;
@@ -76,156 +58,8 @@ interface DocumentType extends TableRow {
   scope?: string;
   file_extensions?: string[];
   file_extensions_display?: string;
-  target_folder?: string;
   // Signature field configuration for Word→PDF conversion
   signature_field_config?: SignatureFieldConfig[];
-}
-
-// Separate component for tabs display with popover - MUST be outside DocumentTypesTab to avoid hook violations
-function TabsDisplayCell({
-  entry,
-  availableFolders,
-  onUpdate,
-  onToast
-}: {
-  entry: DocumentType;
-  availableFolders: FolderOption[];
-  onUpdate: (id: string, field: string, value: any) => Promise<void>;
-  onToast: (toast: { title: string; description: string; variant?: "destructive" }) => void;
-}) {
-  const folderIds = entry.folder_ids || [];
-  const folders = entry.folders || [];
-  const [open, setOpen] = React.useState(false);
-
-  // Flatten folders for easier lookup
-  const flatFolders = React.useMemo(() => {
-    const result: FolderOption[] = [];
-    availableFolders.forEach(f => {
-      result.push(f);
-      if (f.children) {
-        f.children.forEach(c => result.push({ ...c, parent_name: f.name }));
-      }
-    });
-    return result;
-  }, [availableFolders]);
-
-  const toggleFolder = async (folderId: number, folderName: string) => {
-    const newFolderIds = folderIds.includes(folderId)
-      ? folderIds.filter(id => id !== folderId)
-      : [...folderIds, folderId];
-
-    try {
-      await onUpdate(String(entry.id!), "folder_ids", newFolderIds);
-      onToast({
-        title: "Folders updated",
-        description: `${folderName} ${folderIds.includes(folderId) ? 'removed' : 'added'}`,
-      });
-    } catch (error) {
-      onToast({
-        title: "Error",
-        description: "Failed to update folders",
-        variant: "destructive",
-      });
-    }
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 px-2 text-xs justify-start"
-        >
-          {folders.length === 0 ? (
-            <span className="text-muted-foreground">Select folders...</span>
-          ) : (
-            <div className="flex flex-wrap gap-1">
-              {folders.slice(0, 2).map(f => (
-                <Badge
-                  key={f.id}
-                  variant={f.is_primary ? "default" : "secondary"}
-                  className={cn("text-xs", f.is_primary && "ring-1 ring-blue-500")}
-                >
-                  {f.parent_name ? `${f.parent_name} > ${f.name}` : f.name}
-                </Badge>
-              ))}
-              {folders.length > 2 && (
-                <Badge variant="secondary" className="text-xs">
-                  +{folders.length - 2}
-                </Badge>
-              )}
-            </div>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-96 p-3 max-h-80 overflow-y-auto" align="start">
-        <div className="space-y-3">
-          <p className="text-sm font-medium">Select Folders</p>
-          {availableFolders.map(parentFolder => {
-            const isSelected = folderIds.includes(parentFolder.id);
-            const isPrimary = entry.primary_folder_id === parentFolder.id;
-            const children = parentFolder.children || [];
-
-            return (
-              <div key={parentFolder.id} className="space-y-1">
-                {/* Parent folder */}
-                <div
-                  className={cn(
-                    "flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors text-xs",
-                    isSelected && "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700",
-                    isPrimary && "ring-1 ring-blue-500",
-                    !isSelected && "hover:bg-muted"
-                  )}
-                  onClick={() => toggleFolder(parentFolder.id, parentFolder.name)}
-                >
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => toggleFolder(parentFolder.id, parentFolder.name)}
-                  />
-                  <span className="font-medium">
-                    {parentFolder.name}
-                    {isPrimary && <span className="ml-1 text-blue-600 dark:text-blue-400">★</span>}
-                  </span>
-                </div>
-
-                {/* Child folders (sub-tabs) */}
-                {children.length > 0 && (
-                  <div className="ml-4 space-y-1">
-                    {children.map(child => {
-                      const childSelected = folderIds.includes(child.id);
-                      const childPrimary = entry.primary_folder_id === child.id;
-                      return (
-                        <div
-                          key={child.id}
-                          className={cn(
-                            "flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors text-xs",
-                            childSelected && "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700",
-                            childPrimary && "ring-1 ring-green-500",
-                            !childSelected && "hover:bg-muted"
-                          )}
-                          onClick={() => toggleFolder(child.id, `${parentFolder.name} > ${child.name}`)}
-                        >
-                          <Checkbox
-                            checked={childSelected}
-                            onCheckedChange={() => toggleFolder(child.id, `${parentFolder.name} > ${child.name}`)}
-                          />
-                          <span className="font-medium text-muted-foreground">
-                            └ {child.name}
-                            {childPrimary && <span className="ml-1 text-green-600 dark:text-green-400">★</span>}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
 }
 
 interface DocumentTypesTabProps {
@@ -251,8 +85,6 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
   const [loading, setLoading] = React.useState(true);
   const [documentTypes, setDocumentTypes] = React.useState<DocumentType[]>([]);
   const [columns, setColumns] = React.useState<TableColumn[]>([]);
-  // SSoT: Add form handled by TeeemTableView's built-in "Add Record" modal
-  const [availableFolders, setAvailableFolders] = React.useState<FolderOption[]>([]);
   // Signature field configuration modal state
   const [signatureModalOpen, setSignatureModalOpen] = React.useState(false);
   const [signatureModalDocType, setSignatureModalDocType] = React.useState<DocumentType | null>(null);
@@ -280,22 +112,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
   React.useEffect(() => {
     fetchColumns();
     loadData();
-    loadAvailableFolders();
   }, []);
-
-  const loadAvailableFolders = async () => {
-    try {
-      // SSoT: Use /api/v1/document_types/tabs (EntityTab-based folders)
-      const response = await api.get<{ success: boolean; tabs: FolderOption[] }>(
-        "/api/v1/document_types/tabs"
-      );
-      if (response.success && response.tabs) {
-        setAvailableFolders(response.tabs);
-      }
-    } catch (error) {
-      console.error("Failed to load available folders:", error);
-    }
-  };
 
   const fetchColumns = async () => {
     try {
@@ -306,24 +123,9 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       const dbColumns = response?.foundation?.columns || [];
       const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, DOCUMENT_TYPES_FOUNDATION_SLUG);
 
-      // Add computed display columns that don't exist in the database
-      // tabs_display is computed from the tabs array field for display purposes
-      const enhancedColumns = [
-        ...teeemColumns,
-        {
-          key: "tabs_display",
-          label: "All Tabs",
-          column_type: "single_line_text",
-          resizable: true,
-          sortable: false,
-          filterable: false,
-          width: 200,
-          editable: false,
-          tooltip: "All folder tabs this document type appears in (computed field)"
-        } as TableColumn
-      ];
-
-      setColumns(enhancedColumns);
+      // SSoT: primary_folder, primary_folder_path, and show_in_folders are now Foundation columns
+      // Added in migration 20260205101500 - no manual enhancement needed
+      setColumns(teeemColumns);
     } catch (err) {
       console.error("Failed to fetch columns:", err);
     }
@@ -339,10 +141,6 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       // Transform for table display
       const transformed = types.map(dt => ({
         ...dt,
-        // Use folders from join table if available, fallback to legacy tabs
-        tabs_display: dt.folders?.length
-          ? dt.folders.map(f => f.parent_name ? `${f.parent_name} > ${f.name}` : f.name).join(", ")
-          : dt.tabs?.join(", ") || "",
         file_extensions_display: dt.file_extensions?.join(", ") || ""
       }));
       setDocumentTypes(transformed);
@@ -441,11 +239,12 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
     }
   }, [signatureModalDocType, toast]);
 
-  // Handle row double-click - navigate to detail page
-  // Single-click selects row (default behavior), double-click opens detail
+  // Handle row double-click - open in new tab
+  // Single-click selects row (default behavior), double-click opens detail in new tab
+  // Always use admin path since that's where the editor lives (SSoT)
   const handleRowDoubleClick = React.useCallback((row: DocumentType) => {
-    router.push(`${basePath}/${row.id}`);
-  }, [router, basePath]);
+    window.open(`/admin/system/document-types/${row.id}`, '_blank');
+  }, []);
 
   // Custom cell renderer for tabs display and badges
   const customCellRenderer = (entry: DocumentType, columnKey: string) => {
@@ -459,10 +258,11 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           <button
             onClick={(e) => {
               e.stopPropagation();
-              router.push(`${basePath}/${entry.id}`);
+              // Open in new tab to preserve current context (SSoT: editor lives at admin path)
+              window.open(`/admin/system/document-types/${entry.id}`, '_blank');
             }}
             className="text-left text-primary hover:underline font-medium flex-1"
-            title="Click to open full editor"
+            title="Click to open full editor (new tab)"
           >
             {value}
           </button>
@@ -533,15 +333,72 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
         </div>
       );
     }
-    if (columnKey === "target_folder") {
-      const value = entry.target_folder;
-      if (!value) return <span className="text-muted-foreground">-</span>;
+    // SSoT: primary_folder is now a Foundation column (Feb 2026)
+    if (columnKey === "primary_folder") {
+      // Use API-provided primary_folder field, fallback to folders array
+      const folderName = (entry as Record<string, unknown>).primary_folder as string | undefined
+        || entry.primary_folder_name
+        || entry.folders?.find(f => f.is_primary)?.name;
+      if (!folderName) return <span className="text-muted-foreground">-</span>;
       return (
-        <span className="font-mono text-xs text-muted-foreground">{value}</span>
+        <Badge variant="default" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300">
+          {folderName}
+        </Badge>
       );
     }
-    if (columnKey === "tabs_display") {
-      return <TabsDisplayCell entry={entry} availableFolders={availableFolders} onUpdate={handleRowUpdate} onToast={toast} />;
+    // SSoT: primary_folder_path is now a Foundation column (Feb 2026)
+    if (columnKey === "primary_folder_path") {
+      const path = (entry as Record<string, unknown>).primary_folder_path as string | undefined;
+      if (!path) return <span className="text-muted-foreground">-</span>;
+      return (
+        <span className="text-xs text-muted-foreground font-mono">
+          {path}
+        </span>
+      );
+    }
+    // SSoT: show_in_folders is now a Foundation column (Feb 2026)
+    if (columnKey === "show_in_folders") {
+      const showIn = (entry as Record<string, unknown>).show_in_folders as string | undefined;
+      // Fallback to folders array for backwards compatibility
+      if (!showIn) {
+        const secondaryFolders = entry.folders?.filter(f => !f.is_primary) || [];
+        if (secondaryFolders.length === 0) return <span className="text-muted-foreground">-</span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {secondaryFolders.slice(0, 2).map(f => (
+              <Badge
+                key={f.id}
+                variant="secondary"
+                className="text-xs"
+              >
+                {f.name}
+              </Badge>
+            ))}
+            {secondaryFolders.length > 2 && (
+              <Badge variant="outline" className="text-xs">
+                +{secondaryFolders.length - 2}
+              </Badge>
+            )}
+          </div>
+        );
+      }
+      // Parse comma-separated folder names from API
+      const folderNames = showIn.split(", ").filter(Boolean);
+      if (folderNames.length === 0) return <span className="text-muted-foreground">-</span>;
+      return (
+        <div className="flex flex-wrap gap-1">
+          {folderNames.slice(0, 2).map((name, idx) => (
+            <Badge key={idx} variant="secondary" className="text-xs">
+              {name}
+            </Badge>
+          ))}
+          {folderNames.length > 2 && (
+            <Badge variant="outline" className="text-xs">
+              +{folderNames.length - 2}
+            </Badge>
+          )}
+        </div>
+      );
     }
     if (columnKey === "primary_tab" || columnKey === "folder") {
       const value = entry[columnKey as keyof DocumentType] as string | undefined;
@@ -627,6 +484,8 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           // 2. Client-side OR filtering: scope="company" OR scope="both" (complex filter logic)
           // 3. Computed grouping: Groups by primary_tab (not a database column)
           legacyDataSource="custom-api: /api/v1/document_types?include_inactive=true + client-side scope OR filtering"
+          // Disable URL-based view syncing - this table is embedded, parent owns URL
+          viewSlug={null}
           onEdit={handleEdit}
           onRowUpdate={handleRowUpdate}
           onRowDoubleClick={handleRowDoubleClick}

@@ -1338,6 +1338,7 @@ Rails.application.routes.draw do
         member do
           put :user_mailbox_access, action: :update_user_mailbox_access
           put :toggle_sync_all
+          # NOTE (Feb 2026): docsort_mailbox route REMOVED - now in TenantSettings (SSoT)
           post :sync  # Trigger full email sync for this organization
         end
       end
@@ -2328,6 +2329,62 @@ Rails.application.routes.draw do
           post :match
           post :approve
           post :reject
+        end
+      end
+
+      # DocSort - Universal Document Inbox
+      resources :docsort, only: [:index, :show, :create, :destroy] do
+        collection do
+          get :stats
+        end
+        member do
+          post :classify
+          post :route
+          patch :override
+          get :download
+        end
+      end
+
+      # PDF Takeoff - Browser-based Bluebeam competitor (Feb 2026)
+      namespace :pdf_takeoff do
+        # Plan operations (for job-linked plans)
+        get "plans/:job_plan_id", action: :show
+        post "plans/:job_plan_id/calibrate", action: :calibrate
+        post "plans/:job_plan_id/detect_scale", action: :detect_scale
+        post "plans/:job_plan_id/detect_elements", action: :detect_elements
+        get "plans/:job_plan_id/measurements", action: :measurements
+        post "plans/:job_plan_id/measurements", action: :create_measurement
+
+        # DocSort standalone takeoff (for plans not yet assigned to a job)
+        get "docsort/:docsort_item_id", action: :show_docsort
+        post "docsort/:docsort_item_id/calibrate", action: :calibrate_docsort
+        post "docsort/:docsort_item_id/detect_scale", action: :detect_scale_docsort
+        post "docsort/:docsort_item_id/detect_elements", action: :detect_elements_docsort
+        get "docsort/:docsort_item_id/measurements", action: :measurements_docsort
+        post "docsort/:docsort_item_id/measurements", action: :create_measurement_docsort
+
+        # Measurement operations
+        patch "measurements/:id", action: :update_measurement
+        delete "measurements/:id", action: :delete_measurement
+
+        # Generate Purchase Order from measurements
+        post "plans/:job_plan_id/generate_po", action: :generate_po
+
+        # Layer operations
+        get "jobs/:job_id/layers", action: :layers
+        post "jobs/:job_id/layers", action: :create_layer
+        patch "layers/:id", action: :update_layer
+        delete "layers/:id", action: :delete_layer
+      end
+
+      # Takeoff Templates (measurement patterns)
+      resources :takeoff_templates, path: "pdf_takeoff/templates", only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          post :duplicate
+          post :record_usage
+        end
+        collection do
+          get :system_defaults
         end
       end
 

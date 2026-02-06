@@ -209,16 +209,17 @@ class TemplateExportService
     end
   end
 
+  # SSoT (Feb 2026): Export from base_folders (was warehouse_folders)
   def export_warehouse_folders
-    @tenant.warehouse_folders.order(:entity_type, :position).map do |record|
+    @tenant.base_folders.includes(:warehouse_type).order(:order_position).map do |record|
       {
-        entity_type: record.entity_type,
-        name: record.name,
-        slug: record.slug,
-        icon: record.icon,
-        position: record.position,
-        is_visible: record.respond_to?(:is_visible) ? record.is_visible : true,
-        requires_permission: record.respond_to?(:requires_permission) ? record.requires_permission : nil
+        entity_type: record.warehouse_type_code,
+        name: record.display_name || record.name,
+        slug: record.tab_key,
+        icon: record.icon_name,
+        position: record.order_position,
+        is_visible: record.enabled,
+        requires_permission: record.visibility_rule
       }.compact
     end
   end

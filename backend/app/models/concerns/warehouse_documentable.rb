@@ -139,7 +139,7 @@ module WarehouseDocumentable
       tenant_id: tenant.id,
       source_type: warehouse_source_type,
       storage_blob_id: storage_blob_id,
-      display_name: warehouse_display_name,
+      ui_name: warehouse_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
       folder: compute_folder_path_for_self,
       original_filename: storage_blob&.original_filename,
       content_type: storage_blob&.content_type
@@ -151,7 +151,7 @@ module WarehouseDocumentable
 
     warehouse_document.update!(
       storage_blob_id: storage_blob_id,
-      display_name: warehouse_display_name,
+      ui_name: warehouse_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
       folder: compute_folder_path_for_self,
       original_filename: storage_blob&.original_filename,
       content_type: storage_blob&.content_type

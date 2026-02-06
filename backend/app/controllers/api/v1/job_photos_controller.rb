@@ -25,8 +25,8 @@ module Api
         uploaded_file = params[:file]
         folder_path = params[:folder_path] || "06 Photo"
 
-        # SSoT: Strip {{JobCode}} placeholder if present
-        # The folder_path comes from WarehouseFolder.effective_warehouse_path which may contain {{JobCode}}
+        # SSoT (Feb 2026): Strip {{JobCode}} placeholder if present
+        # The folder_path comes from BaseFolder.full_folder_path which may contain {{JobCode}}
         # Since we're already navigating inside the job folder, strip the {{JobCode}} prefix entirely
         # e.g., "{{JobCode}}/Site Photo" becomes "Site Photo"
         folder_path = folder_path.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")

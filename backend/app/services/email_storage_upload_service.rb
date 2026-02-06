@@ -448,7 +448,7 @@ class EmailStorageUploadService
       d.storage_blob = blob
       d.source_type = "email"
       d.folder = email.virtual_folder_path
-      d.display_name = email.subject.presence || "No Subject"
+      d.ui_name = email.subject.presence || "No Subject"  # SSoT: display_name renamed to ui_name (Feb 2026)
       d.original_filename = "#{email.id}.eml"
       d.tenant_id = @tenant.id  # SSoT: Always set tenant for multi-tenant support
       d.metadata = {

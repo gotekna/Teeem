@@ -470,7 +470,7 @@ module Api
 
           # SSoT: Create WarehouseDocument for the generated PDF (Jan 2026)
           document = WarehouseDocument.create!(
-            display_name: "Invoice #{invoice.invoice_number || 'Draft'}",
+            ui_name: "Invoice #{invoice.invoice_number || 'Draft'}",  # SSoT: display_name renamed to ui_name (Feb 2026)
             documentable: invoice,
             source_type: "generated",
             folder: "Invoices"

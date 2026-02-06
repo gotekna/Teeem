@@ -35,109 +35,12 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { TokenBuilder } from "@/components/ui/tokens/TokenBuilder";
-import type { PlaceholderToken } from "@/lib/placeholders";
+import { PlaceholderBuilder } from "@/components/ui/placeholders";
 import { SortableList, SortableItem, ItemBadge } from "@/components/ui/dnd";
 import { Spinner } from "@/components/ui/spinner";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 
-// Custom placeholders for Plan Types
-const PLAN_TYPE_PLACEHOLDERS: PlaceholderToken[] = [
-  // Job placeholders
-  {
-    code: "{JobCode}",
-    example: "EB2401",
-    color: "orange",
-    description: "Job code (e.g., EB2401)",
-  },
-  {
-    code: "{JobName}",
-    example: "05 Wategors",
-    color: "orange",
-    description: "Job name/title (short)",
-  },
-  {
-    code: "{JobAddress}",
-    example: "Lot 5 Wategois Street Claamvale",
-    color: "orange",
-    description: "Full job address",
-  },
-  {
-    code: "{LotNumber}",
-    example: "5",
-    color: "orange",
-    description: "Lot number",
-  },
-  {
-    code: "{StreetName}",
-    example: "Wategois Street",
-    color: "orange",
-    description: "Street name",
-  },
-  {
-    code: "{Suburb}",
-    example: "Claamvale",
-    color: "orange",
-    description: "Suburb",
-  },
-  // Plan type placeholders
-  {
-    code: "{Code}",
-    example: "01",
-    color: "blue",
-    description: "Plan type code (01, 02, 07, etc.)",
-  },
-  {
-    code: "{Name}",
-    example: "PERSPECTIVE",
-    color: "blue",
-    description: "Plan type name (short)",
-  },
-  {
-    code: "{Description}",
-    example: "Perspective Drawing - Front Elevation View",
-    color: "blue",
-    description: "Plan type long description",
-  },
-  {
-    code: "{Category}",
-    example: "Contract Drawings",
-    color: "blue",
-    description: "Plan category name",
-  },
-  {
-    code: "{CategoryCode}",
-    example: "ConD",
-    color: "blue",
-    description: "Plan category code",
-  },
-  // Revision/version placeholders
-  {
-    code: "{Rev}",
-    example: "A",
-    color: "green",
-    description: "Revision letter/number",
-  },
-  {
-    code: "{Date}",
-    example: "20251218",
-    color: "green",
-    description: "Date in YYYYMMDD format",
-  },
-  {
-    code: "{Variant}",
-    example: "a",
-    color: "purple",
-    description: "Variant suffix (a, b, c)",
-  },
-  // Project placeholders
-  {
-    code: "{ProjectName}",
-    example: "Wategors Estate",
-    color: "purple",
-    description: "Project name",
-  },
-];
+// Plan Type placeholders come from SSoT: lib/placeholders.ts (scope="plans")
 
 interface PlanCategory {
   id: number;
@@ -686,11 +589,11 @@ export function TypesSection() {
           </p>
           {editingDefaults ? (
             <div className="space-y-4">
-              <TokenBuilder
+              <PlaceholderBuilder
                 label="Default Short Name Template (Storage filename)"
                 value={globalDefaults.short_name_template}
                 onChange={(value) => setGlobalDefaults({ ...globalDefaults, short_name_template: value })}
-                placeholders={PLAN_TYPE_PLACEHOLDERS}
+                scope="plans"
                 showPreview
                 previewData={{
                   JobCode: "EB2401",
@@ -711,11 +614,11 @@ export function TypesSection() {
                 }}
                 helpText="Used for storage file naming"
               />
-              <TokenBuilder
+              <PlaceholderBuilder
                 label="Default Long Name Template (Display Name)"
                 value={globalDefaults.long_name_template}
                 onChange={(value) => setGlobalDefaults({ ...globalDefaults, long_name_template: value })}
-                placeholders={PLAN_TYPE_PLACEHOLDERS}
+                scope="plans"
                 showPreview
                 previewData={{
                   JobCode: "EB2401",
@@ -949,11 +852,11 @@ export function TypesSection() {
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <TokenBuilder
+                  <PlaceholderBuilder
                     label="Short Name Template (Storage filename)"
                     value={formData.short_name_template}
                     onChange={(value) => setFormData({ ...formData, short_name_template: value })}
-                    placeholders={PLAN_TYPE_PLACEHOLDERS}
+                    scope="plans"
                     showPreview={!!formData.short_name_template}
                     previewData={{
                       JobCode: "EB2401",
@@ -984,11 +887,11 @@ export function TypesSection() {
                 </div>
 
                 <div className="space-y-2">
-                  <TokenBuilder
+                  <PlaceholderBuilder
                     label="Long Name Template (Display Name)"
                     value={formData.long_name_template}
                     onChange={(value) => setFormData({ ...formData, long_name_template: value })}
-                    placeholders={PLAN_TYPE_PLACEHOLDERS}
+                    scope="plans"
                     showPreview={!!formData.long_name_template}
                     previewData={{
                       JobCode: "EB2401",

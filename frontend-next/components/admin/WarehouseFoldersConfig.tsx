@@ -3,7 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { resolveWithExamples, resolveStoragePath, STORAGE_PLACEHOLDERS } from "@/lib/placeholders";
-import { TokenBuilder } from "@/components/ui/tokens";
+import { PlaceholderBuilder } from "@/components/ui/placeholders";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -333,11 +333,10 @@ export function WarehouseFoldersConfig({
   }, [storageConfig]);
 
   // SSoT: THE ONE function to get full storage path for a tab
-  // Handles storage_path_type override (e.g., Corporate tab using 'people' path)
+  // Uses scope template from storageConfig.warehouse_folders
   const getTabFullPath = React.useCallback((tab: WarehouseFolder, defaultScope: string): string => {
-    // Determine which scope folder to use based on storage_path_type override
-    const pathScope = tab.warehouse_type_override === 'corporate' ? 'people' : defaultScope;
-    const basePath = getBasePath(pathScope);
+    // Use the scope directly - warehouse_folders has templates like "Corporate/{{CompanyGroup}}/{{CompanyCode}}"
+    const basePath = getBasePath(defaultScope);
     const folderPath = tab.folder_path || tab.display_name;
     // Combine and normalize: collapse multiple slashes, strip trailing
     const fullPath = [basePath, folderPath].filter(Boolean).join('/');
@@ -717,12 +716,45 @@ export function WarehouseFoldersConfig({
 
   // Items start collapsed by default - user can expand as needed
 
+  // Helper to collect all descendant tab_keys recursively
+  const collectDescendantKeys = React.useCallback((tab: WarehouseFolder): string[] => {
+    const keys: string[] = [];
+    if (tab.children?.length) {
+      for (const child of tab.children) {
+        keys.push(child.tab_key);
+        keys.push(...collectDescendantKeys(child));
+      }
+    }
+    return keys;
+  }, []);
+
+  // Helper to find a tab by tab_key in the tree
+  const findTabByKey = React.useCallback((tabKey: string, tabList: WarehouseFolder[] = tabs): WarehouseFolder | null => {
+    for (const tab of tabList) {
+      if (tab.tab_key === tabKey) return tab;
+      if (tab.children?.length) {
+        const found = findTabByKey(tabKey, tab.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, [tabs]);
+
   // Toggle item expansion - uses tab_key (slug) instead of numeric ID
+  // When collapsing, also collapse all descendants recursively
   const toggleExpanded = (tabKey: string) => {
     setExpandedItems((prev) => {
       const next = new Set(prev);
       if (next.has(tabKey)) {
+        // Collapsing - remove this item AND all descendants
         next.delete(tabKey);
+        const tab = findTabByKey(tabKey);
+        if (tab) {
+          const descendantKeys = collectDescendantKeys(tab);
+          for (const key of descendantKeys) {
+            next.delete(key);
+          }
+        }
       } else {
         next.add(tabKey);
       }
@@ -889,6 +921,7 @@ export function WarehouseFoldersConfig({
       is_cad_category: tab.is_cad_category || false,  // SSoT: Explicit CAD/Revit category flag
       display_mode: tab.display_mode || 'both',  // SSoT: Display mode
       hidden_by_default: tab.hidden_by_default || false,  // SSoT: Hidden by default
+      is_system_tab: tab.is_system_tab || false,  // SSoT: System lock
     });
     // setEditingTab updates URL with tabId and action=edit
     setEditingTab(tab);
@@ -952,6 +985,7 @@ export function WarehouseFoldersConfig({
           is_cad_category: formData.is_cad_category,  // SSoT: Explicit CAD/Revit category flag
           display_mode: formData.display_mode,  // SSoT: Display mode
           hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
+          is_system_tab: formData.is_system_tab,  // SSoT: System lock
         };
         await updateTab(editingTab.id, updateParams);
         // Refetch used icons after update (icon may have changed)
@@ -991,6 +1025,7 @@ export function WarehouseFoldersConfig({
           is_cad_category: formData.is_cad_category,  // SSoT: Explicit CAD/Revit category flag
           display_mode: formData.display_mode,  // SSoT: Display mode
           hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
+          is_system_tab: formData.is_system_tab,  // SSoT: System lock
         };
         await createTab(createParams);
         // Refetch used icons after create (new icon added)
@@ -1136,8 +1171,8 @@ export function WarehouseFoldersConfig({
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-20">CODE</TableHead>
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-48">NAME</TableHead>
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-24">STATUS</TableHead>
-                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">SEND NAME</TableHead>
-                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">DISPLAY NAME</TableHead>
+                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">UI NAME</TableHead>
+                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">DOWNLOAD NAME</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1160,11 +1195,18 @@ export function WarehouseFoldersConfig({
                     <React.Fragment key={dt.id}>
                       {/* Template row */}
                       <TableRow
-                        className="border-b hover:bg-muted/50 cursor-pointer"
-                        onDoubleClick={() => window.open(`/admin/system/document-types/${dt.id}`, '_blank')}
+                        className="border-b hover:bg-muted/50"
                       >
                         <TableCell className="py-1.5 px-3 font-mono text-xs">{dt.abbreviation || '—'}</TableCell>
-                        <TableCell className="py-1.5 px-3">{dt.name}</TableCell>
+                        <TableCell className="py-1.5 px-3">
+                          <button
+                            onClick={() => window.open(`/admin/system/document-types/${dt.id}`, '_blank')}
+                            className="text-left text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                            title="Click to edit document type"
+                          >
+                            {dt.name}
+                          </button>
+                        </TableCell>
                         <TableCell className="py-1.5 px-3">
                           {/* SSoT: is_primary flag indicates primary vs secondary link */}
                           {dt.is_primary ? (
@@ -1177,19 +1219,18 @@ export function WarehouseFoldersConfig({
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.download_name || '—'}</TableCell>
-                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.ui_name || '—'}</TableCell>
+                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono break-all">{dt.ui_name || '—'}</TableCell>
+                        <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono break-all">{dt.download_name || '—'}</TableCell>
                       </TableRow>
                       {/* Example row with resolved values */}
                       <TableRow
-                        className="border-b last:border-0 hover:bg-muted/50 cursor-pointer bg-green-50/50 dark:bg-green-900/10"
-                        onDoubleClick={() => window.open(`/admin/system/document-types/${dt.id}`, '_blank')}
+                        className="border-b last:border-0 hover:bg-muted/50 bg-green-50/50 dark:bg-green-900/10"
                       >
                         <TableCell className="py-1 px-3 text-xs text-green-600 dark:text-green-400">↳ eg.</TableCell>
                         <TableCell className="py-1 px-3 text-xs text-muted-foreground italic"></TableCell>
                         <TableCell className="py-1 px-3"></TableCell>
-                        <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleFileName}</TableCell>
-                        <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleDisplayName}</TableCell>
+                        <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300 break-all">{exampleDisplayName}</TableCell>
+                        <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300 break-all">{exampleFileName}</TableCell>
                       </TableRow>
                     </React.Fragment>
                   );
@@ -1316,18 +1357,18 @@ export function WarehouseFoldersConfig({
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-xs gap-1 font-normal",
+                          "text-xs gap-1 font-normal max-w-none",
                           tab.uses_custom_path
                             ? "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                             : "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                         )}
                       >
                         <FolderOpen className="h-3 w-3 shrink-0" />
-                        <span>{getTabFullPath(tab, scope)}</span>
+                        <span className="break-all">{tab.effective_warehouse_path || tab.full_warehouse_path || getTabFullPath(tab, scope)}</span>
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-lg">
-                      <p className="font-mono text-xs break-all">{getTabFullPath(tab, scope)}</p>
+                      <p className="font-mono text-xs break-all">{tab.effective_warehouse_path || tab.full_warehouse_path || getTabFullPath(tab, scope)}</p>
                       <p className="text-muted-foreground mt-1">{tab.uses_custom_path ? "Custom path" : "Global template"}</p>
                     </TooltipContent>
                   </Tooltip>
@@ -1842,7 +1883,7 @@ export function WarehouseFoldersConfig({
 
                       {/* Folder Path template with token builder - drag and drop enabled */}
                       {/* SSoT: inherited_template from API (computed from storage_path_type) takes precedence */}
-                      <TokenBuilder
+                      <PlaceholderBuilder
                         label={labelWithStatus("Folder Path")}
                         value={folderPathTemplate || editingTab?.inherited_template || getDefaultTemplate(scope)}
                         onChange={setFolderPathTemplate}
@@ -1888,7 +1929,7 @@ export function WarehouseFoldersConfig({
                       })()}
 
                       {/* Document Download Name template */}
-                      <TokenBuilder
+                      <PlaceholderBuilder
                         label={labelWithStatus("Document Download Name")}
                         value={fileNameTemplate}
                         onChange={setFileNameTemplate}
@@ -1951,7 +1992,7 @@ export function WarehouseFoldersConfig({
                         </div>
 
                         {/* Attachments Folder Path template */}
-                        <TokenBuilder
+                        <PlaceholderBuilder
                           label={labelWithStatus("Folder Path")}
                           value={attachmentsPathTemplate ?? getDefaultTemplate('email')}
                           onChange={setAttachmentsPathTemplate}
@@ -1987,7 +2028,7 @@ export function WarehouseFoldersConfig({
                         })()}
 
                         {/* Document Download Name template for attachments */}
-                        <TokenBuilder
+                        <PlaceholderBuilder
                           label={labelWithStatus("Document Download Name")}
                           value={attachmentsFileNameTemplate}
                           onChange={setAttachmentsFileNameTemplate}
@@ -2071,7 +2112,7 @@ export function WarehouseFoldersConfig({
                                 </div>
 
                                 {/* Folder Path Template */}
-                                <TokenBuilder
+                                <PlaceholderBuilder
                                   label={labelWithStatus("Folder Path")}
                                   value={template}
                                   onChange={(val) => setWarehouseScopeTemplate(config.id, val)}
@@ -2091,7 +2132,7 @@ export function WarehouseFoldersConfig({
                                 </div>
 
                                 {/* Document Download Name Template */}
-                                <TokenBuilder
+                                <PlaceholderBuilder
                                   label={labelWithStatus("Document Download Name")}
                                   value={fileNameTpl}
                                   onChange={(val) => setWarehouseScopeFileNameTemplate(config.id, val)}
@@ -2232,31 +2273,32 @@ export function WarehouseFoldersConfig({
                 </div>
               )}
 
-              {/* Tab Group - determines if this is a document tab */}
+              {/* Tab Group - SSoT: Only 2 groups (Jan 2026 simplification)
+                  - documents: User uploads files, Document Types enabled
+                  - data: System-generated content, no Document Types */}
               <div className="space-y-2">
                 <Label htmlFor="tab_group">Tab Group</Label>
                 <Select
-                  value={formData.tab_group || "documents"}
+                  value={formData.tab_group === 'documents' ? 'documents' : 'data'}
                   onValueChange={(value: TabGroup) =>
                     setFormData((prev) => ({ ...prev, tab_group: value }))
                   }
+                  disabled={editingTab?.is_system_tab}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={editingTab?.is_system_tab ? "opacity-60" : ""}>
                     <SelectValue placeholder="Select tab group" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="overview">Overview</SelectItem>
-                    <SelectItem value="documents">Documents (enables Document Types)</SelectItem>
-                    <SelectItem value="reports">Reports</SelectItem>
-                    <SelectItem value="data">Data</SelectItem>
-                    <SelectItem value="setup">Setup</SelectItem>
-                    <SelectItem value="main">Main</SelectItem>
+                    <SelectItem value="documents">Documents (user uploads)</SelectItem>
+                    <SelectItem value="data">Data (system-generated)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  {formData.tab_group === 'documents'
-                    ? "Document tabs can link to Document Types"
-                    : "Only 'Documents' group enables Document Types linking"}
+                  {editingTab?.is_system_tab
+                    ? "System tab - type cannot be changed"
+                    : formData.tab_group === 'documents'
+                      ? "Users can upload files here. Document Types can be linked."
+                      : "System-generated content. No document uploads allowed."}
                 </p>
               </div>
 
@@ -2493,10 +2535,10 @@ export function WarehouseFoldersConfig({
                   </div>
                 )}
 
-                {/* Editable folder path (read-only for system tabs) */}
+                {/* Editable folder path */}
                 {/* SSoT: Show inherited base path as greyed-out prefix, then editable tab folder */}
-                <TokenBuilder
-                  label={editingTab?.is_system_tab ? "Full Warehouse Folder Path (system-managed)" : "Full Warehouse Folder Path"}
+                <PlaceholderBuilder
+                  label="Full Warehouse Folder Path"
                   value={formData.folder_path ?? ""}
                   onChange={(value) =>
                     setFormData((prev) => ({
@@ -2538,7 +2580,6 @@ export function WarehouseFoldersConfig({
                   })}
                   showPreview={false}
                   placeholder="Enter folder name or click tokens..."
-                  disabled={editingTab?.is_system_tab}
                 />
 
                 {/* Full path preview - uses ACTUAL tab names, not generic examples */}

@@ -47,12 +47,13 @@ class Api::V1::MicrosoftAppController < ApplicationController
           name: credential.name,
           configured: true,
           status: credential.status,
-          tenant_id: credential.tenant_id,
+          tenant_id: credential.azure_tenant_id,  # FRC: Return Azure AD tenant ID, not internal FK
           admin_consent_granted_at: credential.admin_consent_granted_at,
           admin_consent_granted_by: credential.admin_consent_granted_by,
           last_sync_at: credential.try(:last_sync_at) || credential.try(:last_synced_at),
           last_error: credential.try(:last_error) || credential.try(:error_message),
           token_valid: !credential.token_expired?
+          # NOTE (Feb 2026): docsort_mailbox MOVED to TenantSettings (SSoT)
         }
       end
 
@@ -138,11 +139,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
     org_name = params[:name].presence || "Default"
 
     # Use env vars if available, otherwise use params
+    # FRC (Feb 2026): tenant_id param refers to Azure AD tenant ID, stored in azure_tenant_id column
     client_id = params[:client_id].presence || ENV["OUTLOOK_CLIENT_ID"]
     client_secret = params[:client_secret].presence || ENV["OUTLOOK_CLIENT_SECRET"]
-    tenant_id = params[:tenant_id].presence || ENV["OUTLOOK_TENANT_ID"]
+    azure_tenant_id = params[:tenant_id].presence || ENV["OUTLOOK_TENANT_ID"]
 
-    if client_id.blank? || client_secret.blank? || tenant_id.blank?
+    if client_id.blank? || client_secret.blank? || azure_tenant_id.blank?
       return render json: {
         error: "Missing credentials. Either set OUTLOOK_CLIENT_ID, OUTLOOK_CLIENT_SECRET, OUTLOOK_TENANT_ID env vars or provide them manually."
       }, status: :unprocessable_entity
@@ -156,7 +158,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
       existing.update!(
         client_id: client_id,
         client_secret: client_secret,
-        tenant_id: tenant_id,
+        azure_tenant_id: azure_tenant_id,
         setup_by: current_user,
         status: "pending",
         is_active: true
@@ -171,7 +173,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
         organization: org,
         client_id: client_id,
         client_secret: client_secret,
-        tenant_id: tenant_id,
+        azure_tenant_id: azure_tenant_id,
         setup_by: current_user,
         status: "pending",
         is_active: true
@@ -202,10 +204,10 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
     client_id = ENV["OUTLOOK_CLIENT_ID"]
     client_secret = ENV["OUTLOOK_CLIENT_SECRET"]
-    tenant_id = ENV["OUTLOOK_TENANT_ID"]
+    azure_tenant_id = ENV["OUTLOOK_TENANT_ID"]
 
     # Graceful degradation: return configured: false instead of error for local dev
-    if client_id.blank? || client_secret.blank? || tenant_id.blank?
+    if client_id.blank? || client_secret.blank? || azure_tenant_id.blank?
       return render json: {
         success: false,
         configured: false,
@@ -218,10 +220,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
     existing = MicrosoftCredential.app_credentials.find_by(name: org_name)
     if existing
       # Reactivate and update existing credential
+      # FRC (Feb 2026): Use azure_tenant_id column (string for Azure AD GUID),
+      # NOT tenant_id (bigint FK to our internal Tenant table)
       existing.update!(
         client_id: client_id,
         client_secret: client_secret,
-        tenant_id: tenant_id,
+        azure_tenant_id: azure_tenant_id,
         setup_by: current_user,
         status: "pending",
         is_active: true
@@ -236,7 +240,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
         organization: org,
         client_id: client_id,
         client_secret: client_secret,
-        tenant_id: tenant_id,
+        azure_tenant_id: azure_tenant_id,
         setup_by: current_user,
         status: "pending",
         is_active: true
@@ -249,7 +253,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
       admin_consent_url: admin_consent_url_for(credential),
       organization_id: credential.id,
       organization_name: credential.name,
-      tenant_id: tenant_id
+      azure_tenant_id: azure_tenant_id
     }
   end
 
@@ -316,11 +320,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
       end
 
       if credential
-        # Update the credential with the actual tenant_id from the org that granted consent
+        # Update the credential with the actual Azure AD tenant_id from the org that granted consent
         # This is important for multi-tenant apps where we use 'organizations' endpoint
-        if tenant.present? && tenant != credential.tenant_id
-          credential.update!(tenant_id: tenant)
-          Rails.logger.info "[MicrosoftApp] Updated tenant_id for #{credential.name} to #{tenant}"
+        # FRC (Feb 2026): Use azure_tenant_id (string for Azure GUID), NOT tenant_id (bigint FK)
+        if tenant.present? && tenant != credential.azure_tenant_id
+          credential.update!(azure_tenant_id: tenant)
+          Rails.logger.info "[MicrosoftApp] Updated azure_tenant_id for #{credential.name} to #{tenant}"
         end
 
         # Test the connection and fetch initial token
@@ -565,6 +570,10 @@ class Api::V1::MicrosoftAppController < ApplicationController
     }
   end
 
+  # NOTE (Feb 2026): update_docsort_mailbox REMOVED
+  # DocSort mailbox is now configured via TenantSettings.monitored_mailbox_docsort (SSoT)
+  # Configure at: Settings > Company > Email Config
+
   # POST /api/v1/microsoft_app/:id/sync
   # Trigger a full email sync for this organization
   def sync
@@ -602,8 +611,10 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
     Rails.logger.info "[MicrosoftApp] Disconnect called - org_id: #{org_id}, org_name: #{org_name}, all params: #{params.to_unsafe_h}"
 
-    # SSoT: Use org-scoped credential lookup
-    credential = find_credential_with_org_context
+    # FRC (Feb 2026): For disconnect, we need to find credentials REGARDLESS of status.
+    # The normal find_credential_with_org_context excludes "dead" credentials, but you
+    # should absolutely be able to remove a dead credential - that's the whole point!
+    credential = find_credential_for_disconnect(org_id, org_name)
 
     if credential
       org_name = credential.name
@@ -1027,6 +1038,20 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
   end
 
+  # FRC (Feb 2026): Find credential for disconnect - includes ALL statuses including "dead"
+  # Unlike find_credential_with_org_context which filters out dead credentials,
+  # disconnect needs to find credentials regardless of status so they can be removed.
+  def find_credential_for_disconnect(org_id, org_name)
+    if org_id.present?
+      org = Organization.find_by(id: org_id)
+      # Find ANY credential for this org, including dead/disconnected
+      MicrosoftCredential.active.app_credentials.for_org(org).first if org
+    elsif org_name.present?
+      org = Organization.find_by_name_or_slug(org_name)
+      MicrosoftCredential.active.app_credentials.for_org(org).first if org
+    end
+  end
+
   # SSoT: Ensure organization exists for credential operations
   def find_or_create_organization_for_credential(org_name)
     Organization.find_or_create_by!(name: org_name) do |org|
@@ -1051,7 +1076,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
       organization_id: organization.id,
       client_id: old_credential.client_id,
       client_secret: old_credential.client_secret,
-      tenant_id: old_credential.tenant_id,
+      azure_tenant_id: old_credential.azure_tenant_id,  # FRC: Use azure_tenant_id, not tenant_id
       status: old_credential.status,
       setup_by_id: old_credential.setup_by_id,
       is_active: old_credential.is_active

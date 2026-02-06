@@ -44,6 +44,9 @@ module Api
                                   .compact
                                   .sort
 
+        # Cache provider for all documents in this request (avoids N+1 provider lookups)
+        @document_provider = fetch_document_provider
+
         render json: {
           success: true,
           documents: documents.map { |doc| document_to_json(doc) },
@@ -59,6 +62,8 @@ module Api
 
       # GET /api/v1/user_documents/:id
       def show
+        @document_provider = fetch_document_provider
+
         render json: {
           success: true,
           document: document_to_json(@document)
@@ -102,13 +107,15 @@ module Api
           WarehouseDocument.create!(
             documentable: document,
             source_type: "user",
-            display_name: document.file_name,
+            ui_name: document.file_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
             original_filename: document.file_name,
             folder: document.virtual_folder_path,
             content_type: document.content_type,
             file_size: document.file_size,
             storage_blob: blob
           )
+
+          @document_provider = fetch_document_provider
 
           render json: {
             success: true,
@@ -133,8 +140,10 @@ module Api
           # Update WarehouseDocument folder path
           @document.warehouse_document&.update(
             folder: @document.virtual_folder_path,
-            display_name: @document.file_name
+            ui_name: @document.file_name  # SSoT: display_name renamed to ui_name (Feb 2026)
           )
+
+          @document_provider = fetch_document_provider
 
           render json: {
             success: true,
@@ -157,17 +166,25 @@ module Api
 
       # GET /api/v1/user_documents/:id/download
       def download
-        if @document.storage_blob&.storage_path.present?
-          # SSoT (Jan 2026): Use tenant for storage provider
-          provider = DocumentProviders.for_tenant(current_tenant)
-          url = provider&.download_url(
+        unless @document.storage_blob&.storage_path.present?
+          return render json: { success: false, error: "File not available" }, status: :not_found
+        end
+
+        provider = fetch_document_provider
+        unless provider
+          return render json: { success: false, error: "Storage provider not configured" }, status: :service_unavailable
+        end
+
+        begin
+          url = provider.download_url(
             @document.storage_blob.storage_path,
             expires_in: 3600,
             filename: @document.file_name
           )
           render json: { success: true, url: url }
-        else
-          render json: { success: false, error: "File not available" }, status: :not_found
+        rescue => e
+          Rails.logger.error "[UserDocuments] Failed to generate download URL: #{e.message}"
+          render json: { success: false, error: "Failed to generate download URL" }, status: :service_unavailable
         end
       end
 
@@ -191,7 +208,7 @@ module Api
         warehouse_doc = WarehouseDocument.new(
           source_type: "job",
           linkable: job,
-          display_name: @document.file_name,
+          ui_name: @document.file_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
           original_filename: @document.file_name,
           folder: folder_path,
           content_type: @document.content_type,
@@ -261,12 +278,33 @@ module Api
         end
       end
 
+      # Fetch document provider with defensive error handling
+      # Returns nil if storage is not configured, avoiding exceptions in document listing
+      def fetch_document_provider
+        return nil unless current_tenant
+
+        DocumentProviders.for_tenant(current_tenant)
+      rescue DocumentProviders::NotConnectedError => e
+        Rails.logger.warn "[UserDocuments] Storage not connected: #{e.message}"
+        nil
+      rescue TenantNotFoundError => e
+        Rails.logger.warn "[UserDocuments] Tenant not found: #{e.message}"
+        nil
+      rescue => e
+        Rails.logger.error "[UserDocuments] Failed to get document provider: #{e.class} - #{e.message}"
+        nil
+      end
+
       def document_to_json(doc)
         blob = doc.storage_blob
-        download_url = if blob&.storage_path.present?
-          # SSoT (Jan 2026): Use tenant for storage provider
-          provider = DocumentProviders.for_tenant(current_tenant)
-          provider&.download_url(blob.storage_path, expires_in: 3600, filename: doc.file_name) rescue nil
+        download_url = nil
+
+        if blob&.storage_path.present? && @document_provider
+          begin
+            download_url = @document_provider.download_url(blob.storage_path, expires_in: 3600, filename: doc.file_name)
+          rescue => e
+            Rails.logger.warn "[UserDocuments] Failed to get download URL for doc #{doc.id}: #{e.message}"
+          end
         end
 
         {

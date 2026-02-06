@@ -44,6 +44,7 @@ export type PlaceholderScope =
   | "job"
   | "document"
   | "storage"
+  | "plans"  // Plan Types file naming template
   | "all"
   // Warehouse-type-specific scopes (for base folder token filtering)
   | "warehouse_task"
@@ -416,6 +417,28 @@ export const DOCUMENT_PLACEHOLDERS: PlaceholderToken[] = [
     example: "ATO",
     color: "blue",
     description: "Folder name",
+  },
+  {
+    code: "{InvoiceNum}",
+    example: "INV-001234",
+    longCode: "{InvoiceNumber}",
+    longExample: "INV-001234",
+    color: "blue",
+    description: "Invoice or bill number",
+  },
+  {
+    code: "{PONum}",
+    example: "PO-0056",
+    longCode: "{PONumber}",
+    longExample: "PO-0056",
+    color: "blue",
+    description: "Purchase order number",
+  },
+  {
+    code: "{OriginalFileName}",
+    example: "Invoice.pdf",
+    color: "blue",
+    description: "Original uploaded file name",
   },
 ];
 
@@ -907,6 +930,19 @@ export const PLACEHOLDERS_BY_SCOPE: Record<PlaceholderScope, PlaceholderToken[]>
   job: [...JOB_PLACEHOLDERS, ...TAB_PLACEHOLDERS, ...PLAN_PLACEHOLDERS, ...DATE_PLACEHOLDERS],
   document: [...DOCUMENT_PLACEHOLDERS, ...TAB_PLACEHOLDERS, ...PLAN_PLACEHOLDERS],
   storage: STORAGE_PLACEHOLDERS,
+  // Plans scope - for Plan Types file naming templates (combines job, plan, and document placeholders)
+  plans: [
+    // Job placeholders (filtered for plan-relevant ones)
+    ...JOB_PLACEHOLDERS.filter(p =>
+      ["{JobCode}", "{JobName}", "{JobAddress}", "{LotNumber}", "{StreetName}", "{Suburb}", "{ProjectName}", "{Category}", "{CategoryCode}"].includes(p.code)
+    ),
+    // Plan type placeholders
+    ...PLAN_PLACEHOLDERS,
+    // Description from document placeholders
+    ...DOCUMENT_PLACEHOLDERS.filter(p => p.code === "{Description}"),
+    // Date placeholder
+    ...DATE_PLACEHOLDERS.filter(p => p.code === "{Date}"),
+  ],
   all: [
     ...DOCUMENT_PLACEHOLDERS,
     ...COMPANY_PLACEHOLDERS,

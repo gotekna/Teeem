@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -629,19 +629,66 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
     t.index ["xero_transaction_id"], name: "index_bank_transactions_on_xero_transaction_id", unique: true
   end
 
+  create_table "base_folder_document_types", force: :cascade do |t|
+    t.bigint "base_folder_id", null: false
+    t.bigint "document_type_id", null: false
+    t.boolean "is_primary", default: false
+    t.string "ui_name_template"
+    t.string "download_name_template"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["base_folder_id", "document_type_id"], name: "idx_bfdt_unique", unique: true
+    t.index ["base_folder_id"], name: "index_base_folder_document_types_on_base_folder_id"
+    t.index ["document_type_id", "is_primary"], name: "idx_bfdt_primary"
+    t.index ["document_type_id"], name: "index_base_folder_document_types_on_document_type_id"
+    t.index ["download_name_template"], name: "idx_bfdt_download_name_template", where: "(download_name_template IS NOT NULL)"
+    t.index ["ui_name_template"], name: "idx_bfdt_ui_name_template", where: "(ui_name_template IS NOT NULL)"
+  end
+
   create_table "base_folders", force: :cascade do |t|
     t.bigint "warehouse_type_id", null: false
     t.string "name", null: false
-    t.string "folder_path_template"
+    t.string "folder_segment"
     t.boolean "is_system", default: false, null: false
     t.boolean "enabled", default: true, null: false
     t.integer "order_position", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "parent_id"
+    t.bigint "tenant_id"
+    t.string "folder_path_suffix"
+    t.string "tab_key"
+    t.string "display_name"
+    t.string "display_code", limit: 3
+    t.text "description"
+    t.string "tab_group", default: "documents"
+    t.string "icon_name"
+    t.string "display_mode", default: "both"
+    t.boolean "hidden_by_default", default: false
+    t.string "component_name"
+    t.boolean "warehouse_enabled", default: true
+    t.boolean "is_photo_category", default: false
+    t.boolean "is_cad_category", default: false
+    t.string "visibility_rule"
+    t.string "xero_scope"
+    t.string "entity_filters", default: [], array: true
+    t.string "warehouse_type_override"
+    t.string "ui_name_template"
+    t.string "download_name_template"
+    t.bigint "job_id"
+    t.boolean "uses_custom_path", default: false
+    t.boolean "is_system_tab", default: false
     t.index ["enabled"], name: "index_base_folders_on_enabled"
+    t.index ["entity_filters"], name: "index_base_folders_on_entity_filters", using: :gin
+    t.index ["job_id"], name: "index_base_folders_on_job_id"
     t.index ["order_position"], name: "index_base_folders_on_order_position"
     t.index ["parent_id"], name: "index_base_folders_on_parent_id"
+    t.index ["tab_group"], name: "index_base_folders_on_tab_group"
+    t.index ["tab_key"], name: "index_base_folders_on_tab_key"
+    t.index ["tenant_id", "warehouse_type_id", "name"], name: "idx_bf_tenant_type_name", unique: true, where: "(tenant_id IS NOT NULL)"
+    t.index ["tenant_id"], name: "idx_bf_tenant"
+    t.index ["tenant_id"], name: "index_base_folders_on_tenant_id"
+    t.index ["warehouse_enabled"], name: "index_base_folders_on_warehouse_enabled"
     t.index ["warehouse_type_id", "name"], name: "idx_base_folders_unique_name", unique: true
     t.index ["warehouse_type_id"], name: "index_base_folders_on_warehouse_type_id"
   end
@@ -2209,6 +2256,49 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
     t.index ["declaration_date"], name: "index_dividends_on_declaration_date"
     t.index ["dividend_type"], name: "index_dividends_on_dividend_type"
     t.index ["status"], name: "index_dividends_on_status"
+  end
+
+  create_table "docsort_items", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "storage_blob_id"
+    t.bigint "warehouse_document_id"
+    t.bigint "synced_email_id"
+    t.bigint "uploaded_by_id"
+    t.string "source", default: "upload", null: false
+    t.string "status", default: "pending", null: false
+    t.string "document_type"
+    t.decimal "classification_confidence", precision: 5, scale: 4
+    t.jsonb "classification_result", default: {}
+    t.string "original_filename"
+    t.string "content_type"
+    t.integer "file_size"
+    t.string "from_email"
+    t.string "subject"
+    t.string "routed_to_type"
+    t.bigint "routed_to_id"
+    t.datetime "routed_at"
+    t.boolean "user_override", default: false
+    t.bigint "overridden_by_id"
+    t.datetime "overridden_at"
+    t.jsonb "metadata", default: {}
+    t.text "error_message"
+    t.datetime "processed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["classification_confidence"], name: "index_docsort_items_on_classification_confidence"
+    t.index ["created_at"], name: "index_docsort_items_on_created_at"
+    t.index ["document_type"], name: "index_docsort_items_on_document_type"
+    t.index ["overridden_by_id"], name: "index_docsort_items_on_overridden_by_id"
+    t.index ["routed_to_type", "routed_to_id"], name: "index_docsort_items_on_routed_to_type_and_routed_to_id"
+    t.index ["source"], name: "index_docsort_items_on_source"
+    t.index ["status"], name: "index_docsort_items_on_status"
+    t.index ["storage_blob_id"], name: "index_docsort_items_on_storage_blob_id"
+    t.index ["synced_email_id"], name: "index_docsort_items_on_synced_email_id"
+    t.index ["tenant_id", "document_type"], name: "index_docsort_items_on_tenant_id_and_document_type"
+    t.index ["tenant_id", "status"], name: "index_docsort_items_on_tenant_id_and_status"
+    t.index ["tenant_id"], name: "index_docsort_items_on_tenant_id"
+    t.index ["uploaded_by_id"], name: "index_docsort_items_on_uploaded_by_id"
+    t.index ["warehouse_document_id"], name: "index_docsort_items_on_warehouse_document_id"
   end
 
   create_table "document_activities", force: :cascade do |t|
@@ -6912,6 +7002,32 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
     t.index ["route_pattern"], name: "index_page_help_contents_on_route_pattern", unique: true
   end
 
+  create_table "page_scales", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "job_plan_id"
+    t.bigint "job_plan_revision_id"
+    t.integer "page_number", default: 1, null: false
+    t.decimal "scale_factor", precision: 15, scale: 8
+    t.decimal "reference_length_mm", precision: 15, scale: 4
+    t.decimal "reference_length_px", precision: 15, scale: 4
+    t.string "scale_label"
+    t.jsonb "calibration_line", default: {}
+    t.string "ai_detected_scale"
+    t.decimal "ai_confidence", precision: 5, scale: 4
+    t.bigint "calibrated_by_id"
+    t.datetime "calibrated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "docsort_item_id"
+    t.index ["calibrated_by_id"], name: "index_page_scales_on_calibrated_by_id"
+    t.index ["docsort_item_id"], name: "index_page_scales_on_docsort_item_id"
+    t.index ["job_plan_id", "page_number"], name: "index_page_scales_on_job_plan_id_and_page_number", unique: true
+    t.index ["job_plan_id"], name: "index_page_scales_on_job_plan_id"
+    t.index ["job_plan_revision_id", "page_number"], name: "index_page_scales_on_job_plan_revision_id_and_page_number"
+    t.index ["job_plan_revision_id"], name: "index_page_scales_on_job_plan_revision_id"
+    t.index ["tenant_id"], name: "index_page_scales_on_tenant_id"
+  end
+
   create_table "pay_now_requests", force: :cascade do |t|
     t.bigint "purchase_order_id", null: false
     t.bigint "contact_id", null: false
@@ -9429,6 +9545,41 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
   end
 
+  create_table "takeoff_layers", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "job_id", null: false
+    t.string "name", null: false
+    t.string "color", default: "#3B82F6", null: false
+    t.integer "display_order", default: 0, null: false
+    t.boolean "visible", default: true, null: false
+    t.boolean "locked", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "display_order"], name: "index_takeoff_layers_on_job_id_and_display_order"
+    t.index ["job_id", "name"], name: "index_takeoff_layers_on_job_id_and_name", unique: true
+    t.index ["job_id"], name: "index_takeoff_layers_on_job_id"
+    t.index ["tenant_id"], name: "index_takeoff_layers_on_tenant_id"
+  end
+
+  create_table "takeoff_templates", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "created_by_id"
+    t.string "name", null: false
+    t.string "description"
+    t.string "category"
+    t.boolean "is_system", default: false
+    t.boolean "is_active", default: true
+    t.jsonb "configuration", default: {}, null: false
+    t.integer "usage_count", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_takeoff_templates_on_created_by_id"
+    t.index ["tenant_id", "category"], name: "index_takeoff_templates_on_tenant_id_and_category"
+    t.index ["tenant_id", "is_active"], name: "index_takeoff_templates_on_tenant_id_and_is_active"
+    t.index ["tenant_id", "name"], name: "index_takeoff_templates_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id"], name: "index_takeoff_templates_on_tenant_id"
+  end
+
   create_table "task_action_items", force: :cascade do |t|
     t.bigint "sm_task_id", null: false
     t.string "text", null: false
@@ -9680,6 +9831,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
     t.string "custom_email_signature_name", default: "Company Custom"
     t.boolean "force_email_signature", default: false
     t.string "forced_signature_style"
+    t.string "monitored_mailbox_docsort", comment: "SSoT: Email address for DocSort inbox (AI document classification)"
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"
@@ -9811,7 +9963,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
   end
 
   create_table "unreal_measurements", force: :cascade do |t|
-    t.bigint "job_id", null: false
+    t.bigint "job_id"
     t.bigint "job_plan_id"
     t.bigint "pricebook_item_id"
     t.bigint "job_colour_selection_id"
@@ -9827,15 +9979,30 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
     t.datetime "synced_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "page_number"
+    t.bigint "takeoff_layer_id"
+    t.boolean "is_deduction", default: false, null: false
+    t.bigint "parent_measurement_id"
+    t.string "source", default: "unreal"
+    t.string "display_label"
+    t.string "color"
+    t.bigint "docsort_item_id"
     t.index ["category"], name: "index_unreal_measurements_on_category"
+    t.index ["docsort_item_id"], name: "index_unreal_measurements_on_docsort_item_id"
+    t.index ["is_deduction"], name: "index_unreal_measurements_on_is_deduction"
     t.index ["job_colour_selection_id"], name: "index_unreal_measurements_on_job_colour_selection_id"
     t.index ["job_id", "session_id"], name: "index_unreal_measurements_on_job_id_and_session_id"
     t.index ["job_id"], name: "index_unreal_measurements_on_job_id"
+    t.index ["job_plan_id", "page_number"], name: "index_unreal_measurements_on_job_plan_id_and_page_number"
     t.index ["job_plan_id"], name: "index_unreal_measurements_on_job_plan_id"
     t.index ["measurement_type"], name: "index_unreal_measurements_on_measurement_type"
+    t.index ["page_number"], name: "index_unreal_measurements_on_page_number"
+    t.index ["parent_measurement_id"], name: "index_unreal_measurements_on_parent_measurement_id"
     t.index ["pricebook_item_id"], name: "index_unreal_measurements_on_pricebook_item_id"
     t.index ["session_id"], name: "index_unreal_measurements_on_session_id"
+    t.index ["source"], name: "index_unreal_measurements_on_source"
     t.index ["synced_to_po_id"], name: "index_unreal_measurements_on_synced_to_po_id"
+    t.index ["takeoff_layer_id"], name: "index_unreal_measurements_on_takeoff_layer_id"
   end
 
   create_table "unreal_variables", force: :cascade do |t|
@@ -10048,6 +10215,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
     t.uuid "version_group_id"
     t.integer "version_number", default: 1
     t.boolean "is_latest_version", default: true
+    t.bigint "base_folder_document_type_id"
+    t.index ["base_folder_document_type_id"], name: "index_warehouse_documents_on_base_folder_document_type_id"
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["folder"], name: "index_warehouse_documents_on_folder"
@@ -10063,65 +10232,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
     t.index ["ui_name"], name: "index_warehouse_documents_on_ui_name"
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
-  end
-
-  create_table "warehouse_folder_document_types", force: :cascade do |t|
-    t.bigint "warehouse_folder_id", null: false
-    t.bigint "document_type_id", null: false
-    t.boolean "is_primary", default: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["document_type_id", "is_primary"], name: "idx_warehouse_folder_doc_types_primary"
-    t.index ["document_type_id"], name: "index_warehouse_folder_document_types_on_document_type_id"
-    t.index ["warehouse_folder_id", "document_type_id"], name: "idx_warehouse_folder_doc_types_unique", unique: true
-    t.index ["warehouse_folder_id"], name: "index_warehouse_folder_document_types_on_warehouse_folder_id"
-  end
-
-  create_table "warehouse_folders", force: :cascade do |t|
-    t.string "warehouse_type", null: false
-    t.string "tab_key", null: false
-    t.string "display_name", null: false
-    t.text "description"
-    t.string "tab_group"
-    t.bigint "parent_id"
-    t.bigint "job_id"
-    t.string "entity_filters", default: [], array: true
-    t.integer "order_position", default: 0
-    t.boolean "enabled", default: true
-    t.string "icon_name"
-    t.string "component_name"
-    t.boolean "is_system_tab", default: false
-    t.boolean "warehouse_enabled", default: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "display_code", limit: 3
-    t.boolean "uses_custom_path", default: false, null: false
-    t.string "warehouse_type_override", default: "corporate"
-    t.boolean "is_photo_category", default: false, null: false
-    t.string "display_mode", default: "both", null: false
-    t.boolean "hidden_by_default", default: false, null: false
-    t.string "storage_folder_id"
-    t.boolean "is_cad_category"
-    t.string "xero_scope"
-    t.string "visibility_rule"
-    t.bigint "tenant_id"
-    t.string "download_name"
-    t.string "folder_path"
-    t.string "ui_name"
-    t.string "base_folder"
-    t.bigint "base_folder_id"
-    t.index ["base_folder"], name: "index_warehouse_folders_on_base_folder"
-    t.index ["base_folder_id"], name: "index_warehouse_folders_on_base_folder_id"
-    t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
-    t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
-    t.index ["job_id"], name: "index_warehouse_folders_on_job_id"
-    t.index ["parent_id"], name: "index_warehouse_folders_on_parent_id"
-    t.index ["storage_folder_id"], name: "index_warehouse_folders_on_storage_folder_id"
-    t.index ["tenant_id"], name: "index_warehouse_folders_on_tenant_id"
-    t.index ["warehouse_type", "enabled"], name: "index_warehouse_folders_on_warehouse_type_and_enabled"
-    t.index ["warehouse_type", "tab_group"], name: "index_warehouse_folders_on_warehouse_type_and_tab_group"
-    t.index ["warehouse_type", "tab_key", "job_id", "parent_id"], name: "idx_warehouse_folders_unique_key", unique: true
-    t.index ["warehouse_type"], name: "index_warehouse_folders_on_warehouse_type"
   end
 
   create_table "warehouse_providers", force: :cascade do |t|
@@ -10154,9 +10264,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "folder_path_template"
+    t.bigint "tenant_id"
     t.index ["code"], name: "index_warehouse_types_on_code", unique: true
     t.index ["enabled"], name: "index_warehouse_types_on_enabled"
     t.index ["order_position"], name: "index_warehouse_types_on_order_position"
+    t.index ["tenant_id", "code"], name: "idx_warehouse_types_tenant_code", unique: true
+    t.index ["tenant_id"], name: "index_warehouse_types_on_tenant_id"
   end
 
   create_table "whs_action_items", force: :cascade do |t|
@@ -10802,7 +10915,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
   add_foreign_key "bank_transactions", "bank_accounts"
   add_foreign_key "bank_transactions", "corporates", column: "company_id"
   add_foreign_key "bank_transactions", "tenants"
+  add_foreign_key "base_folder_document_types", "base_folders"
+  add_foreign_key "base_folder_document_types", "document_types"
   add_foreign_key "base_folders", "base_folders", column: "parent_id"
+  add_foreign_key "base_folders", "jobs"
+  add_foreign_key "base_folders", "tenants"
   add_foreign_key "base_folders", "warehouse_types"
   add_foreign_key "batch_operations", "jobs"
   add_foreign_key "batch_operations", "users"
@@ -10933,6 +11050,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
   add_foreign_key "dividend_payments", "contacts", column: "shareholder_id"
   add_foreign_key "dividend_payments", "dividends"
   add_foreign_key "dividends", "corporates", column: "company_id"
+  add_foreign_key "docsort_items", "storage_blobs"
+  add_foreign_key "docsort_items", "synced_emails"
+  add_foreign_key "docsort_items", "tenants"
+  add_foreign_key "docsort_items", "users", column: "overridden_by_id"
+  add_foreign_key "docsort_items", "users", column: "uploaded_by_id"
+  add_foreign_key "docsort_items", "warehouse_documents"
   add_foreign_key "document_activities", "users"
   add_foreign_key "document_duplicate_reviews", "cases"
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
@@ -11404,6 +11527,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
   add_foreign_key "organizations", "corporates", column: "company_id"
   add_foreign_key "organizations", "tenants"
   add_foreign_key "page_help_contents", "users", column: "last_updated_by_id"
+  add_foreign_key "page_scales", "docsort_items"
+  add_foreign_key "page_scales", "job_plan_revisions"
+  add_foreign_key "page_scales", "job_plans"
+  add_foreign_key "page_scales", "tenants"
+  add_foreign_key "page_scales", "users", column: "calibrated_by_id"
   add_foreign_key "pay_now_requests", "contacts"
   add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
   add_foreign_key "pay_now_requests", "payments"
@@ -11637,6 +11765,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
   add_foreign_key "synced_emails", "email_mailboxes"
   add_foreign_key "synced_emails", "tenants"
   add_foreign_key "table_health_checks", "foundations"
+  add_foreign_key "takeoff_layers", "jobs"
+  add_foreign_key "takeoff_layers", "tenants"
+  add_foreign_key "takeoff_templates", "tenants"
+  add_foreign_key "takeoff_templates", "users", column: "created_by_id"
   add_foreign_key "task_action_items", "sm_tasks"
   add_foreign_key "task_action_items", "sm_tasks", column: "delegated_task_id"
   add_foreign_key "task_action_items", "task_action_items", column: "parent_item_id"
@@ -11676,11 +11808,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
   add_foreign_key "trial_invitations", "tenants", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "invited_by_user_id", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "sent_from_user_id", on_delete: :nullify
+  add_foreign_key "unreal_measurements", "docsort_items"
   add_foreign_key "unreal_measurements", "job_colour_selections"
   add_foreign_key "unreal_measurements", "job_plans"
   add_foreign_key "unreal_measurements", "jobs"
   add_foreign_key "unreal_measurements", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "unreal_measurements", "purchase_orders", column: "synced_to_po_id"
+  add_foreign_key "unreal_measurements", "takeoff_layers"
+  add_foreign_key "unreal_measurements", "unreal_measurements", column: "parent_measurement_id"
   add_foreign_key "user_absences", "users"
   add_foreign_key "user_absences", "users", column: "approved_by_id"
   add_foreign_key "user_dictionary_words", "users"
@@ -11703,15 +11838,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_150000) do
   add_foreign_key "users", "tenants"
   add_foreign_key "users", "user_groups"
   add_foreign_key "vip_senders", "users"
+  add_foreign_key "warehouse_documents", "base_folder_document_types"
   add_foreign_key "warehouse_documents", "storage_blobs"
   add_foreign_key "warehouse_documents", "warehouse_documents", column: "parent_document_id", on_delete: :nullify, validate: false
-  add_foreign_key "warehouse_folder_document_types", "document_types"
-  add_foreign_key "warehouse_folder_document_types", "warehouse_folders"
-  add_foreign_key "warehouse_folders", "base_folders"
-  add_foreign_key "warehouse_folders", "jobs"
-  add_foreign_key "warehouse_folders", "tenants"
-  add_foreign_key "warehouse_folders", "warehouse_folders", column: "parent_id"
   add_foreign_key "warehouse_providers", "tenants"
+  add_foreign_key "warehouse_types", "tenants"
   add_foreign_key "whs_action_items", "sm_tasks"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
   add_foreign_key "whs_action_items", "users", column: "created_by_id"

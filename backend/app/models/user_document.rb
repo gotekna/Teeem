@@ -78,8 +78,8 @@ class UserDocument < ApplicationRecord
     CATEGORIES[category] || :users
   end
 
-  # SSoT: Get the WarehouseFolder from DocumentType (primary_warehouse_folder method)
-  # This provides the folder name and storage_folder_path template
+  # SSoT (Feb 2026): Get the BaseFolder from DocumentType (primary_base_folder method)
+  # This provides the folder name and full_folder_path template
   def effective_warehouse_folder
     document_type&.primary_warehouse_folder
   end
@@ -87,10 +87,10 @@ class UserDocument < ApplicationRecord
   # DEPRECATED: Use effective_warehouse_folder (Jan 2026)
   alias_method :effective_entity_tab, :effective_warehouse_folder
 
-  # SSoT: Get the storage folder path template from WarehouseFolder
+  # SSoT (Feb 2026): Get the storage folder path template from BaseFolder
   # This is the database-stored template, NOT a hardcoded constant
   def storage_folder_template
-    effective_warehouse_folder&.storage_folder_path
+    effective_warehouse_folder&.full_folder_path
   end
 
   # ========================================
@@ -180,9 +180,9 @@ class UserDocument < ApplicationRecord
 
   private
 
-  # SSoT: Default tokens for storage path template
+  # SSoT (Feb 2026): Default tokens for storage path template
   # Path is built from:
-  # 1. WarehouseFolder.storage_folder_path template (from database, NOT hardcoded)
+  # 1. BaseFolder.full_folder_path template (from database, NOT hardcoded)
   # 2. Tokens expanded from this method
   #
   # Category determines base folder:
@@ -198,7 +198,7 @@ class UserDocument < ApplicationRecord
       UserName: sanitize_path_component(user&.name || "Unknown"),
       UserEmail: user&.email,
 
-      # Tab tokens (from WarehouseFolder - SSoT for folder structure)
+      # Tab tokens (from BaseFolder - SSoT for folder structure)
       TabName: warehouse_folder&.display_name || folder || category&.titleize || "Documents",
       TabKey: warehouse_folder&.tab_key,
       SubTabName: warehouse_folder&.parent&.display_name,

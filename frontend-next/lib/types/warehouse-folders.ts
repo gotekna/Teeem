@@ -110,6 +110,7 @@ export interface WarehouseFolderCreateParams {
   is_cad_category?: boolean;  // SSoT: Show CAD/Revit file viewer
   display_mode?: TabDisplayMode;  // SSoT: How tab renders
   hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
+  is_system_tab?: boolean;  // SSoT: System-locked tabs cannot be deleted
 }
 
 export interface WarehouseFolderUpdateParams {
@@ -132,6 +133,7 @@ export interface WarehouseFolderUpdateParams {
   is_cad_category?: boolean;  // SSoT: Show CAD/Revit file viewer
   display_mode?: TabDisplayMode;  // SSoT: How tab renders
   hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
+  is_system_tab?: boolean;  // SSoT: System-locked tabs cannot be deleted
 }
 
 export interface ReorderTabParams {

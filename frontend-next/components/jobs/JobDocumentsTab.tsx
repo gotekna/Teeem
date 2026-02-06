@@ -451,6 +451,20 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     setCategoryLightboxOpen(true);
   };
 
+  // Handle direct open of photo document (opens in new window)
+  const handleOpenPhotoDocument = React.useCallback(async (photo: PhotoItem) => {
+    // Find the original LegacyItem from allFiles
+    const item = allFiles.find((f) => f.id === photo.id);
+    if (item) {
+      await openDocumentInNewWindow(item);
+    } else {
+      // Fallback: try to open using webUrl if available on photo
+      if (photo.webUrl) {
+        window.open(photo.webUrl, "_blank");
+      }
+    }
+  }, [allFiles, openDocumentInNewWindow]);
+
   // Handle selection action (download, delete)
   const handleSelectionAction = async (action: string, selectedPhotos: PhotoItem[]) => {
     if (action === "download") {
@@ -1745,6 +1759,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       <PhotoGallery
                         photos={categoryPhotoItems}
                         onPhotoClick={selectMode ? undefined : handleCategoryPhotoClick}
+                        onDownloadPhoto={selectMode ? undefined : handleOpenPhotoDocument}
                         groupByDate
                         thumbnailSize="lg"
                         selectable={selectMode}
@@ -2401,6 +2416,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                 <PhotoGallery
                   photos={imagePhotos}
                   onPhotoClick={handlePhotoClick}
+                  onDownloadPhoto={handleOpenPhotoDocument}
                   groupByDate
                   thumbnailSize="lg"
                 />
