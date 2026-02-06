@@ -336,17 +336,17 @@ export default function DocsortPage() {
     }
   };
 
-  const handleArchive = async (item: DocsortItem) => {
+  const handleDelete = async (item: DocsortItem) => {
     setProcessingId(item.id);
     try {
-      await api.delete(`/api/v1/docsort/${item.id}`);
-      toast({ title: "Item archived" });
+      await api.delete(`/api/v1/docsort/${item.id}?hard=true`);
+      toast({ title: "Item deleted" });
       loadData();
       setDrawerOpen(false);
       setSelectedItem(null);
     } catch (error) {
       toast({
-        title: "Archive failed",
+        title: "Delete failed",
         variant: "destructive",
       });
     } finally {
@@ -583,6 +583,23 @@ export default function DocsortPage() {
                             Takeoff
                           </Button>
                         )}
+
+                        {/* Delete button - shows when selected */}
+                        {selectedItem?.id === item.id && !item.routed_to_type && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(item);
+                            }}
+                            disabled={isProcessing}
+                          >
+                            <XMarkIcon className="h-3 w-3 mr-1" />
+                            Delete
+                          </Button>
+                        )}
                       </div>
 
                       {/* Arrow - opens drawer */}
@@ -774,11 +791,11 @@ export default function DocsortPage() {
                       <Button
                         variant="ghost"
                         className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                        onClick={() => handleArchive(selectedItem)}
+                        onClick={() => handleDelete(selectedItem)}
                         disabled={processingId === selectedItem.id}
                       >
                         <XMarkIcon className="h-4 w-4 mr-2" />
-                        Archive
+                        Delete
                       </Button>
                     )}
                   </div>

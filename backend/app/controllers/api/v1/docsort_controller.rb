@@ -114,12 +114,18 @@ module Api
       end
 
       # DELETE /api/v1/docsort/:id
+      # Params:
+      #   hard: true - permanently delete (default for docsort items)
       def destroy
-        if @item.status.in?(%w[pending classified error])
+        # Hard delete - permanently remove from docsort
+        if params[:hard] == 'true' || params[:hard] == true
+          @item.destroy!
+          render json: { success: true, message: 'Item permanently deleted' }
+        elsif @item.status.in?(%w[pending classified error])
           @item.archive!
           render json: { success: true, message: 'Item archived' }
         elsif @item.status == 'archived'
-          @item.destroy
+          @item.destroy!
           render json: { success: true, message: 'Item deleted' }
         else
           render json: {
