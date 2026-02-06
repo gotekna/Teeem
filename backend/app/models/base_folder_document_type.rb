@@ -19,6 +19,14 @@ class BaseFolderDocumentType < ApplicationRecord
   belongs_to :base_folder
   belongs_to :document_type
 
+  # SSoT (Feb 2026): Link to WarehouseDocuments that use this template config
+  # Enables bulk updates when templates change
+  has_many :warehouse_documents, dependent: :nullify
+
+  # Callbacks
+  # SSoT (Feb 2026): Sync warehouse_document.ui_name when templates change
+  after_update :schedule_warehouse_document_sync, if: :template_changed?
+
   # Validations
   validates :base_folder_id, uniqueness: { scope: :document_type_id }
 
@@ -69,5 +77,20 @@ class BaseFolderDocumentType < ApplicationRecord
       document_type_name: document_type&.name,
       folder_name: base_folder&.display_name || base_folder&.name
     }
+  end
+
+  private
+
+  # Check if either template changed
+  def template_changed?
+    saved_change_to_ui_name_template? || saved_change_to_download_name_template?
+  end
+
+  # Queue background job to update all linked warehouse documents
+  def schedule_warehouse_document_sync
+    return unless warehouse_documents.exists?
+
+    # Queue job to update ui_name for all linked documents
+    UpdateWarehouseDocumentNamesJob.perform_later(id)
   end
 end

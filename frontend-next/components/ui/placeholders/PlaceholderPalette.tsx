@@ -19,7 +19,7 @@
  */
 
 import * as React from "react";
-import { Search } from "lucide-react";
+import { Search, Briefcase, Mail, Building2, Calendar, FileText, FolderTree, ListFilter, Wrench } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,83 @@ import {
   getPlaceholders,
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
+
+// =====================================================================
+// SSoT: Category filter for placeholders (Feb 2026)
+// Matches PlaceholderBuilder component for consistent UX
+// =====================================================================
+type TokenCategory = "all" | "job" | "task" | "email" | "company" | "date" | "folder" | "other";
+
+interface CategoryConfig {
+  label: string;
+  icon: React.ElementType;
+  color: string;
+  match: (token: PlaceholderToken) => boolean;
+}
+
+const CATEGORY_CONFIG: Record<TokenCategory, CategoryConfig> = {
+  all: {
+    label: "All",
+    icon: ListFilter,
+    color: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600",
+    match: () => true,
+  },
+  job: {
+    label: "Job",
+    icon: Briefcase,
+    color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+    match: (t) => /\{?\{?Job|LotNumber|StreetName|Suburb|Project/i.test(t.code),
+  },
+  task: {
+    label: "Task",
+    icon: Wrench,
+    color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+    match: (t) => /\{?\{?Task|Attachment|Response|\[\[Attachment|\[\[Response/i.test(t.code),
+  },
+  email: {
+    label: "Email",
+    icon: Mail,
+    color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700",
+    match: (t) => /\{?\{?Subject|Sender|Received|Mailbox|\[\[Email/i.test(t.code),
+  },
+  company: {
+    label: "Company",
+    icon: Building2,
+    color: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700",
+    match: (t) => /\{?\{?Company|Case|Asset(?!Name)|Person|User/i.test(t.code),
+  },
+  date: {
+    label: "Date",
+    icon: Calendar,
+    color: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700",
+    match: (t) => /\{?\{?Date|Year|Month|Time|FY|Period|YYYY|DDMM/i.test(t.code),
+  },
+  folder: {
+    label: "Folder",
+    icon: FolderTree,
+    color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700",
+    match: (t) => /\{?\{?Tab|Category|Folder|SubTab|\[\[Teeem/i.test(t.code),
+  },
+  other: {
+    label: "Other",
+    icon: FileText,
+    color: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600",
+    match: (t) => /\{?\{?Original|Sequence|Uploaded|Doc|Status|Notebook|Context/i.test(t.code),
+  },
+};
+
+// Get category for a token
+function getTokenCategory(token: PlaceholderToken): TokenCategory {
+  // Check in priority order (more specific first)
+  if (CATEGORY_CONFIG.task.match(token)) return "task";
+  if (CATEGORY_CONFIG.email.match(token)) return "email";
+  if (CATEGORY_CONFIG.job.match(token)) return "job";
+  if (CATEGORY_CONFIG.company.match(token)) return "company";
+  if (CATEGORY_CONFIG.date.match(token)) return "date";
+  if (CATEGORY_CONFIG.folder.match(token)) return "folder";
+  if (CATEGORY_CONFIG.other.match(token)) return "other";
+  return "other";
+}
 
 export interface PlaceholderPaletteProps {
   /** Scope of placeholders to show */

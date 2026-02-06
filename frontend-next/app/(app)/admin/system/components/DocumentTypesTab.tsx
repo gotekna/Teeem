@@ -258,11 +258,11 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           <button
             onClick={(e) => {
               e.stopPropagation();
-              // Always use admin path since that's where the editor lives (SSoT)
-              router.push(`/admin/system/document-types/${entry.id}`);
+              // Open in new tab to preserve current context (SSoT: editor lives at admin path)
+              window.open(`/admin/system/document-types/${entry.id}`, '_blank');
             }}
             className="text-left text-primary hover:underline font-medium flex-1"
-            title="Click to open full editor"
+            title="Click to open full editor (new tab)"
           >
             {value}
           </button>
@@ -484,6 +484,8 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           // 2. Client-side OR filtering: scope="company" OR scope="both" (complex filter logic)
           // 3. Computed grouping: Groups by primary_tab (not a database column)
           legacyDataSource="custom-api: /api/v1/document_types?include_inactive=true + client-side scope OR filtering"
+          // Disable URL-based view syncing - this table is embedded, parent owns URL
+          viewSlug={null}
           onEdit={handleEdit}
           onRowUpdate={handleRowUpdate}
           onRowDoubleClick={handleRowDoubleClick}

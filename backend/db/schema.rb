@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_06_131706) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10215,6 +10215,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_131706) do
     t.uuid "version_group_id"
     t.integer "version_number", default: 1
     t.boolean "is_latest_version", default: true
+    t.bigint "base_folder_document_type_id"
+    t.index ["base_folder_document_type_id"], name: "index_warehouse_documents_on_base_folder_document_type_id"
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["folder"], name: "index_warehouse_documents_on_folder"
@@ -11836,6 +11838,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_131706) do
   add_foreign_key "users", "tenants"
   add_foreign_key "users", "user_groups"
   add_foreign_key "vip_senders", "users"
+  add_foreign_key "warehouse_documents", "base_folder_document_types"
   add_foreign_key "warehouse_documents", "storage_blobs"
   add_foreign_key "warehouse_documents", "warehouse_documents", column: "parent_document_id", on_delete: :nullify, validate: false
   add_foreign_key "warehouse_providers", "tenants"

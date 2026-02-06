@@ -12,6 +12,7 @@
 #   ├── metadata (JSONB - flexible type-specific fields)
 #   ├── parent_document (attachment→email, version→original)
 #   ├── linkable (optional link to Job/Contact/etc for filtering)
+#   ├── base_folder_document_type (FK to template config - Feb 2026)
 #   └── version tracking (version_group_id, version_number, is_latest_version)
 #
 # Two Names:
@@ -37,6 +38,10 @@ class WarehouseDocument < ApplicationRecord
   # This ensures ALL creation points get tenant_id without manual assignment
   before_validation :set_tenant_from_documentable, on: :create
 
+  # SSoT (Feb 2026): Auto-set base_folder_document_type_id FK on creation
+  # This enables syncing ui_name when templates change
+  before_validation :set_base_folder_document_type, on: :create
+
   # NOTE (Feb 2026 FRC Fix): Removed compute_folder_from_template callback
   # Folder paths are now computed at runtime via computed_folder_path method
   # This eliminates sync issues between stored folder and WarehouseFolder SSoT
@@ -60,6 +65,10 @@ class WarehouseDocument < ApplicationRecord
 
   # Phase 6: Optional link to domain object (Job, Contact, Company, etc.)
   belongs_to :linkable, polymorphic: true, optional: true
+
+  # SSoT (Feb 2026): Direct FK to template config
+  # Enables syncing ui_name when templates change in BaseFolderDocumentType
+  belongs_to :base_folder_document_type, optional: true
 
   # ========================================
   # Validations
@@ -445,6 +454,33 @@ class WarehouseDocument < ApplicationRecord
   rescue ::TenantNotFoundError
     # Allow creation without tenant if can't be derived (legacy data)
     Rails.logger.debug "[WarehouseDocument] Could not derive tenant for new document"
+    nil
+  end
+
+  # SSoT (Feb 2026): Auto-set base_folder_document_type_id FK on creation
+  # Matches by: source_type → warehouse_type + document_type_id from metadata/documentable
+  def set_base_folder_document_type
+    return if base_folder_document_type_id.present?
+    return unless tenant_id.present?
+
+    # Try to get document_type_id from metadata or documentable
+    doc_type_id = metadata&.dig("document_type_id") ||
+                  (documentable.respond_to?(:document_type_id) ? documentable.document_type_id : nil)
+    return unless doc_type_id.present?
+
+    # Map source_type to warehouse_type code
+    warehouse_type_code = source_type_to_warehouse_type
+
+    # Find matching BaseFolderDocumentType
+    self.base_folder_document_type = BaseFolderDocumentType
+      .joins(base_folder: :warehouse_type)
+      .where(document_type_id: doc_type_id)
+      .where(warehouse_types: { code: warehouse_type_code })
+      .where(base_folders: { tenant_id: tenant_id })
+      .first
+  rescue StandardError => e
+    # Non-fatal: log and continue without FK
+    Rails.logger.debug "[WarehouseDocument] Could not set base_folder_document_type: #{e.message}"
     nil
   end
 

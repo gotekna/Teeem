@@ -716,12 +716,45 @@ export function WarehouseFoldersConfig({
 
   // Items start collapsed by default - user can expand as needed
 
+  // Helper to collect all descendant tab_keys recursively
+  const collectDescendantKeys = React.useCallback((tab: WarehouseFolder): string[] => {
+    const keys: string[] = [];
+    if (tab.children?.length) {
+      for (const child of tab.children) {
+        keys.push(child.tab_key);
+        keys.push(...collectDescendantKeys(child));
+      }
+    }
+    return keys;
+  }, []);
+
+  // Helper to find a tab by tab_key in the tree
+  const findTabByKey = React.useCallback((tabKey: string, tabList: WarehouseFolder[] = tabs): WarehouseFolder | null => {
+    for (const tab of tabList) {
+      if (tab.tab_key === tabKey) return tab;
+      if (tab.children?.length) {
+        const found = findTabByKey(tabKey, tab.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  }, [tabs]);
+
   // Toggle item expansion - uses tab_key (slug) instead of numeric ID
+  // When collapsing, also collapse all descendants recursively
   const toggleExpanded = (tabKey: string) => {
     setExpandedItems((prev) => {
       const next = new Set(prev);
       if (next.has(tabKey)) {
+        // Collapsing - remove this item AND all descendants
         next.delete(tabKey);
+        const tab = findTabByKey(tabKey);
+        if (tab) {
+          const descendantKeys = collectDescendantKeys(tab);
+          for (const key of descendantKeys) {
+            next.delete(key);
+          }
+        }
       } else {
         next.add(tabKey);
       }
