@@ -969,6 +969,23 @@ function TreeNode({
                     )}
                   </span>
                 )}
+                {/* SSoT (Feb 2026): Folder type indicator (SYS/MBX/DOC) */}
+                {(bf.is_mailbox || bf.dynamic_type === 'mailbox') ? (
+                  <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                    <Mail className="h-3 w-3" />
+                    <span>MBX</span>
+                  </div>
+                ) : bf.is_system_tab ? (
+                  <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                    <Cog className="h-3 w-3" />
+                    <span>SYS</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                    <FolderArchive className="h-3 w-3" />
+                    <span>DOC</span>
+                  </div>
+                )}
                 {/* Edit button for ALL base folders - show cog whether or not warehouse_folder is linked */}
                 {onEditWarehouseFolder && (
                   <button
@@ -991,6 +1008,9 @@ function TreeNode({
                         base_folder_id: bf.id,
                         parent_id: bf.parent_id,
                         warehouse_type: bf.warehouse_type_code,  // SSoT (Feb 2026): From base_folder for correct folder creation
+                        is_system_tab: bf.is_system_tab,  // SSoT: Pass type flags to editor
+                        is_mailbox: bf.is_mailbox,
+                        dynamic_type: bf.dynamic_type,
                       });
                     }}
                     className="p-0.5 hover:bg-muted rounded"

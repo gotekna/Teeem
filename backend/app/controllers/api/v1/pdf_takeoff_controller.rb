@@ -367,6 +367,22 @@ module Api
           }
         end
 
+        # Get download URL with graceful error handling for storage provider issues
+        download_url = begin
+          @docsort_item.download_url
+        rescue StandardError => e
+          Rails.logger.error "[PdfTakeoff] Failed to get download_url for DocsortItem #{@docsort_item.id}: #{e.message}"
+          nil
+        end
+
+        # Return error if no file is available
+        unless download_url || @docsort_item.storage_blob.nil?
+          return render json: {
+            success: false,
+            error: "Unable to access document file. Storage provider may be disconnected."
+          }, status: :service_unavailable
+        end
+
         render json: {
           success: true,
           data: {
@@ -376,7 +392,7 @@ module Api
               document_type: @docsort_item.document_type,
               original_filename: @docsort_item.original_filename
             },
-            download_url: @docsort_item.download_url,
+            download_url: download_url,
             page_scales: page_scales
           }
         }

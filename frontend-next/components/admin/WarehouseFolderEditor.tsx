@@ -77,6 +77,13 @@ export function WarehouseFolderEditor({
   // SSoT: folder_path must include base path prefix for correct save
   React.useEffect(() => {
     if (folder) {
+      // DEBUG: Log folder type data
+      console.log('[WarehouseFolderEditor] folder:', {
+        display_name: folder.display_name,
+        is_mailbox: folder.is_mailbox,
+        is_system_tab: folder.is_system_tab,
+        dynamic_type: folder.dynamic_type
+      });
       // Combine base path + suffix for full folder_path
       const basePath = folder.base_folder_path_template || '';
       const suffix = folder.folder_path || '';
