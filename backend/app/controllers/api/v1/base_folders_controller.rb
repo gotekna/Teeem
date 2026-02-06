@@ -174,7 +174,7 @@ module Api
           is_system: base_folder.is_system,
           enabled: base_folder.enabled,
           order_position: base_folder.order_position,
-          warehouse_folders_count: base_folder.warehouse_folders.count,
+          warehouse_folders_count: 0,  # SSoT (Feb 2026): warehouse_folders removed - now using base_folders directly
           can_delete: base_folder.can_delete?,
           is_dynamic: base_folder.dynamic?,
           dynamic_type: base_folder.dynamic_type,
