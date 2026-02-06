@@ -190,6 +190,25 @@ export default function XeroIntegrationPage() {
   // If it reaches here with expired=true, the auto-refresh failed
   // and user needs to manually reconnect via OAuth flow
 
+  const pollIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  const pollTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const clearPolling = React.useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Cleanup polling on unmount
+  React.useEffect(() => {
+    return () => clearPolling();
+  }, [clearPolling]);
+
   const handleConnect = async () => {
     setConnecting(true);
     try {
@@ -199,10 +218,13 @@ export default function XeroIntegrationPage() {
         // Open in popup to preserve session (prevents logout issue)
         const popup = window.open(authUrl, "_blank", "width=600,height=700");
 
+        // Clear any existing polling
+        clearPolling();
+
         // Poll for popup close and refresh status
-        const pollInterval = setInterval(async () => {
+        pollIntervalRef.current = setInterval(async () => {
           if (popup?.closed) {
-            clearInterval(pollInterval);
+            clearPolling();
             setConnecting(false);
 
             // Refresh connection status
@@ -223,6 +245,12 @@ export default function XeroIntegrationPage() {
             }
           }
         }, 500);
+
+        // Safety timeout - stop polling after 5 minutes
+        pollTimeoutRef.current = setTimeout(() => {
+          clearPolling();
+          setConnecting(false);
+        }, 5 * 60 * 1000);
       } else {
         throw new Error("No authorization URL received from server");
       }
