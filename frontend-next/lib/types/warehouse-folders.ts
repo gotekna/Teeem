@@ -36,6 +36,8 @@ export interface WarehouseFolder {
   hidden_by_default: boolean;  // SSoT: Tab hidden in overflow menu by default
   component_name: string | null;
   is_system_tab: boolean;
+  is_system?: boolean;  // SSoT: System folder (system-generated content)
+  dynamic_type?: 'mailbox' | null;  // SSoT: Dynamic folder type (e.g., mailbox for email folders)
   // SSoT: Visibility rules - when this tab is shown/hidden
   visibility_rule: string | null;  // Human-readable condition (e.g., "Has Xero links AND is supplier")
   // SSoT: Xero integration fields

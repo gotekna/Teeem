@@ -25,10 +25,15 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown, Briefcase, Mail, Building2, Calendar, FileText, ListFilter, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import {
+  STORAGE_PLACEHOLDERS,
+  type PlaceholderToken,
+  PLACEHOLDER_COLOR_CLASSES,
+} from "@/lib/placeholders";
 
 type SortField = "code" | "display_name" | "folder_path_template" | "base_folders_count" | "enabled";
 type SortDirection = "asc" | "desc";
@@ -97,6 +102,84 @@ interface BaseFolderToggle {
   warehouse_type_name: string;
 }
 
+// =====================================================================
+// SSoT: Category filter for folder path tokens (Feb 2026)
+// Uses STORAGE_PLACEHOLDERS from lib/placeholders.ts as the gold standard
+// Matches PlaceholderPalette component for consistent UX
+// =====================================================================
+type TokenCategory = "all" | "job" | "task" | "email" | "company" | "date" | "folder" | "other";
+
+interface TokenCategoryConfig {
+  label: string;
+  icon: React.ElementType;
+  color: string;
+  match: (token: PlaceholderToken) => boolean;
+}
+
+const TOKEN_CATEGORY_CONFIG: Record<TokenCategory, TokenCategoryConfig> = {
+  all: {
+    label: "All",
+    icon: ListFilter,
+    color: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600",
+    match: () => true,
+  },
+  job: {
+    label: "Job",
+    icon: Briefcase,
+    color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+    match: (t) => /\{?\{?Job|LotNumber|StreetName|Suburb|Project/i.test(t.code),
+  },
+  task: {
+    label: "Task",
+    icon: Wrench,
+    color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+    match: (t) => /\{?\{?Task|Attachment|Response|\[\[Attachment|\[\[Response/i.test(t.code),
+  },
+  email: {
+    label: "Email",
+    icon: Mail,
+    color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700",
+    match: (t) => /\{?\{?Subject|Sender|Received|Mailbox|\[\[Email/i.test(t.code),
+  },
+  company: {
+    label: "Company",
+    icon: Building2,
+    color: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700",
+    match: (t) => /\{?\{?Company|Case|Asset(?!Name)|Person|User|Contact/i.test(t.code),
+  },
+  date: {
+    label: "Date",
+    icon: Calendar,
+    color: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700",
+    match: (t) => /\{?\{?Date|Year|Month|Time|FY|Period|YYYY|DDMM/i.test(t.code),
+  },
+  folder: {
+    label: "Folder",
+    icon: Folder,
+    color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700",
+    match: (t) => /\{?\{?Tab|Category|Folder|SubTab|\[\[Teeem/i.test(t.code),
+  },
+  other: {
+    label: "Other",
+    icon: FileText,
+    color: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600",
+    match: (t) => /\{?\{?Original|Sequence|Uploaded|Doc|Status|Notebook|Context/i.test(t.code),
+  },
+};
+
+// Get category for a token (matches PlaceholderPalette logic)
+function getTokenCategory(token: PlaceholderToken): TokenCategory {
+  // Check in priority order (more specific first)
+  if (TOKEN_CATEGORY_CONFIG.task.match(token)) return "task";
+  if (TOKEN_CATEGORY_CONFIG.email.match(token)) return "email";
+  if (TOKEN_CATEGORY_CONFIG.job.match(token)) return "job";
+  if (TOKEN_CATEGORY_CONFIG.company.match(token)) return "company";
+  if (TOKEN_CATEGORY_CONFIG.date.match(token)) return "date";
+  if (TOKEN_CATEGORY_CONFIG.folder.match(token)) return "folder";
+  if (TOKEN_CATEGORY_CONFIG.other.match(token)) return "other";
+  return "other";
+}
+
 const defaultFormData: FormData = {
   code: "",
   display_name: "",
@@ -119,6 +202,7 @@ export function WarehouseTypesTab() {
   const [formData, setFormData] = React.useState<FormData>(defaultFormData);
   const [baseFolderToggles, setBaseFolderToggles] = React.useState<BaseFolderToggle[]>([]);
   const [baseFolderSearch, setBaseFolderSearch] = React.useState("");
+  const [tokenCategory, setTokenCategory] = React.useState<TokenCategory>("all");
   const [showAvailableFolders, setShowAvailableFolders] = React.useState(false);
   const [showSystemTypes, setShowSystemTypes] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -714,46 +798,72 @@ export function WarehouseTypesTab() {
                 <p className="text-xs text-muted-foreground">
                   Full path: <code className="bg-muted px-1 rounded">{formData.display_name || "TypeName"}/{formData.folder_path_template || "..."}</code>
                 </p>
-                <div className="text-xs text-muted-foreground">
-                  <span className="mr-1">Tokens:</span>
-                  {[
-                    { token: "{{JobCode}}", label: "JobCode" },
-                    { token: "{{JobName}}", label: "JobName" },
-                    { token: "{{ContactName}}", label: "ContactName" },
-                    { token: "{{CompanyCode}}", label: "CompanyCode" },
-                    { token: "{{CompanyGroup}}", label: "CompanyGroup" },
-                    { token: "{{UserName}}", label: "UserName" },
-                    { token: "{{TaskId}}", label: "TaskId" },
-                    { token: "{{TaskName}}", label: "TaskName" },
-                    { token: "{{CaseId}}", label: "CaseId" },
-                    { token: "{{CaseName}}", label: "CaseName" },
-                    { token: "{{AssetCode}}", label: "AssetCode" },
-                    { token: "{{Mailbox}}", label: "Mailbox" },
-                    { token: "{{Year}}", label: "Year" },
-                    { token: "{{Month}}", label: "Month" },
-                  ].map(({ token, label }) => (
-                    <button
-                      key={token}
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => {
-                          const current = prev.folder_path_template;
-                          let newPath: string;
-                          if (!current) {
-                            newPath = token;
-                          } else if (current.endsWith("/")) {
-                            newPath = current + token;
-                          } else {
-                            newPath = current + "/" + token;
-                          }
-                          return { ...prev, folder_path_template: newPath };
-                        });
-                      }}
-                      className="px-1.5 py-0.5 text-[10px] font-mono bg-muted hover:bg-muted/80 rounded border cursor-pointer transition-colors mr-1 mb-1"
-                    >
-                      {label}
-                    </button>
-                  ))}
+                <div className="text-xs text-muted-foreground space-y-2">
+                  {/* Category Filter Buttons - SSoT (Feb 2026) */}
+                  <div className="flex flex-wrap gap-1">
+                    <span className="mr-1 self-center">Tokens:</span>
+                    {(["all", "job", "task", "email", "company", "date", "folder", "other"] as TokenCategory[]).map((cat) => {
+                      const config = TOKEN_CATEGORY_CONFIG[cat];
+                      const Icon = config.icon;
+                      const isActive = tokenCategory === cat;
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setTokenCategory(cat)}
+                          className={cn(
+                            "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium border transition-all",
+                            isActive
+                              ? config.color + " ring-1 ring-offset-0 ring-primary/50"
+                              : "bg-background hover:bg-muted text-muted-foreground border-muted-foreground/30 hover:border-muted-foreground/50"
+                          )}
+                        >
+                          <Icon className="h-2.5 w-2.5" />
+                          <span>{config.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Token Buttons - SSoT: Uses STORAGE_PLACEHOLDERS from lib/placeholders.ts */}
+                  <div className="flex flex-wrap">
+                    {STORAGE_PLACEHOLDERS
+                      .filter(t => tokenCategory === "all" || getTokenCategory(t) === tokenCategory)
+                      .map((token) => {
+                        const colorClasses = PLACEHOLDER_COLOR_CLASSES[token.color];
+                        // Extract display label from code (remove braces)
+                        const label = token.code.replace(/[\{\}\[\]]/g, "");
+                        return (
+                          <button
+                            key={token.code}
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => {
+                                const current = prev.folder_path_template;
+                                let newPath: string;
+                                if (!current) {
+                                  newPath = token.code;
+                                } else if (current.endsWith("/")) {
+                                  newPath = current + token.code;
+                                } else {
+                                  newPath = current + "/" + token.code;
+                                }
+                                return { ...prev, folder_path_template: newPath };
+                              });
+                            }}
+                            title={token.description || token.example}
+                            className={cn(
+                              "px-1.5 py-0.5 text-[10px] font-mono rounded border cursor-pointer transition-colors mr-1 mb-1",
+                              colorClasses.bg,
+                              colorClasses.text,
+                              colorClasses.border,
+                              "hover:opacity-80"
+                            )}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                  </div>
                 </div>
               </div>
 

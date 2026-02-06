@@ -118,6 +118,8 @@ export interface PlaceholderPaletteProps {
   showLongVariants?: boolean;
   /** Whether to show search input */
   showSearch?: boolean;
+  /** Whether to show category filter badges */
+  showCategoryFilter?: boolean;
   /** Additional class names */
   className?: string;
   /** Maximum height (uses ScrollArea) */
@@ -132,27 +134,40 @@ export function PlaceholderPalette({
   onSelect,
   showLongVariants = true,
   showSearch = true,
+  showCategoryFilter = true,
   className,
   maxHeight = "400px",
   header = "Placeholders",
 }: PlaceholderPaletteProps) {
   const [search, setSearch] = React.useState("");
+  const [category, setCategory] = React.useState<TokenCategory>("all");
 
   const allPlaceholders = customPlaceholders || getPlaceholders(scope);
 
-  // Filter by search
+  // Filter by search and category
   const filteredPlaceholders = React.useMemo(() => {
-    if (!search.trim()) return allPlaceholders;
-    const query = search.toLowerCase();
-    return allPlaceholders.filter(
-      (p) =>
-        p.code.toLowerCase().includes(query) ||
-        p.example.toLowerCase().includes(query) ||
-        p.longCode?.toLowerCase().includes(query) ||
-        p.longExample?.toLowerCase().includes(query) ||
-        p.description?.toLowerCase().includes(query)
-    );
-  }, [allPlaceholders, search]);
+    let result = allPlaceholders;
+
+    // Filter by category
+    if (category !== "all") {
+      result = result.filter((p) => getTokenCategory(p) === category);
+    }
+
+    // Filter by search
+    if (search.trim()) {
+      const query = search.toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.code.toLowerCase().includes(query) ||
+          p.example.toLowerCase().includes(query) ||
+          p.longCode?.toLowerCase().includes(query) ||
+          p.longExample?.toLowerCase().includes(query) ||
+          p.description?.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  }, [allPlaceholders, search, category]);
 
   return (
     <div className={cn("flex flex-col border rounded-none bg-background", className)}>
@@ -173,6 +188,33 @@ export function PlaceholderPalette({
           )}
         </div>
       </div>
+
+      {/* Category Filter Buttons - SSoT (Feb 2026) */}
+      {showCategoryFilter && (
+        <div className="flex flex-wrap gap-1 px-3 py-2 border-b bg-muted/30">
+          {(["all", "job", "task", "email", "company", "date", "folder", "other"] as TokenCategory[]).map((cat) => {
+            const config = CATEGORY_CONFIG[cat];
+            const Icon = config.icon;
+            const isActive = category === cat;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCategory(cat)}
+                className={cn(
+                  "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium border transition-all",
+                  isActive
+                    ? config.color + " ring-1 ring-offset-0 ring-primary/50"
+                    : "bg-background hover:bg-muted text-muted-foreground border-muted-foreground/30 hover:border-muted-foreground/50"
+                )}
+              >
+                <Icon className="h-2.5 w-2.5" />
+                <span>{config.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Column Headers */}
       {showLongVariants && (

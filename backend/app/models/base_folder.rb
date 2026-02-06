@@ -461,6 +461,8 @@ class BaseFolder < ApplicationRecord
       hidden_by_default: hidden_by_default,
       component_name: component_name,
       is_system_tab: is_system_tab,
+      is_system: is_system,
+      dynamic_type: dynamic_type,
       visibility_rule: visibility_rule,
       xero_scope: xero_scope,
       warehouse_enabled: warehouse_enabled,

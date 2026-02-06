@@ -86,6 +86,7 @@ import {
   Pencil,
   Check,
   Loader2,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -1314,6 +1315,46 @@ export function WarehouseFoldersConfig({
           {/* Icon */}
           <div className="h-6 w-6 rounded bg-muted flex items-center justify-center shrink-0">
             <IconComponent className="h-3.5 w-3.5" />
+          </div>
+
+          {/* Folder type indicators */}
+          <div className="flex items-center gap-0.5">
+            {tab.warehouse_enabled && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <FileText className="h-3 w-3 text-blue-500" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Documents can be uploaded here</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {tab.is_system && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Lock className="h-3 w-3 text-amber-500" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>System-generated content</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {tab.dynamic_type === 'mailbox' && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Mail className="h-3 w-3 text-green-500" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Shows synced mailboxes</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
 
           {/* Name and badges */}
