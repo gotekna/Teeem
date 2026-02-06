@@ -58,6 +58,9 @@ class AddTenantAndUiToBaseFolders < ActiveRecord::Migration[7.2]
     add_column :base_folders, :ui_name_template, :string
     add_column :base_folders, :download_name_template, :string
 
+    # Job-specific folders (job_id: null = global template, job_id: X = job-specific override)
+    add_reference :base_folders, :job, foreign_key: true, null: true
+
     # Legacy columns (for migration compatibility)
     add_column :base_folders, :uses_custom_path, :boolean, default: false
     add_column :base_folders, :is_system_tab, :boolean, default: false

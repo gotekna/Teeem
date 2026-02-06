@@ -236,8 +236,8 @@ class PlanSetUploadJob < ApplicationJob
     job_folder_path = get_or_create_folder_path(:job, @job)
     raise "Job folder not found in storage" unless job_folder_path
 
-    # SSoT: Get plans folder name from WarehouseFolder
-    plans_folder_name = WarehouseFolder.folder_name_for("job", "plans", "04 Plans")
+    # SSoT (Feb 2026): Get plans folder name from BaseFolder
+    plans_folder_name = BaseFolder.folder_name_for("job", "plans", "04 Plans")
 
     # Get or create plans subfolder
     plans_folder_path = "#{job_folder_path}/#{plans_folder_name}"

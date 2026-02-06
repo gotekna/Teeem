@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_06_131705) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -629,19 +629,66 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
     t.index ["xero_transaction_id"], name: "index_bank_transactions_on_xero_transaction_id", unique: true
   end
 
+  create_table "base_folder_document_types", force: :cascade do |t|
+    t.bigint "base_folder_id", null: false
+    t.bigint "document_type_id", null: false
+    t.boolean "is_primary", default: false
+    t.string "ui_name_template"
+    t.string "download_name_template"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["base_folder_id", "document_type_id"], name: "idx_bfdt_unique", unique: true
+    t.index ["base_folder_id"], name: "index_base_folder_document_types_on_base_folder_id"
+    t.index ["document_type_id", "is_primary"], name: "idx_bfdt_primary"
+    t.index ["document_type_id"], name: "index_base_folder_document_types_on_document_type_id"
+    t.index ["download_name_template"], name: "idx_bfdt_download_name_template", where: "(download_name_template IS NOT NULL)"
+    t.index ["ui_name_template"], name: "idx_bfdt_ui_name_template", where: "(ui_name_template IS NOT NULL)"
+  end
+
   create_table "base_folders", force: :cascade do |t|
     t.bigint "warehouse_type_id", null: false
     t.string "name", null: false
-    t.string "folder_path_template"
+    t.string "folder_segment"
     t.boolean "is_system", default: false, null: false
     t.boolean "enabled", default: true, null: false
     t.integer "order_position", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "parent_id"
+    t.bigint "tenant_id"
+    t.string "folder_path_suffix"
+    t.string "tab_key"
+    t.string "display_name"
+    t.string "display_code", limit: 3
+    t.text "description"
+    t.string "tab_group", default: "documents"
+    t.string "icon_name"
+    t.string "display_mode", default: "both"
+    t.boolean "hidden_by_default", default: false
+    t.string "component_name"
+    t.boolean "warehouse_enabled", default: true
+    t.boolean "is_photo_category", default: false
+    t.boolean "is_cad_category", default: false
+    t.string "visibility_rule"
+    t.string "xero_scope"
+    t.string "entity_filters", default: [], array: true
+    t.string "warehouse_type_override"
+    t.string "ui_name_template"
+    t.string "download_name_template"
+    t.bigint "job_id"
+    t.boolean "uses_custom_path", default: false
+    t.boolean "is_system_tab", default: false
     t.index ["enabled"], name: "index_base_folders_on_enabled"
+    t.index ["entity_filters"], name: "index_base_folders_on_entity_filters", using: :gin
+    t.index ["job_id"], name: "index_base_folders_on_job_id"
     t.index ["order_position"], name: "index_base_folders_on_order_position"
     t.index ["parent_id"], name: "index_base_folders_on_parent_id"
+    t.index ["tab_group"], name: "index_base_folders_on_tab_group"
+    t.index ["tab_key"], name: "index_base_folders_on_tab_key"
+    t.index ["tenant_id", "warehouse_type_id", "name"], name: "idx_bf_tenant_type_name", unique: true, where: "(tenant_id IS NOT NULL)"
+    t.index ["tenant_id"], name: "idx_bf_tenant"
+    t.index ["tenant_id"], name: "index_base_folders_on_tenant_id"
+    t.index ["warehouse_enabled"], name: "index_base_folders_on_warehouse_enabled"
     t.index ["warehouse_type_id", "name"], name: "idx_base_folders_unique_name", unique: true
     t.index ["warehouse_type_id"], name: "index_base_folders_on_warehouse_type_id"
   end
@@ -10185,69 +10232,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
   end
 
-  create_table "warehouse_folder_document_types", force: :cascade do |t|
-    t.bigint "warehouse_folder_id", null: false
-    t.bigint "document_type_id", null: false
-    t.boolean "is_primary", default: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "ui_name_template"
-    t.string "download_name_template"
-    t.index ["document_type_id", "is_primary"], name: "idx_warehouse_folder_doc_types_primary"
-    t.index ["document_type_id"], name: "index_warehouse_folder_document_types_on_document_type_id"
-    t.index ["download_name_template"], name: "idx_wfdt_download_name_template", where: "(download_name_template IS NOT NULL)"
-    t.index ["ui_name_template"], name: "idx_wfdt_ui_name_template", where: "(ui_name_template IS NOT NULL)"
-    t.index ["warehouse_folder_id", "document_type_id"], name: "idx_warehouse_folder_doc_types_unique", unique: true
-    t.index ["warehouse_folder_id"], name: "index_warehouse_folder_document_types_on_warehouse_folder_id"
-  end
-
-  create_table "warehouse_folders", force: :cascade do |t|
-    t.string "warehouse_type", null: false
-    t.string "tab_key", null: false
-    t.string "display_name", null: false
-    t.text "description"
-    t.string "tab_group"
-    t.bigint "parent_id"
-    t.bigint "job_id"
-    t.string "entity_filters", default: [], array: true
-    t.integer "order_position", default: 0
-    t.boolean "enabled", default: true
-    t.string "icon_name"
-    t.string "component_name"
-    t.boolean "is_system_tab", default: false
-    t.boolean "warehouse_enabled", default: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "display_code", limit: 3
-    t.boolean "uses_custom_path", default: false, null: false
-    t.string "warehouse_type_override", default: "corporate"
-    t.boolean "is_photo_category", default: false, null: false
-    t.string "display_mode", default: "both", null: false
-    t.boolean "hidden_by_default", default: false, null: false
-    t.string "storage_folder_id"
-    t.boolean "is_cad_category"
-    t.string "xero_scope"
-    t.string "visibility_rule"
-    t.bigint "tenant_id"
-    t.string "download_name"
-    t.string "folder_path"
-    t.string "ui_name"
-    t.string "base_folder"
-    t.bigint "base_folder_id"
-    t.index ["base_folder"], name: "index_warehouse_folders_on_base_folder"
-    t.index ["base_folder_id"], name: "index_warehouse_folders_on_base_folder_id"
-    t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
-    t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
-    t.index ["job_id"], name: "index_warehouse_folders_on_job_id"
-    t.index ["parent_id"], name: "index_warehouse_folders_on_parent_id"
-    t.index ["storage_folder_id"], name: "index_warehouse_folders_on_storage_folder_id"
-    t.index ["tenant_id"], name: "index_warehouse_folders_on_tenant_id"
-    t.index ["warehouse_type", "enabled"], name: "index_warehouse_folders_on_warehouse_type_and_enabled"
-    t.index ["warehouse_type", "tab_group"], name: "index_warehouse_folders_on_warehouse_type_and_tab_group"
-    t.index ["warehouse_type", "tab_key", "job_id", "parent_id"], name: "idx_warehouse_folders_unique_key", unique: true
-    t.index ["warehouse_type"], name: "index_warehouse_folders_on_warehouse_type"
-  end
-
   create_table "warehouse_providers", force: :cascade do |t|
     t.string "provider_type", null: false
     t.string "status", default: "disconnected", null: false
@@ -10278,9 +10262,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "folder_path_template"
+    t.bigint "tenant_id"
     t.index ["code"], name: "index_warehouse_types_on_code", unique: true
     t.index ["enabled"], name: "index_warehouse_types_on_enabled"
     t.index ["order_position"], name: "index_warehouse_types_on_order_position"
+    t.index ["tenant_id", "code"], name: "idx_warehouse_types_tenant_code", unique: true
+    t.index ["tenant_id"], name: "index_warehouse_types_on_tenant_id"
   end
 
   create_table "whs_action_items", force: :cascade do |t|
@@ -10926,7 +10913,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
   add_foreign_key "bank_transactions", "bank_accounts"
   add_foreign_key "bank_transactions", "corporates", column: "company_id"
   add_foreign_key "bank_transactions", "tenants"
+  add_foreign_key "base_folder_document_types", "base_folders"
+  add_foreign_key "base_folder_document_types", "document_types"
   add_foreign_key "base_folders", "base_folders", column: "parent_id"
+  add_foreign_key "base_folders", "jobs"
+  add_foreign_key "base_folders", "tenants"
   add_foreign_key "base_folders", "warehouse_types"
   add_foreign_key "batch_operations", "jobs"
   add_foreign_key "batch_operations", "users"
@@ -11847,13 +11838,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_110003) do
   add_foreign_key "vip_senders", "users"
   add_foreign_key "warehouse_documents", "storage_blobs"
   add_foreign_key "warehouse_documents", "warehouse_documents", column: "parent_document_id", on_delete: :nullify, validate: false
-  add_foreign_key "warehouse_folder_document_types", "document_types"
-  add_foreign_key "warehouse_folder_document_types", "warehouse_folders"
-  add_foreign_key "warehouse_folders", "base_folders"
-  add_foreign_key "warehouse_folders", "jobs"
-  add_foreign_key "warehouse_folders", "tenants"
-  add_foreign_key "warehouse_folders", "warehouse_folders", column: "parent_id"
   add_foreign_key "warehouse_providers", "tenants"
+  add_foreign_key "warehouse_types", "tenants"
   add_foreign_key "whs_action_items", "sm_tasks"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
   add_foreign_key "whs_action_items", "users", column: "created_by_id"

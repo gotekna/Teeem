@@ -1079,26 +1079,29 @@ class MicrosoftGraphClient
   end
 
   # SSoT: Create subfolders from WarehouseFolder hierarchy
-  # WarehouseFolder is THE source of truth for folder structure (replaces FolderTemplate)
-  def create_subfolders_from_warehouse_folders(parent_folder_id)
+  # SSoT (Feb 2026): BaseFolder is THE source of truth for folder structure
+  def create_subfolders_from_base_folders(parent_folder_id)
     folder_id_map = {}
 
-    # Get all job-scope WarehouseFolders with SharePoint folders
-    root_tabs = WarehouseFolder.for_jobs
+    # Get all job-scope BaseFolders with storage enabled
+    root_folders = BaseFolder.for_jobs
                          .where(warehouse_enabled: true)
                          .enabled
-                         .root_tabs
+                         .root_folders
                          .ordered
                          .includes(children: { children: :children })
 
-    root_tabs.each do |tab|
-      create_warehouse_folder_recursive(tab, parent_folder_id, folder_id_map)
+    root_folders.each do |folder|
+      create_base_folder_recursive(folder, parent_folder_id, folder_id_map)
     end
 
     folder_id_map
   end
 
-  # Recursively create folders for a WarehouseFolder and its children
+  # Alias for backwards compatibility
+  alias_method :create_subfolders_from_warehouse_folders, :create_subfolders_from_base_folders
+
+  # Recursively create folders for a BaseFolder and its children
   def create_warehouse_folder_recursive(tab, parent_folder_id, folder_id_map)
     # Use display_name as folder name (SSoT)
     folder_name = tab.display_name

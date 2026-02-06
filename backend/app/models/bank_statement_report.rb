@@ -363,15 +363,14 @@ class BankStatementReport < ApplicationRecord
 
   # Upload file content to storage using SSoT folder structure from DocumentType system
   # Path: /Shared Documents/00 TEEEM PRIVATE/{CompanyGroup}/{CompanyCode}/XERO/Bank/{filename}
-  # SSoT: Uses WarehouseFolder.storage_folder_path for path resolution (WarehouseProvider for base)
+  # SSoT (Feb 2026): Uses BaseFolder.full_folder_path for path resolution
   def upload_to_storage(content, filename)
-    # SSoT: WarehouseFolder (bank_statement) → storage_folder_path is THE ONE source
+    # SSoT: BaseFolder (bank_statement) → full_folder_path is THE ONE source
     # Path defined in Admin > Warehouse Config > Bank Statement folder
-    # FRC Fix (Feb 2026): Corrected tab_key from 'xero-bank-statement' to 'bank_statement'
-    warehouse_folder = WarehouseFolder.find_by(tab_key: 'bank_statement')
+    base_folder = BaseFolder.find_by(tab_key: 'bank_statement')
 
-    # Fallback: Use WarehouseProvider template if WarehouseFolder not found or has no path
-    path_template = warehouse_folder&.storage_folder_path
+    # Fallback: Use WarehouseProvider template if BaseFolder not found or has no path
+    path_template = base_folder&.full_folder_path
     if path_template.blank?
       # SSoT fallback: WarehouseProvider warehouse_folders['bank_statement']
       path_template = WarehouseProvider.instance.warehouse_folders['bank_statement']

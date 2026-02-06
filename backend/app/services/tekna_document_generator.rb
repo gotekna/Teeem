@@ -870,6 +870,6 @@ class TeknaDocumentGenerator
     return folder_name unless mapping
 
     scope, tab_key = mapping
-    WarehouseFolder.folder_name_for(scope, tab_key, folder_name)
+    BaseFolder.folder_name_for(scope, tab_key, folder_name)
   end
 end

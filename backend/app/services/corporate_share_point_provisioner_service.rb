@@ -544,10 +544,10 @@ class CorporateSharePointProvisionerService
     { date: nil, type: nil, description: filename, extension: "" }
   end
 
-  # SSoT: Get folder structure from WarehouseFolder instead of hardcoded constant
+  # SSoT (Feb 2026): Get folder structure from BaseFolder instead of hardcoded constant
   # Returns hash of { folder_name => [subfolders] } for tabs with storage folders
-  def self.folder_structure_from_warehouse_folders(scope = "corporate")
-    tabs = WarehouseFolder.where(warehouse_type: scope, warehouse_enabled: true, parent_id: nil)
+  def self.folder_structure_from_base_folders(scope = "corporate")
+    tabs = BaseFolder.for_warehouse_type(scope).where(warehouse_enabled: true, parent_id: nil)
     structure = {}
 
     tabs.each do |tab|
@@ -557,8 +557,13 @@ class CorporateSharePointProvisionerService
       structure[folder_name] = children
     end
 
-    # Fall back to FOLDER_STRUCTURE if no WarehouseFolders configured
+    # Fall back to FOLDER_STRUCTURE if no BaseFolders configured
     structure.empty? ? FOLDER_STRUCTURE : structure
+  end
+
+  # Alias for backwards compatibility
+  def self.folder_structure_from_warehouse_folders(scope = "corporate")
+    folder_structure_from_base_folders(scope)
   end
 end
 

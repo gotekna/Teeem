@@ -97,7 +97,7 @@ class DocumentStorageService
       blob = existing_blob
     else
       # Build the storage path using WarehouseProvider
-      # SSoT: Pass record so we can use its WarehouseFolder.storage_folder_path template
+      # SSoT (Feb 2026): Pass record so we can use its BaseFolder.full_folder_path template
       folder_path = build_folder_path(scope, tokens, record: record)
       full_path = "#{folder_path}/#{sanitize_filename(file_name)}"
 
@@ -158,7 +158,7 @@ class DocumentStorageService
   end
 
   # Build a storage path without uploading (for preview/validation)
-  # SSoT: Pass record to use its WarehouseFolder.storage_folder_path template
+  # SSoT (Feb 2026): Pass record to use its BaseFolder.full_folder_path template
   def preview_path(scope:, tokens:, filename:, record: nil)
     folder_path = build_folder_path(scope, tokens, record: record)
     "#{folder_path}/#{sanitize_filename(filename)}"
@@ -217,7 +217,7 @@ class DocumentStorageService
       provider: @storage_config.provider_type,
       connected: @storage_config.connected?,
       root_path: @storage_config.root_path,
-      available_scopes: WarehouseFolder.available_warehouse_types
+      available_scopes: BaseFolder.available_warehouse_types
     }
   end
 
@@ -360,14 +360,14 @@ class DocumentStorageService
   end
 
   # Build folder path from scope and tokens
-  # SSoT Priority:
-  # 1. Record's storage_folder_template (from WarehouseFolder.storage_folder_path - database)
+  # SSoT Priority (Feb 2026):
+  # 1. Record's storage_folder_template (from BaseFolder.full_folder_path - database)
   # 2. WarehouseProvider.path_for(scope) (fallback)
   def build_folder_path(scope, tokens, record: nil)
     # Get base path from WarehouseProvider
     base_path = @storage_config.path_for(scope)
 
-    # SSoT: Try to get template from record's WarehouseFolder first (database-stored)
+    # SSoT: Try to get template from record's BaseFolder first (database-stored)
     # Falls back to WarehouseProvider constant if not available
     template = if record&.respond_to?(:storage_folder_template) && record.storage_folder_template.present?
       record.storage_folder_template

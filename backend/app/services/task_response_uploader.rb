@@ -195,21 +195,20 @@ class TaskResponseUploader
     provider.create_folder(folder_path, create_parents: true)
   end
 
-  # SSoT: Resolve display_name from WarehouseFolder template using SendNameResolver
-  # WarehouseFolder.display_name can contain tokens like {{OriginalFileName}}, {{TaskName}}, {{Subject}}, etc.
-  # Falls back to original filename if no template or WarehouseFolder not found
+  # SSoT (Feb 2026): Resolve display_name from BaseFolder template using SendNameResolver
+  # BaseFolder.display_name can contain tokens like {{OriginalFileName}}, {{TaskName}}, {{Subject}}, etc.
+  # Falls back to original filename if no template or BaseFolder not found
   def resolve_display_name(original_filename)
-    # Find the WarehouseFolder for this storage scope (task_responses or task_attachments)
+    # Find the BaseFolder for this storage scope (task_responses or task_attachments)
     # The folder_name method returns "Responses" or "Attachments"
-    warehouse_folder = WarehouseFolder.find_by(
-      warehouse_type: storage_scope.to_s,
+    base_folder = BaseFolder.for_warehouse_type(storage_scope.to_s).find_by(
       display_name: folder_name
     )
 
-    # Fall back to original filename if no WarehouseFolder or no template
-    return original_filename unless warehouse_folder&.display_name.present?
+    # Fall back to original filename if no BaseFolder or no template
+    return original_filename unless base_folder&.display_name.present?
 
-    template = warehouse_folder.display_name
+    template = base_folder.display_name
 
     # If template has no tokens, use it as-is (it's a static name)
     return template unless template.include?("{")

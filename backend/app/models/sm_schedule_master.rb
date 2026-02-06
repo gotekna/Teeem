@@ -41,8 +41,8 @@ class SmScheduleMaster < ApplicationRecord
   # SmTasks created from this template - nullify on delete so tasks remain but lose template link
   has_many :sm_tasks, dependent: :nullify
 
-  # Photo storage WarehouseFolder
-  belongs_to :photo_entity_tab, class_name: "WarehouseFolder", optional: true
+  # Photo storage BaseFolder (SSoT - Feb 2026)
+  belongs_to :photo_entity_tab, class_name: "BaseFolder", optional: true
 
   # Auto-PO supplier - for create_po_on_job_start feature
   belongs_to :po_supplier, class_name: "Contact", optional: true
@@ -174,29 +174,30 @@ class SmScheduleMaster < ApplicationRecord
     plan_type_ids || []
   end
 
-  # WarehouseFolders for documents sent on START
-  def start_warehouse_folders
+  # BaseFolders for documents sent on START (SSoT - Feb 2026)
+  def start_base_folders
     return [] if start_entity_tab_ids.blank?
-    WarehouseFolder.where(id: start_entity_tab_ids)
+    BaseFolder.where(id: start_entity_tab_ids)
   end
 
-  # WarehouseFolders for documents received on COMPLETE
-  def complete_warehouse_folders
+  # BaseFolders for documents received on COMPLETE (SSoT - Feb 2026)
+  def complete_base_folders
     return [] if complete_entity_tab_ids.blank?
-    WarehouseFolder.where(id: complete_entity_tab_ids)
+    BaseFolder.where(id: complete_entity_tab_ids)
   end
 
-  # All linked WarehouseFolder IDs (start + complete)
-  def all_warehouse_folder_ids
+  # All linked BaseFolder IDs (start + complete)
+  def all_base_folder_ids
     (start_entity_tab_ids || []) + (complete_entity_tab_ids || [])
   end
 
-  # DEPRECATED: Use start_warehouse_folders (Jan 2026)
-  alias_method :start_entity_tabs, :start_warehouse_folders
-  # DEPRECATED: Use complete_warehouse_folders (Jan 2026)
-  alias_method :complete_entity_tabs, :complete_warehouse_folders
-  # DEPRECATED: Use all_warehouse_folder_ids (Jan 2026)
-  alias_method :all_entity_tab_ids, :all_warehouse_folder_ids
+  # Backwards compatibility aliases
+  alias_method :start_warehouse_folders, :start_base_folders
+  alias_method :complete_warehouse_folders, :complete_base_folders
+  alias_method :all_warehouse_folder_ids, :all_base_folder_ids
+  alias_method :start_entity_tabs, :start_base_folders
+  alias_method :complete_entity_tabs, :complete_base_folders
+  alias_method :all_entity_tab_ids, :all_base_folder_ids
 
   # Multi-template management methods
 

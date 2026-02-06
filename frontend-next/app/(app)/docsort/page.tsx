@@ -437,43 +437,61 @@ export default function DocsortPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex items-center gap-3 p-4 border-b bg-muted/30">
-            <div className="relative flex-1 max-w-xs">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
+          <div className="flex flex-col gap-2 p-4 border-b bg-muted/30">
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1 max-w-xs">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <FunnelIcon className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="classified">Classified</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="error">Errors</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px]">
-                <FunnelIcon className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="classified">Classified</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="error">Errors</SelectItem>
-                <SelectItem value="all">All</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Document Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {DOCUMENT_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Document type filter chips */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs text-muted-foreground mr-1">Type:</span>
+              <button
+                onClick={() => setTypeFilter("all")}
+                className={cn(
+                  "px-2 py-0.5 text-xs rounded-full border transition-colors",
+                  typeFilter === "all"
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background hover:bg-muted border-border"
+                )}
+              >
+                All
+              </button>
+              {DOCUMENT_TYPES.map((type) => (
+                <button
+                  key={type.value}
+                  onClick={() => setTypeFilter(type.value)}
+                  className={cn(
+                    "px-2 py-0.5 text-xs rounded-full border transition-colors",
+                    typeFilter === type.value
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background hover:bg-muted border-border"
+                  )}
+                >
+                  {type.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* List */}
@@ -546,6 +564,22 @@ export default function DocsortPage() {
 
                         {/* Processing indicator */}
                         {isProcessing && <Spinner size={16} />}
+
+                        {/* Open in Takeoff button for plan documents */}
+                        {item.document_type === "plan" && item.content_type === "application/pdf" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/takeoff/docsort/${item.id}`);
+                            }}
+                          >
+                            <Ruler className="h-3 w-3 mr-1" />
+                            Takeoff
+                          </Button>
+                        )}
                       </div>
 
                       {/* Arrow */}

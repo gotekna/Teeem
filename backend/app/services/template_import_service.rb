@@ -297,12 +297,16 @@ class TemplateImportService
     @imported_counts[:public_holidays] = count
   end
 
+  # SSoT (Feb 2026): Import into BaseFolder (was WarehouseFolder)
   def import_warehouse_folders(data)
     count = 0
     data.each do |attrs|
-      record = WarehouseFolder.find_or_initialize_by(
-        entity_type: attrs["entity_type"],
-        slug: attrs["slug"]
+      # Map entity_type to warehouse_type_id
+      wt = WarehouseType.find_by(code: attrs["entity_type"]) if attrs["entity_type"].present?
+
+      record = BaseFolder.find_or_initialize_by(
+        warehouse_type_id: wt&.id,
+        tab_key: attrs["slug"]
       )
 
       if record.persisted? && @skip_existing
@@ -311,11 +315,11 @@ class TemplateImportService
 
       record.assign_attributes(
         name: attrs["name"],
-        icon: attrs["icon"],
-        position: attrs["position"]
+        display_name: attrs["name"],
+        icon_name: attrs["icon"],
+        order_position: attrs["position"]
       )
-      record.is_visible = attrs.fetch("is_visible", true) if record.respond_to?(:is_visible=)
-      record.requires_permission = attrs["requires_permission"] if record.respond_to?(:requires_permission=)
+      record.hidden_by_default = !attrs.fetch("is_visible", true) if record.respond_to?(:hidden_by_default=)
 
       if record.save
         count += 1

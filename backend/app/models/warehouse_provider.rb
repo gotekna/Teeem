@@ -342,7 +342,7 @@ class WarehouseProvider < ApplicationRecord
   #
   # @param warehouse_type [String, Symbol] The warehouse type name (job, task, contact, etc.)
   # @param substitutions [Hash] Values to substitute in path (e.g., { JobCode: "JOB-001" })
-  # @param subfolder [String] Optional subfolder to append (e.g., WarehouseFolder.effective_warehouse_path)
+  # @param subfolder [String] Optional subfolder to append (e.g., BaseFolder.full_folder_path)
   # @return [String] Full resolved path
   #
   # Example:

@@ -418,11 +418,12 @@ module Api
       end
 
       def all_available_tabs
-        # SSoT: Get all document tabs from WarehouseFolder (replaces old DocumentFolder)
-        WarehouseFolder.for_warehouse_type('corporate')
-                 .for_group('documents')
+        # SSoT (Feb 2026): Get all document tabs from BaseFolder (THE ONE table)
+        BaseFolder.for_warehouse_type('corporate')
+                 .where(tab_group: 'documents')
+                 .where(warehouse_enabled: true)
                  .enabled
-                 .root_tabs
+                 .root_folders
                  .ordered
                  .includes(children: :children)
                  .map do |tab|

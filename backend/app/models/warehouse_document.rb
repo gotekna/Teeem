@@ -220,16 +220,16 @@ class WarehouseDocument < ApplicationRecord
   # SSoT (Feb 2026): Base folder name from WarehouseFolder path templates
   # Uses warehouse_type_to_base_folder which extracts first segment of path
   # e.g., "Jobs/{{JobCode}}/Compliance" → "Jobs"
-  # Fallback to source_type_to_base_folder if WarehouseFolder not configured
+  # Fallback to source_type_to_base_folder if BaseFolder not configured
   def folder
     warehouse_type = source_type_to_warehouse_type
     # warehouse_type_to_base_folder returns {"job" => "Jobs", "corporate" => "Corporate", ...}
-    WarehouseFolder.warehouse_type_to_base_folder[warehouse_type] || source_type_to_base_folder
+    BaseFolder.warehouse_type_to_base_folder[warehouse_type] || source_type_to_base_folder
   end
 
-  # NOTE (Feb 2026 FRC Fix): folder column REMOVED from table.
-  # The folder method now computes folder path at RUNTIME by querying WarehouseFolder SSoT.
-  # This ensures folder names always match WarehouseFolder configuration without sync issues.
+  # NOTE (Feb 2026 SSoT): folder column REMOVED from table.
+  # The folder method now computes folder path at RUNTIME by querying BaseFolder SSoT.
+  # This ensures folder names always match BaseFolder configuration without sync issues.
 
   # ========================================
   # Computed UI Name (Runtime Resolution)

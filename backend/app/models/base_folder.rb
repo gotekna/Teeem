@@ -43,6 +43,7 @@ class BaseFolder < ApplicationRecord
   # Associations
   belongs_to :warehouse_type
   belongs_to :parent, class_name: 'BaseFolder', optional: true
+  belongs_to :job, optional: true  # job_id: null = global template, job_id: X = job-specific override
   has_many :children, class_name: 'BaseFolder', foreign_key: :parent_id, dependent: :destroy
 
   # Document type associations (SSoT - replaces warehouse_folder_document_types)
@@ -79,6 +80,15 @@ class BaseFolder < ApplicationRecord
   scope :for_entity_type, ->(entity_type) {
     where("entity_filters @> ARRAY[?]::varchar[] OR entity_filters = '{}'", entity_type)
   }
+
+  # Convenience scopes for common warehouse types (backwards compatibility)
+  scope :for_jobs, -> { for_warehouse_type('job') }
+  scope :for_job, -> { for_warehouse_type('job') }
+  scope :for_contacts, -> { for_warehouse_type('contact') }
+  scope :for_contact, -> { for_warehouse_type('contact') }
+  scope :for_corporate, -> { for_warehouse_type('corporate') }
+  scope :for_people, -> { for_warehouse_type('people') }
+  scope :for_tasks, -> { for_warehouse_type('task') }
 
   # Delegation
   delegate :code, to: :warehouse_type, prefix: true, allow_nil: true
@@ -324,6 +334,26 @@ class BaseFolder < ApplicationRecord
       result[folder.warehouse_type.code] = folder.display_name || folder.name
     end
     result
+  end
+
+  # Get list of available warehouse type codes
+  # @return [Array<String>] ["job", "contact", "corporate", ...]
+  def self.available_warehouse_types
+    root_folders.includes(:warehouse_type).map { |f| f.warehouse_type&.code }.compact.uniq
+  end
+
+  # Get folder display name for a specific tab_key within a warehouse type
+  # Returns the default_name if no matching folder is found
+  # @param warehouse_type [String] e.g., "job", "corporate"
+  # @param tab_key [String] e.g., "plans", "contracts"
+  # @param default_name [String] fallback name if folder not found
+  # @return [String] folder display name or default
+  def self.folder_name_for(warehouse_type, tab_key, default_name)
+    folder = for_warehouse_type(warehouse_type)
+              .where(tab_key: tab_key)
+              .enabled
+              .first
+    folder&.display_name || folder&.name || default_name
   end
 
   # Get mapping of warehouse types to full folder path templates

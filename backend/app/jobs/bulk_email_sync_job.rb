@@ -432,9 +432,9 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "=" * 60
   end
 
-  # SSoT: Get email storage path from WarehouseFolder (system-managed)
+  # SSoT (Feb 2026): Get email storage path from BaseFolder (system-managed)
   # Resolves templates like: "{{UserName}}/{{Year}}/{{Date}}" or "{{Mailbox}}/{{Year}}/{{Month}}"
-  # Falls back to hardcoded path if WarehouseFolder doesn't exist
+  # Falls back to hardcoded path if BaseFolder doesn't exist
   #
   # Available placeholders:
   #   {{OrgName}}  - Organization name (sanitized)
@@ -444,9 +444,9 @@ class BulkEmailSyncJob < ApplicationJob
   #   {{Mailbox}}  - Email mailbox address (e.g., "robert@tekna.com.au")
   #   {{UserName}} - User's display name from mailbox (e.g., "Robert Harder")
   def email_storage_path(org_name:, year:, month:, mailbox: nil, date: nil)
-    email_tab = WarehouseFolder.find_by(warehouse_type: "email", tab_key: "email-storage")
+    email_tab = BaseFolder.for_warehouse_type("email").find_by(tab_key: "email-storage")
 
-    if email_tab&.storage_folder_path.present?
+    if email_tab&.full_folder_path.present?
       # Derive user name from mailbox email
       user = mailbox.present? ? User.find_by("LOWER(email) = ?", mailbox.downcase) : nil
       user_name = user&.display_name || mailbox&.split("@")&.first&.titleize || "Unknown"
@@ -455,7 +455,7 @@ class BulkEmailSyncJob < ApplicationJob
       formatted_date = date.present? ? date.strftime("%-d-%-m-%y") : ""
 
       # Resolve placeholders in the template
-      email_tab.storage_folder_path
+      email_tab.full_folder_path
         .gsub("{{OrgName}}", org_name.to_s)
         .gsub("{{Year}}", year.to_s)
         .gsub("{{Month}}", month.to_s.rjust(2, "0"))
@@ -463,7 +463,7 @@ class BulkEmailSyncJob < ApplicationJob
         .gsub("{{Mailbox}}", SharePoint::FilenameSanitizer.sanitize_path_segment(mailbox.to_s))
         .gsub("{{UserName}}", SharePoint::FilenameSanitizer.sanitize_path_segment(user_name))
     else
-      # Fallback if WarehouseFolder doesn't exist - use WarehouseProvider SSoT
+      # Fallback if BaseFolder doesn't exist - use WarehouseProvider SSoT
       base_path = WarehouseProvider.instance.path_for(:email)
       "#{base_path}/#{org_name}/#{year}/#{month}"
     end

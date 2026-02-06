@@ -582,13 +582,13 @@ module Api
         base_scope = base_scope.where.not(source_type: "email") unless include_emails
 
         if path.blank?
-          # SSoT (Feb 2026 FRC Fix): Root folder structure comes from warehouse_type_to_base_folder
+          # SSoT (Feb 2026): Root folder structure comes from BaseFolder.warehouse_type_to_base_folder
           # This extracts first segment of path templates (e.g., "Jobs/{{JobCode}}" → "Jobs")
           # NOT from all_base_folders which returns tabs (ADVICE, ASIC, etc.) not conceptual roots
           #
           # Root cause: all_base_folders queries parent_id: nil folders, which are TABS
           # SSoT: warehouse_type_to_base_folder extracts roots from path templates
-          base_folders_from_config = WarehouseFolder.warehouse_type_to_base_folder.values.uniq
+          base_folders_from_config = BaseFolder.warehouse_type_to_base_folder.values.uniq
 
           # SSoT: Map source_type to root folder for counting
           # This eliminates duplicates from legacy folder values (ADVICE, Assets, BANK, etc.)
@@ -665,10 +665,10 @@ module Api
           result = build_task_folder_tree_from_template(path)
           folders = result[:folders]
           files = result[:files]
-        elsif !path.include?("/") && WarehouseFolder.warehouse_type_for_base_folder(path)
-          # SSoT (Jan 2026): Root folder expanded - show tabs from WarehouseFolder
+        elsif !path.include?("/") && BaseFolder.warehouse_type_for_base_folder(path)
+          # SSoT (Feb 2026): Root folder expanded - show tabs from BaseFolder
           # e.g., "Jobs" → shows Plans, Site, Sales, Photo, etc.
-          tabs_from_config = WarehouseFolder.tabs_for_base_folder(path)
+          tabs_from_config = BaseFolder.tabs_for_base_folder(path)
 
           # Get actual document counts for each tab folder
           subfolder_counts = base_scope
@@ -691,11 +691,11 @@ module Api
 
           folders = folders.sort_by { |f| f[:name].to_s.downcase }
           files = []
-        elsif path.include?("/") && WarehouseFolder.warehouse_type_for_base_folder(path.split("/").first)
-          # SSoT (Jan 2026): Subfolder with configured tabs - check for child tabs
+        elsif path.include?("/") && BaseFolder.warehouse_type_for_base_folder(path.split("/").first)
+          # SSoT (Feb 2026): Subfolder with configured tabs - check for child tabs
           # e.g., "Jobs/Photo" → shows Supervisor, Site, Client, etc.
           base_folder = path.split("/").first
-          child_tabs = WarehouseFolder.child_tabs_for_path(path)
+          child_tabs = BaseFolder.child_tabs_for_path(path)
           path_depth = path.count("/") + 2
 
           # Get actual document counts for subfolders
@@ -856,10 +856,10 @@ module Api
         string.gsub(/[%_\\]/) { |x| "\\#{x}" }
       end
 
-      # SSoT (Feb 2026 FRC Fix): Map source_type to root folder
+      # SSoT (Feb 2026): Map source_type to root folder
       # @return [Hash] { source_type => base_folder_name }
       def source_type_to_base_folder_mapping
-        @source_type_to_base_folder_mapping ||= WarehouseFolder.warehouse_type_to_base_folder
+        @source_type_to_base_folder_mapping ||= BaseFolder.warehouse_type_to_base_folder
       end
 
       # Build a complete folder tree by computing paths for all warehouse documents
@@ -890,30 +890,30 @@ module Api
       end
 
       # GET /api/v1/documents/folder_files
-      # SSoT: Unified endpoint for fetching files from WarehouseFolder folders
+      # SSoT (Feb 2026): Unified endpoint for fetching files from BaseFolder folders
       # Used by File Warehouse to display subfolder contents for ALL scopes
       # Supports: job, corporate/corporate_entity/corp, contact/people
       def folder_files
-        warehouse_folder_id = params[:warehouse_folder_id] || params[:entity_tab_id]
+        base_folder_id = params[:base_folder_id] || params[:warehouse_folder_id] || params[:entity_tab_id]
         scope = params[:scope] || "corporate"
 
-        unless warehouse_folder_id.present?
-          return render json: { success: false, error: "warehouse_folder_id required", files: [] }, status: :bad_request
+        unless base_folder_id.present?
+          return render json: { success: false, error: "base_folder_id required", files: [] }, status: :bad_request
         end
 
-        warehouse_folder = WarehouseFolder.find_by(id: warehouse_folder_id)
-        unless warehouse_folder
-          return render json: { success: false, error: "WarehouseFolder not found", files: [] }, status: :not_found
+        base_folder = BaseFolder.find_by(id: base_folder_id)
+        unless base_folder
+          return render json: { success: false, error: "BaseFolder not found", files: [] }, status: :not_found
         end
 
         # SSoT: Route to correct document model based on scope
         files = case scope.to_s.downcase
                 when "job"
-                  fetch_job_documents(warehouse_folder)
+                  fetch_job_documents(base_folder)
                 when "corporate", "corporate_entity", "corp"
-                  fetch_corporate_documents(warehouse_folder)
+                  fetch_corporate_documents(base_folder)
                 when "contact", "people"
-                  fetch_people_documents(warehouse_folder)
+                  fetch_people_documents(base_folder)
                 else
                   []
                 end
@@ -921,7 +921,7 @@ module Api
         render json: {
           success: true,
           files: files,
-          folder: warehouse_folder.display_name,
+          folder: base_folder.display_name,
           scope: scope,
           count: files.size
         }
@@ -1540,13 +1540,13 @@ module Api
           build_email_live_tree(path_segments)
         else
           # Generic: job, contact, corporate, people, task, etc.
-          # All use WarehouseDocument.folder + WarehouseFolder tabs
+          # All use WarehouseDocument.folder + BaseFolder tabs (SSoT Feb 2026)
           build_generic_folder_tree(scope, path_segments)
         end
       end
 
-      # SSoT (Jan 2026): ONE generic method for all folder-based scopes
-      # Queries WarehouseDocument.folder + WarehouseFolder tabs
+      # SSoT (Feb 2026): ONE generic method for all folder-based scopes
+      # Queries WarehouseDocument.folder + BaseFolder tabs
       # Works for: job, contact, corporate, people, task, case, warehouse, etc.
       #
       # IMPORTANT: Returns RELATIVE paths (without root folder prefix)
@@ -1554,23 +1554,24 @@ module Api
       # e.g., for Contacts scope: returns "7 Eleven/Bills", frontend adds "Contacts/" prefix
       def build_generic_folder_tree(scope, path_segments)
         # Get root folder from scope (e.g., "job" → "Jobs", "contact" → "Contacts")
-        base_folder = WarehouseFolder.base_folder_for_warehouse_type(scope)
-        return { folders: [], files: [] } unless base_folder
+        # SSoT (Feb 2026): BaseFolder.base_folder_for_warehouse_type returns the root folder name
+        root_folder = BaseFolder.base_folder_for_warehouse_type(scope)
+        return { folders: [], files: [] } unless root_folder
 
         # Build full DB path (includes root folder for querying WarehouseDocument.folder)
-        full_db_path = path_segments.any? ? "#{base_folder}/#{path_segments.join('/')}" : nil
+        full_db_path = path_segments.any? ? "#{root_folder}/#{path_segments.join('/')}" : nil
         # Relative path for response (what frontend will use)
         relative_path = path_segments.any? ? path_segments.join('/') : nil
         path_depth = path_segments.size + 2  # "RootFolder" is depth 1, first segment is depth 2
 
         # Base scope: all documents in this root folder
-        base_scope = WarehouseDocument.where("folder LIKE ?", "#{base_folder}/%")
+        base_scope = WarehouseDocument.where("folder LIKE ?", "#{root_folder}/%")
 
-        # Get configured tabs for this path level
+        # Get configured tabs for this path level (SSoT: from BaseFolder)
         tabs_from_config = if full_db_path
-          WarehouseFolder.child_tabs_for_path(full_db_path)
+          BaseFolder.child_tabs_for_path(full_db_path)
         else
-          WarehouseFolder.tabs_for_base_folder(base_folder)
+          BaseFolder.tabs_for_base_folder(root_folder)
         end
 
         # Get subfolder counts from documents
@@ -1582,15 +1583,15 @@ module Api
         # Build folders: configured tabs (with counts) + extra folders from documents
         # SSoT: Return RELATIVE paths - frontend adds root folder prefix
         folders = tabs_from_config.map do |tab|
-          # Strip root folder from path (WarehouseFolder methods return full paths)
-          relative_tab_path = tab[:path].to_s.sub(/^#{Regexp.escape(base_folder)}\//, '')
+          # Strip root folder from path (BaseFolder methods return full paths)
+          relative_tab_path = tab[:path].to_s.sub(/^#{Regexp.escape(root_folder)}\//, '')
           {
             name: tab[:name],
             path: relative_tab_path,
             count: subfolder_counts[tab[:name]] || 0,
             tab_key: tab[:tab_key],
             icon: tab[:icon],
-            warehouse_folder_id: tab[:warehouse_folder_id],
+            base_folder_id: tab[:base_folder_id],
             has_children: tab[:has_children]
           }
         end
@@ -1832,11 +1833,12 @@ module Api
       end
 
       # SSoT: Corporate hierarchy follows template {{CompanyGroup}}/{{CompanyCode}}/{{TabName}}
-      # SSoT (Jan 2026): Uses WarehouseDocument for document counts
+      # SSoT (Feb 2026): Uses WarehouseDocument for document counts, BaseFolder for tabs
       def build_corporate_hierarchy
-        # Get document tabs for corporate scope (SSoT: 'corporate' is THE ONE - Jan 2026)
-        tabs = WarehouseFolder.for_warehouse_type("corporate")
+        # Get document tabs for corporate scope (SSoT: BaseFolder is THE ONE - Feb 2026)
+        tabs = BaseFolder.for_warehouse_type("corporate")
                         .where(tab_group: "documents")
+                        .where(warehouse_enabled: true)
                         .enabled
                         .ordered
 
@@ -1883,11 +1885,12 @@ module Api
       end
 
       # SSoT: Contact hierarchy follows template {{ContactName}}/{{TabName}}
-      # SSoT (Jan 2026): Uses WarehouseDocument for contact document counts
+      # SSoT (Feb 2026): Uses WarehouseDocument for contact document counts, BaseFolder for tabs
       def build_contact_hierarchy
         # Get document tabs for contact scope (includes Invoices, Financial, etc.)
-        tabs = WarehouseFolder.for_warehouse_type("contact")
+        tabs = BaseFolder.for_warehouse_type("contact")
                         .where(tab_group: "documents")
+                        .where(warehouse_enabled: true)
                         .enabled
                         .ordered
 
@@ -1930,11 +1933,12 @@ module Api
       end
 
       # SSoT: Job hierarchy follows template {{JobCode}}/{{TabName}}
-      # SSoT (Jan 2026): Uses WarehouseDocument for job document counts
+      # SSoT (Feb 2026): Uses WarehouseDocument for job document counts, BaseFolder for tabs
       def build_job_hierarchy
-        # Get document tabs for job scope
-        tabs = WarehouseFolder.for_warehouse_type("job")
+        # Get document tabs for job scope (SSoT: BaseFolder is THE ONE)
+        tabs = BaseFolder.for_warehouse_type("job")
                         .where(tab_group: "documents")
+                        .where(warehouse_enabled: true)
                         .enabled
                         .ordered
 
@@ -1972,10 +1976,12 @@ module Api
       end
 
       # SSoT: People hierarchy follows template {{ContactName}}/{{TabName}}
+      # SSoT (Feb 2026): Uses BaseFolder for tabs
       def build_people_hierarchy
-        # Get document tabs for people scope
-        tabs = WarehouseFolder.for_warehouse_type("people")
+        # Get document tabs for people scope (SSoT: BaseFolder is THE ONE)
+        tabs = BaseFolder.for_warehouse_type("people")
                         .where(tab_group: "documents")
+                        .where(warehouse_enabled: true)
                         .enabled
                         .ordered
 
@@ -2014,14 +2020,14 @@ module Api
         end
       end
 
-      # SSoT: Fetch job documents by WarehouseFolder.document_type_ids
-      # Migrated to WarehouseDocument (Jan 2026)
-      def fetch_job_documents(warehouse_folder)
-        return [] if warehouse_folder.document_type_ids.empty?
+      # SSoT (Feb 2026): Fetch job documents by BaseFolder.document_type_ids
+      # Uses WarehouseDocument table
+      def fetch_job_documents(base_folder)
+        return [] if base_folder.document_type_ids.empty?
 
         WarehouseDocument
           .where(source_type: "job")
-          .where("metadata->>'document_type_id' IN (?)", warehouse_folder.document_type_ids.map(&:to_s))
+          .where("metadata->>'document_type_id' IN (?)", base_folder.document_type_ids.map(&:to_s))
           .includes(:storage_blob, :linkable)
           .order(created_at: :desc)
           .limit(500)
@@ -2043,14 +2049,14 @@ module Api
           end
       end
 
-      # SSoT: Fetch corporate documents by WarehouseFolder.document_type_ids
-      # Migrated to WarehouseDocument (Jan 2026)
-      def fetch_corporate_documents(warehouse_folder)
-        return [] if warehouse_folder.document_type_ids.empty?
+      # SSoT (Feb 2026): Fetch corporate documents by BaseFolder.document_type_ids
+      # Uses WarehouseDocument table
+      def fetch_corporate_documents(base_folder)
+        return [] if base_folder.document_type_ids.empty?
 
         WarehouseDocument
           .where(source_type: "corporate")
-          .where("metadata->>'document_type_id' IN (?)", warehouse_folder.document_type_ids.map(&:to_s))
+          .where("metadata->>'document_type_id' IN (?)", base_folder.document_type_ids.map(&:to_s))
           .includes(:storage_blob, :linkable)
           .order(created_at: :desc)
           .limit(500)
@@ -2157,12 +2163,12 @@ module Api
         []  # TeeemPdf might not exist
       end
 
-      # SSoT: Fetch people documents by WarehouseFolder.document_type_ids
-      def fetch_people_documents(warehouse_folder)
-        return [] if warehouse_folder.document_type_ids.empty?
+      # SSoT (Feb 2026): Fetch people documents by BaseFolder.document_type_ids
+      def fetch_people_documents(base_folder)
+        return [] if base_folder.document_type_ids.empty?
 
         PeopleDocument
-          .where(document_type_id: warehouse_folder.document_type_ids)
+          .where(document_type_id: base_folder.document_type_ids)
           .includes(:contact)
           .order(created_at: :desc)
           .limit(500)

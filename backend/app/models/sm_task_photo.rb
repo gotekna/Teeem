@@ -111,8 +111,8 @@ class SmTaskPhoto < ApplicationRecord
     document_type || task&.completion_document_type
   end
 
-  # SSoT: Get the WarehouseFolder from DocumentType (primary_warehouse_folder method)
-  # This provides the folder name and storage_folder_path template
+  # SSoT (Feb 2026): Get the BaseFolder from DocumentType (primary_base_folder method)
+  # This provides the folder name and full_folder_path template
   def effective_warehouse_folder
     effective_document_type&.primary_warehouse_folder
   end
@@ -124,7 +124,7 @@ class SmTaskPhoto < ApplicationRecord
   # Used by StorableDocument.upload_to_storage() to build the storage path
   #
   # Path is built from:
-  # 1. WarehouseFolder.storage_folder_path template (from database, NOT hardcoded)
+  # 1. BaseFolder.full_folder_path template (from database, NOT hardcoded)
   # 2. Tokens expanded from this method
   def default_storage_tokens
     doc_type = effective_document_type
@@ -136,7 +136,7 @@ class SmTaskPhoto < ApplicationRecord
       JobCode: effective_job&.job_code,
       JobTitle: effective_job&.title,
 
-      # Tab tokens (from WarehouseFolder - SSoT for folder structure)
+      # Tab tokens (from BaseFolder - SSoT for folder structure)
       TabName: warehouse_folder&.display_name || doc_type&.primary_tab,
       TabKey: warehouse_folder&.tab_key,
       SubTabName: warehouse_folder&.parent&.display_name,
@@ -155,10 +155,10 @@ class SmTaskPhoto < ApplicationRecord
     }.compact
   end
 
-  # SSoT: Get the storage folder path template from WarehouseFolder
+  # SSoT (Feb 2026): Get the storage folder path template from BaseFolder
   # This is the database-stored template, NOT a hardcoded constant
   def storage_folder_template
-    effective_warehouse_folder&.storage_folder_path
+    effective_warehouse_folder&.full_folder_path
   end
 
   # SSoT: Filename from DocumentType.download_name template
