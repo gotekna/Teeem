@@ -87,6 +87,8 @@ import {
   Check,
   Loader2,
   Mail,
+  Cog,
+  FolderArchive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -1321,8 +1323,53 @@ export function WarehouseFoldersConfig({
             <IconComponent className="h-3.5 w-3.5" />
           </div>
 
-          {/* Folder type indicators */}
+          {/* Tab type indicator (SYS/MBX/DOC) */}
           <div className="flex items-center gap-0.5">
+            {/* Primary type badge - mutually exclusive */}
+            {(tab.is_mailbox || tab.dynamic_type === 'mailbox') ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                      <Mail className="h-3 w-3" />
+                      <span>MBX</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Mailbox tab - shows synced email mailboxes</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : tab.is_system_tab ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                      <Cog className="h-3 w-3" />
+                      <span>SYS</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>System tab - functional/code-driven (no document storage)</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                      <FolderArchive className="h-3 w-3" />
+                      <span>DOC</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Document tab - storage folder for files</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {/* Secondary indicators */}
             {tab.warehouse_enabled && (
               <TooltipProvider>
                 <Tooltip>
@@ -1347,18 +1394,6 @@ export function WarehouseFoldersConfig({
                 </Tooltip>
               </TooltipProvider>
             )}
-            {(tab.is_mailbox || tab.dynamic_type === 'mailbox') && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Mail className="h-3 w-3 text-green-500" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Shows synced mailboxes</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
           </div>
 
           {/* Name and badges */}
@@ -1379,21 +1414,6 @@ export function WarehouseFoldersConfig({
               <Badge variant="outline" className="text-xs">
                 {tab.tab_key}
               </Badge>
-              {tab.is_system_tab && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="secondary" className="text-xs gap-1">
-                        <Lock className="h-3 w-3" />
-                        System
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>System tabs cannot be deleted, only disabled</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
               {/* SSoT: Show folder path badge if tab has folder OR has children (children inherit parent path) */}
               {(tab.warehouse_enabled || hasChildren) && (
                 <TooltipProvider>

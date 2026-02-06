@@ -10216,13 +10216,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_170000) do
     t.string "warehouse_type_override"
     t.string "ui_name_template"
     t.string "download_name_template"
-    t.bigint "job_id"
     t.boolean "uses_custom_path", default: false
     t.boolean "is_system_tab", default: false
     t.boolean "is_mailbox", default: false, null: false
     t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
     t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
-    t.index ["job_id"], name: "index_warehouse_folders_on_job_id"
     t.index ["order_position"], name: "index_warehouse_folders_on_order_position"
     t.index ["parent_id"], name: "index_warehouse_folders_on_parent_id"
     t.index ["tab_group"], name: "index_warehouse_folders_on_tab_group"
@@ -11838,7 +11836,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_170000) do
   add_foreign_key "warehouse_documents", "warehouse_folder_document_types"
   add_foreign_key "warehouse_folder_document_types", "document_types"
   add_foreign_key "warehouse_folder_document_types", "warehouse_folders"
-  add_foreign_key "warehouse_folders", "jobs"
   add_foreign_key "warehouse_folders", "tenants"
   add_foreign_key "warehouse_folders", "warehouse_folders", column: "parent_id"
   add_foreign_key "warehouse_folders", "warehouse_types"
