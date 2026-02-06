@@ -58,6 +58,8 @@ import {
   Zap,
   Lock,
   Plus,
+  Cog,
+  FolderArchive,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -176,6 +178,9 @@ interface WarehouseTabConfig {
   folder_path?: string | null;
   base_folder?: string | null;  // SSoT: First segment of folder_path (from database)
   base_folder_path_template?: string | null;  // SSoT: Template from base_folders table
+  is_system_tab?: boolean;  // SSoT: System tab (functional/code-driven)
+  is_mailbox?: boolean;     // SSoT: Mailbox tab
+  dynamic_type?: 'mailbox' | null;  // SSoT: Dynamic folder type
   children?: WarehouseTabConfig[];
   document_types?: DocumentType[];
 }
@@ -636,7 +641,7 @@ interface TreeNodeProps {
   // SSoT (Feb 2026): All warehouse types for display_name lookup
   warehouseTypes: WarehouseTypeFromAPI[];
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
-  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null; warehouse_type?: string }) => void;
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null; warehouse_type?: string; is_system_tab?: boolean; is_mailbox?: boolean; dynamic_type?: 'mailbox' | null }) => void;
   // SSoT (Feb 2026): Edit document type UI/DL names
   onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
@@ -1408,7 +1413,7 @@ interface TabNodeProps {
   onSaveEdit: (tabId: number, path: string, displayName: string, sendNameTemplate: string) => void;
   onCancelEdit: () => void;
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
-  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null; warehouse_type?: string }) => void;
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null; warehouse_type?: string; is_system_tab?: boolean; is_mailbox?: boolean; dynamic_type?: 'mailbox' | null }) => void;
   // SSoT (Feb 2026): Edit document type UI/DL names
   onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
@@ -1770,6 +1775,23 @@ function TabNode({
         <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
         {/* Show folder name (from folder_path), resolved if it contains tokens */}
         <span className="text-sm font-medium">{resolveTemplatePreview(folderName || tab.display_name || '')}</span>
+        {/* SSoT (Feb 2026): Folder type indicator (SYS/MBX/DOC) */}
+        {(tab.is_mailbox || tab.dynamic_type === 'mailbox') ? (
+          <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+            <Mail className="h-3 w-3" />
+            <span>MBX</span>
+          </div>
+        ) : tab.is_system_tab ? (
+          <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+            <Cog className="h-3 w-3" />
+            <span>SYS</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+            <FolderArchive className="h-3 w-3" />
+            <span>DOC</span>
+          </div>
+        )}
         {/* Document type count badge */}
         {hasDocTypes && (
           <Badge
@@ -1795,6 +1817,9 @@ function TabNode({
                 ui_name: tab.ui_name || undefined,
                 base_folder_path_template: tab.base_folder_path_template || undefined,  // SSoT: Template from base_folders table
                 warehouse_type: tab.scope,  // SSoT (Feb 2026): Pass scope for correct warehouse_type
+                is_system_tab: tab.is_system_tab,  // SSoT: Pass type flags to editor
+                is_mailbox: tab.is_mailbox,
+                dynamic_type: tab.dynamic_type,
               });
             }}
           >

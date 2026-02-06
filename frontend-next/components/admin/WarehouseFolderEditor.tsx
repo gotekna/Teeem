@@ -11,7 +11,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Save } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Save, Mail, Cog, FolderArchive } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -36,6 +37,9 @@ export interface WarehouseFolderEditData {
   parent_id?: number | null;
   base_folder_id?: number;
   warehouse_type?: string;  // Used to determine which tokens to show
+  is_system_tab?: boolean;  // SSoT: System tab (functional/code-driven)
+  is_mailbox?: boolean;     // SSoT: Mailbox tab
+  dynamic_type?: 'mailbox' | null;  // SSoT: Dynamic folder type
 }
 
 export interface ParentTabOption {
@@ -163,7 +167,28 @@ export function WarehouseFolderEditor({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Warehouse Folder</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle>Edit Warehouse Folder</DialogTitle>
+            {/* SSoT: Folder type indicator (SYS/MBX/DOC) */}
+            {folder && (
+              (folder.is_mailbox || folder.dynamic_type === 'mailbox') ? (
+                <Badge className="bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 border-green-300 dark:border-green-700 gap-1">
+                  <Mail className="h-3 w-3" />
+                  Mailbox
+                </Badge>
+              ) : folder.is_system_tab ? (
+                <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 border-purple-300 dark:border-purple-700 gap-1">
+                  <Cog className="h-3 w-3" />
+                  System
+                </Badge>
+              ) : (
+                <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 border-blue-300 dark:border-blue-700 gap-1">
+                  <FolderArchive className="h-3 w-3" />
+                  Document
+                </Badge>
+              )
+            )}
+          </div>
           <DialogDescription>
             {folder?.display_name} - Configure folder path and name templates
           </DialogDescription>

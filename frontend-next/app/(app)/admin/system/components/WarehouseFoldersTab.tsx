@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Plus, Pencil, Trash2, Lock, FolderOpen, Search, ArrowUpDown, ArrowUp, ArrowDown, Mail, Zap, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, FolderOpen, Search, ArrowUpDown, ArrowUp, ArrowDown, Mail, Zap, ChevronRight, ChevronDown, Cog, FolderArchive } from "lucide-react";
 import { toast } from "sonner";
 
 type SortField = "warehouse_type_name" | "name" | "folder_path_template" | "warehouse_folders_count" | "enabled";
@@ -64,12 +64,14 @@ interface WarehouseFolder {
   full_path_template?: string;
   path_preview?: string;
   is_system: boolean;
+  is_system_tab?: boolean;  // SSoT: System tab (functional/code-driven)
+  is_mailbox?: boolean;     // SSoT: Mailbox tab
   enabled: boolean;
   order_position: number;
   warehouse_folders_count: number;
   can_delete: boolean;
   is_dynamic?: boolean;
-  dynamic_type?: string;
+  dynamic_type?: 'mailbox' | string;
   created_at: string;
   updated_at: string;
 }
@@ -836,9 +838,30 @@ export function WarehouseFoldersTab() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {editingFolder ? "Edit Warehouse Folder" : "Create Warehouse Folder"}
-            </DialogTitle>
+            <div className="flex items-center gap-2">
+              <DialogTitle>
+                {editingFolder ? "Edit Warehouse Folder" : "Create Warehouse Folder"}
+              </DialogTitle>
+              {/* SSoT: Folder type indicator (SYS/MBX/DOC) */}
+              {editingFolder && (
+                (editingFolder.is_mailbox || editingFolder.dynamic_type === 'mailbox') ? (
+                  <Badge className="bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 border-green-300 dark:border-green-700 gap-1">
+                    <Mail className="h-3 w-3" />
+                    Mailbox
+                  </Badge>
+                ) : editingFolder.is_system_tab ? (
+                  <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 border-purple-300 dark:border-purple-700 gap-1">
+                    <Cog className="h-3 w-3" />
+                    System
+                  </Badge>
+                ) : (
+                  <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 border-blue-300 dark:border-blue-700 gap-1">
+                    <FolderArchive className="h-3 w-3" />
+                    Document
+                  </Badge>
+                )
+              )}
+            </div>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-4">

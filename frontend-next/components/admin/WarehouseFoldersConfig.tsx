@@ -2250,6 +2250,25 @@ export function WarehouseFoldersConfig({
               <h2 className="text-lg font-semibold" aria-hidden="true">
                 {editingTab ? `Edit: ${editingTab.display_name}` : "Create New Tab"}
               </h2>
+              {/* SSoT: Folder type indicator (SYS/MBX/DOC) */}
+              {editingTab && (
+                (editingTab.is_mailbox || editingTab.dynamic_type === 'mailbox') ? (
+                  <Badge className="bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 border-green-300 dark:border-green-700 gap-1">
+                    <Mail className="h-3 w-3" />
+                    Mailbox
+                  </Badge>
+                ) : editingTab.is_system_tab ? (
+                  <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 border-purple-300 dark:border-purple-700 gap-1">
+                    <Cog className="h-3 w-3" />
+                    System
+                  </Badge>
+                ) : (
+                  <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 border-blue-300 dark:border-blue-700 gap-1">
+                    <FolderArchive className="h-3 w-3" />
+                    Document
+                  </Badge>
+                )
+              )}
               {/* SSoT: Show subtab indicator when editing a child tab */}
               {(formData.parent_id || editingTab?.parent_id) && (() => {
                 const parentId = formData.parent_id || editingTab?.parent_id;
