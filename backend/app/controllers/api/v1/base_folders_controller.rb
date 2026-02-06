@@ -168,7 +168,7 @@ module Api
           parent_name: base_folder.parent&.name,
           children_count: base_folder.children.count,
           name: base_folder.name,
-          folder_path_template: base_folder.folder_path_template,
+          folder_path_template: base_folder.folder_segment,  # SSoT (Feb 2026): column renamed to folder_segment
           full_path_template: full_template,
           path_preview: base_folder.path_preview,
           is_system: base_folder.is_system,

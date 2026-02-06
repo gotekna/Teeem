@@ -146,6 +146,7 @@ export default function DocsortPage() {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [selectedItem, setSelectedItem] = useState<DocsortItem | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
 
   // Filters
@@ -297,6 +298,7 @@ export default function DocsortPage() {
           description: response.routing?.message || "Successfully routed",
         });
         loadData();
+        setDrawerOpen(false);
         setSelectedItem(null);
       } else {
         toast({
@@ -340,6 +342,7 @@ export default function DocsortPage() {
       await api.delete(`/api/v1/docsort/${item.id}`);
       toast({ title: "Item archived" });
       loadData();
+      setDrawerOpen(false);
       setSelectedItem(null);
     } catch (error) {
       toast({
@@ -582,8 +585,17 @@ export default function DocsortPage() {
                         )}
                       </div>
 
-                      {/* Arrow */}
-                      <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                      {/* Arrow - opens drawer */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedItem(item);
+                          setDrawerOpen(true);
+                        }}
+                        className="p-1 rounded hover:bg-muted transition-colors"
+                      >
+                        <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                      </button>
                     </div>
                   );
                 })}
@@ -593,7 +605,10 @@ export default function DocsortPage() {
         </div>
 
         {/* Right: Detail panel */}
-        <Sheet open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
+        <Sheet open={drawerOpen} onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setSelectedItem(null);
+        }}>
           <SheetContent className="w-[400px] sm:w-[540px]">
             {selectedItem && (
               <>
