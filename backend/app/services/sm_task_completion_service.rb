@@ -278,7 +278,7 @@ class SmTaskCompletionService
     # Create WarehouseDocument (SSoT for all document metadata)
     warehouse_doc = WarehouseDocument.create!(
       source_type: "job",
-      display_name: result[:filename],
+      ui_name: result[:filename],  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: result[:filename],
       content_type: "application/pdf",
       file_size: result[:pdf_content].bytesize,

@@ -130,7 +130,7 @@ class TaskResponseUploader
       storage_blob: blob,
       source_type: "task",
       folder: folder_name,
-      display_name: resolved_display_name,
+      ui_name: resolved_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: upload_result[:filename],
       tenant_id: @tenant.id,
       metadata: {

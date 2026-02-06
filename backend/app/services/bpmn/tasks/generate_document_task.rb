@@ -243,7 +243,7 @@ module Bpmn
 
           WarehouseDocument.create!(
             source_type: "job",
-            display_name: file[:name],
+            ui_name: file[:name],  # SSoT: display_name renamed to ui_name (Feb 2026)
             original_filename: file[:name],
             linkable: job,
             metadata: {

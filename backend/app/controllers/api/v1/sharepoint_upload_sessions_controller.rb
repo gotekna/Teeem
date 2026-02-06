@@ -182,7 +182,7 @@ module Api
           ) || WarehouseDocument.new(source_type: "job", linkable: job)
 
           warehouse_doc.update!(
-            display_name: params[:filename],
+            ui_name: params[:filename],  # SSoT: display_name renamed to ui_name (Feb 2026)
             original_filename: params[:filename],
             folder: params[:folder_path],
             file_size: params[:file_size].to_i,

@@ -259,7 +259,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
                   </div>
                 </div>
               ) : (
-                <DocumentTypesTab />
+                <DocumentTypesTab basePath={`${basePath}/document_types`} />
               )}
             </TabsContent>
           ))}

@@ -174,7 +174,7 @@ class XeroAttachmentSyncService
       documentable: external_invoice,
       storage_blob: storage_blob,
       source_type: "xero",
-      display_name: build_display_name,
+      ui_name: build_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: filename,
       folder: folder,
       tenant_id: @tenant.id,
@@ -213,7 +213,7 @@ class XeroAttachmentSyncService
       documentable: external_invoice,
       storage_blob: nil,  # No auto-generated PDF for bills
       source_type: "xero",
-      display_name: build_display_name,
+      ui_name: build_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: nil,
       folder: folder,
       tenant_id: @tenant.id,
@@ -331,7 +331,7 @@ class XeroAttachmentSyncService
       parent_document_id: parent_doc.id,  # Link to primary PDF instead
       storage_blob: storage_blob,
       source_type: "xero",
-      display_name: filename,
+      ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: filename,
       folder: folder,
       tenant_id: @tenant.id,
