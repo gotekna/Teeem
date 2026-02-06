@@ -31,7 +31,7 @@ namespace :tenant do
       SmScheduleMaster,
       SmScheduleMasterTemplate,
       SyncedEmail,
-      BaseFolder  # Renamed from WarehouseFolder (Feb 2026)
+      WarehouseFolder
     ]
 
     total_updated = 0

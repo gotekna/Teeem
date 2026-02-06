@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-namespace :base_folders do
-  desc "Sync parent-child hierarchy from warehouse_folders to base_folders"
+namespace :warehouse_folders do
+  desc "Sync parent-child hierarchy from warehouse_folders to warehouse_folders"
   task sync_hierarchy: :environment do
     puts "=" * 60
-    puts "Syncing parent-child hierarchy from warehouse_folders to base_folders"
+    puts "Syncing parent-child hierarchy from warehouse_folders to warehouse_folders"
     puts "=" * 60
 
     # Find all warehouse_folders that have a parent_id set
@@ -24,27 +24,27 @@ namespace :base_folders do
         parent_wf = child_wf.parent
         next unless parent_wf
 
-        # Find corresponding base_folders by matching tab_key or display_name
-        child_bf = BaseFolder.joins(:warehouse_type)
+        # Find corresponding warehouse_folders by matching tab_key or display_name
+        child_bf = WarehouseFolder.joins(:warehouse_type)
                             .where(warehouse_types: { code: warehouse_type })
-                            .where("base_folders.name ILIKE ? OR base_folders.name ILIKE ?",
+                            .where("warehouse_folders.name ILIKE ? OR warehouse_folders.name ILIKE ?",
                                    child_wf.tab_key, child_wf.display_name)
                             .first
 
-        parent_bf = BaseFolder.joins(:warehouse_type)
+        parent_bf = WarehouseFolder.joins(:warehouse_type)
                              .where(warehouse_types: { code: warehouse_type })
-                             .where("base_folders.name ILIKE ? OR base_folders.name ILIKE ?",
+                             .where("warehouse_folders.name ILIKE ? OR warehouse_folders.name ILIKE ?",
                                     parent_wf.tab_key, parent_wf.display_name)
                              .first
 
         if child_bf.nil?
-          puts "  ⚠️  No base_folder found for child: #{child_wf.display_name} (#{child_wf.tab_key})"
+          puts "  ⚠️  No warehouse_folder found for child: #{child_wf.display_name} (#{child_wf.tab_key})"
           skipped_count += 1
           next
         end
 
         if parent_bf.nil?
-          puts "  ⚠️  No base_folder found for parent: #{parent_wf.display_name} (#{parent_wf.tab_key})"
+          puts "  ⚠️  No warehouse_folder found for parent: #{parent_wf.display_name} (#{parent_wf.tab_key})"
           skipped_count += 1
           next
         end
@@ -76,9 +76,9 @@ namespace :base_folders do
     puts "=" * 60
 
     # Show final hierarchy
-    puts "\nFinal base_folder hierarchy:"
-    WarehouseType.includes(base_folders: :children).order(:display_name).each do |wt|
-      root_folders = wt.base_folders.where(parent_id: nil).order(:name)
+    puts "\nFinal warehouse_folder hierarchy:"
+    WarehouseType.includes(warehouse_folders: :children).order(:display_name).each do |wt|
+      root_folders = wt.warehouse_folders.where(parent_id: nil).order(:name)
       next if root_folders.empty?
 
       puts "\n[#{wt.display_name}]"
@@ -88,25 +88,25 @@ namespace :base_folders do
     end
   end
 
-  desc "Show current base_folder hierarchy"
+  desc "Show current warehouse_folder hierarchy"
   task show_hierarchy: :environment do
-    puts "Current base_folder hierarchy:"
+    puts "Current warehouse_folder hierarchy:"
     puts "=" * 60
 
-    WarehouseType.includes(base_folders: :children).order(:display_name).each do |wt|
-      root_folders = wt.base_folders.where(parent_id: nil).order(:name)
+    WarehouseType.includes(warehouse_folders: :children).order(:display_name).each do |wt|
+      root_folders = wt.warehouse_folders.where(parent_id: nil).order(:name)
       next if root_folders.empty?
 
-      puts "\n[#{wt.display_name}] (#{wt.base_folders.count} folders)"
+      puts "\n[#{wt.display_name}] (#{wt.warehouse_folders.count} folders)"
       root_folders.each do |bf|
         print_folder_tree(bf, 1)
       end
     end
   end
 
-  desc "Clear all parent-child relationships from base_folders"
+  desc "Clear all parent-child relationships from warehouse_folders"
   task clear_hierarchy: :environment do
-    count = BaseFolder.where.not(parent_id: nil).count
+    count = WarehouseFolder.where.not(parent_id: nil).count
     if count == 0
       puts "No parent-child relationships to clear."
       return
@@ -116,7 +116,7 @@ namespace :base_folders do
     response = STDIN.gets.chomp.downcase
 
     if response == 'y'
-      BaseFolder.update_all(parent_id: nil)
+      WarehouseFolder.update_all(parent_id: nil)
       puts "✅ Cleared all parent-child relationships."
     else
       puts "Cancelled."
@@ -134,10 +134,10 @@ namespace :base_folders do
     end
   end
 
-  desc "Create missing base_folders from warehouse_folders hierarchy"
+  desc "Create missing warehouse_folders from warehouse_folders hierarchy"
   task create_missing: :environment do
     puts "=" * 60
-    puts "Creating missing base_folders from warehouse_folders"
+    puts "Creating missing warehouse_folders from warehouse_folders"
     puts "=" * 60
 
     created_count = 0
@@ -152,8 +152,8 @@ namespace :base_folders do
       wt = WarehouseType.find_by(code: child_wf.warehouse_type)
       next unless wt
 
-      # Check if base_folder already exists for this child
-      child_bf = BaseFolder.where(warehouse_type: wt)
+      # Check if warehouse_folder already exists for this child
+      child_bf = WarehouseFolder.where(warehouse_type: wt)
                           .where("name ILIKE ?", child_wf.display_name)
                           .first
 
@@ -162,20 +162,20 @@ namespace :base_folders do
         next
       end
 
-      # Find parent base_folder
-      parent_bf = BaseFolder.where(warehouse_type: wt)
+      # Find parent warehouse_folder
+      parent_bf = WarehouseFolder.where(warehouse_type: wt)
                            .where("name ILIKE ?", parent_wf.display_name)
                            .first
 
       unless parent_bf
-        puts "  ⚠️  No parent base_folder for: #{parent_wf.display_name} → #{child_wf.display_name}"
+        puts "  ⚠️  No parent warehouse_folder for: #{parent_wf.display_name} → #{child_wf.display_name}"
         skipped_count += 1
         next
       end
 
-      # Create the missing base_folder
+      # Create the missing warehouse_folder
       begin
-        new_bf = BaseFolder.create!(
+        new_bf = WarehouseFolder.create!(
           warehouse_type: wt,
           parent_id: parent_bf.id,
           name: child_wf.display_name,
@@ -203,12 +203,12 @@ namespace :base_folders do
     # Now sync hierarchy for newly created folders
     if created_count > 0
       puts "\nSyncing hierarchy for newly created folders..."
-      Rake::Task['base_folders:sync_hierarchy'].invoke
+      Rake::Task['warehouse_folders:sync_hierarchy'].invoke
     end
   end
 
-  desc "Full sync: create missing base_folders then sync hierarchy"
+  desc "Full sync: create missing warehouse_folders then sync hierarchy"
   task full_sync: :environment do
-    Rake::Task['base_folders:create_missing'].invoke
+    Rake::Task['warehouse_folders:create_missing'].invoke
   end
 end

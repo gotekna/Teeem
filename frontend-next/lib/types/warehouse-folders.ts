@@ -53,7 +53,7 @@ export interface WarehouseFolder {
   uses_custom_path: boolean;
   warehouse_type_override: 'corporate' | 'contacts';
   warehouse_base_path: string | null;
-  base_folder_path_template: string | null;  // SSoT: Template from base_folders table
+  base_folder_path_template: string | null;  // SSoT: Template from warehouse_folders table (database column name)
   effective_warehouse_path: string | null;
   upload_path: string | null;  // For uploads (derived from effective_warehouse_path)
   inherited_template: string | null;

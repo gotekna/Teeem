@@ -25,7 +25,7 @@ class WarehouseType < ApplicationRecord
   UNASSIGNED_CODE = "unassigned".freeze
 
   # Associations
-  has_many :base_folders, dependent: :destroy
+  has_many :warehouse_folders, dependent: :destroy
   has_many :document_types, dependent: :nullify
 
   # Validations
@@ -99,7 +99,7 @@ class WarehouseType < ApplicationRecord
   # System types and types with folders cannot be deleted
   def can_delete?
     return false if is_system
-    return false if base_folders.exists?
+    return false if warehouse_folders.exists?
     return false if document_types.exists?
 
     true
@@ -117,7 +117,7 @@ class WarehouseType < ApplicationRecord
       is_system: is_system,
       enabled: enabled,
       order_position: order_position,
-      base_folders_count: base_folders.count,
+      warehouse_folders_count: warehouse_folders.count,
       can_delete: can_delete?,
       created_at: created_at,
       updated_at: updated_at

@@ -46,7 +46,7 @@ export type PlaceholderScope =
   | "storage"
   | "plans"  // Plan Types file naming template
   | "all"
-  // Warehouse-type-specific scopes (for base folder token filtering)
+  // Warehouse-type-specific scopes (for warehouse folder token filtering)
   | "warehouse_task"
   | "warehouse_job"
   | "warehouse_contact"

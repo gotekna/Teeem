@@ -1079,12 +1079,12 @@ class MicrosoftGraphClient
   end
 
   # SSoT: Create subfolders from WarehouseFolder hierarchy
-  # SSoT (Feb 2026): BaseFolder is THE source of truth for folder structure
+  # SSoT (Feb 2026): WarehouseFolder is THE source of truth for folder structure
   def create_subfolders_from_base_folders(parent_folder_id)
     folder_id_map = {}
 
-    # Get all job-scope BaseFolders with storage enabled
-    root_folders = BaseFolder.for_jobs
+    # Get all job-scope WarehouseFolders with storage enabled
+    root_folders = WarehouseFolder.for_jobs
                          .where(warehouse_enabled: true)
                          .enabled
                          .root_folders
@@ -1101,7 +1101,7 @@ class MicrosoftGraphClient
   # Alias for backwards compatibility
   alias_method :create_subfolders_from_warehouse_folders, :create_subfolders_from_base_folders
 
-  # Recursively create folders for a BaseFolder and its children
+  # Recursively create folders for a WarehouseFolder and its children
   def create_warehouse_folder_recursive(tab, parent_folder_id, folder_id_map)
     # Use display_name as folder name (SSoT)
     folder_name = tab.display_name

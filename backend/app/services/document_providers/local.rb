@@ -328,9 +328,9 @@ module DocumentProviders
       filename.to_s.gsub(/[<>:"|?*\\]/, "_").strip
     end
 
-    # SSoT (Feb 2026): Create subfolders from BaseFolder hierarchy
+    # SSoT (Feb 2026): Create subfolders from WarehouseFolder hierarchy
     def create_subfolders_from_base_folders(parent_path)
-      root_folders = BaseFolder.for_jobs
+      root_folders = WarehouseFolder.for_jobs
                            .where(warehouse_enabled: true)
                            .enabled
                            .root_folders

@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 namespace :base_folders do
-  desc "Audit and fix is_system flag on base folders (only code-required folders should be system)"
+  desc "Audit and fix is_system flag on warehouse folders (only code-required folders should be system)"
   task audit_system: :environment do
-    # SSoT: Only ROOT/PRIMARY base folders that code depends on are system folders
+    # SSoT: Only ROOT/PRIMARY warehouse folders that code depends on are system folders
     # Code references these in: warehouse_document.rb, warehouse_provider.rb, sm_task_attachment.rb
     ROOT_FOLDERS = {
       "job" => ["Jobs"],
@@ -23,7 +23,7 @@ namespace :base_folders do
     puts "=" * 60
 
     issues = []
-    BaseFolder.includes(:warehouse_type).find_each do |bf|
+    WarehouseFolder.includes(:warehouse_type).find_each do |bf|
       type_code = bf.warehouse_type&.code
       required_names = ROOT_FOLDERS[type_code] || []
       should_be_system = required_names.include?(bf.name)
@@ -34,7 +34,7 @@ namespace :base_folders do
     end
 
     if issues.empty?
-      puts "✓ All base folders have correct is_system flag"
+      puts "✓ All warehouse folders have correct is_system flag"
     else
       puts "Found #{issues.count} folders with incorrect is_system flag:\n"
       issues.each do |issue|
@@ -56,7 +56,7 @@ namespace :base_folders do
     end
 
     puts "\nSummary:"
-    puts "  System folders: #{BaseFolder.where(is_system: true).count}"
-    puts "  Non-system folders: #{BaseFolder.where(is_system: false).count}"
+    puts "  System folders: #{WarehouseFolder.where(is_system: true).count}"
+    puts "  Non-system folders: #{WarehouseFolder.where(is_system: false).count}"
   end
 end

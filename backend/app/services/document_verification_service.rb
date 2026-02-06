@@ -784,9 +784,9 @@ class DocumentVerificationService
   end
 
   def build_document_types_section
-    # Get document types from database (folder is computed from primary BaseFolder)
-    # SSoT (Feb 2026): BIG BANG - use base_folder_document_types, not warehouse_folder
-    doc_types = DocumentType.active.includes(base_folder_document_types: :base_folder).order(:name)
+    # Get document types from database (folder is computed from primary WarehouseFolder)
+    # SSoT (Feb 2026): BIG BANG - use warehouse_folder_document_types, not deprecated aliases
+    doc_types = DocumentType.active.includes(warehouse_folder_document_types: :warehouse_folder).order(:name)
 
     if doc_types.any?
       # Group by computed folder for better organization

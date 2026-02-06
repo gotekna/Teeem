@@ -8,13 +8,13 @@ module Api
     # Replaces the hardcoded WAREHOUSE_TYPES constant with database table
     #
     class WarehouseTypesController < ApplicationController
-      before_action :set_warehouse_type, only: [:show, :update, :destroy, :update_base_folders]
+      before_action :set_warehouse_type, only: [:show, :update, :destroy, :update_warehouse_folders]
       before_action :set_warehouse_type_by_code, only: [:records]
 
       # GET /api/v1/warehouse_types
       def index
-        # SSoT (Feb 2026): Eager load document_types for base_folders to avoid N+1
-        @warehouse_types = WarehouseType.includes(base_folders: [:document_types, :base_folder_document_types, :parent]).visible
+        # SSoT (Feb 2026): Eager load document_types for warehouse_folders to avoid N+1
+        @warehouse_types = WarehouseType.includes(warehouse_folders: [:document_types, :warehouse_folder_document_types, :parent]).visible
 
         # Filter by enabled status
         @warehouse_types = @warehouse_types.enabled unless params[:include_disabled] == "true"
@@ -51,7 +51,7 @@ module Api
       #       displayName: "Job",
       #       iconName: "briefcase",
       #       orderPosition: 1,
-      #       baseFolders: [{ id: "bf-123", name: "Plans", children: [...] }],
+      #       warehouseFolders: [{ id: "wf-123", name: "Plans", children: [...] }],
       #       fileCount: 1234
       #     }
       #   ],
@@ -59,9 +59,9 @@ module Api
       #   total: 80149
       # }
       def tree
-        # Get enabled warehouse types with their base folders and nested warehouse folders
+        # Get enabled warehouse types with their warehouse folders and nested children
         warehouse_types = WarehouseType.enabled.ordered.includes(
-          base_folders: { children: :children }
+          warehouse_folders: { children: :children }
         )
 
         # Get document counts by source_type
@@ -137,7 +137,7 @@ module Api
         unless @warehouse_type.can_delete?
           return render json: {
             success: false,
-            error: "Cannot delete warehouse type with associated base folders or document types"
+            error: "Cannot delete warehouse type with associated warehouse folders or document types"
           }, status: :unprocessable_entity
         end
 
@@ -145,24 +145,24 @@ module Api
         render json: { success: true }
       end
 
-      # PATCH /api/v1/warehouse_types/:id/update_base_folders
-      # Batch update base folder assignments for a warehouse type
+      # PATCH /api/v1/warehouse_types/:id/update_warehouse_folders
+      # Batch update warehouse folder assignments for a warehouse type
       #
       # Folders removed from this type are moved to the "unassigned" type
       # (warehouse_type_id has NOT NULL constraint, so folders must belong somewhere)
-      def update_base_folders
-        base_folder_ids = params[:base_folder_ids] || []
+      def update_warehouse_folders
+        warehouse_folder_ids = params[:warehouse_folder_ids] || params[:base_folder_ids] || []
 
         # Move removed folders to unassigned type (instead of deleting)
-        removed_folders = @warehouse_type.base_folders.where.not(id: base_folder_ids)
+        removed_folders = @warehouse_type.warehouse_folders.where.not(id: warehouse_folder_ids)
         if removed_folders.exists?
           unassigned_type = WarehouseType.unassigned
           removed_folders.update_all(warehouse_type_id: unassigned_type.id)
         end
 
         # Assign selected folders to this type (may steal from other types)
-        if base_folder_ids.present?
-          BaseFolder.where(id: base_folder_ids).update_all(warehouse_type_id: @warehouse_type.id)
+        if warehouse_folder_ids.present?
+          WarehouseFolder.where(id: warehouse_folder_ids).update_all(warehouse_type_id: @warehouse_type.id)
         end
 
         # Reload and return updated warehouse type
@@ -323,9 +323,9 @@ module Api
       # Build full path by walking up parent hierarchy
       # e.g., Statement → Balance Sheet → Xero = "Xero/Balance Sheet/Statement"
       # ALWAYS use name (not folder_path_template) to avoid duplicating the warehouse type prefix
-      def build_ancestor_path(base_folder)
+      def build_ancestor_path(warehouse_folder)
         path_parts = []
-        current = base_folder
+        current = warehouse_folder
 
         while current.present?
           # Always use name - folder_path_template may contain full paths that would duplicate
@@ -347,8 +347,8 @@ module Api
           is_system: warehouse_type.is_system,
           enabled: warehouse_type.enabled,
           order_position: warehouse_type.order_position,
-          base_folders_count: warehouse_type.base_folders.count,
-          base_folders: warehouse_type.base_folders.enabled.ordered.map do |bf|
+          warehouse_folders_count: warehouse_type.warehouse_folders.count,
+          warehouse_folders: warehouse_type.warehouse_folders.enabled.ordered.map do |wf|
             # SSoT (Feb 2026): Return full_path_template for tree building
             # FRC: Build full path by combining:
             # 1. Warehouse type's base template (e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}")
@@ -360,7 +360,7 @@ module Api
             wt_template = warehouse_type.folder_path_template.presence
 
             # Build path from parent hierarchy
-            ancestor_path = build_ancestor_path(bf)
+            ancestor_path = build_ancestor_path(wf)
 
             full_template = if wt_template.blank?
               # No warehouse type template → just use ancestor path
@@ -379,48 +379,47 @@ module Api
               end
             end
 
-            # SSoT (Feb 2026): BaseFolder now contains all UI config directly
-            # No more WarehouseFolder lookup - eliminated in BIG BANG migration
-            # Document types linked via base_folder_document_types join table
-            document_types = bf.document_types.includes(:base_folder_document_types)
+            # SSoT (Feb 2026): WarehouseFolder now contains all UI config directly
+            # Document types linked via warehouse_folder_document_types join table
+            document_types = wf.document_types.includes(:warehouse_folder_document_types)
 
             {
-              id: bf.id,
-              name: bf.name,
-              parent_id: bf.parent_id,
-              parent_name: bf.parent&.name,
-              children_count: bf.children.count,
-              folder_segment: bf.folder_segment,
-              folder_path_suffix: bf.folder_path_suffix,
+              id: wf.id,
+              name: wf.name,
+              parent_id: wf.parent_id,
+              parent_name: wf.parent&.name,
+              children_count: wf.children.count,
+              folder_segment: wf.folder_segment,
+              folder_path_suffix: wf.folder_path_suffix,
               full_path_template: full_template,
-              full_folder_path: bf.full_folder_path,
+              full_folder_path: wf.full_folder_path,
               scope_base_template: wt_template,  # SSoT: Warehouse type's base template for folder editor grey prefix
-              path_preview: bf.path_preview,
-              is_system: bf.is_system,
+              path_preview: wf.path_preview,
+              is_system: wf.is_system,
               warehouse_type_code: warehouse_type.code,
-              # SSoT (Feb 2026): UI config now directly on BaseFolder
-              display_name: bf.display_name,
-              icon_name: bf.icon_name,
-              ui_name_template: bf.ui_name_template,
-              download_name_template: bf.download_name_template,
-              tab_key: bf.tab_key,
-              tab_group: bf.tab_group,
-              display_mode: bf.display_mode,
-              hidden_by_default: bf.hidden_by_default,
-              warehouse_enabled: bf.warehouse_enabled,
-              is_photo_category: bf.is_photo_category,
-              is_cad_category: bf.is_cad_category,
+              # SSoT (Feb 2026): UI config now directly on WarehouseFolder
+              display_name: wf.display_name,
+              icon_name: wf.icon_name,
+              ui_name_template: wf.ui_name_template,
+              download_name_template: wf.download_name_template,
+              tab_key: wf.tab_key,
+              tab_group: wf.tab_group,
+              display_mode: wf.display_mode,
+              hidden_by_default: wf.hidden_by_default,
+              warehouse_enabled: wf.warehouse_enabled,
+              is_photo_category: wf.is_photo_category,
+              is_cad_category: wf.is_cad_category,
               # Document types via join table - SSoT: NO FALLBACKS (Feb 2026)
               document_types: document_types.map { |dt|
-                bfdt = dt.base_folder_document_types.find { |j| j.base_folder_id == bf.id }
+                wfdt = dt.warehouse_folder_document_types.find { |j| j.warehouse_folder_id == wf.id }
                 {
                   id: dt.id,
                   name: dt.name,
                   abbreviation: dt.abbreviation,
-                  is_primary: bfdt&.is_primary || false,
+                  is_primary: wfdt&.is_primary || false,
                   # SSoT: Templates from join table ONLY - no fallback to DocumentType
-                  ui_name_template: bfdt&.ui_name_template,
-                  download_name_template: bfdt&.download_name_template
+                  ui_name_template: wfdt&.ui_name_template,
+                  download_name_template: wfdt&.download_name_template
                 }
               }
             }
@@ -471,8 +470,8 @@ module Api
 
       # Build a tree node for a warehouse type
       def warehouse_type_tree_node(warehouse_type, counts)
-        # Get enabled base folders for this warehouse type
-        base_folders = warehouse_type.base_folders.enabled.ordered
+        # Get enabled warehouse folders for this warehouse type
+        warehouse_folders = warehouse_type.warehouse_folders.enabled.ordered
 
         # Get count for this warehouse type
         file_count = counts[warehouse_type.code] || 0
@@ -486,16 +485,16 @@ module Api
           folderPathTemplate: warehouse_type.folder_path_template,
           pathPreview: resolve_template_tokens(warehouse_type.folder_path_template),
           fileCount: file_count,
-          baseFolders: base_folders.map { |bf| base_folder_tree_node(bf, warehouse_type) }
+          warehouseFolders: warehouse_folders.map { |wf| warehouse_folder_tree_node(wf, warehouse_type) }
         }
       end
 
-      # Build a tree node for a base folder
-      # SSoT (Feb 2026): BaseFolder is THE ONE - no more WarehouseFolder lookup
-      def base_folder_tree_node(base_folder, warehouse_type)
+      # Build a tree node for a warehouse folder
+      # SSoT (Feb 2026): WarehouseFolder is THE ONE
+      def warehouse_folder_tree_node(warehouse_folder, warehouse_type)
         # Build full path template
         wt_template = warehouse_type.folder_path_template.presence
-        ancestor_path = build_ancestor_path(base_folder)
+        ancestor_path = build_ancestor_path(warehouse_folder)
 
         full_template = if wt_template.blank?
           ancestor_path
@@ -509,41 +508,41 @@ module Api
           end
         end
 
-        # SSoT: Children come directly from BaseFolder (has parent/children self-ref)
-        children = base_folder.children
+        # SSoT: Children come directly from WarehouseFolder (has parent/children self-ref)
+        children = warehouse_folder.children
           .where(warehouse_enabled: true)
           .enabled
           .ordered
-          .map { |child| base_folder_tree_node(child, warehouse_type) }
+          .map { |child| warehouse_folder_tree_node(child, warehouse_type) }
 
         {
-          id: "bf-#{base_folder.id}",
-          name: base_folder.name,
-          parentId: base_folder.parent_id,
+          id: "wf-#{warehouse_folder.id}",
+          name: warehouse_folder.name,
+          parentId: warehouse_folder.parent_id,
           folderPathTemplate: full_template,
-          fullFolderPath: base_folder.full_folder_path,
-          folderSegment: base_folder.folder_segment,
-          folderPathSuffix: base_folder.folder_path_suffix,
-          pathPreview: base_folder.path_preview,
-          isSystem: base_folder.is_system,
+          fullFolderPath: warehouse_folder.full_folder_path,
+          folderSegment: warehouse_folder.folder_segment,
+          folderPathSuffix: warehouse_folder.folder_path_suffix,
+          pathPreview: warehouse_folder.path_preview,
+          isSystem: warehouse_folder.is_system,
           children: children,
-          # SSoT (Feb 2026): UI config now directly on BaseFolder
-          displayName: base_folder.display_name,
-          iconName: base_folder.icon_name || "folder",
-          uiNameTemplate: base_folder.ui_name_template,
-          downloadNameTemplate: base_folder.download_name_template,
-          tabKey: base_folder.tab_key,
-          tabGroup: base_folder.tab_group,
-          displayMode: base_folder.display_mode,
-          hiddenByDefault: base_folder.hidden_by_default,
-          warehouseEnabled: base_folder.warehouse_enabled,
-          isPhotoCategory: base_folder.is_photo_category,
-          isCadCategory: base_folder.is_cad_category
+          # SSoT (Feb 2026): UI config now directly on WarehouseFolder
+          displayName: warehouse_folder.display_name,
+          iconName: warehouse_folder.icon_name || "folder",
+          uiNameTemplate: warehouse_folder.ui_name_template,
+          downloadNameTemplate: warehouse_folder.download_name_template,
+          tabKey: warehouse_folder.tab_key,
+          tabGroup: warehouse_folder.tab_group,
+          displayMode: warehouse_folder.display_mode,
+          hiddenByDefault: warehouse_folder.hidden_by_default,
+          warehouseEnabled: warehouse_folder.warehouse_enabled,
+          isPhotoCategory: warehouse_folder.is_photo_category,
+          isCadCategory: warehouse_folder.is_cad_category
         }
       end
 
       # SSoT (Feb 2026): No cascade needed - paths are computed dynamically
-      # When warehouse_type.folder_path_template changes, all related base_folder
+      # When warehouse_type.folder_path_template changes, all related warehouse_folder
       # paths automatically update because full_folder_path is computed at runtime
       # from: warehouse_type.folder_path_template + parent_chain_segments + folder_segment
       def cascade_template_change(_old_template, _new_template)

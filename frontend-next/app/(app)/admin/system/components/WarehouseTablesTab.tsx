@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WarehouseTypesTab } from "./WarehouseTypesTab";
-import { BaseFoldersTab } from "./BaseFoldersTab";
+import { WarehouseFoldersTab } from "./WarehouseFoldersTab";
 import { Database, FolderOpen } from "lucide-react";
 
 /**
@@ -12,7 +12,7 @@ import { Database, FolderOpen } from "lucide-react";
  * SSoT: Database-driven warehouse configuration (Feb 2026)
  * Contains sub-tabs for:
  * - Warehouse Types: The types of warehouse storage (job, contact, email, etc.)
- * - Base Folders: The folder configurations for each warehouse type
+ * - Warehouse Folders: The folder configurations for each warehouse type
  */
 
 export function WarehouseTablesTab() {
@@ -30,11 +30,11 @@ export function WarehouseTablesTab() {
             Warehouse Types
           </TabsTrigger>
           <TabsTrigger
-            value="base_folders"
+            value="warehouse_folders"
             className="h-7 px-3 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
           >
             <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
-            Base Folders
+            Warehouse Folders
           </TabsTrigger>
         </TabsList>
 
@@ -42,8 +42,8 @@ export function WarehouseTablesTab() {
           <WarehouseTypesTab />
         </TabsContent>
 
-        <TabsContent value="base_folders" className="mt-4">
-          <BaseFoldersTab />
+        <TabsContent value="warehouse_folders" className="mt-4">
+          <WarehouseFoldersTab />
         </TabsContent>
       </Tabs>
     </div>

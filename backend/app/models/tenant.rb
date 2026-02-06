@@ -66,8 +66,8 @@ class Tenant < ApplicationRecord
   # Template packs (for sharing configuration between tenants)
   has_many :template_packs, foreign_key: :source_tenant_id, dependent: :destroy
 
-  # SSoT (Feb 2026): Base folders are now tenant-scoped (replaced warehouse_folders)
-  has_many :base_folders, dependent: :destroy
+  # SSoT (Feb 2026): Warehouse folders are tenant-scoped
+  has_many :warehouse_folders, dependent: :destroy
   has_many :warehouse_types, dependent: :destroy
 
   # Onboarding - internal job used for tracking onboarding progress

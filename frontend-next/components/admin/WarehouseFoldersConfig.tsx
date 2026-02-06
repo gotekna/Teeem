@@ -2587,15 +2587,15 @@ export function WarehouseFoldersConfig({
                   )}
                 </div>
 
-                {/* Base Folder Path (read-only from base_folders table) */}
+                {/* Warehouse Folder Path (read-only from warehouse_folders table) */}
                 {editingTab?.base_folder_path_template && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Base Folder Path</Label>
+                    <Label className="text-xs">Warehouse Folder Path</Label>
                     <div className="p-2 border rounded bg-muted/30 font-mono text-xs text-muted-foreground">
                       {editingTab.base_folder_path_template}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Inherited from base folder configuration
+                      Inherited from warehouse folder configuration
                     </p>
                   </div>
                 )}

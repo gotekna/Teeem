@@ -266,17 +266,17 @@ interface WarehouseTypeTreeNode {
   folderPathTemplate: string | null;
   pathPreview?: string;
   fileCount: number;
-  baseFolders: BaseFolderTreeNode[];
+  warehouseFolders: WarehouseFolderTreeNode2[];
 }
 
-interface BaseFolderTreeNode {
-  id: string;  // "bf-123"
+interface WarehouseFolderTreeNode2 {
+  id: string;  // "wf-123"
   name: string;
   parentId: number | null;
   folderPathTemplate: string | null;
   pathPreview?: string;
   isSystem: boolean;
-  children: WarehouseFolderTreeNode[];
+  children: WarehouseFolderChildNode[];
   warehouseFolder: {
     id: number;
     displayName: string;
@@ -287,8 +287,8 @@ interface BaseFolderTreeNode {
   } | null;
 }
 
-interface WarehouseFolderTreeNode {
-  id: string;  // "wf-456"
+interface WarehouseFolderChildNode {
+  id: string;  // "wfc-456"
   name: string;
   type: "category";
   iconName: string | null;
@@ -296,7 +296,7 @@ interface WarehouseFolderTreeNode {
   folderPath: string | null;
   fullPath: string | null;
   fileCount: number;
-  children: WarehouseFolderTreeNode[];
+  children: WarehouseFolderChildNode[];
 }
 
 // Database record node (Feb 2026)
@@ -1448,14 +1448,14 @@ export default function AllDocumentsPage() {
       }));
     };
 
-    // Convert WarehouseFolderTreeNode (tabs) to TreeNode recursively
+    // Convert WarehouseFolderChildNode (tabs) to TreeNode recursively
     // sourceType is passed down from warehouse type for WarehouseDocument queries
-    const convertWarehouseFolderToTreeNode = (folder: WarehouseFolderTreeNode, sourceType: string): TreeNode => {
+    const convertWarehouseFolderChildToTreeNode = (folder: WarehouseFolderChildNode, sourceType: string): TreeNode => {
       const folderPath = folder.fullPath || folder.folderPath;
       // Check if path contains template tokens (virtual folder)
       const isVirtual = folderPath?.includes('{{') || false;
       const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath); // Don't build S3 files for virtual folders
-      const children = folder.children.map(child => convertWarehouseFolderToTreeNode(child, sourceType));
+      const children = folder.children.map(child => convertWarehouseFolderChildToTreeNode(child, sourceType));
 
       return {
         id: folder.id,
@@ -1470,23 +1470,23 @@ export default function AllDocumentsPage() {
       };
     };
 
-    // Convert BaseFolderTreeNode to TreeNode
+    // Convert WarehouseFolderTreeNode2 to TreeNode
     // sourceType is passed down from warehouse type for WarehouseDocument queries
-    const convertBaseFolderToTreeNode = (baseFolder: BaseFolderTreeNode, sourceType: string): TreeNode => {
+    const convertWarehouseFolderToTreeNode2 = (warehouseFolder: WarehouseFolderTreeNode2, sourceType: string): TreeNode => {
       // Use warehouse folder's folder_path if available for S3 loading
-      const folderPath = baseFolder.warehouseFolder?.folderPath || baseFolder.folderPathTemplate;
+      const folderPath = warehouseFolder.warehouseFolder?.folderPath || warehouseFolder.folderPathTemplate;
       // Check if path contains template tokens (virtual folder)
       const isVirtual = folderPath?.includes('{{') || false;
       const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath); // Don't build S3 files for virtual folders
-      const children = baseFolder.children.map(child => convertWarehouseFolderToTreeNode(child, sourceType));
+      const children = warehouseFolder.children.map(child => convertWarehouseFolderChildToTreeNode(child, sourceType));
 
       return {
-        id: baseFolder.id,
-        name: baseFolder.warehouseFolder?.displayName || baseFolder.name,
+        id: warehouseFolder.id,
+        name: warehouseFolder.warehouseFolder?.displayName || warehouseFolder.name,
         type: "category" as const,
-        icon: getIconComponent(baseFolder.warehouseFolder?.iconName || null, baseFolder.name),
+        icon: getIconComponent(warehouseFolder.warehouseFolder?.iconName || null, warehouseFolder.name),
         fullPath: folderPath || undefined,
-        pathTemplate: baseFolder.pathPreview || baseFolder.folderPathTemplate || undefined,
+        pathTemplate: warehouseFolder.pathPreview || warehouseFolder.folderPathTemplate || undefined,
         fileCount: 0,
         sourceType,
         isVirtual,
@@ -1495,7 +1495,7 @@ export default function AllDocumentsPage() {
     };
 
     // Convert a RecordNode to TreeNode (Feb 2026)
-    // Record nodes show actual database records (jobs, contacts, etc.) with base folders as children
+    // Record nodes show actual database records (jobs, contacts, etc.) with warehouse folders as children
     const convertRecordToTreeNode = (record: RecordNode, warehouseType: WarehouseTypeTreeNode): TreeNode => {
       // Get the appropriate icon for this record type
       const recordIcon = getIconComponent(warehouseType.iconName, warehouseType.code);
@@ -1503,52 +1503,52 @@ export default function AllDocumentsPage() {
       // Display name: code + name (e.g., "J-001 Smith Residence")
       const displayName = record.code ? `${record.code} ${record.name}` : record.name;
 
-      // Helper to find child base folders of a given parent
-      const findChildBaseFolders = (parentId: number | null): BaseFolderTreeNode[] => {
-        return warehouseType.baseFolders.filter(bf => {
-          // Extract numeric ID from "bf-123" format
-          const bfParentId = bf.parentId;
+      // Helper to find child warehouse folders of a given parent
+      const findChildWarehouseFolders = (parentId: number | null): WarehouseFolderTreeNode2[] => {
+        return warehouseType.warehouseFolders.filter(wf => {
+          // Extract numeric ID from "wf-123" format
+          const wfParentId = wf.parentId;
           if (parentId === null) {
-            return bfParentId === null;
+            return wfParentId === null;
           }
-          return bfParentId === parentId;
+          return wfParentId === parentId;
         });
       };
 
-      // Recursively convert base folder with its child base folders
-      const convertBaseFolderWithHierarchy = (baseFolder: BaseFolderTreeNode): TreeNode => {
-        const folderPath = baseFolder.warehouseFolder?.folderPath || baseFolder.folderPathTemplate;
+      // Recursively convert warehouse folder with its child warehouse folders
+      const convertWarehouseFolderWithHierarchy = (warehouseFolder: WarehouseFolderTreeNode2): TreeNode => {
+        const folderPath = warehouseFolder.warehouseFolder?.folderPath || warehouseFolder.folderPathTemplate;
         const isVirtual = folderPath?.includes('{{') || false;
         const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath);
 
         // Get warehouse folder children (tabs)
-        const warehouseFolderChildren = baseFolder.children.map(child =>
-          convertWarehouseFolderToTreeNode(child, warehouseType.code)
+        const warehouseFolderChildren = warehouseFolder.children.map(child =>
+          convertWarehouseFolderChildToTreeNode(child, warehouseType.code)
         );
 
-        // Get child base folders (hierarchical folders like PreCon > BA Approval)
-        // Extract numeric ID from "bf-123" format
-        const numericId = parseInt(baseFolder.id.replace('bf-', ''), 10);
-        const childBaseFolders = findChildBaseFolders(numericId);
-        const childBaseFolderNodes = childBaseFolders.map(child => convertBaseFolderWithHierarchy(child));
+        // Get child warehouse folders (hierarchical folders like PreCon > BA Approval)
+        // Extract numeric ID from "wf-123" format
+        const numericId = parseInt(warehouseFolder.id.replace('wf-', ''), 10);
+        const childWarehouseFolders = findChildWarehouseFolders(numericId);
+        const childWarehouseFolderNodes = childWarehouseFolders.map(child => convertWarehouseFolderWithHierarchy(child));
 
         return {
-          id: baseFolder.id,
-          name: baseFolder.warehouseFolder?.displayName || baseFolder.name,
+          id: warehouseFolder.id,
+          name: warehouseFolder.warehouseFolder?.displayName || warehouseFolder.name,
           type: "category" as const,
-          icon: getIconComponent(baseFolder.warehouseFolder?.iconName || null, baseFolder.name),
+          icon: getIconComponent(warehouseFolder.warehouseFolder?.iconName || null, warehouseFolder.name),
           fullPath: folderPath || undefined,
-          pathTemplate: baseFolder.pathPreview || baseFolder.folderPathTemplate || undefined,
+          pathTemplate: warehouseFolder.pathPreview || warehouseFolder.folderPathTemplate || undefined,
           fileCount: 0,
           sourceType: warehouseType.code,
           isVirtual,
-          children: [...childBaseFolderNodes, ...warehouseFolderChildren, ...s3Files],
+          children: [...childWarehouseFolderNodes, ...warehouseFolderChildren, ...s3Files],
         };
       };
 
-      // Get only root-level base folders (parentId === null) and build hierarchy from there
-      const rootBaseFolders = findChildBaseFolders(null);
-      const children = rootBaseFolders.map(bf => convertBaseFolderWithHierarchy(bf));
+      // Get only root-level warehouse folders (parentId === null) and build hierarchy from there
+      const rootWarehouseFolders = findChildWarehouseFolders(null);
+      const children = rootWarehouseFolders.map(wf => convertWarehouseFolderWithHierarchy(wf));
 
       return {
         id: `record-${warehouseType.code}-${record.id}`,
@@ -1601,9 +1601,9 @@ export default function AllDocumentsPage() {
           type: "loading" as const,
         }];
       } else {
-        // No records loaded yet - show base folders directly (existing behavior)
+        // No records loaded yet - show warehouse folders directly (existing behavior)
         // This is for when the warehouse type is collapsed or doesn't support records
-        children = warehouseType.baseFolders.map(bf => convertBaseFolderToTreeNode(bf, warehouseType.code));
+        children = warehouseType.warehouseFolders.map(wf => convertWarehouseFolderToTreeNode2(wf, warehouseType.code));
       }
 
       return {

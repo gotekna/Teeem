@@ -423,10 +423,10 @@ module Api
       end
 
       # GET /api/v1/jobs/:id/documentation_tabs
-      # SSoT: Now uses BaseFolder (warehouse_type: 'job', tab_group: 'documents')
+      # SSoT: Now uses WarehouseFolder (warehouse_type: 'job', tab_group: 'documents')
       def documentation_tabs
         # First check for job-specific tabs, fall back to global job document tabs
-        job_tabs = BaseFolder.for_warehouse_type('job')
+        job_tabs = WarehouseFolder.for_warehouse_type('job')
                             .where(job_id: @job.id, tab_group: 'documents')
                             .where(parent_id: nil)
                             .enabled
@@ -435,7 +435,7 @@ module Api
 
         # If no job-specific tabs, use global job document tabs
         if job_tabs.empty?
-          job_tabs = BaseFolder.for_warehouse_type('job')
+          job_tabs = WarehouseFolder.for_warehouse_type('job')
                               .where(job_id: nil, tab_group: 'documents')
                               .where(parent_id: nil)
                               .enabled
@@ -714,8 +714,8 @@ module Api
             # Attachments
             secondary_job.attachments.update_all(attachable_id: @job.id) if secondary_job.respond_to?(:attachments)
 
-            # Job-specific BaseFolders (SSoT: replaces job_documentation_tabs)
-            BaseFolder.for_warehouse_type('job').where(job_id: secondary_job.id).update_all(job_id: @job.id)
+            # Job-specific WarehouseFolders (SSoT: replaces job_documentation_tabs)
+            WarehouseFolder.for_warehouse_type('job').where(job_id: secondary_job.id).update_all(job_id: @job.id)
 
             # Fill in any blank fields on primary job from secondary job
             Job.column_names.each do |col|
@@ -786,8 +786,8 @@ module Api
           return render json: { success: true, data: { plans: [], folder_exists: false } }
         end
 
-        # SSoT (Feb 2026): Get plans folder name from BaseFolder
-        plans_folder_name = BaseFolder.folder_name_for("job", "plans", "04 Plans")
+        # SSoT (Feb 2026): Get plans folder name from WarehouseFolder
+        plans_folder_name = WarehouseFolder.folder_name_for("job", "plans", "04 Plans")
         plans_folder_path = "#{job_folder_path}/#{plans_folder_name}"
 
         # Check if plans folder exists
@@ -884,7 +884,7 @@ module Api
 
         # Build folder path using SSoT pattern
         job_folder_path = build_job_folder_path(@job)
-        contracts_folder_name = BaseFolder.folder_name_for("job", "contracts", "01 Contract Documents")
+        contracts_folder_name = WarehouseFolder.folder_name_for("job", "contracts", "01 Contract Documents")
         folder_path = "#{job_folder_path}/#{contracts_folder_name}"
 
         # Ensure folder exists
@@ -923,7 +923,7 @@ module Api
 
         # Build folder path using SSoT pattern
         job_folder_path = build_job_folder_path(@job)
-        contracts_folder_name = BaseFolder.folder_name_for("job", "contracts", "01 Contract Documents")
+        contracts_folder_name = WarehouseFolder.folder_name_for("job", "contracts", "01 Contract Documents")
         folder_path = "#{job_folder_path}/#{contracts_folder_name}"
 
         # Ensure folder exists and upload

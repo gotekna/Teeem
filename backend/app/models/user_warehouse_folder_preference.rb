@@ -1,11 +1,10 @@
 # SSoT: User-level tab preferences
 # Stores per-user customizations for tab visibility, order, and default tab selection
-# Works with BaseFolder to allow users to personalize their tab experience
-# (Feb 2026: WarehouseFolder eliminated, BaseFolder is THE ONE for folder structure)
+# Works with WarehouseFolder to allow users to personalize their tab experience
 class UserWarehouseFolderPreference < ApplicationRecord
   # Table was renamed from user_entity_tab_preferences
   self.table_name = 'user_warehouse_folder_preferences'
-  # Valid scopes (must match BaseFolder warehouse types)
+  # Valid scopes (must match WarehouseFolder warehouse types)
   # SSoT: 'corporate' is THE ONE for corporate entities (Jan 2026 - 'corporate_entity' renamed)
   SCOPES = %w[corporate people job document contact].freeze
 

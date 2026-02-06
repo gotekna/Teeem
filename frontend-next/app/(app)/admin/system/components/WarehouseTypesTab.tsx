@@ -36,11 +36,11 @@ import {
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
 
-type SortField = "code" | "display_name" | "folder_path_template" | "base_folders_count" | "enabled";
+type SortField = "code" | "display_name" | "folder_path_template" | "warehouse_folders_count" | "enabled";
 type SortDirection = "asc" | "desc";
 
 /**
- * WarehouseTypesTab - Manage warehouse types and base folders
+ * WarehouseTypesTab - Manage warehouse types and warehouse folders
  *
  * SSoT: Database-driven warehouse types (Feb 2026)
  * Replaces the hardcoded WAREHOUSE_TYPES constant
@@ -56,14 +56,14 @@ interface WarehouseType {
   is_system: boolean;
   enabled: boolean;
   order_position: number;
-  base_folders_count: number;
-  base_folders: BaseFolder[];
+  warehouse_folders_count: number;
+  warehouse_folders: WarehouseFolderInType[];
   can_delete: boolean;
   created_at: string;
   updated_at: string;
 }
 
-interface BaseFolder {
+interface WarehouseFolderInType {
   id: number;
   name: string;
   folder_path_template?: string;
@@ -94,7 +94,7 @@ interface FormData {
   order_position: number;
 }
 
-interface BaseFolderToggle {
+interface WarehouseFolderToggle {
   id: number;
   name: string;
   enabled: boolean; // true = assigned to current warehouse type (including all children)
@@ -148,25 +148,25 @@ const TOKEN_CATEGORY_CONFIG: Record<TokenCategory, TokenCategoryConfig> = {
     label: "Company",
     icon: Building2,
     color: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700",
-    match: (t) => /\{?\{?Company|Case|Asset(?!Name)|Person|User|Contact/i.test(t.code),
+    match: (t) => /\{?\{?Company|Person|Contact|User|Account|Asset|Bank|BSB|Loan|Lender/i.test(t.code),
   },
   date: {
     label: "Date",
     icon: Calendar,
     color: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700",
-    match: (t) => /\{?\{?Date|Year|Month|Time|FY|Period|YYYY|DDMM/i.test(t.code),
+    match: (t) => /\{?\{?Date|Year|Month|Time|Day|FY|Period|YYYY|DDMM|\{EX\}|Expiry/i.test(t.code),
   },
   folder: {
-    label: "Folder",
-    icon: Folder,
+    label: "Doc",
+    icon: FileText,
     color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700",
-    match: (t) => /\{?\{?Tab|Category|Folder|SubTab|\[\[Teeem/i.test(t.code),
+    match: (t) => /DocType|\{BA\}|\{FIA\}|\{Occ\}|BuildingApproval|FinalInspection|Certificate|FormNumber|Invoice|PONum|PONumber/i.test(t.code),
   },
   other: {
     label: "Other",
-    icon: FileText,
+    icon: Folder,
     color: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600",
-    match: (t) => /\{?\{?Original|Sequence|Uploaded|Doc|Status|Notebook|Context/i.test(t.code),
+    match: () => true, // Fallback for uncategorized
   },
 };
 
@@ -204,8 +204,8 @@ export function WarehouseTypesTab() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingType, setEditingType] = React.useState<WarehouseType | null>(null);
   const [formData, setFormData] = React.useState<FormData>(defaultFormData);
-  const [baseFolderToggles, setBaseFolderToggles] = React.useState<BaseFolderToggle[]>([]);
-  const [baseFolderSearch, setBaseFolderSearch] = React.useState("");
+  const [warehouseFolderToggles, setWarehouseFolderToggles] = React.useState<WarehouseFolderToggle[]>([]);
+  const [warehouseFolderSearch, setWarehouseFolderSearch] = React.useState("");
   const [tokenCategory, setTokenCategory] = React.useState<TokenCategory>("all");
   const [tokensExpanded, setTokensExpanded] = React.useState(false);
   const [showAvailableFolders, setShowAvailableFolders] = React.useState(false);
@@ -289,11 +289,11 @@ export function WarehouseTypesTab() {
     },
   });
 
-  // Update base folder (reassign to different warehouse type)
-  const updateBaseFolderMutation = useMutation({
+  // Update warehouse folder (reassign to different warehouse type)
+  const updateWarehouseFolderMutation = useMutation({
     mutationFn: async ({ id, warehouse_type_id }: { id: number; warehouse_type_id: number }) => {
-      return api.patch<{ success: boolean }>(`/api/v1/base_folders/${id}`, {
-        base_folder: { warehouse_type_id },
+      return api.patch<{ success: boolean }>(`/api/v1/warehouse_folders/${id}`, {
+        warehouse_folder: { warehouse_type_id },
       });
     },
   });
@@ -301,7 +301,7 @@ export function WarehouseTypesTab() {
   const openCreateDialog = () => {
     setEditingType(null);
     setFormData(defaultFormData);
-    setBaseFolderToggles([]);
+    setWarehouseFolderToggles([]);
     setIsDialogOpen(true);
   };
 
@@ -327,11 +327,11 @@ export function WarehouseTypesTab() {
       order_position: type.order_position,
     });
 
-    // Fetch ALL base folders (not filtered by type) so user can reassign them
+    // Fetch ALL warehouse folders (not filtered by type) so user can reassign them
     // Build tree structure to show only root folders with inheritance
     try {
       const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; parent_id: number | null; enabled: boolean; is_system: boolean; warehouse_type_id: number; warehouse_type_name: string }> }>(
-        `/api/v1/base_folders?include_disabled=true`
+        `/api/v1/warehouse_folders?include_disabled=true`
       );
       if (response?.data) {
         // Build a map for quick lookups
@@ -345,7 +345,7 @@ export function WarehouseTypesTab() {
 
         // Only include root folders (parent_id is null) in toggles
         const rootFolders = response.data.filter(bf => bf.parent_id === null);
-        setBaseFolderToggles(
+        setWarehouseFolderToggles(
           rootFolders.map((bf) => {
             const childIds = getDescendantIds(bf.id);
             const allIds = [bf.id, ...childIds];
@@ -367,8 +367,8 @@ export function WarehouseTypesTab() {
         );
       }
     } catch (err) {
-      console.error("Failed to fetch base folders:", err);
-      setBaseFolderToggles([]);
+      console.error("Failed to fetch warehouse folders:", err);
+      setWarehouseFolderToggles([]);
     }
 
     setIsDialogOpen(true);
@@ -378,8 +378,8 @@ export function WarehouseTypesTab() {
     setIsDialogOpen(false);
     setEditingType(null);
     setFormData(defaultFormData);
-    setBaseFolderToggles([]);
-    setBaseFolderSearch("");
+    setWarehouseFolderToggles([]);
+    setWarehouseFolderSearch("");
     setShowAvailableFolders(false);
   };
 
@@ -405,28 +405,28 @@ export function WarehouseTypesTab() {
     console.log("🔴 formData:", JSON.stringify(formData));
     console.log("🔴 editingType:", editingType ? JSON.stringify({ id: editingType.id, code: editingType.code }) : "null");
 
-    // Update base folder assignments using the dedicated endpoint
+    // Update warehouse folder assignments using the dedicated endpoint
     // This handles BOTH adding AND removing folders from this warehouse type
     // When a root folder is selected, include ALL its children (inheritance)
-    if (editingType && baseFolderToggles.length > 0) {
-      const selectedFolderIds = baseFolderToggles
+    if (editingType && warehouseFolderToggles.length > 0) {
+      const selectedFolderIds = warehouseFolderToggles
         .filter(bf => bf.enabled)
         .flatMap(bf => [bf.id, ...bf.children_ids]);  // Include children
 
-      console.log("🟣 [WarehouseTypes] Updating base folder assignments");
+      console.log("🟣 [WarehouseTypes] Updating warehouse folder assignments");
       console.log("🟣 Selected folder IDs:", selectedFolderIds);
-      console.log("🟣 baseFolderToggles state:", baseFolderToggles.map(bf => ({ id: bf.id, name: bf.name, enabled: bf.enabled })));
+      console.log("🟣 warehouseFolderToggles state:", warehouseFolderToggles.map(bf => ({ id: bf.id, name: bf.name, enabled: bf.enabled })));
 
       try {
-        const response = await api.patch(`/api/v1/warehouse_types/${editingType.id}/update_base_folders`, {
-          base_folder_ids: selectedFolderIds,
+        const response = await api.patch(`/api/v1/warehouse_types/${editingType.id}/update_warehouse_folders`, {
+          warehouse_folder_ids: selectedFolderIds,
         });
-        console.log("🟣 Base folder assignments updated successfully", response);
+        console.log("🟣 Warehouse folder assignments updated successfully", response);
       } catch (err: any) {
-        console.error("Failed to update base folder assignments:", err);
+        console.error("Failed to update warehouse folder assignments:", err);
         console.error("Error details:", err?.response?.data || err?.message || err);
-        toast.error("Failed to update base folder assignments - changes not saved");
-        return; // Don't continue if base folder update fails
+        toast.error("Failed to update warehouse folder assignments - changes not saved");
+        return; // Don't continue if warehouse folder update fails
       }
     }
 
@@ -450,8 +450,8 @@ export function WarehouseTypesTab() {
     }
   };
 
-  const toggleBaseFolder = (folderId: number) => {
-    setBaseFolderToggles((prev) =>
+  const toggleWarehouseFolder = (folderId: number) => {
+    setWarehouseFolderToggles((prev) =>
       prev.map((bf) =>
         bf.id === folderId ? { ...bf, enabled: !bf.enabled } : bf
       )
@@ -500,7 +500,7 @@ export function WarehouseTypesTab() {
           type.code.toLowerCase().includes(query) ||
           type.display_name.toLowerCase().includes(query) ||
           type.description?.toLowerCase().includes(query) ||
-          type.base_folders.some((bf) => bf.name.toLowerCase().includes(query))
+          type.warehouse_folders.some((bf) => bf.name.toLowerCase().includes(query))
       );
     }
 
@@ -517,8 +517,8 @@ export function WarehouseTypesTab() {
         case "folder_path_template":
           comparison = (a.folder_path_template || "").localeCompare(b.folder_path_template || "");
           break;
-        case "base_folders_count":
-          comparison = a.base_folders.length - b.base_folders.length;
+        case "warehouse_folders_count":
+          comparison = a.warehouse_folders.length - b.warehouse_folders.length;
           break;
         case "enabled":
           comparison = (a.enabled === b.enabled) ? 0 : a.enabled ? -1 : 1;
@@ -627,11 +627,11 @@ export function WarehouseTypesTab() {
               </TableHead>
               <TableHead
                 className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort("base_folders_count")}
+                onClick={() => handleSort("warehouse_folders_count")}
               >
                 <div className="flex items-center">
-                  Base Folders
-                  {getSortIcon("base_folders_count")}
+                  Warehouse Folders
+                  {getSortIcon("warehouse_folders_count")}
                 </div>
               </TableHead>
               <TableHead
@@ -670,8 +670,8 @@ export function WarehouseTypesTab() {
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
-                    {type.base_folders.length > 0 ? (
-                      type.base_folders.map((bf) => (
+                    {type.warehouse_folders.length > 0 ? (
+                      type.warehouse_folders.map((bf) => (
                         <Badge
                           key={bf.id}
                           variant="secondary"
@@ -917,14 +917,14 @@ export function WarehouseTypesTab() {
                 </Collapsible>
               </div>
 
-              {/* Base Folders - only show when editing */}
-              {editingType && baseFolderToggles.length > 0 && (
+              {/* Warehouse Folders - only show when editing */}
+              {editingType && warehouseFolderToggles.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label>Base Folders</Label>
+                    <Label>Warehouse Folders</Label>
                     <span className="text-xs text-muted-foreground">
                       {/* Total count including children */}
-                      {baseFolderToggles
+                      {warehouseFolderToggles
                         .filter(bf => bf.enabled)
                         .reduce((sum, bf) => sum + 1 + bf.children_ids.length, 0)} folders assigned
                     </span>
@@ -936,16 +936,16 @@ export function WarehouseTypesTab() {
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search folders..."
-                      value={baseFolderSearch}
-                      onChange={(e) => setBaseFolderSearch(e.target.value)}
+                      value={warehouseFolderSearch}
+                      onChange={(e) => setWarehouseFolderSearch(e.target.value)}
                       className="pl-8 h-9"
                     />
                   </div>
                   <div className="border rounded-md p-2 max-h-[140px] overflow-y-auto">
-                    {baseFolderToggles
+                    {warehouseFolderToggles
                       .filter((bf) =>
-                        baseFolderSearch.trim() === "" ||
-                        bf.name.toLowerCase().includes(baseFolderSearch.toLowerCase())
+                        warehouseFolderSearch.trim() === "" ||
+                        bf.name.toLowerCase().includes(warehouseFolderSearch.toLowerCase())
                       )
                       .sort((a, b) => {
                         if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
@@ -962,7 +962,7 @@ export function WarehouseTypesTab() {
                           <Checkbox
                             id={`bf-${bf.id}`}
                             checked={bf.enabled}
-                            onCheckedChange={() => toggleBaseFolder(bf.id)}
+                            onCheckedChange={() => toggleWarehouseFolder(bf.id)}
                           />
                           <label
                             htmlFor={`bf-${bf.id}`}

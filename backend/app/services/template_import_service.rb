@@ -297,14 +297,14 @@ class TemplateImportService
     @imported_counts[:public_holidays] = count
   end
 
-  # SSoT (Feb 2026): Import into BaseFolder (was WarehouseFolder)
+  # SSoT (Feb 2026): Import into WarehouseFolder
   def import_warehouse_folders(data)
     count = 0
     data.each do |attrs|
       # Map entity_type to warehouse_type_id
       wt = WarehouseType.find_by(code: attrs["entity_type"]) if attrs["entity_type"].present?
 
-      record = BaseFolder.find_or_initialize_by(
+      record = WarehouseFolder.find_or_initialize_by(
         warehouse_type_id: wt&.id,
         tab_key: attrs["slug"]
       )

@@ -41,8 +41,8 @@ class SmScheduleMaster < ApplicationRecord
   # SmTasks created from this template - nullify on delete so tasks remain but lose template link
   has_many :sm_tasks, dependent: :nullify
 
-  # Photo storage BaseFolder (SSoT - Feb 2026)
-  belongs_to :photo_entity_tab, class_name: "BaseFolder", optional: true
+  # Photo storage WarehouseFolder (SSoT - Feb 2026)
+  belongs_to :photo_entity_tab, class_name: "WarehouseFolder", optional: true
 
   # Auto-PO supplier - for create_po_on_job_start feature
   belongs_to :po_supplier, class_name: "Contact", optional: true
@@ -174,19 +174,19 @@ class SmScheduleMaster < ApplicationRecord
     plan_type_ids || []
   end
 
-  # BaseFolders for documents sent on START (SSoT - Feb 2026)
+  # WarehouseFolders for documents sent on START (SSoT - Feb 2026)
   def start_base_folders
     return [] if start_entity_tab_ids.blank?
-    BaseFolder.where(id: start_entity_tab_ids)
+    WarehouseFolder.where(id: start_entity_tab_ids)
   end
 
-  # BaseFolders for documents received on COMPLETE (SSoT - Feb 2026)
+  # WarehouseFolders for documents received on COMPLETE (SSoT - Feb 2026)
   def complete_base_folders
     return [] if complete_entity_tab_ids.blank?
-    BaseFolder.where(id: complete_entity_tab_ids)
+    WarehouseFolder.where(id: complete_entity_tab_ids)
   end
 
-  # All linked BaseFolder IDs (start + complete)
+  # All linked WarehouseFolder IDs (start + complete)
   def all_base_folder_ids
     (start_entity_tab_ids || []) + (complete_entity_tab_ids || [])
   end

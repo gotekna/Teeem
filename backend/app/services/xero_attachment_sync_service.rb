@@ -4,20 +4,20 @@
 #
 # SSoT Architecture (Feb 2026):
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ BaseFolder (SSoT for folder structure)                          │
+# │ WarehouseFolder (SSoT for folder structure)                          │
 # │ ├── warehouse_type: "contact"                                   │
 # │ ├── full_folder_path: "{{ContactName}}/Bills"                   │
 # │     ↓ links via                                                 │
-# │ BaseFolderDocumentType (join table, is_primary: true)           │
+# │ WarehouseFolderDocumentType (join table, is_primary: true)           │
 # │     ↓ to                                                        │
 # │ DocumentType (classification)                                   │
 # │ ├── name: "Xero Bill"                                           │
-# │ ├── derived_scope: computed from BaseFolder.warehouse_type      │
+# │ ├── derived_scope: computed from WarehouseFolder.warehouse_type      │
 # │     ↓ used by                                                   │
 # │ WarehouseDocument (universal metadata)                          │
 # │ ├── documentable: ExternalInvoice                               │
 # │ ├── storage_blob_id: → StorageBlob                              │
-# │ ├── folder: computed from BaseFolder template                   │
+# │ ├── folder: computed from WarehouseFolder template                   │
 # │ ├── source_type: "xero"                                         │
 # │     ↓ links to                                                  │
 # │ StorageBlob (flat storage, deduplication)                       │
@@ -26,7 +26,7 @@
 # └─────────────────────────────────────────────────────────────────┘
 #
 # Physical Storage: s3://bucket/Blobs/{hash_prefix}/{hash}.pdf
-# Virtual Folders: Computed from BaseFolder.display_name, stored in warehouse_documents.folder
+# Virtual Folders: Computed from WarehouseFolder.display_name, stored in warehouse_documents.folder
 #
 class XeroAttachmentSyncService
   include DocumentProviderAware
@@ -136,7 +136,7 @@ class XeroAttachmentSyncService
       return
     end
 
-    # SSoT (Feb 2026): Get folder path from BaseFolder (no hardcoding)
+    # SSoT (Feb 2026): Get folder path from WarehouseFolder (no hardcoding)
     folder = compute_folder_from_document_type(document_type)
 
     # ========================================
@@ -384,10 +384,10 @@ class XeroAttachmentSyncService
   end
 
   # ========================================
-  # SSoT (Feb 2026): Folder Computation from BaseFolder
+  # SSoT (Feb 2026): Folder Computation from WarehouseFolder
   # ========================================
 
-  # Compute folder path from DocumentType's primary BaseFolder
+  # Compute folder path from DocumentType's primary WarehouseFolder
   # SSoT: Uses full_folder_path method (Feb 2026 consolidation)
   def compute_folder_from_document_type(document_type)
     wf = document_type.primary_warehouse_folder

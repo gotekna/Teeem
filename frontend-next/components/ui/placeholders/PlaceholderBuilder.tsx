@@ -83,33 +83,34 @@ const CATEGORY_CONFIG: Record<TokenCategory, CategoryConfig> = {
     label: "Company",
     icon: Building2,
     color: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700",
-    match: (t) => /\{?\{?Company|Case|Asset(?!Name)|Person|User/i.test(t.code),
+    match: (t) => /\{?\{?Company|Person|Contact|User|Account|Asset|Bank|BSB|Loan|Lender/i.test(t.code),
   },
   date: {
     label: "Date",
     icon: Calendar,
     color: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700",
-    match: (t) => /\{?\{?Date|Year|Month|Time|FY|Period|YYYY|DDMM/i.test(t.code),
+    match: (t) => /\{?\{?Date|Year|Month|Time|Day|FY|Period|YYYY|DDMM|\{EX\}|Expiry/i.test(t.code),
   },
   folder: {
-    label: "Folder",
-    icon: FolderTree,
+    label: "Doc",
+    icon: FileText,
     color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700",
-    match: (t) => /\{?\{?Tab|Category|Folder|SubTab|\[\[Teeem/i.test(t.code),
+    match: (t) => /DocType|\{BA\}|\{FIA\}|\{Occ\}|BuildingApproval|FinalInspection|Certificate|FormNumber|Invoice|PONum|PONumber/i.test(t.code),
   },
   other: {
     label: "Other",
-    icon: FileText,
+    icon: FolderTree,
     color: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600",
-    match: (t) => /\{?\{?Original|Sequence|Uploaded|Doc|Status|Notebook|Context/i.test(t.code),
+    match: () => true, // Fallback for uncategorized
   },
 };
 
 // Get category for a token
 function getTokenCategory(token: PlaceholderToken): TokenCategory {
   // Check in priority order (more specific first)
-  if (CATEGORY_CONFIG.task.match(token)) return "task";
+  // Email before task so [[Email Attachments]] categorizes as email not task
   if (CATEGORY_CONFIG.email.match(token)) return "email";
+  if (CATEGORY_CONFIG.task.match(token)) return "task";
   if (CATEGORY_CONFIG.job.match(token)) return "job";
   if (CATEGORY_CONFIG.company.match(token)) return "company";
   if (CATEGORY_CONFIG.date.match(token)) return "date";

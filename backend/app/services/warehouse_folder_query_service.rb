@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-# BaseFolderQueryService - Optimized tab loading (SSoT)
+# WarehouseFolderQueryService - Optimized tab loading (SSoT)
 #
-# This replaces WarehouseFolderQueryService (Feb 2026).
-# Queries base_folders table which is now THE ONE SSoT for folder config.
+# This is THE ONE SSoT for folder queries.
+# Queries warehouse_folders table.
 #
 # Key optimizations:
 # 1. Pre-fetch all tabs in single query
@@ -11,7 +11,7 @@
 # 3. Memoize TenantSetting (1 call total)
 # 4. Build tree in Ruby memory (no recursive queries)
 #
-class BaseFolderQueryService
+class WarehouseFolderQueryService
   def initialize(warehouse_type: nil, scope: nil, entity_type: nil, include_disabled: false, tab_group: nil, with_document_types: false)
     # Accept both warehouse_type and scope (scope for backwards compat)
     @warehouse_type = warehouse_type || scope
@@ -76,8 +76,8 @@ class BaseFolderQueryService
 
   # Single query to load all tabs with associations
   def preload_tabs
-    tabs = BaseFolder.for_warehouse_type(@warehouse_type)
-                     .includes(:base_folder_document_types, :document_types, :parent, :warehouse_type)
+    tabs = WarehouseFolder.for_warehouse_type(@warehouse_type)
+                     .includes(:warehouse_folder_document_types, :document_types, :parent, :warehouse_type)
 
     tabs = tabs.enabled unless @include_disabled
     tabs = tabs.for_entity_type(@entity_type) if @entity_type.present?
@@ -85,7 +85,7 @@ class BaseFolderQueryService
 
     result = tabs.to_a
 
-    Rails.logger.info "[BaseFolderQueryService] warehouse_type=#{@warehouse_type}, loaded #{result.size} folders"
+    Rails.logger.info "[WarehouseFolderQueryService] warehouse_type=#{@warehouse_type}, loaded #{result.size} folders"
 
     result
   end
@@ -121,7 +121,7 @@ class BaseFolderQueryService
   def build_document_types_json(all_tabs)
     all_tabs.each_with_object({}) do |tab, hash|
       hash[tab.id] = tab.document_types.map do |dt|
-        join = tab.base_folder_document_types.find { |j| j.document_type_id == dt.id }
+        join = tab.warehouse_folder_document_types.find { |j| j.document_type_id == dt.id }
 
         effective_ui = join&.ui_name_template.presence || dt.ui_name.presence || tab.ui_name_template.presence
         effective_dl = join&.download_name_template.presence || dt.download_name.presence || tab.download_name_template.presence
@@ -223,3 +223,6 @@ class BaseFolderQueryService
     'Folder'
   end
 end
+
+# Backwards compatibility alias
+BaseFolderQueryService = WarehouseFolderQueryService

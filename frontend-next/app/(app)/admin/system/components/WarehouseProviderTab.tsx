@@ -71,9 +71,9 @@ import Link from "next/link";
 import { WarehouseFolderEditor, WarehouseFolderEditData } from "@/components/admin/WarehouseFolderEditor";
 
 // SSoT (Feb 2026): All warehouse type config now comes from database
-// - base_folder.full_path_template is the SSoT for folder paths
+// - warehouse_folder.full_path_template is the SSoT for folder paths
 // - warehouseTypes.display_name for scope labels
-// - No parent-child derivation needed - base_folders store complete paths
+// - No parent-child derivation needed - warehouse_folders store complete paths
 
 // SSoT: Provider types match WarehouseProvider.PROVIDER_TYPES
 // Backend consolidates wasabi/s3 into s3_compatible
@@ -115,10 +115,10 @@ interface DocumentType {
   download_name_template?: string;  // From join table - Download filename template
 }
 
-// SSoT (Feb 2026): Base folders from warehouse_types API
+// SSoT (Feb 2026): Warehouse folders from warehouse_types API
 // These are THE ONE source of truth for folder categories shown as chips
-// BIG BANG (Feb 2026): warehouse_folder eliminated - all fields now directly on base_folder
-interface BaseFolderFromAPI {
+// BIG BANG (Feb 2026): All fields now directly on warehouse_folder
+interface WarehouseFolderFromAPI {
   id: number;
   name: string;
   parent_id?: number | null;  // SSoT: For parent folder hierarchy
@@ -129,9 +129,9 @@ interface BaseFolderFromAPI {
   full_folder_path?: string;    // SSoT: Resolved path for display
   scope_base_template?: string;  // SSoT: Warehouse type's base template (e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}")
   path_preview?: string;
-  is_system?: boolean;  // System base folders can't be deleted (e.g., Task Attachments)
+  is_system?: boolean;  // System warehouse folders can't be deleted (e.g., Task Attachments)
   warehouse_type_code?: string;  // SSoT (Feb 2026): Warehouse type code for correct folder creation
-  // SSoT (Feb 2026): UI config now directly on base_folder (BIG BANG migration)
+  // SSoT (Feb 2026): UI config now directly on warehouse_folder (BIG BANG migration)
   display_name?: string;
   icon_name?: string;
   ui_name_template?: string;
@@ -143,17 +143,17 @@ interface BaseFolderFromAPI {
   warehouse_enabled?: boolean;
   is_photo_category?: boolean;
   is_cad_category?: boolean;
-  // SSoT (Feb 2026): Document types now directly on base_folder
+  // SSoT (Feb 2026): Document types now directly on warehouse_folder
   document_types?: DocumentType[];
 }
 
-// WarehouseType from API (for base folders lookup and tree building)
+// WarehouseType from API (for warehouse folders lookup and tree building)
 interface WarehouseTypeFromAPI {
   id: number;
   code: string;
   display_name: string;
   folder_path_template?: string;  // e.g., "Tasks/{{TaskId}}/{{TaskName}}"
-  base_folders: BaseFolderFromAPI[];
+  warehouse_folders: WarehouseFolderFromAPI[];
 }
 
 // WarehouseFolder interface for tabs under each scope
@@ -243,7 +243,7 @@ interface FolderTreeNode {
   scopeKeys: string[];  // ALL scope keys that share this path (for multi-scope folders like Tasks)
   children: FolderTreeNode[];
   tabs?: WarehouseTabConfig[];  // Tabs under this scope folder (DEPRECATED - tabs removed Feb 2026)
-  baseFolders?: BaseFolderFromAPI[];  // SSoT (Feb 2026): Base folders from warehouse_types API
+  warehouseFolders?: WarehouseFolderFromAPI[];  // SSoT (Feb 2026): Warehouse folders from warehouse_types API
 }
 
 // SSoT (Feb 2026): Get scope label from warehouse type display_name or convert code to Title Case
@@ -942,9 +942,9 @@ function TreeNode({
 
         {/* SSoT (Feb 2026): Base folder cog icon - show for ALL folders with baseFolders */}
         {/* Removed leaf-only restriction so all folders (parent and child) get the edit cog */}
-        {node.baseFolders && node.baseFolders.length > 0 && (
+        {node.warehouseFolders && node.warehouseFolders.length > 0 && (
           <div className="flex items-center gap-1 ml-1">
-            {node.baseFolders.map((bf) => (
+            {node.warehouseFolders.map((bf) => (
               <div key={bf.id} className="flex items-center gap-0.5">
                 {/* Only show lock/folder icon on leaf nodes to reduce clutter */}
                 {node.children.length === 0 && (
@@ -999,9 +999,9 @@ function TreeNode({
 
       {/* SSoT (Feb 2026): Show base folder details for LEAF nodes */}
       {/* Show folder path, UI/DL names - matching WarehouseFoldersConfig style */}
-      {node.baseFolders && node.baseFolders.length > 0 && node.children.length === 0 && (
+      {node.warehouseFolders && node.warehouseFolders.length > 0 && node.children.length === 0 && (
         <div style={{ paddingLeft: `${level * 16 + 28}px` }}>
-          {node.baseFolders.map((bf) => (
+          {node.warehouseFolders.map((bf) => (
             <div key={bf.id} className="mb-2 text-[10px]">
               {/* Full folder path */}
               <div className="font-mono text-muted-foreground py-0.5">
@@ -1028,7 +1028,7 @@ function TreeNode({
 
         // FRC (Feb 2026): Non-leaf nodes can have document_types even without scopeKeys
         // e.g., Xero folder has children (Bank, Connection) AND document_types (X Bank Statement)
-        const baseFoldersWithDocTypes = (node.baseFolders || []).filter(
+        const baseFoldersWithDocTypes = (node.warehouseFolders || []).filter(
           bf => bf.document_types && bf.document_types.length > 0
         );
 
@@ -1958,9 +1958,9 @@ export function WarehouseProviderTab() {
   const [entityTabs, setWarehouseTabConfigs] = React.useState<Record<string, WarehouseTabConfig[]>>({});
   const [loadingTabs, setLoadingTabs] = React.useState(false);
 
-  // SSoT (Feb 2026): Base folders by warehouse type code from /api/v1/warehouse_types
-  // This is THE ONE source of truth for folder category chips (not warehouse_folders)
-  const [baseFoldersByScope, setBaseFoldersByScope] = React.useState<Record<string, BaseFolderFromAPI[]>>({});
+  // SSoT (Feb 2026): Warehouse folders by warehouse type code from /api/v1/warehouse_types
+  // This is THE ONE source of truth for folder category chips
+  const [warehouseFoldersByScope, setWarehouseFoldersByScope] = React.useState<Record<string, WarehouseFolderFromAPI[]>>({});
   // SSoT (Feb 2026): Full warehouse types data for building folder tree
   const [warehouseTypes, setWarehouseTypes] = React.useState<WarehouseTypeFromAPI[]>([]);
 
@@ -1980,11 +1980,11 @@ export function WarehouseProviderTab() {
   const [savingWarehouseFolder, setSavingWarehouseFolder] = React.useState(false);
 
   // SSoT (Feb 2026): Build list of available parent tabs for the folder editor
-  // Use baseFoldersByScope since that's what populates the tree
+  // Use warehouseFoldersByScope since that's what populates the tree
   // SSoT (Feb 2026): BIG BANG migration - base_folder IS the folder config now
   const availableParentTabs = React.useMemo(() => {
     const tabs: { id: number; display_name: string; hierarchy_path?: string; folder_path?: string }[] = [];
-    Object.entries(baseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
+    Object.entries(warehouseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
       baseFolders.forEach(bf => {
         tabs.push({
           id: bf.id,
@@ -1995,7 +1995,7 @@ export function WarehouseProviderTab() {
       });
     });
     return tabs.sort((a, b) => (a.hierarchy_path || '').localeCompare(b.hierarchy_path || ''));
-  }, [baseFoldersByScope]);
+  }, [warehouseFoldersByScope]);
 
   // Warehouse stats for live preview
   interface WarehouseStats {
@@ -2096,18 +2096,18 @@ export function WarehouseProviderTab() {
 
         // Build map of scope code → base_folders for quick lookup
         // SSoT: Backend now provides scope_base_template directly on each base folder
-        const foldersByScope: Record<string, BaseFolderFromAPI[]> = {};
+        const foldersByScope: Record<string, WarehouseFolderFromAPI[]> = {};
         response.data.forEach((wt) => {
           // Use the warehouse type code as the scope key (e.g., "task", "job", "email")
-          foldersByScope[wt.code] = wt.base_folders || [];
+          foldersByScope[wt.code] = wt.warehouse_folders || [];
 
           // DEBUG: Log base folders from API for each warehouse type
-          if (wt.base_folders && wt.base_folders.length > 0) {
-            console.log(`[loadWarehouseTypes] Scope "${wt.code}" has ${wt.base_folders.length} base_folders from API:`,
-              wt.base_folders.map(bf => ({ id: bf.id, name: bf.name, path: bf.full_path_template })));
+          if (wt.warehouse_folders && wt.warehouse_folders.length > 0) {
+            console.log(`[loadWarehouseTypes] Scope "${wt.code}" has ${wt.warehouse_folders.length} base_folders from API:`,
+              wt.warehouse_folders.map(bf => ({ id: bf.id, name: bf.name, path: bf.full_path_template })));
           }
         });
-        setBaseFoldersByScope(foldersByScope);
+        setWarehouseFoldersByScope(foldersByScope);
 
         // DEBUG: Summary of all base folders
         console.log('[loadWarehouseTypes] Total base_folders by scope:',
@@ -2255,10 +2255,10 @@ export function WarehouseProviderTab() {
     const isPlaceholder = (p: string) => p.startsWith('{{') || p.startsWith('[[');
 
     // DEBUG: Track sources of each node
-    console.log('[folderTree] Building tree from baseFoldersByScope:', Object.keys(baseFoldersByScope));
+    console.log('[folderTree] Building tree from warehouseFoldersByScope:', Object.keys(warehouseFoldersByScope));
 
     // Build tree directly from base folders
-    Object.entries(baseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
+    Object.entries(warehouseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
       console.log(`[folderTree] Processing scope "${scopeCode}" with ${baseFolders.length} base folders:`,
         baseFolders.map(bf => `ID:${bf.id} "${bf.name}" path:${bf.full_path_template}`));
 
@@ -2302,12 +2302,12 @@ export function WarehouseProviderTab() {
         // Each base_folder record corresponds to its final path segment
         if (lastNode) {
           const leafNode = lastNode as FolderTreeNode;
-          if (!leafNode.baseFolders) {
-            leafNode.baseFolders = [];
+          if (!leafNode.warehouseFolders) {
+            leafNode.warehouseFolders = [];
           }
           // Only add if not already present
-          if (!leafNode.baseFolders.find((existing: BaseFolderFromAPI) => existing.id === bf.id)) {
-            leafNode.baseFolders.push(bf);
+          if (!leafNode.warehouseFolders.find((existing: WarehouseFolderFromAPI) => existing.id === bf.id)) {
+            leafNode.warehouseFolders.push(bf);
             console.log(`[folderTree] Attached base_folder ID:${bf.id} "${bf.name}" to leaf node "${leafNode.name}"`);
           }
         }
@@ -2318,7 +2318,7 @@ export function WarehouseProviderTab() {
     root.sort((a, b) => a.name.localeCompare(b.name));
 
     // DEBUG: Log final tree structure
-    console.log('[folderTree] Final root nodes:', root.map(n => `"${n.name}" (scope:${n.scopeKey}, baseFolders:${n.baseFolders?.length || 0})`));
+    console.log('[folderTree] Final root nodes:', root.map(n => `"${n.name}" (scope:${n.scopeKey}, baseFolders:${n.warehouseFolders?.length || 0})`));
 
     const tree = root;
 
@@ -2416,7 +2416,7 @@ export function WarehouseProviderTab() {
     // This includes tabs like Financial with children (Bank Details, Xero, Invoices, Bills)
     attachTabs(tree);
     return tree;
-  }, [warehouseTypes, baseFoldersByScope, entityTabs]);
+  }, [warehouseTypes, warehouseFoldersByScope, entityTabs]);
 
   // SSoT (Feb 2026): Build scopeRootFolders from warehouse types
   // FRC: warehouse_type.folder_path_template IS the scope root path - no fallbacks

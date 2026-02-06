@@ -13,13 +13,13 @@ class PlanFolderScanJob < ApplicationJob
 
   queue_as :default
 
-  # SSoT (Feb 2026): Use BaseFolder.folder_name_for instead of constant
+  # SSoT (Feb 2026): Use WarehouseFolder.folder_name_for instead of constant
   PLANS_FOLDER_NAME_FALLBACK = "Plan Documents"
   SKIP_FILES = ["All Plans.pdf", "Thumbs.db", ".DS_Store"].freeze
 
   def plans_folder_name
-    # SSoT (Feb 2026): Get from BaseFolder, fall back to constant
-    BaseFolder.folder_name_for("job", "plans", PLANS_FOLDER_NAME_FALLBACK)
+    # SSoT (Feb 2026): Get from WarehouseFolder, fall back to constant
+    WarehouseFolder.folder_name_for("job", "plans", PLANS_FOLDER_NAME_FALLBACK)
   end
 
   def perform(job_id: nil)
