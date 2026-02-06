@@ -10,7 +10,6 @@ module Api
     # Key differentiator: Pricebook → PO integration (measure → price → PO in one click)
     #
     class PdfTakeoffController < ApplicationController
-      before_action :authenticate_user!
       before_action :set_job_plan, only: [:show, :calibrate, :measurements, :create_measurement, :generate_po, :detect_scale, :detect_elements]
       before_action :set_docsort_item, only: [:show_docsort, :calibrate_docsort, :measurements_docsort, :create_measurement_docsort, :detect_scale_docsort, :detect_elements_docsort]
       before_action :set_job, only: [:layers, :create_layer, :update_layer, :delete_layer]

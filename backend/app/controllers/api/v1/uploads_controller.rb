@@ -21,7 +21,6 @@ module Api
     #   - chat: Chat message attachments
     #
     class UploadsController < ApplicationController
-      before_action :authenticate_user!
 
       # POST /api/v1/uploads/presign
       # Get a presigned URL for direct S3 upload
