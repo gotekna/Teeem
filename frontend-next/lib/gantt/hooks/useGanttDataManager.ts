@@ -775,7 +775,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         'hold': 'hold',
         'confirm': 'confirm',
         'supplier_confirm': 'supplier_confirm',
-        'is_completed': 'is_completed',
+        'is_completed': 'completed',
       };
       const apiField = fieldMap[field] || field;
 
@@ -788,6 +788,22 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         const today = new Date();
         updateData.hold = false;  // Clear hold checkbox
         updateData.hold_date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      }
+      // When completing a task, set completed_at to today
+      // Job mode (sm_tasks) also needs status field updated
+      else if (field === 'is_completed') {
+        if (checked) {
+          const today = new Date();
+          updateData.completed_at = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+          if (mode === 'job') {
+            updateData.status = 'completed';
+          }
+        } else {
+          updateData.completed_at = null;
+          if (mode === 'job') {
+            updateData.status = 'not_started';
+          }
+        }
       }
       // For other confirms (confirm, supplier_confirm), lock at current position
       else if (checked && task?.startDate) {
@@ -807,7 +823,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       console.error('[GanttDataManager] Checkbox toggle failed:', err);
       toast({ title: 'Error', description: 'Failed to update', variant: 'destructive' });
     }
-  }, [tasks, apiConfig, loadData, toast]);
+  }, [tasks, apiConfig, loadData, toast, mode]);
 
   // ---------------------------------------------------------------------------
   // Start Task (with break options)

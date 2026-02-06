@@ -505,6 +505,7 @@ export default function GanttPage() {
             onRollover={gantt.handleRollover}
             onEditDependencies={gantt.openDependencyEditor}
             onTaskDrag={gantt.handleTaskDrag}
+            onTaskResize={gantt.handleTaskResize}
             showPhotoPanel={showPhotoPanel}
             onTogglePhotoPanel={() => setShowPhotoPanel(!showPhotoPanel)}
           />

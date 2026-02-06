@@ -789,36 +789,43 @@ export default function SchedulePage() {
   }, [ganttApiDeps]);
 
   // Handle task drag in Gantt
+  // SSoT: Use /move endpoint which triggers SmCascadeService for dependency cascade
   const handleTaskDrag = async (task: GanttTask, newStartDate: Date) => {
     const taskId = parseInt(task.id);
-    const duration = task.endDate.getTime() - task.startDate.getTime();
-    const newEndDate = new Date(newStartDate.getTime() + duration);
 
-    setGanttTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              start_date: newStartDate.toISOString().split("T")[0],
-              end_date: newEndDate.toISOString().split("T")[0],
-            }
-          : t
-      )
-    );
+    // Format date in local timezone (not UTC) to avoid day shift
+    const year = newStartDate.getFullYear();
+    const month = String(newStartDate.getMonth() + 1).padStart(2, '0');
+    const day = String(newStartDate.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
 
     try {
-      await api.patch(`/api/v1/sm_tasks/${taskId}`, {
-        sm_task: {
-          start_date: newStartDate.toISOString().split("T")[0],
-          end_date: newEndDate.toISOString().split("T")[0],
-        },
+      const result = await api.post<{
+        success: boolean;
+        needs_confirmation?: boolean;
+        message?: string;
+        cascade_results?: {
+          updated_count: number;
+          updated_task_ids: number[];
+        };
+      }>(`/api/v1/sm_tasks/${taskId}/move`, {
+        new_start_date: dateStr,
       });
+
+      const cascadeCount = (result?.cascade_results?.updated_count || 1) - 1;
+      const description = cascadeCount > 0
+        ? `Moved to ${newStartDate.toLocaleDateString('en-AU')} (+ ${cascadeCount} successor${cascadeCount > 1 ? 's' : ''} cascaded)`
+        : `Moved to ${newStartDate.toLocaleDateString('en-AU')}`;
+
+      toast({ title: 'Task Moved', description });
+
+      // Refetch gantt data to show cascaded results
+      await refetchGanttData();
     } catch (error) {
-      console.error("Failed to update task:", error);
-      // SSoT: Refetch with ?for=gantt to get filtered tasks
-      const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
-      setGanttTasks(response.gantt_data?.tasks || []);
-      setGanttApiDeps(response.gantt_data?.dependencies || []);
+      console.error("Failed to move task:", error);
+      toast({ title: 'Error', description: 'Failed to move task', variant: 'destructive' });
+      // Refetch to restore correct state
+      await refetchGanttData();
     }
   };
 
