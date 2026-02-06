@@ -107,7 +107,7 @@ module Api
           WarehouseDocument.create!(
             documentable: document,
             source_type: "user",
-            display_name: document.file_name,
+            ui_name: document.file_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
             original_filename: document.file_name,
             folder: document.virtual_folder_path,
             content_type: document.content_type,
@@ -140,7 +140,7 @@ module Api
           # Update WarehouseDocument folder path
           @document.warehouse_document&.update(
             folder: @document.virtual_folder_path,
-            display_name: @document.file_name
+            ui_name: @document.file_name  # SSoT: display_name renamed to ui_name (Feb 2026)
           )
 
           @document_provider = fetch_document_provider
@@ -208,7 +208,7 @@ module Api
         warehouse_doc = WarehouseDocument.new(
           source_type: "job",
           linkable: job,
-          display_name: @document.file_name,
+          ui_name: @document.file_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
           original_filename: @document.file_name,
           folder: folder_path,
           content_type: @document.content_type,

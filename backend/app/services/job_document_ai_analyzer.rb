@@ -162,8 +162,9 @@ class JobDocumentAiAnalyzer
   end
 
   def build_document_types_section
-    # folder is computed from primary WarehouseFolder - group in Ruby after query
-    doc_types = DocumentType.where(scope: %w[job both]).active.includes(warehouse_folder_document_types: :warehouse_folder).order(:name)
+    # folder is computed from primary BaseFolder - group in Ruby after query
+    # SSoT (Feb 2026): BIG BANG - use base_folder_document_types, not warehouse_folder
+    doc_types = DocumentType.where(scope: %w[job both]).active.includes(base_folder_document_types: :base_folder).order(:name)
 
     if doc_types.any?
       lines = []

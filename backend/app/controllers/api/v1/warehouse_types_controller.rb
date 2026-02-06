@@ -13,7 +13,8 @@ module Api
 
       # GET /api/v1/warehouse_types
       def index
-        @warehouse_types = WarehouseType.includes(:base_folders).visible
+        # SSoT (Feb 2026): Eager load document_types for base_folders to avoid N+1
+        @warehouse_types = WarehouseType.includes(base_folders: [:document_types, :base_folder_document_types, :parent]).visible
 
         # Filter by enabled status
         @warehouse_types = @warehouse_types.enabled unless params[:include_disabled] == "true"
@@ -409,7 +410,7 @@ module Api
               warehouse_enabled: bf.warehouse_enabled,
               is_photo_category: bf.is_photo_category,
               is_cad_category: bf.is_cad_category,
-              # Document types via join table
+              # Document types via join table - SSoT: NO FALLBACKS (Feb 2026)
               document_types: document_types.map { |dt|
                 bfdt = dt.base_folder_document_types.find { |j| j.base_folder_id == bf.id }
                 {
@@ -417,9 +418,9 @@ module Api
                   name: dt.name,
                   abbreviation: dt.abbreviation,
                   is_primary: bfdt&.is_primary || false,
-                  # Per-folder overrides from join table
-                  ui_name_template: bfdt&.ui_name_template || dt.ui_name,
-                  download_name_template: bfdt&.download_name_template || dt.download_name
+                  # SSoT: Templates from join table ONLY - no fallback to DocumentType
+                  ui_name_template: bfdt&.ui_name_template,
+                  download_name_template: bfdt&.download_name_template
                 }
               }
             }

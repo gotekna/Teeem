@@ -268,7 +268,7 @@ class BulkEmailSyncJob < ApplicationJob
         WarehouseDocument.create!(
           documentable: email,
           storage_blob_id: blob.id,
-          display_name: filename,
+          ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
           original_filename: filename,
           folder: 'Emails/Attachments',
           source_type: 'email_attachment',

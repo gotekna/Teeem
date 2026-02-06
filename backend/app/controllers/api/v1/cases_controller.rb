@@ -565,7 +565,7 @@ module Api
           # Use resolve_virtual_path for WarehouseDocument.folder (UI display)
           folder_path = WarehouseProvider.instance.resolve_virtual_path(:case, { CaseId: @case.case_number })
           new_doc = WarehouseDocument.create!(
-            display_name: review.new_file_name,
+            ui_name: review.new_file_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
             original_filename: review.new_file_name,
             source_type: "corporate",
             folder: folder_path,

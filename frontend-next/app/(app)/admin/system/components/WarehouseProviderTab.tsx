@@ -110,20 +110,14 @@ interface DocumentType {
   name: string;  // Actual doc type name: "Xero Invoice"
   abbreviation?: string;  // Short code: "XINV"
   is_primary?: boolean;  // SSoT (Feb 2026): Is this the primary folder for this doc type?
-  // SSoT (Feb 2026): Template fields with fallback chain
-  // Folder-specific override → document type default → folder default
-  ui_name_template?: string;  // Folder-specific override (null = use default)
-  download_name_template?: string;  // Folder-specific override (null = use default)
-  effective_ui_name_template?: string;  // Effective template (with fallback applied)
-  effective_download_name_template?: string;  // Effective template (with fallback applied)
-  has_template_overrides?: boolean;  // True if folder-specific override exists
-  // Legacy fields (kept for backward compatibility)
-  ui_name?: string;  // Document UI Name TEMPLATE: "{ContactName} {DocTypeName} {Date}"
-  download_name?: string;  // Document Download Name TEMPLATE: "{ContactName} {DocTypeCode} {Date}"
+  // SSoT (Feb 2026): NO FALLBACKS - templates from join table (BaseFolderDocumentType) only
+  ui_name_template?: string;  // From join table - UI display name template
+  download_name_template?: string;  // From join table - Download filename template
 }
 
 // SSoT (Feb 2026): Base folders from warehouse_types API
 // These are THE ONE source of truth for folder categories shown as chips
+// BIG BANG (Feb 2026): warehouse_folder eliminated - all fields now directly on base_folder
 interface BaseFolderFromAPI {
   id: number;
   name: string;
@@ -132,21 +126,25 @@ interface BaseFolderFromAPI {
   children_count?: number;    // SSoT: Number of child folders
   folder_path_template?: string;
   full_path_template?: string;  // SSoT: Full path including warehouse type's template
+  full_folder_path?: string;    // SSoT: Resolved path for display
   scope_base_template?: string;  // SSoT: Warehouse type's base template (e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}")
   path_preview?: string;
   is_system?: boolean;  // System base folders can't be deleted (e.g., Task Attachments)
   warehouse_type_code?: string;  // SSoT (Feb 2026): Warehouse type code for correct folder creation
-  // SSoT (Feb 2026): Linked warehouse_folder for UI/DL name editing
-  warehouse_folder?: {
-    id: number;
-    display_name: string;
-    folder_path?: string;
-    ui_name?: string;
-    download_name?: string;
-    parent_id?: number | null;  // SSoT: For parent tab selection
-    // SSoT (Feb 2026): Document types for tree view display
-    document_types?: DocumentType[];
-  };
+  // SSoT (Feb 2026): UI config now directly on base_folder (BIG BANG migration)
+  display_name?: string;
+  icon_name?: string;
+  ui_name_template?: string;
+  download_name_template?: string;
+  tab_key?: string;
+  tab_group?: string;
+  display_mode?: string;
+  hidden_by_default?: boolean;
+  warehouse_enabled?: boolean;
+  is_photo_category?: boolean;
+  is_cad_category?: boolean;
+  // SSoT (Feb 2026): Document types now directly on base_folder
+  document_types?: DocumentType[];
 }
 
 // WarehouseType from API (for base folders lookup and tree building)
@@ -496,7 +494,8 @@ function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocume
   const [isExpanded, setIsExpanded] = React.useState(false);
 
   const total = documentTypes.length;
-  const configured = documentTypes.filter(dt => dt.ui_name && dt.download_name).length;
+  // SSoT (Feb 2026): Backend sends ui_name_template/download_name_template with fallback already applied
+  const configured = documentTypes.filter(dt => dt.ui_name_template && dt.download_name_template).length;
   const allConfigured = configured === total;
 
   return (
@@ -528,7 +527,8 @@ function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocume
       {isExpanded && (
         <div className="mt-1 ml-3 border-l-2 border-muted pl-2 space-y-1">
           {documentTypes.map(dt => {
-            const isConfigured = dt.ui_name && dt.download_name;
+            // SSoT (Feb 2026): NO FALLBACKS - templates from join table only
+            const isConfigured = dt.ui_name_template && dt.download_name_template;
             return (
               <div
                 key={dt.id}
@@ -557,8 +557,8 @@ function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocume
                         id: dt.id,
                         name: dt.name,
                         abbreviation: dt.abbreviation,
-                        ui_name: dt.ui_name,
-                        download_name: dt.download_name,
+                        ui_name: dt.ui_name_template,
+                        download_name: dt.download_name_template,
                         folder_name: folderName,
                         folder_path: folderPath,
                       });
@@ -569,36 +569,30 @@ function DocumentTypesList({ documentTypes, folderName, folderPath, onEditDocume
                     <Pencil className="h-2.5 w-2.5 text-muted-foreground hover:text-foreground transition-colors" />
                   </button>
                 </div>
-                {/* SSoT (Feb 2026): UI/DL badges with effective templates (fallback chain applied) */}
+                {/* SSoT (Feb 2026): NO FALLBACKS - templates from join table only */}
                 <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                   <Badge
                     variant="outline"
                     className={cn(
                       "font-mono text-[9px]",
-                      dt.effective_ui_name_template || dt.ui_name
+                      dt.ui_name_template
                         ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                         : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                     )}
                   >
-                    UI: {dt.effective_ui_name_template || dt.ui_name || '(default)'}
+                    UI: {dt.ui_name_template || '(missing)'}
                   </Badge>
                   <Badge
                     variant="outline"
                     className={cn(
                       "font-mono text-[9px]",
-                      dt.effective_download_name_template || dt.download_name
+                      dt.download_name_template
                         ? "bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300"
                         : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                     )}
                   >
-                    DL: {dt.effective_download_name_template || dt.download_name || '(default)'}
+                    DL: {dt.download_name_template || '(missing)'}
                   </Badge>
-                  {/* Show indicator if folder has specific override */}
-                  {dt.has_template_overrides && (
-                    <Badge variant="outline" className="text-[8px] bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
-                      folder override
-                    </Badge>
-                  )}
                 </div>
               </div>
             );
@@ -975,24 +969,19 @@ function TreeNode({
                       // SSoT: Use base folder's FULL path template as the grey prefix
                       // e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Trust" for Trust folder
                       // The entire base_folder path is read-only - user can only add subfolders
+                      // SSoT (Feb 2026): BIG BANG migration - base_folder IS the folder config now
                       const baseTemplate = bf.full_path_template || bf.folder_path_template || '';
                       // Ensure it ends with / for proper path building
                       const basePath = baseTemplate && !baseTemplate.endsWith('/') ? baseTemplate + '/' : baseTemplate;
-                      // Calculate editable portion: strip base path prefix from stored folder_path
-                      // If folder_path equals or starts with baseTemplate, the editable part is what's after
-                      const storedPath = bf.warehouse_folder?.folder_path || '';
-                      const editablePart = storedPath.startsWith(baseTemplate)
-                        ? storedPath.slice(baseTemplate.length).replace(/^\/+/, '')  // Strip prefix and leading slash
-                        : (storedPath === baseTemplate ? '' : storedPath);  // Empty if same as base, otherwise keep
                       onEditWarehouseFolder({
-                        id: bf.warehouse_folder?.id || 0,  // 0 = needs to be created
-                        display_name: bf.warehouse_folder?.display_name || bf.name,
-                        folder_path: editablePart,  // Only the part AFTER the grey prefix
-                        download_name: bf.warehouse_folder?.download_name,
-                        ui_name: bf.warehouse_folder?.ui_name,
+                        id: bf.id,  // SSoT: base_folder.id IS the folder id now
+                        display_name: bf.display_name || bf.name,
+                        folder_path: '',  // Full path is now read-only (from base_folder)
+                        download_name: bf.download_name_template,
+                        ui_name: bf.ui_name_template,
                         base_folder_path_template: basePath,  // SSoT: Full base folder path (greyed out)
-                        base_folder_id: bf.id,  // Pass base_folder id for linking/creating
-                        parent_id: bf.warehouse_folder?.parent_id,  // Prefill current parent
+                        base_folder_id: bf.id,
+                        parent_id: bf.parent_id,
                         warehouse_type: bf.warehouse_type_code,  // SSoT (Feb 2026): From base_folder for correct folder creation
                       });
                     }}
@@ -1020,9 +1009,9 @@ function TreeNode({
               </div>
               {/* SSoT (Feb 2026): UI/DL badges REMOVED from folder level - now on join table per document type */}
               {/* Document types linked to this folder - shows UI/DL per doc type */}
-              {bf.warehouse_folder?.document_types && bf.warehouse_folder.document_types.length > 0 && (
+              {bf.document_types && bf.document_types.length > 0 && (
                 <DocumentTypesList
-                  documentTypes={bf.warehouse_folder.document_types}
+                  documentTypes={bf.document_types}
                   folderName={bf.name}
                   folderPath={bf.full_path_template || bf.folder_path_template || ''}
                   onEditDocumentType={onEditDocumentType}
@@ -1040,7 +1029,7 @@ function TreeNode({
         // FRC (Feb 2026): Non-leaf nodes can have document_types even without scopeKeys
         // e.g., Xero folder has children (Bank, Connection) AND document_types (X Bank Statement)
         const baseFoldersWithDocTypes = (node.baseFolders || []).filter(
-          bf => bf.warehouse_folder?.document_types && bf.warehouse_folder.document_types.length > 0
+          bf => bf.document_types && bf.document_types.length > 0
         );
 
         // Show nothing if editing OR (no scope keys AND no doc types)
@@ -1077,7 +1066,7 @@ function TreeNode({
             {baseFoldersWithDocTypes.map(bf => (
               <DocumentTypesList
                 key={bf.id}
-                documentTypes={bf.warehouse_folder!.document_types!}
+                documentTypes={bf.document_types!}
                 folderName={bf.name}
                 folderPath={bf.full_path_template || bf.folder_path_template || ''}
                 onEditDocumentType={onEditDocumentType}
@@ -1839,9 +1828,9 @@ function TabNode({
               style={{ paddingLeft: `${level * 16 + 58}px` }}
             >
               {tab.document_types!.map((dt) => {
-                // SSoT (Feb 2026): Use effective templates (with fallback chain applied)
-                const uiNameTemplate = dt.effective_ui_name_template || dt.ui_name || '';
-                const downloadTemplate = dt.effective_download_name_template || dt.download_name || '';
+                // SSoT (Feb 2026): NO FALLBACKS - templates from join table only
+                const uiNameTemplate = dt.ui_name_template || '';
+                const downloadTemplate = dt.download_name_template || '';
 
                 return (
                   <div
@@ -1851,8 +1840,8 @@ function TabNode({
                       id: dt.id,
                       name: dt.name,
                       abbreviation: dt.abbreviation,
-                      ui_name: dt.ui_name,
-                      download_name: dt.download_name,
+                      ui_name: dt.ui_name_template,
+                      download_name: dt.download_name_template,
                       folder_name: folderName,
                       folder_path: currentFullPath,
                     })}
@@ -1867,7 +1856,7 @@ function TabNode({
                       )}
                       <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/dt:opacity-100 transition-opacity" />
                     </div>
-                    {/* SSoT (Feb 2026): UI/DL badges with effective templates */}
+                    {/* SSoT (Feb 2026): NO FALLBACKS - templates from join table only */}
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <Badge
                         variant="outline"
@@ -1878,7 +1867,7 @@ function TabNode({
                             : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                         )}
                       >
-                        UI: {uiNameTemplate || '(default)'}
+                        UI: {uiNameTemplate || '(missing)'}
                       </Badge>
                       <Badge
                         variant="outline"
@@ -1889,14 +1878,8 @@ function TabNode({
                             : "bg-orange-50 border-orange-300 text-orange-700 dark:bg-orange-900/30 dark:border-orange-700 dark:text-orange-300"
                         )}
                       >
-                        DL: {downloadTemplate || '(default)'}
+                        DL: {downloadTemplate || '(missing)'}
                       </Badge>
-                      {/* Show indicator if folder has specific override */}
-                      {dt.has_template_overrides && (
-                        <Badge variant="outline" className="text-[8px] bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
-                          folder override
-                        </Badge>
-                      )}
                     </div>
                   </div>
                 );
@@ -1998,19 +1981,17 @@ export function WarehouseProviderTab() {
 
   // SSoT (Feb 2026): Build list of available parent tabs for the folder editor
   // Use baseFoldersByScope since that's what populates the tree
+  // SSoT (Feb 2026): BIG BANG migration - base_folder IS the folder config now
   const availableParentTabs = React.useMemo(() => {
     const tabs: { id: number; display_name: string; hierarchy_path?: string; folder_path?: string }[] = [];
-    // Get all base folders that have linked warehouse_folders
     Object.entries(baseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
       baseFolders.forEach(bf => {
-        if (bf.warehouse_folder) {
-          tabs.push({
-            id: bf.warehouse_folder.id,
-            display_name: bf.warehouse_folder.display_name || bf.name,
-            hierarchy_path: bf.full_path_template || bf.name,
-            folder_path: bf.warehouse_folder.folder_path || bf.full_path_template,  // SSoT: For computing effective base path
-          });
-        }
+        tabs.push({
+          id: bf.id,
+          display_name: bf.display_name || bf.name,
+          hierarchy_path: bf.full_path_template || bf.name,
+          folder_path: bf.full_folder_path || bf.full_path_template,  // SSoT: For computing effective base path
+        });
       });
     });
     return tabs.sort((a, b) => (a.hierarchy_path || '').localeCompare(b.hierarchy_path || ''));
