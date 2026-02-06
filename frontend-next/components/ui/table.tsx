@@ -54,7 +54,7 @@ const TableRow = React.forwardRef<
   HTMLTableRowElement,
   React.HTMLAttributes<HTMLTableRowElement>
 >(({ className, ...props }, ref) => (
-  <tr ref={ref} className={cn("border-b", className)} {...props} />
+  <tr ref={ref} className={cn("border-b border-border", className)} {...props} />
 ));
 TableRow.displayName = "TableRow";
 

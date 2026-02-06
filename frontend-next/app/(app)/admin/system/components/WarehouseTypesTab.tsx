@@ -330,21 +330,22 @@ export function WarehouseTypesTab() {
     // Fetch ALL warehouse folders (not filtered by type) so user can reassign them
     // Build tree structure to show only root folders with inheritance
     try {
-      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; parent_id: number | null; enabled: boolean; is_system: boolean; warehouse_type_id: number; warehouse_type_name: string }> }>(
+      const response = await api.get<{ success: boolean; data: { tabs: Array<{ id: number; name: string; parent_id: number | null; enabled: boolean; is_system: boolean; warehouse_type_id: number; warehouse_type_name: string }> } }>(
         `/api/v1/warehouse_folders?include_disabled=true`
       );
-      if (response?.data) {
+      const folders = response?.data?.tabs || [];
+      if (folders.length > 0) {
         // Build a map for quick lookups
-        const folderMap = new Map(response.data.map(bf => [bf.id, bf]));
+        const folderMap = new Map(folders.map(bf => [bf.id, bf]));
 
         // Recursive function to get all descendant IDs
         const getDescendantIds = (folderId: number): number[] => {
-          const children = response.data.filter(bf => bf.parent_id === folderId);
+          const children = folders.filter(bf => bf.parent_id === folderId);
           return children.flatMap(c => [c.id, ...getDescendantIds(c.id)]);
         };
 
         // Only include root folders (parent_id is null) in toggles
-        const rootFolders = response.data.filter(bf => bf.parent_id === null);
+        const rootFolders = folders.filter(bf => bf.parent_id === null);
         setWarehouseFolderToggles(
           rootFolders.map((bf) => {
             const childIds = getDescendantIds(bf.id);
@@ -593,9 +594,9 @@ export function WarehouseTypesTab() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="border rounded-lg">
-        <Table>
+      {/* Table - with explicit row borders */}
+      <div className="border rounded-lg overflow-hidden">
+        <Table className="border-collapse [&_tbody_tr]:border-b [&_tbody_tr]:border-muted-foreground/20">
           <TableHeader>
             <TableRow>
               <TableHead

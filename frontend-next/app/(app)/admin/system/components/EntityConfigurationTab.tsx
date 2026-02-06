@@ -12,7 +12,7 @@ import { AdminConfigSyncTab } from "./AdminConfigSyncTab";
 import { TenantSyncPullTab } from "./TenantSyncPullTab";
 import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw, Database } from "lucide-react";
 import { api } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSidebar } from "@/contexts/SidebarContext";
 
 /**
@@ -131,8 +131,14 @@ const SCOPE_LABELS: Record<string, string> = {
   sync: "Sync",
 };
 
+// Sub-tab label mapping for warehouse_tables scope
+const SUB_TAB_LABELS: Record<string, string> = {
+  warehouse_types: "Warehouse Types",
+  warehouse_folders: "Warehouse Folders",
+};
+
 // Build breadcrumb items from path and active scope
-function buildBreadcrumbs(basePath: string, activeScope: string): Array<{ label: string; path: string }> {
+function buildBreadcrumbs(basePath: string, activeScope: string, subTab?: string | null): Array<{ label: string; path: string }> {
   const crumbs: Array<{ label: string; path: string }> = [];
 
   if (basePath.startsWith("/settings/company")) {
@@ -147,21 +153,30 @@ function buildBreadcrumbs(basePath: string, activeScope: string): Array<{ label:
     crumbs.push({ label: "Warehouse Config", path: basePath });
   }
 
-  // Add active scope as final breadcrumb
+  // Add active scope as breadcrumb
   const scopeLabel = SCOPE_LABELS[activeScope] || activeScope;
   crumbs.push({ label: scopeLabel, path: `${basePath}/${activeScope}` });
+
+  // Add sub-tab as final breadcrumb if on warehouse_tables with a sub-tab
+  if (activeScope === "warehouse_tables" && subTab && SUB_TAB_LABELS[subTab]) {
+    crumbs.push({ label: SUB_TAB_LABELS[subTab], path: `${basePath}/${activeScope}?tab=${subTab}` });
+  }
 
   return crumbs;
 }
 
 export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFAULT_ENTITY_CONFIG_BASE_PATH }: EntityConfigurationTabProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { sidebarWidth } = useSidebar();
   // Support both scope and subTab props (subTab for consistency with other tabs)
   const activeScope = scope || subTab || "warehouse_folders";
 
-  // Build breadcrumbs from basePath and active scope
-  const breadcrumbs = React.useMemo(() => buildBreadcrumbs(basePath, activeScope), [basePath, activeScope]);
+  // Get sub-tab from URL query param (for warehouse_tables)
+  const activeSubTab = searchParams.get("tab");
+
+  // Build breadcrumbs from basePath, active scope, and sub-tab
+  const breadcrumbs = React.useMemo(() => buildBreadcrumbs(basePath, activeScope, activeSubTab), [basePath, activeScope, activeSubTab]);
 
   const setActiveScope = React.useCallback((newScope: string) => {
     router.push(`${basePath}/${newScope}`, { scroll: false });

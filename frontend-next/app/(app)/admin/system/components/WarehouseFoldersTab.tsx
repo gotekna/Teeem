@@ -76,7 +76,12 @@ interface WarehouseFolder {
 
 interface WarehouseFoldersResponse {
   success: boolean;
-  data: WarehouseFolder[];
+  data: {
+    warehouse_type: string | null;
+    scope: string | null;
+    tabs: WarehouseFolder[];
+    groups: string[];
+  };
 }
 
 interface WarehouseTypesOptionsResponse {
@@ -295,7 +300,8 @@ export function WarehouseFoldersTab() {
 
   // Filter and sort warehouse folders
   // SSoT: All hooks MUST be called before any early returns (React Rules of Hooks)
-  const rawFolders = Array.isArray(data?.data) ? data.data : [];
+  // API returns { success, data: { tabs: [...], ... } } - access data.tabs
+  const rawFolders = Array.isArray(data?.data?.tabs) ? data.data.tabs : [];
 
   const warehouseFolders = React.useMemo(() => {
     let filtered = rawFolders;
