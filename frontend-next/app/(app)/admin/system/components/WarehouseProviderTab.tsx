@@ -1010,7 +1010,7 @@ function TreeNode({
                         warehouse_type: bf.warehouse_type_code,  // SSoT (Feb 2026): From base_folder for correct folder creation
                         is_system_tab: bf.is_system_tab,  // SSoT: Pass type flags to editor
                         is_mailbox: bf.is_mailbox,
-                        dynamic_type: bf.dynamic_type,
+                        dynamic_type: bf.dynamic_type as 'mailbox' | null | undefined,
                       });
                     }}
                     className="p-0.5 hover:bg-muted rounded"
