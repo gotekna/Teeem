@@ -710,8 +710,8 @@ export default function DocsortPage() {
                       </a>
                     </Button>
 
-                    {/* Open in Takeoff - for plan documents */}
-                    {selectedItem.document_type === "plan" && selectedItem.content_type === "application/pdf" && (
+                    {/* Open in Takeoff - for any PDF document */}
+                    {selectedItem.content_type === "application/pdf" && (
                       <Button
                         variant="outline"
                         onClick={() => router.push(`/takeoff/docsort/${selectedItem.id}`)}

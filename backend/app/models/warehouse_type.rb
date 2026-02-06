@@ -1,16 +1,16 @@
 # frozen_string_literal: true
 
-# WarehouseType - SSoT for warehouse type definitions
+# WarehouseType - SSoT for warehouse type definitions (tenant-scoped)
 #
-# ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: Database-Driven Warehouse Types (Feb 2026)                 ║
-# ║                                                                   ║
-# ║  Replaces hardcoded WAREHOUSE_TYPES constant with database table  ║
-# ║  Allows users to create/edit warehouse types via UI               ║
-# ║                                                                   ║
-# ║  System types (is_system: true) are protected from deletion       ║
-# ║  Custom types can be added via UI settings                        ║
-# ╚═══════════════════════════════════════════════════════════════════╝
+# ╔═══════════════════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Database-Driven Warehouse Types (Feb 2026)                              ║
+# ║                                                                                ║
+# ║  Replaces hardcoded WAREHOUSE_TYPES constant with database table               ║
+# ║  Each tenant has their own warehouse types via acts_as_tenant                  ║
+# ║                                                                                ║
+# ║  System types (is_system: true) are protected from deletion                    ║
+# ║  Custom types can be added via UI settings                                     ║
+# ╚═══════════════════════════════════════════════════════════════════════════════╝
 #
 # Usage:
 #   WarehouseType.enabled.ordered.pluck(:code)  # => ["job", "contact", "email", ...]
@@ -18,16 +18,19 @@
 #   WarehouseType.codes                         # => Array of all enabled codes
 #
 class WarehouseType < ApplicationRecord
+  # Multi-tenancy - optional to allow global templates
+  acts_as_tenant :tenant, optional: true
+
   # Constants
   UNASSIGNED_CODE = "unassigned".freeze
 
   # Associations
   has_many :base_folders, dependent: :destroy
-  has_many :warehouse_folders, through: :base_folders
   has_many :document_types, dependent: :nullify
 
   # Validations
-  validates :code, presence: true, uniqueness: { case_sensitive: false }
+  validates :code, presence: true
+  validates :code, uniqueness: { scope: :tenant_id, case_sensitive: false }
   validates :code, format: { with: /\A[a-z][a-z0-9_]*\z/, message: "must be lowercase letters, numbers, and underscores only, starting with a letter" }
   validates :display_name, presence: true
 
@@ -76,7 +79,6 @@ class WarehouseType < ApplicationRecord
     enabled.ordered.map do |wt|
       # Build base_path: always starts with display_name, then folder_path_template tokens
       base_path = if wt.folder_path_template.present?
-        # If template already starts with display_name, use as-is; otherwise prepend it
         wt.folder_path_template.start_with?(wt.display_name) ? wt.folder_path_template : "#{wt.display_name}/#{wt.folder_path_template}"
       else
         wt.display_name
@@ -111,6 +113,7 @@ class WarehouseType < ApplicationRecord
       display_name: display_name,
       description: description,
       icon_name: icon_name,
+      folder_path_template: folder_path_template,
       is_system: is_system,
       enabled: enabled,
       order_position: order_position,

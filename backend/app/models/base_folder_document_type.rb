@@ -1,35 +1,29 @@
 # frozen_string_literal: true
 
-# SSoT: Links DocumentTypes to WarehouseFolders with per-folder template overrides
+# BaseFolderDocumentType - SSoT for folder-to-document-type associations
 #
 # ╔═══════════════════════════════════════════════════════════════════════════════╗
-# ║  SSoT Consolidation (Feb 2026)                                                 ║
+# ║  SSoT: THE ONE source for document type templates per folder                   ║
 # ║                                                                                ║
-# ║  This join table is now THE ONE source for document type templates per folder  ║
+# ║  This replaces WarehouseFolderDocumentType (Feb 2026)                          ║
 # ║                                                                                ║
 # ║  Template Resolution Chain:                                                    ║
-# ║  1. warehouse_folder_document_types.ui_name_template (folder-specific)         ║
+# ║  1. base_folder_document_types.ui_name_template (folder-specific)              ║
 # ║  2. document_types.ui_name (document type default)                             ║
-# ║  3. warehouse_folders.ui_name (folder-level fallback)                          ║
+# ║  3. base_folders.ui_name_template (folder-level fallback)                      ║
 # ║                                                                                ║
 # ║  Same chain for download_name_template.                                        ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 #
-# This replaces the old document_type_folders join table
-# Model renamed: EntityTabDocumentType → StorageLocationDocumentType → WarehouseFolderDocumentType (Jan 2026)
-# Column renamed: entity_tab_id → storage_location_id → warehouse_folder_id (Jan 2026)
-#
-class WarehouseFolderDocumentType < ApplicationRecord
-  # Table renamed: entity_tab_document_types → warehouse_folder_document_types (Jan 2026)
-  self.table_name = 'warehouse_folder_document_types'
-  belongs_to :warehouse_folder
+class BaseFolderDocumentType < ApplicationRecord
+  belongs_to :base_folder
   belongs_to :document_type
 
   # Validations
-  validates :warehouse_folder_id, uniqueness: { scope: :document_type_id }
+  validates :base_folder_id, uniqueness: { scope: :document_type_id }
 
   # ════════════════════════════════════════════════════════════════════════════════
-  # SSoT: Template Resolution Methods (Feb 2026)
+  # SSoT: Template Resolution Methods
   # These methods implement the fallback chain for document naming templates
   # ════════════════════════════════════════════════════════════════════════════════
 
@@ -39,7 +33,7 @@ class WarehouseFolderDocumentType < ApplicationRecord
   def effective_ui_name_template
     ui_name_template.presence ||
       document_type&.ui_name.presence ||
-      warehouse_folder&.ui_name.presence
+      base_folder&.ui_name_template.presence
   end
 
   # Get the effective download name template for this folder+doc type combination
@@ -48,7 +42,7 @@ class WarehouseFolderDocumentType < ApplicationRecord
   def effective_download_name_template
     download_name_template.presence ||
       document_type&.download_name.presence ||
-      warehouse_folder&.download_name.presence
+      base_folder&.download_name_template.presence
   end
 
   # Check if this link has folder-specific template overrides
@@ -61,10 +55,10 @@ class WarehouseFolderDocumentType < ApplicationRecord
   def as_json(options = {})
     {
       id: id,
-      warehouse_folder_id: warehouse_folder_id,
+      base_folder_id: base_folder_id,
       document_type_id: document_type_id,
       is_primary: is_primary,
-      # Template fields (SSoT: Feb 2026)
+      # Template fields
       ui_name_template: ui_name_template,
       download_name_template: download_name_template,
       # Effective templates (with fallback chain applied)
@@ -73,7 +67,7 @@ class WarehouseFolderDocumentType < ApplicationRecord
       has_template_overrides: has_template_overrides?,
       # Related object data
       document_type_name: document_type&.name,
-      folder_name: warehouse_folder&.display_name
+      folder_name: base_folder&.display_name || base_folder&.name
     }
   end
 end
