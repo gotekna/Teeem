@@ -459,6 +459,9 @@ class WarehouseFolder < ApplicationRecord
     {
       id: id,
       warehouse_type: warehouse_type_code,
+      warehouse_type_id: warehouse_type_id,
+      warehouse_type_code: warehouse_type_code,
+      warehouse_type_name: warehouse_type&.display_name,
       tab_key: tab_key,
       name: display_name || name,
       display_name: display_name || name,
