@@ -301,7 +301,26 @@ export function WarehouseFoldersTab() {
   // Filter and sort warehouse folders
   // SSoT: All hooks MUST be called before any early returns (React Rules of Hooks)
   // API returns { success, data: { tabs: [...], ... } } - access data.tabs
-  const rawFolders = Array.isArray(data?.data?.tabs) ? data.data.tabs : [];
+  // Backend returns NESTED structure (children inside parents), so we flatten it
+  const flattenNestedFolders = (folders: WarehouseFolder[]): WarehouseFolder[] => {
+    const result: WarehouseFolder[] = [];
+    const flatten = (items: WarehouseFolder[]) => {
+      items.forEach(item => {
+        // Add the item without its children (we use parent_id for tree building)
+        const { children, ...itemWithoutChildren } = item as WarehouseFolder & { children?: WarehouseFolder[] };
+        result.push(itemWithoutChildren as WarehouseFolder);
+        // Recursively flatten children
+        if (children && Array.isArray(children) && children.length > 0) {
+          flatten(children);
+        }
+      });
+    };
+    flatten(folders);
+    return result;
+  };
+
+  const nestedTabs = Array.isArray(data?.data?.tabs) ? data.data.tabs : [];
+  const rawFolders = flattenNestedFolders(nestedTabs);
 
   const warehouseFolders = React.useMemo(() => {
     let filtered = rawFolders;

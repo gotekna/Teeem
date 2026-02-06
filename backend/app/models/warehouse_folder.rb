@@ -73,7 +73,11 @@ class WarehouseFolder < ApplicationRecord
   scope :ordered, -> { order(:order_position, :name) }
   scope :root_folders, -> { where(parent_id: nil) }
   scope :for_warehouse_type, ->(code) {
-    joins(:warehouse_type).where(warehouse_types: { code: code.to_s.downcase })
+    if code.blank?
+      all  # Return all folders when no warehouse_type specified
+    else
+      joins(:warehouse_type).where(warehouse_types: { code: code.to_s.downcase })
+    end
   }
   scope :with_document_types, -> { where(warehouse_enabled: true) }
   scope :for_tab_group, ->(group) { where(tab_group: group) }

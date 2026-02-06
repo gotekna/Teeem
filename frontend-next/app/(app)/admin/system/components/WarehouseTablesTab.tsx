@@ -27,7 +27,17 @@ export function WarehouseTablesTab({ defaultTab = "warehouse_types" }: Warehouse
   const searchParams = useSearchParams();
 
   // Get active tab from URL query param, fallback to default
-  const activeTab = searchParams.get("tab") || defaultTab;
+  const urlTab = searchParams.get("tab");
+  const activeTab = urlTab || defaultTab;
+
+  // Ensure default tab is reflected in URL for breadcrumb consistency
+  React.useEffect(() => {
+    if (!urlTab) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", defaultTab);
+      router.replace(`?${params.toString()}`, { scroll: false });
+    }
+  }, [urlTab, defaultTab, searchParams, router]);
 
   const handleTabChange = (newTab: string) => {
     // Update URL with new tab value
