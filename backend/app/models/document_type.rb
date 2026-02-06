@@ -113,19 +113,19 @@ class DocumentType < ApplicationRecord
   # Backwards compatibility alias
   alias_method :warehouse_folder_ids=, :base_folder_ids=
 
-  # Backwards compatibility aliases
+  # Backwards compatibility aliases for setters
   alias_method :storage_location_ids=, :warehouse_folder_ids=
   alias_method :folder_ids=, :warehouse_folder_ids=
-  alias_method :folder_ids, :warehouse_folder_ids
 
   # Get BaseFolder IDs (renamed: entity_tab_ids → storage_location_ids → warehouse_folder_ids → base_folder_ids, Feb 2026)
   def base_folder_ids
     base_folder_document_types.pluck(:base_folder_id)
   end
 
-  # Backwards compatibility aliases
+  # Backwards compatibility aliases for getters (must be after method definition)
   alias_method :warehouse_folder_ids, :base_folder_ids
   alias_method :storage_location_ids, :base_folder_ids
+  alias_method :folder_ids, :base_folder_ids
 
   # Sync base_folder_ids with the database (renamed from sync_warehouse_folder_ids, Feb 2026)
   # SSoT: Uses is_primary flag to track primary vs secondary locations
