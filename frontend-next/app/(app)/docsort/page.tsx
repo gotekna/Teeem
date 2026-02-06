@@ -560,10 +560,34 @@ export default function DocsortPage() {
                           </Badge>
                         )}
 
-                        {/* Status badge */}
-                        <Badge className={cn("text-xs", STATUS_COLORS[item.status_color])}>
-                          {item.status}
-                        </Badge>
+                        {/* Status badge - clickable dropdown for pending items */}
+                        {item.status === "pending" ? (
+                          <Select
+                            value=""
+                            onValueChange={(value) => {
+                              if (value) handleOverride(item, value);
+                            }}
+                            disabled={isProcessing}
+                          >
+                            <SelectTrigger
+                              className="h-6 w-auto min-w-[80px] px-2 text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400 border-0 hover:bg-gray-200 dark:hover:bg-gray-700"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <SelectValue placeholder="pending" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DOCUMENT_TYPES.map((type) => (
+                                <SelectItem key={type.value} value={type.value}>
+                                  {type.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge className={cn("text-xs", STATUS_COLORS[item.status_color])}>
+                            {item.status}
+                          </Badge>
+                        )}
 
                         {/* Processing indicator */}
                         {isProcessing && <Spinner size={16} />}

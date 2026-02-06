@@ -145,6 +145,9 @@ interface WarehouseFolderFromAPI {
   warehouse_enabled?: boolean;
   is_photo_category?: boolean;
   is_cad_category?: boolean;
+  is_system_tab?: boolean;  // SSoT: System tab (functional/code-driven)
+  is_mailbox?: boolean;     // SSoT: Mailbox tab
+  dynamic_type?: 'mailbox' | string | null;  // SSoT: Dynamic folder type
   // SSoT (Feb 2026): Document types now directly on warehouse_folder
   document_types?: DocumentType[];
 }
@@ -2000,6 +2003,9 @@ export function WarehouseProviderTab() {
     parent_id?: number | null;
     base_folder_id?: number;
     warehouse_type?: string;  // SSoT (Feb 2026): From base_folder's warehouse_type_code
+    is_system_tab?: boolean;  // SSoT: System tab (functional/code-driven)
+    is_mailbox?: boolean;     // SSoT: Mailbox tab
+    dynamic_type?: 'mailbox' | null;  // SSoT: Dynamic folder type
   }
   const [editingWarehouseFolder, setEditingWarehouseFolder] = React.useState<EditingWarehouseFolder | null>(null);
   const [savingWarehouseFolder, setSavingWarehouseFolder] = React.useState(false);

@@ -409,6 +409,9 @@ module Api
               warehouse_enabled: wf.warehouse_enabled,
               is_photo_category: wf.is_photo_category,
               is_cad_category: wf.is_cad_category,
+              is_system_tab: wf.is_system_tab,
+              is_mailbox: wf.is_mailbox,
+              dynamic_type: wf.dynamic_type,
               # Document types via join table - SSoT: NO FALLBACKS (Feb 2026)
               document_types: document_types.map { |dt|
                 wfdt = dt.warehouse_folder_document_types.find { |j| j.warehouse_folder_id == wf.id }
@@ -537,7 +540,10 @@ module Api
           hiddenByDefault: warehouse_folder.hidden_by_default,
           warehouseEnabled: warehouse_folder.warehouse_enabled,
           isPhotoCategory: warehouse_folder.is_photo_category,
-          isCadCategory: warehouse_folder.is_cad_category
+          isCadCategory: warehouse_folder.is_cad_category,
+          isSystemTab: warehouse_folder.is_system_tab,
+          isMailbox: warehouse_folder.is_mailbox,
+          dynamicType: warehouse_folder.dynamic_type
         }
       end
 
