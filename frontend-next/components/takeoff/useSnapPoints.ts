@@ -320,7 +320,7 @@ export function useSnapPoints(options: UseSnapPointsOptions) {
 // Returns an array of distinct junction points sorted by distance to cursor.
 // Nearby junctions are clustered so each tick mark appears only once.
 // When multiple junctions exist, the magnifier can show them for disambiguation.
-function findPdfJunctions(
+export function findPdfJunctions(
   x: number,
   y: number,
   pdfCanvas: HTMLCanvasElement,

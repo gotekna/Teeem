@@ -2350,6 +2350,7 @@ Rails.application.routes.draw do
         # Plan operations (for job-linked plans)
         get "plans/:job_plan_id", action: :show
         post "plans/:job_plan_id/calibrate", action: :calibrate
+        delete "plans/:job_plan_id/calibrate", action: :clear_calibration
         post "plans/:job_plan_id/detect_scale", action: :detect_scale
         post "plans/:job_plan_id/detect_elements", action: :detect_elements
         get "plans/:job_plan_id/measurements", action: :measurements
@@ -2358,6 +2359,7 @@ Rails.application.routes.draw do
         # DocSort standalone takeoff (for plans not yet assigned to a job)
         get "docsort/:docsort_item_id", action: :show_docsort
         post "docsort/:docsort_item_id/calibrate", action: :calibrate_docsort
+        delete "docsort/:docsort_item_id/calibrate", action: :clear_calibration_docsort
         post "docsort/:docsort_item_id/detect_scale", action: :detect_scale_docsort
         post "docsort/:docsort_item_id/detect_elements", action: :detect_elements_docsort
         get "docsort/:docsort_item_id/measurements", action: :measurements_docsort

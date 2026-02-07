@@ -94,6 +94,23 @@ module Api
         end
       end
 
+      # DELETE /api/v1/pdf_takeoff/plans/:job_plan_id/calibrate
+      def clear_calibration
+        page_number = params[:page_number]&.to_i || 1
+        page_scale = PageScale.find_by(job_plan: @job_plan, page_number: page_number)
+        if page_scale
+          page_scale.update!(
+            scale_factor: nil,
+            reference_length_mm: nil,
+            reference_length_px: nil,
+            calibration_line: nil,
+            calibrated_by: nil,
+            calibrated_at: nil
+          )
+        end
+        render json: { success: true }
+      end
+
       # POST /api/v1/pdf_takeoff/plans/:job_plan_id/detect_scale
       # AI-powered scale detection from page image
       def detect_scale
@@ -430,6 +447,23 @@ module Api
         else
           render json: { success: false, errors: page_scale.errors.full_messages }, status: :unprocessable_entity
         end
+      end
+
+      # DELETE /api/v1/pdf_takeoff/docsort/:docsort_item_id/calibrate
+      def clear_calibration_docsort
+        page_number = params[:page_number]&.to_i || 1
+        page_scale = PageScale.find_by(docsort_item: @docsort_item, page_number: page_number)
+        if page_scale
+          page_scale.update!(
+            scale_factor: nil,
+            reference_length_mm: nil,
+            reference_length_px: nil,
+            calibration_line: nil,
+            calibrated_by: nil,
+            calibrated_at: nil
+          )
+        end
+        render json: { success: true }
       end
 
       # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/detect_scale

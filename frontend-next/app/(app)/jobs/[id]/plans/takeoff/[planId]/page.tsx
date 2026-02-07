@@ -457,6 +457,28 @@ export default function TakeoffPage() {
     [planId, currentPageNumber, toast]
   );
 
+  const handleClearCalibration = React.useCallback(
+    async () => {
+      if (!planId) return;
+      try {
+        await api.delete(`/api/v1/pdf_takeoff/plans/${planId}/calibrate`, {
+          params: { page_number: currentPageNumber },
+        });
+        setPlanData((prev) => {
+          if (!prev) return prev;
+          const newScales = prev.page_scales.filter(
+            (ps) => ps.page_number !== currentPageNumber
+          );
+          return { ...prev, page_scales: newScales };
+        });
+        toast({ title: "Calibration Cleared", description: "You can now recalibrate from scratch." });
+      } catch {
+        toast({ title: "Failed to clear calibration", variant: "destructive" });
+      }
+    },
+    [planId, currentPageNumber, toast]
+  );
+
   // Create measurement
   const handleMeasurementCreate = React.useCallback(
     async (
@@ -938,6 +960,7 @@ export default function TakeoffPage() {
                 pageHeight={currentPage.height}
                 pageScale={pageScale}
                 onCalibrate={handleCalibrate}
+                onClearCalibration={handleClearCalibration}
                 measurements={measurements.filter(
                   (m) => m.page_number === currentPageNumber
                 )}
