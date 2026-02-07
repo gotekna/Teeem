@@ -221,3 +221,220 @@ function getSnapPointColor(type: SnapPoint["type"]): string {
       return "#6b7280";
   }
 }
+
+// =============================================================================
+// Snap Magnifier — zoomed PDF crop with selectable junction candidates
+// =============================================================================
+
+const MAG_SIZE = 180;
+
+interface SnapMagnifierProps {
+  candidates: Array<{ x: number; y: number }>;
+  activeCandidate: { x: number; y: number };
+  pdfCanvas: HTMLCanvasElement;
+  zoom: number;
+  pageWidth: number;
+  pageHeight: number;
+  onSelect: (candidate: { x: number; y: number }) => void;
+}
+
+export function SnapMagnifier({
+  candidates,
+  activeCandidate,
+  pdfCanvas,
+  zoom,
+  pageWidth,
+  pageHeight,
+  onSelect,
+}: SnapMagnifierProps) {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+
+  // Center the crop on the centroid of all candidates
+  const centerX = candidates.reduce((s, c) => s + c.x, 0) / candidates.length;
+  const centerY = candidates.reduce((s, c) => s + c.y, 0) / candidates.length;
+
+  // Adaptive crop size: contain all candidates plus padding
+  const maxSpread = candidates.reduce((max, c) => {
+    return Math.max(max, Math.abs(c.x - centerX), Math.abs(c.y - centerY));
+  }, 0);
+  const cropSize = Math.max(15, (maxSpread + 8) * 2);
+
+  // Draw the zoomed PDF crop with candidate markers
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = MAG_SIZE * dpr;
+    canvas.height = MAG_SIZE * dpr;
+    ctx.scale(dpr, dpr);
+
+    ctx.clearRect(0, 0, MAG_SIZE, MAG_SIZE);
+    ctx.save();
+
+    // Circular clip
+    ctx.beginPath();
+    ctx.arc(MAG_SIZE / 2, MAG_SIZE / 2, MAG_SIZE / 2, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Draw zoomed PDF crop
+    const pdfDpr = window.devicePixelRatio || 1;
+    const srcX = (centerX - cropSize / 2) * pdfDpr;
+    const srcY = (centerY - cropSize / 2) * pdfDpr;
+    const srcW = cropSize * pdfDpr;
+    const srcH = cropSize * pdfDpr;
+    ctx.drawImage(pdfCanvas, srcX, srcY, srcW, srcH, 0, 0, MAG_SIZE, MAG_SIZE);
+
+    // Draw candidate markers with precise crosshair
+    candidates.forEach((c, i) => {
+      const mx = ((c.x - centerX + cropSize / 2) / cropSize) * MAG_SIZE;
+      const my = ((c.y - centerY + cropSize / 2) / cropSize) * MAG_SIZE;
+      const isActive = c.x === activeCandidate.x && c.y === activeCandidate.y;
+      const color = isActive ? "#22c55e" : "#ec4899";
+      const armLen = 18;
+
+      // Precise crosshair lines showing exact snap point
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      // Horizontal arms (with gap in center)
+      ctx.beginPath();
+      ctx.moveTo(mx - armLen, my);
+      ctx.lineTo(mx - 4, my);
+      ctx.moveTo(mx + 4, my);
+      ctx.lineTo(mx + armLen, my);
+      // Vertical arms (with gap in center)
+      ctx.moveTo(mx, my - armLen);
+      ctx.lineTo(mx, my - 4);
+      ctx.moveTo(mx, my + 4);
+      ctx.lineTo(mx, my + armLen);
+      ctx.stroke();
+
+      // Bright center dot — the EXACT snap point
+      ctx.beginPath();
+      ctx.arc(mx, my, 3, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(mx, my, 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = "#fff";
+      ctx.fill();
+
+      // Number label offset to upper-right
+      if (candidates.length > 1) {
+        const labelX = mx + 10;
+        const labelY = my - 10;
+        ctx.beginPath();
+        ctx.arc(labelX, labelY, 8, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 10px system-ui";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(i + 1), labelX, labelY);
+      }
+    });
+
+    ctx.restore();
+
+    // Border circle
+    ctx.beginPath();
+    ctx.arc(MAG_SIZE / 2, MAG_SIZE / 2, MAG_SIZE / 2 - 1.5, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(236, 72, 153, 0.7)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Magnification label
+    const mag = Math.round(MAG_SIZE / cropSize);
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
+    const labelW = 36;
+    const labelH = 18;
+    const labelX = MAG_SIZE / 2 - labelW / 2;
+    const labelY = MAG_SIZE - labelH - 4;
+    ctx.beginPath();
+    ctx.rect(labelX, labelY, labelW, labelH);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 10px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${mag}x`, MAG_SIZE / 2, labelY + labelH / 2);
+  }, [candidates, activeCandidate, pdfCanvas, centerX, centerY, cropSize]);
+
+  // Position: offset to upper-right of the snap area (in screen pixels)
+  const screenX = centerX * zoom;
+  const screenY = centerY * zoom;
+  const maxRight = pageWidth * zoom;
+  const maxBottom = pageHeight * zoom;
+
+  // Default: upper-right of snap area
+  let posLeft = screenX + 40;
+  let posTop = screenY - MAG_SIZE - 20;
+
+  // Clamp to visible area
+  if (posLeft + MAG_SIZE > maxRight) posLeft = screenX - MAG_SIZE - 40;
+  if (posTop < 0) posTop = screenY + 40;
+  if (posLeft < 0) posLeft = 10;
+  if (posTop + MAG_SIZE > maxBottom) posTop = maxBottom - MAG_SIZE - 10;
+
+  return (
+    <div
+      className="absolute transition-opacity duration-200"
+      style={{
+        left: posLeft,
+        top: posTop,
+        width: MAG_SIZE,
+        height: MAG_SIZE + 24,
+        pointerEvents: "none",
+      }}
+    >
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: MAG_SIZE,
+          height: MAG_SIZE,
+          borderRadius: "50%",
+        }}
+      />
+      {/* Clickable hit targets for each candidate */}
+      {candidates.map((c, i) => {
+        const mx = ((c.x - centerX + cropSize / 2) / cropSize) * MAG_SIZE;
+        const my = ((c.y - centerY + cropSize / 2) / cropSize) * MAG_SIZE;
+        return (
+          <button
+            key={i}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(c);
+            }}
+            className="absolute rounded-full hover:scale-125 transition-transform"
+            style={{
+              left: mx - 14,
+              top: my - 14,
+              width: 28,
+              height: 28,
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              pointerEvents: "auto",
+            }}
+            title={`Snap point ${i + 1}`}
+          />
+        );
+      })}
+      {/* Label */}
+      <div
+        className="text-xs font-medium text-center"
+        style={{
+          marginTop: 4,
+          color: "#ec4899",
+          pointerEvents: "none",
+        }}
+      >
+        Click a point to select
+      </div>
+    </div>
+  );
+}
