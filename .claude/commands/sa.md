@@ -220,14 +220,10 @@ If any step fails:
 
 ### Release Command Failures (Expected)
 
-The Heroku release command (`deploy:prepare` + `increment_version`) may fail with:
-```
-release command failed: too many connections for role
-```
+The Heroku release command runs `deploy:prepare` (migrations only) + `increment_version`.
+It may fail with `too many connections for role` - **this is OK**, the code still deploys.
 
-**This is OK!** The code still deploys successfully.
-
-**If you need migrations to run:**
+**If you need migrations to run manually:**
 ```bash
 heroku run rails db:migrate --app teeem-staging
 ```

@@ -1,73 +1,21 @@
 # Deployment tasks for TEEEM
-# These tasks run automatically during Heroku releases
+# Runs automatically during Heroku release phase
+# Procfile: release: bundle exec rails deploy:prepare
+#
+# Only migrations belong here. Everything else either:
+# - Runs on worker boot (SolidQueue recurring jobs)
+# - Is a manual utility task (foundation:sync, warehouse:ensure_folders)
 
 namespace :deploy do
-  desc "Run all deployment tasks (auto-sync, migrations, etc.)"
+  desc "Run pending migrations (Heroku release phase)"
   task prepare: :environment do
-    puts "\n" + ("=" * 80)
-    puts "🚀 TEEEM Deployment Preparation"
-    puts ("=" * 80)
-
-    # 1. Run pending migrations
-    begin
-      # Rails 8 compatible: Use MigrationContext.needs_migration?
-      migration_context = ActiveRecord::MigrationContext.new(ActiveRecord::Migrator.migrations_paths)
-      if migration_context.needs_migration?
-        puts "\n📦 Running pending migrations..."
-        Rake::Task["db:migrate"].invoke
-      else
-        puts "\n✅ No pending migrations"
-      end
-    rescue => e
-      puts "\n⚠️  Migration check failed: #{e.message}"
-      puts "   Attempting to run migrations anyway..."
+    migration_context = ActiveRecord::MigrationContext.new(ActiveRecord::Migrator.migrations_paths)
+    if migration_context.needs_migration?
+      puts "Running pending migrations..."
       Rake::Task["db:migrate"].invoke
+      puts "Migrations complete"
+    else
+      puts "No pending migrations"
     end
-
-    # 2. Auto-sync Foundation metadata
-    puts "\n🔄 Syncing Foundation metadata..."
-    begin
-      Rake::Task["foundation:health_check_auto_fix"].invoke
-      puts "✅ Foundation sync complete"
-    rescue => e
-      puts "⚠️  Foundation sync warning: #{e.message}"
-      puts "   (Deployment will continue, but run 'rails foundation:sync' manually)"
-    end
-
-    # 3. Ensure required warehouse_folders exist
-    # SSoT: Auto-seed missing warehouse_folder entries on every deploy
-    # This prevents "missing folder" issues when new warehouse_types are added
-    puts "\n📁 Checking warehouse folders..."
-    begin
-      Rake::Task["warehouse:ensure_folders"].invoke
-      puts "✅ Warehouse folders verified"
-    rescue => e
-      puts "⚠️  Warehouse folder check warning: #{e.message}"
-    end
-
-    # 4. Sync recurring jobs from config/recurring.yml (SolidQueue)
-    if defined?(SolidQueue)
-      puts "\n♻️  Syncing recurring jobs from config/recurring.yml..."
-      begin
-        config_path = Rails.root.join("config/recurring.yml")
-        if File.exist?(config_path)
-          config = YAML.safe_load_file(config_path, permitted_classes: [Symbol])
-          tasks = config.map { |key, options| SolidQueue::RecurringTask.from_configuration(key, **options.symbolize_keys) }
-          SolidQueue::RecurringTask.create_or_update_all(tasks)
-          puts "✅ Synced #{tasks.count} recurring jobs"
-        else
-          puts "⚠️  config/recurring.yml not found"
-        end
-      rescue => e
-        puts "⚠️  Could not sync recurring jobs: #{e.message}"
-      end
-    end
-
-    puts "\n" + ("=" * 80)
-    puts "✅ Deployment preparation complete!"
-    puts ("=" * 80)
   end
 end
-
-# Hook into Heroku release phase
-# Add to Procfile: release: bundle exec rails deploy:prepare

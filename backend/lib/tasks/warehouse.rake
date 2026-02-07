@@ -471,60 +471,35 @@ namespace :warehouse do
 
   # ============================================================================
   # WAREHOUSE FOLDER AUTO-SEEDING
-  # Ensures all required warehouse_folder entries exist (runs on every deploy)
+  # SSoT: Reads from warehouse_types table (not hardcoded)
+  # Creates a root-level WarehouseFolder for any WarehouseType that lacks one
   # ============================================================================
 
-  desc "Ensure all required warehouse_folder entries exist (runs on every deploy)"
+  desc "Ensure each enabled WarehouseType has at least one root WarehouseFolder"
   task ensure_folders: :environment do
-    puts "Checking required warehouse_folder entries..."
-
-    # SSoT: Define all required root-level warehouse_folders
-    # These are the folders that appear in File Warehouse root level
-    # warehouse_type_code must match a WarehouseType.code in the database
-    required_folders = [
-      { warehouse_type_code: 'task', tab_key: 'task', display_name: 'Tasks', tab_group: 'system' },
-      { warehouse_type_code: 'task_attachments', tab_key: 'task-attachments', display_name: 'Task Attachments', tab_group: 'system' },
-      { warehouse_type_code: 'task_responses', tab_key: 'responses', display_name: 'Task Responses', tab_group: 'system' },
-      { warehouse_type_code: 'user', tab_key: 'user', display_name: 'Teeem Docs', tab_group: 'system' },
-      { warehouse_type_code: 'case', tab_key: 'case', display_name: 'Cases', tab_group: 'system' },
-      { warehouse_type_code: 'asset', tab_key: 'overview', display_name: 'Asset', tab_group: 'documents' },
-      { warehouse_type_code: 'asset_expenses', tab_key: 'expenses', display_name: 'Asset Expenses', tab_group: 'documents' },
-      { warehouse_type_code: 'asset_service', tab_key: 'service', display_name: 'Asset Service', tab_group: 'documents' },
-      { warehouse_type_code: 'asset_readings', tab_key: 'readings', display_name: 'Asset Readings', tab_group: 'documents' }
-    ]
-
     created_count = 0
     skipped_count = 0
-    missing_types = 0
 
-    required_folders.each do |attrs|
-      wt = WarehouseType.find_by_code(attrs[:warehouse_type_code])
-      unless wt
-        missing_types += 1
-        next
-      end
-
-      if WarehouseFolder.where(warehouse_type_id: wt.id).exists?
+    WarehouseType.enabled.find_each do |wt|
+      if wt.warehouse_folders.exists?
         skipped_count += 1
       else
         WarehouseFolder.create!(
           warehouse_type: wt,
-          name: attrs[:display_name],
-          display_name: attrs[:display_name],
-          folder_segment: attrs[:display_name],
-          tab_key: attrs[:tab_key],
-          tab_group: attrs[:tab_group],
+          name: wt.display_name,
+          display_name: wt.display_name,
+          folder_segment: wt.display_name,
           order_position: 0,
           enabled: true,
-          is_system_tab: true,
+          is_system_tab: wt.is_system,
           warehouse_enabled: true
         )
-        puts "  ✅ Created #{attrs[:warehouse_type_code]} (#{attrs[:display_name]})"
+        puts "  Created root folder for #{wt.code} (#{wt.display_name})"
         created_count += 1
       end
     end
 
-    puts "Warehouse folders: #{created_count} created, #{skipped_count} existed, #{missing_types} types not found"
+    puts "Warehouse folders: #{created_count} created, #{skipped_count} already exist"
   end
 
   desc "List all warehouse_folder entries with their paths"
@@ -532,11 +507,11 @@ namespace :warehouse do
     puts "\nWarehouse Folders:"
     puts "-" * 100
 
-    WarehouseFolder.where.not(base_folder: [nil, ''])
-                   .order(:base_folder, :warehouse_type)
+    WarehouseFolder.enabled.ordered
+                   .includes(:warehouse_type)
                    .each do |wf|
-      status = wf.warehouse_enabled ? "✅" : "❌"
-      puts "#{status} #{wf.warehouse_type.ljust(20)} | #{wf.base_folder.ljust(12)} | #{wf.folder_path}"
+      type_code = wf.warehouse_type&.code || "unknown"
+      puts "#{type_code.ljust(20)} | #{wf.full_folder_path}"
     end
   end
 end
