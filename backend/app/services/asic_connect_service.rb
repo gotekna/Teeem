@@ -29,7 +29,7 @@ class AsicConnectService
 
       {
         success: false,
-        error: "Public ASIC registry scraping requires Selenium for JavaScript rendering. Use fetch_directors_via_extract instead.",
+        error: "Public ASIC registry search has limited data. Use fetch_directors_via_extract or AsicConnectScraper instead.",
         suggestion: "Download ASIC extract manually and use rake task to import"
       }
     rescue StandardError => e
@@ -41,19 +41,12 @@ class AsicConnectService
   end
 
   # Fetch directors from ASIC Connect portal (requires login)
-  # NOTE: This requires Selenium WebDriver for full browser automation
-  # ASIC Connect uses JavaScript and complex session management
+  # Fetch directors via AsicConnectScraper (uses Net::HTTP + Nokogiri)
   def fetch_directors_via_portal
     return { success: false, error: "ASIC credentials not configured" } unless credentials_present?
 
-    {
-      success: false,
-      error: "ASIC Connect portal scraping requires Selenium WebDriver (not yet installed).",
-      credentials_ok: credentials_present?,
-      corporate_key: @corporate_key,
-      username: @username,
-      suggestion: "Use manual ASIC extract import instead, or install Selenium"
-    }
+    scraper = AsicConnectScraper.new(@company)
+    scraper.fetch_current_directors
   end
 
   # Parse an ASIC extract file (PDF or Excel) and return directors

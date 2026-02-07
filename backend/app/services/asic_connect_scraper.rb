@@ -1,18 +1,19 @@
-require "selenium-webdriver"
+require "net/http"
+require "nokogiri"
+require "uri"
+require "cgi"
 
 class AsicConnectScraper
   ASIC_CONNECT_URL = "https://www.edge.asic.gov.au/004/compportal/get/ServicesLogin"
-  LOGIN_TIMEOUT = 30 # seconds
-  PAGE_LOAD_TIMEOUT = 60 # seconds
+  REQUEST_TIMEOUT = 30 # seconds
 
-  def initialize(company, headless: true)
+  def initialize(company, headless: true) # headless param kept for backwards compatibility
     @company = company
     @acn = company.acn&.gsub(/\s+/, "") # Remove spaces from ACN
     @username = company.asic_username
     @password = company.encrypted_asic_password # Rails auto-decrypts
     @recovery_answer = company.encrypted_recovery_answer
-    @headless = headless
-    @driver = nil
+    @cookies = {}
   end
 
   # Main method: Fetch current directors from ASIC Connect
@@ -20,18 +21,15 @@ class AsicConnectScraper
     return error_result("Missing ASIC credentials") unless credentials_valid?
 
     begin
-      setup_driver
-      login_to_asic
-      navigate_to_officers_page
-      directors = scrape_officers_data
+      session = login_to_asic
+      officers_html = navigate_to_officers_page(session)
+      directors = scrape_officers_data(officers_html)
 
       success_result(directors)
     rescue StandardError => e
       Rails.logger.error("ASIC scraping failed for #{@company.name}: #{e.message}")
       Rails.logger.error(e.backtrace.join("\n"))
       error_result("Scraping failed: #{e.message}")
-    ensure
-      cleanup_driver
     end
   end
 
@@ -41,176 +39,130 @@ class AsicConnectScraper
     @acn.present? && @username.present? && @password.present?
   end
 
-  def setup_driver
-    options = Selenium::WebDriver::Chrome::Options.new
-
-    if @headless
-      options.add_argument("--headless=new")
-      options.add_argument("--disable-gpu")
-    end
-
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
-
-    @driver = Selenium::WebDriver.for :chrome, options: options
-    @driver.manage.timeouts.implicit_wait = 10
-    @driver.manage.timeouts.page_load = PAGE_LOAD_TIMEOUT
-
-    Rails.logger.info("Selenium driver initialized for #{@company.name}")
-  end
-
+  # Returns a Net::HTTP session with cookies and auth set up
   def login_to_asic
     Rails.logger.info("Navigating to ASIC Connect...")
-    @driver.get(ASIC_CONNECT_URL)
 
-    wait = Selenium::WebDriver::Wait.new(timeout: LOGIN_TIMEOUT)
+    # STEP 1: GET the login page to get session cookies
+    login_uri = URI.parse(ASIC_CONNECT_URL)
+    response = http_get(login_uri)
+    store_cookies(response)
 
-    # STEP 1: Enter ACN/ABN
-    Rails.logger.info("Step 1: Entering ACN (#{@acn})...")
-    acn_field = wait.until {
-      @driver.find_element(name: "Portal-1-COMPServicesLogin-1-ACN-1")
+    # Parse the login form to find the correct field names and action URL
+    doc = Nokogiri::HTML(response.body)
+
+    # STEP 2: Submit ACN
+    Rails.logger.info("Step 1: Submitting ACN (#{@acn})...")
+    form_data = {
+      "Portal-1-COMPServicesLogin-1-ACN-1" => @acn
     }
-    acn_field.clear
-    acn_field.send_keys(@acn)
 
-    # Click Next button (image input)
-    Rails.logger.info("Clicking Next...")
-    next_button = @driver.find_element(css: "input[type='image'][alt*='next']")
-    next_button.click
+    # Find the form action URL (may be relative)
+    form = doc.at_css("form")
+    action_url = form ? form["action"] : ASIC_CONNECT_URL
 
-    sleep 3 # Wait for HTTP Basic Auth redirect
+    post_uri = resolve_uri(login_uri, action_url)
+    response = http_post(post_uri, form_data)
+    store_cookies(response)
 
-    # STEP 2: Navigate with credentials in URL to handle HTTP Basic Auth
+    # STEP 3: Handle HTTP Basic Auth
+    # After ACN submission, ASIC redirects to a page requiring HTTP Basic Auth
     Rails.logger.info("Step 2: Handling HTTP Basic Authentication...")
-    current_url = @driver.current_url
 
-    # Build authenticated URL: https://username:password@domain/path
-    uri = URI.parse(current_url)
-    authenticated_url = "#{uri.scheme}://#{CGI.escape(@username)}:#{CGI.escape(@password)}@#{uri.host}#{uri.path}"
-    authenticated_url += "?#{uri.query}" if uri.query
+    # Follow redirects, applying Basic Auth
+    redirect_limit = 5
+    while response.is_a?(Net::HTTPRedirection) && redirect_limit > 0
+      redirect_uri = resolve_uri(post_uri, response["location"])
+      response = http_get(redirect_uri, basic_auth: true)
+      store_cookies(response)
+      redirect_limit -= 1
+    end
 
-    Rails.logger.info("Navigating to authenticated URL...")
-    @driver.get(authenticated_url)
+    # If we got a 401, retry with Basic Auth
+    if response.is_a?(Net::HTTPUnauthorized)
+      response = http_get(URI.parse(response.uri.to_s), basic_auth: true)
+      store_cookies(response)
+    end
 
-    sleep 3 # Wait for page to load
+    unless response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPRedirection)
+      raise "Login failed with HTTP #{response.code}: #{response.message}"
+    end
 
-    # Check if security question appears
-    if page_has_security_question?
+    # Check for security question
+    page_doc = Nokogiri::HTML(response.body)
+    if has_security_question?(page_doc)
       Rails.logger.info("Security question detected...")
-      answer_security_question
+      response = answer_security_question(page_doc, URI.parse(response.uri.to_s))
     end
 
     # Verify login success
-    wait.until {
-      @driver.current_url.include?("Forms") ||
-      @driver.current_url.include?("compportal") ||
-      @driver.page_source.include?("Forms manager") ||
-      @driver.page_source.include?("Company")
-    }
+    body = response.body
+    unless body.include?("Forms manager") || body.include?("Company") || body.include?("compportal")
+      raise "Login verification failed - unexpected page content after authentication"
+    end
 
     Rails.logger.info("Login successful!")
-  rescue Selenium::WebDriver::Error::TimeoutError => e
-    take_screenshot("login_timeout")
-    raise "Login timeout - check credentials or ASIC Connect may be down"
-  rescue Selenium::WebDriver::Error::NoSuchElementError => e
-    take_screenshot("login_element_not_found")
-    raise "Login form elements not found - ASIC Connect HTML may have changed"
+    { last_response: response, last_uri: URI.parse(response.uri.to_s) }
   end
 
-  def page_has_security_question?
-    begin
-      @driver.find_element(css: "input[id*='security'], input[id*='recovery'], input[id*='challenge']")
-      true
-    rescue Selenium::WebDriver::Error::NoSuchElementError
-      false
-    end
-  end
-
-  def answer_security_question
-    return unless @recovery_answer.present?
-
-    Rails.logger.info("Answering security question...")
-    answer_field = @driver.find_element(css: "input[id*='security'], input[id*='recovery'], input[id*='challenge']")
-    answer_field.clear
-    answer_field.send_keys(@recovery_answer)
-
-    submit_button = @driver.find_element(css: "button[type='submit'], input[type='submit']")
-    submit_button.click
-
-    sleep 2
-  end
-
-  def navigate_to_officers_page
+  def navigate_to_officers_page(session)
     Rails.logger.info("Navigating to Officers page...")
-    wait = Selenium::WebDriver::Wait.new(timeout: 30)
+    doc = Nokogiri::HTML(session[:last_response].body)
 
-    # Look for Company Details or Officers link
-    officers_link = wait.until {
-      @driver.find_element(css: "a:contains('Officers'), a:contains('Company Details'), a[href*='officer']")
-    }
-    officers_link.click
+    # Find the Officers or Company Details link
+    officers_link = doc.at_css('a[href*="officer" i], a[href*="Officer"]') ||
+                    doc.css("a").find { |a| a.text =~ /officers|company details/i }
 
-    sleep 2
-    Rails.logger.info("Officers page loaded")
-  rescue Selenium::WebDriver::Error::NoSuchElementError
-    # Try alternative navigation methods
-    Rails.logger.warn("Could not find Officers link - trying alternative navigation...")
+    if officers_link
+      href = officers_link["href"]
+      officers_uri = resolve_uri(session[:last_uri], href)
+      response = http_get(officers_uri, basic_auth: true)
+      store_cookies(response)
 
-    # Try clicking through menu
-    begin
-      menu_item = @driver.find_element(css: ".menu, .navigation, .sidebar")
-      menu_item.click
-      sleep 1
+      # Follow redirects
+      redirect_limit = 3
+      while response.is_a?(Net::HTTPRedirection) && redirect_limit > 0
+        redirect_uri = resolve_uri(officers_uri, response["location"])
+        response = http_get(redirect_uri, basic_auth: true)
+        store_cookies(response)
+        redirect_limit -= 1
+      end
 
-      officers_link = @driver.find_element(css: "a:contains('Officers')")
-      officers_link.click
-      sleep 2
-    rescue
-      take_screenshot("navigation_failed")
-      raise "Could not navigate to Officers page - HTML structure may have changed"
+      response.body
+    else
+      # If no link found, the officers data might be on the current page
+      Rails.logger.warn("Could not find Officers link - parsing current page")
+      session[:last_response].body
     end
   end
 
-  def scrape_officers_data
+  def scrape_officers_data(html)
     Rails.logger.info("Scraping officers data...")
     directors = []
 
-    # Wait for officer table/list to load
-    wait = Selenium::WebDriver::Wait.new(timeout: 30)
-    wait.until {
-      @driver.find_element(css: "table, .officer-list, .directors-list, [class*='officer']")
-    }
+    doc = Nokogiri::HTML(html)
 
-    # Try to find officer rows (adjust selectors based on actual ASIC HTML)
-    officer_rows = @driver.find_elements(css: "tr.officer, .officer-row, [class*='director']")
+    # Try to find officer rows in tables
+    officer_rows = doc.css("tr.officer, .officer-row, [class*='director']")
 
     if officer_rows.empty?
-      # Try alternative selectors
-      officer_rows = @driver.find_elements(css: "table tbody tr")
+      officer_rows = doc.css("table tbody tr")
     end
 
     Rails.logger.info("Found #{officer_rows.count} officer rows")
 
     officer_rows.each do |row|
-      begin
-        cells = row.find_elements(css: "td")
-        next if cells.empty?
+      cells = row.css("td")
+      next if cells.empty?
 
-        director = extract_director_from_row(cells)
-        directors << director if director[:name].present?
-      rescue => e
-        Rails.logger.warn("Failed to parse officer row: #{e.message}")
-        next
-      end
+      director = extract_director_from_row(cells)
+      directors << director if director[:name].present?
     end
 
     # If no structured data found, try parsing text content
     if directors.empty?
       Rails.logger.warn("No structured officer data found - trying text parsing...")
-      page_text = @driver.page_source
-      directors = extract_directors_from_page_text(page_text)
+      directors = extract_directors_from_page(doc)
     end
 
     Rails.logger.info("Scraped #{directors.count} directors")
@@ -218,13 +170,6 @@ class AsicConnectScraper
   end
 
   def extract_director_from_row(cells)
-    # Common ASIC officer table structure:
-    # Column 0: Name
-    # Column 1: Position
-    # Column 2: Appointment Date
-    # Column 3: Resignation Date (if any)
-    # Column 4: Status
-
     {
       name: cells[0]&.text&.strip,
       position: cells[1]&.text&.strip,
@@ -234,14 +179,9 @@ class AsicConnectScraper
     }
   end
 
-  def extract_directors_from_page_text(html)
-    # Fallback parser for when table structure is different
-    # This is a basic implementation - may need adjustment based on actual HTML
+  def extract_directors_from_page(doc)
     directors = []
 
-    doc = Nokogiri::HTML(html)
-
-    # Look for director names (usually in specific patterns)
     doc.css('.officer, .director, [class*="person"]').each do |element|
       name = element.css(".name, .person-name").text.strip
       position = element.css(".position, .role").text.strip
@@ -268,26 +208,83 @@ class AsicConnectScraper
     nil
   end
 
-  def take_screenshot(name)
-    return unless @driver
-
-    screenshot_dir = Rails.root.join("tmp", "asic_screenshots")
-    FileUtils.mkdir_p(screenshot_dir)
-
-    filename = "#{@company.id}_#{name}_#{Time.now.to_i}.png"
-    filepath = screenshot_dir.join(filename)
-
-    @driver.save_screenshot(filepath.to_s)
-    Rails.logger.info("Screenshot saved: #{filepath}")
-  rescue => e
-    Rails.logger.error("Failed to save screenshot: #{e.message}")
+  def has_security_question?(doc)
+    doc.at_css('input[id*="security"], input[id*="recovery"], input[id*="challenge"]').present?
   end
 
-  def cleanup_driver
-    @driver&.quit
-    Rails.logger.info("Selenium driver closed")
-  rescue => e
-    Rails.logger.error("Error closing driver: #{e.message}")
+  def answer_security_question(doc, current_uri)
+    return http_get(current_uri, basic_auth: true) unless @recovery_answer.present?
+
+    Rails.logger.info("Answering security question...")
+    answer_field = doc.at_css('input[id*="security"], input[id*="recovery"], input[id*="challenge"]')
+    return http_get(current_uri, basic_auth: true) unless answer_field
+
+    form = answer_field.ancestors("form").first
+    action_url = form ? form["action"] : current_uri.to_s
+
+    form_data = {}
+    # Collect all hidden fields
+    form&.css('input[type="hidden"]')&.each do |hidden|
+      form_data[hidden["name"]] = hidden["value"] if hidden["name"]
+    end
+    form_data[answer_field["name"]] = @recovery_answer
+
+    post_uri = resolve_uri(current_uri, action_url)
+    response = http_post(post_uri, form_data, basic_auth: true)
+    store_cookies(response)
+    response
+  end
+
+  # HTTP helpers
+
+  def http_get(uri, basic_auth: false)
+    http = build_http(uri)
+    request = Net::HTTP::Get.new(uri)
+    request["Cookie"] = cookie_header
+    request["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+    request.basic_auth(@username, @password) if basic_auth
+
+    http.request(request)
+  end
+
+  def http_post(uri, form_data, basic_auth: false)
+    http = build_http(uri)
+    request = Net::HTTP::Post.new(uri)
+    request["Cookie"] = cookie_header
+    request["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+    request.set_form_data(form_data)
+    request.basic_auth(@username, @password) if basic_auth
+
+    http.request(request)
+  end
+
+  def build_http(uri)
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = (uri.scheme == "https")
+    http.open_timeout = REQUEST_TIMEOUT
+    http.read_timeout = REQUEST_TIMEOUT
+    http
+  end
+
+  def store_cookies(response)
+    Array(response.get_fields("set-cookie")).each do |cookie_str|
+      name, value = cookie_str.split(";").first.split("=", 2)
+      @cookies[name.strip] = value&.strip
+    end
+  end
+
+  def cookie_header
+    @cookies.map { |k, v| "#{k}=#{v}" }.join("; ")
+  end
+
+  def resolve_uri(base_uri, relative_url)
+    return base_uri if relative_url.blank?
+
+    if relative_url.start_with?("http")
+      URI.parse(relative_url)
+    else
+      URI.join(base_uri, relative_url)
+    end
   end
 
   def success_result(directors)
