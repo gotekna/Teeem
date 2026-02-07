@@ -16,7 +16,7 @@ import type {
 } from "./types";
 import { DEFAULT_DRAWING_STYLE } from "./types";
 import { useSnapPoints, type SnapConfig } from "./useSnapPoints";
-import { SnapIndicator, SnapPointsLayer, SnapMagnifier } from "./SnapIndicator";
+import { SnapIndicator, SnapPointsLayer, SnapMagnifier, PinnedMagnifier } from "./SnapIndicator";
 import { PdfFrame } from "@/components/ui/pdf-chrome";
 
 // =============================================================================
@@ -55,6 +55,7 @@ interface TakeoffCanvasProps {
   // Scale calibration
   pageScale: PageScale | null;
   onCalibrate: (data: CalibrationData) => Promise<void>;
+  onClearCalibration?: () => Promise<void>;
 
   // Measurements
   measurements: TakeoffMeasurement[];
@@ -108,6 +109,7 @@ export function TakeoffCanvas({
   pageHeight,
   pageScale,
   onCalibrate,
+  onClearCalibration,
   measurements,
   onMeasurementCreate,
   onMeasurementDelete,
@@ -169,6 +171,7 @@ export function TakeoffCanvas({
   const [calibrationStep, setCalibrationStep] = useState<"idle" | "firstPoint" | "waitingInput" | "verifying">("idle");
   const [calibrationInput, setCalibrationInput] = useState("");
   const calibrationInputRef = useRef<HTMLInputElement>(null);
+  const [showPinnedMagnifiers, setShowPinnedMagnifiers] = useState(true);
 
   // Count marker state
   const [nextCountLabel, setNextCountLabel] = useState(1);
@@ -565,10 +568,14 @@ export function TakeoffCanvas({
     }
 
     // Apply snapping for measurement tools (hold Alt to bypass snap)
+    // Use the existing snapResult (which reflects magnifier candidate selection)
+    // instead of recalculating fresh — this preserves the user's magnifier choice.
     const nativeEvt = e.e as PointerEvent;
     const altHeld = nativeEvt?.altKey ?? false;
     const shouldSnap = !altHeld && ["count", "area", "linear", "perimeter", "deduction", "calibrate"].includes(currentTool);
-    const { snapped: point } = shouldSnap ? findSnapPoint(rawPoint.x, rawPoint.y) : { snapped: rawPoint };
+    const point = shouldSnap && snapResult?.isSnapped
+      ? snapResult.snapped
+      : shouldSnap ? findSnapPoint(rawPoint.x, rawPoint.y).snapped : rawPoint;
 
     switch (currentTool) {
       case "calibrate": {
@@ -1253,6 +1260,92 @@ export function TakeoffCanvas({
         />
       )}
 
+      {/* Pinned magnifiers at calibration endpoints — shows exactly where each point snapped */}
+      {currentTool === "calibrate" && pdfPage && showPinnedMagnifiers && (
+        <>
+          {/* Original calibration line endpoints (from saved pageScale) */}
+          {pageScale?.calibration_line && pageScale.reference_length_mm && (
+            <>
+              <PinnedMagnifier
+                point={{ x: pageScale.calibration_line.x1, y: pageScale.calibration_line.y1 }}
+                pdfCanvas={pdfPage}
+                zoom={zoom}
+                pageWidth={pageWidth}
+                pageHeight={pageHeight}
+                label="Cal A"
+                color="#F59E0B"
+                preferSide="left"
+                onSelect={(newPoint) => {
+                  // Re-calibrate with adjusted start point
+                  onCalibrate({
+                    lineStart: newPoint,
+                    lineEnd: { x: pageScale.calibration_line!.x2, y: pageScale.calibration_line!.y2 },
+                    referenceLengthMm: pageScale.reference_length_mm!,
+                    canvasWidth: pageWidth,
+                    canvasHeight: pageHeight,
+                  });
+                }}
+              />
+              <PinnedMagnifier
+                point={{ x: pageScale.calibration_line.x2, y: pageScale.calibration_line.y2 }}
+                pdfCanvas={pdfPage}
+                zoom={zoom}
+                pageWidth={pageWidth}
+                pageHeight={pageHeight}
+                label="Cal B"
+                color="#F59E0B"
+                preferSide="right"
+                onSelect={(newPoint) => {
+                  // Re-calibrate with adjusted end point
+                  onCalibrate({
+                    lineStart: { x: pageScale.calibration_line!.x1, y: pageScale.calibration_line!.y1 },
+                    lineEnd: newPoint,
+                    referenceLengthMm: pageScale.reference_length_mm!,
+                    canvasWidth: pageWidth,
+                    canvasHeight: pageHeight,
+                  });
+                }}
+              />
+            </>
+          )}
+          {/* Current verification/new calibration line endpoints */}
+          {calibrationLine && (
+            <>
+              <PinnedMagnifier
+                point={calibrationLine.start}
+                pdfCanvas={pdfPage}
+                zoom={zoom}
+                pageWidth={pageWidth}
+                pageHeight={pageHeight}
+                label="Verify A"
+                color="#16A34A"
+                preferSide="left"
+                onSelect={(newPoint) => {
+                  setCalibrationLine(prev => prev ? { ...prev, start: newPoint } : null);
+                  renderTempCalibrationLine();
+                }}
+              />
+              {(calibrationStep === "waitingInput" || calibrationStep === "verifying") && (
+                <PinnedMagnifier
+                  point={calibrationLine.end}
+                  pdfCanvas={pdfPage}
+                  zoom={zoom}
+                  pageWidth={pageWidth}
+                  pageHeight={pageHeight}
+                  label="Verify B"
+                  color="#16A34A"
+                  preferSide="right"
+                  onSelect={(newPoint) => {
+                    setCalibrationLine(prev => prev ? { ...prev, end: newPoint } : null);
+                    renderTempCalibrationLine();
+                  }}
+                />
+              )}
+            </>
+          )}
+        </>
+      )}
+
       {/* Zoom-to-rect selection overlay (right-click drag) */}
       {zoomRect && (
         <div
@@ -1309,11 +1402,34 @@ export function TakeoffCanvas({
 
       {/* Calibration instructions - step 1: click first point */}
       {currentTool === "calibrate" && calibrationStep === "idle" && !calibrationLine && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-amber-600/95 text-white rounded-lg px-4 py-2 text-sm font-medium shadow-lg">
-          {pageScale?.calibrated
-            ? <>Click two points on a <strong>known dimension</strong> to verify accuracy</>
-            : <>Click the <strong>start</strong> of a known dimension line</>
-          }
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
+          <div className="bg-amber-600/95 text-white rounded-lg px-4 py-2 text-sm font-medium shadow-lg">
+            {pageScale?.calibrated
+              ? <>Click two points on a <strong>known dimension</strong> to verify accuracy</>
+              : <>Click the <strong>start</strong> of a known dimension line</>
+            }
+          </div>
+          {pageScale?.calibrated && (
+            <>
+              <button
+                onClick={() => setShowPinnedMagnifiers(prev => !prev)}
+                className="bg-background/90 backdrop-blur-sm border rounded-lg px-3 py-2 text-sm font-medium shadow-lg hover:bg-muted"
+              >
+                {showPinnedMagnifiers ? "Hide" : "Show"} Magnifiers
+              </button>
+              <button
+                onClick={async () => {
+                  if (onClearCalibration) {
+                    await onClearCalibration();
+                    clearTempDrawing();
+                  }
+                }}
+                className="bg-red-500/90 text-white rounded-lg px-3 py-2 text-sm font-medium shadow-lg hover:bg-red-600"
+              >
+                Clear Calibration
+              </button>
+            </>
+          )}
         </div>
       )}
 

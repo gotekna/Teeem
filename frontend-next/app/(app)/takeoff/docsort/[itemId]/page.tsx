@@ -337,6 +337,29 @@ export default function DocsortTakeoffPage() {
     [itemId, currentPageNumber, toast]
   );
 
+  const handleClearCalibration = React.useCallback(
+    async () => {
+      if (!itemId) return;
+      try {
+        await api.delete(`/api/v1/pdf_takeoff/docsort/${itemId}/calibrate`, {
+          params: { page_number: currentPageNumber },
+        });
+        // Clear page scale locally
+        setItemData((prev) => {
+          if (!prev) return prev;
+          const newScales = prev.page_scales.filter(
+            (ps) => ps.page_number !== currentPageNumber
+          );
+          return { ...prev, page_scales: newScales };
+        });
+        toast({ title: "Calibration Cleared", description: "You can now recalibrate from scratch." });
+      } catch {
+        toast({ title: "Failed to clear calibration", variant: "destructive" });
+      }
+    },
+    [itemId, currentPageNumber, toast]
+  );
+
   // Create measurement
   const handleMeasurementCreate = React.useCallback(
     async (
@@ -783,6 +806,7 @@ export default function DocsortTakeoffPage() {
                 pageHeight={currentPage.height}
                 pageScale={pageScale}
                 onCalibrate={handleCalibrate}
+                onClearCalibration={handleClearCalibration}
                 measurements={measurements.filter(
                   (m) => m.page_number === currentPageNumber
                 )}

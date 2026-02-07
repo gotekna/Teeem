@@ -64,11 +64,15 @@ class WarehouseFolder < ApplicationRecord
   validate :parent_not_self
   validate :parent_same_warehouse_type
   validate :no_circular_reference
+  validate :parent_tabs_must_be_system
 
   # Callbacks
   before_validation :sync_display_name_and_folder_segment
   before_validation :sync_tab_key_from_display_name
   before_save :sync_booleans_from_tab_type
+  before_save :enforce_parent_system_type
+  before_save :enforce_leaf_document_type
+  after_create :ensure_parent_is_system
   before_destroy :prevent_system_deletion
 
   # Scopes
@@ -552,6 +556,48 @@ class WarehouseFolder < ApplicationRecord
     self.is_cad_category = (tab_type == 'revit')
     # SSoT: Auto-derive tab_group from tab_type (system → 'data', everything else → 'documents')
     self.tab_group = (tab_type == 'system') ? 'data' : 'documents'
+  end
+
+  # Rule 1: Parents with children MUST be tab_type='system'
+  # Auto-converts on save so the user doesn't have to think about it.
+  def enforce_parent_system_type
+    if children.exists? && tab_type != 'system'
+      self.tab_type = 'system'
+      # sync_booleans_from_tab_type fires separately via before_save
+    end
+  end
+
+  # Rule 1 validation: block saving a parent tab as non-system
+  def parent_tabs_must_be_system
+    return unless persisted? # only validate existing records (enforce_ handles new)
+    if children.exists? && tab_type != 'system'
+      errors.add(:tab_type, "must be 'system' for tabs with children")
+    end
+  end
+
+  # Rule 2: Leaf system tabs with document types → auto-convert to 'document'
+  # If a tab has no children and has linked document types, it stores files,
+  # so it should be document/photo/revit/mailbox - NOT system.
+  def enforce_leaf_document_type
+    return unless tab_type == 'system'
+    return if children.exists? # parents are allowed to be system
+    if warehouse_folder_document_types.any?
+      self.tab_type = 'document'
+    end
+  end
+
+  # When a child is created, auto-convert the parent to system
+  def ensure_parent_is_system
+    return unless parent.present?
+    return if parent.tab_type == 'system'
+
+    parent.update_columns(
+      tab_type: 'system',
+      tab_group: 'data',
+      is_photo_category: false,
+      is_cad_category: false,
+      is_mailbox: false
+    )
   end
 
   def prevent_system_deletion
