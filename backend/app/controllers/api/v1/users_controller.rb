@@ -95,14 +95,16 @@ class Api::V1::UsersController < ApplicationController
       end
     end
 
+    # Extract photo file before update (photo is not a DB column on User)
+    photo_file = update_params.delete(:photo) if update_params[:photo].is_a?(ActionDispatch::Http::UploadedFile)
+
     if @user.update(update_params)
       # Handle photo upload - store as blob + WarehouseDocument (Employee Photo)
-      if params[:user][:photo].is_a?(ActionDispatch::Http::UploadedFile)
-        file = params[:user][:photo]
-        content = file.read
+      if photo_file
+        content = photo_file.read
 
         # 1. Set user's photo_blob for fast photo_url
-        @user.attach_photo(content, filename: file.original_filename, content_type: file.content_type)
+        @user.attach_photo(content, filename: photo_file.original_filename, content_type: photo_file.content_type)
         @user.save!
 
         # 2. Create WarehouseDocument linked to Contact as Employee Photo
@@ -114,8 +116,8 @@ class Api::V1::UsersController < ApplicationController
             source_type: 'people',
             ui_name: "Employee Photo",
             storage_blob: blob,
-            original_filename: file.original_filename,
-            content_type: file.content_type,
+            original_filename: photo_file.original_filename,
+            content_type: photo_file.content_type,
             file_size: content.bytesize,
             tenant_id: current_tenant.id,
             metadata: pep_type ? { "document_type_id" => pep_type.id } : {}
