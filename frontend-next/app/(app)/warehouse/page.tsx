@@ -1454,15 +1454,22 @@ export default function AllDocumentsPage() {
 
     // Convert WarehouseFolderChildNode (tabs) to TreeNode recursively
     // sourceType is passed down from warehouse type for WarehouseDocument queries
-    const convertWarehouseFolderChildToTreeNode = (folder: WarehouseFolderChildNode, sourceType: string): TreeNode => {
-      const folderPath = folder.fullPath || folder.folderPath;
+    const convertWarehouseFolderChildToTreeNode = (
+      folder: WarehouseFolderChildNode,
+      sourceType: string,
+      tokenValues?: Record<string, string | null>,
+      recordId?: number,
+    ): TreeNode => {
+      const rawPath = folder.fullPath || folder.folderPath;
+      // Resolve record tokens if available (when folder is under a record node)
+      const folderPath = tokenValues ? resolvePathTokens(rawPath, tokenValues) : rawPath;
       // Check if path contains template tokens (virtual folder)
       const isVirtual = folderPath?.includes('{{') || false;
       const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath); // Don't build S3 files for virtual folders
-      const children = folder.children.map(child => convertWarehouseFolderChildToTreeNode(child, sourceType));
+      const children = folder.children.map(child => convertWarehouseFolderChildToTreeNode(child, sourceType, tokenValues, recordId));
 
       return {
-        id: folder.id,
+        id: recordId ? `${folder.id}-rec-${recordId}` : folder.id,
         name: folder.name,
         type: "category" as const,
         icon: getIconComponent(folder.iconName, folder.name),
@@ -1472,6 +1479,19 @@ export default function AllDocumentsPage() {
         isVirtual,
         children: [...children, ...s3Files],
       };
+    };
+
+    // Resolve {{Token}} placeholders in a path using a record's tokenValues
+    // Cleans up double slashes and trailing slashes from empty token values
+    const resolvePathTokens = (path: string | null | undefined, tokens?: Record<string, string | null>): string | null => {
+      if (!path || !tokens) return path || null;
+      let resolved = path;
+      for (const [token, value] of Object.entries(tokens)) {
+        resolved = resolved.replaceAll(`{{${token}}}`, value || '');
+      }
+      // Clean up: collapse double+ slashes, trim trailing slashes per segment
+      resolved = resolved.replace(/\/\/+/g, '/').replace(/^\/|\/$/g, '');
+      return resolved;
     };
 
     // Convert WarehouseFolderTreeNode2 to TreeNode
@@ -1521,13 +1541,15 @@ export default function AllDocumentsPage() {
 
       // Recursively convert warehouse folder with its child warehouse folders
       const convertWarehouseFolderWithHierarchy = (warehouseFolder: WarehouseFolderTreeNode2): TreeNode => {
-        const folderPath = warehouseFolder.warehouseFolder?.folderPath || warehouseFolder.folderPathTemplate;
+        const rawPath = warehouseFolder.warehouseFolder?.folderPath || warehouseFolder.folderPathTemplate;
+        // Resolve record's tokenValues into the path template
+        const folderPath = resolvePathTokens(rawPath, record.tokenValues);
         const isVirtual = folderPath?.includes('{{') || false;
         const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath);
 
-        // Get warehouse folder children (tabs)
+        // Get warehouse folder children (tabs) — pass tokenValues for path resolution
         const warehouseFolderChildren = warehouseFolder.children.map(child =>
-          convertWarehouseFolderChildToTreeNode(child, warehouseType.code)
+          convertWarehouseFolderChildToTreeNode(child, warehouseType.code, record.tokenValues, record.id)
         );
 
         // Get child warehouse folders (hierarchical folders like PreCon > BA Approval)
@@ -1537,12 +1559,12 @@ export default function AllDocumentsPage() {
         const childWarehouseFolderNodes = childWarehouseFolders.map(child => convertWarehouseFolderWithHierarchy(child));
 
         return {
-          id: warehouseFolder.id,
+          id: `${warehouseFolder.id}-rec-${record.id}`,
           name: warehouseFolder.warehouseFolder?.displayName || warehouseFolder.name,
           type: "category" as const,
           icon: getIconComponent(warehouseFolder.warehouseFolder?.iconName || null, warehouseFolder.name),
           fullPath: folderPath || undefined,
-          pathTemplate: warehouseFolder.pathPreview || warehouseFolder.folderPathTemplate || undefined,
+          pathTemplate: folderPath || warehouseFolder.pathPreview || warehouseFolder.folderPathTemplate || undefined,
           fileCount: 0,
           sourceType: warehouseType.code,
           isVirtual,
