@@ -9,6 +9,7 @@ import { BackButton } from "@/components/ui/back-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { ChevronUp, ChevronDown } from "lucide-react";
 
 // Takeoff components
 import { TakeoffCanvas } from "@/components/takeoff/TakeoffCanvas";
@@ -74,20 +75,40 @@ export default function DocsortTakeoffPage() {
   // Tool state
   const [currentTool, setCurrentTool] = React.useState<TakeoffTool>("select");
   const [zoom, setZoom] = React.useState(1);
+  const canvasContainerRef = React.useRef<HTMLDivElement>(null);
+  const hasSetInitialZoom = React.useRef(false);
 
   // Pricebook selector state
   const [pricebookSelectorOpen, setPricebookSelectorOpen] = React.useState(false);
   const [measurementForPricebook, setMeasurementForPricebook] = React.useState<TakeoffMeasurement | null>(null);
 
+  // PDF loading - hook owns currentPageNumber state
+  const pdfUrl = itemData?.download_url || null;
+  const { pages, currentPage, pageCount, isLoading: isLoadingPdf, error: pdfError, setCurrentPageNumber, currentPageNumber } = useTakeoffPdf(pdfUrl);
+
   // Get current page scale
-  const [currentPageNumber, setCurrentPageNumber] = React.useState(1);
   const pageScale = React.useMemo(() => {
     return itemData?.page_scales.find((ps) => ps.page_number === currentPageNumber) || null;
   }, [itemData, currentPageNumber]);
 
-  // PDF loading
-  const pdfUrl = itemData?.download_url || null;
-  const { pages, currentPage, pageCount, isLoading: isLoadingPdf, error: pdfError } = useTakeoffPdf(pdfUrl);
+  // Fit-to-page zoom on initial load
+  React.useEffect(() => {
+    if (hasSetInitialZoom.current || !currentPage || !canvasContainerRef.current) return;
+    hasSetInitialZoom.current = true;
+
+    const container = canvasContainerRef.current;
+    // Account for my-4 margins (16px top + 16px bottom)
+    const availableWidth = container.clientWidth - 32;
+    const availableHeight = container.clientHeight - 32;
+
+    const fitZoom = Math.min(
+      availableWidth / currentPage.width,
+      availableHeight / currentPage.height
+    );
+
+    // Clamp to reasonable range and round to avoid sub-pixel issues
+    setZoom(Math.max(0.1, Math.min(fitZoom, 3)));
+  }, [currentPage]);
 
   // =============================================================================
   // Data Fetching
@@ -620,10 +641,10 @@ export default function DocsortTakeoffPage() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-2 p-2 border-b bg-background shrink-0">
+      <div className="flex items-center gap-1.5 px-2 py-1 border-b bg-background shrink-0">
         <BackButton fallbackHref="/docsort" />
-        <span className="font-medium truncate">{displayName}</span>
-        <span className="text-sm text-muted-foreground">- Takeoff (Standalone)</span>
+        <span className="font-medium text-sm truncate">{displayName}</span>
+        <span className="text-xs text-muted-foreground">- Takeoff</span>
       </div>
 
       {/* Toolbar */}
@@ -658,9 +679,22 @@ export default function DocsortTakeoffPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Thumbnails sidebar */}
         <div className="w-24 border-r bg-muted/30 flex flex-col">
-          <div className="p-2 border-b text-xs font-medium text-muted-foreground">
-            Pages
+          <div className="p-2 border-b text-xs font-medium text-muted-foreground flex items-center justify-between">
+            <span>Pages</span>
+            {pageCount > 1 && (
+              <span className="text-[10px]">{currentPageNumber}/{pageCount}</span>
+            )}
           </div>
+          {/* Prev page arrow */}
+          {pageCount > 1 && (
+            <button
+              onClick={() => setCurrentPageNumber(Math.max(1, currentPageNumber - 1))}
+              disabled={currentPageNumber <= 1}
+              className="flex items-center justify-center py-1 border-b hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </button>
+          )}
           <ScrollArea className="flex-1">
             <div className="p-2 space-y-2">
               {pages.map((page) => (
@@ -688,10 +722,20 @@ export default function DocsortTakeoffPage() {
               )}
             </div>
           </ScrollArea>
+          {/* Next page arrow */}
+          {pageCount > 1 && (
+            <button
+              onClick={() => setCurrentPageNumber(Math.min(pageCount, currentPageNumber + 1))}
+              disabled={currentPageNumber >= pageCount}
+              className="flex items-center justify-center py-1 border-t hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {/* Canvas area */}
-        <div className="flex-1 overflow-auto bg-muted/20 relative">
+        <div ref={canvasContainerRef} className="flex-1 overflow-auto bg-muted/20 relative">
           {pdfError && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">

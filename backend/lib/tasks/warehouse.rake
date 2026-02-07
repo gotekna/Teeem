@@ -578,7 +578,7 @@ namespace :warehouse do
           enabled: true,
           is_system_tab: true,
           warehouse_enabled: true,
-          folder_path: attrs[:warehouse_folder],
+          folder_path: attrs[:folder_path],
           base_folder: attrs[:base_folder]
         )
         puts "  ✅ Created #{attrs[:warehouse_type]} (#{attrs[:display_name]})"

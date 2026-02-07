@@ -178,7 +178,7 @@ export function TakeoffToolbar({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center gap-1 p-2 bg-background border-b">
+      <div className="flex items-center gap-1 px-2 py-1 bg-background border-b">
         {/* Selection Tools */}
         <ToolButton
           tool="select"
