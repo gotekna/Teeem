@@ -38,6 +38,16 @@ class SmTask < ApplicationRecord
     moved_after_confirm: "moved_after_confirm"
   }, prefix: true, default: nil
 
+  # Warehouse display: "T-123" format for folder paths
+  def warehouse_task_id
+    "T-#{id}"
+  end
+
+  # Warehouse display: "J69 83 West Ridge..." for folder paths
+  def warehouse_job_label
+    job ? "#{job.job_code} #{job.name}" : nil
+  end
+
   # Progress percentage based on status
   def progress_percentage
     case status
