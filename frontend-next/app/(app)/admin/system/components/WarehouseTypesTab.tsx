@@ -25,16 +25,12 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown, Briefcase, Mail, Building2, Calendar, FileText, ListFilter, Wrench, ChevronDown, ChevronRight } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import {
-  STORAGE_PLACEHOLDERS,
-  type PlaceholderToken,
-  PLACEHOLDER_COLOR_CLASSES,
-} from "@/lib/placeholders";
+import { getWarehouseScopeForType } from "@/lib/placeholders";
+import { PlaceholderBuilder } from "@/components/ui/placeholders";
 
 type SortField = "code" | "display_name" | "folder_path_template" | "warehouse_folders_count" | "enabled";
 type SortDirection = "asc" | "desc";
@@ -116,85 +112,6 @@ interface FlatFolder {
   warehouse_type_name: string;
 }
 
-// =====================================================================
-// SSoT: Category filter for folder path placeholders (Feb 2026)
-// Uses STORAGE_PLACEHOLDERS from lib/placeholders.ts as the gold standard
-// Matches PlaceholderPalette component for consistent UX
-// =====================================================================
-type TokenCategory = "all" | "job" | "task" | "email" | "company" | "date" | "folder" | "other";
-
-interface TokenCategoryConfig {
-  label: string;
-  icon: React.ElementType;
-  color: string;
-  match: (token: PlaceholderToken) => boolean;
-}
-
-const TOKEN_CATEGORY_CONFIG: Record<TokenCategory, TokenCategoryConfig> = {
-  all: {
-    label: "All",
-    icon: ListFilter,
-    color: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600",
-    match: () => true,
-  },
-  job: {
-    label: "Job",
-    icon: Briefcase,
-    color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700",
-    match: (t) => /\{?\{?Job|LotNumber|StreetName|Suburb|Project/i.test(t.code),
-  },
-  task: {
-    label: "Task",
-    icon: Wrench,
-    color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700",
-    match: (t) => /\{?\{?Task|Attachment|Response|\[\[Attachment|\[\[Response/i.test(t.code),
-  },
-  email: {
-    label: "Email",
-    icon: Mail,
-    color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700",
-    match: (t) => /\{?\{?Subject|Sender|Received|Mailbox|\[\[Email/i.test(t.code),
-  },
-  company: {
-    label: "Company",
-    icon: Building2,
-    color: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700",
-    match: (t) => /\{?\{?Company|Person|Contact|User|Account|Asset|Bank|BSB|Loan|Lender/i.test(t.code),
-  },
-  date: {
-    label: "Date",
-    icon: Calendar,
-    color: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700",
-    match: (t) => /\{?\{?Date|Year|Month|Time|Day|FY|Period|YYYY|DDMM|\{EX\}|Expiry/i.test(t.code),
-  },
-  folder: {
-    label: "Doc",
-    icon: FileText,
-    color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700",
-    match: (t) => /DocType|\{BA\}|\{FIA\}|\{Occ\}|BuildingApproval|FinalInspection|Certificate|FormNumber|Invoice|PONum|PONumber/i.test(t.code),
-  },
-  other: {
-    label: "Other",
-    icon: Folder,
-    color: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600",
-    match: () => true, // Fallback for uncategorized
-  },
-};
-
-// Get category for a placeholder (matches PlaceholderPalette logic)
-function getTokenCategory(token: PlaceholderToken): TokenCategory {
-  // Check in priority order (more specific first)
-  // Email before task so [[Email Attachments]] categorizes as email not task
-  if (TOKEN_CATEGORY_CONFIG.email.match(token)) return "email";
-  if (TOKEN_CATEGORY_CONFIG.task.match(token)) return "task";
-  if (TOKEN_CATEGORY_CONFIG.job.match(token)) return "job";
-  if (TOKEN_CATEGORY_CONFIG.company.match(token)) return "company";
-  if (TOKEN_CATEGORY_CONFIG.date.match(token)) return "date";
-  if (TOKEN_CATEGORY_CONFIG.folder.match(token)) return "folder";
-  if (TOKEN_CATEGORY_CONFIG.other.match(token)) return "other";
-  return "other";
-}
-
 const defaultFormData: FormData = {
   code: "",
   display_name: "",
@@ -213,11 +130,12 @@ export function WarehouseTypesTab() {
   const [formData, setFormData] = React.useState<FormData>(defaultFormData);
   const [warehouseFolderToggles, setWarehouseFolderToggles] = React.useState<WarehouseFolderToggle[]>([]);
   const [allFolders, setAllFolders] = React.useState<FlatFolder[]>([]);
-  const [expandedRoots, setExpandedRoots] = React.useState<Set<number>>(new Set());
+  const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
   const [folderTypeFilter, setFolderTypeFilter] = React.useState<string>("all");
+  // Primary tab categories for folder filter
+  // Corporate, Job, Contact are primary; everything else is "System"
+  const PRIMARY_FOLDER_TABS = ["Corporate", "Job", "Contact"] as const;
   const [warehouseFolderSearch, setWarehouseFolderSearch] = React.useState("");
-  const [placeholderCategory, setPlaceholderCategory] = React.useState<TokenCategory>("all");
-  const [placeholdersExpanded, setPlaceholdersExpanded] = React.useState(false);
   const [showAvailableFolders, setShowAvailableFolders] = React.useState(false);
   const [showSystemTypes, setShowSystemTypes] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -369,6 +287,7 @@ export function WarehouseTypesTab() {
       setWarehouseFolderToggles([]);
     }
 
+    setExpandedGroups(new Set([type.display_name]));
     setIsDialogOpen(true);
   };
 
@@ -378,7 +297,7 @@ export function WarehouseTypesTab() {
     setFormData(defaultFormData);
     setWarehouseFolderToggles([]);
     setAllFolders([]);
-    setExpandedRoots(new Set());
+    setExpandedGroups(new Set());
     setFolderTypeFilter("all");
     setWarehouseFolderSearch("");
     setShowAvailableFolders(false);
@@ -429,13 +348,13 @@ export function WarehouseTypesTab() {
     );
   };
 
-  const toggleRootExpanded = (rootId: number) => {
-    setExpandedRoots(prev => {
+  const toggleGroupExpanded = (groupName: string) => {
+    setExpandedGroups(prev => {
       const next = new Set(prev);
-      if (next.has(rootId)) {
-        next.delete(rootId);
+      if (next.has(groupName)) {
+        next.delete(groupName);
       } else {
-        next.add(rootId);
+        next.add(groupName);
       }
       return next;
     });
@@ -446,16 +365,21 @@ export function WarehouseTypesTab() {
     return allFolders.filter(f => f.parent_id === rootId);
   };
 
-  // Build unique warehouse type names for filter badges (from all root folder toggles)
-  const folderTypeNames = React.useMemo(() => {
-    const typeMap = new Map<string, number>();
+  // Map a warehouse_type_name to a primary tab category
+  const getFolderCategory = React.useCallback((warehouseTypeName: string): string => {
+    if (PRIMARY_FOLDER_TABS.includes(warehouseTypeName as any)) return warehouseTypeName;
+    return "System";
+  }, []);
+
+  // Count folders per primary category
+  const folderCategoryCounts = React.useMemo(() => {
+    const counts: Record<string, number> = { Corporate: 0, Job: 0, Contact: 0, System: 0 };
     for (const toggle of warehouseFolderToggles) {
-      const typeName = toggle.warehouse_type_name || "Unassigned";
-      typeMap.set(typeName, (typeMap.get(typeName) || 0) + 1);
+      const cat = getFolderCategory(toggle.warehouse_type_name || "Unassigned");
+      counts[cat] = (counts[cat] || 0) + 1;
     }
-    return Array.from(typeMap.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]));
-  }, [warehouseFolderToggles]);
+    return counts;
+  }, [warehouseFolderToggles, getFolderCategory]);
 
   const handleDelete = (type: WarehouseType) => {
     if (!type.can_delete) {
@@ -801,142 +725,34 @@ export function WarehouseTypesTab() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="folder_path_template">Folder Path Template</Label>
-                <div className="flex items-center gap-0">
-                  {/* Fixed prefix showing warehouse type name */}
-                  <div className="px-3 py-2 text-sm font-mono bg-muted border border-r-0 rounded-l-md text-muted-foreground">
-                    {formData.display_name || "TypeName"}/
-                  </div>
-                  <Input
-                    id="folder_path_template"
-                    value={formData.folder_path_template}
-                    onChange={(e) =>
-                      setFormData(prev => ({ ...prev, folder_path_template: e.target.value }))
-                    }
-                    placeholder="{{TaskId}}/{{TaskName}}"
-                    className="font-mono text-sm rounded-l-none"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Full path: <code className="bg-muted px-1 rounded">{formData.display_name || "TypeName"}/{formData.folder_path_template || "..."}</code>
-                </p>
-                <Collapsible open={placeholdersExpanded} onOpenChange={setPlaceholdersExpanded}>
-                  <CollapsibleTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {placeholdersExpanded ? (
-                        <ChevronDown className="h-3 w-3" />
-                      ) : (
-                        <ChevronRight className="h-3 w-3" />
-                      )}
-                      <span>Placeholders</span>
-                      {!placeholdersExpanded && (
-                        <span className="text-[10px]">
-                          ({STORAGE_PLACEHOLDERS.filter(t => placeholderCategory === "all" || getTokenCategory(t) === placeholderCategory).length} available)
-                        </span>
-                      )}
-                    </button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="text-xs text-muted-foreground space-y-2 mt-2">
-                    {/* Category Filter Buttons - SSoT (Feb 2026) */}
-                    <div className="flex flex-wrap gap-1">
-                      {(["all", "job", "task", "email", "company", "date", "folder", "other"] as TokenCategory[]).map((cat) => {
-                        const config = TOKEN_CATEGORY_CONFIG[cat];
-                        const Icon = config.icon;
-                        const isActive = placeholderCategory === cat;
-                        return (
-                          <button
-                            key={cat}
-                            type="button"
-                            onClick={() => setPlaceholderCategory(cat)}
-                            className={cn(
-                              "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium border transition-all",
-                              isActive
-                                ? config.color + " ring-1 ring-offset-0 ring-primary/50"
-                                : "bg-background hover:bg-muted text-muted-foreground border-muted-foreground/30 hover:border-muted-foreground/50"
-                            )}
-                          >
-                            <Icon className="h-2.5 w-2.5" />
-                            <span>{config.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {/* Placeholder Buttons - SSoT: Uses STORAGE_PLACEHOLDERS from lib/placeholders.ts */}
-                    <div className="flex flex-wrap">
-                      {STORAGE_PLACEHOLDERS
-                        .filter(t => placeholderCategory === "all" || getTokenCategory(t) === placeholderCategory)
-                        .map((token) => {
-                          const colorClasses = PLACEHOLDER_COLOR_CLASSES[token.color];
-                          // Extract display label from code (remove braces)
-                          const label = token.code.replace(/[\{\}\[\]]/g, "");
-                          return (
-                            <button
-                              key={token.code}
-                              type="button"
-                              onClick={() => {
-                                setFormData(prev => {
-                                  const current = prev.folder_path_template;
-                                  let newPath: string;
-                                  if (!current) {
-                                    newPath = token.code;
-                                  } else if (current.endsWith("/")) {
-                                    newPath = current + token.code;
-                                  } else {
-                                    newPath = current + "/" + token.code;
-                                  }
-                                  return { ...prev, folder_path_template: newPath };
-                                });
-                              }}
-                              title={token.description || token.example}
-                              className={cn(
-                                "px-1.5 py-0.5 text-[10px] font-mono rounded border cursor-pointer transition-colors mr-1 mb-1",
-                                colorClasses.bg,
-                                colorClasses.text,
-                                colorClasses.border,
-                                "hover:opacity-80"
-                              )}
-                            >
-                              {label}
-                            </button>
-                          );
-                        })}
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              </div>
+              {/* Folder Path Template - SSoT: Uses PlaceholderBuilder (THE ONE component) */}
+              <PlaceholderBuilder
+                label="Folder Path Template"
+                value={formData.folder_path_template}
+                onChange={(value) => setFormData(prev => ({ ...prev, folder_path_template: value }))}
+                scope={getWarehouseScopeForType(formData.code)}
+                separator="/"
+                prefixValue={(formData.display_name || "TypeName") + "/"}
+                showPreview
+                helpText={`Full path: ${formData.display_name || "TypeName"}/${formData.folder_path_template || "..."}`}
+              />
 
               {/* Warehouse Folders - Tree View (only show when editing) */}
               {editingType && warehouseFolderToggles.length > 0 && (() => {
                 const searchTerm = warehouseFolderSearch.toLowerCase().trim();
 
-                // Check if a root folder or any of its children match search + type filter
+                // Check if a root folder matches search + primary category filter
                 const rootMatchesFilter = (toggle: WarehouseFolderToggle): boolean => {
-                  const children = getDirectChildren(toggle.id);
-                  const allItems = [toggle, ...children];
-
-                  // Type filter: check the root's current warehouse_type_name
-                  if (folderTypeFilter !== "all" && toggle.warehouse_type_name !== folderTypeFilter) {
-                    return false;
+                  // Primary category filter
+                  if (folderTypeFilter !== "all") {
+                    const folderCategory = getFolderCategory(toggle.warehouse_type_name || "Unassigned");
+                    if (folderCategory !== folderTypeFilter) return false;
                   }
-
-                  // Search: match root name or any child name
+                  // Search
                   if (searchTerm) {
-                    return allItems.some(item =>
-                      item.name.toLowerCase().includes(searchTerm)
-                    );
+                    return toggle.name.toLowerCase().includes(searchTerm);
                   }
                   return true;
-                };
-
-                // When searching, auto-expand roots with matching children
-                const shouldAutoExpand = (toggle: WarehouseFolderToggle): boolean => {
-                  if (!searchTerm) return false;
-                  const children = getDirectChildren(toggle.id);
-                  return children.some(c => c.name.toLowerCase().includes(searchTerm));
                 };
 
                 const filteredToggles = warehouseFolderToggles
@@ -960,37 +776,30 @@ export function WarehouseTypesTab() {
                       Selecting a root folder includes all its subfolders
                     </p>
 
-                    {/* Type filter badges */}
+                    {/* Primary tab filter: All, Corporate, Job, Contact, System */}
                     <div className="flex flex-wrap gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setFolderTypeFilter("all")}
-                        className={cn(
-                          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all",
-                          folderTypeFilter === "all"
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-background hover:bg-muted text-muted-foreground border-border"
-                        )}
-                      >
-                        All
-                        <span className="text-[10px] opacity-70">{warehouseFolderToggles.length}</span>
-                      </button>
-                      {folderTypeNames.map(([typeName, count]) => (
-                        <button
-                          key={typeName}
-                          type="button"
-                          onClick={() => setFolderTypeFilter(folderTypeFilter === typeName ? "all" : typeName)}
-                          className={cn(
-                            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all",
-                            folderTypeFilter === typeName
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-background hover:bg-muted text-muted-foreground border-border"
-                          )}
-                        >
-                          {typeName}
-                          <span className="text-[10px] opacity-70">{count}</span>
-                        </button>
-                      ))}
+                      {(["all", "Corporate", "Job", "Contact", "System"] as const).map((tab) => {
+                        const count = tab === "all"
+                          ? warehouseFolderToggles.length
+                          : folderCategoryCounts[tab] || 0;
+                        const isActive = folderTypeFilter === tab;
+                        return (
+                          <button
+                            key={tab}
+                            type="button"
+                            onClick={() => setFolderTypeFilter(isActive && tab !== "all" ? "all" : tab)}
+                            className={cn(
+                              "inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium border transition-all",
+                              isActive
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-background hover:bg-muted text-muted-foreground border-border"
+                            )}
+                          >
+                            {tab === "all" ? "All" : tab}
+                            <span className="text-[10px] opacity-70">{count}</span>
+                          </button>
+                        );
+                      })}
                     </div>
 
                     {/* Search */}
@@ -1004,109 +813,104 @@ export function WarehouseTypesTab() {
                       />
                     </div>
 
-                    {/* Tree view */}
+                    {/* Tree view - grouped by warehouse type */}
                     <div className="border rounded-md max-h-[300px] overflow-y-auto">
-                      {filteredToggles.length === 0 ? (
-                        <div className="p-3 text-center text-xs text-muted-foreground">
-                          No folders match your filter
-                        </div>
-                      ) : (
-                        filteredToggles.map((bf) => {
-                          const children = getDirectChildren(bf.id);
-                          const hasChildren = children.length > 0;
-                          const isExpanded = expandedRoots.has(bf.id) || shouldAutoExpand(bf);
-                          const isAssigned = bf.enabled;
-                          const ownerType = bf.warehouse_type_name;
-                          const isOwnedByOther = !isAssigned && ownerType && ownerType !== editingType?.display_name;
+                      {(() => {
+                        // Group filtered folders by their warehouse type
+                        const groups = new Map<string, WarehouseFolderToggle[]>();
+                        for (const toggle of filteredToggles) {
+                          const typeName = toggle.warehouse_type_name || "Unassigned";
+                          if (!groups.has(typeName)) groups.set(typeName, []);
+                          groups.get(typeName)!.push(toggle);
+                        }
 
+                        // Sort groups: editing type first, then alphabetically
+                        const sortedGroups = [...groups.entries()].sort(([a], [b]) => {
+                          if (a === editingType?.display_name) return -1;
+                          if (b === editingType?.display_name) return 1;
+                          return a.localeCompare(b);
+                        });
+
+                        if (sortedGroups.length === 0) {
                           return (
-                            <div key={bf.id}>
-                              {/* Root folder row */}
-                              <div
-                                className={cn(
-                                  "flex items-center gap-1.5 px-2 py-1 hover:bg-muted/50 border-b border-border/50",
-                                  !isAssigned && "opacity-60"
-                                )}
-                              >
-                                {/* Expand/collapse chevron */}
-                                {hasChildren ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleRootExpanded(bf.id)}
-                                    className="p-0.5 hover:bg-muted rounded shrink-0"
-                                  >
-                                    {isExpanded ? (
-                                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                                    ) : (
-                                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                                    )}
-                                  </button>
-                                ) : (
-                                  <div className="w-[22px] shrink-0" />
-                                )}
-
-                                {/* Checkbox */}
-                                <Checkbox
-                                  id={`bf-${bf.id}`}
-                                  checked={bf.enabled}
-                                  onCheckedChange={() => toggleWarehouseFolder(bf.id)}
-                                />
-                                <label
-                                  htmlFor={`bf-${bf.id}`}
-                                  className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
-                                >
-                                  <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                  <span className="truncate font-medium">{bf.name}</span>
-                                </label>
-
-                                {/* Owner type badge (for folders owned by other types) */}
-                                {isOwnedByOther && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-                                    {ownerType}
-                                  </span>
-                                )}
-
-                                {/* Child count */}
-                                {hasChildren && (
-                                  <span className="text-[10px] text-muted-foreground shrink-0">
-                                    +{children.length}
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Children (when expanded) */}
-                              {hasChildren && isExpanded && (
-                                <div className="bg-muted/20">
-                                  {children
-                                    .filter(c => !searchTerm || c.name.toLowerCase().includes(searchTerm))
-                                    .sort((a, b) => a.name.localeCompare(b.name))
-                                    .map((child, idx, arr) => {
-                                      const isLast = idx === arr.length - 1;
-                                      return (
-                                        <div
-                                          key={child.id}
-                                          className="flex items-center gap-1.5 pl-[38px] pr-2 py-0.5 text-sm text-muted-foreground"
-                                        >
-                                          {/* Tree connector */}
-                                          <span className="text-border text-xs font-mono shrink-0 w-4 text-center select-none">
-                                            {isLast ? "└" : "├"}
-                                          </span>
-                                          <Folder className="h-3 w-3 shrink-0 opacity-50" />
-                                          <span className={cn(
-                                            "truncate text-xs",
-                                            searchTerm && child.name.toLowerCase().includes(searchTerm) && "text-foreground font-medium"
-                                          )}>
-                                            {child.name}
-                                          </span>
-                                        </div>
-                                      );
-                                    })}
-                                </div>
-                              )}
+                            <div className="p-3 text-center text-xs text-muted-foreground">
+                              No folders match your filter
                             </div>
                           );
-                        })
-                      )}
+                        }
+
+                        return sortedGroups.map(([typeName, folders]) => {
+                          const isExpanded = expandedGroups.has(typeName) || !!searchTerm;
+                          const isEditingTypeGroup = typeName === editingType?.display_name;
+                          const assignedCount = folders.filter(f => f.enabled).length;
+                          const sortedFolders = [...folders].sort((a, b) => a.name.localeCompare(b.name));
+
+                          return (
+                            <div key={typeName}>
+                              {/* Group header - warehouse type name */}
+                              <button
+                                type="button"
+                                onClick={() => toggleGroupExpanded(typeName)}
+                                className={cn(
+                                  "flex items-center gap-1.5 w-full px-2 py-1.5 text-left hover:bg-muted/50 border-b border-border/50",
+                                  isEditingTypeGroup && "bg-primary/5"
+                                )}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                ) : (
+                                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                )}
+                                <span className={cn(
+                                  "text-xs font-semibold uppercase tracking-wide",
+                                  isEditingTypeGroup && "text-primary"
+                                )}>
+                                  {typeName}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground ml-auto">
+                                  {assignedCount > 0 ? `${assignedCount}/${folders.length}` : `${folders.length}`}
+                                </span>
+                              </button>
+
+                              {/* Folder rows under this type */}
+                              {isExpanded && sortedFolders.map((bf, idx) => {
+                                const isLast = idx === sortedFolders.length - 1;
+                                return (
+                                  <div
+                                    key={bf.id}
+                                    className={cn(
+                                      "flex items-center gap-1.5 pl-5 pr-2 py-1 hover:bg-muted/50",
+                                      !isLast && "border-b border-border/30",
+                                      !bf.enabled && "opacity-60"
+                                    )}
+                                  >
+                                    <span className="text-border text-xs font-mono shrink-0 w-4 text-center select-none">
+                                      {isLast ? "└" : "├"}
+                                    </span>
+                                    <Checkbox
+                                      id={`bf-${bf.id}`}
+                                      checked={bf.enabled}
+                                      onCheckedChange={() => toggleWarehouseFolder(bf.id)}
+                                    />
+                                    <label
+                                      htmlFor={`bf-${bf.id}`}
+                                      className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
+                                    >
+                                      <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                      <span className={cn(
+                                        "truncate",
+                                        searchTerm && bf.name.toLowerCase().includes(searchTerm) && "font-medium text-foreground"
+                                      )}>
+                                        {bf.name}
+                                      </span>
+                                    </label>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 );
