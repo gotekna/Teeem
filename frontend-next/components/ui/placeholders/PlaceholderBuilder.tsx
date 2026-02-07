@@ -203,7 +203,9 @@ function SortableToken({
     transition,
   };
 
-  // Separator tokens (e.g., "/" in folder paths) - small, removable, not draggable
+  // Separator tokens (e.g., "/" in folder paths) - small, not draggable
+  // In folder path mode, separators are structurally required (auto-normalized)
+  // so don't show delete button - they can't actually be removed
   const isSeparator = item.type === "text" && /^[\s/]+$/.test(item.value);
 
   if (isSeparator) {
@@ -220,6 +222,7 @@ function SortableToken({
         {!disabled && (
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onRemove();
@@ -264,10 +267,11 @@ function SortableToken({
       {/* Token Value */}
       <span className="truncate">{item.value}</span>
 
-      {/* Remove Button */}
+      {/* Remove Button - onPointerDown stops dnd-kit sensor from intercepting */}
       {!disabled && (
         <button
           type="button"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
@@ -371,6 +375,19 @@ export function PlaceholderBuilder({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const sensors = createDndSensors();
 
+  // Folder path mode: separator is "/" (used for warehouse path templates)
+  const isFolderPathMode = separator === "/";
+
+  // Clean double slashes in folder path mode, but don't force separators
+  // between adjacent tokens - users may want {{JobCode}}{{JobName}} as one segment
+  const emitChange = React.useCallback((newValue: string) => {
+    if (isFolderPathMode) {
+      onChange(newValue.replace(/\/+/g, "/"));
+    } else {
+      onChange(newValue);
+    }
+  }, [isFolderPathMode, onChange]);
+
   // Get placeholders
   const allPlaceholders = customPlaceholders || getPlaceholders(scope);
 
@@ -410,9 +427,6 @@ export function PlaceholderBuilder({
   }, [allPlaceholders, categoryFilter, search]);
 
   // Parse current value into tokens with unique IDs
-  // When separator is "/" (folder paths), hide separator-only text tokens
-  const isFolderPathMode = separator === "/";
-
   const tokens: TokenItem[] = React.useMemo(() => {
     const parsed = parseTemplate(value ?? "");
     return parsed.map((token, index) => ({
@@ -479,14 +493,14 @@ export function PlaceholderBuilder({
   // Insert a token at the end (auto-add separator if needed)
   const insertToken = (code: string) => {
     if (!value) {
-      onChange(code);
+      emitChange(code);
     } else {
       // Auto-add separator unless value ends with a separator character
       const lastChar = value.slice(-1);
       const separators = [" ", "-", "_", "/", "("];
       const noSeparatorNeeded = separators.includes(lastChar);
       const newValue = noSeparatorNeeded ? `${value}${code}` : `${value}${separator}${code}`;
-      onChange(newValue);
+      emitChange(newValue);
     }
   };
 
@@ -498,9 +512,9 @@ export function PlaceholderBuilder({
       // Concatenate values, then normalize double separators
       let newValue = newTokens.map(t => t.value).join("");
       newValue = newValue.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
-      onChange(newValue);
+      emitChange(newValue);
     } else {
-      onChange(buildTemplate(newTokens.map(({ type, value }) => ({ type, value }))));
+      emitChange(buildTemplate(newTokens.map(({ type, value }) => ({ type, value }))));
     }
   };
 
@@ -508,7 +522,7 @@ export function PlaceholderBuilder({
   const addCustomText = () => {
     if (customText.trim()) {
       const newValue = value ? `${value}${customText}` : customText;
-      onChange(newValue);
+      emitChange(newValue);
       setCustomText("");
     }
   };
@@ -551,9 +565,9 @@ export function PlaceholderBuilder({
       if (isFolderPathMode) {
         // Concatenate values directly (separator tokens are part of the array)
         const newValue = reordered.map(t => t.value).join("");
-        onChange(newValue);
+        emitChange(newValue);
       } else {
-        onChange(buildTemplate(reordered.map(({ type, value }) => ({ type, value }))));
+        emitChange(buildTemplate(reordered.map(({ type, value }) => ({ type, value }))));
       }
     }
   };
@@ -596,7 +610,7 @@ export function PlaceholderBuilder({
             {!disabled && (
               <button
                 type="button"
-                onClick={() => onChange(defaultValue || "")}
+                onClick={() => emitChange(defaultValue || "")}
                 className="ml-1 text-xs px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 transition-colors"
               >
                 Use
