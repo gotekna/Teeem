@@ -496,6 +496,18 @@ const TIER_1_COMPONENTS: StandardComponent[] = [
     usageCount: 0,
   },
   {
+    id: "use-pdf-pan-zoom",
+    name: "usePdfPanZoom",
+    displayName: "PDF Pan & Zoom Hook",
+    category: "hooks",
+    tier: 1,
+    status: "standard",
+    importPath: "@/hooks/usePdfPanZoom",
+    description: "SSoT hook for PDF pan/zoom interaction: fit-to-view, ResizeObserver auto-fit, Ctrl+scroll wheel zoom toward cursor, space+drag pan, middle-click pan, pan tool mode.",
+    whenToUse: "Any PDF viewer that needs zoom, pan, and fit-to-view. Used by takeoff pages; future: PDFEditor, DocumentViewer.",
+    usageCount: 2,
+  },
+  {
     id: "confirmation-dialog",
     name: "ConfirmationDialog",
     displayName: "Confirmation Dialog",

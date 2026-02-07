@@ -614,30 +614,61 @@ export function WarehouseTypesTab() {
                     const folders = type.warehouse_folders;
                     if (folders.length === 0) return <span className="text-muted-foreground text-xs">-</span>;
                     const roots = folders.filter(f => !f.parent_id);
-                    const children = folders.filter(f => {
-                      if (!f.parent_id) return false;
-                      return roots.some(r => r.id === f.parent_id);
-                    });
-                    const grandchildren = folders.length - roots.length - children.length;
+                    const getChildren = (parentId: number) => folders.filter(f => f.parent_id === parentId);
+                    const nonRoots = folders.length - roots.length;
                     return (
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1.5">
                           <Badge variant="secondary" className="text-xs">{folders.length}</Badge>
                           <span className="text-[10px] text-muted-foreground">
-                            {roots.length} root{children.length > 0 && ` + ${children.length} child`}{grandchildren > 0 && ` + ${grandchildren} grandchild`}
+                            {roots.length} root{nonRoots > 0 && ` + ${nonRoots} sub`}
                           </span>
                         </div>
                         <div className="flex flex-wrap gap-1">
-                          {roots.map((bf) => (
-                            <Badge
-                              key={bf.id}
-                              variant="outline"
-                              className="text-[10px] font-normal py-0"
-                            >
-                              <Folder className="h-2.5 w-2.5 mr-0.5" />
-                              {bf.name}
-                            </Badge>
-                          ))}
+                          {roots.map((bf) => {
+                            const kids = getChildren(bf.id);
+                            return (
+                              <React.Fragment key={bf.id}>
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] font-normal py-0 bg-muted"
+                                >
+                                  <Folder className="h-2.5 w-2.5 mr-0.5" />
+                                  {bf.name}
+                                  {kids.length > 0 && (
+                                    <span className="text-muted-foreground ml-0.5">({kids.length})</span>
+                                  )}
+                                </Badge>
+                                {kids.map((child) => {
+                                  const grandkids = getChildren(child.id);
+                                  return (
+                                    <React.Fragment key={child.id}>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] font-normal py-0 bg-muted/30"
+                                      >
+                                        <span className="text-muted-foreground mr-0.5">└</span>
+                                        {child.name}
+                                        {grandkids.length > 0 && (
+                                          <span className="text-muted-foreground ml-0.5">({grandkids.length})</span>
+                                        )}
+                                      </Badge>
+                                      {grandkids.map((gk) => (
+                                        <Badge
+                                          key={gk.id}
+                                          variant="outline"
+                                          className="text-[10px] font-normal py-0 text-muted-foreground"
+                                        >
+                                          <span className="mr-0.5">└└</span>
+                                          {gk.name}
+                                        </Badge>
+                                      ))}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </React.Fragment>
+                            );
+                          })}
                         </div>
                       </div>
                     );

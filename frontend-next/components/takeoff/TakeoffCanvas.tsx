@@ -81,11 +81,17 @@ interface TakeoffCanvasProps {
 
   // Zoom
   zoom: number;
-  onZoomChange: (zoom: number) => void;
 
   // Snap configuration
   snapConfig?: Partial<SnapConfig>;
   showSnapPoints?: boolean;  // Debug: show all available snap points
+
+  // Container ref for calibration input positioning
+  containerRef?: React.RefObject<HTMLDivElement | null>;
+
+  // Pan state from usePdfPanZoom hook — suppresses tool clicks during pan
+  isPanning?: boolean;
+  isSpaceHeld?: boolean;
 }
 
 // =============================================================================
@@ -109,9 +115,11 @@ export function TakeoffCanvas({
   currentTool,
   drawingStyle = DEFAULT_DRAWING_STYLE,
   zoom,
-  onZoomChange,
   snapConfig,
   showSnapPoints = false,
+  containerRef,
+  isPanning: isPanningProp = false,
+  isSpaceHeld: isSpaceHeldProp = false,
 }: TakeoffCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
@@ -498,6 +506,9 @@ export function TakeoffCanvas({
     const canvas = fabricRef.current;
     if (!canvas || !e.pointer) return;
 
+    // Don't process tool actions during panning (space+drag, middle-click, or pan tool)
+    if (isPanningProp || isSpaceHeldProp || currentTool === "pan") return;
+
     const rawPoint = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
 
     // Apply snapping for measurement tools
@@ -556,7 +567,7 @@ export function TakeoffCanvas({
         setCurrentPoints((prev) => [...prev, point]);
         break;
     }
-  }, [currentTool, zoom, findSnapPoint, calibrationLine, calibrationStep, pageScale]);
+  }, [currentTool, zoom, findSnapPoint, calibrationLine, calibrationStep, pageScale, isPanningProp, isSpaceHeldProp]);
 
   const handleMouseMove = useCallback((e: fabric.TPointerEventInfo) => {
     if (!e.pointer) return;
@@ -1006,6 +1017,25 @@ export function TakeoffCanvas({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedMeasurement, isDrawing, currentPoints]);
+
+  // =============================================================================
+  // Fabric.js cursor sync with usePdfPanZoom hook
+  // =============================================================================
+
+  // When hook reports pan state changes, update Fabric.js cursor accordingly
+  useEffect(() => {
+    if (!fabricRef.current) return;
+    if (isPanningProp) {
+      fabricRef.current.defaultCursor = "grabbing";
+      fabricRef.current.hoverCursor = "grabbing";
+    } else if (isSpaceHeldProp) {
+      fabricRef.current.defaultCursor = "grab";
+      fabricRef.current.hoverCursor = "grab";
+    } else {
+      fabricRef.current.defaultCursor = getCursorForTool(currentTool);
+      fabricRef.current.hoverCursor = getCursorForTool(currentTool);
+    }
+  }, [isPanningProp, isSpaceHeldProp, currentTool]);
 
   // =============================================================================
   // Render

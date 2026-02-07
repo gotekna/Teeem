@@ -965,7 +965,8 @@ export function WarehouseFoldersConfig({
       // Can't be the tab we're editing
       if (t.id === editingTab.id) return false;
       // Can't have a child with the same tab_key (would cause duplicate key conflict)
-      const hasChildWithSameKey = t.children?.some(child => child.tab_key === editingTab.tab_key);
+      // Exclude the tab being edited from this check (it's already a child of this parent)
+      const hasChildWithSameKey = t.children?.some(child => child.tab_key === editingTab.tab_key && child.id !== editingTab.id);
       if (hasChildWithSameKey) return false;
 
       return true;
