@@ -184,6 +184,9 @@ export function TakeoffCanvas({
     snapType: "endpoint" | "intersection" | "midpoint" | "perpendicular" | "edge" | "pdf-edge" | null;
     pdfCandidates?: Array<{ x: number; y: number }>;
   } | null>(null);
+  // Ref to avoid stale closure in handleMouseDown (snapResult not in its deps)
+  const snapResultRef = useRef(snapResult);
+  snapResultRef.current = snapResult;
 
   // Initialize snap points hook
   const { findSnapPoint, getVisibleSnapPoints, overridePdfSnap } = useSnapPoints({
@@ -225,6 +228,15 @@ export function TakeoffCanvas({
       fabricRef.current = null;
     };
   }, [pageWidth, pageHeight]);
+
+  // Safety net: if calibration was cleared while in "verifying" mode,
+  // fall back to "waitingInput" so the mm input popup appears
+  useEffect(() => {
+    if (calibrationStep === "verifying" && (!pageScale?.calibrated || !pageScale?.scale_factor)) {
+      setCalibrationStep("waitingInput");
+      setCalibrationInput("");
+    }
+  }, [calibrationStep, pageScale]);
 
   // =============================================================================
   // Update canvas selection mode when tool changes
@@ -534,6 +546,46 @@ export function TakeoffCanvas({
   // Mouse Handlers
   // =============================================================================
 
+  // Shared point-placement logic — called by both canvas mousedown and magnifier candidate click.
+  // The SnapMagnifier's candidate buttons sit on top of the Fabric canvas and intercept clicks,
+  // so we need this shared path to ensure points are placed regardless of which element receives the click.
+  const placeToolPoint = useCallback((point: Point) => {
+    switch (currentTool) {
+      case "calibrate": {
+        if (calibrationStep === "waitingInput" || calibrationStep === "verifying") return;
+        if (!calibrationLine) {
+          setCalibrationLine({ start: point, end: point });
+          setCalibrationStep("firstPoint");
+          setIsDrawing(true);
+        } else {
+          const updatedLine = { ...calibrationLine, end: point };
+          setCalibrationLine(updatedLine);
+          setIsDrawing(false);
+          if (pageScale?.calibrated && pageScale.scale_factor) {
+            setCalibrationStep("verifying");
+            renderTempCalibrationLine();
+          } else {
+            setCalibrationStep("waitingInput");
+            setCalibrationInput("");
+            renderTempCalibrationLine();
+            setTimeout(() => calibrationInputRef.current?.focus(), 50);
+          }
+        }
+        break;
+      }
+      case "count":
+        handleCountClick(point);
+        break;
+      case "area":
+      case "linear":
+      case "perimeter":
+      case "deduction":
+        setIsDrawing(true);
+        setCurrentPoints((prev) => [...prev, point]);
+        break;
+    }
+  }, [currentTool, calibrationStep, calibrationLine, pageScale]);
+
   const handleMouseDown = useCallback((e: fabric.TPointerEventInfo) => {
     const canvas = fabricRef.current;
     if (!canvas || !e.pointer) return;
@@ -568,68 +620,25 @@ export function TakeoffCanvas({
     }
 
     // Apply snapping for measurement tools (hold Alt to bypass snap)
-    // Use the existing snapResult (which reflects magnifier candidate selection)
-    // instead of recalculating fresh — this preserves the user's magnifier choice.
+    // Use the existing snapResult (via ref to avoid stale closure) which reflects
+    // magnifier candidate selection — this preserves the user's magnifier choice.
     const nativeEvt = e.e as PointerEvent;
     const altHeld = nativeEvt?.altKey ?? false;
     const shouldSnap = !altHeld && ["count", "area", "linear", "perimeter", "deduction", "calibrate"].includes(currentTool);
-    const point = shouldSnap && snapResult?.isSnapped
-      ? snapResult.snapped
+    const currentSnap = snapResultRef.current;
+    const point = shouldSnap && currentSnap?.isSnapped
+      ? currentSnap.snapped
       : shouldSnap ? findSnapPoint(rawPoint.x, rawPoint.y).snapped : rawPoint;
 
-    switch (currentTool) {
-      case "calibrate": {
-        // If clicked on the calibration label, the label's own mousedown handler
-        // will open the re-edit input — don't start a new calibration line
-        const target = e.target as FabricObjectWithData | undefined;
-        if (target?.data?.isCalibrationLabel) return;
-
-        // Click-click calibration: first click sets start, second click sets end
-        if (calibrationStep === "waitingInput" || calibrationStep === "verifying") {
-          // Already have two points and waiting for input/showing verification - ignore clicks
-          return;
-        }
-        if (!calibrationLine) {
-          // First click - set start point
-          setCalibrationLine({ start: point, end: point });
-          setCalibrationStep("firstPoint");
-          setIsDrawing(true);
-        } else {
-          // Second click - set end point
-          const updatedLine = { ...calibrationLine, end: point };
-          setCalibrationLine(updatedLine);
-          setIsDrawing(false);
-
-          if (pageScale?.calibrated && pageScale.scale_factor) {
-            // Already calibrated → show verification (computed distance)
-            setCalibrationStep("verifying");
-            renderTempCalibrationLine();
-          } else {
-            // Not calibrated → ask for mm input
-            setCalibrationStep("waitingInput");
-            setCalibrationInput("");
-            renderTempCalibrationLine();
-            setTimeout(() => calibrationInputRef.current?.focus(), 50);
-          }
-        }
-        break;
-      }
-
-      case "count":
-        // Create count marker immediately
-        handleCountClick(point);
-        break;
-
-      case "area":
-      case "linear":
-      case "perimeter":
-      case "deduction":
-        // Add point to polygon/polyline
-        setIsDrawing(true);
-        setCurrentPoints((prev) => [...prev, point]);
-        break;
+    // If clicked on the calibration label, the label's own mousedown handler
+    // will open the re-edit input — don't start a new calibration line
+    if (currentTool === "calibrate") {
+      const target = e.target as FabricObjectWithData | undefined;
+      if (target?.data?.isCalibrationLabel) return;
     }
-  }, [currentTool, zoom, findSnapPoint, calibrationLine, calibrationStep, pageScale, isPanningProp, isSpaceHeldProp]);
+
+    placeToolPoint(point);
+  }, [currentTool, zoom, findSnapPoint, placeToolPoint, isPanningProp, isSpaceHeldProp]);
 
   const handleMouseMove = useCallback((e: fabric.TPointerEventInfo) => {
     if (!e.pointer) return;
@@ -1059,7 +1068,10 @@ export function TakeoffCanvas({
       ...prev,
       snapped: candidate,
     } : null);
-  }, [overridePdfSnap]);
+    // Also place the point — the magnifier button intercepted the click that
+    // was meant for the Fabric canvas, so we execute the placement here too.
+    placeToolPoint(candidate);
+  }, [overridePdfSnap, placeToolPoint]);
 
   // =============================================================================
   // Helpers
@@ -1317,8 +1329,8 @@ export function TakeoffCanvas({
                 zoom={zoom}
                 pageWidth={pageWidth}
                 pageHeight={pageHeight}
-                label="Verify A"
-                color="#16A34A"
+                label={pageScale?.calibrated ? "Verify A" : "New A"}
+                color={pageScale?.calibrated ? "#16A34A" : "#3B82F6"}
                 preferSide="left"
                 onSelect={(newPoint) => {
                   setCalibrationLine(prev => prev ? { ...prev, start: newPoint } : null);
@@ -1332,8 +1344,8 @@ export function TakeoffCanvas({
                   zoom={zoom}
                   pageWidth={pageWidth}
                   pageHeight={pageHeight}
-                  label="Verify B"
-                  color="#16A34A"
+                  label={pageScale?.calibrated ? "Verify B" : "New B"}
+                  color={pageScale?.calibrated ? "#16A34A" : "#3B82F6"}
                   preferSide="right"
                   onSelect={(newPoint) => {
                     setCalibrationLine(prev => prev ? { ...prev, end: newPoint } : null);
@@ -1421,6 +1433,11 @@ export function TakeoffCanvas({
                 onClick={async () => {
                   if (onClearCalibration) {
                     await onClearCalibration();
+                    // Reset all calibration UI state for a fresh start
+                    setCalibrationLine(null);
+                    setCalibrationStep("idle");
+                    setCalibrationInput("");
+                    setIsDrawing(false);
                     clearTempDrawing();
                   }
                 }}
