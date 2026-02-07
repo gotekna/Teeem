@@ -56,7 +56,6 @@ import {
   ArrowRight,
   Layers,
   Zap,
-  Lock,
   Plus,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -954,23 +953,8 @@ function TreeNode({
           <div className="flex items-center gap-1 ml-1">
             {node.warehouseFolders.map((bf) => (
               <div key={bf.id} className="flex items-center gap-0.5">
-                {/* Only show lock/folder icon on leaf nodes to reduce clutter */}
-                {node.children.length === 0 && (
-                  <span
-                    className="p-0.5"
-                    title={bf.is_system
-                      ? `System folder (required by code): ${bf.name}`
-                      : `Base folder: ${bf.name}`}
-                  >
-                    {bf.is_system ? (
-                      <Lock className="h-3 w-3 text-muted-foreground" />
-                    ) : (
-                      <Folder className="h-3 w-3 text-muted-foreground" />
-                    )}
-                  </span>
-                )}
                 {/* SSoT: Tab type badge */}
-                <TabTypeBadgeCompact tabType={deriveTabType(bf)} />
+                <TabTypeBadgeCompact tabType={deriveTabType(bf)} isSystem={bf.is_system} />
                 {/* Edit button for ALL base folders - show cog whether or not warehouse_folder is linked */}
                 {onEditWarehouseFolder && (
                   <button
@@ -1784,7 +1768,7 @@ function TabNode({
         {/* Show folder name (from folder_path), resolved if it contains tokens */}
         <span className="text-sm font-medium">{resolveTemplatePreview(folderName || tab.display_name || '')}</span>
         {/* SSoT: Tab type badge */}
-        <TabTypeBadgeCompact tabType={deriveTabType(tab)} />
+        <TabTypeBadgeCompact tabType={deriveTabType(tab)} isSystem={tab.is_system} />
         {/* Document type count badge */}
         {hasDocTypes && (
           <Badge

@@ -846,7 +846,7 @@ export function WarehouseFoldersTab() {
               </DialogTitle>
               {/* SSoT: Tab type badge */}
               {editingFolder && (
-                <TabTypeBadge tabType={deriveTabType(editingFolder)} />
+                <TabTypeBadge tabType={deriveTabType(editingFolder)} isSystem={editingFolder.is_system} />
               )}
             </div>
           </DialogHeader>
