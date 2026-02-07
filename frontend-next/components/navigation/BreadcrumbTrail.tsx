@@ -79,7 +79,7 @@ function getIconComponent(iconName?: string): React.ElementType | null {
  * Height of the breadcrumb bar in pixels
  * Used for layout calculations when pinned
  */
-export const BREADCRUMB_BAR_HEIGHT = 36;
+export const BREADCRUMB_BAR_HEIGHT = 41;
 
 interface BreadcrumbTrailProps {
   /** Distance from top of viewport (default: 48px for HeaderBar) */
