@@ -2,20 +2,30 @@
 
 # WarehousePathComputer - SSoT for computing materialized folder paths
 #
-# Computes the fully-expanded folder path for a WarehouseDocument by:
-# 1. Finding the matching WarehouseFolder template
-# 2. Extracting token values from the document's associations/metadata
-# 3. Expanding the template with those values
+# ⚠️ DO NOT SIMPLIFY - FK-driven path resolution (Feb 2026 rewrite)
+# ════════════════════════════════════════════════════════════════════
+# Why: The old code mapped source_type strings → warehouse_type strings
+#      to find folders. This produced wrong paths (Contact docs → "Contacts/Contacts",
+#      Task docs → "Tasks/Unknown", etc.)
 #
-# Consolidates logic from:
-# - WarehouseDocument#computed_folder_path (runtime resolution)
-# - WarehouseDocument#extract_folder_tokens (token extraction)
-# - WarehouseProvider#resolve_virtual_path (template expansion)
+# The FIX: Follow the actual FK relationships that exist in the database:
+#   WarehouseDocument
+#     → warehouse_folder_document_type_id FK → WarehouseFolderDocumentType
+#       → warehouse_folder_id FK → WarehouseFolder
+#         → full_folder_path() = template like "Contact/{{ContactName}}/Receipts"
+#
+#   Then expand tokens from:
+#     → linkable (Job/Contact/CorporateCompany/SmTask) = direct FK to the record
+#     → documentable = source model for extra context
+#
+# ❌ WRONG: source_type string → warehouse_type string → folder lookup
+# ✅ CORRECT: FK chain → folder → template → expand with linkable tokens
+# ════════════════════════════════════════════════════════════════════
 #
 # Usage:
 #   computer = WarehousePathComputer.new
 #   result = computer.compute(warehouse_document)
-#   # => { folder_path: "Job/In Progress/J-001 Smith/Photo",
+#   # => { folder_path: "Job/J-001/Smith Residence/Photo",
 #   #      warehouse_folder_id: 123,
 #   #      path_template_version: 1 }
 #
@@ -29,27 +39,19 @@ class WarehousePathComputer
   # @param doc [WarehouseDocument] The document to compute for
   # @return [Hash] { folder_path:, warehouse_folder_id:, path_template_version: }
   def compute(doc)
-    # Priority 1: documentable.virtual_folder_path (custom path logic on model)
-    # safe_call guards against missing models (e.g. deleted JobDocument class)
-    documentable = safe_call { doc.documentable }
-    if documentable.present? && documentable.respond_to?(:virtual_folder_path)
-      path = safe_call { documentable.virtual_folder_path }
-      if path.present?
-        folder = find_warehouse_folder_for_doc(doc)
-        return {
-          folder_path: sanitize_path(path),
-          warehouse_folder_id: folder&.id,
-          path_template_version: folder&.template_version || 0
-        }
-      end
-    end
-
-    # Priority 2: WarehouseFolder template expansion
+    # 1. Find the warehouse folder (FK-driven)
     folder = find_warehouse_folder_for_doc(doc)
+
     if folder
+      # 2. Get the template from the folder hierarchy
       template = folder.full_folder_path
+
+      # 3. Extract tokens from linkable + documentable
       tokens = extract_tokens(doc)
+
+      # 4. Expand template
       expanded = expand_template(template, tokens)
+
       if expanded.present?
         return {
           folder_path: sanitize_path(expanded),
@@ -59,17 +61,7 @@ class WarehousePathComputer
       end
     end
 
-    # Priority 3: WarehouseProvider template expansion (fallback)
-    provider_path = compute_via_provider(doc)
-    if provider_path.present?
-      return {
-        folder_path: sanitize_path(provider_path),
-        warehouse_folder_id: folder&.id,
-        path_template_version: folder&.template_version || 0
-      }
-    end
-
-    # Priority 4: Default from source_type
+    # Last resort: source_type default (only for truly unmapped docs)
     {
       folder_path: doc.source_type_to_root_folder,
       warehouse_folder_id: nil,
@@ -85,13 +77,14 @@ class WarehousePathComputer
   def compute_batch(documents)
     # Pre-load all needed associations
     docs = documents.includes(
-      :documentable, :storage_blob, :tenant,
-      :warehouse_folder_document_type
+      :storage_blob, :tenant,
+      :warehouse_folder_document_type,
+      :warehouse_folder,
+      :linkable
     ).to_a
 
-    # Pre-load warehouse folders for all source types in this batch
-    source_types = docs.map(&:source_type).uniq
-    preload_warehouse_folders(source_types)
+    # Pre-load warehouse folders for all linkable types and source types in this batch
+    preload_warehouse_folders_for_batch(docs)
 
     docs.map do |doc|
       result = compute(doc)
@@ -101,125 +94,271 @@ class WarehousePathComputer
 
   private
 
-  # Find the WarehouseFolder that matches this document's source_type
-  # Uses the document's warehouse_folder_document_type FK if available,
-  # otherwise falls back to source_type -> warehouse_type mapping
+  # ════════════════════════════════════════════════════════════════════
+  # FK-Driven Folder Lookup (THE ONE way to find a document's folder)
+  # ════════════════════════════════════════════════════════════════════
+
+  # Find the WarehouseFolder for this document by following FK chain.
+  #
+  # Priority:
+  #   1. warehouse_folder_document_type FK → its warehouse_folder (most precise)
+  #   2. warehouse_folder_id FK (set during backfill/creation)
+  #   3. linkable_type → warehouse_type → root folder
+  #   4. source_type → warehouse_type code (legacy fallback)
   #
   # @param doc [WarehouseDocument]
   # @return [WarehouseFolder, nil]
   def find_warehouse_folder_for_doc(doc)
-    # Try FK first (most precise)
+    # 1. Direct FK through document type config (most precise - doc knows its folder config)
     if doc.warehouse_folder_document_type.present?
       return doc.warehouse_folder_document_type.warehouse_folder
     end
 
-    # Fall back to source_type -> warehouse_type code -> root folder
-    warehouse_type_code = source_type_to_warehouse_type(doc.source_type, doc)
-    @folder_cache ||= {}
-    @folder_cache[warehouse_type_code] ||= WarehouseFolder.warehouse_folder_for(warehouse_type_code)
+    # 2. Direct warehouse_folder FK (set during backfill/creation)
+    if doc.warehouse_folder_id.present?
+      folder = doc.warehouse_folder || WarehouseFolder.find_by(id: doc.warehouse_folder_id)
+      return folder if folder
+    end
+
+    # 3. From linkable type → warehouse_type → root folder
+    if doc.linkable_type.present?
+      wt_code = linkable_type_to_warehouse_type_code(doc.linkable_type)
+      if wt_code
+        folder = cached_folder_for(wt_code)
+        return folder if folder
+      end
+    end
+
+    # 4. From source_type → warehouse_type code (legacy fallback for orphans)
+    wt_code = source_type_to_warehouse_type_code(doc.source_type)
+    cached_folder_for(wt_code)
   end
 
-  # Pre-load warehouse folders for given source types into cache
-  def preload_warehouse_folders(source_types)
+  # Map linkable_type (model class name) to warehouse_type code
+  # @param linkable_type [String] e.g., "Job", "Contact"
+  # @return [String, nil] warehouse_type code
+  def linkable_type_to_warehouse_type_code(linkable_type)
+    case linkable_type
+    when "Job" then "job"
+    when "Contact" then "contact"
+    when "CorporateCompany" then "corporate"
+    when "SmTask" then "task"
+    else nil
+    end
+  end
+
+  # Map source_type string to warehouse_type code (fallback for docs without linkable)
+  # @param source_type [String] e.g., "email", "corporate"
+  # @return [String] warehouse_type code
+  def source_type_to_warehouse_type_code(source_type)
+    case source_type
+    when "task" then "task"
+    when "email", "email_attachment" then "email"
+    when "corporate", "xero", "financial", "asset" then "corporate"
+    when "job", "compliance" then "job"
+    when "contact", "people" then "contact"
+    when "case" then "case"
+    when "notebook" then "notebook"
+    else "unassigned"
+    end
+  end
+
+  # Cached lookup for warehouse folder by type code
+  def cached_folder_for(wt_code)
+    return nil if wt_code.blank?
     @folder_cache ||= {}
-    # Map source types to warehouse type codes
-    codes = source_types.map { |st| source_type_to_warehouse_type(st) }.uniq
+    unless @folder_cache.key?(wt_code)
+      @folder_cache[wt_code] = WarehouseFolder.warehouse_folder_for(wt_code)
+    end
+    @folder_cache[wt_code]
+  end
+
+  # Pre-load warehouse folders for a batch of docs into cache
+  def preload_warehouse_folders_for_batch(docs)
+    @folder_cache ||= {}
+
+    # Collect all warehouse type codes we'll need
+    codes = Set.new
+    docs.each do |doc|
+      if doc.linkable_type.present?
+        code = linkable_type_to_warehouse_type_code(doc.linkable_type)
+        codes << code if code
+      end
+      codes << source_type_to_warehouse_type_code(doc.source_type)
+    end
 
     # Load root folders for all codes in one query
     WarehouseFolder.root_folders
       .includes(:warehouse_type)
-      .where(warehouse_types: { code: codes })
+      .where(warehouse_types: { code: codes.to_a })
       .each do |folder|
-        @folder_cache[folder.warehouse_type.code] = folder
+        @folder_cache[folder.warehouse_type.code] = folder if folder.warehouse_type
       end
   end
 
-  # Map source_type to warehouse type code
-  # Falls back to linkable_type if source_type has no matching warehouse type
-  def source_type_to_warehouse_type(source_type, doc = nil)
-    code = case source_type
-           when "task" then "task"
-           when "email", "email_attachment" then "email"
-           when "corporate" then "corporate"
-           when "job" then "job"
-           when "contact" then "contact"
-           when "xero" then "corporate"
-           when "case" then "case"
-           when "notebook" then "notebook"
-           else source_type
-           end
+  # ════════════════════════════════════════════════════════════════════
+  # Token Extraction (Linkable-First)
+  # ════════════════════════════════════════════════════════════════════
 
-    # If warehouse type exists, use it
-    return code if warehouse_type_exists?(code)
-
-    # Catch-all: fall back to linkable_type (Job → job, Contact → contact, etc.)
-    if doc&.linkable_type.present?
-      fallback = case doc.linkable_type
-                 when "Job" then "job"
-                 when "Contact" then "contact"
-                 when "CorporateCompany" then "corporate"
-                 when "SmTask" then "task"
-                 else nil
-                 end
-      return fallback if fallback && warehouse_type_exists?(fallback)
-    end
-
-    # Last resort
-    "unassigned"
-  end
-
-  # Extract token values from document for template expansion
-  # Reuses the same logic as WarehouseDocument#extract_folder_tokens
+  # Extract token values for template expansion.
+  # Linkable FK is the primary source (always reliable), with
+  # documentable as enrichment for extra context.
   #
   # @param doc [WarehouseDocument]
   # @return [Hash] Token name => value
   def extract_tokens(doc)
-    doc.send(:extract_folder_tokens)
-  rescue NameError => e
-    # Guard against deleted model classes (e.g. JobDocument)
-    Rails.logger.debug "[WarehousePathComputer] extract_tokens failed for doc##{doc.id}: #{e.message}"
-    fallback_tokens_from_linkable(doc)
+    tokens = {}
+
+    # 1. Tokens from LINKABLE (direct FK - always reliable)
+    extract_tokens_from_linkable(tokens, doc)
+
+    # 2. Enrich from documentable (if available and class exists)
+    begin
+      if doc.documentable.present?
+        enrich_tokens_from_documentable(tokens, doc)
+      end
+    rescue NameError
+      # Deleted model class (e.g. JobDocument) - skip enrichment
+    end
+
+    # 3. Document type from warehouse_folder_document_type FK
+    if doc.warehouse_folder_document_type&.document_type
+      dt = doc.warehouse_folder_document_type.document_type
+      tokens[:DocTypeName] ||= dt.name
+      tokens[:Folder] ||= dt.folder.presence || dt.name if dt.respond_to?(:folder)
+    end
+
+    # 4. Date tokens (always available)
+    date = doc.created_at || Time.current
+    tokens[:Year] ||= date.year.to_s
+    tokens[:Month] ||= date.strftime("%m")
+
+    # 5. Email-specific tokens from metadata
+    if doc.source_type.in?(%w[email email_attachment])
+      tokens[:Mailbox] ||= doc.meta("mailbox") || "Unknown"
+      # Use received_at for email date tokens (more accurate than created_at)
+      received_at = doc.email_received_at || doc.created_at || Time.current
+      tokens[:Year] = received_at.year.to_s
+      tokens[:Month] = received_at.strftime("%m")
+    end
+
+    tokens
   end
 
-  # When documentable class is missing, extract tokens from linkable instead
-  def fallback_tokens_from_linkable(doc)
-    tokens = {}
-    date = doc.created_at || Time.current
-    tokens[:Year] = date.year.to_s
-    tokens[:Month] = date.strftime("%m")
-
+  # Extract tokens from the linkable FK (Job, Contact, CorporateCompany, SmTask)
+  def extract_tokens_from_linkable(tokens, doc)
     case doc.linkable_type
     when "Job"
-      job = Job.find_by(id: doc.linkable_id)
+      job = doc.linkable
       if job
         tokens[:JobCode] = job.job_code
         tokens[:JobName] = job.display_name.presence || job.job_code
       end
     when "Contact"
-      contact = Contact.find_by(id: doc.linkable_id)
-      tokens[:ContactName] = contact&.display_name.presence || "Contact-#{doc.linkable_id}"
+      contact = doc.linkable
+      if contact
+        tokens[:ContactName] = contact.display_name.presence || "Contact-#{contact.id}"
+        tokens[:ContactId] = contact.id
+      end
     when "CorporateCompany"
-      cc = CorporateCompany.find_by(id: doc.linkable_id)
+      cc = doc.linkable
       if cc
         tokens[:CompanyCode] = cc.company_code
         tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
+        tokens[:CompanyName] = cc.name
+      end
+    when "SmTask"
+      task = doc.linkable
+      if task
+        tokens[:TaskId] = task.id
+        tokens[:TaskName] = task.name&.parameterize || "task-#{task.id}"
+        tokens[:TaskStatus] = task.status&.titleize || "Unknown"
+        if task.respond_to?(:job) && task.job
+          tokens[:JobName] = task.job.display_name.presence || task.job.job_code
+          tokens[:JobCode] = task.job.job_code
+        else
+          tokens[:JobName] = "Unassigned Job"
+        end
+      end
+    end
+  end
+
+  # Enrich tokens from the documentable association (extra context)
+  # Uses ||= so linkable tokens take priority (they're more reliable)
+  def enrich_tokens_from_documentable(tokens, doc)
+    documentable = doc.documentable
+
+    # Task context - handle SmTask, SmTaskAttachment, etc.
+    if doc.source_type == "task" && tokens[:TaskId].blank?
+      task = if documentable.is_a?(SmTask)
+               documentable
+             elsif documentable.respond_to?(:sm_task) && documentable.sm_task
+               documentable.sm_task
+             end
+
+      if task
+        tokens[:TaskId] ||= task.id
+        tokens[:TaskName] ||= task.name&.parameterize || "task-#{task.id}"
+        tokens[:TaskStatus] ||= task.status&.titleize || "Unknown"
+        if task.respond_to?(:job) && task.job
+          tokens[:JobName] ||= task.job.display_name.presence || task.job.job_code
+          tokens[:JobCode] ||= task.job.job_code
+        else
+          tokens[:JobName] ||= "Unassigned Job"
+        end
       end
     end
 
-    # Use the old folder column value as a hint for subfolder
-    tokens[:Subfolder] = doc.folder if doc.folder.present?
-
-    tokens
-  end
-
-  # Cached check for warehouse type existence (avoids N queries during batch)
-  def warehouse_type_exists?(code)
-    @wt_exists_cache ||= {}
-    unless @wt_exists_cache.key?(code)
-      @wt_exists_cache[code] = WarehouseType.exists?(code: code)
+    # Job context (||= to not overwrite tokens set by linkable)
+    if documentable.respond_to?(:job) && documentable.job
+      tokens[:JobCode] ||= documentable.job.job_code
+      tokens[:JobName] ||= documentable.job.display_name.presence
+    elsif documentable.respond_to?(:job_code)
+      tokens[:JobCode] ||= documentable.job_code
     end
-    @wt_exists_cache[code]
+
+    # Contact context
+    if documentable.respond_to?(:contact) && documentable.contact
+      tokens[:ContactName] ||= documentable.contact.display_name.presence || "Contact-#{documentable.contact.id}"
+    end
+
+    # Corporate company context
+    if documentable.respond_to?(:corporate) && documentable.corporate
+      cc = documentable.corporate
+      tokens[:CompanyCode] ||= cc.company_code
+      tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
+      tokens[:CompanyName] ||= cc.name
+    end
+
+    # Case context
+    if documentable.respond_to?(:case_number)
+      tokens[:CaseId] ||= documentable.case_number
+    end
+
+    # Asset context
+    if documentable.is_a?(Asset)
+      tokens[:AssetName] ||= documentable.display_name.presence || documentable.name.presence || "Asset-#{documentable.id}"
+      tokens[:AssetNumber] ||= documentable.asset_number if documentable.asset_number.present?
+      if documentable.corporate
+        cc = documentable.corporate
+        tokens[:CompanyCode] ||= cc.company_code
+        tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
+      end
+    elsif documentable.respond_to?(:asset) && documentable.asset
+      asset = documentable.asset
+      tokens[:AssetName] ||= asset.display_name.presence || asset.name.presence || "Asset-#{asset.id}"
+      tokens[:AssetNumber] ||= asset.asset_number if asset.asset_number.present?
+      if asset.corporate
+        cc = asset.corporate
+        tokens[:CompanyCode] ||= cc.company_code
+        tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
+      end
+    end
   end
+
+  # ════════════════════════════════════════════════════════════════════
+  # Template Expansion
+  # ════════════════════════════════════════════════════════════════════
 
   # Expand a template path with token values
   # e.g., "Job/{{JobCode}}/{{JobName}}/Photo" + {JobCode: "J-001", JobName: "Smith"}
@@ -241,21 +380,6 @@ class WarehousePathComputer
     result
   end
 
-  # Compute via WarehouseProvider as fallback
-  def compute_via_provider(doc)
-    config = WarehouseProvider.instance rescue nil
-    return nil unless config
-
-    warehouse_type = source_type_to_warehouse_type(doc.source_type, doc)
-    return nil unless warehouse_type
-
-    tokens = extract_tokens(doc)
-    config.resolve_virtual_path(warehouse_type.to_sym, tokens)
-  rescue StandardError => e
-    Rails.logger.debug "[WarehousePathComputer] Provider fallback failed for doc##{doc.id}: #{e.message}"
-    nil
-  end
-
   # Clean up path - remove double slashes, leading/trailing slashes
   def sanitize_path(path)
     return nil if path.blank?
@@ -263,13 +387,5 @@ class WarehousePathComputer
     path = path.gsub(%r{//+}, "/")  # Double slashes
     path = path.gsub(%r{^/|/$}, "") # Leading/trailing slashes
     path.presence
-  end
-
-  # Safe call that returns nil on any error
-  def safe_call
-    yield
-  rescue StandardError => e
-    Rails.logger.debug "[WarehousePathComputer] safe_call failed: #{e.message}"
-    nil
   end
 end

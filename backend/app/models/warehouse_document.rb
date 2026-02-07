@@ -176,43 +176,17 @@ class WarehouseDocument < ApplicationRecord
   # Computed Folder Path (Runtime Resolution)
   # ========================================
   #
-  # SSoT (Feb 2026 FRC Fix): Returns the folder path computed at RUNTIME.
-  # This is THE ONE way to get a document's folder path.
-  #
-  # Computation sources (in priority order):
-  # 1. documentable.virtual_folder_path (if documentable responds to it)
-  # 2. WarehouseProvider template expansion (from source_type + metadata)
-  # 3. Default path based on source_type (e.g., "Corporate", "Jobs")
+  # SSoT (Feb 2026): Delegates to WarehousePathComputer which follows FK chain:
+  #   warehouse_folder_document_type → warehouse_folder → full_folder_path template
+  #   Then expands tokens from linkable (Job/Contact/etc.) + documentable
   #
   # @return [String] The computed folder path
   #
   def computed_folder_path
-    # Try to compute from documentable's virtual_folder_path
-    if documentable.present? && documentable.respond_to?(:virtual_folder_path)
-      begin
-        path = documentable.virtual_folder_path
-        return path if path.present?
-      rescue StandardError => e
-        Rails.logger.debug "[WarehouseDocument] computed_folder_path documentable failed for #{id}: #{e.message}"
-      end
-    end
-
-    # Compute from WarehouseProvider template
-    begin
-      config = WarehouseProvider.instance rescue nil
-      if config
-        warehouse_type = source_type_to_warehouse_type
-        if warehouse_type
-          tokens = extract_folder_tokens
-          path = config.resolve_virtual_path(warehouse_type.to_sym, tokens)
-          return path if path.present?
-        end
-      end
-    rescue StandardError => e
-      Rails.logger.debug "[WarehouseDocument] computed_folder_path template failed for #{id}: #{e.message}"
-    end
-
-    # Fallback: derive root folder from source_type
+    result = WarehousePathComputer.new.compute(self)
+    result[:folder_path] || source_type_to_root_folder
+  rescue StandardError => e
+    Rails.logger.debug "[WarehouseDocument] computed_folder_path failed for #{id}: #{e.message}"
     source_type_to_root_folder
   end
 
@@ -233,12 +207,15 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # SSoT (Feb 2026): Base folder name from WarehouseFolder path templates
-  # Uses warehouse_type_to_warehouse_folder which extracts first segment of path
-  # e.g., "Jobs/{{JobCode}}/Compliance" → "Jobs"
+  # Uses FK chain: linkable_type → warehouse_type → folder name
   # Fallback to source_type_to_root_folder if WarehouseFolder not configured
   def folder
-    warehouse_type = source_type_to_warehouse_type
-    WarehouseFolder.warehouse_type_to_warehouse_folder[warehouse_type] || source_type_to_root_folder
+    # Try linkable_type first (most precise), then source_type fallback
+    wt_code = if linkable_type.present?
+                WarehousePathComputer.new.send(:linkable_type_to_warehouse_type_code, linkable_type)
+              end
+    wt_code ||= WarehousePathComputer.new.send(:source_type_to_warehouse_type_code, source_type)
+    WarehouseFolder.warehouse_type_to_warehouse_folder[wt_code] || source_type_to_root_folder
   end
 
   # NOTE (Feb 2026 SSoT): folder column REMOVED from table.
@@ -463,7 +440,7 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # SSoT (Feb 2026): Auto-set warehouse_folder_document_type_id FK on creation
-  # Matches by: source_type → warehouse_type + document_type_id from metadata/documentable
+  # Matches by: linkable_type/source_type → warehouse_type + document_type_id
   def set_warehouse_folder_document_type
     return if warehouse_folder_document_type_id.present?
     return unless tenant_id.present?
@@ -473,14 +450,18 @@ class WarehouseDocument < ApplicationRecord
                   (documentable.respond_to?(:document_type_id) ? documentable.document_type_id : nil)
     return unless doc_type_id.present?
 
-    # Map source_type to warehouse_type code
-    warehouse_type_code = source_type_to_warehouse_type
+    # FK-driven: use linkable_type first, then source_type fallback
+    computer = WarehousePathComputer.new
+    wt_code = if linkable_type.present?
+                computer.send(:linkable_type_to_warehouse_type_code, linkable_type)
+              end
+    wt_code ||= computer.send(:source_type_to_warehouse_type_code, source_type)
 
     # Find matching WarehouseFolderDocumentType
     self.warehouse_folder_document_type = WarehouseFolderDocumentType
       .joins(warehouse_folder: :warehouse_type)
       .where(document_type_id: doc_type_id)
-      .where(warehouse_types: { code: warehouse_type_code })
+      .where(warehouse_types: { code: wt_code })
       .where(warehouse_folders: { tenant_id: tenant_id })
       .first
   rescue StandardError => e
@@ -535,133 +516,14 @@ class WarehouseDocument < ApplicationRecord
     Rails.logger.debug "[WarehouseDocument] invalidate_folder_counts failed: #{e.message}"
   end
 
-  # Map source_type to warehouse template key
-  def source_type_to_warehouse_type
-    code = case source_type
-           when "task" then "task"
-           when "email", "email_attachment" then "email"
-           when "corporate" then "corporate"
-           when "job" then "job"
-           when "contact" then "contact"
-           when "xero" then "corporate"
-           when "case" then "case"
-           when "notebook" then "notebook"
-           else source_type
-           end
-
-    # Catch-all: if warehouse type doesn't exist, fall back to linkable_type
-    return code if WarehouseType.exists?(code: code)
-
-    if linkable_type.present?
-      fallback = case linkable_type
-                 when "Job" then "job"
-                 when "Contact" then "contact"
-                 when "CorporateCompany" then "corporate"
-                 when "SmTask" then "task"
-                 else nil
-                 end
-      return fallback if fallback && WarehouseType.exists?(code: fallback)
-    end
-
-    "unassigned"
-  end
-
   # Extract token values for template expansion
-  # Guarded against missing model classes (e.g. deleted JobDocument)
+  # SSoT (Feb 2026): Delegates to WarehousePathComputer which uses
+  # linkable-first token extraction (FK-driven, not string mapping)
   def extract_folder_tokens
-    tokens = {}
-    # Early return if documentable class no longer exists
-    begin
-      documentable
-    rescue NameError
-      return tokens
-    end
-
-    # Task context - handle both SmTask and SmTaskAttachment
-    # FRC (Feb 2026): Template requires {{JobName}}, {{TaskId}}, {{TaskName}}
-    if source_type == "task" && documentable.present?
-      task = if documentable.is_a?(SmTask)
-               documentable
-             elsif documentable.respond_to?(:sm_task) && documentable.sm_task
-               documentable.sm_task
-             end
-
-      if task
-        tokens[:TaskId] = task.id
-        tokens[:TaskName] = task.name&.parameterize || "task-#{task.id}"
-        # Tasks optionally belong to a job
-        if task.respond_to?(:job) && task.job
-          tokens[:JobName] = task.job.display_name.presence || task.job.job_code
-          tokens[:JobCode] = task.job.job_code
-        else
-          tokens[:JobName] = "Unassigned Job"
-        end
-      end
-    end
-
-    # Job context (||= to not overwrite tokens already set by task context)
-    if documentable.respond_to?(:job) && documentable.job
-      tokens[:JobCode] ||= documentable.job.job_code
-      tokens[:JobName] ||= documentable.job.display_name.presence
-    elsif documentable.respond_to?(:job_code)
-      tokens[:JobCode] ||= documentable.job_code
-    end
-
-    # Contact context
-    if documentable.respond_to?(:contact) && documentable.contact
-      tokens[:ContactName] = documentable.contact.display_name.presence || "Contact-#{documentable.contact.id}"
-    end
-
-    # Corporate company context
-    if documentable.respond_to?(:corporate) && documentable.corporate
-      cc = documentable.corporate
-      tokens[:CompanyCode] = cc.company_code
-      tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
-    end
-
-    # Case context
-    if documentable.respond_to?(:case_number)
-      tokens[:CaseId] = documentable.case_number
-    end
-
-    # Asset context (for asset documents: expenses, service, readings)
-    # SSoT: Assets belong to Corporate (company), so we need both asset + corporate tokens
-    if documentable.is_a?(Asset)
-      tokens[:AssetName] = documentable.display_name.presence || documentable.name.presence || "Asset-#{documentable.id}"
-      tokens[:AssetNumber] = documentable.asset_number if documentable.asset_number.present?
-      # Also get corporate context from the asset's company
-      if documentable.corporate
-        cc = documentable.corporate
-        tokens[:CompanyCode] = cc.company_code
-        tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
-      end
-    elsif documentable.respond_to?(:asset) && documentable.asset
-      # For child records like AssetExpense, AssetServiceHistory, etc.
-      asset = documentable.asset
-      tokens[:AssetName] = asset.display_name.presence || asset.name.presence || "Asset-#{asset.id}"
-      tokens[:AssetNumber] = asset.asset_number if asset.asset_number.present?
-      # Also get corporate context from the asset's company
-      if asset.corporate
-        cc = asset.corporate
-        tokens[:CompanyCode] ||= cc.company_code
-        tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
-      end
-    end
-
-    # Email context
-    if source_type.in?(%w[email email_attachment])
-      tokens[:Mailbox] = meta("mailbox") || "Unknown"
-      received_at = email_received_at || created_at || Time.current
-      tokens[:Year] = received_at.year.to_s
-      tokens[:Month] = received_at.strftime("%m")
-    end
-
-    # Date tokens (fallback)
-    date = created_at || Time.current
-    tokens[:Year] ||= date.year.to_s
-    tokens[:Month] ||= date.strftime("%m")
-
-    tokens
+    WarehousePathComputer.new.send(:extract_tokens, self)
+  rescue StandardError => e
+    Rails.logger.debug "[WarehouseDocument] extract_folder_tokens failed for #{id}: #{e.message}"
+    {}
   end
 
   # Compute email legacy path if not stored

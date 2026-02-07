@@ -70,6 +70,73 @@ namespace :warehouse do
       puts "Reconciliation complete. Check logs for details."
     end
 
+    desc "Re-backfill ALL documents (force recompute, not just nil paths)"
+    task rebackfill_all: :environment do
+      tenant_id = ENV["TENANT_ID"]&.to_i
+
+      scope = WarehouseDocument.order(:id)
+      scope = scope.where(tenant_id: tenant_id) if tenant_id
+      total = scope.count
+
+      if total.zero?
+        puts "No documents found!"
+        next
+      end
+
+      puts "Re-backfilling ALL #{total} documents#{tenant_id ? " (tenant##{tenant_id})" : ""}..."
+      puts "This will OVERWRITE existing folder_path values with FK-driven paths."
+      puts ""
+
+      computer = WarehousePathComputer.new
+      updated = 0
+      errors = 0
+      error_details = Hash.new(0)
+      started_at = Time.current
+
+      scope.find_each(batch_size: 500) do |doc|
+        result = computer.compute(doc)
+        doc.update_columns(
+          folder_path: result[:folder_path],
+          warehouse_folder_id: result[:warehouse_folder_id],
+          path_template_version: result[:path_template_version],
+          updated_at: Time.current
+        )
+        updated += 1
+        if (updated % 1000).zero?
+          elapsed = Time.current - started_at
+          rate = updated / elapsed
+          eta = ((total - updated) / rate).round
+          print "\r  #{updated}/#{total} (#{(updated * 100.0 / total).round(1)}%) - #{rate.round(0)}/s - ETA: #{eta}s  "
+        end
+      rescue StandardError => e
+        errors += 1
+        error_details[e.class.name] += 1
+        puts "\n  Error for doc##{doc.id}: #{e.message}" if errors <= 10
+      end
+
+      elapsed = (Time.current - started_at).round(1)
+      puts "\n\nDone in #{elapsed}s!"
+      puts "  Updated: #{updated}"
+      puts "  Errors:  #{errors}"
+      if error_details.any?
+        puts "  Error breakdown:"
+        error_details.each { |klass, count| puts "    #{klass}: #{count}" }
+      end
+
+      # Print path distribution summary
+      puts "\nPath distribution after rebackfill:"
+      WarehouseDocument.where.not(folder_path: nil)
+        .group(Arel.sql("split_part(folder_path, '/', 1)"))
+        .count
+        .sort_by { |_, v| -v }
+        .first(15)
+        .each { |segment, count| puts "  #{segment}: #{count}" }
+
+      # Check for generic root-only paths
+      generic_count = WarehouseDocument.where(warehouse_folder_id: nil).count
+      puts "\nDocs without warehouse_folder_id: #{generic_count} (#{total.zero? ? 0 : (generic_count * 100.0 / total).round(1)}%)"
+    end
+
     desc "Show materialization stats"
     task stats: :environment do
       total = WarehouseDocument.count

@@ -602,6 +602,11 @@ export function TakeoffCanvas({
     const calLine = calibrationLineRef.current;
     const pScale = pageScaleRef.current;
 
+    // DEBUG: trace calibration flow — remove after fixing
+    if (currentTool === "calibrate") {
+      console.log("[placeToolPoint]", { calStep, hasCalLine: !!calLine, calibrated: pScale?.calibrated, scaleFactor: pScale?.scale_factor, point });
+    }
+
     switch (currentTool) {
       case "calibrate": {
         if (calStep === "waitingInput" || calStep === "verifying") return;
@@ -687,6 +692,10 @@ export function TakeoffCanvas({
       if (target?.data?.isCalibrationLabel) return;
     }
 
+    // DEBUG: trace canvas click — remove after fixing
+    if (currentTool === "calibrate") {
+      console.log("[handleMouseDown] calling placeToolPoint", { rawPoint, point, target: (e.target as any)?.data });
+    }
     placeToolPoint(point);
   }, [currentTool, zoom, findSnapPoint, placeToolPoint, isPanningProp, isSpaceHeldProp]);
 
@@ -1132,6 +1141,8 @@ export function TakeoffCanvas({
       const calStep = calibrationStepRef.current;
       const calLine = calibrationLineRef.current;
       const pScale = pageScaleRef.current;
+      // DEBUG: trace magnifier select flow — remove after fixing
+      console.log("[handleMagnifierSelect]", { calStep, hasCalLine: !!calLine, calibrated: pScale?.calibrated, scaleFactor: pScale?.scale_factor, candidate });
       if (calStep === "waitingInput" || calStep === "verifying") return;
       if (!calLine) {
         setCalibrationLine({ start: candidate, end: candidate });
