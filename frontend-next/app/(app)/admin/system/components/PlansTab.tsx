@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,18 +75,21 @@ interface RevisionFormat {
   is_default: boolean;
 }
 
-export function PlansTab() {
-  const searchParams = useSearchParams();
+interface PlansTabProps {
+  subTab?: string;
+  basePath?: string;
+}
+
+export function PlansTab({ subTab, basePath = "/admin/system/plans" }: PlansTabProps) {
   const router = useRouter();
-  const subtabFromUrl = searchParams.get("subtab");
-  const activeTab = subtabFromUrl || "categories";
+  const activeTab = subTab || "categories";
 
   const handleTabChange = useCallback((tabId: string) => {
     const url = tabId === "categories"
-      ? `/admin/system/plans`
-      : `/admin/system/plans/${tabId}`;
+      ? basePath
+      : `${basePath}/${tabId}`;
     router.push(url, { scroll: false });
-  }, [router]);
+  }, [router, basePath]);
 
   return (
     <div className="space-y-6">

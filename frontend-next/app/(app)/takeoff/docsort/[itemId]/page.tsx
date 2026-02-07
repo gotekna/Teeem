@@ -85,7 +85,6 @@ export default function DocsortTakeoffPage() {
   const [currentTool, setCurrentTool] = React.useState<TakeoffTool>("select");
   const [zoom, setZoom] = React.useState(1);
   const canvasContainerRef = React.useRef<HTMLDivElement>(null);
-  const hasSetInitialZoom = React.useRef(false);
 
   // Pricebook selector state
   const [pricebookSelectorOpen, setPricebookSelectorOpen] = React.useState(false);
@@ -101,23 +100,41 @@ export default function DocsortTakeoffPage() {
     return itemData?.page_scales.find((ps) => ps.page_number === currentPageNumber) || null;
   }, [itemData, currentPageNumber]);
 
-  // Fit-to-page zoom on initial load
+  // Fit-to-page zoom - recalculates when container resizes (e.g. sidebar toggle)
+  const lastContainerSize = React.useRef({ w: 0, h: 0 });
   React.useEffect(() => {
-    if (hasSetInitialZoom.current || !currentPage || !canvasContainerRef.current) return;
-    hasSetInitialZoom.current = true;
+    if (!currentPage || !canvasContainerRef.current) return;
 
     const container = canvasContainerRef.current;
-    // Account for my-4 margins (16px top + 16px bottom)
-    const availableWidth = container.clientWidth - 32;
-    const availableHeight = container.clientHeight - 32;
+    let rafId: number;
 
-    const fitZoom = Math.min(
-      availableWidth / currentPage.width,
-      availableHeight / currentPage.height
-    );
+    const calcFitZoom = () => {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w <= 0 || h <= 0) return;
 
-    // Clamp to reasonable range and round to avoid sub-pixel issues
-    setZoom(Math.max(0.1, Math.min(fitZoom, 3)));
+      // Skip if container size hasn't meaningfully changed (avoid resize loop)
+      if (Math.abs(w - lastContainerSize.current.w) < 2 && Math.abs(h - lastContainerSize.current.h) < 2) return;
+      lastContainerSize.current = { w, h };
+
+      // Fit width - scroll vertically if needed. Preserves aspect ratio.
+      const fitZoom = (w - 8) / currentPage.width;
+      setZoom(Math.max(0.1, Math.min(fitZoom, 3)));
+      container.scrollTop = 0;
+      container.scrollLeft = 0;
+    };
+
+    calcFitZoom();
+
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(calcFitZoom);
+    });
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(rafId);
+    };
   }, [currentPage]);
 
   // =============================================================================
@@ -657,7 +674,8 @@ export default function DocsortTakeoffPage() {
   const isCalibrated = pageScale?.calibrated || false;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden border-4 border-blue-500 relative">
+      <div className="absolute top-0 left-0 bg-blue-600 text-white px-2 py-0.5 text-[10px] font-bold z-50">[1] OUTER (BLUE)</div>
       {/* Toolbar */}
       <TakeoffToolbar
         currentTool={currentTool}
@@ -687,7 +705,8 @@ export default function DocsortTakeoffPage() {
       />
 
       {/* Main content */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden border-4 border-green-500 relative">
+        <div className="absolute top-0 left-24 bg-green-600 text-white px-2 py-0.5 text-[10px] font-bold z-50">[2] FLEX (GREEN)</div>
         {/* Thumbnails sidebar */}
         <div className="w-24 border-r bg-muted/30 flex flex-col">
           <div className="p-2 border-b text-xs font-medium text-muted-foreground flex items-center justify-between">
@@ -746,7 +765,8 @@ export default function DocsortTakeoffPage() {
         </div>
 
         {/* Canvas area */}
-        <div ref={canvasContainerRef} className="flex-1 overflow-auto bg-muted/20 relative">
+        <div ref={canvasContainerRef} className="flex-1 overflow-auto bg-muted/20 relative border border-border/20 border-4 border-purple-500">
+          <div className="absolute top-0 left-0 bg-purple-600 text-white px-2 py-0.5 text-[10px] font-bold z-50">[3] SCROLL + PAGE BORDER (PURPLE)</div>
           {pdfError && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
@@ -767,7 +787,7 @@ export default function DocsortTakeoffPage() {
 
           {currentPage && (
             <div
-              className="relative mx-auto my-4"
+              className="relative mx-auto"
               style={{
                 width: currentPage.width * zoom,
                 height: currentPage.height * zoom,

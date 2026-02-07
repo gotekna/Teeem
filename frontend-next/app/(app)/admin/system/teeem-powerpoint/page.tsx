@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -888,7 +888,9 @@ function ChartEditorDialog({
 export default function TeeemPowerPointPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const presentationId = searchParams.get("id");
+  const params = useParams();
+  // Path-based ID (preferred) or query param fallback for backwards compat
+  const presentationId = (params.id as string) || searchParams.get("id");
   const { setMode } = useLayoutMode();
   const { toast } = useToast();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -991,7 +993,7 @@ export default function TeeemPowerPointPage() {
               setData(response.data.data);
             }
             // If no valid data, keep the initial empty presentation from createEmptyPresentation()
-            router.replace(`/admin/system/teeem-powerpoint?id=${response.data.id}`);
+            router.replace(`/admin/system/teeem-powerpoint/${response.data.id}`);
           }
         }
       } catch (error) {

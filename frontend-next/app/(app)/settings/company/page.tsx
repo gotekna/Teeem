@@ -58,10 +58,11 @@ export default function CompanySettingsPage() {
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/company to work
   // SSoT (Jan 2026): Connections moved to top-level /settings/connections
-  const { activeTab, subTab } = useMemo(() => {
+  const { activeTab, subTab, deepTab } = useMemo(() => {
     const parts = (pathname ?? "").replace("/settings/company", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
     const sub = parts[1] || undefined;
+    const deep = parts[2] || undefined;
     // Validate tab exists
     // For warehouse-config tab without subTab, default to "warehouse_folders"
     const validTab = COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
@@ -70,6 +71,7 @@ export default function CompanySettingsPage() {
     return {
       activeTab: validTab,
       subTab: effectiveSubTab,
+      deepTab: deep,
     };
   }, [pathname]);
 
@@ -125,10 +127,10 @@ export default function CompanySettingsPage() {
             <JobSetupTab subTab={subTab} basePath="/settings/company/job-setup" />
           </TabsContent>
           <TabsContent value="documents">
-            <DocumentsTab subTab={subTab} basePath="/settings/company/documents" />
+            <DocumentsTab subTab={subTab} deepTab={deepTab} basePath="/settings/company/documents" />
           </TabsContent>
           <TabsContent value="warehouse-config">
-            <EntityConfigurationTab subTab={subTab} basePath="/settings/company/warehouse-config" />
+            <EntityConfigurationTab subTab={subTab} deepTab={deepTab} basePath="/settings/company/warehouse-config" />
           </TabsContent>
           <TabsContent value="offline">
             <OfflineTab />

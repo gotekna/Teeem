@@ -879,7 +879,7 @@ export default function TakeoffPage() {
         </div>
 
         {/* Canvas area */}
-        <div className="flex-1 overflow-auto bg-muted/20 relative">
+        <div className="flex-1 overflow-auto bg-muted/20 relative border border-border/20">
           {pdfError && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
@@ -900,7 +900,7 @@ export default function TakeoffPage() {
 
           {currentPage && (
             <div
-              className="relative mx-auto my-4"
+              className="relative mx-auto"
               style={{
                 width: currentPage.width * zoom,
                 height: currentPage.height * zoom,

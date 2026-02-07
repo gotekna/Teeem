@@ -60,7 +60,7 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
     setIsOpen(false);
     // Navigate to /docs with chapter if available
     if (helpInfo?.chapter !== undefined) {
-      router.push(`/docs?chapter=${helpInfo.chapter}`);
+      router.push(`/docs/${helpInfo.chapter}`);
     } else {
       router.push("/docs");
     }

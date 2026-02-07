@@ -546,7 +546,7 @@ export function WarehouseTypesTab() {
 
       {/* Table - with explicit row borders */}
       <div className="border rounded-lg overflow-hidden">
-        <Table className="border-collapse [&_tbody_tr]:border-b [&_tbody_tr]:border-muted-foreground/20">
+        <Table>
           <TableHeader>
             <TableRow>
               <TableHead
@@ -599,14 +599,14 @@ export function WarehouseTypesTab() {
           </TableHeader>
           <TableBody>
             {warehouseTypes.map((type) => (
-              <TableRow key={type.id}>
-                <TableCell className="font-mono text-sm">
+              <TableRow key={type.id} className="[&_td]:border-b [&_td]:border-border">
+                <TableCell className="font-mono text-sm align-top py-2">
                   {type.code}
                   {type.is_system && (
                     <Lock className="h-3 w-3 inline ml-1 text-muted-foreground" />
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="align-top py-2">
                   <div className="flex flex-col">
                     <span>{type.display_name}</span>
                     {type.description && (
@@ -616,10 +616,10 @@ export function WarehouseTypesTab() {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
+                <TableCell className="font-mono text-xs text-muted-foreground align-top py-2">
                   {type.folder_path_template || "-"}
                 </TableCell>
-                <TableCell>
+                <TableCell className="align-top py-2">
                   <div className="flex flex-wrap gap-1">
                     {type.warehouse_folders.length > 0 ? (
                       type.warehouse_folders.map((bf) => (
@@ -637,12 +637,12 @@ export function WarehouseTypesTab() {
                     )}
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="align-top py-2">
                   <Badge variant={type.enabled ? "default" : "outline"}>
                     {type.enabled ? "Yes" : "No"}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right align-top py-2">
                   <div className="flex justify-end gap-1">
                     <Button
                       variant="ghost"

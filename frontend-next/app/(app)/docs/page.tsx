@@ -5,11 +5,11 @@
  *
  * SSoT: lib/docs/chapters.json contains all chapter content
  * Static loading - no backend API required
- * URL: /docs?chapter=5
+ * URL: /docs/5 (path-based chapter selection)
  */
 
 import * as React from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,13 +65,12 @@ interface SearchResult {
 }
 
 export default function DocsPage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
+  const params = useParams();
 
-  // URL state
-  const docType = searchParams.get("doc") || "user-manual";
-  const chapterParam = searchParams.get("chapter");
-  const selectedChapter = chapterParam ? parseInt(chapterParam) : null;
+  // URL state - path-based: /docs/5 instead of /docs?chapter=5
+  const chapterParam = params.chapter as string | undefined;
+  const selectedChapter = chapterParam !== undefined ? parseInt(chapterParam) : null;
 
   // UI state
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
@@ -141,7 +140,7 @@ export default function DocsPage() {
   };
 
   const navigateToChapter = (chapter: number) => {
-    router.push(`/docs?doc=${docType}&chapter=${chapter}`);
+    router.push(`/docs/${chapter}`);
     setSearchResults([]);
     setSearchQuery("");
   };

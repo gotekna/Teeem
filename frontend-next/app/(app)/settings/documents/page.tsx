@@ -35,11 +35,15 @@ export default function DocumentsSettingsPage() {
   // URL is SSoT for tab state (path-based navigation)
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/documents to work
-  const activeTab = useMemo(() => {
+  const { activeTab, subTab } = useMemo(() => {
     const parts = (pathname ?? "").replace("/settings/documents", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
+    const sub = parts[1] || undefined;
     // Validate tab exists
-    return DOCUMENT_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
+    return {
+      activeTab: DOCUMENT_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB,
+      subTab: sub,
+    };
   }, [pathname]);
 
   const handleTabChange = useCallback((tabId: string) => {
@@ -66,7 +70,7 @@ export default function DocumentsSettingsPage() {
             <DocumentTypesTab basePath="/settings/documents/types" />
           </TabsContent>
           <TabsContent value="templates">
-            <DocumentTemplatesTab basePath="/settings/documents/templates" />
+            <DocumentTemplatesTab basePath="/settings/documents/templates" subTab={activeTab === "templates" ? subTab : undefined} />
           </TabsContent>
           <TabsContent value="pdf-fields">
             <PdfFieldsTab />

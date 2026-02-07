@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WarehouseTypesTab } from "./WarehouseTypesTab";
 import { WarehouseFoldersTab } from "./WarehouseFoldersTab";
@@ -15,35 +15,23 @@ import { Database, FolderOpen } from "lucide-react";
  * - Warehouse Types: The types of warehouse storage (job, contact, email, etc.)
  * - Warehouse Folders: The folder configurations for each warehouse type
  *
- * URL State: Uses ?tab= query param to persist active sub-tab
+ * URL State: Path-based via basePath prop (e.g., .../warehouse_tables/warehouse_types)
  */
 
 interface WarehouseTablesTabProps {
-  defaultTab?: string;
+  activeSubTab?: string;
+  basePath?: string;
 }
 
-export function WarehouseTablesTab({ defaultTab = "warehouse_types" }: WarehouseTablesTabProps) {
+export function WarehouseTablesTab({ activeSubTab = "warehouse_types", basePath }: WarehouseTablesTabProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
-  // Get active tab from URL query param, fallback to default
-  const urlTab = searchParams.get("tab");
-  const activeTab = urlTab || defaultTab;
-
-  // Ensure default tab is reflected in URL for breadcrumb consistency
-  React.useEffect(() => {
-    if (!urlTab) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("tab", defaultTab);
-      router.replace(`?${params.toString()}`, { scroll: false });
-    }
-  }, [urlTab, defaultTab, searchParams, router]);
+  const activeTab = activeSubTab;
 
   const handleTabChange = (newTab: string) => {
-    // Update URL with new tab value
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", newTab);
-    router.push(`?${params.toString()}`, { scroll: false });
+    if (basePath) {
+      router.push(`${basePath}/${newTab}`, { scroll: false });
+    }
   };
 
   return (

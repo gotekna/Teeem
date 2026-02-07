@@ -12,7 +12,7 @@ import { AdminConfigSyncTab } from "./AdminConfigSyncTab";
 import { TenantSyncPullTab } from "./TenantSyncPullTab";
 import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw, Database } from "lucide-react";
 import { api } from "@/lib/api";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useSidebar } from "@/contexts/SidebarContext";
 
 /**
@@ -33,6 +33,7 @@ interface EntityConfigurationTabProps {
   onClose?: () => void;  // Called when user exits fullscreen
   scope?: string;  // Path-based scope
   subTab?: string;  // Alias for scope (for consistency with other tabs)
+  deepTab?: string;  // Sub-tab within a scope (e.g., warehouse_types within warehouse_tables)
   basePath?: string;  // Base path for navigation
 }
 
@@ -159,24 +160,20 @@ function buildBreadcrumbs(basePath: string, activeScope: string, subTab?: string
 
   // Add sub-tab as final breadcrumb if on warehouse_tables with a sub-tab
   if (activeScope === "warehouse_tables" && subTab && SUB_TAB_LABELS[subTab]) {
-    crumbs.push({ label: SUB_TAB_LABELS[subTab], path: `${basePath}/${activeScope}?tab=${subTab}` });
+    crumbs.push({ label: SUB_TAB_LABELS[subTab], path: `${basePath}/${activeScope}/${subTab}` });
   }
 
   return crumbs;
 }
 
-export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFAULT_ENTITY_CONFIG_BASE_PATH }: EntityConfigurationTabProps) {
+export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePath = DEFAULT_ENTITY_CONFIG_BASE_PATH }: EntityConfigurationTabProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { sidebarWidth } = useSidebar();
   // Support both scope and subTab props (subTab for consistency with other tabs)
   const activeScope = scope || subTab || "warehouse_folders";
 
-  // Get sub-tab from URL query param (for warehouse_tables)
-  const activeSubTab = searchParams.get("tab");
-
-  // Build breadcrumbs from basePath, active scope, and sub-tab
-  const breadcrumbs = React.useMemo(() => buildBreadcrumbs(basePath, activeScope, activeSubTab), [basePath, activeScope, activeSubTab]);
+  // Build breadcrumbs from basePath, active scope, and deep tab (path-based)
+  const breadcrumbs = React.useMemo(() => buildBreadcrumbs(basePath, activeScope, deepTab), [basePath, activeScope, deepTab]);
 
   const setActiveScope = React.useCallback((newScope: string) => {
     router.push(`${basePath}/${newScope}`, { scroll: false });
@@ -250,7 +247,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
               ) : "isStorageConfig" in scope && scope.isStorageConfig ? (
                 <WarehouseProviderTab />
               ) : "isWarehouseTables" in scope && scope.isWarehouseTables ? (
-                <WarehouseTablesTab />
+                <WarehouseTablesTab activeSubTab={deepTab} basePath={`${basePath}/warehouse_tables`} />
               ) : "isEmailConfig" in scope && scope.isEmailConfig ? (
                 <EmailConfigTab />
               ) : "isConfigSync" in scope && scope.isConfigSync ? (
