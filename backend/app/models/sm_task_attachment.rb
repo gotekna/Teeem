@@ -290,13 +290,15 @@ class SmTaskAttachment < ApplicationRecord
     # Use config template - resolves {{JobName}}, {{TaskId}}, and {{TaskName}}
     # Template: Task/{{JobName}}/{{TaskId}}{{TaskName}}/Task Attachments
     # FRC (Feb 2026): Must include JobName - tasks belong_to :job (optional)
+    # If no job, omit JobName token - resolve_virtual_path strips it, skipping that folder level
     job = task.job
-    folder = config.resolve_virtual_path(folder_type, {
-      JobName: job&.display_name.presence || "Unassigned",
+    tokens = {
+      JobName: job&.display_name.presence || job&.job_code.presence || "Unassigned Job",
       JobCode: job&.job_code.presence || "No-Job",
       TaskId: task.id,
       TaskName: task.name&.parameterize || "task-#{task.id}"
-    })
+    }
+    folder = config.resolve_virtual_path(folder_type, tokens)
 
     if folder.blank?
       Rails.logger.warn("[SmTaskAttachment] ##{id}: resolve_virtual_path returned blank for #{folder_type}")
