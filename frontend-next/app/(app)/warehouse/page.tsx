@@ -306,6 +306,7 @@ interface RecordNode {
   name: string;
   subtitle?: string;
   code?: string;
+  tokenValues?: Record<string, string | null>;
 }
 
 // Pagination response from records API
@@ -544,6 +545,7 @@ export default function AllDocumentsPage() {
   // Key is warehouse type code (e.g., "job", "contact", "corporate")
   const [warehouseRecords, setWarehouseRecords] = useState<Record<string, {
     records: RecordNode[];
+    groupingTokens?: string[];
     pagination: RecordsPagination;
   }>>({});
   const [loadingRecords, setLoadingRecords] = useState<Set<string>>(new Set());
@@ -1054,6 +1056,7 @@ export default function AllDocumentsPage() {
         success: boolean;
         data: {
           records: RecordNode[];
+          groupingTokens?: string[];
           pagination: RecordsPagination;
         };
       }>(`/api/v1/warehouse_types/${warehouseTypeCode}/records`, {
@@ -1067,6 +1070,7 @@ export default function AllDocumentsPage() {
             records: offset === 0
               ? response.data.records
               : [...(prev[warehouseTypeCode]?.records || []), ...response.data.records],
+            groupingTokens: response.data.groupingTokens || prev[warehouseTypeCode]?.groupingTokens,
             pagination: response.data.pagination
           }
         }));
@@ -1581,8 +1585,41 @@ export default function AllDocumentsPage() {
       let children: TreeNode[] = [];
 
       if (recordData?.records?.length > 0) {
-        // Records loaded - show each record with its folder structure
-        children = recordData.records.map(r => convertRecordToTreeNode(r, warehouseType));
+        // SSoT (Feb 2026): Template-driven grouping - parsed from folder_path_template by backend
+        // e.g., "Job/{{JobStatus}}/{{JobType}}/{{JobCode}}{{JobName}}" → groupingTokens: ["JobStatus", "JobType"]
+        // e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}" → groupingTokens: ["CompanyGroup"]
+        // e.g., "Contacts/{{ContactName}}" → groupingTokens: [] (flat)
+        const groupingTokens = recordData.groupingTokens || [];
+
+        const buildGroupedHierarchy = (
+          records: RecordNode[],
+          tokens: string[],
+          depth = 0,
+        ): TreeNode[] => {
+          if (depth >= tokens.length) {
+            return records.map(r => convertRecordToTreeNode(r, warehouseType));
+          }
+          const token = tokens[depth];
+          const groups = new Map<string, RecordNode[]>();
+          for (const r of records) {
+            const key = r.tokenValues?.[token] || `No ${token}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(r);
+          }
+          return Array.from(groups.entries()).map(([groupName, groupRecords]) => ({
+            id: `group-${warehouseType.code}-${depth}-${groupName}`,
+            name: groupName,
+            type: "category" as const,
+            sourceType: warehouseType.code,
+            children: buildGroupedHierarchy(groupRecords, tokens, depth + 1),
+          }));
+        };
+
+        if (groupingTokens.length > 0) {
+          children = buildGroupedHierarchy(recordData.records, groupingTokens);
+        } else {
+          children = recordData.records.map(r => convertRecordToTreeNode(r, warehouseType));
+        }
 
         // Add "Load more" node if there are more records
         if (recordData.pagination?.has_more) {
