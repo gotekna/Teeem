@@ -537,23 +537,45 @@ class WarehouseDocument < ApplicationRecord
 
   # Map source_type to warehouse template key
   def source_type_to_warehouse_type
-    case source_type
-    when "task" then "task_attachments"
-    when "email" then "email"
-    when "email_attachment" then "email_attachments"
-    when "corporate" then "corporate"
-    when "job" then "job"
-    when "contact" then "contact"
-    when "xero" then "bank_statement"
-    when "case" then "case"
-    when "notebook" then "notebook"
-    else source_type
+    code = case source_type
+           when "task" then "task"
+           when "email", "email_attachment" then "email"
+           when "corporate" then "corporate"
+           when "job" then "job"
+           when "contact" then "contact"
+           when "xero" then "corporate"
+           when "case" then "case"
+           when "notebook" then "notebook"
+           else source_type
+           end
+
+    # Catch-all: if warehouse type doesn't exist, fall back to linkable_type
+    return code if WarehouseType.exists?(code: code)
+
+    if linkable_type.present?
+      fallback = case linkable_type
+                 when "Job" then "job"
+                 when "Contact" then "contact"
+                 when "CorporateCompany" then "corporate"
+                 when "SmTask" then "task"
+                 else nil
+                 end
+      return fallback if fallback && WarehouseType.exists?(code: fallback)
     end
+
+    "unassigned"
   end
 
   # Extract token values for template expansion
+  # Guarded against missing model classes (e.g. deleted JobDocument)
   def extract_folder_tokens
     tokens = {}
+    # Early return if documentable class no longer exists
+    begin
+      documentable
+    rescue NameError
+      return tokens
+    end
 
     # Task context - handle both SmTask and SmTaskAttachment
     # FRC (Feb 2026): Template requires {{JobName}}, {{TaskId}}, {{TaskName}}
@@ -569,11 +591,10 @@ class WarehouseDocument < ApplicationRecord
         tokens[:TaskName] = task.name&.parameterize || "task-#{task.id}"
         # Tasks optionally belong to a job
         if task.respond_to?(:job) && task.job
-          tokens[:JobName] = task.job.display_name.presence || "Unassigned"
-          tokens[:JobCode] = task.job.job_code.presence || "No-Job"
+          tokens[:JobName] = task.job.display_name.presence || task.job.job_code
+          tokens[:JobCode] = task.job.job_code
         else
-          tokens[:JobName] = "Unassigned"
-          tokens[:JobCode] = "No-Job"
+          tokens[:JobName] = "Unassigned Job"
         end
       end
     end

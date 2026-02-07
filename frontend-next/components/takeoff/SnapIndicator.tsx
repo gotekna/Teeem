@@ -444,7 +444,7 @@ export function PinnedMagnifier({
           width: PINNED_MAG_SIZE,
           height: PINNED_MAG_SIZE + 20,
           pointerEvents: "none",
-          zIndex: 5,
+          zIndex: 10, // Above Fabric.js upper canvas
         }}
       >
         <canvas
@@ -509,35 +509,47 @@ function MagnifierInteractiveOverlay({
 }: MagnifierInteractiveOverlayProps) {
   const overlayRef = React.useRef<HTMLDivElement>(null);
   const dragging = React.useRef(false);
+  // Store the point from pointerDown so we always have a position for onSelect
+  const downPoint = React.useRef<{ x: number; y: number } | null>(null);
 
-  const getPdfPoint = React.useCallback((e: React.PointerEvent) => {
+  const getPdfPoint = React.useCallback((e: React.MouseEvent | React.PointerEvent) => {
     const el = overlayRef.current;
     if (!el) return null;
     return magEventToPdf(e, el, magSize, centerX, centerY, cropSize);
   }, [magSize, centerX, centerY, cropSize]);
 
-  const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
+  // ⚠️ DO NOT SIMPLIFY — pointer event handling (2026-02-08)
+  // ════════════════════════════════════════════════════════════
+  // Why: We avoid setPointerCapture and preventDefault on pointerDown because
+  // they can suppress subsequent pointerUp/click events in some browsers.
+  // Instead: pointerDown records position, mouseMove updates preview,
+  // and click (mouseUp) finalizes with onSelect.
+  // ❌ WRONG: setPointerCapture + preventDefault on pointerDown (kills pointerUp)
+  // ✅ CORRECT: Simple mouseDown/mouseMove/click pattern below
+  // ════════════════════════════════════════════════════════════
+  const handleMouseDown = React.useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    e.preventDefault();
     dragging.current = true;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    const pt = getPdfPoint(e);
-    if (pt && onPreview) onPreview(pt);
-  }, [getPdfPoint, onPreview]);
+    downPoint.current = getPdfPoint(e) ?? null;
+  }, [getPdfPoint]);
 
-  const handlePointerMove = React.useCallback((e: React.PointerEvent) => {
+  const handleMouseMove = React.useCallback((e: React.MouseEvent) => {
     if (!dragging.current) return;
     e.stopPropagation();
     const pt = getPdfPoint(e);
-    if (pt && onPreview) onPreview(pt);
+    if (pt && onPreview) {
+      downPoint.current = pt; // Track latest position during drag
+      onPreview(pt);
+    }
   }, [getPdfPoint, onPreview]);
 
-  const handlePointerUp = React.useCallback((e: React.PointerEvent) => {
-    if (!dragging.current) return;
+  const handleClick = React.useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     dragging.current = false;
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-    const pt = getPdfPoint(e);
+    // Use click position, fall back to stored position
+    const pt = getPdfPoint(e) ?? downPoint.current;
     if (pt) onSelect(pt);
+    downPoint.current = null;
   }, [getPdfPoint, onSelect]);
 
   return (
@@ -551,9 +563,9 @@ function MagnifierInteractiveOverlay({
         cursor: "crosshair",
         pointerEvents: "auto",
       }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onClick={handleClick}
     >
       {/* Candidate hit-target badges (larger touch targets over detected points) */}
       {candidates.map((c, i) => {
@@ -746,6 +758,7 @@ export function SnapMagnifier({
         width: MAG_SIZE,
         height: MAG_SIZE + 24,
         pointerEvents: "none",
+        zIndex: 10, // Above Fabric.js upper canvas
       }}
     >
       <canvas
