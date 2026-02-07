@@ -218,7 +218,7 @@ module Api
         # FRC: Don't call .count on a scope with .select(multiple columns) - PostgreSQL fails
         base_scope = case @warehouse_type.code
         when 'job'
-          scope = Job.all
+          scope = Job.includes(:job_status, :job_type)
           scope = scope.where("name ILIKE ? OR job_code ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
           scope.order(created_at: :desc)
         when 'contact'
@@ -230,8 +230,8 @@ module Api
           scope = scope.joins(:contact).where("contacts.display_name ILIKE ? OR corporates.code ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
           scope.order("contacts.display_name")
         when 'task'
-          scope = SmTask.all
-          scope = scope.where("name ILIKE ? OR description ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
+          scope = SmTask.includes(:job)
+          scope = scope.where("sm_tasks.name ILIKE ? OR sm_tasks.description ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
           scope.order(created_at: :desc)
         when 'user'
           scope = User.all
@@ -257,6 +257,7 @@ module Api
           success: true,
           data: {
             records: paginated_records.map { |r| serialize_record(r, @warehouse_type.code) },
+            groupingTokens: extract_grouping_tokens(@warehouse_type.folder_path_template),
             pagination: {
               total: total,
               limit: limit,
@@ -278,8 +279,9 @@ module Api
       end
 
       # Serialize a record for the records API response
+      # SSoT (Feb 2026): Includes tokenValues for template-driven tree grouping
       def serialize_record(record, warehouse_type_code)
-        case warehouse_type_code
+        base = case warehouse_type_code
         when 'job'
           job_code = record.job_code.present? ? record.job_code : "J-#{record.id.to_s.rjust(3, '0')}"
           {
@@ -296,7 +298,6 @@ module Api
             code: nil
           }
         when 'corporate'
-          # SSoT: Corporate links to Contact for identity - get name from contact's display_name
           {
             id: record.id,
             name: record.contact&.display_name || "Corporate ##{record.id}",
@@ -325,6 +326,62 @@ module Api
             code: nil
           }
         end
+
+        base[:tokenValues] = resolve_tokens_for_record(record, warehouse_type_code)
+        base
+      end
+
+      # Resolve template token values for a record (Feb 2026)
+      # Used by frontend to dynamically group records based on folder_path_template
+      def resolve_tokens_for_record(record, warehouse_type_code)
+        case warehouse_type_code
+        when 'job'
+          {
+            'JobCode' => record.job_code,
+            'JobName' => record.name,
+            'JobStatus' => record.job_status&.name,
+            'JobType' => record.job_type&.name
+          }
+        when 'corporate'
+          {
+            'CompanyCode' => record.code,
+            'CompanyName' => record.contact&.display_name,
+            'CompanyGroup' => record.company_group&.name
+          }
+        when 'task'
+          {
+            'TaskId' => "T-#{record.id}",
+            'TaskName' => record.name,
+            'JobCode' => record.job&.job_code,
+            'JobName' => record.job ? "#{record.job.job_code} #{record.job.name}" : nil
+          }
+        when 'contact'
+          {
+            'ContactName' => record.display_name || "#{record.first_name} #{record.last_name}".strip
+          }
+        when 'user'
+          {
+            'UserName' => "#{record.first_name} #{record.last_name}".strip
+          }
+        else
+          {}
+        end
+      end
+
+      # Extract grouping tokens from a folder_path_template (Feb 2026)
+      # All token segments except the LAST become grouping levels
+      # e.g., "Job/{{JobStatus}}/{{JobType}}/{{JobCode}}{{JobName}}" → ["JobStatus", "JobType"]
+      # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}" → ["CompanyGroup"]
+      # e.g., "Contacts/{{ContactName}}" → [] (flat - only 1 token segment)
+      def extract_grouping_tokens(template)
+        return [] if template.blank?
+
+        segments = template.split('/')
+        token_segments = segments.select { |s| s.include?('{{') }
+        return [] if token_segments.length <= 1
+
+        # All except last token segment → extract first token name from each
+        token_segments[0..-2].map { |s| s.scan(/\{\{(\w+)\}\}/).flatten.first }.compact
       end
 
       def warehouse_type_params
