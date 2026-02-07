@@ -48,25 +48,25 @@ class AddRecordConfigToWarehouseTypes < ActiveRecord::Migration[8.0]
         source_model: 'Corporate',
         token_config: {
           'CompanyCode' => 'code',
-          'CompanyName' => 'contact.display_name',
+          'CompanyName' => 'display_name',
           'CompanyGroup' => 'company_group.name'
         },
         records_config: {
-          'display' => { 'name' => 'contact.display_name', 'subtitle' => 'company_group.name' },
-          'search' => %w[contacts.display_name corporates.code],
-          'order' => 'contacts.display_name ASC'
+          'display' => { 'name' => 'display_name', 'subtitle' => 'company_group.name' },
+          'search' => %w[corporates.name corporates.code],
+          'order' => 'corporates.name ASC'
         }
       },
       'task' => {
         source_model: 'SmTask',
         token_config: {
-          'TaskId' => 'id',
+          'TaskId' => 'warehouse_task_id',
           'TaskName' => 'name',
           'JobCode' => 'job.job_code',
-          'JobName' => 'job.name'
+          'JobName' => 'warehouse_job_label'
         },
         records_config: {
-          'display' => { 'name' => 'name', 'subtitle' => 'description', 'code' => nil },
+          'display' => { 'name' => 'name', 'subtitle' => 'description', 'code' => 'warehouse_task_id' },
           'search' => %w[sm_tasks.name sm_tasks.description],
           'order' => 'created_at DESC'
         }
