@@ -282,9 +282,9 @@ export function useSnapPoints(options: UseSnapPointsOptions) {
 // PDF Edge Detection
 // =============================================================================
 
-// Detect the nearest dark pixel (line/edge) on the PDF canvas near a given point.
-// Samples a small region of pixels, finds the closest dark pixel cluster, then
-// refines to the center of the line by scanning outward from the nearest hit.
+// Detect the nearest REAL LINE on the PDF canvas near a given point.
+// Only snaps when dark pixels form a contiguous line (not text, hatching, or noise).
+// The snap indicator only appears when a genuine line is found nearby.
 function findNearestPdfEdge(
   x: number,
   y: number,
@@ -309,13 +309,41 @@ function findNearestPdfEdge(
 
   const imageData = ctx.getImageData(sx, sy, sw, sh);
   const { data, width } = imageData;
-
-  // Find nearest dark pixel (brightness below threshold = line/edge)
-  let bestDist = Infinity;
-  let bestX = cx;
-  let bestY = cy;
   const brightThreshold = 128;
 
+  // Helper: get brightness of a canvas pixel from the sampled imageData
+  const getBrightness = (canvasX: number, canvasY: number): number => {
+    const lx = canvasX - sx;
+    const ly = canvasY - sy;
+    if (lx < 0 || lx >= sw || ly < 0 || ly >= sh) return 255;
+    const idx = (ly * width + lx) * 4;
+    return (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+  };
+
+  // Measure contiguous dark run from a pixel along one axis (both directions)
+  const measureRun = (startX: number, startY: number, isHorizontal: boolean): number => {
+    let lo = 0;
+    let hi = 0;
+    const scanLimit = radius * 2;
+    for (let d = 1; d <= scanLimit; d++) {
+      const px = isHorizontal ? startX - d : startX;
+      const py = isHorizontal ? startY : startY - d;
+      if (getBrightness(px, py) < brightThreshold) lo++; else break;
+    }
+    for (let d = 1; d <= scanLimit; d++) {
+      const px = isHorizontal ? startX + d : startX;
+      const py = isHorizontal ? startY : startY + d;
+      if (getBrightness(px, py) < brightThreshold) hi++; else break;
+    }
+    return lo + 1 + hi;
+  };
+
+  // Minimum contiguous dark run to qualify as a "real line" (filters text/noise).
+  // ~8 canvas pixels ≈ 4 page pixels on 2x DPR — dimension lines are much longer.
+  const minLineRun = Math.max(8, Math.round(4 * dpr));
+
+  // Collect dark pixel candidates
+  const candidates: Array<{ canvasX: number; canvasY: number; dist: number }> = [];
   for (let py = 0; py < sh; py++) {
     for (let px = 0; px < sw; px++) {
       const i = (py * width + px) * 4;
@@ -324,45 +352,53 @@ function findNearestPdfEdge(
         const canvasX = sx + px;
         const canvasY = sy + py;
         const dist = (canvasX - cx) ** 2 + (canvasY - cy) ** 2;
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestX = canvasX;
-          bestY = canvasY;
-        }
+        candidates.push({ canvasX, canvasY, dist });
       }
     }
   }
 
-  // No dark pixels found in range
-  if (bestDist === Infinity) return null;
+  if (candidates.length === 0) return null;
 
-  // Refine: scan outward from the nearest dark pixel in 4 cardinal directions
-  // to find the full width of the line, then return the centroid for sub-pixel accuracy
+  // Sort by distance (closest first), only validate the nearest few for speed
+  candidates.sort((a, b) => a.dist - b.dist);
+  const checkLimit = Math.min(candidates.length, 20);
+
+  let bestX = 0;
+  let bestY = 0;
+  let found = false;
+
+  for (let i = 0; i < checkLimit; i++) {
+    const c = candidates[i];
+    const hRun = measureRun(c.canvasX, c.canvasY, true);
+    const vRun = measureRun(c.canvasX, c.canvasY, false);
+    // Must have a contiguous dark run long enough to be a real line
+    if (hRun >= minLineRun || vRun >= minLineRun) {
+      bestX = c.canvasX;
+      bestY = c.canvasY;
+      found = true;
+      break;
+    }
+  }
+
+  // No dark pixel passed the "real line" validation
+  if (!found) return null;
+
+  // Refine to line center by scanning outward in both axes
   const refineAxis = (startPos: number, isHorizontal: boolean): number => {
-    const getPixelBrightness = (pos: number): number => {
-      const px = isHorizontal ? pos : bestX;
-      const py = isHorizontal ? bestY : pos;
-      if (px < 0 || py < 0 || px >= pdfCanvas.width || py >= pdfCanvas.height) return 255;
-      // Read from the already-fetched imageData if in range, else return white
-      const localX = px - sx;
-      const localY = py - sy;
-      if (localX < 0 || localX >= sw || localY < 0 || localY >= sh) return 255;
-      const idx = (localY * width + localX) * 4;
-      return (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-    };
-
     let lo = startPos;
     let hi = startPos;
-    // Scan negative direction
     for (let d = 1; d <= radius; d++) {
-      if (getPixelBrightness(startPos - d) < brightThreshold) {
-        lo = startPos - d;
+      const px = isHorizontal ? startPos - d : bestX;
+      const py = isHorizontal ? bestY : startPos - d;
+      if (getBrightness(px, py) < brightThreshold) {
+        lo = isHorizontal ? px : py;
       } else break;
     }
-    // Scan positive direction
     for (let d = 1; d <= radius; d++) {
-      if (getPixelBrightness(startPos + d) < brightThreshold) {
-        hi = startPos + d;
+      const px = isHorizontal ? startPos + d : bestX;
+      const py = isHorizontal ? bestY : startPos + d;
+      if (getBrightness(px, py) < brightThreshold) {
+        hi = isHorizontal ? px : py;
       } else break;
     }
     return (lo + hi) / 2;
