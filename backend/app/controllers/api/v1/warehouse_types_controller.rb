@@ -193,7 +193,8 @@ module Api
       end
 
       # GET /api/v1/warehouse_types/:code/records
-      # Returns actual database records for a warehouse type (lazy-loaded on tree expand)
+      # Config-driven: all query/display/search/token config lives on WarehouseType JSONB columns.
+      # Zero case/when — works for any warehouse type with source_model set.
       #
       # Params:
       #   - code: Warehouse type code (job, contact, corporate, etc.)
@@ -205,65 +206,44 @@ module Api
       # {
       #   success: true,
       #   data: {
-      #     records: [{ id, name, subtitle, code }, ...],
+      #     records: [{ id, name, subtitle, code, tokenValues }, ...],
+      #     groupingTokens: ["JobStatus", "JobType"],
       #     pagination: { total, limit, offset, has_more }
       #   }
       # }
       def records
+        # No source_model = this type doesn't have records (e.g. email)
+        if @warehouse_type.source_model.blank?
+          return render json: {
+            success: true,
+            data: {
+              records: [],
+              groupingTokens: [],
+              pagination: { total: 0, limit: 0, offset: 0, has_more: false }
+            }
+          }
+        end
+
         limit = (params[:limit] || 50).to_i.clamp(1, 100)
         offset = (params[:offset] || 0).to_i
         search = params[:search]&.strip
+        config = @warehouse_type.records_config
 
-        # Get base scope (without select) for counting, then add select for pagination
-        # FRC: Don't call .count on a scope with .select(multiple columns) - PostgreSQL fails
-        base_scope = case @warehouse_type.code
-        when 'job'
-          scope = Job.includes(:job_status, :job_type)
-          scope = scope.where("name ILIKE ? OR job_code ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
-          scope.order(created_at: :desc)
-        when 'contact'
-          scope = Contact.all
-          scope = scope.where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?", "%#{search}%", "%#{search}%", "%#{search}%") if search.present?
-          scope.order(:display_name)
-        when 'corporate'
-          scope = Corporate.includes(:company_group, :contact)
-          scope = scope.joins(:contact).where("contacts.display_name ILIKE ? OR corporates.code ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
-          scope.order("contacts.display_name")
-        when 'task'
-          scope = SmTask.includes(:job)
-          scope = scope.where("sm_tasks.name ILIKE ? OR sm_tasks.description ILIKE ?", "%#{search}%", "%#{search}%") if search.present?
-          scope.order(created_at: :desc)
-        when 'user'
-          scope = User.all
-          scope = scope.where("first_name ILIKE ? OR last_name ILIKE ? OR email ILIKE ?", "%#{search}%", "%#{search}%", "%#{search}%") if search.present?
-          scope.order(:first_name)
-        when 'email'
-          # Emails don't have individual record folders - return empty
-          nil
-        else
-          nil
-        end
+        model = @warehouse_type.source_model.constantize
+        eager_loads = derive_eager_loads
+        scope = eager_loads.any? ? model.includes(*eager_loads) : model.all
+        scope = apply_dynamic_search(scope, model, config['search'], search)
+        scope = scope.order(Arel.sql(config['order']))
 
-        # Skip pagination for nil/empty results
-        if base_scope.nil?
-          total = 0
-          paginated_records = []
-        else
-          total = base_scope.count
-          paginated_records = base_scope.limit(limit).offset(offset).to_a
-        end
+        total = scope.count
+        paginated = scope.limit(limit).offset(offset).to_a
 
         render json: {
           success: true,
           data: {
-            records: paginated_records.map { |r| serialize_record(r, @warehouse_type.code) },
+            records: paginated.map { |r| serialize_record_from_config(r) },
             groupingTokens: extract_grouping_tokens(@warehouse_type.folder_path_template),
-            pagination: {
-              total: total,
-              limit: limit,
-              offset: offset,
-              has_more: offset + limit < total
-            }
+            pagination: { total: total, limit: limit, offset: offset, has_more: offset + limit < total }
           }
         }
       end
@@ -278,94 +258,62 @@ module Api
         @warehouse_type = WarehouseType.find_by!(code: params[:code])
       end
 
-      # Serialize a record for the records API response
-      # SSoT (Feb 2026): Includes tokenValues for template-driven tree grouping
-      def serialize_record(record, warehouse_type_code)
-        base = case warehouse_type_code
-        when 'job'
-          job_code = record.job_code.present? ? record.job_code : "J-#{record.id.to_s.rjust(3, '0')}"
-          {
-            id: record.id,
-            name: record.name || "Job ##{record.id}",
-            subtitle: record.location,
-            code: job_code
-          }
-        when 'contact'
-          {
-            id: record.id,
-            name: record.display_name || "#{record.first_name} #{record.last_name}".strip,
-            subtitle: record.company_name_or_trust,
-            code: nil
-          }
-        when 'corporate'
-          {
-            id: record.id,
-            name: record.contact&.display_name || "Corporate ##{record.id}",
-            subtitle: record.company_group&.name,
-            code: record.code
-          }
-        when 'task'
-          {
-            id: record.id,
-            name: record.name || "Task ##{record.id}",
-            subtitle: record.description&.truncate(50),
-            code: "T-#{record.id}"
-          }
-        when 'user'
-          {
-            id: record.id,
-            name: "#{record.first_name} #{record.last_name}".strip,
-            subtitle: record.email,
-            code: nil
-          }
-        else
-          {
-            id: record.id,
-            name: record.try(:name) || record.try(:title) || "Record #{record.id}",
-            subtitle: nil,
-            code: nil
-          }
-        end
+      # ═══════════════════════════════════════════════════════════════════════════
+      # Config-driven record helpers (Feb 2026)
+      # All behaviour driven by warehouse_type.token_config + records_config
+      # ═══════════════════════════════════════════════════════════════════════════
 
-        base[:tokenValues] = resolve_tokens_for_record(record, warehouse_type_code)
-        base
+      # Resolve a dot-path on a record. Returns nil if any link in the chain is nil.
+      # Does NOT fabricate values. nil means nil.
+      def resolve_dot_path(record, path)
+        return nil if path.blank?
+
+        path.to_s.split('.').reduce(record) do |obj, method|
+          return nil if obj.nil?
+          return nil unless obj.respond_to?(method)
+          obj.public_send(method)
+        end
       end
 
-      # Resolve template token values for a record (Feb 2026)
-      # Used by frontend to dynamically group records based on folder_path_template
-      def resolve_tokens_for_record(record, warehouse_type_code)
-        case warehouse_type_code
-        when 'job'
-          {
-            'JobCode' => record.job_code,
-            'JobName' => record.name,
-            'JobStatus' => record.job_status&.name,
-            'JobType' => record.job_type&.name
-          }
-        when 'corporate'
-          {
-            'CompanyCode' => record.code,
-            'CompanyName' => record.contact&.display_name,
-            'CompanyGroup' => record.company_group&.name
-          }
-        when 'task'
-          {
-            'TaskId' => "T-#{record.id}",
-            'TaskName' => record.name,
-            'JobCode' => record.job&.job_code,
-            'JobName' => record.job ? "#{record.job.job_code} #{record.job.name}" : nil
-          }
-        when 'contact'
-          {
-            'ContactName' => record.display_name || "#{record.first_name} #{record.last_name}".strip
-          }
-        when 'user'
-          {
-            'UserName' => "#{record.first_name} #{record.last_name}".strip
-          }
-        else
-          {}
-        end
+      # Derive .includes() from all dot-paths in token_config + records_config.display
+      def derive_eager_loads
+        all_paths = (@warehouse_type.token_config || {}).values
+        display = @warehouse_type.records_config&.dig('display') || {}
+        all_paths += display.values.compact
+
+        all_paths
+          .select { |p| p.is_a?(String) && p.include?('.') }
+          .map { |p| p.split('.').first.to_sym }
+          .uniq
+      end
+
+      # Apply search with auto-derived joins for table-prefixed columns
+      def apply_dynamic_search(scope, model, search_columns, query)
+        return scope if query.blank? || search_columns.blank?
+
+        # Auto-join for table-prefixed columns (e.g., "contacts.display_name")
+        search_columns
+          .select { |c| c.include?('.') }
+          .map { |c| c.split('.').first.singularize.to_sym }
+          .uniq
+          .each { |assoc| scope = scope.joins(assoc) if model.reflect_on_association(assoc) }
+
+        conditions = search_columns.map { |col| "#{col} ILIKE :q" }.join(" OR ")
+        scope.where(conditions, q: "%#{query}%")
+      end
+
+      # Serialize a record using records_config — no case/when, no fabrication
+      def serialize_record_from_config(record)
+        display = @warehouse_type.records_config&.dig('display') || {}
+        token_config = @warehouse_type.token_config || {}
+
+        {
+          id: record.id,
+          name: resolve_dot_path(record, display['name'])&.to_s,
+          subtitle: resolve_dot_path(record, display['subtitle'])&.to_s,
+          code: resolve_dot_path(record, display['code'])&.to_s,
+          tokenValues: token_config.transform_values { |path| resolve_dot_path(record, path)&.to_s }
+        }
       end
 
       # Extract grouping tokens from a folder_path_template (Feb 2026)
@@ -392,7 +340,10 @@ module Api
           :icon_name,
           :folder_path_template,
           :enabled,
-          :order_position
+          :order_position,
+          :source_model,
+          token_config: {},
+          records_config: {}
         )
       end
 
