@@ -306,7 +306,7 @@ class WarehouseProvider < ApplicationRecord
     type_key = WAREHOUSE_KEY_ALIASES[type_key] || type_key
 
     # SSoT: Read path template from warehouse_folders table
-    folder = WarehouseFolder.base_folder_for(type_key)
+    folder = WarehouseFolder.warehouse_folder_for(type_key)
     path = folder&.full_folder_path
 
     return nil if path.blank? || path == "DISABLED"
@@ -942,7 +942,7 @@ class WarehouseProvider < ApplicationRecord
 
       # LIM (Feb 2026): Frontend gets base folder mapping from warehouse_folders SSoT
       # scope_folders: { contact: "Contacts", job: "Jobs", ... } - NOT full templates
-      scope_folders: WarehouseFolder.warehouse_type_to_base_folder,
+      scope_folders: WarehouseFolder.warehouse_type_to_warehouse_folder,
 
       # SSoT (Feb 2026): Full path templates from warehouse_folders table
       # Frontend needs these for the Warehouse Folders config UI

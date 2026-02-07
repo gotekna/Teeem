@@ -293,7 +293,7 @@ module Api
         # SSoT: Prepend scope root folder if path doesn't already include it
         # Task folders are stored as "Tasks/123/Attachments" but frontend sends "123/Attachments"
         # FRC (Feb 2026): Compare first FOLDER exactly, not string prefix
-        scope_root = scope_base_folder(scope)
+        scope_root = warehouse_root_folder_name(scope)
         first_folder = base_path.to_s.split('/').first
         full_path = if base_path.present? && scope_root.present? && first_folder != scope_root
                       "#{scope_root}/#{base_path}"
@@ -582,29 +582,21 @@ module Api
         base_scope = base_scope.where.not(source_type: "email") unless include_emails
 
         if path.blank?
-          # SSoT (Feb 2026): Root folder structure comes from WarehouseFolder.warehouse_type_to_base_folder
-          # This extracts first segment of path templates (e.g., "Jobs/{{JobCode}}" → "Jobs")
-          # NOT from all_base_folders which returns tabs (ADVICE, ASIC, etc.) not conceptual roots
-          #
-          # Root cause: all_base_folders queries parent_id: nil folders, which are TABS
-          # SSoT: warehouse_type_to_base_folder extracts roots from path templates
-          base_folders_from_config = WarehouseFolder.warehouse_type_to_base_folder.values.uniq
+          # SSoT (Feb 2026): Root folder structure comes from WarehouseFolder.warehouse_type_to_warehouse_folder
+          root_folders_from_config = WarehouseFolder.warehouse_type_to_warehouse_folder.values.uniq
 
-          # SSoT: Map source_type to root folder for counting
-          # This eliminates duplicates from legacy folder values (ADVICE, Assets, BANK, etc.)
-          source_type_to_root = source_type_to_base_folder_mapping
+          source_type_to_root = warehouse_type_to_folder_mapping
 
           # Count documents by source_type, then map to root folder
           source_counts = base_scope.group(:source_type).count
           folder_counts = Hash.new(0)
           source_counts.each do |source_type, count|
-            base_folder = source_type_to_root[source_type]
-            next unless base_folder # Skip unknown source types
-            folder_counts[base_folder] += count
+            root_folder = source_type_to_root[source_type]
+            next unless root_folder
+            folder_counts[root_folder] += count
           end
 
-          # Build folders array: ONLY configured folders (no extras from document folder column)
-          folders = base_folders_from_config.map do |name|
+          folders = root_folders_from_config.map do |name|
             { name: name, path: name, count: folder_counts[name] || 0 }
           end
 
@@ -665,10 +657,10 @@ module Api
           result = build_task_folder_tree_from_template(path)
           folders = result[:folders]
           files = result[:files]
-        elsif !path.include?("/") && WarehouseFolder.warehouse_type_for_base_folder(path)
+        elsif !path.include?("/") && WarehouseFolder.warehouse_type_code_for_root_folder(path)
           # SSoT (Feb 2026): Root folder expanded - show tabs from WarehouseFolder
           # e.g., "Jobs" → shows Plans, Site, Sales, Photo, etc.
-          tabs_from_config = WarehouseFolder.tabs_for_base_folder(path)
+          tabs_from_config = WarehouseFolder.tabs_for_root_folder(path)
 
           # Get actual document counts for each tab folder
           subfolder_counts = base_scope
@@ -691,10 +683,10 @@ module Api
 
           folders = folders.sort_by { |f| f[:name].to_s.downcase }
           files = []
-        elsif path.include?("/") && WarehouseFolder.warehouse_type_for_base_folder(path.split("/").first)
+        elsif path.include?("/") && WarehouseFolder.warehouse_type_code_for_root_folder(path.split("/").first)
           # SSoT (Feb 2026): Subfolder with configured tabs - check for child tabs
           # e.g., "Jobs/Photo" → shows Supervisor, Site, Client, etc.
-          base_folder = path.split("/").first
+          root_folder = path.split("/").first
           child_tabs = WarehouseFolder.child_tabs_for_path(path)
           path_depth = path.count("/") + 2
 
@@ -717,7 +709,7 @@ module Api
             extra_folders.each do |name, count|
               # SSoT: Return relative path (without root folder prefix)
               full_path = "#{path}/#{name}"
-              relative_path = full_path.sub("#{base_folder}/", "")
+              relative_path = full_path.sub("#{root_folder}/", "")
               folders << { name: name, path: relative_path, count: count }
             end
           else
@@ -726,7 +718,7 @@ module Api
             folders = subfolder_counts.map do |name, count|
               # SSoT: Return relative path (without root folder prefix)
               full_path = "#{path}/#{name}"
-              relative_path = full_path.sub("#{base_folder}/", "")
+              relative_path = full_path.sub("#{root_folder}/", "")
               { name: name, path: relative_path, count: count }
             end
           end
@@ -857,34 +849,27 @@ module Api
       end
 
       # SSoT (Feb 2026): Map source_type to root folder
-      # @return [Hash] { source_type => base_folder_name }
-      def source_type_to_base_folder_mapping
-        @source_type_to_base_folder_mapping ||= WarehouseFolder.warehouse_type_to_base_folder
+      # @return [Hash] { source_type => root_folder_name }
+      def warehouse_type_to_folder_mapping
+        @warehouse_type_to_folder_mapping ||= WarehouseFolder.warehouse_type_to_warehouse_folder
       end
 
       # Build a complete folder tree by computing paths for all warehouse documents
-      # This is cached to avoid O(n) computation on every request
-      # Called by: rails warehouse:warmup_cache
-      #
-      # @return [Hash] { base_folders: { name => count }, paths: { doc_id => computed_path } }
+      # @return [Hash] { root_folders: { name => count }, paths: { doc_id => computed_path } }
       def self.build_folder_tree
-        tree = { base_folders: Hash.new(0), paths: {} }
+        tree = { root_folders: Hash.new(0), paths: {} }
 
-        # Use find_each for memory efficiency with large datasets
         WarehouseDocument.includes(:documentable).find_each(batch_size: 1000) do |doc|
           computed_path = doc.computed_folder_path rescue nil
           next if computed_path.blank?
 
-          # Store the computed path for this document
           tree[:paths][doc.id] = computed_path
 
-          # Count root folders
           root = computed_path.split("/").first
-          tree[:base_folders][root] += 1
+          tree[:root_folders][root] += 1
         end
 
-        # Convert base_folders to regular hash (Hash.new(0) doesn't serialize well)
-        tree[:base_folders] = tree[:base_folders].to_h
+        tree[:root_folders] = tree[:root_folders].to_h
 
         tree
       end
@@ -894,26 +879,25 @@ module Api
       # Used by File Warehouse to display subfolder contents for ALL scopes
       # Supports: job, corporate/corporate_entity/corp, contact/people
       def folder_files
-        base_folder_id = params[:base_folder_id] || params[:warehouse_folder_id] || params[:entity_tab_id]
+        folder_id = params[:base_folder_id] || params[:warehouse_folder_id] || params[:entity_tab_id]
         scope = params[:scope] || "corporate"
 
-        unless base_folder_id.present?
-          return render json: { success: false, error: "base_folder_id required", files: [] }, status: :bad_request
+        unless folder_id.present?
+          return render json: { success: false, error: "warehouse_folder_id required", files: [] }, status: :bad_request
         end
 
-        base_folder = WarehouseFolder.find_by(id: base_folder_id)
-        unless base_folder
+        warehouse_folder = WarehouseFolder.find_by(id: folder_id)
+        unless warehouse_folder
           return render json: { success: false, error: "WarehouseFolder not found", files: [] }, status: :not_found
         end
 
-        # SSoT: Route to correct document model based on scope
         files = case scope.to_s.downcase
                 when "job"
-                  fetch_job_documents(base_folder)
+                  fetch_job_documents(warehouse_folder)
                 when "corporate", "corporate_entity", "corp"
-                  fetch_corporate_documents(base_folder)
+                  fetch_corporate_documents(warehouse_folder)
                 when "contact", "people"
-                  fetch_people_documents(base_folder)
+                  fetch_people_documents(warehouse_folder)
                 else
                   []
                 end
@@ -921,7 +905,7 @@ module Api
         render json: {
           success: true,
           files: files,
-          folder: base_folder.display_name,
+          folder: warehouse_folder.display_name,
           scope: scope,
           count: files.size
         }
@@ -1554,8 +1538,8 @@ module Api
       # e.g., for Contacts scope: returns "7 Eleven/Bills", frontend adds "Contacts/" prefix
       def build_generic_folder_tree(scope, path_segments)
         # Get root folder from scope (e.g., "job" → "Jobs", "contact" → "Contacts")
-        # SSoT (Feb 2026): WarehouseFolder.base_folder_for_warehouse_type returns the root folder name
-        root_folder = WarehouseFolder.base_folder_for_warehouse_type(scope)
+        # SSoT (Feb 2026): WarehouseFolder.root_folder_name_for returns the root folder name
+        root_folder = WarehouseFolder.root_folder_name_for(scope)
         return { folders: [], files: [] } unless root_folder
 
         # Build full DB path (includes root folder for querying WarehouseDocument.folder)
@@ -1571,7 +1555,7 @@ module Api
         tabs_from_config = if full_db_path
           WarehouseFolder.child_tabs_for_path(full_db_path)
         else
-          WarehouseFolder.tabs_for_base_folder(root_folder)
+          WarehouseFolder.tabs_for_root_folder(root_folder)
         end
 
         # Get subfolder counts from documents
@@ -2022,12 +2006,12 @@ module Api
 
       # SSoT (Feb 2026): Fetch job documents by WarehouseFolder.document_type_ids
       # Uses WarehouseDocument table
-      def fetch_job_documents(base_folder)
-        return [] if base_folder.document_type_ids.empty?
+      def fetch_job_documents(warehouse_folder)
+        return [] if warehouse_folder.document_type_ids.empty?
 
         WarehouseDocument
           .where(source_type: "job")
-          .where("metadata->>'document_type_id' IN (?)", base_folder.document_type_ids.map(&:to_s))
+          .where("metadata->>'document_type_id' IN (?)", warehouse_folder.document_type_ids.map(&:to_s))
           .includes(:storage_blob, :linkable)
           .order(created_at: :desc)
           .limit(500)
@@ -2051,12 +2035,12 @@ module Api
 
       # SSoT (Feb 2026): Fetch corporate documents by WarehouseFolder.document_type_ids
       # Uses WarehouseDocument table
-      def fetch_corporate_documents(base_folder)
-        return [] if base_folder.document_type_ids.empty?
+      def fetch_corporate_documents(warehouse_folder)
+        return [] if warehouse_folder.document_type_ids.empty?
 
         WarehouseDocument
           .where(source_type: "corporate")
-          .where("metadata->>'document_type_id' IN (?)", base_folder.document_type_ids.map(&:to_s))
+          .where("metadata->>'document_type_id' IN (?)", warehouse_folder.document_type_ids.map(&:to_s))
           .includes(:storage_blob, :linkable)
           .order(created_at: :desc)
           .limit(500)
@@ -2164,11 +2148,11 @@ module Api
       end
 
       # SSoT (Feb 2026): Fetch people documents by WarehouseFolder.document_type_ids
-      def fetch_people_documents(base_folder)
-        return [] if base_folder.document_type_ids.empty?
+      def fetch_people_documents(warehouse_folder)
+        return [] if warehouse_folder.document_type_ids.empty?
 
         PeopleDocument
-          .where(document_type_id: base_folder.document_type_ids)
+          .where(document_type_id: warehouse_folder.document_type_ids)
           .includes(:contact)
           .order(created_at: :desc)
           .limit(500)
@@ -2282,18 +2266,10 @@ module Api
         }
       end
 
-      # SSoT: Get root folder for scope (used to expand paths in virtual_tree)
-      # Folders are stored with prefix (e.g., "Tasks/123") but frontend sends without prefix
-      def scope_base_folder(scope)
-        case scope.to_s
-        when "task" then "Tasks"
-        when "job" then "Jobs"
-        when "contact" then "Contacts"
-        when "corporate" then "Corporate"
-        when "email" then "Emails"
-        when "people" then "People"
-        else nil
-        end
+      # SSoT: Get root folder name for a warehouse scope
+      # Reads from WarehouseFolder database (e.g., "task" → "Tasks", "job" → "Jobs")
+      def warehouse_root_folder_name(scope)
+        WarehouseFolder.root_folder_name_for(scope)
       end
 
       # Phase 3: Serialize WarehouseDocument (universal format)
