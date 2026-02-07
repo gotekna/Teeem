@@ -16,11 +16,6 @@ module Api
           @document_types = @document_types.by_scope(params[:scope])
         end
 
-        # Filter by category
-        if params[:category].present?
-          @document_types = @document_types.by_category(params[:category])
-        end
-
         # Filter by folder
         if params[:folder].present?
           @document_types = @document_types.by_folder(params[:folder])
@@ -312,7 +307,6 @@ module Api
           :requires_filing,
           :retention_years,
           :active,
-          :primary_tab,
           :download_name,
           :abbreviation,
           :scope,
@@ -321,10 +315,8 @@ module Api
           :generates_certificate,     # Auto-generate certificate on task completion
           :certificate_template,      # Template to use (e.g., "form_43")
           :signature_field_config,    # JSONB: Signature field positions for Word→PDF conversion
-          tabs: [],
           file_extensions: [],
-          folder_ids: [],
-          warehouse_folder_ids: [],  # SSoT: New WarehouseFolder IDs
+          warehouse_folder_ids: [],
           form_number_mapping: {}  # Hash: dwelling type -> form number
         )
       end
@@ -362,16 +354,12 @@ module Api
           abbreviation: document_type.abbreviation,
           downloadName: document_type.download_name,
           title_preview: document_type.title_preview,
-          category: document_type.category,
           folder: document_type.folder,
           description: document_type.description,
           requires_filing: document_type.requires_filing,
           retention_years: document_type.retention_years,
           active: document_type.active,
-          # Legacy tabs array (for backwards compatibility)
-          tabs: document_type.tabs || [],
-          primary_tab: document_type.primary_tab,
-          # SSoT: WarehouseFolder data (backwards compatible field names)
+          # SSoT: WarehouseFolder data
           folder_ids: warehouse_folders_data.map { |t| t[:id] },
           folders: warehouse_folders_data.map.with_index { |t, i|
             {

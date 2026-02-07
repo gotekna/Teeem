@@ -24,7 +24,7 @@ export function usePdfPanZoom({
   pageWidth,
   pageHeight,
   minZoom = 0.1,
-  maxZoom = 3,
+  maxZoom = 10,
   fitOnMount = true,
   panToolActive = false,
   onCursorChange,

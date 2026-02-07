@@ -128,10 +128,14 @@ export function TakeoffCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
 
-  // Zoom-to-rect: track drag start in page-space coords (un-zoomed)
+  // Zoom-to-rect: track in canvas-space coords (zoomed) for overlay + page-space for zoom calc
   const zoomDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [zoomRect, setZoomRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const onZoomToRectRef = useRef(onZoomToRect);
   onZoomToRectRef.current = onZoomToRect;
+
+  // Left-click pan: track drag start in screen coords for scrolling
+  const panDragRef = useRef<{ clientX: number; clientY: number; scrollLeft: number; scrollTop: number } | null>(null);
 
   // Refs for event handlers - avoids stale closures in Fabric event listeners
   // ⚠️ DO NOT SIMPLIFY - Canvas event listeners capture closures at registration time.
@@ -197,7 +201,9 @@ export function TakeoffCanvas({
     const canvas = new fabric.Canvas(canvasRef.current, {
       width: pageWidth * zoom,
       height: pageHeight * zoom,
-      selection: currentTool === "select",
+      selection: false,  // Left-click drag pans; right-click drag draws zoom-to-rect
+      fireRightClick: true,  // Enable right-click events for zoom-to-rect
+      stopContextMenu: true, // Suppress browser context menu on canvas
       renderOnAddRemove: false,  // Manual render for performance
     });
 
@@ -218,7 +224,9 @@ export function TakeoffCanvas({
 
   useEffect(() => {
     if (!fabricRef.current) return;
-    fabricRef.current.selection = currentTool === "select";
+    // Disable Fabric's built-in selection rectangle — left-click drag pans instead.
+    // Shift+drag re-enables it temporarily for zoom-to-rect (handled in handleMouseDown).
+    fabricRef.current.selection = false;
     // Fabric.js manages its own cursor on the upper-canvas, so we must
     // set it via Fabric's API rather than CSS on the lower-canvas
     fabricRef.current.defaultCursor = getCursorForTool(currentTool);
@@ -520,11 +528,28 @@ export function TakeoffCanvas({
 
     const rawPoint = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
 
-    // Track drag start for zoom-to-rect (select mode only, no target clicked)
+    // Select mode drag on empty area:
+    //   Left-click drag = pan the PDF
+    //   Right-click drag = zoom-to-rect (draws overlay rectangle)
     if (currentTool === "select" && !e.target) {
-      zoomDragStartRef.current = rawPoint;
+      const nativeEvent = e.e as PointerEvent;
+      if (nativeEvent?.button === 2) {
+        // Right-click drag → zoom-to-rect
+        zoomDragStartRef.current = rawPoint;
+        panDragRef.current = null;
+      } else if (nativeEvent?.button === 0) {
+        // Left-click drag → pan
+        zoomDragStartRef.current = null;
+        panDragRef.current = {
+          clientX: nativeEvent.clientX,
+          clientY: nativeEvent.clientY,
+          scrollLeft: containerRef?.current?.scrollLeft ?? 0,
+          scrollTop: containerRef?.current?.scrollTop ?? 0,
+        };
+      }
     } else {
       zoomDragStartRef.current = null;
+      panDragRef.current = null;
     }
 
     // Apply snapping for measurement tools
@@ -588,6 +613,27 @@ export function TakeoffCanvas({
   const handleMouseMove = useCallback((e: fabric.TPointerEventInfo) => {
     if (!e.pointer) return;
 
+    // Left-click pan: scroll the container using screen-space delta
+    if (panDragRef.current && containerRef?.current) {
+      const nativeEvent = e.e as PointerEvent;
+      containerRef.current.scrollLeft = panDragRef.current.scrollLeft - (nativeEvent.clientX - panDragRef.current.clientX);
+      containerRef.current.scrollTop = panDragRef.current.scrollTop - (nativeEvent.clientY - panDragRef.current.clientY);
+      return;  // Skip all other processing during pan
+    }
+
+    // Shift+drag zoom-to-rect: update overlay rectangle (canvas-space coords for display)
+    if (zoomDragStartRef.current && e.pointer) {
+      const start = zoomDragStartRef.current;
+      const end = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
+      setZoomRect({
+        x: Math.min(start.x, end.x) * zoom,
+        y: Math.min(start.y, end.y) * zoom,
+        w: Math.abs(end.x - start.x) * zoom,
+        h: Math.abs(end.y - start.y) * zoom,
+      });
+      return;
+    }
+
     const rawPoint = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
 
     // Always check for snap points when using measurement tools (for visual feedback)
@@ -621,7 +667,13 @@ export function TakeoffCanvas({
   }, [isDrawing, currentTool, calibrationLine, calibrationStep, zoom, currentPoints, activeLayer, findSnapPoint, snapResult]);
 
   const handleMouseUp = useCallback((e: fabric.TPointerEventInfo) => {
-    // Zoom-to-rect: if user dragged in select mode on empty area, zoom to the drawn rectangle
+    // End left-click pan
+    if (panDragRef.current) {
+      panDragRef.current = null;
+      return;
+    }
+
+    // Shift+drag zoom-to-rect: zoom to the drawn rectangle
     if (currentTool === "select" && zoomDragStartRef.current && e.pointer && onZoomToRectRef.current) {
       const endPoint = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
       const start = zoomDragStartRef.current;
@@ -630,19 +682,16 @@ export function TakeoffCanvas({
 
       // Only zoom if drag was significant (>20px in page space)
       if (Math.abs(dx) > 20 || Math.abs(dy) > 20) {
-        const rect = {
+        onZoomToRectRef.current({
           x: Math.min(start.x, endPoint.x),
           y: Math.min(start.y, endPoint.y),
           width: Math.abs(dx),
           height: Math.abs(dy),
-        };
-        onZoomToRectRef.current(rect);
-
-        // Clear any accidental Fabric selection
-        fabricRef.current?.discardActiveObject();
-        fabricRef.current?.requestRenderAll();
+        });
       }
+
       zoomDragStartRef.current = null;
+      setZoomRect(null);
     }
   }, [currentTool, zoom]);
 
@@ -1094,6 +1143,7 @@ export function TakeoffCanvas({
     <PdfFrame
       className="relative"
       style={{ width: pageWidth * zoom, height: pageHeight * zoom }}
+      onContextMenu={(e) => e.preventDefault()}
     >
       <canvas
         ref={canvasRef}
@@ -1130,6 +1180,19 @@ export function TakeoffCanvas({
           />
         )}
       </svg>
+
+      {/* Zoom-to-rect selection overlay (right-click drag) */}
+      {zoomRect && (
+        <div
+          className="absolute border-2 border-blue-500 bg-blue-500/15 pointer-events-none"
+          style={{
+            left: zoomRect.x,
+            top: zoomRect.y,
+            width: zoomRect.w,
+            height: zoomRect.h,
+          }}
+        />
+      )}
 
       {/* Scale indicator */}
       {pageScale?.calibrated && (

@@ -84,20 +84,6 @@ class DocumentType < ApplicationRecord
     primary_warehouse_folder&.display_name || read_attribute(:primary_tab)
   end
 
-  # SSoT: category is DEPRECATED (Jan 2026)
-  # Was used for legacy folder organization, now superseded by WarehouseFolder hierarchy
-  # Returns nil - callers use .presence with "General" fallback
-  def category
-    nil
-  end
-
-  # SSoT: tabs is DEPRECATED (Jan 2026)
-  # Was a jsonb array, now superseded by entity_tab_document_types join table
-  # Returns empty array for backward compatibility with API serialization
-  def tabs
-    []
-  end
-
   # Set warehouse folders by ID (SSoT: Feb 2026)
   def warehouse_folder_ids=(ids)
     ids = Array(ids).map(&:to_i).reject(&:zero?)
@@ -193,8 +179,6 @@ class DocumentType < ApplicationRecord
       .where(warehouse_folder_document_types: { is_primary: true })
       .where(warehouse_folders: { display_name: folder })
   }
-  # DEPRECATED: category column removed (Jan 2026) - returns no results
-  scope :by_category, ->(_category) { none }
   scope :by_scope, ->(scope_name) { where(scope: scope_name) }
   scope :for_company, -> { where(scope: %w[company both]) }
   scope :for_job, -> { where(scope: %w[job both]) }

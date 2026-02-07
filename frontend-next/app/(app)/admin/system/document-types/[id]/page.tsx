@@ -192,10 +192,7 @@ interface DocumentType {
   requires_filing?: boolean;
   retention_years?: number;
   active: boolean;
-  // OLD (deprecated) - keeping for backwards compatibility
-  tabs?: string[];
-  primary_tab?: string;
-  // NEW SSoT: EntityTab IDs
+  // SSoT: EntityTab IDs
   entity_tab_ids?: number[];
   entity_tabs?: Array<{
     id: number;
@@ -438,13 +435,13 @@ export default function DocumentTypeDetailPage() {
         // Check tabs within this scope
         for (const tab of scopeGroup.children || []) {
           if (tab.id === tabIdNum) {
-            setDocumentType(prev => prev ? { ...prev, folder: tab.name, primary_tab: tab.name } : prev);
+            setDocumentType(prev => prev ? { ...prev, folder: tab.name } : prev);
             return;
           }
           // Check subtabs
           for (const subtab of tab.children || []) {
             if (subtab.id === tabIdNum) {
-              setDocumentType(prev => prev ? { ...prev, folder: tab.name, primary_tab: tab.name } : prev);
+              setDocumentType(prev => prev ? { ...prev, folder: tab.name } : prev);
               return;
             }
           }
@@ -514,8 +511,6 @@ export default function DocumentTypeDetailPage() {
         requires_filing: false,
         retention_years: undefined,
         active: true,
-        tabs: [],
-        primary_tab: "GENERAL",
         scope: initialScope,
         file_extensions: [".pdf"],
         target_folder: "",
