@@ -398,8 +398,7 @@ class MicrosoftGraphClient
 
     # REMOVED: Per-job SharePointCredential update - legacy system cleaned up Jan 2026
 
-    # Create subfolders based on template
-    create_subfolders_from_template(template, root_folder["id"], job_data)
+    create_subfolders_from_warehouse_folders(root_folder["id"])
 
     root_folder
   end
@@ -1078,12 +1077,9 @@ class MicrosoftGraphClient
     Rails.logger.error "[MicrosoftGraph] Credential marked as dead: #{error_message}"
   end
 
-  # SSoT: Create subfolders from WarehouseFolder hierarchy
-  # SSoT (Feb 2026): WarehouseFolder is THE source of truth for folder structure
-  def create_subfolders_from_base_folders(parent_folder_id)
+  def create_subfolders_from_warehouse_folders(parent_folder_id)
     folder_id_map = {}
 
-    # Get all job-scope WarehouseFolders with storage enabled
     root_folders = WarehouseFolder.for_jobs
                          .where(warehouse_enabled: true)
                          .enabled
@@ -1092,16 +1088,12 @@ class MicrosoftGraphClient
                          .includes(children: { children: :children })
 
     root_folders.each do |folder|
-      create_base_folder_recursive(folder, parent_folder_id, folder_id_map)
+      create_warehouse_folder_recursive(folder, parent_folder_id, folder_id_map)
     end
 
     folder_id_map
   end
 
-  # Alias for backwards compatibility
-  alias_method :create_subfolders_from_warehouse_folders, :create_subfolders_from_base_folders
-
-  # Recursively create folders for a WarehouseFolder and its children
   def create_warehouse_folder_recursive(tab, parent_folder_id, folder_id_map)
     # Use display_name as folder name (SSoT)
     folder_name = tab.display_name
@@ -1116,13 +1108,6 @@ class MicrosoftGraphClient
     tab.children.where(warehouse_enabled: true).enabled.ordered.each do |child|
       create_warehouse_folder_recursive(child, created_folder["id"], folder_id_map)
     end
-  end
-
-  # DEPRECATED: Legacy method for backward compatibility
-  # TODO: Remove after migration complete
-  def create_subfolders_from_template(template, parent_folder_id, _job_data)
-    Rails.logger.warn "[DEPRECATED] create_subfolders_from_template called - using WarehouseFolder instead"
-    create_subfolders_from_warehouse_folders(parent_folder_id)
   end
 
   def self.handle_token_response(response)

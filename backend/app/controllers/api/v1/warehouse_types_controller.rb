@@ -107,7 +107,7 @@ module Api
         old_template = @warehouse_type.folder_path_template
 
         if @warehouse_type.update(warehouse_type_params)
-          # SSoT (Feb 2026): Cascade folder_path_template changes to base_folders and warehouse_folders
+          # SSoT: Cascade folder_path_template changes to warehouse_folders
           new_template = @warehouse_type.folder_path_template
           if old_template != new_template
             cascade_template_change(old_template, new_template)
@@ -151,7 +151,7 @@ module Api
       # Folders removed from this type are moved to the "unassigned" type
       # (warehouse_type_id has NOT NULL constraint, so folders must belong somewhere)
       def update_warehouse_folders
-        warehouse_folder_ids = params[:warehouse_folder_ids] || params[:base_folder_ids] || []
+        warehouse_folder_ids = params[:warehouse_folder_ids] || []
 
         ActiveRecord::Base.transaction do
           # Move removed folders to unassigned type (instead of deleting)

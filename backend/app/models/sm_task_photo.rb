@@ -111,14 +111,9 @@ class SmTaskPhoto < ApplicationRecord
     document_type || task&.completion_document_type
   end
 
-  # SSoT (Feb 2026): Get the WarehouseFolder from DocumentType (primary_base_folder method)
-  # This provides the folder name and full_folder_path template
   def effective_warehouse_folder
     effective_document_type&.primary_warehouse_folder
   end
-
-  # DEPRECATED: Use effective_warehouse_folder (Jan 2026)
-  alias_method :effective_entity_tab, :effective_warehouse_folder
 
   # SSoT: All tokens come from related records - NOTHING HARDCODED
   # Used by StorableDocument.upload_to_storage() to build the storage path
