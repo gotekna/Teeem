@@ -1245,7 +1245,7 @@ export function TakeoffCanvas({
       {currentTool === "calibrate" && calibrationStep === "idle" && !calibrationLine && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-amber-600/95 text-white rounded-lg px-4 py-2 text-sm font-medium shadow-lg">
           {pageScale?.calibrated
-            ? <>Click two points to <strong>verify</strong> a dimension</>
+            ? <>Click two points on a <strong>known dimension</strong> to verify accuracy</>
             : <>Click the <strong>start</strong> of a known dimension line</>
           }
         </div>
@@ -1332,9 +1332,9 @@ export function TakeoffCanvas({
               transform: "translate(-50%, 0)",
             }}
           >
-            <div className="bg-background/95 backdrop-blur-sm rounded-lg px-4 py-3 border-2 border-green-500 shadow-xl min-w-[220px]">
+            <div className="bg-background/95 backdrop-blur-sm rounded-lg px-4 py-3 border-2 border-green-500 shadow-xl min-w-[240px]">
               <div className="text-xs text-muted-foreground mb-1">
-                Verification measurement ({Math.round(pxDist)} px)
+                Verification ({Math.round(pxDist)} px)
               </div>
               <div className="text-lg font-bold text-green-600 dark:text-green-400 mb-1">
                 {computedMm >= 1000
@@ -1351,14 +1351,14 @@ export function TakeoffCanvas({
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    // Dismiss verification, allow another check
+                    // Dismiss and immediately allow another verification
                     setCalibrationLine(null);
                     setCalibrationStep("idle");
                     clearTempDrawing();
                   }}
                   className="flex-1 px-3 py-1 text-sm font-medium bg-green-500 text-white rounded hover:bg-green-600"
                 >
-                  OK
+                  Check Another
                 </button>
                 <button
                   onClick={() => {
@@ -1375,7 +1375,7 @@ export function TakeoffCanvas({
                   onClick={handleCalibrationCancel}
                   className="px-2 py-1 text-sm text-muted-foreground hover:text-foreground"
                 >
-                  Cancel
+                  Done
                 </button>
               </div>
             </div>

@@ -1613,12 +1613,18 @@ export default function DocumentTypeDetailPage() {
                                 const hasSubTabs = filteredSubTabs.length > 0;
 
                                 if (hasSubTabs) {
-                                  // Tab with subtabs - show tab as header, subtabs as selectable
+                                  // Tab with subtabs - parent is selectable too (so Select value matches when assigned to parent)
                                   return (
                                     <React.Fragment key={tab.id}>
-                                      <SelectLabel className="text-xs text-muted-foreground font-normal px-4 py-1">
-                                        📁 {tab.name}
-                                      </SelectLabel>
+                                      <SelectItem value={tab.id.toString()} className="pl-4 font-medium">
+                                        <span className="text-muted-foreground">
+                                          {tabIdx === filteredTabs.length - 1 ? '└─' : '├─'}
+                                        </span>
+                                        <span className="ml-1">📁 {tab.name}</span>
+                                        {tab.storage_path && tab.storage_path !== tab.name && (
+                                          <span className="text-xs text-muted-foreground ml-1">({tab.storage_path})</span>
+                                        )}
+                                      </SelectItem>
                                       {filteredSubTabs.map((subtab: any, subtabIdx: number) => (
                                         <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
                                           <span className="text-muted-foreground">
@@ -1825,12 +1831,21 @@ export default function DocumentTypeDetailPage() {
                                   const tabAvailable = tab.id && isTabAvailable(tab.id) && matchesSearch(tab.name, tab.storage_path);
 
                                   if (hasSubTabs) {
-                                    // Tab with subtabs - show tab as header (if available), subtabs as selectable
+                                    // Tab with subtabs - parent selectable too (if available)
                                     return (
                                       <React.Fragment key={tab.id}>
-                                        <SelectLabel className="text-xs text-muted-foreground font-normal px-4 py-1">
-                                          📁 {tab.name}
-                                        </SelectLabel>
+                                        {tabAvailable ? (
+                                          <SelectItem value={tab.id.toString()} className="pl-4 font-medium">
+                                            <span className="text-muted-foreground">
+                                              {tabIdx === availableTabs.length - 1 ? '└─' : '├─'}
+                                            </span>
+                                            <span className="ml-1">📁 {tab.name}</span>
+                                          </SelectItem>
+                                        ) : (
+                                          <SelectLabel className="text-xs text-muted-foreground font-normal px-4 py-1">
+                                            📁 {tab.name}
+                                          </SelectLabel>
+                                        )}
                                         {availableSubTabs.map((subtab: any, subtabIdx: number) => (
                                           <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
                                             <span className="text-muted-foreground">

@@ -69,8 +69,8 @@ module Api
         params[:document_type][:ui_name] = params[:document_type][:uiName] if params[:document_type][:uiName].present?
         params[:document_type][:download_name] = params[:document_type][:downloadName] if params[:document_type][:downloadName].present?
 
-        # SSoT: Map entity_tab_ids to warehouse_folder_ids (frontend uses entity_tab_ids)
-        if params[:document_type][:entity_tab_ids].present? && !params[:document_type][:warehouse_folder_ids].present?
+        # SSoT: entity_tab_ids is THE frontend name → always map to warehouse_folder_ids
+        if params[:document_type][:entity_tab_ids].present?
           params[:document_type][:warehouse_folder_ids] = params[:document_type][:entity_tab_ids]
         end
 
@@ -101,8 +101,9 @@ module Api
         params[:document_type][:ui_name] = params[:document_type][:uiName] if params[:document_type][:uiName].present?
         params[:document_type][:download_name] = params[:document_type][:downloadName] if params[:document_type][:downloadName].present?
 
-        # SSoT: Map entity_tab_ids to warehouse_folder_ids (frontend uses entity_tab_ids)
-        if params[:document_type][:entity_tab_ids].present? && !params[:document_type][:warehouse_folder_ids].present?
+        # SSoT: entity_tab_ids is THE frontend name → always map to warehouse_folder_ids
+        # (frontend sends both entity_tab_ids AND stale warehouse_folder_ids from last load)
+        if params[:document_type][:entity_tab_ids].present?
           params[:document_type][:warehouse_folder_ids] = params[:document_type][:entity_tab_ids]
         end
 

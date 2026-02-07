@@ -68,6 +68,10 @@ export function useSnapPoints(options: UseSnapPointsOptions) {
   const snapPointsRef = useRef<SnapPoint[]>([]);
   const measurementsCacheRef = useRef<string>("");
 
+  // PDF edge snap lock — once locked to a tick mark, hold it steady until cursor
+  // moves beyond the snap threshold (prevents jitter from pixel-level recalculation)
+  const pdfSnapLockRef = useRef<{ x: number; y: number } | null>(null);
+
   // Extract snap points from existing measurements
   const extractSnapPoints = useCallback(() => {
     // Check if measurements changed
@@ -180,14 +184,23 @@ export function useSnapPoints(options: UseSnapPointsOptions) {
       }
 
       // Try PDF edge snap (lower priority than measurement snaps, higher than grid)
+      // Uses snap-lock: once locked to a tick mark, hold it steady until cursor leaves range
       if (config.snapToPdfEdges && pdfCanvas) {
+        const locked = pdfSnapLockRef.current;
+        if (locked) {
+          const distToLocked = Math.sqrt((locked.x - x) ** 2 + (locked.y - y) ** 2);
+          if (distToLocked < threshold) {
+            // Still within range of locked tick mark — hold steady
+            return { snapped: locked, isSnapped: true, snapType: "pdf-edge" };
+          }
+          // Cursor moved away — release lock
+          pdfSnapLockRef.current = null;
+        }
+
         const edgePoint = findNearestPdfEdge(x, y, pdfCanvas, threshold);
         if (edgePoint) {
-          return {
-            snapped: edgePoint,
-            isSnapped: true,
-            snapType: "pdf-edge",
-          };
+          pdfSnapLockRef.current = edgePoint; // Lock to this tick mark
+          return { snapped: edgePoint, isSnapped: true, snapType: "pdf-edge" };
         }
       }
 
