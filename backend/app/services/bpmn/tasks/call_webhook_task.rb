@@ -66,10 +66,6 @@ module Bpmn
 
       def make_request(url, method, headers, body)
         uri = URI.parse(url)
-        http = Net::HTTP.new(uri.host, uri.port)
-        http.use_ssl = uri.scheme == "https"
-        http.open_timeout = 30
-        http.read_timeout = 60
 
         request = case method
         when "GET"
@@ -93,7 +89,9 @@ module Bpmn
         # Set body
         request.body = body if body.present? && %w[POST PUT PATCH].include?(method)
 
-        http.request(request)
+        Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: 30, read_timeout: 60) do |http|
+          http.request(request)
+        end
       end
 
       def parse_response_body(response)

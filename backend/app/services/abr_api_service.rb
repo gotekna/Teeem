@@ -85,12 +85,12 @@ class AbrApiService
     }
     uri.query = URI.encode_www_form(params)
 
-    http = Net::HTTP.new(uri.host, uri.port)
-    http.use_ssl = true
     request = Net::HTTP::Get.new(uri.request_uri)
     request["Accept"] = "application/json"
 
-    response = http.request(request)
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
+      http.request(request)
+    end
 
     unless response.is_a?(Net::HTTPSuccess)
       raise ApiError, "ABR API returned #{response.code}: #{response.message}"

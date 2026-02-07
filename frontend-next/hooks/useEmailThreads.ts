@@ -81,6 +81,8 @@ export interface UseEmailThreadsReturn {
  *   }
  * };
  */
+const MAX_THREAD_CACHE_SIZE = 50;
+
 export function useEmailThreads(): UseEmailThreadsReturn {
   const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
   const [threadCache, setThreadCache] = useState<Map<string, ThreadEmail[]>>(new Map());
@@ -195,10 +197,19 @@ export function useEmailThreads(): UseEmailThreadsReturn {
         // Sort according to current sort option
         const sortedThread = sortThreadEmails(thread);
 
-        // Cache the thread
+        // Cache the thread (LRU eviction: remove oldest entries when over limit)
         setThreadCache((prev) => {
           const next = new Map(prev);
+          // Delete first so re-adding puts it at the end (Map insertion order)
+          next.delete(conversationId);
           next.set(conversationId, sortedThread);
+          // Evict oldest entries if over limit
+          if (next.size > MAX_THREAD_CACHE_SIZE) {
+            const keysToDelete = Array.from(next.keys()).slice(0, next.size - MAX_THREAD_CACHE_SIZE);
+            for (const key of keysToDelete) {
+              next.delete(key);
+            }
+          }
           return next;
         });
 

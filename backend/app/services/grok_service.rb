@@ -70,15 +70,15 @@ class GrokService
 
   def send_request(endpoint, payload)
     uri = URI("#{BASE_URL}#{endpoint}")
-    http = Net::HTTP.new(uri.host, uri.port)
-    http.use_ssl = true
 
     request = Net::HTTP::Post.new(uri.path)
     request["Authorization"] = "Bearer #{@api_key}"
     request["Content-Type"] = "application/json"
     request.body = payload.to_json
 
-    response = http.request(request)
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
+      http.request(request)
+    end
 
     unless response.is_a?(Net::HTTPSuccess)
       raise "Grok API error: #{response.code} - #{response.body}"

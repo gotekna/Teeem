@@ -5,11 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
-import { BackButton } from "@/components/ui/back-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { ChevronUp, ChevronDown } from "lucide-react";
+import { useBreadcrumbContext } from "@/contexts/BreadcrumbContext";
 
 // Takeoff components
 import { TakeoffCanvas } from "@/components/takeoff/TakeoffCanvas";
@@ -55,6 +55,7 @@ export default function DocsortTakeoffPage() {
   const { toast } = useToast();
 
   const itemId = params.itemId as string;
+  const { setDisplayName } = useBreadcrumbContext();
 
   // Plan data
   const [itemData, setItemData] = React.useState<DocsortTakeoffResponse | null>(null);
@@ -608,6 +609,14 @@ export default function DocsortTakeoffPage() {
     });
   }, [toast]);
 
+  // Set filename in breadcrumb to save a header row
+  const breadcrumbName = itemData?.docsort_item.display_name;
+  React.useEffect(() => {
+    if (breadcrumbName) {
+      setDisplayName(`${breadcrumbName} - Takeoff`);
+    }
+  }, [breadcrumbName, setDisplayName]);
+
   // =============================================================================
   // Render
   // =============================================================================
@@ -640,13 +649,6 @@ export default function DocsortTakeoffPage() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-1.5 px-2 py-1 border-b bg-background shrink-0">
-        <BackButton fallbackHref="/docsort" />
-        <span className="font-medium text-sm truncate">{displayName}</span>
-        <span className="text-xs text-muted-foreground">- Takeoff</span>
-      </div>
-
       {/* Toolbar */}
       <TakeoffToolbar
         currentTool={currentTool}

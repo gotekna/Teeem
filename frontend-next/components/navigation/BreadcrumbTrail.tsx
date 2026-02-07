@@ -149,7 +149,7 @@ export function BreadcrumbTrail({ topOffset = 48 }: BreadcrumbTrailProps) {
                     )}
                   >
                     {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
-                    <span className="truncate max-w-[180px]">
+                    <span className={cn("truncate", isLast ? "max-w-[400px]" : "max-w-[180px]")}>
                       {item.displayName}
                     </span>
                   </button>

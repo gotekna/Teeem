@@ -374,13 +374,8 @@ module Api
           nil
         end
 
-        # Return error if no file is available
-        unless download_url || @docsort_item.storage_blob.nil?
-          return render json: {
-            success: false,
-            error: "Unable to access document file. Storage provider may be disconnected."
-          }, status: :service_unavailable
-        end
+        # Note: download_url may be nil if storage provider is disconnected
+        # Frontend handles this gracefully (shows PDF loading area without content)
 
         render json: {
           success: true,

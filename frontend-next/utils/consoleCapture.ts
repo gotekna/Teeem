@@ -13,7 +13,8 @@ type LogListener = (logs: LogEntry[]) => void;
 
 class ConsoleCapture {
   private logs: LogEntry[] = [];
-  private maxLogs = 1000;
+  private maxLogs = 500;
+  private maxLogAgeMins = 60;
   private originalConsole: {
     log: typeof console.log;
     error: typeof console.error;
@@ -23,6 +24,9 @@ class ConsoleCapture {
   };
   private listeners: LogListener[] = [];
   private initialized = false;
+  private errorHandler: ((event: ErrorEvent) => void) | null = null;
+  private rejectionHandler: ((event: PromiseRejectionEvent) => void) | null = null;
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     this.originalConsole = {
@@ -68,21 +72,52 @@ class ConsoleCapture {
       this.originalConsole.debug.apply(console, args);
     };
 
-    // Capture unhandled errors
+    // Capture unhandled errors - store handlers for cleanup
     if (typeof window !== "undefined") {
-      window.addEventListener("error", (event) => {
+      this.errorHandler = (event: ErrorEvent) => {
         this.capture("error", [
           `Unhandled Error: ${event.message}`,
           event.filename,
           `Line: ${event.lineno}:${event.colno}`,
         ]);
-      });
-
-      // Capture unhandled promise rejections
-      window.addEventListener("unhandledrejection", (event) => {
+      };
+      this.rejectionHandler = (event: PromiseRejectionEvent) => {
         this.capture("error", [`Unhandled Promise Rejection: ${event.reason}`]);
-      });
+      };
+
+      window.addEventListener("error", this.errorHandler);
+      window.addEventListener("unhandledrejection", this.rejectionHandler);
     }
+
+    // Periodic cleanup of old log entries (every 5 minutes)
+    this.cleanupTimer = setInterval(() => this.evictOldLogs(), 5 * 60 * 1000);
+  }
+
+  dispose() {
+    if (typeof window !== "undefined") {
+      if (this.errorHandler) {
+        window.removeEventListener("error", this.errorHandler);
+        this.errorHandler = null;
+      }
+      if (this.rejectionHandler) {
+        window.removeEventListener("unhandledrejection", this.rejectionHandler);
+        this.rejectionHandler = null;
+      }
+    }
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+    this.listeners = [];
+    this.logs = [];
+    this.initialized = false;
+  }
+
+  private evictOldLogs() {
+    const cutoff = Date.now() - this.maxLogAgeMins * 60 * 1000;
+    this.logs = this.logs.filter(
+      (log) => new Date(log.timestamp).getTime() > cutoff
+    );
   }
 
   private capture(type: LogEntry["type"], args: unknown[]) {
@@ -118,7 +153,6 @@ class ConsoleCapture {
       timestamp,
       type,
       message,
-      raw: args,
     });
 
     if (this.logs.length > this.maxLogs) {
