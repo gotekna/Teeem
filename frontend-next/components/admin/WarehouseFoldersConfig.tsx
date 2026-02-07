@@ -904,7 +904,7 @@ export function WarehouseFoldersConfig({
       tab_group: group || 'documents',  // Default to documents (most common use case)
       entity_filters: [],
       enabled: true,
-      warehouse_enabled: false,
+      warehouse_enabled: true,
       folder_path: "",
       warehouse_type_override: 'corporate',  // SSoT: Default to corporate path
       display_mode: 'both',  // SSoT: Default display mode
