@@ -11,8 +11,9 @@ Commits ALL pending changes from ALL chat sessions and deploys to staging enviro
 
 ## STAGING DEPLOY
 
-- Backend: Heroku (`teeem-staging`) - manual deploy via FAST orphan method
+- Backend: Heroku (`teeem-staging`) - manual deploy via FAST orphan method (builds the slug)
 - Frontend: Auto-deploys from GitHub push (no version tracking)
+- NOTE: `/ba`, `/pa` commands promote this staging slug to beta/production (no rebuild)
 
 ## Vercel Branch Filtering (Jan 2026)
 

@@ -44,8 +44,10 @@ namespace :foundation do
       puts "⚠️  Found #{issues.count} foundation(s) with sync issues"
       puts "🔧 Auto-fixing..."
 
-      # Run full sync
+      # Run full sync (quiet mode to suppress skip messages during deploy)
+      ENV["FOUNDATION_SYNC_QUIET"] = "true"
       Rake::Task["foundation:sync"].invoke
+      ENV.delete("FOUNDATION_SYNC_QUIET")
 
       puts "✅ Auto-fix complete!"
     end

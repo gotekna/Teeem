@@ -480,113 +480,51 @@ namespace :warehouse do
 
     # SSoT: Define all required root-level warehouse_folders
     # These are the folders that appear in File Warehouse root level
+    # warehouse_type_code must match a WarehouseType.code in the database
     required_folders = [
-      # Tasks folder
-      {
-        warehouse_type: 'task',
-        tab_key: 'task',
-        display_name: 'Tasks',
-        tab_group: 'system',
-        folder_path: 'Tasks/{{TaskId}}/{{TaskName}}',
-        base_folder: 'Tasks'
-      },
-      {
-        warehouse_type: 'task_attachments',
-        tab_key: 'task-attachments',
-        display_name: 'Task Attachments',
-        tab_group: 'system',
-        folder_path: 'Tasks/{{TaskId}}/{{TaskName}}/Attachments',
-        base_folder: 'Tasks'
-      },
-      {
-        warehouse_type: 'task_responses',
-        tab_key: 'responses',
-        display_name: 'Task Responses',
-        tab_group: 'system',
-        folder_path: 'Tasks/{{TaskId}}/{{TaskName}}/Responses',
-        base_folder: 'Tasks'
-      },
-
-      # Teeem Docs folder (user documents)
-      {
-        warehouse_type: 'user',
-        tab_key: 'user',
-        display_name: 'Teeem Docs',
-        tab_group: 'system',
-        folder_path: 'Teeem Docs/{{UserName}}/{{Year}}',
-        base_folder: 'Teeem Docs'
-      },
-
-      # Cases folder
-      {
-        warehouse_type: 'case',
-        tab_key: 'case',
-        display_name: 'Cases',
-        tab_group: 'system',
-        folder_path: 'Cases/{{CaseId}}',
-        base_folder: 'Cases'
-      },
-
-      # Asset document subfolders (under Corporate)
-      {
-        warehouse_type: 'asset',
-        tab_key: 'overview',
-        display_name: 'Asset',
-        tab_group: 'documents',
-        folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}',
-        base_folder: 'Corporate'
-      },
-      {
-        warehouse_type: 'asset_expenses',
-        tab_key: 'expenses',
-        display_name: 'Asset Expenses',
-        tab_group: 'documents',
-        folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Expenses',
-        base_folder: 'Corporate'
-      },
-      {
-        warehouse_type: 'asset_service',
-        tab_key: 'service',
-        display_name: 'Asset Service',
-        tab_group: 'documents',
-        folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Service',
-        base_folder: 'Corporate'
-      },
-      {
-        warehouse_type: 'asset_readings',
-        tab_key: 'readings',
-        display_name: 'Asset Readings',
-        tab_group: 'documents',
-        folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Readings',
-        base_folder: 'Corporate'
-      }
+      { warehouse_type_code: 'task', tab_key: 'task', display_name: 'Tasks', tab_group: 'system' },
+      { warehouse_type_code: 'task_attachments', tab_key: 'task-attachments', display_name: 'Task Attachments', tab_group: 'system' },
+      { warehouse_type_code: 'task_responses', tab_key: 'responses', display_name: 'Task Responses', tab_group: 'system' },
+      { warehouse_type_code: 'user', tab_key: 'user', display_name: 'Teeem Docs', tab_group: 'system' },
+      { warehouse_type_code: 'case', tab_key: 'case', display_name: 'Cases', tab_group: 'system' },
+      { warehouse_type_code: 'asset', tab_key: 'overview', display_name: 'Asset', tab_group: 'documents' },
+      { warehouse_type_code: 'asset_expenses', tab_key: 'expenses', display_name: 'Asset Expenses', tab_group: 'documents' },
+      { warehouse_type_code: 'asset_service', tab_key: 'service', display_name: 'Asset Service', tab_group: 'documents' },
+      { warehouse_type_code: 'asset_readings', tab_key: 'readings', display_name: 'Asset Readings', tab_group: 'documents' }
     ]
 
     created_count = 0
     skipped_count = 0
+    missing_types = 0
 
     required_folders.each do |attrs|
-      if WarehouseFolder.exists?(warehouse_type: attrs[:warehouse_type])
+      wt = WarehouseType.find_by_code(attrs[:warehouse_type_code])
+      unless wt
+        missing_types += 1
+        next
+      end
+
+      if WarehouseFolder.where(warehouse_type_id: wt.id).exists?
         skipped_count += 1
       else
         WarehouseFolder.create!(
-          warehouse_type: attrs[:warehouse_type],
-          tab_key: attrs[:tab_key],
+          warehouse_type: wt,
+          name: attrs[:display_name],
           display_name: attrs[:display_name],
+          folder_segment: attrs[:display_name],
+          tab_key: attrs[:tab_key],
           tab_group: attrs[:tab_group],
           order_position: 0,
           enabled: true,
           is_system_tab: true,
-          warehouse_enabled: true,
-          folder_path: attrs[:folder_path],
-          base_folder: attrs[:base_folder]
+          warehouse_enabled: true
         )
-        puts "  ✅ Created #{attrs[:warehouse_type]} (#{attrs[:display_name]})"
+        puts "  ✅ Created #{attrs[:warehouse_type_code]} (#{attrs[:display_name]})"
         created_count += 1
       end
     end
 
-    puts "Warehouse folders: #{created_count} created, #{skipped_count} already existed"
+    puts "Warehouse folders: #{created_count} created, #{skipped_count} existed, #{missing_types} types not found"
   end
 
   desc "List all warehouse_folder entries with their paths"

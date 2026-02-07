@@ -52,8 +52,9 @@ namespace :deploy do
         config_path = Rails.root.join("config/recurring.yml")
         if File.exist?(config_path)
           config = YAML.safe_load_file(config_path, permitted_classes: [Symbol])
-          SolidQueue::RecurringTask.create_or_update_all(config)
-          puts "✅ Synced #{config.keys.count} recurring jobs"
+          tasks = config.map { |key, options| SolidQueue::RecurringTask.from_configuration(key, **options.symbolize_keys) }
+          SolidQueue::RecurringTask.create_or_update_all(tasks)
+          puts "✅ Synced #{tasks.count} recurring jobs"
         else
           puts "⚠️  config/recurring.yml not found"
         end

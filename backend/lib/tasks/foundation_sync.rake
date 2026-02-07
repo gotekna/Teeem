@@ -37,19 +37,21 @@ namespace :foundation do
       "Gold Standard Reference"
     ]
 
+    quiet = ENV["FOUNDATION_SYNC_QUIET"] == "true"
+
     Foundation.all.each do |foundation|
       table_name = foundation.database_table_name
 
       # Skip if table doesn't exist in database
       unless ActiveRecord::Base.connection.table_exists?(table_name)
-        puts "⏭️  Skipping #{foundation.name} (table '#{table_name}' does not exist)"
+        puts "⏭️  Skipping #{foundation.name} (table '#{table_name}' does not exist)" unless quiet
         fixes[:skipped] += 1
         next
       end
 
       # Skip special foundations
       if skip_foundations.include?(foundation.name)
-        puts "⏭️  Skipping #{foundation.name} (requires manual review)"
+        puts "⏭️  Skipping #{foundation.name} (requires manual review)" unless quiet
         fixes[:skipped] += 1
         next
       end
