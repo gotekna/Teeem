@@ -28,6 +28,7 @@ interface TakeoffObjectData {
   isMeasurement?: boolean;
   measurementId?: number;
   isCalibration?: boolean;
+  isCalibrationLabel?: boolean;
   isTempCalibration?: boolean;
   isTempDrawing?: boolean;
 }
@@ -139,6 +140,11 @@ export function TakeoffCanvas({
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPoints, setCurrentPoints] = useState<Point[]>([]);
   const [calibrationLine, setCalibrationLine] = useState<{ start: Point; end: Point } | null>(null);
+  // Calibration uses click-click (not drag): click first point, click second point, type dimension
+  // "verifying" = already calibrated, showing computed measurement for a check line
+  const [calibrationStep, setCalibrationStep] = useState<"idle" | "firstPoint" | "waitingInput" | "verifying">("idle");
+  const [calibrationInput, setCalibrationInput] = useState("");
+  const calibrationInputRef = useRef<HTMLInputElement>(null);
 
   // Count marker state
   const [nextCountLabel, setNextCountLabel] = useState(1);
@@ -196,6 +202,10 @@ export function TakeoffCanvas({
   useEffect(() => {
     if (!fabricRef.current) return;
     fabricRef.current.selection = currentTool === "select";
+    // Fabric.js manages its own cursor on the upper-canvas, so we must
+    // set it via Fabric's API rather than CSS on the lower-canvas
+    fabricRef.current.defaultCursor = getCursorForTool(currentTool);
+    fabricRef.current.hoverCursor = getCursorForTool(currentTool);
   }, [currentTool]);
 
   // =============================================================================
@@ -406,21 +416,61 @@ export function TakeoffCanvas({
     ) as FabricObjectWithData;
     line.data = { isMeasurement: true, isCalibration: true };
 
-    // Label
+    // Label - offset perpendicular to line so original PDF text stays visible
     const midX = (scaledLine[0].x + scaledLine[1].x) / 2;
     const midY = (scaledLine[0].y + scaledLine[1].y) / 2;
+    const dx = scaledLine[1].x - scaledLine[0].x;
+    const dy = scaledLine[1].y - scaledLine[0].y;
+    const lineLen = Math.sqrt(dx * dx + dy * dy);
+    // Perpendicular unit vector (rotated 90° CCW), offset 35px above the line
+    const offsetDist = 35;
+    const perpX = lineLen > 0 ? (-dy / lineLen) * offsetDist : 0;
+    const perpY = lineLen > 0 ? (dx / lineLen) * offsetDist : -offsetDist;
+    const labelX = midX + perpX;
+    const labelY = midY + perpY;
+
+    // Thin connector line from label to line midpoint
+    const connector = new fabric.Line(
+      [midX, midY, labelX, labelY],
+      {
+        stroke: "#F59E0B",
+        strokeWidth: 1,
+        strokeDashArray: [2, 2],
+        selectable: false,
+      }
+    ) as FabricObjectWithData;
+    connector.data = { isMeasurement: true, isCalibration: true };
+
     const label = new fabric.FabricText(`${scale.reference_length_mm}mm (${scale.scale_label})`, {
-      left: midX,
-      top: midY - 15,
+      left: labelX,
+      top: labelY - 8,
       fontSize: 12,
       fill: "#F59E0B",
       backgroundColor: "rgba(255,255,255,0.9)",
       originX: "center",
+      originY: "bottom",
       selectable: false,
+      evented: true,  // Receive clicks even though not selectable
+      hoverCursor: "pointer",
     }) as FabricObjectWithData;
-    label.data = { isMeasurement: true, isCalibration: true };
+    label.data = { isMeasurement: true, isCalibration: true, isCalibrationLabel: true };
+
+    // Click on label → re-edit the calibration value
+    label.on("mousedown", () => {
+      if (scale.calibration_line) {
+        const { x1, y1, x2, y2 } = scale.calibration_line;
+        setCalibrationLine({ start: { x: x1, y: y1 }, end: { x: x2, y: y2 } });
+        setCalibrationInput(String(scale.reference_length_mm));
+        setCalibrationStep("waitingInput");
+        setTimeout(() => {
+          calibrationInputRef.current?.focus();
+          calibrationInputRef.current?.select();
+        }, 50);
+      }
+    });
 
     canvas.add(line);
+    canvas.add(connector);
     canvas.add(label);
   };
 
@@ -455,11 +505,42 @@ export function TakeoffCanvas({
     const { snapped: point } = shouldSnap ? findSnapPoint(rawPoint.x, rawPoint.y) : { snapped: rawPoint };
 
     switch (currentTool) {
-      case "calibrate":
-        // Start calibration line
-        setIsDrawing(true);
-        setCalibrationLine({ start: point, end: point });
+      case "calibrate": {
+        // If clicked on the calibration label, the label's own mousedown handler
+        // will open the re-edit input — don't start a new calibration line
+        const target = e.target as FabricObjectWithData | undefined;
+        if (target?.data?.isCalibrationLabel) return;
+
+        // Click-click calibration: first click sets start, second click sets end
+        if (calibrationStep === "waitingInput" || calibrationStep === "verifying") {
+          // Already have two points and waiting for input/showing verification - ignore clicks
+          return;
+        }
+        if (!calibrationLine) {
+          // First click - set start point
+          setCalibrationLine({ start: point, end: point });
+          setCalibrationStep("firstPoint");
+          setIsDrawing(true);
+        } else {
+          // Second click - set end point
+          const updatedLine = { ...calibrationLine, end: point };
+          setCalibrationLine(updatedLine);
+          setIsDrawing(false);
+
+          if (pageScale?.calibrated && pageScale.scale_factor) {
+            // Already calibrated → show verification (computed distance)
+            setCalibrationStep("verifying");
+            renderTempCalibrationLine();
+          } else {
+            // Not calibrated → ask for mm input
+            setCalibrationStep("waitingInput");
+            setCalibrationInput("");
+            renderTempCalibrationLine();
+            setTimeout(() => calibrationInputRef.current?.focus(), 50);
+          }
+        }
         break;
+      }
 
       case "count":
         // Create count marker immediately
@@ -475,7 +556,7 @@ export function TakeoffCanvas({
         setCurrentPoints((prev) => [...prev, point]);
         break;
     }
-  }, [currentTool, zoom, findSnapPoint]);
+  }, [currentTool, zoom, findSnapPoint, calibrationLine, calibrationStep, pageScale]);
 
   const handleMouseMove = useCallback((e: fabric.TPointerEventInfo) => {
     if (!e.pointer) return;
@@ -498,7 +579,8 @@ export function TakeoffCanvas({
 
     const point = shouldSnap && snapResult?.isSnapped ? snapResult.snapped : rawPoint;
 
-    if (currentTool === "calibrate" && calibrationLine) {
+    if (currentTool === "calibrate" && calibrationLine && calibrationStep === "firstPoint") {
+      // Preview line from first click to cursor
       setCalibrationLine({ ...calibrationLine, end: point });
       renderTempCalibrationLine();
     } else if (
@@ -509,15 +591,11 @@ export function TakeoffCanvas({
       // Render live preview while drawing polygon/polyline
       renderTempDrawing(point);
     }
-  }, [isDrawing, currentTool, calibrationLine, zoom, currentPoints, activeLayer, findSnapPoint, snapResult]);
+  }, [isDrawing, currentTool, calibrationLine, calibrationStep, zoom, currentPoints, activeLayer, findSnapPoint, snapResult]);
 
   const handleMouseUp = useCallback(() => {
-    if (currentTool === "calibrate" && calibrationLine) {
-      // Show calibration input dialog
-      setIsDrawing(false);
-      showCalibrationDialog();
-    }
-  }, [currentTool, calibrationLine]);
+    // Calibration uses click-click (not drag), so no action on mouseUp for calibrate
+  }, []);
 
   const handleDoubleClick = useCallback(() => {
     if (!isDrawing) return;
@@ -627,30 +705,79 @@ export function TakeoffCanvas({
     const canvas = fabricRef.current;
     if (!canvas || !calibrationLine) return;
 
-    // Remove existing temp line
-    const tempLine = (canvas.getObjects() as FabricObjectWithData[]).find(
+    // Remove existing temp objects
+    const tempObjects = (canvas.getObjects() as FabricObjectWithData[]).filter(
       (obj) => obj.data?.isTempCalibration
     );
-    if (tempLine) canvas.remove(tempLine);
+    tempObjects.forEach((obj) => canvas.remove(obj));
 
-    // Draw new temp line
-    const line = new fabric.Line(
-      [
-        calibrationLine.start.x * zoom,
-        calibrationLine.start.y * zoom,
-        calibrationLine.end.x * zoom,
-        calibrationLine.end.y * zoom,
-      ],
-      {
-        stroke: "#F59E0B",
-        strokeWidth: 3,
-        strokeDashArray: [10, 5],
-        selectable: false,
-      }
-    ) as FabricObjectWithData;
+    const sx = calibrationLine.start.x * zoom;
+    const sy = calibrationLine.start.y * zoom;
+    const ex = calibrationLine.end.x * zoom;
+    const ey = calibrationLine.end.y * zoom;
+
+    // Draw new temp line (green when verifying, amber when calibrating)
+    const isVerifyMode = pageScale?.calibrated && pageScale.scale_factor;
+    const lineColor = isVerifyMode ? "#16A34A" : "#F59E0B";
+    const line = new fabric.Line([sx, sy, ex, ey], {
+      stroke: lineColor,
+      strokeWidth: 3,
+      strokeDashArray: [10, 5],
+      selectable: false,
+    }) as FabricObjectWithData;
     line.data = { isTempCalibration: true };
-
     canvas.add(line);
+
+    // Show pixel distance label offset above the line
+    const dx = ex - sx;
+    const dy = ey - sy;
+    const pxDist = Math.sqrt(dx * dx + dy * dy);
+    if (pxDist > 10) {
+      const midX = (sx + ex) / 2;
+      const midY = (sy + ey) / 2;
+      const lineLen = pxDist;
+      const offsetDist = 30;
+      const perpX = (-dy / lineLen) * offsetDist;
+      const perpY = (dx / lineLen) * offsetDist;
+      const labelX = midX + perpX;
+      const labelY = midY + perpY;
+
+      const connector = new fabric.Line([midX, midY, labelX, labelY], {
+        stroke: lineColor,
+        strokeWidth: 1,
+        strokeDashArray: [2, 2],
+        selectable: false,
+      }) as FabricObjectWithData;
+      connector.data = { isTempCalibration: true };
+      canvas.add(connector);
+
+      // Show computed mm when calibrated, otherwise just px
+      let labelText = `${Math.round(pxDist)} px`;
+      if (pageScale?.calibrated && pageScale.scale_factor) {
+        const pxDistUnscaled = Math.sqrt(
+          Math.pow(calibrationLine.end.x - calibrationLine.start.x, 2) +
+          Math.pow(calibrationLine.end.y - calibrationLine.start.y, 2)
+        );
+        const computedMm = pxDistUnscaled * pageScale.scale_factor;
+        labelText = computedMm >= 1000
+          ? `${(computedMm / 1000).toFixed(2)} m (${Math.round(pxDist)} px)`
+          : `${computedMm.toFixed(1)} mm (${Math.round(pxDist)} px)`;
+      }
+
+      const label = new fabric.FabricText(labelText, {
+        left: labelX,
+        top: labelY - 6,
+        fontSize: 11,
+        fill: pageScale?.calibrated ? "#16A34A" : "#F59E0B",
+        backgroundColor: "rgba(255,255,255,0.85)",
+        originX: "center",
+        originY: "bottom",
+        selectable: false,
+      }) as FabricObjectWithData;
+      label.data = { isTempCalibration: true };
+      canvas.add(label);
+    }
+
     canvas.renderAll();
   };
 
@@ -772,28 +899,11 @@ export function TakeoffCanvas({
     canvas.renderAll();
   };
 
-  const showCalibrationDialog = () => {
+  const handleCalibrationSubmit = () => {
     if (!calibrationLine) return;
 
-    // Prompt for real-world length
-    const lengthStr = window.prompt(
-      "Enter the real-world length of this line (in mm):",
-      "820"  // Default door width
-    );
-
-    if (!lengthStr) {
-      setCalibrationLine(null);
-      clearTempDrawing();
-      return;
-    }
-
-    const lengthMm = parseFloat(lengthStr);
-    if (isNaN(lengthMm) || lengthMm <= 0) {
-      alert("Please enter a valid positive number");
-      setCalibrationLine(null);
-      clearTempDrawing();
-      return;
-    }
+    const lengthMm = parseFloat(calibrationInput);
+    if (isNaN(lengthMm) || lengthMm <= 0) return;
 
     // Submit calibration
     onCalibrate({
@@ -804,7 +914,18 @@ export function TakeoffCanvas({
       canvasHeight: pageHeight,
     });
 
+    // Reset
     setCalibrationLine(null);
+    setCalibrationStep("idle");
+    setCalibrationInput("");
+    clearTempDrawing();
+  };
+
+  const handleCalibrationCancel = () => {
+    setCalibrationLine(null);
+    setCalibrationStep("idle");
+    setCalibrationInput("");
+    setIsDrawing(false);
     clearTempDrawing();
   };
 
@@ -860,11 +981,16 @@ export function TakeoffCanvas({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle when typing in an input (calibration input handles its own keys)
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
       if (e.key === "Escape") {
-        // Cancel current drawing
+        // Cancel current drawing / calibration
         setCurrentPoints([]);
         setIsDrawing(false);
         setCalibrationLine(null);
+        setCalibrationStep("idle");
+        setCalibrationInput("");
         clearTempDrawing();
       } else if (e.key === "Delete" || e.key === "Backspace") {
         // Delete selected measurement
@@ -971,6 +1097,142 @@ export function TakeoffCanvas({
           </div>
         </div>
       )}
+
+      {/* Calibration instructions - step 1: click first point */}
+      {currentTool === "calibrate" && calibrationStep === "idle" && !calibrationLine && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-amber-600/95 text-white rounded-lg px-4 py-2 text-sm font-medium shadow-lg">
+          {pageScale?.calibrated
+            ? <>Click two points to <strong>verify</strong> a dimension</>
+            : <>Click the <strong>start</strong> of a known dimension line</>
+          }
+        </div>
+      )}
+
+      {/* Calibration instructions - step 2: click second point */}
+      {currentTool === "calibrate" && calibrationStep === "firstPoint" && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-amber-600/95 text-white rounded-lg px-4 py-2 text-sm font-medium shadow-lg">
+          Click the <strong>end</strong> of the dimension line • Esc to cancel
+        </div>
+      )}
+
+      {/* Calibration input - positioned near the midpoint of the line */}
+      {calibrationStep === "waitingInput" && calibrationLine && (
+        <div
+          className="absolute z-10"
+          style={{
+            left: ((calibrationLine.start.x + calibrationLine.end.x) / 2) * zoom,
+            top: ((calibrationLine.start.y + calibrationLine.end.y) / 2) * zoom - 50,
+            transform: "translate(-50%, -100%)",
+          }}
+        >
+          <div className="bg-background/95 backdrop-blur-sm rounded-lg px-4 py-3 border-2 border-amber-500 shadow-xl min-w-[220px]">
+            <div className="text-xs text-muted-foreground mb-1">
+              Pixel distance: {Math.round(Math.sqrt(
+                Math.pow(calibrationLine.end.x - calibrationLine.start.x, 2) +
+                Math.pow(calibrationLine.end.y - calibrationLine.start.y, 2)
+              ))} px
+            </div>
+            <div className="text-sm font-medium mb-2">Enter real-world length (mm):</div>
+            <div className="flex gap-2">
+              <input
+                ref={calibrationInputRef}
+                type="text"
+                inputMode="numeric"
+                value={calibrationInput}
+                onChange={(e) => setCalibrationInput(e.target.value.replace(/[^0-9.]/g, ""))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCalibrationSubmit();
+                  if (e.key === "Escape") handleCalibrationCancel();
+                  e.stopPropagation();
+                }}
+                placeholder="e.g. 3000"
+                className="flex-1 text-sm bg-muted border rounded px-2 py-1 outline-none focus:ring-2 focus:ring-amber-500"
+                autoFocus
+              />
+              <button
+                onClick={handleCalibrationSubmit}
+                disabled={!calibrationInput || parseFloat(calibrationInput) <= 0}
+                className="px-3 py-1 text-sm font-medium bg-amber-500 text-white rounded hover:bg-amber-600 disabled:opacity-50"
+              >
+                Set
+              </button>
+              <button
+                onClick={handleCalibrationCancel}
+                className="px-2 py-1 text-sm text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verification overlay - shows computed distance after calibration */}
+      {calibrationStep === "verifying" && calibrationLine && pageScale?.scale_factor && (() => {
+        const dx = calibrationLine.end.x - calibrationLine.start.x;
+        const dy = calibrationLine.end.y - calibrationLine.start.y;
+        const pxDist = Math.sqrt(dx * dx + dy * dy);
+        const computedMm = pxDist * pageScale.scale_factor;
+        const computedM = computedMm / 1000;
+        return (
+          <div
+            className="absolute z-10"
+            style={{
+              left: ((calibrationLine.start.x + calibrationLine.end.x) / 2) * zoom,
+              top: ((calibrationLine.start.y + calibrationLine.end.y) / 2) * zoom - 50,
+              transform: "translate(-50%, -100%)",
+            }}
+          >
+            <div className="bg-background/95 backdrop-blur-sm rounded-lg px-4 py-3 border-2 border-green-500 shadow-xl min-w-[220px]">
+              <div className="text-xs text-muted-foreground mb-1">
+                Verification measurement ({Math.round(pxDist)} px)
+              </div>
+              <div className="text-lg font-bold text-green-600 dark:text-green-400 mb-1">
+                {computedMm >= 1000
+                  ? `${computedM.toFixed(2)} m`
+                  : `${computedMm.toFixed(1)} mm`
+                }
+                <span className="text-sm font-normal text-muted-foreground ml-2">
+                  ({computedMm.toFixed(0)} mm)
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground mb-2">
+                Compare this to the dimension on the drawing
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    // Dismiss verification, allow another check
+                    setCalibrationLine(null);
+                    setCalibrationStep("idle");
+                    clearTempDrawing();
+                  }}
+                  className="flex-1 px-3 py-1 text-sm font-medium bg-green-500 text-white rounded hover:bg-green-600"
+                >
+                  OK
+                </button>
+                <button
+                  onClick={() => {
+                    // Switch to re-calibrate mode with this line
+                    setCalibrationStep("waitingInput");
+                    setCalibrationInput("");
+                    setTimeout(() => calibrationInputRef.current?.focus(), 50);
+                  }}
+                  className="px-3 py-1 text-sm font-medium border rounded hover:bg-muted"
+                >
+                  Recalibrate
+                </button>
+                <button
+                  onClick={handleCalibrationCancel}
+                  className="px-2 py-1 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </PdfFrame>
   );
 }

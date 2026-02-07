@@ -322,11 +322,10 @@ export function WarehouseTypesTab() {
     // This handles BOTH adding AND removing folders from this warehouse type
     // When a root folder is selected, include ALL its children (inheritance)
     // Skip for corporate/job/contact types - those are managed via their own config pages
-    const AUTO_MANAGED_TYPES = ["Corporate", "Job", "Contact"];
+    // Only manages unassigned + own-type folders to avoid touching other types' assignments
     if (editingType && !["corporate", "job", "contact"].includes(editingType.code) && warehouseFolderToggles.length > 0) {
-      // Only send non-auto-managed folders to avoid overwriting corporate/job/contact assignments
       const selectedFolderIds = warehouseFolderToggles
-        .filter(bf => bf.enabled && !AUTO_MANAGED_TYPES.includes(getFolderCategory(bf.warehouse_type_name || "Unassigned")))
+        .filter(bf => bf.enabled && (bf.warehouse_type_name === "Unassigned" || bf.warehouse_type_id === editingType.id))
         .flatMap(bf => [bf.id, ...bf.children_ids]);  // Include children
 
       try {
@@ -775,10 +774,9 @@ export function WarehouseTypesTab() {
               {/* Warehouse Folders - Tree View (only show when editing, hidden for corporate/job/contact - managed via their own config pages) */}
               {editingType && !["corporate", "job", "contact"].includes(editingType.code) && warehouseFolderToggles.length > 0 && (() => {
                 const searchTerm = warehouseFolderSearch.toLowerCase().trim();
-                // Exclude Corporate/Job/Contact folders - those are auto-assigned via their own config pages
-                const AUTO_MANAGED_TYPES = ["Corporate", "Job", "Contact"];
+                // Only show folders that are unassigned OR already belong to this type
                 const availableToggles = warehouseFolderToggles.filter(
-                  t => !AUTO_MANAGED_TYPES.includes(getFolderCategory(t.warehouse_type_name || "Unassigned"))
+                  t => t.warehouse_type_name === "Unassigned" || t.warehouse_type_id === editingType.id
                 );
 
                 // Check if a root folder matches search filter
