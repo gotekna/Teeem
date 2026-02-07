@@ -43,6 +43,7 @@ class WarehouseType < ApplicationRecord
 
   # Callbacks
   before_validation :normalize_code
+  before_validation :normalize_folder_path_template
   before_destroy :prevent_system_deletion
 
   # Class methods
@@ -128,6 +129,16 @@ class WarehouseType < ApplicationRecord
 
   def normalize_code
     self.code = code.to_s.downcase.strip if code.present?
+  end
+
+  # Ensure adjacent tokens like }}{{ always have / separator
+  # Prevents paths like "Task/{{JobName}}{{TaskId}}" → "Task/{{JobName}}/{{TaskId}}"
+  def normalize_folder_path_template
+    return if folder_path_template.blank?
+
+    self.folder_path_template = folder_path_template
+      .gsub(/\}\}\s*\{\{/, "}}/{{")  # }}{{ → }}/{{
+      .gsub(%r{//+}, "/")            # clean double slashes
   end
 
   def prevent_system_deletion
