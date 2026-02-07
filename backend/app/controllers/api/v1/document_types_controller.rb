@@ -307,7 +307,6 @@ module Api
         params.require(:document_type).permit(
           :name,
           :ui_name,
-          :category,
           :folder,
           :description,
           :requires_filing,

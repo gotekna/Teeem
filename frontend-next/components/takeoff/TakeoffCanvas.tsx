@@ -92,6 +92,9 @@ interface TakeoffCanvasProps {
   // Pan state from usePdfPanZoom hook — suppresses tool clicks during pan
   isPanning?: boolean;
   isSpaceHeld?: boolean;
+
+  // Zoom-to-rectangle: left-click drag in select mode zooms to the drawn rect
+  onZoomToRect?: (rect: { x: number; y: number; width: number; height: number }) => void;
 }
 
 // =============================================================================
@@ -120,9 +123,15 @@ export function TakeoffCanvas({
   containerRef,
   isPanning: isPanningProp = false,
   isSpaceHeld: isSpaceHeldProp = false,
+  onZoomToRect,
 }: TakeoffCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
+
+  // Zoom-to-rect: track drag start in page-space coords (un-zoomed)
+  const zoomDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const onZoomToRectRef = useRef(onZoomToRect);
+  onZoomToRectRef.current = onZoomToRect;
 
   // Refs for event handlers - avoids stale closures in Fabric event listeners
   // ⚠️ DO NOT SIMPLIFY - Canvas event listeners capture closures at registration time.
@@ -131,14 +140,14 @@ export function TakeoffCanvas({
   const handlersRef = useRef<{
     mouseDown: (e: fabric.TPointerEventInfo) => void;
     mouseMove: (e: fabric.TPointerEventInfo) => void;
-    mouseUp: () => void;
+    mouseUp: (e: fabric.TPointerEventInfo) => void;
     doubleClick: () => void;
     selectionCreated: (e: SelectionEvent) => void;
     selectionCleared: () => void;
   }>({
     mouseDown: () => {},
     mouseMove: () => {},
-    mouseUp: () => {},
+    mouseUp: (() => {}) as (e: fabric.TPointerEventInfo) => void,
     doubleClick: () => {},
     selectionCreated: () => {},
     selectionCleared: () => {},
@@ -491,7 +500,7 @@ export function TakeoffCanvas({
     // always calls the latest handler even when dependencies change
     canvas.on("mouse:down", (e: fabric.TPointerEventInfo) => handlersRef.current.mouseDown(e));
     canvas.on("mouse:move", (e: fabric.TPointerEventInfo) => handlersRef.current.mouseMove(e));
-    canvas.on("mouse:up", () => handlersRef.current.mouseUp());
+    canvas.on("mouse:up", (e: fabric.TPointerEventInfo) => handlersRef.current.mouseUp(e));
     canvas.on("mouse:dblclick", () => handlersRef.current.doubleClick());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     canvas.on("selection:created", ((e: SelectionEvent) => handlersRef.current.selectionCreated(e)) as any);
@@ -510,6 +519,13 @@ export function TakeoffCanvas({
     if (isPanningProp || isSpaceHeldProp || currentTool === "pan") return;
 
     const rawPoint = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
+
+    // Track drag start for zoom-to-rect (select mode only, no target clicked)
+    if (currentTool === "select" && !e.target) {
+      zoomDragStartRef.current = rawPoint;
+    } else {
+      zoomDragStartRef.current = null;
+    }
 
     // Apply snapping for measurement tools
     const shouldSnap = ["count", "area", "linear", "perimeter", "deduction", "calibrate"].includes(currentTool);
@@ -604,9 +620,31 @@ export function TakeoffCanvas({
     }
   }, [isDrawing, currentTool, calibrationLine, calibrationStep, zoom, currentPoints, activeLayer, findSnapPoint, snapResult]);
 
-  const handleMouseUp = useCallback(() => {
-    // Calibration uses click-click (not drag), so no action on mouseUp for calibrate
-  }, []);
+  const handleMouseUp = useCallback((e: fabric.TPointerEventInfo) => {
+    // Zoom-to-rect: if user dragged in select mode on empty area, zoom to the drawn rectangle
+    if (currentTool === "select" && zoomDragStartRef.current && e.pointer && onZoomToRectRef.current) {
+      const endPoint = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
+      const start = zoomDragStartRef.current;
+      const dx = endPoint.x - start.x;
+      const dy = endPoint.y - start.y;
+
+      // Only zoom if drag was significant (>20px in page space)
+      if (Math.abs(dx) > 20 || Math.abs(dy) > 20) {
+        const rect = {
+          x: Math.min(start.x, endPoint.x),
+          y: Math.min(start.y, endPoint.y),
+          width: Math.abs(dx),
+          height: Math.abs(dy),
+        };
+        onZoomToRectRef.current(rect);
+
+        // Clear any accidental Fabric selection
+        fabricRef.current?.discardActiveObject();
+        fabricRef.current?.requestRenderAll();
+      }
+      zoomDragStartRef.current = null;
+    }
+  }, [currentTool, zoom]);
 
   const handleDoubleClick = useCallback(() => {
     if (!isDrawing) return;

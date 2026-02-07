@@ -14,6 +14,7 @@ interface UsePdfPanZoomReturn {
   zoom: number;
   onZoomChange: (zoom: number) => void;
   onFitToView: () => void;
+  zoomToRect: (rect: { x: number; y: number; width: number; height: number }) => void;
   containerRef: React.RefObject<HTMLDivElement | null>;
   isPanning: boolean;
   isSpaceHeld: boolean;
@@ -148,42 +149,48 @@ export function usePdfPanZoom({
     };
   }, []);
 
-  // ── Pan via pointer drag (pan tool, middle-click, or space+drag) ─────────
+  // ── Pan via pointer drag ────────────────────────────────────────────────
+  // Pan tool, middle-click, or space+drag all initiate panning.
+  // Left-click drag is handled by Fabric.js (zoom-to-rect in TakeoffCanvas).
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const handlePointerDown = (e: PointerEvent) => {
-      const shouldPan = panToolActiveRef.current || e.button === 1 || isSpaceHeldRef.current;
-      if (!shouldPan) return;
+      const shouldPanImmediate = panToolActiveRef.current || e.button === 1 || isSpaceHeldRef.current;
 
-      e.preventDefault();
-      isPanningRef.current = true;
-      setIsPanning(true);
-      panStartRef.current = {
-        x: e.clientX,
-        y: e.clientY,
-        scrollLeft: container.scrollLeft,
-        scrollTop: container.scrollTop,
-      };
-      onCursorChangeRef.current?.("grabbing");
-      container.setPointerCapture(e.pointerId);
+      if (shouldPanImmediate) {
+        e.preventDefault();
+        isPanningRef.current = true;
+        setIsPanning(true);
+        panStartRef.current = {
+          x: e.clientX,
+          y: e.clientY,
+          scrollLeft: container.scrollLeft,
+          scrollTop: container.scrollTop,
+        };
+        onCursorChangeRef.current?.("grabbing");
+        return;
+      }
     };
 
+    // Listen on window so Fabric.js canvas can't block event bubbling
     const handlePointerMove = (e: PointerEvent) => {
-      if (!isPanningRef.current || !panStartRef.current) return;
-      e.preventDefault();
-      container.scrollLeft = panStartRef.current.scrollLeft - (e.clientX - panStartRef.current.x);
-      container.scrollTop = panStartRef.current.scrollTop - (e.clientY - panStartRef.current.y);
+      // Already panning: scroll the container
+      if (isPanningRef.current && panStartRef.current) {
+        e.preventDefault();
+        container.scrollLeft = panStartRef.current.scrollLeft - (e.clientX - panStartRef.current.x);
+        container.scrollTop = panStartRef.current.scrollTop - (e.clientY - panStartRef.current.y);
+        return;
+      }
     };
 
-    const handlePointerUp = (e: PointerEvent) => {
+    const handlePointerUp = () => {
       if (!isPanningRef.current) return;
       isPanningRef.current = false;
       setIsPanning(false);
       panStartRef.current = null;
       onCursorChangeRef.current?.(isSpaceHeldRef.current ? "grab" : null);
-      container.releasePointerCapture(e.pointerId);
     };
 
     const handleAuxClick = (e: MouseEvent) => {
@@ -191,13 +198,13 @@ export function usePdfPanZoom({
     };
 
     container.addEventListener("pointerdown", handlePointerDown);
-    container.addEventListener("pointermove", handlePointerMove);
-    container.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
     container.addEventListener("auxclick", handleAuxClick);
     return () => {
       container.removeEventListener("pointerdown", handlePointerDown);
-      container.removeEventListener("pointermove", handlePointerMove);
-      container.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
       container.removeEventListener("auxclick", handleAuxClick);
     };
   }, []);
@@ -235,10 +242,34 @@ export function usePdfPanZoom({
     return () => container.removeEventListener("wheel", handleWheel);
   }, [minZoom, maxZoom]);
 
+  // ── Zoom to rectangle (marquee zoom) ──────────────────────────────────
+  const zoomToRect = useCallback((rect: { x: number; y: number; width: number; height: number }) => {
+    const container = containerRef.current;
+    if (!container || rect.width < 10 || rect.height < 10) return;
+
+    const containerW = container.clientWidth;
+    const containerH = container.clientHeight;
+
+    // Zoom to fit rect in container with 5% padding
+    const newZoom = clamp(Math.min(containerW / rect.width, containerH / rect.height) * 0.95);
+
+    zoomModeRef.current = "manual";
+    setZoom(newZoom);
+
+    // Center the rectangle in the viewport after zoom applies
+    requestAnimationFrame(() => {
+      const scaledW = rect.width * newZoom;
+      const scaledH = rect.height * newZoom;
+      container.scrollLeft = rect.x * newZoom - (containerW - scaledW) / 2;
+      container.scrollTop = rect.y * newZoom - (containerH - scaledH) / 2;
+    });
+  }, [minZoom, maxZoom]);
+
   return {
     zoom,
     onZoomChange,
     onFitToView,
+    zoomToRect,
     containerRef,
     isPanning,
     isSpaceHeld,

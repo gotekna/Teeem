@@ -187,7 +187,6 @@ interface DocumentType {
   abbreviation?: string;
   downloadName?: string;
   title_preview?: string;
-  category?: string;
   folder?: string;
   description?: string;
   requires_filing?: boolean;
@@ -510,7 +509,6 @@ export default function DocumentTypeDetailPage() {
         uiName: "",
         abbreviation: "",
         downloadName: getDefaultFileNameForScope(initialScope),
-        category: "", // Deprecated - not used, kept for backwards compatibility
         folder: "GENERAL",
         description: "",
         requires_filing: false,
