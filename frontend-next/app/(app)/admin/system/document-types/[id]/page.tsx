@@ -350,8 +350,12 @@ export default function DocumentTypeDetailPage() {
             if (scopeData.success && scopeData.data?.tabs) {
               // SSoT: Only 'documents' tab_group with warehouse_enabled can store user uploads (Feb 2026)
               // Filter out 'data' tabs and tabs that can't receive documents
+              // Include root tabs that are warehouse-enabled OR have warehouse-enabled children
+              // Contact root folders (Financial, Corporate, etc.) have warehouse_enabled: false
+              // but their children (Invoices, Bills, ID, Tax) have warehouse_enabled: true
               const documentTabs = scopeData.data.tabs.filter((t: any) =>
-                t.tab_group === 'documents' && t.warehouse_enabled
+                (t.tab_group === 'documents' && t.warehouse_enabled) ||
+                (t.children?.some((c: any) => c.tab_group === 'documents' && c.warehouse_enabled))
               );
 
               // Add to all tabs for lookup

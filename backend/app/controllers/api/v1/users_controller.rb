@@ -96,6 +96,33 @@ class Api::V1::UsersController < ApplicationController
     end
 
     if @user.update(update_params)
+      # Handle photo upload - store as blob + WarehouseDocument (Employee Photo)
+      if params[:user][:photo].is_a?(ActionDispatch::Http::UploadedFile)
+        file = params[:user][:photo]
+        content = file.read
+
+        # 1. Set user's photo_blob for fast photo_url
+        @user.attach_photo(content, filename: file.original_filename, content_type: file.content_type)
+        @user.save!
+
+        # 2. Create WarehouseDocument linked to Contact as Employee Photo
+        if @user.contact.present?
+          blob = StorageBlob.find_by(id: @user.photo_blob_id)
+          pep_type = DocumentType.find_by(abbreviation: 'PEP')
+          WarehouseDocument.create!(
+            linkable: @user.contact,
+            source_type: 'people',
+            ui_name: "Employee Photo",
+            storage_blob: blob,
+            original_filename: file.original_filename,
+            content_type: file.content_type,
+            file_size: content.bytesize,
+            tenant_id: current_tenant.id,
+            metadata: pep_type ? { "document_type_id" => pep_type.id } : {}
+          )
+        end
+      end
+
       render json: {
         success: true,
         user: user_with_presence(@user)
@@ -280,8 +307,8 @@ class Api::V1::UsersController < ApplicationController
       # Primary role (Jan 2026) - determines default settings for multi-role users
       primary_role_id: user.primary_role_id,
       default_task_view: user.default_task_view,
-      # Profile photo - ActiveStorage removed (Jan 2026), photos stored in File Warehouse
-      photo_url: nil,
+      # Profile photo - stored via StorageBlob (photo_blob_id on User)
+      photo_url: user.photo_url,
       # Digital signature - ActiveStorage removed (Jan 2026), signatures stored in File Warehouse
       signature_attached: false,
       signature_url: nil,

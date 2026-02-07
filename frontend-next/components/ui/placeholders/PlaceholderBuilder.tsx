@@ -133,6 +133,7 @@ import {
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { restrictToWindowEdges } from "@dnd-kit/modifiers";
 import { createDndSensors } from "@/components/ui/dnd/dnd-config";
 
 export interface PlaceholderBuilderProps {
@@ -184,10 +185,16 @@ function SortableToken({
   item,
   disabled,
   onRemove,
+  order,
+  totalOrdered,
+  onReorder,
 }: {
   item: TokenItem;
   disabled: boolean;
   onRemove: () => void;
+  order?: number;
+  totalOrdered?: number;
+  onReorder?: (fromOrder: number, toOrder: number) => void;
 }) {
   const {
     attributes,
@@ -215,7 +222,7 @@ function SortableToken({
         style={style}
         className={cn(
           "inline-flex items-center text-sm font-mono px-1 py-0.5 text-muted-foreground/50 group",
-          isDragging && "opacity-20"
+          isDragging && "!opacity-0 h-0 !p-0 !m-0 overflow-hidden !w-0"
         )}
       >
         <span>/</span>
@@ -248,10 +255,39 @@ function SortableToken({
         colorClasses.bg,
         colorClasses.text,
         colorClasses.border,
-        isDragging && "opacity-20 border-dashed border-primary",
+        isDragging && "!opacity-0 h-0 !p-0 !m-0 overflow-hidden !border-0 !w-0",
         !disabled && "cursor-grab active:cursor-grabbing"
       )}
     >
+      {/* Order Number — click to type a new position */}
+      {order !== undefined && (
+        <input
+          type="text"
+          inputMode="numeric"
+          defaultValue={order}
+          key={order}
+          onPointerDown={(e) => e.stopPropagation()}
+          onFocus={(e) => e.target.select()}
+          onBlur={(e) => {
+            const newPos = parseInt(e.target.value, 10);
+            if (!isNaN(newPos) && newPos >= 1 && newPos <= (totalOrdered || order) && newPos !== order && onReorder) {
+              onReorder(order, newPos);
+            } else {
+              e.target.value = String(order);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") {
+              (e.target as HTMLInputElement).value = String(order);
+              (e.target as HTMLInputElement).blur();
+            }
+            e.stopPropagation();
+          }}
+          className="h-4 w-5 rounded-sm bg-foreground/15 text-[10px] font-bold text-center border-0 p-0 outline-none focus:ring-1 focus:ring-primary/50 focus:bg-foreground/25"
+        />
+      )}
+
       {/* Drag Handle */}
       {!disabled && (
         <span
@@ -285,15 +321,15 @@ function SortableToken({
   );
 }
 
-// Drop indicator shown between tokens during drag
+// Drop indicator shown between tokens during drag — thick black line
 function DropIndicator() {
   return (
-    <div className="w-0.5 self-stretch min-h-[28px] bg-primary rounded-full animate-pulse" />
+    <div className="w-[3px] self-stretch min-h-[32px] bg-foreground rounded-full shadow-[0_0_6px_rgba(0,0,0,0.3)]" />
   );
 }
 
 // Drag overlay token (shown while dragging) - distinctive with ring + shadow
-function DragOverlayToken({ item }: { item: TokenItem }) {
+function DragOverlayToken({ item, order }: { item: TokenItem; order?: number }) {
   const isSeparator = item.type === "text" && /^[\s/]+$/.test(item.value);
   if (isSeparator) {
     return <span className="text-sm font-mono text-muted-foreground px-1">/</span>;
@@ -306,12 +342,17 @@ function DragOverlayToken({ item }: { item: TokenItem }) {
     <span
       className={cn(
         "inline-flex items-center font-mono text-xs px-2 py-1 gap-1.5 rounded-none border",
-        "shadow-xl ring-2 ring-primary/50 scale-105",
+        "shadow-xl ring-2 ring-foreground/40 scale-110",
         colorClasses.bg,
         colorClasses.text,
         colorClasses.border
       )}
     >
+      {order !== undefined && (
+        <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm bg-foreground/15 text-[10px] font-bold leading-none">
+          {order}
+        </span>
+      )}
       <GripVertical className="h-3 w-3 opacity-50" />
       <span className="truncate">{item.value}</span>
       <X className="h-3 w-3 opacity-60" />
@@ -475,6 +516,17 @@ export function PlaceholderBuilder({
     () => tokens.find((t) => t.id === activeId) || null,
     [tokens, activeId]
   );
+  // Compute order number for the active drag item (skip separators)
+  const activeOrder = React.useMemo(() => {
+    if (!activeId) return undefined;
+    let order = 0;
+    for (const t of tokens) {
+      const isSep = t.type === "text" && /^[\s/]+$/.test(t.value);
+      if (!isSep) order++;
+      if (t.id === activeId) return isSep ? undefined : order;
+    }
+    return undefined;
+  }, [tokens, activeId]);
 
   // Generate preview
   const preview = React.useMemo(() => {
@@ -534,6 +586,25 @@ export function PlaceholderBuilder({
       addCustomText();
     }
   };
+
+  // Handle reorder by typing a new position number
+  const handleReorder = React.useCallback((fromOrder: number, toOrder: number) => {
+    // Build ordered list (non-separator tokens only) to find real indices
+    const orderedTokenIndices: number[] = [];
+    tokens.forEach((t, i) => {
+      const isSep = t.type === "text" && /^[\s/]+$/.test(t.value);
+      if (!isSep) orderedTokenIndices.push(i);
+    });
+    const fromIdx = orderedTokenIndices[fromOrder - 1];
+    const toIdx = orderedTokenIndices[toOrder - 1];
+    if (fromIdx === undefined || toIdx === undefined) return;
+    const reordered = arrayMove(tokens, fromIdx, toIdx);
+    if (isFolderPathMode) {
+      emitChange(reordered.map(t => t.value).join(""));
+    } else {
+      emitChange(buildTemplate(reordered.map(({ type, value }) => ({ type, value }))));
+    }
+  }, [tokens, isFolderPathMode, emitChange]);
 
   // Handle drag start
   const handleDragStart = (event: DragStartEvent) => {
@@ -635,6 +706,17 @@ export function PlaceholderBuilder({
               {(() => {
                 const activeIdx = activeId ? tokens.findIndex(t => t.id === activeId) : -1;
                 const overIdx = overId ? tokens.findIndex(t => t.id === overId) : -1;
+                // Compute order numbers (only for non-separator tokens)
+                let orderCounter = 0;
+                const orderMap = new Map<string, number>();
+                tokens.forEach(t => {
+                  const isSep = t.type === "text" && /^[\s/]+$/.test(t.value);
+                  if (!isSep) {
+                    orderCounter++;
+                    orderMap.set(t.id, orderCounter);
+                  }
+                });
+                const totalOrdered = orderCounter;
                 return tokens.map((token, index) => {
                   const isDropTarget = activeId !== null && overId === token.id && activeId !== token.id;
                   return (
@@ -644,6 +726,9 @@ export function PlaceholderBuilder({
                         item={token}
                         disabled={disabled}
                         onRemove={() => removeToken(index)}
+                        order={orderMap.get(token.id)}
+                        totalOrdered={totalOrdered}
+                        onReorder={handleReorder}
                       />
                       {isDropTarget && activeIdx < overIdx && <DropIndicator />}
                     </React.Fragment>
@@ -652,8 +737,8 @@ export function PlaceholderBuilder({
               })()}
             </SortableContext>
 
-            <DragOverlay>
-              {activeItem ? <DragOverlayToken item={activeItem} /> : null}
+            <DragOverlay modifiers={[restrictToWindowEdges]} dropAnimation={null}>
+              {activeItem ? <DragOverlayToken item={activeItem} order={activeOrder} /> : null}
             </DragOverlay>
           </DndContext>
         )}

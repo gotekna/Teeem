@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,14 +14,19 @@ interface User {
   id: number;
   name: string;
   email: string;
-  avatar_url?: string;
+  photo_url?: string | null;
 }
+
+const MAX_PHOTO_SIZE = 1 * 1024 * 1024; // 1MB
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
 
 export default function ProfilePage() {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -30,7 +35,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     loadUser();
-     
+
   }, []);
 
   const loadUser = async () => {
@@ -55,6 +60,60 @@ export default function ProfilePage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select a JPG, PNG, or GIF image.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > MAX_PHOTO_SIZE) {
+      toast({
+        title: "File too large",
+        description: "Photo must be under 1MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append("user[photo]", file);
+
+      const response = await api.patch<{ success: boolean; user: User }>(
+        `/api/v1/users/${user.id}`,
+        formData
+      );
+
+      if (response?.success && response.user) {
+        setUser(response.user);
+        toast({
+          title: "Success",
+          description: "Profile photo updated!",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to upload photo:", err);
+      toast({
+        title: "Error",
+        description: "Failed to upload photo",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
@@ -119,9 +178,9 @@ export default function ProfilePage() {
               {/* Avatar */}
               <div className="flex items-center gap-6">
                 <div className="h-24 w-24 overflow-hidden rounded-lg bg-muted">
-                  {user?.avatar_url ? (
+                  {user?.photo_url ? (
                     <img
-                      src={user.avatar_url}
+                      src={user.photo_url}
                       alt="Avatar"
                       className="h-full w-full object-cover"
                     />
@@ -133,8 +192,27 @@ export default function ProfilePage() {
                   )}
                 </div>
                 <div>
-                  <Button type="button" variant="outline">
-                    Change avatar
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif"
+                    className="hidden"
+                    onChange={handlePhotoSelect}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={uploadingPhoto}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploadingPhoto ? (
+                      <>
+                        <Spinner size={16} className="mr-2" />
+                        Uploading...
+                      </>
+                    ) : (
+                      "Change avatar"
+                    )}
                   </Button>
                   <p className="mt-2 text-xs text-muted-foreground">
                     JPG, GIF or PNG. 1MB max.
