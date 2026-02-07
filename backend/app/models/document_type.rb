@@ -413,7 +413,7 @@ class DocumentType < ApplicationRecord
     format.gsub!("{CertType}", "Occupancy")
     format.gsub!("{Consultant}", "ABC Eng")
     format.gsub!("{Number}", "01")
-    format.gsub!("{Category}", category.presence || "General")
+    format.gsub!("{Category}", folder.presence || "General")
 
     # Tab/folder placeholders
     format.gsub!("{TabCode}", "Site")
@@ -479,7 +479,7 @@ class DocumentType < ApplicationRecord
     format.gsub!("{FormNumber}", form_number)
     format.gsub!("{DwellingType}", job.dwelling_type.presence || "")
     format.gsub!("{Number}", number.to_s.rjust(2, "0"))
-    format.gsub!("{Category}", category.presence || "General")
+    format.gsub!("{Category}", folder.presence || "General")
 
     # Tab/folder placeholders
     tab_code = tab&.dig(:code) || tab&.dig("code") || "Site"

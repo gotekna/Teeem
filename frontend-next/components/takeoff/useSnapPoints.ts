@@ -282,9 +282,10 @@ export function useSnapPoints(options: UseSnapPointsOptions) {
 // PDF Edge Detection
 // =============================================================================
 
-// Detect the nearest REAL LINE on the PDF canvas near a given point.
-// Only snaps when dark pixels form a contiguous line (not text, hatching, or noise).
-// The snap indicator only appears when a genuine line is found nearby.
+// Detect tick marks / line junctions on the PDF canvas — the little 45° or 90°
+// dashes at the ends of dimension lines. Only snaps when dark pixels form a
+// junction (2+ directions with dark runs), NOT plain lines or text.
+// This means the snap indicator only appears at precise measurement endpoints.
 function findNearestPdfEdge(
   x: number,
   y: number,
@@ -295,12 +296,10 @@ function findNearestPdfEdge(
   const ctx = pdfCanvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
 
-  // Page coords → canvas pixels (pdfCanvas is rendered at scale=2*dpr, page dims are at scale=2)
   const cx = Math.round(x * dpr);
   const cy = Math.round(y * dpr);
   const radius = Math.round(thresholdPx * dpr);
 
-  // Sample a square region around cursor
   const sx = Math.max(0, cx - radius);
   const sy = Math.max(0, cy - radius);
   const sw = Math.min(pdfCanvas.width - sx, radius * 2);
@@ -311,7 +310,6 @@ function findNearestPdfEdge(
   const { data, width } = imageData;
   const brightThreshold = 128;
 
-  // Helper: get brightness of a canvas pixel from the sampled imageData
   const getBrightness = (canvasX: number, canvasY: number): number => {
     const lx = canvasX - sx;
     const ly = canvasY - sy;
@@ -320,29 +318,30 @@ function findNearestPdfEdge(
     return (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
   };
 
-  // Measure contiguous dark run from a pixel along one axis (both directions)
-  const measureRun = (startX: number, startY: number, isHorizontal: boolean): number => {
-    let lo = 0;
-    let hi = 0;
-    const scanLimit = radius * 2;
-    for (let d = 1; d <= scanLimit; d++) {
-      const px = isHorizontal ? startX - d : startX;
-      const py = isHorizontal ? startY : startY - d;
-      if (getBrightness(px, py) < brightThreshold) lo++; else break;
+  // Measure contiguous dark run from a pixel in an arbitrary direction (dx, dy)
+  const measureDirectionalRun = (
+    startX: number, startY: number, dx: number, dy: number
+  ): number => {
+    let count = 1; // include start pixel
+    const limit = radius * 2;
+    for (let d = 1; d <= limit; d++) {
+      if (getBrightness(startX + dx * d, startY + dy * d) < brightThreshold) count++;
+      else break;
     }
-    for (let d = 1; d <= scanLimit; d++) {
-      const px = isHorizontal ? startX + d : startX;
-      const py = isHorizontal ? startY : startY + d;
-      if (getBrightness(px, py) < brightThreshold) hi++; else break;
+    for (let d = 1; d <= limit; d++) {
+      if (getBrightness(startX - dx * d, startY - dy * d) < brightThreshold) count++;
+      else break;
     }
-    return lo + 1 + hi;
+    return count;
   };
 
-  // Minimum contiguous dark run to qualify as a "real line" (filters text/noise).
-  // ~8 canvas pixels ≈ 4 page pixels on 2x DPR — dimension lines are much longer.
+  // Thresholds:
+  // - Main line: long contiguous run (dimension line, wall edge)
+  // - Tick mark: shorter run (the little dash at 45°/90°)
   const minLineRun = Math.max(8, Math.round(4 * dpr));
+  const minTickRun = Math.max(4, Math.round(2 * dpr));
 
-  // Collect dark pixel candidates
+  // Collect dark pixel candidates sorted by distance to cursor
   const candidates: Array<{ canvasX: number; canvasY: number; dist: number }> = [];
   for (let py = 0; py < sh; py++) {
     for (let px = 0; px < sw; px++) {
@@ -359,56 +358,33 @@ function findNearestPdfEdge(
 
   if (candidates.length === 0) return null;
 
-  // Sort by distance (closest first), only validate the nearest few for speed
   candidates.sort((a, b) => a.dist - b.dist);
-  const checkLimit = Math.min(candidates.length, 20);
-
-  let bestX = 0;
-  let bestY = 0;
-  let found = false;
+  const checkLimit = Math.min(candidates.length, 30);
 
   for (let i = 0; i < checkLimit; i++) {
     const c = candidates[i];
-    const hRun = measureRun(c.canvasX, c.canvasY, true);
-    const vRun = measureRun(c.canvasX, c.canvasY, false);
-    // Must have a contiguous dark run long enough to be a real line
-    if (hRun >= minLineRun || vRun >= minLineRun) {
-      bestX = c.canvasX;
-      bestY = c.canvasY;
-      found = true;
-      break;
+
+    // Measure dark runs in 4 directions from this pixel:
+    // horizontal, vertical, 45° (NE-SW), 135° (NW-SE)
+    const hRun  = measureDirectionalRun(c.canvasX, c.canvasY, 1, 0);
+    const vRun  = measureDirectionalRun(c.canvasX, c.canvasY, 0, 1);
+    const d45   = measureDirectionalRun(c.canvasX, c.canvasY, 1, -1);
+    const d135  = measureDirectionalRun(c.canvasX, c.canvasY, 1, 1);
+
+    const runs = [hRun, vRun, d45, d135];
+    const hasMainLine = runs.some(r => r >= minLineRun);
+    const tickDirs = runs.filter(r => r >= minTickRun).length;
+
+    // Junction = at least one main line direction + at least one additional direction
+    // This catches: tick marks (line + diagonal), line crossings, T-junctions, corners
+    // Plain lines (only 1 direction) and noise (no direction) are filtered out
+    if (hasMainLine && tickDirs >= 2) {
+      return { x: c.canvasX / dpr, y: c.canvasY / dpr };
     }
   }
 
-  // No dark pixel passed the "real line" validation
-  if (!found) return null;
-
-  // Refine to line center by scanning outward in both axes
-  const refineAxis = (startPos: number, isHorizontal: boolean): number => {
-    let lo = startPos;
-    let hi = startPos;
-    for (let d = 1; d <= radius; d++) {
-      const px = isHorizontal ? startPos - d : bestX;
-      const py = isHorizontal ? bestY : startPos - d;
-      if (getBrightness(px, py) < brightThreshold) {
-        lo = isHorizontal ? px : py;
-      } else break;
-    }
-    for (let d = 1; d <= radius; d++) {
-      const px = isHorizontal ? startPos + d : bestX;
-      const py = isHorizontal ? bestY : startPos + d;
-      if (getBrightness(px, py) < brightThreshold) {
-        hi = isHorizontal ? px : py;
-      } else break;
-    }
-    return (lo + hi) / 2;
-  };
-
-  const refinedX = refineAxis(bestX, true);
-  const refinedY = refineAxis(bestY, false);
-
-  // Convert back to page coords
-  return { x: refinedX / dpr, y: refinedY / dpr };
+  // No junction/tick mark found — don't snap to plain lines
+  return null;
 }
 
 // =============================================================================
