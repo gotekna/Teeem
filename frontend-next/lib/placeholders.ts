@@ -820,108 +820,18 @@ export const SHAREPOINT_PLACEHOLDERS = STORAGE_PLACEHOLDERS;
 // WAREHOUSE-TYPE-SPECIFIC PLACEHOLDERS (For base folder token filtering)
 // =============================================================================
 
-// Common tokens available to all warehouse types
-const COMMON_WAREHOUSE_TOKENS = STORAGE_PLACEHOLDERS.filter(p =>
-  ["{{OriginalFileName}}", "{{Date}}", "{{Year}}", "{{Month}}", "{{Sequence}}", "{{UploadedBy}}", "{{Category}}", "{{Folder}}"].includes(p.code)
-);
-
-// Task tokens - for Tasks base folder
-export const WAREHOUSE_TASK_PLACEHOLDERS: PlaceholderToken[] = [
-  ...STORAGE_PLACEHOLDERS.filter(p =>
-    p.code.startsWith("{{Task") ||
-    p.code === "[[Attachments]]" ||
-    p.code === "[[Responses]]" ||
-    p.code.startsWith("{{Attachment") ||
-    p.code.startsWith("{{Response")
-  ),
-  ...COMMON_WAREHOUSE_TOKENS,
-];
-
-// Job tokens - for Jobs base folder
-export const WAREHOUSE_JOB_PLACEHOLDERS: PlaceholderToken[] = [
-  ...STORAGE_PLACEHOLDERS.filter(p =>
-    p.code.startsWith("{{Job") ||
-    p.code === "{{LotNumber}}" ||
-    p.code === "{{StreetName}}" ||
-    p.code === "{{Suburb}}" ||
-    p.code === "{{TabName}}" ||
-    p.code === "{{SubTabName}}" ||
-    p.code === "{{Category}}"
-  ),
-  ...COMMON_WAREHOUSE_TOKENS.filter(p => p.code !== "{{Category}}"), // Avoid duplicate
-];
-
-// Contact tokens - for Contacts base folder
-export const WAREHOUSE_CONTACT_PLACEHOLDERS: PlaceholderToken[] = [
-  ...STORAGE_PLACEHOLDERS.filter(p =>
-    p.code === "{{ContactName}}" ||
-    p.code === "{{Category}}" ||
-    p.code === "{{Folder}}"
-  ),
-  ...COMMON_WAREHOUSE_TOKENS.filter(p => !["{{Category}}", "{{Folder}}"].includes(p.code)), // Avoid duplicate
-];
-
-// Corporate tokens - for corporate entities (Companies, Accounts, etc.)
-export const WAREHOUSE_CORPORATE_PLACEHOLDERS: PlaceholderToken[] = [
-  ...STORAGE_PLACEHOLDERS.filter(p =>
-    p.code.startsWith("{{Company") ||
-    p.code.startsWith("[[Teeem") ||
-    p.code === "{{Category}}" ||
-    p.code === "{{Folder}}"
-  ),
-  ...COMMON_WAREHOUSE_TOKENS.filter(p => !["{{Category}}", "{{Folder}}"].includes(p.code)), // Avoid duplicate
-];
-
-// Email tokens - for Emails base folder
-export const WAREHOUSE_EMAIL_PLACEHOLDERS: PlaceholderToken[] = [
-  ...STORAGE_PLACEHOLDERS.filter(p =>
-    p.code === "{{Mailbox}}" ||
-    p.code === "{{Subject}}" ||
-    p.code === "{{SenderName}}" ||
-    p.code === "{{SenderEmail}}" ||
-    p.code === "{{ReceivedDate}}" ||
-    p.code === "{{ReceivedTime}}" ||
-    p.code === "[[Email Body]]" ||
-    p.code === "[[Email Attachments]]" ||
-    p.code === "{{Year}}" ||
-    p.code === "{{Month}}"
-  ),
-  ...COMMON_WAREHOUSE_TOKENS.filter(p => !["{{Year}}", "{{Month}}"].includes(p.code)), // Avoid duplicate
-];
-
-// Case tokens - for Cases base folder
-export const WAREHOUSE_CASE_PLACEHOLDERS: PlaceholderToken[] = [
-  ...STORAGE_PLACEHOLDERS.filter(p =>
-    p.code.startsWith("{{Case")
-  ),
-  ...COMMON_WAREHOUSE_TOKENS,
-];
-
-// Asset tokens - for Assets base folder
-export const WAREHOUSE_ASSET_PLACEHOLDERS: PlaceholderToken[] = [
-  ...STORAGE_PLACEHOLDERS.filter(p =>
-    p.code.startsWith("{{Asset")
-  ),
-  ...COMMON_WAREHOUSE_TOKENS,
-];
-
-// Template tokens - for Templates base folder
-export const WAREHOUSE_TEMPLATE_PLACEHOLDERS: PlaceholderToken[] = [
-  ...STORAGE_PLACEHOLDERS.filter(p =>
-    p.code.startsWith("{{Template")
-  ),
-  ...COMMON_WAREHOUSE_TOKENS,
-];
-
-// People tokens - for People base folder (users, personnel)
-export const WAREHOUSE_PEOPLE_PLACEHOLDERS: PlaceholderToken[] = [
-  ...STORAGE_PLACEHOLDERS.filter(p =>
-    p.code === "{{UserCode}}" ||
-    p.code === "{{UserName}}" ||
-    p.code === "{{ContactName}}"
-  ),
-  ...COMMON_WAREHOUSE_TOKENS,
-];
+// SSoT: ALL warehouse types show the SAME full set of storage placeholders.
+// Warehouse folders can be nested across contexts (e.g., Task folders live inside Jobs),
+// so every token must be available everywhere. No per-type filtering.
+export const WAREHOUSE_TASK_PLACEHOLDERS: PlaceholderToken[] = STORAGE_PLACEHOLDERS;
+export const WAREHOUSE_JOB_PLACEHOLDERS: PlaceholderToken[] = STORAGE_PLACEHOLDERS;
+export const WAREHOUSE_CONTACT_PLACEHOLDERS: PlaceholderToken[] = STORAGE_PLACEHOLDERS;
+export const WAREHOUSE_CORPORATE_PLACEHOLDERS: PlaceholderToken[] = STORAGE_PLACEHOLDERS;
+export const WAREHOUSE_EMAIL_PLACEHOLDERS: PlaceholderToken[] = STORAGE_PLACEHOLDERS;
+export const WAREHOUSE_CASE_PLACEHOLDERS: PlaceholderToken[] = STORAGE_PLACEHOLDERS;
+export const WAREHOUSE_ASSET_PLACEHOLDERS: PlaceholderToken[] = STORAGE_PLACEHOLDERS;
+export const WAREHOUSE_TEMPLATE_PLACEHOLDERS: PlaceholderToken[] = STORAGE_PLACEHOLDERS;
+export const WAREHOUSE_PEOPLE_PLACEHOLDERS: PlaceholderToken[] = STORAGE_PLACEHOLDERS;
 
 // =============================================================================
 // COMBINED EXPORTS BY SCOPE
