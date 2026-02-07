@@ -9,6 +9,8 @@ import { BackButton } from "@/components/ui/back-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { PdfChrome } from "@/components/ui/pdf-chrome";
+import { ChevronLeft } from "lucide-react";
 
 // Takeoff components
 import { TakeoffCanvas } from "@/components/takeoff/TakeoffCanvas";
@@ -64,6 +66,20 @@ export default function TakeoffPage() {
   const [pricebookSelectorOpen, setPricebookSelectorOpen] = React.useState(false);
   const [measurementForPricebook, setMeasurementForPricebook] = React.useState<TakeoffMeasurement | null>(null);
   const [isGeneratingPO, setIsGeneratingPO] = React.useState(false);
+
+  // Sidebar state - pinned persists to localStorage
+  const [sidebarPinned, setSidebarPinned] = React.useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('takeoff-sidebar-pinned') === 'true';
+  });
+  const [sidebarOpen, setSidebarOpen] = React.useState(sidebarPinned);
+
+  const handleToggleSidebar = () => setSidebarOpen(prev => !prev);
+  const handlePinSidebar = (pinned: boolean) => {
+    setSidebarPinned(pinned);
+    localStorage.setItem('takeoff-sidebar-pinned', String(pinned));
+    if (pinned) setSidebarOpen(true);
+  };
 
   // Get current page scale
   const [currentPageNumber, setCurrentPageNumber] = React.useState(1);
@@ -879,7 +895,7 @@ export default function TakeoffPage() {
         </div>
 
         {/* Canvas area */}
-        <div className="flex-1 overflow-auto bg-muted/20 relative">
+        <PdfChrome className="p-0.5">
           {pdfError && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
@@ -900,7 +916,7 @@ export default function TakeoffPage() {
 
           {currentPage && (
             <div
-              className="relative mx-auto border border-border/40"
+              className="relative mx-auto"
               style={{
                 width: currentPage.width * zoom,
                 height: currentPage.height * zoom,
@@ -928,20 +944,43 @@ export default function TakeoffPage() {
               />
             </div>
           )}
+        </PdfChrome>
+
+        {/* Collapsible measurements sidebar */}
+        <div
+          className={cn(
+            "transition-all duration-200 ease-in-out overflow-hidden border-l",
+            sidebarOpen ? "w-80" : "w-0 border-l-0"
+          )}
+        >
+          <div className="w-80 h-full">
+            <TakeoffSidebar
+              measurements={measurements}
+              layers={layers}
+              summary={summary}
+              selectedMeasurement={selectedMeasurement}
+              onMeasurementSelect={setSelectedMeasurement}
+              onMeasurementDelete={handleMeasurementDelete}
+              onAssignPricebook={handleAssignPricebook}
+              onGeneratePO={handleGeneratePO}
+              isLoading={isGeneratingPO}
+              onClose={() => setSidebarOpen(false)}
+              pinned={sidebarPinned}
+              onPinChange={handlePinSidebar}
+            />
+          </div>
         </div>
 
-        {/* Measurements sidebar */}
-        <TakeoffSidebar
-          measurements={measurements}
-          layers={layers}
-          summary={summary}
-          selectedMeasurement={selectedMeasurement}
-          onMeasurementSelect={setSelectedMeasurement}
-          onMeasurementDelete={handleMeasurementDelete}
-          onAssignPricebook={handleAssignPricebook}
-          onGeneratePO={handleGeneratePO}
-          isLoading={isGeneratingPO}
-        />
+        {/* Sidebar toggle tab (visible when collapsed) */}
+        {!sidebarOpen && (
+          <button
+            onClick={handleToggleSidebar}
+            className="w-6 border-l bg-background hover:bg-muted flex items-center justify-center"
+            title="Show measurements"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Pricebook Selector Modal */}

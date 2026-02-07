@@ -766,6 +766,18 @@ const TIER_3_COMPONENTS: StandardComponent[] = [
 
 const TIER_4_COMPONENTS: StandardComponent[] = [
   {
+    id: "pdf-chrome",
+    name: "PdfChrome",
+    displayName: "PDF Chrome",
+    category: "document",
+    tier: 4,
+    status: "standard",
+    importPath: "@/components/ui/pdf-chrome",
+    description: "Visual framing for PDF content. PdfChrome provides the muted background 'desk', PdfFrame provides border/shadow around the PDF itself.",
+    whenToUse: "Any context displaying a PDF - takeoff, editor, invoice viewer, document viewer. Ensures consistent visual framing.",
+    usageCount: 6,
+  },
+  {
     id: "document-viewer",
     name: "DocumentViewer",
     displayName: "Document Viewer",

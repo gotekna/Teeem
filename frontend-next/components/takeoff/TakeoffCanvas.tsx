@@ -17,6 +17,7 @@ import type {
 import { DEFAULT_DRAWING_STYLE } from "./types";
 import { useSnapPoints, type SnapConfig } from "./useSnapPoints";
 import { SnapIndicator, SnapPointsLayer } from "./SnapIndicator";
+import { PdfFrame } from "@/components/ui/pdf-chrome";
 
 // =============================================================================
 // Fabric.js Type Extensions
@@ -856,7 +857,10 @@ export function TakeoffCanvas({
   }, [showSnapPoints, getVisibleSnapPoints, pageWidth, pageHeight]);
 
   return (
-    <div className="relative overflow-hidden">
+    <PdfFrame
+      className="relative"
+      style={{ width: pageWidth * zoom, height: pageHeight * zoom }}
+    >
       <canvas
         ref={canvasRef}
         className="absolute inset-0"
@@ -927,7 +931,7 @@ export function TakeoffCanvas({
           </div>
         </div>
       )}
-    </div>
+    </PdfFrame>
   );
 }
 

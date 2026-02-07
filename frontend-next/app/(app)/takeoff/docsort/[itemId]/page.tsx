@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { PdfChrome } from "@/components/ui/pdf-chrome";
+import { ChevronUp, ChevronDown, ChevronLeft } from "lucide-react";
 import { useBreadcrumbContext } from "@/contexts/BreadcrumbContext";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 
@@ -90,6 +91,20 @@ export default function DocsortTakeoffPage() {
   const [pricebookSelectorOpen, setPricebookSelectorOpen] = React.useState(false);
   const [measurementForPricebook, setMeasurementForPricebook] = React.useState<TakeoffMeasurement | null>(null);
 
+  // Sidebar state - pinned persists to localStorage
+  const [sidebarPinned, setSidebarPinned] = React.useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('takeoff-sidebar-pinned') === 'true';
+  });
+  const [sidebarOpen, setSidebarOpen] = React.useState(sidebarPinned);
+
+  const handleToggleSidebar = () => setSidebarOpen(prev => !prev);
+  const handlePinSidebar = (pinned: boolean) => {
+    setSidebarPinned(pinned);
+    localStorage.setItem('takeoff-sidebar-pinned', String(pinned));
+    if (pinned) setSidebarOpen(true);
+  };
+
   // PDF loading - hook owns currentPageNumber state
   // Fall back to demo PDF for local testing when storage provider is disconnected
   const pdfUrl = itemData?.download_url || (itemData ? "/demo/floor-plan.pdf" : null);
@@ -117,10 +132,10 @@ export default function DocsortTakeoffPage() {
       if (Math.abs(w - lastContainerSize.current.w) < 2 && Math.abs(h - lastContainerSize.current.h) < 2) return;
       lastContainerSize.current = { w, h };
 
-      // Fit entire page in container with margin for scrollbar + breathing room
+      // p-0.5 = 2px padding each side (4px total) so ring-1 border isn't clipped by overflow
       const fitZoom = Math.min(
-        (w - 32) / currentPage.width,
-        (h - 32) / currentPage.height
+        (w - 4) / currentPage.width,
+        (h - 4) / currentPage.height
       );
       setZoom(Math.max(0.1, Math.min(fitZoom, 3)));
       container.scrollTop = 0;
@@ -766,7 +781,7 @@ export default function DocsortTakeoffPage() {
         </div>
 
         {/* Canvas area */}
-        <div ref={canvasContainerRef} className="flex-1 overflow-auto bg-muted/20 relative">
+        <PdfChrome ref={canvasContainerRef} className="p-0.5">
           {pdfError && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
@@ -787,7 +802,7 @@ export default function DocsortTakeoffPage() {
 
           {currentPage && (
             <div
-              className="relative mx-auto border border-border/40"
+              className="relative mx-auto"
               style={{
                 width: currentPage.width * zoom,
                 height: currentPage.height * zoom,
@@ -815,20 +830,43 @@ export default function DocsortTakeoffPage() {
               />
             </div>
           )}
+        </PdfChrome>
+
+        {/* Collapsible measurements sidebar */}
+        <div
+          className={cn(
+            "transition-all duration-200 ease-in-out overflow-hidden border-l",
+            sidebarOpen ? "w-80" : "w-0 border-l-0"
+          )}
+        >
+          <div className="w-80 h-full">
+            <TakeoffSidebar
+              measurements={measurements}
+              layers={layers}
+              summary={summary}
+              selectedMeasurement={selectedMeasurement}
+              onMeasurementSelect={setSelectedMeasurement}
+              onMeasurementDelete={handleMeasurementDelete}
+              onAssignPricebook={handleAssignPricebook}
+              onGeneratePO={handleGeneratePO}
+              isLoading={false}
+              onClose={() => setSidebarOpen(false)}
+              pinned={sidebarPinned}
+              onPinChange={handlePinSidebar}
+            />
+          </div>
         </div>
 
-        {/* Measurements sidebar */}
-        <TakeoffSidebar
-          measurements={measurements}
-          layers={layers}
-          summary={summary}
-          selectedMeasurement={selectedMeasurement}
-          onMeasurementSelect={setSelectedMeasurement}
-          onMeasurementDelete={handleMeasurementDelete}
-          onAssignPricebook={handleAssignPricebook}
-          onGeneratePO={handleGeneratePO}
-          isLoading={false}
-        />
+        {/* Sidebar toggle tab (visible when collapsed) */}
+        {!sidebarOpen && (
+          <button
+            onClick={handleToggleSidebar}
+            className="w-6 border-l bg-background hover:bg-muted flex items-center justify-center"
+            title="Show measurements"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Pricebook Selector Modal */}

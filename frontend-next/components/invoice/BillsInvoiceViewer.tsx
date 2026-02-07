@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import { PdfFrame } from "@/components/ui/pdf-chrome";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -805,14 +806,14 @@ export function BillsInvoiceViewer({
                 <p className="text-sm text-muted-foreground mt-4">Loading invoice...</p>
               </div>
             ) : pdfBlobUrl ? (
-              <div className="relative w-full h-full border rounded-lg overflow-hidden">
+              <PdfFrame className="relative w-full h-full rounded-lg">
                 <PDFViewer
                   url={pdfBlobUrl}
                   className="w-full h-full"
                   showToolbar={true}
                   highlights={pdfHighlights}
                 />
-              </div>
+              </PdfFrame>
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center border rounded-lg bg-muted/30">
                 <ImageIcon className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />

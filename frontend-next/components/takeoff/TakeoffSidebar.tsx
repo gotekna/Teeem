@@ -17,6 +17,8 @@ import {
   Package,
   Calculator,
   ShoppingCart,
+  Pin,
+  X,
 } from "lucide-react";
 import type {
   TakeoffMeasurement,
@@ -24,6 +26,7 @@ import type {
   MeasurementSummary,
 } from "./types";
 import { formatCurrency } from "@/utils/formatters";
+import { cn } from "@/lib/utils";
 
 // =============================================================================
 // Props
@@ -39,6 +42,9 @@ interface TakeoffSidebarProps {
   onAssignPricebook: (measurementId: number) => void;
   onGeneratePO: () => void;
   isLoading?: boolean;
+  onClose?: () => void;
+  pinned?: boolean;
+  onPinChange?: (pinned: boolean) => void;
 }
 
 // =============================================================================
@@ -55,6 +61,9 @@ export function TakeoffSidebar({
   onAssignPricebook,
   onGeneratePO,
   isLoading,
+  onClose,
+  pinned,
+  onPinChange,
 }: TakeoffSidebarProps) {
   // Group measurements by layer
   const measurementsByLayer = React.useMemo(() => {
@@ -94,13 +103,37 @@ export function TakeoffSidebar({
   };
 
   return (
-    <div className="w-80 border-l bg-background flex flex-col h-full">
+    <div className="w-80 bg-background flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b">
-        <h2 className="font-semibold">Measurements</h2>
-        <p className="text-xs text-muted-foreground">
-          {measurements.length} items
-        </p>
+      <div className="p-4 border-b flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold">Measurements</h2>
+          <p className="text-xs text-muted-foreground">
+            {measurements.length} items
+          </p>
+        </div>
+        {onClose && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onPinChange?.(!pinned)}
+              title={pinned ? "Unpin sidebar" : "Pin sidebar open"}
+            >
+              <Pin className={cn("h-3.5 w-3.5 transition-colors", pinned && "text-primary fill-primary")} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={onClose}
+              title="Close sidebar"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Measurements List */}

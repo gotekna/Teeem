@@ -131,6 +131,7 @@ export function WarehouseTypesTab() {
   const [warehouseFolderToggles, setWarehouseFolderToggles] = React.useState<WarehouseFolderToggle[]>([]);
   const [allFolders, setAllFolders] = React.useState<FlatFolder[]>([]);
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = React.useState<Set<number>>(new Set());
   const [folderTypeFilter, setFolderTypeFilter] = React.useState<string>("all");
   // Primary tab categories for folder filter
   // Corporate, Job, Contact are primary; everything else is "System"
@@ -298,6 +299,7 @@ export function WarehouseTypesTab() {
     setWarehouseFolderToggles([]);
     setAllFolders([]);
     setExpandedGroups(new Set());
+    setExpandedFolders(new Set());
     setFolderTypeFilter("all");
     setWarehouseFolderSearch("");
     setShowAvailableFolders(false);
@@ -360,6 +362,18 @@ export function WarehouseTypesTab() {
     });
   };
 
+  const toggleFolderExpanded = (folderId: number) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  };
+
   // Get direct children of a root folder from allFolders
   const getDirectChildren = (rootId: number): FlatFolder[] => {
     return allFolders.filter(f => f.parent_id === rootId);
@@ -371,12 +385,12 @@ export function WarehouseTypesTab() {
     return "System";
   }, []);
 
-  // Count folders per primary category
+  // Count folders per primary category (root + children)
   const folderCategoryCounts = React.useMemo(() => {
     const counts: Record<string, number> = { Corporate: 0, Job: 0, Contact: 0, System: 0 };
     for (const toggle of warehouseFolderToggles) {
       const cat = getFolderCategory(toggle.warehouse_type_name || "Unassigned");
-      counts[cat] = (counts[cat] || 0) + 1;
+      counts[cat] = (counts[cat] || 0) + 1 + toggle.children_ids.length;
     }
     return counts;
   }, [warehouseFolderToggles, getFolderCategory]);
@@ -742,15 +756,18 @@ export function WarehouseTypesTab() {
                 const searchTerm = warehouseFolderSearch.toLowerCase().trim();
 
                 // Check if a root folder matches search + primary category filter
+                // Also matches if any child folder name matches the search
                 const rootMatchesFilter = (toggle: WarehouseFolderToggle): boolean => {
                   // Primary category filter
                   if (folderTypeFilter !== "all") {
                     const folderCategory = getFolderCategory(toggle.warehouse_type_name || "Unassigned");
                     if (folderCategory !== folderTypeFilter) return false;
                   }
-                  // Search
+                  // Search - match root name OR any child name
                   if (searchTerm) {
-                    return toggle.name.toLowerCase().includes(searchTerm);
+                    if (toggle.name.toLowerCase().includes(searchTerm)) return true;
+                    const children = getDirectChildren(toggle.id);
+                    return children.some(c => c.name.toLowerCase().includes(searchTerm));
                   }
                   return true;
                 };
@@ -780,7 +797,7 @@ export function WarehouseTypesTab() {
                     <div className="flex flex-wrap gap-1">
                       {(["all", "Corporate", "Job", "Contact", "System"] as const).map((tab) => {
                         const count = tab === "all"
-                          ? warehouseFolderToggles.length
+                          ? warehouseFolderToggles.reduce((sum, t) => sum + 1 + t.children_ids.length, 0)
                           : folderCategoryCounts[tab] || 0;
                         const isActive = folderTypeFilter === tab;
                         return (
@@ -874,37 +891,87 @@ export function WarehouseTypesTab() {
 
                               {/* Folder rows under this type */}
                               {isExpanded && sortedFolders.map((bf, idx) => {
-                                const isLast = idx === sortedFolders.length - 1;
+                                const isLastRoot = idx === sortedFolders.length - 1;
+                                const children = getDirectChildren(bf.id);
+                                const hasChildren = children.length > 0;
+                                const isFolderExpanded = expandedFolders.has(bf.id) || !!searchTerm;
+                                const sortedChildren = [...children].sort((a, b) => a.name.localeCompare(b.name));
+
                                 return (
-                                  <div
-                                    key={bf.id}
-                                    className={cn(
-                                      "flex items-center gap-1.5 pl-5 pr-2 py-1 hover:bg-muted/50",
-                                      !isLast && "border-b border-border/30",
-                                      !bf.enabled && "opacity-60"
-                                    )}
-                                  >
-                                    <span className="text-border text-xs font-mono shrink-0 w-4 text-center select-none">
-                                      {isLast ? "└" : "├"}
-                                    </span>
-                                    <Checkbox
-                                      id={`bf-${bf.id}`}
-                                      checked={bf.enabled}
-                                      onCheckedChange={() => toggleWarehouseFolder(bf.id)}
-                                    />
-                                    <label
-                                      htmlFor={`bf-${bf.id}`}
-                                      className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
+                                  <React.Fragment key={bf.id}>
+                                    <div
+                                      className={cn(
+                                        "flex items-center gap-1.5 pl-5 pr-2 py-1 hover:bg-muted/50",
+                                        !(isLastRoot && !isFolderExpanded) && "border-b border-border/30",
+                                        !bf.enabled && "opacity-60"
+                                      )}
                                     >
-                                      <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                      <span className={cn(
-                                        "truncate",
-                                        searchTerm && bf.name.toLowerCase().includes(searchTerm) && "font-medium text-foreground"
-                                      )}>
-                                        {bf.name}
+                                      <span className="text-border text-xs font-mono shrink-0 w-4 text-center select-none">
+                                        {isLastRoot ? "└" : "├"}
                                       </span>
-                                    </label>
-                                  </div>
+                                      {hasChildren ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleFolderExpanded(bf.id)}
+                                          className="shrink-0 p-0 h-4 w-4 flex items-center justify-center hover:bg-muted rounded"
+                                        >
+                                          {isFolderExpanded
+                                            ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                            : <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                          }
+                                        </button>
+                                      ) : (
+                                        <span className="shrink-0 w-4" />
+                                      )}
+                                      <Checkbox
+                                        id={`bf-${bf.id}`}
+                                        checked={bf.enabled}
+                                        onCheckedChange={() => toggleWarehouseFolder(bf.id)}
+                                      />
+                                      <label
+                                        htmlFor={`bf-${bf.id}`}
+                                        className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
+                                      >
+                                        <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                        <span className={cn(
+                                          "truncate",
+                                          searchTerm && bf.name.toLowerCase().includes(searchTerm) && "font-medium text-foreground"
+                                        )}>
+                                          {bf.name}
+                                        </span>
+                                        {hasChildren && (
+                                          <span className="text-[10px] text-muted-foreground ml-1">
+                                            ({children.length})
+                                          </span>
+                                        )}
+                                      </label>
+                                    </div>
+                                    {/* Child folders (sub-tabs) - no checkboxes, inherit from parent */}
+                                    {hasChildren && isFolderExpanded && sortedChildren.map((child, cIdx) => {
+                                      const isLastChild = cIdx === sortedChildren.length - 1;
+                                      return (
+                                        <div
+                                          key={child.id}
+                                          className={cn(
+                                            "flex items-center gap-1.5 pl-14 pr-2 py-0.5 hover:bg-muted/30",
+                                            !(isLastRoot && isLastChild) && "border-b border-border/20",
+                                            !bf.enabled && "opacity-50"
+                                          )}
+                                        >
+                                          <span className="text-border/60 text-xs font-mono shrink-0 w-4 text-center select-none">
+                                            {isLastChild ? "└" : "├"}
+                                          </span>
+                                          <Folder className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                                          <span className={cn(
+                                            "text-xs text-muted-foreground truncate",
+                                            searchTerm && child.name.toLowerCase().includes(searchTerm) && "font-medium text-foreground"
+                                          )}>
+                                            {child.name}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </React.Fragment>
                                 );
                               })}
                             </div>

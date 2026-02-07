@@ -719,6 +719,26 @@ export function WarehouseFoldersConfig({
 
   // Items start collapsed by default - user can expand as needed
 
+  // Count breakdown: roots, children (depth 1), grandchildren (depth 2+)
+  const countBreakdown = React.useCallback((rootTabs: WarehouseFolder[]): { roots: number; children: number; grandchildren: number; total: number } => {
+    let children = 0;
+    let grandchildren = 0;
+    const countDeep = (tabs: WarehouseFolder[], depth: number) => {
+      for (const tab of tabs) {
+        if (tab.children?.length) {
+          for (const child of tab.children) {
+            if (depth === 0) children++;
+            else grandchildren++;
+            countDeep([child], depth + 1);
+          }
+        }
+      }
+    };
+    countDeep(rootTabs, 0);
+    const roots = rootTabs.length;
+    return { roots, children, grandchildren, total: roots + children + grandchildren };
+  }, []);
+
   // Helper to collect all descendant tab_keys recursively
   const collectDescendantKeys = React.useCallback((tab: WarehouseFolder): string[] => {
     const keys: string[] = [];
@@ -1720,9 +1740,19 @@ export function WarehouseFoldersConfig({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CardTitle className="text-base">{GROUP_LABELS[group]}</CardTitle>
-              <Badge variant="secondary" className="text-xs">
-                {tabsInGroup.length}
-              </Badge>
+              {(() => {
+                const b = countBreakdown(tabsInGroup);
+                return (
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Badge variant="secondary" className="text-xs">{b.total}</Badge>
+                    {(b.children > 0 || b.grandchildren > 0) && (
+                      <span className="opacity-70">
+                        {b.roots}{b.children > 0 && ` + ${b.children}`}{b.grandchildren > 0 && ` + ${b.grandchildren}`}
+                      </span>
+                    )}
+                  </span>
+                );
+              })()}
             </div>
             <Button
               variant="outline"
@@ -1887,9 +1917,19 @@ export function WarehouseFoldersConfig({
               .map((group) => (
                 <TabsTrigger key={group} value={group} className="gap-2">
                   {GROUP_LABELS[group]}
-                  <Badge variant="secondary" className="text-xs">
-                    {groupedTabs[group]?.length || 0}
-                  </Badge>
+                  {(() => {
+                    const b = countBreakdown(groupedTabs[group] || []);
+                    return (
+                      <span className="flex items-center gap-1 text-xs">
+                        <Badge variant="secondary" className="text-xs">{b.total}</Badge>
+                        {(b.children > 0 || b.grandchildren > 0) && (
+                          <span className="text-[10px] opacity-60">
+                            {b.roots}{b.children > 0 && `+${b.children}`}{b.grandchildren > 0 && `+${b.grandchildren}`}
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })()}
                 </TabsTrigger>
               ))}
           </TabsList>
@@ -1908,7 +1948,17 @@ export function WarehouseFoldersConfig({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CardTitle>All Tabs</CardTitle>
-                <Badge variant="secondary">{flatTabs.length}</Badge>
+                {(() => {
+                  const b = countBreakdown(flatTabs);
+                  return (
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Badge variant="secondary">{b.total}</Badge>
+                      <span className="opacity-70">
+                        {b.roots} root{b.children > 0 && <> + {b.children} child</>}{b.grandchildren > 0 && <> + {b.grandchildren} grandchild</>}
+                      </span>
+                    </span>
+                  );
+                })()}
               </div>
               {compact && actionButtons}
             </div>

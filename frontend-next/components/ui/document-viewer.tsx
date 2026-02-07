@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { ExcelDocumentPreview } from "@/components/ui/excel-document-preview";
 import { cn } from "@/lib/utils";
+import { PdfFrame } from "@/components/ui/pdf-chrome";
 
 // =============================================================================
 // TYPES
@@ -993,13 +994,15 @@ export function DocumentViewer({
                 </p>
               </div>
             ) : pdfBlobUrl ? (
-              <iframe
-                key={pdfBlobUrl}
-                src={pdfBlobUrl}
-                className="w-full h-full rounded-lg shadow-2xl"
-                style={{ minHeight: "calc(100vh - 200px)" }}
-                onError={() => setError("Unable to load PDF preview")}
-              />
+              <PdfFrame className="w-full h-full rounded-lg shadow-2xl">
+                <iframe
+                  key={pdfBlobUrl}
+                  src={pdfBlobUrl}
+                  className="w-full h-full"
+                  style={{ minHeight: "calc(100vh - 200px)" }}
+                  onError={() => setError("Unable to load PDF preview")}
+                />
+              </PdfFrame>
             ) : (
               // Fallback UI when PDF blob URL couldn't be created (prevents black screen)
               <div className={`p-8 rounded-lg shadow-md text-center max-w-md ${isDark ? "bg-gray-800" : "bg-white"}`}>
