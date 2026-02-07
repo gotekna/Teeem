@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_07_097000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_07_098000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10265,6 +10265,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_07_097000) do
     t.datetime "updated_at", null: false
     t.string "folder_path_template"
     t.bigint "tenant_id"
+    t.string "source_model"
+    t.jsonb "token_config", default: {}, null: false
+    t.jsonb "records_config", default: {}, null: false
     t.index ["code"], name: "index_warehouse_types_on_code", unique: true
     t.index ["enabled"], name: "index_warehouse_types_on_enabled"
     t.index ["order_position"], name: "index_warehouse_types_on_order_position"

@@ -33,6 +33,8 @@ class WarehouseType < ApplicationRecord
   validates :code, uniqueness: { scope: :tenant_id, case_sensitive: false }
   validates :code, format: { with: /\A[a-z][a-z0-9_]*\z/, message: "must be lowercase letters, numbers, and underscores only, starting with a letter" }
   validates :display_name, presence: true
+  validate :validate_source_model
+  validate :validate_records_config_completeness
 
   # Scopes
   scope :enabled, -> { where(enabled: true).where.not(code: UNASSIGNED_CODE) }
@@ -129,6 +131,29 @@ class WarehouseType < ApplicationRecord
 
   def normalize_code
     self.code = code.to_s.downcase.strip if code.present?
+  end
+
+  # Fail fast: if source_model is set, it MUST resolve to a real ActiveRecord class
+  def validate_source_model
+    return if source_model.blank?
+
+    klass = source_model.constantize
+    unless klass < ActiveRecord::Base
+      errors.add(:source_model, "#{source_model} is not an ActiveRecord model")
+    end
+  rescue NameError
+    errors.add(:source_model, "#{source_model} is not a valid model class")
+  end
+
+  # Fail fast: if source_model is set, records_config MUST have display.name, search, and order
+  def validate_records_config_completeness
+    return if source_model.blank?
+
+    config = records_config || {}
+    display = config['display'] || {}
+    errors.add(:records_config, "display.name is required when source_model is set") if display['name'].blank?
+    errors.add(:records_config, "search is required when source_model is set") if (config['search'] || []).empty?
+    errors.add(:records_config, "order is required when source_model is set") if config['order'].blank?
   end
 
   # Clean double slashes but don't force separators between adjacent tokens
