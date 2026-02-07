@@ -33,6 +33,25 @@ class ConvertSiteParentToSystem < ActiveRecord::Migration[8.0]
         AND id NOT IN (SELECT DISTINCT parent_id FROM warehouse_folders WHERE parent_id IS NOT NULL)
         AND id IN (SELECT DISTINCT warehouse_folder_id FROM warehouse_folder_document_types)
     SQL
+
+    # Fix misclassified data tabs: these render custom components, not file browsers
+    execute <<~SQL
+      UPDATE warehouse_folders
+      SET tab_type = 'system',
+          tab_group = 'data'
+      WHERE tab_key IN ('quote-tracker', 'activity', 'data')
+        AND component_name IS NOT NULL
+        AND tab_type != 'system'
+    SQL
+
+    # Fix Task Attachments & Task Responses: they store files, not data
+    execute <<~SQL
+      UPDATE warehouse_folders
+      SET tab_type = 'document',
+          tab_group = 'documents'
+      WHERE tab_key IN ('task_attachments', 'task_responses')
+        AND tab_type = 'system'
+    SQL
   end
 
   def down
