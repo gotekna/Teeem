@@ -287,8 +287,13 @@ class SmTaskAttachment < ApplicationRecord
     # FRC: "Response" = category="response" OR has action_item_id (linked to question)
     folder_type = is_response_attachment? ? :task_responses : :task_attachments
 
-    # Use config template - resolves {{TaskId}} and {{TaskName}}
+    # Use config template - resolves {{JobName}}, {{TaskId}}, and {{TaskName}}
+    # Template: Task/{{JobName}}/{{TaskId}}{{TaskName}}/Task Attachments
+    # FRC (Feb 2026): Must include JobName - tasks belong_to :job (optional)
+    job = task.job
     folder = config.resolve_virtual_path(folder_type, {
+      JobName: job&.display_name.presence || "Unassigned",
+      JobCode: job&.job_code.presence || "No-Job",
       TaskId: task.id,
       TaskName: task.name&.parameterize || "task-#{task.id}"
     })

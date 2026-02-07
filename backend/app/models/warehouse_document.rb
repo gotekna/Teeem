@@ -556,20 +556,34 @@ class WarehouseDocument < ApplicationRecord
     tokens = {}
 
     # Task context - handle both SmTask and SmTaskAttachment
+    # FRC (Feb 2026): Template requires {{JobName}}, {{TaskId}}, {{TaskName}}
     if source_type == "task" && documentable.present?
-      if documentable.is_a?(SmTask)
-        tokens[:TaskId] = documentable.id
-      elsif documentable.respond_to?(:sm_task) && documentable.sm_task
-        # SmTaskAttachment - get the task via association
-        tokens[:TaskId] = documentable.sm_task.id
+      task = if documentable.is_a?(SmTask)
+               documentable
+             elsif documentable.respond_to?(:sm_task) && documentable.sm_task
+               documentable.sm_task
+             end
+
+      if task
+        tokens[:TaskId] = task.id
+        tokens[:TaskName] = task.name&.parameterize || "task-#{task.id}"
+        # Tasks optionally belong to a job
+        if task.respond_to?(:job) && task.job
+          tokens[:JobName] = task.job.display_name.presence || "Unassigned"
+          tokens[:JobCode] = task.job.job_code.presence || "No-Job"
+        else
+          tokens[:JobName] = "Unassigned"
+          tokens[:JobCode] = "No-Job"
+        end
       end
     end
 
-    # Job context
+    # Job context (||= to not overwrite tokens already set by task context)
     if documentable.respond_to?(:job) && documentable.job
-      tokens[:JobCode] = documentable.job.job_code
+      tokens[:JobCode] ||= documentable.job.job_code
+      tokens[:JobName] ||= documentable.job.display_name.presence
     elsif documentable.respond_to?(:job_code)
-      tokens[:JobCode] = documentable.job_code
+      tokens[:JobCode] ||= documentable.job_code
     end
 
     # Contact context

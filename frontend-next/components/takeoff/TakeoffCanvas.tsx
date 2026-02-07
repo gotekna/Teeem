@@ -940,7 +940,7 @@ export function TakeoffCanvas({
           Math.pow(calibrationLine.end.y - calibrationLine.start.y, 2)
         );
         const computedMm = pxDistUnscaled * pageScale.scale_factor;
-        labelText = `${Math.round(computedMm).toLocaleString()} mm (${pageScale.scale_factor.toFixed(2)} mm/px)`;
+        labelText = `${Math.round(computedMm).toLocaleString()} mm (${Number(pageScale.scale_factor).toFixed(2)} mm/px)`;
       }
 
       // Rotate label to follow the line direction
