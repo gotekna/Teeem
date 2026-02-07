@@ -1774,8 +1774,8 @@ export default function JobDetailPage() {
           // SSoT: Use compositeKey for children to prevent collision with same-named parent tabs
           const tabValue = tab.compositeKey || tab.tab_key;
 
-          // SSoT: CAD category tabs render RevitTab for Revit/DWG/Datasmith files
-          if (tab.is_cad_category) {
+          // SSoT: CAD/Revit tabs render RevitTab for Revit/DWG/Datasmith files
+          if (tab.tab_type === 'revit' || tab.is_cad_category) {
             return (
               <TabsContent key={tabValue} value={tabValue} className="mt-4">
                 <RevitTab
@@ -1790,9 +1790,9 @@ export default function JobDetailPage() {
           // SSoT: Pass composite key (parent__child) to disambiguate same-named categories
           // e.g., "photo__site" ensures Photo > Site photos shown, not Site > Site docs
           // Render JobDocumentsTab for:
-          // 1. Photo categories (is_photo_category: true) - shows photo gallery
-          // 2. Document categories with SharePoint (folder_path set) - shows document viewer
-          if (tab.is_photo_category || tab.folder_path) {
+          // 1. Photo categories (tab_type='photo') - shows photo gallery
+          // 2. Document categories with storage (folder_path set) - shows document viewer
+          if (tab.tab_type === 'photo' || tab.is_photo_category || tab.folder_path) {
             // SSoT: Find parent tab to pass its children as categories
             // This eliminates duplicate API call - parent already has the data from useWarehouseFolders
             const parentTab = visibleJobTabs.find(p =>
@@ -1804,6 +1804,7 @@ export default function JobDetailPage() {
               tab_key: c.tab_key,
               name: c.display_name,
               display_name: c.display_name,
+              tab_type: c.tab_type,
               is_photo_category: c.is_photo_category,
               folder_path: c.folder_path ?? undefined,  // Convert null to undefined
               children: c.children?.map(gc => ({
@@ -1811,6 +1812,7 @@ export default function JobDetailPage() {
                 tab_key: gc.tab_key,
                 name: gc.display_name,
                 display_name: gc.display_name,
+                tab_type: gc.tab_type,
                 is_photo_category: gc.is_photo_category,
                 folder_path: gc.folder_path ?? undefined,  // Convert null to undefined
               })),

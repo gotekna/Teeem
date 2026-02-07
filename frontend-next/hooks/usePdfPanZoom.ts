@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 interface UsePdfPanZoomOptions {
   pageWidth: number;
@@ -243,6 +244,8 @@ export function usePdfPanZoom({
   }, [minZoom, maxZoom]);
 
   // ── Zoom to rectangle (marquee zoom) ──────────────────────────────────
+  // Uses flushSync to force React to commit DOM changes synchronously,
+  // so the content div has new dimensions before we set scroll position.
   const zoomToRect = useCallback((rect: { x: number; y: number; width: number; height: number }) => {
     const container = containerRef.current;
     if (!container || rect.width < 10 || rect.height < 10) return;
@@ -250,19 +253,25 @@ export function usePdfPanZoom({
     const containerW = container.clientWidth;
     const containerH = container.clientHeight;
 
-    // Zoom to fit rect in container with 5% padding
     const newZoom = clamp(Math.min(containerW / rect.width, containerH / rect.height) * 0.95);
+    const scaledW = rect.width * newZoom;
+    const scaledH = rect.height * newZoom;
+    const scrollLeft = rect.x * newZoom - (containerW - scaledW) / 2;
+    const scrollTop = rect.y * newZoom - (containerH - scaledH) / 2;
 
     zoomModeRef.current = "manual";
-    setZoom(newZoom);
 
-    // Center the rectangle in the viewport after zoom applies
-    requestAnimationFrame(() => {
-      const scaledW = rect.width * newZoom;
-      const scaledH = rect.height * newZoom;
-      container.scrollLeft = rect.x * newZoom - (containerW - scaledW) / 2;
-      container.scrollTop = rect.y * newZoom - (containerH - scaledH) / 2;
+    // flushSync forces React to commit DOM immediately — content div
+    // gets new width/height before we try to scroll to the target area
+    flushSync(() => {
+      setZoom(newZoom);
     });
+
+    // Force browser layout reflow so scrollWidth reflects the new content size
+    void container.scrollHeight;
+
+    container.scrollLeft = Math.max(0, scrollLeft);
+    container.scrollTop = Math.max(0, scrollTop);
   }, [minZoom, maxZoom]);
 
   return {

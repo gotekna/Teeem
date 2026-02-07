@@ -377,6 +377,7 @@ module Api
           :warehouse_type,
           :scope,  # Legacy backwards compat
           :tab_key,
+          :tab_type,
           :name,
           :display_name,
           :display_code,

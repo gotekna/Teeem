@@ -2,6 +2,11 @@
 // SSoT Rename (Feb 2026): EntityTab → StorageLocation → WarehouseFolder
 // "WarehouseFolder" is THE ONE name - all aliases removed
 // API Endpoint: /api/v1/warehouse_folders
+// SSoT: tab_type (Feb 2026) - THE ONE field for folder behavior type
+//   Replaces: is_photo_category, is_cad_category, is_mailbox booleans
+//   See: lib/constants/tab-types.ts for constants and config
+
+import type { TabType } from '@/lib/constants/tab-types';
 
 // SSoT: 'corporate' is THE ONE scope for corporate entities (Jan 2026 - 'corporate_entity' renamed)
 // SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
@@ -21,6 +26,7 @@ export interface WarehouseFolder {
   id: number;
   scope: WarehouseFolderScope;
   tab_key: string;
+  tab_type: TabType;  // SSoT: THE ONE field for folder behavior (system/document/mailbox/revit/photo)
   display_name: string;
   display_code: string | null;
   description: string | null;
@@ -62,7 +68,9 @@ export interface WarehouseFolder {
   can_delete: boolean;
   children: WarehouseFolder[];
   document_types: WarehouseFolderDocumentType[];
+  /** @deprecated Use tab_type === 'photo' instead */
   is_photo_category: boolean;
+  /** @deprecated Use tab_type === 'revit' instead */
   is_cad_category: boolean;
 }
 
@@ -93,6 +101,7 @@ export interface WarehouseFolderResponse {
 export interface WarehouseFolderCreateParams {
   scope: WarehouseFolderScope;
   tab_key: string;
+  tab_type?: TabType;  // SSoT: THE ONE field for folder behavior
   display_name: string;
   display_code?: string;
   description?: string;
@@ -109,15 +118,19 @@ export interface WarehouseFolderCreateParams {
   uses_custom_path?: boolean;  // SSoT: Template inheritance flag
   warehouse_type_override?: 'corporate' | 'contacts';  // SSoT: Path type
   document_type_ids?: number[];  // SSoT: Link document types to this tab
-  is_photo_category?: boolean;  // SSoT: Show photo gallery instead of file table
-  is_cad_category?: boolean;  // SSoT: Show CAD/Revit file viewer
+  /** @deprecated Use tab_type instead */
+  is_photo_category?: boolean;
+  /** @deprecated Use tab_type instead */
+  is_cad_category?: boolean;
   display_mode?: TabDisplayMode;  // SSoT: How tab renders
   hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
   is_system_tab?: boolean;  // SSoT: System-locked tabs cannot be deleted
-  is_mailbox?: boolean;  // SSoT: Mailbox folder flag
+  /** @deprecated Use tab_type instead */
+  is_mailbox?: boolean;
 }
 
 export interface WarehouseFolderUpdateParams {
+  tab_type?: TabType;  // SSoT: THE ONE field for folder behavior
   display_name?: string;
   display_code?: string;
   description?: string;
@@ -133,12 +146,15 @@ export interface WarehouseFolderUpdateParams {
   uses_custom_path?: boolean;  // SSoT: Template inheritance flag
   warehouse_type_override?: 'corporate' | 'contacts';  // SSoT: Path type
   document_type_ids?: number[];  // SSoT: Link document types to this tab
-  is_photo_category?: boolean;  // SSoT: Show photo gallery instead of file table
-  is_cad_category?: boolean;  // SSoT: Show CAD/Revit file viewer
+  /** @deprecated Use tab_type instead */
+  is_photo_category?: boolean;
+  /** @deprecated Use tab_type instead */
+  is_cad_category?: boolean;
   display_mode?: TabDisplayMode;  // SSoT: How tab renders
   hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
   is_system_tab?: boolean;  // SSoT: System-locked tabs cannot be deleted
-  is_mailbox?: boolean;  // SSoT: Mailbox folder flag
+  /** @deprecated Use tab_type instead */
+  is_mailbox?: boolean;
 }
 
 export interface ReorderTabParams {

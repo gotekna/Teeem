@@ -10,7 +10,6 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -86,9 +85,6 @@ import {
   Pencil,
   Check,
   Loader2,
-  Mail,
-  Cog,
-  FolderArchive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -106,6 +102,8 @@ import type {
   ReorderTabParams,
 } from "@/lib/types/warehouse-folders";
 import { SCOPE_LABELS, GROUP_LABELS } from "@/lib/types/warehouse-folders";
+import { TAB_TYPE_CONFIG, TAB_TYPE_VALUES, deriveTabType, type TabType } from "@/lib/constants/tab-types";
+import { TabTypeBadge, TabTypeBadgeCompact } from "@/components/ui/tab-type-badge";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -904,15 +902,13 @@ export function WarehouseFoldersConfig({
       tab_key: "",
       display_name: "",
       description: "",
+      tab_type: 'document' as TabType,  // SSoT: Default tab type
       tab_group: group || 'documents',  // Default to documents (most common use case)
       entity_filters: [],
       enabled: true,
       warehouse_enabled: false,
       folder_path: "",
       warehouse_type_override: 'corporate',  // SSoT: Default to corporate path
-      is_photo_category: false,  // SSoT: Explicit photo category flag
-      is_cad_category: false,  // SSoT: Explicit CAD/Revit category flag
-      is_mailbox: false,  // SSoT: Mailbox folder flag
       display_mode: 'both',  // SSoT: Default display mode
       hidden_by_default: false,  // SSoT: Default visibility
     });
@@ -932,6 +928,7 @@ export function WarehouseFoldersConfig({
       display_name: tab.display_name,
       display_code: tab.display_code || "",
       description: tab.description || "",
+      tab_type: deriveTabType(tab),  // SSoT: THE ONE field for folder behavior
       tab_group: tab.tab_group || undefined,
       parent_id: tab.parent_id || undefined,
       entity_filters: tab.entity_filters,
@@ -943,9 +940,6 @@ export function WarehouseFoldersConfig({
       warehouse_type_override: tab.warehouse_type_override || 'corporate',  // SSoT: Path type for contacts
       // SSoT: Include linked document type IDs
       document_type_ids: tab.document_types?.map((dt: any) => dt.id) || [],
-      is_photo_category: tab.is_photo_category || false,  // SSoT: Explicit photo category flag
-      is_cad_category: tab.is_cad_category || false,  // SSoT: Explicit CAD/Revit category flag
-      is_mailbox: tab.is_mailbox || false,  // SSoT: Mailbox folder flag
       display_mode: tab.display_mode || 'both',  // SSoT: Display mode
       hidden_by_default: tab.hidden_by_default || false,  // SSoT: Hidden by default
       is_system_tab: tab.is_system_tab || false,  // SSoT: System lock
@@ -997,6 +991,7 @@ export function WarehouseFoldersConfig({
           display_name: formData.display_name,
           display_code: formData.display_code,
           description: formData.description,
+          tab_type: formData.tab_type,  // SSoT: THE ONE field for folder behavior
           tab_group: formData.tab_group,
           // Use null (not undefined) so JSON serialization includes it
           parent_id: formData.parent_id ?? null,
@@ -1009,9 +1004,6 @@ export function WarehouseFoldersConfig({
           warehouse_type_override: formData.warehouse_type_override,  // SSoT: Path type for contacts
           // SSoT: Include linked document type IDs
           document_type_ids: formData.document_type_ids,
-          is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
-          is_cad_category: formData.is_cad_category,  // SSoT: Explicit CAD/Revit category flag
-          is_mailbox: formData.is_mailbox,  // SSoT: Mailbox folder flag
           display_mode: formData.display_mode,  // SSoT: Display mode
           hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
           is_system_tab: formData.is_system_tab,  // SSoT: System lock
@@ -1040,6 +1032,7 @@ export function WarehouseFoldersConfig({
         const createParams: WarehouseFolderCreateParams = {
           scope,
           tab_key: formData.tab_key || formData.display_name?.toLowerCase().replace(/\s+/g, "-") || "",
+          tab_type: formData.tab_type,  // SSoT: THE ONE field for folder behavior
           display_name: formData.display_name || "",
           display_code: formData.display_code,
           description: formData.description,
@@ -1050,9 +1043,6 @@ export function WarehouseFoldersConfig({
           warehouse_enabled: formData.warehouse_enabled,
           folder_path: formData.folder_path,
           warehouse_type_override: formData.warehouse_type_override,  // SSoT: Path type for contacts
-          is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
-          is_cad_category: formData.is_cad_category,  // SSoT: Explicit CAD/Revit category flag
-          is_mailbox: formData.is_mailbox,  // SSoT: Mailbox folder flag
           display_mode: formData.display_mode,  // SSoT: Display mode
           hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
           is_system_tab: formData.is_system_tab,  // SSoT: System lock
@@ -1346,52 +1336,9 @@ export function WarehouseFoldersConfig({
             <IconComponent className="h-3.5 w-3.5" />
           </div>
 
-          {/* Tab type indicator (SYS/MBX/DOC) */}
+          {/* Tab type indicator - SSoT: Uses TabTypeBadgeCompact */}
           <div className="flex items-center gap-0.5">
-            {/* Primary type badge - mutually exclusive */}
-            {(tab.is_mailbox || tab.dynamic_type === 'mailbox') ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
-                      <Mail className="h-3 w-3" />
-                      <span>MBX</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Mailbox tab - shows synced email mailboxes</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : tab.is_system_tab ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
-                      <Cog className="h-3 w-3" />
-                      <span>SYS</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>System tab - functional/code-driven (no document storage)</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                      <FolderArchive className="h-3 w-3" />
-                      <span>DOC</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Document tab - storage folder for files</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
+            <TabTypeBadgeCompact tabType={deriveTabType(tab)} />
             {/* Secondary indicators */}
             {tab.warehouse_enabled && (
               <TooltipProvider>
@@ -2308,24 +2255,9 @@ export function WarehouseFoldersConfig({
               <h2 className="text-lg font-semibold" aria-hidden="true">
                 {editingTab ? `Edit: ${editingTab.display_name}` : "Create New Tab"}
               </h2>
-              {/* SSoT: Folder type indicator (SYS/MBX/DOC) */}
+              {/* SSoT: Tab type badge */}
               {editingTab && (
-                (editingTab.is_mailbox || editingTab.dynamic_type === 'mailbox') ? (
-                  <Badge className="bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 border-green-300 dark:border-green-700 gap-1">
-                    <Mail className="h-3 w-3" />
-                    Mailbox
-                  </Badge>
-                ) : editingTab.is_system_tab ? (
-                  <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 border-purple-300 dark:border-purple-700 gap-1">
-                    <Cog className="h-3 w-3" />
-                    System
-                  </Badge>
-                ) : (
-                  <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 border-blue-300 dark:border-blue-700 gap-1">
-                    <FolderArchive className="h-3 w-3" />
-                    Document
-                  </Badge>
-                )
+                <TabTypeBadge tabType={formData.tab_type || deriveTabType(editingTab)} />
               )}
               {/* SSoT: Show subtab indicator when editing a child tab */}
               {(formData.parent_id || editingTab?.parent_id) && (() => {
@@ -2563,62 +2495,39 @@ export function WarehouseFoldersConfig({
               )}
 
 
-              {/* Photo Category checkbox - SSoT: Explicit flag for photo gallery view */}
-              <div className="flex items-center space-x-3 pt-4 mt-4 border-t">
-                <Checkbox
-                  id="is_photo_category_basic"
-                  checked={formData.is_photo_category || false}
-                  onCheckedChange={(checked) =>
-                    setFormData((prev) => ({ ...prev, is_photo_category: checked === true }))
-                  }
-                />
-                <div>
-                  <Label htmlFor="is_photo_category_basic" className="text-sm cursor-pointer font-medium">
-                    Photo Gallery View
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Show photos in grid instead of file table
-                  </p>
+              {/* SSoT: Tab Type selector - THE ONE field for folder behavior */}
+              <div className="space-y-2 pt-4 mt-4 border-t">
+                <Label>Tab Type</Label>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {TAB_TYPE_VALUES.map((type) => {
+                    const config = TAB_TYPE_CONFIG[type];
+                    const isSelected = formData.tab_type === type;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, tab_type: type as TabType }))}
+                        disabled={editingTab?.is_system_tab && type !== formData.tab_type}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors",
+                          isSelected
+                            ? `${config.color} ${config.darkColor} ${config.textColor} border-current`
+                            : "border-border hover:bg-muted/50",
+                          editingTab?.is_system_tab && type !== formData.tab_type && "opacity-40 cursor-not-allowed"
+                        )}
+                      >
+                        <TabTypeBadge tabType={type} variant="icon" showTooltip={false} />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium">{config.label}</span>
+                          <p className="text-xs text-muted-foreground">{config.description}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
-
-              {/* CAD Category checkbox - SSoT: Explicit flag for Revit/DWG file viewer */}
-              <div className="flex items-center space-x-3 pt-4 mt-4 border-t">
-                <Checkbox
-                  id="is_cad_category_basic"
-                  checked={formData.is_cad_category || false}
-                  onCheckedChange={(checked) =>
-                    setFormData((prev) => ({ ...prev, is_cad_category: checked === true }))
-                  }
-                />
-                <div>
-                  <Label htmlFor="is_cad_category_basic" className="text-sm cursor-pointer font-medium">
-                    CAD Files View
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Show Revit, DWG, and Datasmith files with upload
-                  </p>
-                </div>
-              </div>
-
-              {/* Mailbox checkbox - SSoT: Flag for email mailbox folders */}
-              <div className="flex items-center space-x-3 pt-4 mt-4 border-t">
-                <Checkbox
-                  id="is_mailbox_basic"
-                  checked={formData.is_mailbox || false}
-                  onCheckedChange={(checked) =>
-                    setFormData((prev) => ({ ...prev, is_mailbox: checked === true }))
-                  }
-                  disabled={editingTab?.is_system_tab}
-                />
-                <div>
-                  <Label htmlFor="is_mailbox_basic" className={cn("text-sm cursor-pointer font-medium", editingTab?.is_system_tab && "opacity-60")}>
-                    Mailbox Folder
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Shows synced email mailboxes dynamically
-                  </p>
-                </div>
+                {editingTab?.is_system_tab && (
+                  <p className="text-xs text-muted-foreground">System tab - type cannot be changed</p>
+                )}
               </div>
             </div>
 

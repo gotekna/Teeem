@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_07_054424) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_07_061516) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10220,6 +10220,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_07_054424) do
     t.boolean "uses_custom_path", default: false
     t.boolean "is_system_tab", default: false
     t.boolean "is_mailbox", default: false, null: false
+    t.string "tab_type", default: "document", null: false
     t.index "tenant_id, warehouse_type_id, COALESCE(parent_id, (0)::bigint), name", name: "idx_warehouse_folders_unique_name", unique: true
     t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
     t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
@@ -10227,6 +10228,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_07_054424) do
     t.index ["parent_id"], name: "index_warehouse_folders_on_parent_id"
     t.index ["tab_group"], name: "index_warehouse_folders_on_tab_group"
     t.index ["tab_key"], name: "index_warehouse_folders_on_tab_key"
+    t.index ["tab_type"], name: "index_warehouse_folders_on_tab_type"
     t.index ["tenant_id"], name: "idx_wf_tenant"
     t.index ["tenant_id"], name: "index_warehouse_folders_on_tenant_id"
     t.index ["warehouse_enabled"], name: "index_warehouse_folders_on_warehouse_enabled"

@@ -58,8 +58,6 @@ import {
   Zap,
   Lock,
   Plus,
-  Cog,
-  FolderArchive,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -71,6 +69,8 @@ import { PlaceholderBuilder, resolveWithExamples } from "@/components/ui/placeho
 import { getWarehouseScopeForType } from "@/lib/placeholders";
 import Link from "next/link";
 import { WarehouseFolderEditor, WarehouseFolderEditData } from "@/components/admin/WarehouseFolderEditor";
+import { TabTypeBadgeCompact } from "@/components/ui/tab-type-badge";
+import { deriveTabType } from "@/lib/constants/tab-types";
 
 // SSoT (Feb 2026): All warehouse type config now comes from database
 // - warehouse_folder.full_path_template is the SSoT for folder paths
@@ -143,6 +143,7 @@ interface WarehouseFolderFromAPI {
   display_mode?: string;
   hidden_by_default?: boolean;
   warehouse_enabled?: boolean;
+  tab_type?: string;  // SSoT: THE ONE field for folder behavior
   is_photo_category?: boolean;
   is_cad_category?: boolean;
   is_system_tab?: boolean;  // SSoT: System tab (functional/code-driven)
@@ -969,23 +970,8 @@ function TreeNode({
                     )}
                   </span>
                 )}
-                {/* SSoT (Feb 2026): Folder type indicator (SYS/MBX/DOC) */}
-                {(bf.is_mailbox || bf.dynamic_type === 'mailbox') ? (
-                  <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
-                    <Mail className="h-3 w-3" />
-                    <span>MBX</span>
-                  </div>
-                ) : bf.is_system_tab ? (
-                  <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
-                    <Cog className="h-3 w-3" />
-                    <span>SYS</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                    <FolderArchive className="h-3 w-3" />
-                    <span>DOC</span>
-                  </div>
-                )}
+                {/* SSoT: Tab type badge */}
+                <TabTypeBadgeCompact tabType={deriveTabType(bf)} />
                 {/* Edit button for ALL base folders - show cog whether or not warehouse_folder is linked */}
                 {onEditWarehouseFolder && (
                   <button
@@ -1798,23 +1784,8 @@ function TabNode({
         <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
         {/* Show folder name (from folder_path), resolved if it contains tokens */}
         <span className="text-sm font-medium">{resolveTemplatePreview(folderName || tab.display_name || '')}</span>
-        {/* SSoT (Feb 2026): Folder type indicator (SYS/MBX/DOC) */}
-        {(tab.is_mailbox || tab.dynamic_type === 'mailbox') ? (
-          <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
-            <Mail className="h-3 w-3" />
-            <span>MBX</span>
-          </div>
-        ) : tab.is_system_tab ? (
-          <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
-            <Cog className="h-3 w-3" />
-            <span>SYS</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-            <FolderArchive className="h-3 w-3" />
-            <span>DOC</span>
-          </div>
-        )}
+        {/* SSoT: Tab type badge */}
+        <TabTypeBadgeCompact tabType={deriveTabType(tab)} />
         {/* Document type count badge */}
         {hasDocTypes && (
           <Badge

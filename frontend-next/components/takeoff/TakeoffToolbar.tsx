@@ -148,7 +148,7 @@ export function TakeoffToolbar({
   const handleZoomInputCommit = () => {
     setIsEditingZoom(false);
     const parsed = parseInt(zoomInputValue, 10);
-    if (!isNaN(parsed) && parsed >= 10 && parsed <= 300) {
+    if (!isNaN(parsed) && parsed >= 10 && parsed <= 1000) {
       onZoomChange(parsed / 100);
     }
   };

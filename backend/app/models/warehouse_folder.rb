@@ -31,6 +31,9 @@ class WarehouseFolder < ApplicationRecord
     '{{Mailbox}}' => :mailbox
   }.freeze
 
+  # SSoT: Tab types - THE ONE field for folder behavior
+  TAB_TYPES = %w[system document mailbox revit photo].freeze
+
   # Valid tab groups (from warehouse_folders)
   TAB_GROUPS = %w[documents data overview reports setup main system].freeze
 
@@ -54,6 +57,7 @@ class WarehouseFolder < ApplicationRecord
   validates :name, presence: true
   validates :name, uniqueness: { scope: [:tenant_id, :warehouse_type_id, :parent_id], message: "already exists for this warehouse type and parent" }
   validates :folder_segment, presence: true
+  validates :tab_type, inclusion: { in: TAB_TYPES }
   validates :tab_group, inclusion: { in: TAB_GROUPS }, allow_blank: true
   validates :display_mode, inclusion: { in: DISPLAY_MODES }, allow_blank: true
   validates :xero_scope, inclusion: { in: XERO_SCOPES }, allow_blank: true
@@ -64,6 +68,7 @@ class WarehouseFolder < ApplicationRecord
   # Callbacks
   before_validation :sync_display_name_and_folder_segment
   before_validation :sync_tab_key_from_display_name
+  before_save :sync_booleans_from_tab_type
   before_destroy :prevent_system_deletion
 
   # Scopes
@@ -227,10 +232,9 @@ class WarehouseFolder < ApplicationRecord
   end
 
   # Get the type of dynamic content this folder generates
-  # SSoT: Check is_mailbox flag first, then fallback to token detection
+  # SSoT: Check tab_type first, then fallback to token detection
   def dynamic_type
-    # Explicit mailbox flag takes precedence (safely check column exists)
-    return :mailbox if respond_to?(:is_mailbox) && is_mailbox
+    return :mailbox if tab_type == 'mailbox'
 
     return nil if folder_segment.blank?
 
@@ -239,6 +243,16 @@ class WarehouseFolder < ApplicationRecord
     end
     nil
   end
+
+  # ════════════════════════════════════════════════════════════════════════════════
+  # SSoT: Tab Type Helpers (THE ONE way to check folder behavior)
+  # ════════════════════════════════════════════════════════════════════════════════
+
+  def system_tab?;   tab_type == 'system'; end
+  def document_tab?; tab_type == 'document'; end
+  def mailbox_tab?;  tab_type == 'mailbox'; end
+  def revit_tab?;    tab_type == 'revit'; end
+  def photo_tab?;    tab_type == 'photo'; end
 
   # Check if this folder can be deleted
   def can_delete?
@@ -429,6 +443,7 @@ class WarehouseFolder < ApplicationRecord
       full_folder_path: full_folder_path,
       path_preview: path_preview,
       tab_key: tab_key,
+      tab_type: tab_type,
       tab_group: tab_group,
       parent_id: parent_id,
       icon_name: icon_name,
@@ -467,6 +482,7 @@ class WarehouseFolder < ApplicationRecord
       warehouse_type_code: warehouse_type_code,
       warehouse_type_name: warehouse_type&.display_name,
       tab_key: tab_key,
+      tab_type: tab_type,
       name: display_name || name,
       display_name: display_name || name,
       display_code: display_code,
@@ -527,6 +543,15 @@ class WarehouseFolder < ApplicationRecord
       .gsub(/\s+/, '-')
       .gsub(/-+/, '-')
       .gsub(/^-|-$/, '')
+  end
+
+  # SSoT: Keep old boolean columns in sync with tab_type during transition
+  def sync_booleans_from_tab_type
+    return unless tab_type_changed?
+
+    self.is_mailbox = (tab_type == 'mailbox')
+    self.is_photo_category = (tab_type == 'photo')
+    self.is_cad_category = (tab_type == 'revit')
   end
 
   def prevent_system_deletion

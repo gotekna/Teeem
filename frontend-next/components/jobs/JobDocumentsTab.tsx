@@ -118,7 +118,8 @@ interface DocumentCategory {
   sequence_order?: number;
   is_active?: boolean;
   folder_path?: string;
-  is_photo_category?: boolean;  // SSoT: Explicit photo gallery flag from EntityTab
+  tab_type?: string;  // SSoT: THE ONE field for folder behavior
+  is_photo_category?: boolean;  // @deprecated Use tab_type === 'photo'
   children?: DocumentCategory[];
 }
 
@@ -302,9 +303,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [loadingPreview, setLoadingPreview] = useState(false);
 
   // Check if the current category is a photo category
-  // SSoT: "Photo Gallery View" checkbox on each tab controls this
+  // SSoT: tab_type='photo' is THE ONE check (fallback to legacy boolean)
   const isPhotoCategory = (category: DocumentCategory | null): boolean => {
-    return category?.is_photo_category === true;
+    return category?.tab_type === 'photo' || category?.is_photo_category === true;
   };
 
   // Check if a file is an image
@@ -1650,7 +1651,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       </span>
                     )}
                   </CardTitle>
-                  {/* Add Photo and Select buttons - show for photo categories (SSoT: uses is_photo_category flag) */}
+                  {/* Add Photo and Select buttons - show for photo categories (SSoT: uses tab_type='photo') */}
                   {isPhotoCategory(activeCategory) && orgStatus.connected && (
                     <div className="flex items-center gap-2">
                       {/* Select button - toggle multi-select mode */}
@@ -1742,7 +1743,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {/* Show Photo Gallery for photo categories (SSoT: uses is_photo_category flag) */}
+                {/* Show Photo Gallery for photo categories (SSoT: uses tab_type='photo') */}
                 {isPhotoCategory(activeCategory) ? (
                   <div className="p-4">
                     {loadingAllFiles ? (
