@@ -131,14 +131,12 @@ class WarehouseType < ApplicationRecord
     self.code = code.to_s.downcase.strip if code.present?
   end
 
-  # Ensure adjacent tokens like }}{{ always have / separator
-  # Prevents paths like "Task/{{JobName}}{{TaskId}}" → "Task/{{JobName}}/{{TaskId}}"
+  # Clean double slashes but don't force separators between adjacent tokens
+  # Users may intentionally want {{JobCode}}{{JobName}} as a single folder segment
   def normalize_folder_path_template
     return if folder_path_template.blank?
 
-    self.folder_path_template = folder_path_template
-      .gsub(/\}\}\s*\{\{/, "}}/{{")  # }}{{ → }}/{{
-      .gsub(%r{//+}, "/")            # clean double slashes
+    self.folder_path_template = folder_path_template.gsub(%r{//+}, "/")
   end
 
   def prevent_system_deletion
