@@ -170,9 +170,10 @@ module Api
             end
             # FRC (Feb 2026): Unique constraint (warehouse_type_id, name) means we can't
             # blindly move folders to unassigned if duplicates already exist there.
-            # Delete existing unassigned duplicates first (they're orphaned anyway).
+            # Must use .unscoped to bypass acts_as_tenant - orphaned folders may have
+            # tenant_id=NULL (pre-tenancy data) which tenant scoping would miss.
             conflicting_names = removed_folders.pluck(:name)
-            WarehouseFolder.where(warehouse_type_id: unassigned_type.id, name: conflicting_names).delete_all
+            WarehouseFolder.unscoped.where(warehouse_type_id: unassigned_type.id, name: conflicting_names).delete_all
 
             removed_folders.update_all(warehouse_type_id: unassigned_type.id)
           end
