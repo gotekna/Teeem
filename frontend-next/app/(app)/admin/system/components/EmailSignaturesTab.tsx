@@ -609,7 +609,7 @@ export function EmailSignaturesTab() {
                       className="mt-1 font-mono text-xs h-48"
                     />
                     <p className="text-xs text-muted-foreground mt-2">
-                      Available tokens: {"{{name}}"}, {"{{email}}"}, {"{{job_title}}"}, {"{{mobile}}"}, {"{{company}}"}, {"{{website}}"}, {"{{address}}"}, {"{{phone}}"}, {"{{logo}}"}
+                      Available placeholders: {"{{name}}"}, {"{{email}}"}, {"{{job_title}}"}, {"{{mobile}}"}, {"{{company}}"}, {"{{website}}"}, {"{{address}}"}, {"{{phone}}"}, {"{{logo}}"}
                     </p>
                   </div>
 

@@ -3207,15 +3207,15 @@ export function WarehouseProviderTab() {
                 </div>
               </div>
 
-              {/* Available Tokens */}
+              {/* Available Placeholders */}
               <div className="space-y-3">
                 <h4 className="font-medium flex items-center gap-2">
                   <Settings className="h-4 w-4 text-cyan-500" />
-                  Available Tokens (Path Variables)
+                  Available Placeholders (Path Variables)
                 </h4>
                 <div className="rounded-lg border p-3 bg-card">
                   <p className="text-sm text-muted-foreground mb-3">
-                    Tokens are placeholders in folder paths that get resolved to actual values when documents are saved:
+                    Placeholders in folder paths get resolved to actual values when documents are saved:
                   </p>
                   <div className="grid md:grid-cols-2 gap-4">
                     {/* Job Tokens */}
@@ -3971,9 +3971,9 @@ export function WarehouseProviderTab() {
               </div>
             )}
 
-            {/* Available Tokens */}
+            {/* Available Placeholders */}
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Available Tokens (click to copy)</Label>
+              <Label className="text-xs text-muted-foreground">Available Placeholders (click to copy)</Label>
               <div className="flex flex-wrap gap-1">
                 {['{{OriginalFileName}}', '{{DocTypeName}}', '{{DocTypeCode}}', '{{Date}}', '{{ContactName}}', '{{CompanyCode}}', '{{JobCode}}'].map((token) => (
                   <button

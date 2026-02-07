@@ -252,7 +252,7 @@ export function PlaceholderPalette({
         <span className="text-sm font-medium">{header}</span>
         {collapsible && !isOpen && (
           <span className="text-xs text-muted-foreground">
-            ({filteredPlaceholders.length} tokens)
+            ({filteredPlaceholders.length} placeholders)
           </span>
         )}
       </div>

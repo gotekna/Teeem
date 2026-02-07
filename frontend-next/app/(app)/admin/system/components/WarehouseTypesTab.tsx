@@ -105,8 +105,19 @@ interface WarehouseFolderToggle {
   children_ids: number[];        // All descendant IDs (recursive)
 }
 
+// Flat folder from API (used to build tree view in dialog)
+interface FlatFolder {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  enabled: boolean;
+  is_system: boolean;
+  warehouse_type_id: number;
+  warehouse_type_name: string;
+}
+
 // =====================================================================
-// SSoT: Category filter for folder path tokens (Feb 2026)
+// SSoT: Category filter for folder path placeholders (Feb 2026)
 // Uses STORAGE_PLACEHOLDERS from lib/placeholders.ts as the gold standard
 // Matches PlaceholderPalette component for consistent UX
 // =====================================================================
@@ -170,7 +181,7 @@ const TOKEN_CATEGORY_CONFIG: Record<TokenCategory, TokenCategoryConfig> = {
   },
 };
 
-// Get category for a token (matches PlaceholderPalette logic)
+// Get category for a placeholder (matches PlaceholderPalette logic)
 function getTokenCategory(token: PlaceholderToken): TokenCategory {
   // Check in priority order (more specific first)
   // Email before task so [[Email Attachments]] categorizes as email not task
@@ -201,9 +212,12 @@ export function WarehouseTypesTab() {
   const [editingType, setEditingType] = React.useState<WarehouseType | null>(null);
   const [formData, setFormData] = React.useState<FormData>(defaultFormData);
   const [warehouseFolderToggles, setWarehouseFolderToggles] = React.useState<WarehouseFolderToggle[]>([]);
+  const [allFolders, setAllFolders] = React.useState<FlatFolder[]>([]);
+  const [expandedRoots, setExpandedRoots] = React.useState<Set<number>>(new Set());
+  const [folderTypeFilter, setFolderTypeFilter] = React.useState<string>("all");
   const [warehouseFolderSearch, setWarehouseFolderSearch] = React.useState("");
-  const [tokenCategory, setTokenCategory] = React.useState<TokenCategory>("all");
-  const [tokensExpanded, setTokensExpanded] = React.useState(false);
+  const [placeholderCategory, setPlaceholderCategory] = React.useState<TokenCategory>("all");
+  const [placeholdersExpanded, setPlaceholdersExpanded] = React.useState(false);
   const [showAvailableFolders, setShowAvailableFolders] = React.useState(false);
   const [showSystemTypes, setShowSystemTypes] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -313,8 +327,11 @@ export function WarehouseTypesTab() {
       const response = await api.get<{ success: boolean; data: { tabs: Array<{ id: number; name: string; parent_id: number | null; enabled: boolean; is_system: boolean; warehouse_type_id: number; warehouse_type_name: string }> } }>(
         `/api/v1/warehouse_folders?include_disabled=true`
       );
-      const folders = response?.data?.tabs || [];
+      const folders: FlatFolder[] = response?.data?.tabs || [];
       if (folders.length > 0) {
+        // Store all folders for tree rendering
+        setAllFolders(folders);
+
         // Build a map for quick lookups
         const folderMap = new Map(folders.map(bf => [bf.id, bf]));
 
@@ -360,6 +377,9 @@ export function WarehouseTypesTab() {
     setEditingType(null);
     setFormData(defaultFormData);
     setWarehouseFolderToggles([]);
+    setAllFolders([]);
+    setExpandedRoots(new Set());
+    setFolderTypeFilter("all");
     setWarehouseFolderSearch("");
     setShowAvailableFolders(false);
   };
@@ -408,6 +428,34 @@ export function WarehouseTypesTab() {
       )
     );
   };
+
+  const toggleRootExpanded = (rootId: number) => {
+    setExpandedRoots(prev => {
+      const next = new Set(prev);
+      if (next.has(rootId)) {
+        next.delete(rootId);
+      } else {
+        next.add(rootId);
+      }
+      return next;
+    });
+  };
+
+  // Get direct children of a root folder from allFolders
+  const getDirectChildren = (rootId: number): FlatFolder[] => {
+    return allFolders.filter(f => f.parent_id === rootId);
+  };
+
+  // Build unique warehouse type names for filter badges (from all root folder toggles)
+  const folderTypeNames = React.useMemo(() => {
+    const typeMap = new Map<string, number>();
+    for (const toggle of warehouseFolderToggles) {
+      const typeName = toggle.warehouse_type_name || "Unassigned";
+      typeMap.set(typeName, (typeMap.get(typeName) || 0) + 1);
+    }
+    return Array.from(typeMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  }, [warehouseFolderToggles]);
 
   const handleDelete = (type: WarehouseType) => {
     if (!type.can_delete) {
@@ -773,21 +821,21 @@ export function WarehouseTypesTab() {
                 <p className="text-xs text-muted-foreground">
                   Full path: <code className="bg-muted px-1 rounded">{formData.display_name || "TypeName"}/{formData.folder_path_template || "..."}</code>
                 </p>
-                <Collapsible open={tokensExpanded} onOpenChange={setTokensExpanded}>
+                <Collapsible open={placeholdersExpanded} onOpenChange={setPlaceholdersExpanded}>
                   <CollapsibleTrigger asChild>
                     <button
                       type="button"
                       className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
-                      {tokensExpanded ? (
+                      {placeholdersExpanded ? (
                         <ChevronDown className="h-3 w-3" />
                       ) : (
                         <ChevronRight className="h-3 w-3" />
                       )}
-                      <span>Tokens</span>
-                      {!tokensExpanded && (
+                      <span>Placeholders</span>
+                      {!placeholdersExpanded && (
                         <span className="text-[10px]">
-                          ({STORAGE_PLACEHOLDERS.filter(t => tokenCategory === "all" || getTokenCategory(t) === tokenCategory).length} available)
+                          ({STORAGE_PLACEHOLDERS.filter(t => placeholderCategory === "all" || getTokenCategory(t) === placeholderCategory).length} available)
                         </span>
                       )}
                     </button>
@@ -798,12 +846,12 @@ export function WarehouseTypesTab() {
                       {(["all", "job", "task", "email", "company", "date", "folder", "other"] as TokenCategory[]).map((cat) => {
                         const config = TOKEN_CATEGORY_CONFIG[cat];
                         const Icon = config.icon;
-                        const isActive = tokenCategory === cat;
+                        const isActive = placeholderCategory === cat;
                         return (
                           <button
                             key={cat}
                             type="button"
-                            onClick={() => setTokenCategory(cat)}
+                            onClick={() => setPlaceholderCategory(cat)}
                             className={cn(
                               "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium border transition-all",
                               isActive
@@ -817,10 +865,10 @@ export function WarehouseTypesTab() {
                         );
                       })}
                     </div>
-                    {/* Token Buttons - SSoT: Uses STORAGE_PLACEHOLDERS from lib/placeholders.ts */}
+                    {/* Placeholder Buttons - SSoT: Uses STORAGE_PLACEHOLDERS from lib/placeholders.ts */}
                     <div className="flex flex-wrap">
                       {STORAGE_PLACEHOLDERS
-                        .filter(t => tokenCategory === "all" || getTokenCategory(t) === tokenCategory)
+                        .filter(t => placeholderCategory === "all" || getTokenCategory(t) === placeholderCategory)
                         .map((token) => {
                           const colorClasses = PLACEHOLDER_COLOR_CLASSES[token.color];
                           // Extract display label from code (remove braces)
@@ -861,70 +909,208 @@ export function WarehouseTypesTab() {
                 </Collapsible>
               </div>
 
-              {/* Warehouse Folders - only show when editing */}
-              {editingType && warehouseFolderToggles.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Warehouse Folders</Label>
-                    <span className="text-xs text-muted-foreground">
-                      {/* Total count including children */}
-                      {warehouseFolderToggles
-                        .filter(bf => bf.enabled)
-                        .reduce((sum, bf) => sum + 1 + bf.children_ids.length, 0)} folders assigned
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground -mt-1">
-                    Selecting a folder includes all its subfolders
-                  </p>
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search folders..."
-                      value={warehouseFolderSearch}
-                      onChange={(e) => setWarehouseFolderSearch(e.target.value)}
-                      className="pl-8 h-9"
-                    />
-                  </div>
-                  <div className="border rounded-md p-2 max-h-[140px] overflow-y-auto">
-                    {warehouseFolderToggles
-                      .filter((bf) =>
-                        warehouseFolderSearch.trim() === "" ||
-                        bf.name.toLowerCase().includes(warehouseFolderSearch.toLowerCase())
-                      )
-                      .sort((a, b) => {
-                        if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
-                        return a.name.localeCompare(b.name);
-                      })
-                      .map((bf) => (
-                        <div
-                          key={bf.id}
+              {/* Warehouse Folders - Tree View (only show when editing) */}
+              {editingType && warehouseFolderToggles.length > 0 && (() => {
+                const searchTerm = warehouseFolderSearch.toLowerCase().trim();
+
+                // Check if a root folder or any of its children match search + type filter
+                const rootMatchesFilter = (toggle: WarehouseFolderToggle): boolean => {
+                  const children = getDirectChildren(toggle.id);
+                  const allItems = [toggle, ...children];
+
+                  // Type filter: check the root's current warehouse_type_name
+                  if (folderTypeFilter !== "all" && toggle.warehouse_type_name !== folderTypeFilter) {
+                    return false;
+                  }
+
+                  // Search: match root name or any child name
+                  if (searchTerm) {
+                    return allItems.some(item =>
+                      item.name.toLowerCase().includes(searchTerm)
+                    );
+                  }
+                  return true;
+                };
+
+                // When searching, auto-expand roots with matching children
+                const shouldAutoExpand = (toggle: WarehouseFolderToggle): boolean => {
+                  if (!searchTerm) return false;
+                  const children = getDirectChildren(toggle.id);
+                  return children.some(c => c.name.toLowerCase().includes(searchTerm));
+                };
+
+                const filteredToggles = warehouseFolderToggles
+                  .filter(rootMatchesFilter)
+                  .sort((a, b) => {
+                    if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+                    return a.name.localeCompare(b.name);
+                  });
+
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Warehouse Folders</Label>
+                      <span className="text-xs text-muted-foreground">
+                        {warehouseFolderToggles
+                          .filter(bf => bf.enabled)
+                          .reduce((sum, bf) => sum + 1 + bf.children_ids.length, 0)} folders assigned
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground -mt-1">
+                      Selecting a root folder includes all its subfolders
+                    </p>
+
+                    {/* Type filter badges */}
+                    <div className="flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setFolderTypeFilter("all")}
+                        className={cn(
+                          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all",
+                          folderTypeFilter === "all"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background hover:bg-muted text-muted-foreground border-border"
+                        )}
+                      >
+                        All
+                        <span className="text-[10px] opacity-70">{warehouseFolderToggles.length}</span>
+                      </button>
+                      {folderTypeNames.map(([typeName, count]) => (
+                        <button
+                          key={typeName}
+                          type="button"
+                          onClick={() => setFolderTypeFilter(folderTypeFilter === typeName ? "all" : typeName)}
                           className={cn(
-                            "flex items-center gap-2 hover:bg-muted/50 p-1 rounded",
-                            !bf.enabled && "opacity-50"
+                            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border transition-all",
+                            folderTypeFilter === typeName
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background hover:bg-muted text-muted-foreground border-border"
                           )}
                         >
-                          <Checkbox
-                            id={`bf-${bf.id}`}
-                            checked={bf.enabled}
-                            onCheckedChange={() => toggleWarehouseFolder(bf.id)}
-                          />
-                          <label
-                            htmlFor={`bf-${bf.id}`}
-                            className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
-                          >
-                            <Folder className="h-3 w-3 text-muted-foreground shrink-0" />
-                            <span className="truncate">{bf.name}</span>
-                            {bf.children_ids.length > 0 && (
-                              <span className="text-xs text-muted-foreground shrink-0">
-                                (+{bf.children_ids.length})
-                              </span>
-                            )}
-                          </label>
-                        </div>
+                          {typeName}
+                          <span className="text-[10px] opacity-70">{count}</span>
+                        </button>
                       ))}
+                    </div>
+
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search folders..."
+                        value={warehouseFolderSearch}
+                        onChange={(e) => setWarehouseFolderSearch(e.target.value)}
+                        className="pl-8 h-9"
+                      />
+                    </div>
+
+                    {/* Tree view */}
+                    <div className="border rounded-md max-h-[300px] overflow-y-auto">
+                      {filteredToggles.length === 0 ? (
+                        <div className="p-3 text-center text-xs text-muted-foreground">
+                          No folders match your filter
+                        </div>
+                      ) : (
+                        filteredToggles.map((bf) => {
+                          const children = getDirectChildren(bf.id);
+                          const hasChildren = children.length > 0;
+                          const isExpanded = expandedRoots.has(bf.id) || shouldAutoExpand(bf);
+                          const isAssigned = bf.enabled;
+                          const ownerType = bf.warehouse_type_name;
+                          const isOwnedByOther = !isAssigned && ownerType && ownerType !== editingType?.display_name;
+
+                          return (
+                            <div key={bf.id}>
+                              {/* Root folder row */}
+                              <div
+                                className={cn(
+                                  "flex items-center gap-1.5 px-2 py-1 hover:bg-muted/50 border-b border-border/50",
+                                  !isAssigned && "opacity-60"
+                                )}
+                              >
+                                {/* Expand/collapse chevron */}
+                                {hasChildren ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleRootExpanded(bf.id)}
+                                    className="p-0.5 hover:bg-muted rounded shrink-0"
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                    ) : (
+                                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                    )}
+                                  </button>
+                                ) : (
+                                  <div className="w-[22px] shrink-0" />
+                                )}
+
+                                {/* Checkbox */}
+                                <Checkbox
+                                  id={`bf-${bf.id}`}
+                                  checked={bf.enabled}
+                                  onCheckedChange={() => toggleWarehouseFolder(bf.id)}
+                                />
+                                <label
+                                  htmlFor={`bf-${bf.id}`}
+                                  className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
+                                >
+                                  <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                  <span className="truncate font-medium">{bf.name}</span>
+                                </label>
+
+                                {/* Owner type badge (for folders owned by other types) */}
+                                {isOwnedByOther && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                                    {ownerType}
+                                  </span>
+                                )}
+
+                                {/* Child count */}
+                                {hasChildren && (
+                                  <span className="text-[10px] text-muted-foreground shrink-0">
+                                    +{children.length}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Children (when expanded) */}
+                              {hasChildren && isExpanded && (
+                                <div className="bg-muted/20">
+                                  {children
+                                    .filter(c => !searchTerm || c.name.toLowerCase().includes(searchTerm))
+                                    .sort((a, b) => a.name.localeCompare(b.name))
+                                    .map((child, idx, arr) => {
+                                      const isLast = idx === arr.length - 1;
+                                      return (
+                                        <div
+                                          key={child.id}
+                                          className="flex items-center gap-1.5 pl-[38px] pr-2 py-0.5 text-sm text-muted-foreground"
+                                        >
+                                          {/* Tree connector */}
+                                          <span className="text-border text-xs font-mono shrink-0 w-4 text-center select-none">
+                                            {isLast ? "└" : "├"}
+                                          </span>
+                                          <Folder className="h-3 w-3 shrink-0 opacity-50" />
+                                          <span className={cn(
+                                            "truncate text-xs",
+                                            searchTerm && child.name.toLowerCase().includes(searchTerm) && "text-foreground font-medium"
+                                          )}>
+                                            {child.name}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
             </div>
 

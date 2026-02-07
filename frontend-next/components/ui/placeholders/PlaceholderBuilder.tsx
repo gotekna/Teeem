@@ -609,7 +609,7 @@ export function PlaceholderBuilder({
             onClick={() => setPaletteExpanded(!paletteExpanded)}
             className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/50 transition-colors"
           >
-            <span>Available Tokens (click to add)</span>
+            <span>Available Placeholders (click to add)</span>
             {paletteExpanded ? (
               <ChevronUp className="h-4 w-4 text-muted-foreground" />
             ) : (
