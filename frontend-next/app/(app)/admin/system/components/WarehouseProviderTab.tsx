@@ -131,7 +131,7 @@ interface WarehouseFolderFromAPI {
   full_folder_path?: string;    // SSoT: Resolved path for display
   scope_base_template?: string;  // SSoT: Warehouse type's base template (e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}")
   path_preview?: string;
-  is_system?: boolean;  // System warehouse folders can't be deleted (e.g., Task Attachments)
+  is_system?: boolean;  // SSoT: System-generated (can't delete)
   warehouse_type_code?: string;  // SSoT (Feb 2026): Warehouse type code for correct folder creation
   // SSoT (Feb 2026): UI config now directly on warehouse_folder (BIG BANG migration)
   display_name?: string;
@@ -146,7 +146,6 @@ interface WarehouseFolderFromAPI {
   tab_type?: string;  // SSoT: THE ONE field for folder behavior
   is_photo_category?: boolean;
   is_cad_category?: boolean;
-  is_system_tab?: boolean;  // SSoT: System tab (functional/code-driven)
   is_mailbox?: boolean;     // SSoT: Mailbox tab
   dynamic_type?: 'mailbox' | string | null;  // SSoT: Dynamic folder type
   // SSoT (Feb 2026): Document types now directly on warehouse_folder
@@ -182,7 +181,7 @@ interface WarehouseTabConfig {
   folder_path?: string | null;
   base_folder?: string | null;  // SSoT: First segment of folder_path (from database)
   base_folder_path_template?: string | null;  // SSoT: Template from base_folders table
-  is_system_tab?: boolean;  // SSoT: System tab (functional/code-driven)
+  is_system?: boolean;  // SSoT: System tab (functional/code-driven)
   is_mailbox?: boolean;     // SSoT: Mailbox tab
   dynamic_type?: 'mailbox' | null;  // SSoT: Dynamic folder type
   children?: WarehouseTabConfig[];
@@ -645,7 +644,7 @@ interface TreeNodeProps {
   // SSoT (Feb 2026): All warehouse types for display_name lookup
   warehouseTypes: WarehouseTypeFromAPI[];
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
-  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null; warehouse_type?: string; is_system_tab?: boolean; is_mailbox?: boolean; dynamic_type?: 'mailbox' | null }) => void;
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null; warehouse_type?: string; is_system?: boolean; is_mailbox?: boolean; dynamic_type?: 'mailbox' | null }) => void;
   // SSoT (Feb 2026): Edit document type UI/DL names
   onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
@@ -994,7 +993,7 @@ function TreeNode({
                         base_folder_id: bf.id,
                         parent_id: bf.parent_id,
                         warehouse_type: bf.warehouse_type_code,  // SSoT (Feb 2026): From base_folder for correct folder creation
-                        is_system_tab: bf.is_system_tab,  // SSoT: Pass type flags to editor
+                        is_system: bf.is_system,  // SSoT: Pass type flags to editor
                         is_mailbox: bf.is_mailbox,
                         dynamic_type: bf.dynamic_type as 'mailbox' | null | undefined,
                       });
@@ -1422,7 +1421,7 @@ interface TabNodeProps {
   onSaveEdit: (tabId: number, path: string, displayName: string, sendNameTemplate: string) => void;
   onCancelEdit: () => void;
   // SSoT (Feb 2026): Edit warehouse folder UI/DL names
-  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null; warehouse_type?: string; is_system_tab?: boolean; is_mailbox?: boolean; dynamic_type?: 'mailbox' | null }) => void;
+  onEditWarehouseFolder?: (folder: { id: number; display_name: string; folder_path?: string; download_name?: string; ui_name?: string; base_folder_path_template?: string; base_folder_id?: number; parent_id?: number | null; warehouse_type?: string; is_system?: boolean; is_mailbox?: boolean; dynamic_type?: 'mailbox' | null }) => void;
   // SSoT (Feb 2026): Edit document type UI/DL names
   onEditDocumentType?: (dt: { id: number; name: string; abbreviation?: string; ui_name?: string; download_name?: string; folder_name?: string; folder_path?: string }) => void;
 }
@@ -1811,7 +1810,7 @@ function TabNode({
                 ui_name: tab.ui_name || undefined,
                 base_folder_path_template: tab.base_folder_path_template || undefined,  // SSoT: Template from base_folders table
                 warehouse_type: tab.scope,  // SSoT (Feb 2026): Pass scope for correct warehouse_type
-                is_system_tab: tab.is_system_tab,  // SSoT: Pass type flags to editor
+                is_system: tab.is_system,  // SSoT: Pass type flags to editor
                 is_mailbox: tab.is_mailbox,
                 dynamic_type: tab.dynamic_type,
               });
@@ -1994,7 +1993,7 @@ export function WarehouseProviderTab() {
     parent_id?: number | null;
     base_folder_id?: number;
     warehouse_type?: string;  // SSoT (Feb 2026): From base_folder's warehouse_type_code
-    is_system_tab?: boolean;  // SSoT: System tab (functional/code-driven)
+    is_system?: boolean;  // SSoT: System tab (functional/code-driven)
     is_mailbox?: boolean;     // SSoT: Mailbox tab
     dynamic_type?: 'mailbox' | null;  // SSoT: Dynamic folder type
   }

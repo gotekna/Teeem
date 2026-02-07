@@ -220,7 +220,7 @@ class TenantConfigSyncService
       match_fields: [:warehouse_type, :tab_key],
       sync_fields: [:warehouse_type, :tab_key, :display_name, :description, :tab_group,
                     :parent_id, :entity_filters, :order_position, :enabled, :icon_name,
-                    :component_name, :is_system_tab, :warehouse_enabled, :display_code,
+                    :component_name, :is_system, :warehouse_enabled, :display_code,
                     :uses_custom_path, :warehouse_type_override, :is_photo_category,
                     :display_mode, :hidden_by_default, :is_cad_category, :xero_scope,
                     :visibility_rule, :download_name, :folder_path, :ui_name, :warehouse_folder],

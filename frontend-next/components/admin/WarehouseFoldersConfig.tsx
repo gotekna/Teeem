@@ -60,7 +60,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
-import { getIcon } from "@/lib/icon-map";
 import { IconPicker } from "@/components/ui/icon-picker";
 import {
   SortableList,
@@ -76,7 +75,6 @@ import {
   EyeOff,
   Plus,
   Trash2,
-  Lock,
   FolderOpen,
   FileText,
   Settings2,
@@ -942,7 +940,7 @@ export function WarehouseFoldersConfig({
       document_type_ids: tab.document_types?.map((dt: any) => dt.id) || [],
       display_mode: tab.display_mode || 'both',  // SSoT: Display mode
       hidden_by_default: tab.hidden_by_default || false,  // SSoT: Hidden by default
-      is_system_tab: tab.is_system_tab || false,  // SSoT: System lock
+      is_system: tab.is_system || false,  // SSoT: System lock
     });
     // setEditingTab updates URL with tabId and action=edit
     setEditingTab(tab);
@@ -1005,7 +1003,7 @@ export function WarehouseFoldersConfig({
           document_type_ids: formData.document_type_ids,
           display_mode: formData.display_mode,  // SSoT: Display mode
           hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
-          is_system_tab: formData.is_system_tab,  // SSoT: System lock
+          is_system: formData.is_system,  // SSoT: System lock
         };
         await updateTab(editingTab.id, updateParams);
         // Refetch used icons after update (icon may have changed)
@@ -1043,7 +1041,7 @@ export function WarehouseFoldersConfig({
           warehouse_type_override: formData.warehouse_type_override,  // SSoT: Path type for contacts
           display_mode: formData.display_mode,  // SSoT: Display mode
           hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
-          is_system_tab: formData.is_system_tab,  // SSoT: System lock
+          is_system: formData.is_system,  // SSoT: System lock
         };
         await createTab(createParams);
         // Refetch used icons after create (new icon added)
@@ -1278,8 +1276,6 @@ export function WarehouseFoldersConfig({
 
   // Render a single tab item
   const renderTabItem = (tab: WarehouseFolder, index: number, isChild = false, depth = 0) => {
-    // SSoT: Use effective_icon_name for inherited icons from parent
-    const IconComponent = getIcon(tab.effective_icon_name || tab.icon_name || "file");
     const hasChildren = tab.children && tab.children.length > 0;
     const isExpanded = expandedItems.has(tab.tab_key);
 
@@ -1329,40 +1325,8 @@ export function WarehouseFoldersConfig({
             <div className="w-6 shrink-0" />
           )}
 
-          {/* Icon */}
-          <div className="h-6 w-6 rounded bg-muted flex items-center justify-center shrink-0">
-            <IconComponent className="h-3.5 w-3.5" />
-          </div>
-
-          {/* Tab type indicator - SSoT: Uses TabTypeBadgeCompact */}
-          <div className="flex items-center gap-0.5">
-            <TabTypeBadgeCompact tabType={deriveTabType(tab)} />
-            {/* Secondary indicators */}
-            {tab.warehouse_enabled && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <FileText className="h-3 w-3 text-blue-500" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Documents can be uploaded here</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-            {tab.is_system && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Lock className="h-3 w-3 text-amber-500" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>System-generated content</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-          </div>
+          {/* Tab type badge */}
+          <TabTypeBadgeCompact tabType={deriveTabType(tab)} />
 
           {/* Name and badges */}
           <div className="flex-1 min-w-0">
@@ -1649,7 +1613,7 @@ export function WarehouseFoldersConfig({
             </TooltipProvider>
 
             {/* Delete button (only for non-system tabs with no documents) - hidden in readOnly mode */}
-            {!readOnly && !tab.is_system_tab && (
+            {!readOnly && !tab.is_system && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -2476,13 +2440,13 @@ export function WarehouseFoldersConfig({
                         key={type}
                         type="button"
                         onClick={() => setFormData((prev) => ({ ...prev, tab_type: type as TabType }))}
-                        disabled={editingTab?.is_system_tab && type !== formData.tab_type}
+                        disabled={editingTab?.is_system && type !== formData.tab_type}
                         className={cn(
                           "flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors",
                           isSelected
                             ? `${config.color} ${config.darkColor} ${config.textColor} border-current`
                             : "border-border hover:bg-muted/50",
-                          editingTab?.is_system_tab && type !== formData.tab_type && "opacity-40 cursor-not-allowed"
+                          editingTab?.is_system && type !== formData.tab_type && "opacity-40 cursor-not-allowed"
                         )}
                       >
                         <TabTypeBadge tabType={type} variant="icon" showTooltip={false} />
@@ -2494,7 +2458,7 @@ export function WarehouseFoldersConfig({
                     );
                   })}
                 </div>
-                {editingTab?.is_system_tab && (
+                {editingTab?.is_system && (
                   <p className="text-xs text-muted-foreground">System tab - type cannot be changed</p>
                 )}
               </div>

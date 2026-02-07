@@ -37,6 +37,8 @@ export function SnapIndicator({ point, snapType, zoom, isSnapped }: SnapIndicato
         return "#a855f7"; // Purple
       case "edge":
         return "#06b6d4"; // Cyan
+      case "pdf-edge":
+        return "#ec4899"; // Magenta/pink — visually distinct from all other snap types
       default:
         return "#6b7280"; // Gray
     }
@@ -127,6 +129,35 @@ export function SnapIndicator({ point, snapType, zoom, isSnapped }: SnapIndicato
         </>
       )}
 
+      {snapType === "pdf-edge" && (
+        // Crosshair with center dot for PDF edge snap
+        <>
+          <line
+            x1={point.x - size}
+            y1={point.y}
+            x2={point.x + size}
+            y2={point.y}
+            stroke={color}
+            strokeWidth={strokeWidth}
+          />
+          <line
+            x1={point.x}
+            y1={point.y - size}
+            x2={point.x}
+            y2={point.y + size}
+            stroke={color}
+            strokeWidth={strokeWidth}
+          />
+          <circle
+            cx={point.x}
+            cy={point.y}
+            r={size / 3}
+            fill={color}
+            opacity={0.5}
+          />
+        </>
+      )}
+
       {/* Tooltip showing snap type */}
       <text
         x={point.x + size * 1.5}
@@ -184,6 +215,8 @@ function getSnapPointColor(type: SnapPoint["type"]): string {
       return "#a855f7";
     case "edge":
       return "#06b6d4";
+    case "pdf-edge":
+      return "#ec4899";
     default:
       return "#6b7280";
   }

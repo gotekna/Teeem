@@ -65,9 +65,8 @@ interface WarehouseFolder {
   folder_path_template?: string;
   full_path_template?: string;
   path_preview?: string;
-  is_system: boolean;
+  is_system: boolean;  // SSoT: System-generated (can't delete)
   tab_type?: string;  // SSoT: THE ONE field for folder behavior
-  is_system_tab?: boolean;  // SSoT: System tab (functional/code-driven)
   is_mailbox?: boolean;     // SSoT: Mailbox tab
   enabled: boolean;
   order_position: number;

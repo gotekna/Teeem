@@ -175,7 +175,6 @@ class WarehouseFolderQueryService
       hidden_by_default: tab.hidden_by_default,
       component_name: tab.component_name,
       tab_type: tab.tab_type,
-      is_system_tab: tab.is_system_tab,
       is_mailbox: tab.is_mailbox,
       visibility_rule: tab.visibility_rule,
       warehouse_enabled: tab.warehouse_enabled,

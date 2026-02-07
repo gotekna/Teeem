@@ -38,7 +38,7 @@ export interface WarehouseFolderEditData {
   parent_id?: number | null;
   base_folder_id?: number;
   warehouse_type?: string;  // Used to determine which tokens to show
-  is_system_tab?: boolean;  // SSoT: System tab (functional/code-driven)
+  is_system?: boolean;  // SSoT: System tab (functional/code-driven)
   is_mailbox?: boolean;     // SSoT: Mailbox tab
   dynamic_type?: 'mailbox' | null;  // SSoT: Dynamic folder type
 }
@@ -82,7 +82,7 @@ export function WarehouseFolderEditor({
       console.log('[WarehouseFolderEditor] folder:', {
         display_name: folder.display_name,
         is_mailbox: folder.is_mailbox,
-        is_system_tab: folder.is_system_tab,
+        is_system: folder.is_system,
         dynamic_type: folder.dynamic_type
       });
       // Combine base path + suffix for full folder_path

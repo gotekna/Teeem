@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_07_061516) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_07_080000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10218,7 +10218,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_07_061516) do
     t.string "ui_name_template"
     t.string "download_name_template"
     t.boolean "uses_custom_path", default: false
-    t.boolean "is_system_tab", default: false
     t.boolean "is_mailbox", default: false, null: false
     t.string "tab_type", default: "document", null: false
     t.index "tenant_id, warehouse_type_id, COALESCE(parent_id, (0)::bigint), name", name: "idx_warehouse_folders_unique_name", unique: true

@@ -402,7 +402,6 @@ module Api
           :ui_name_template,
           :download_name_template,
           :is_system,
-          :is_system_tab,
           :is_mailbox,
           entity_filters: [],
           document_type_ids: []

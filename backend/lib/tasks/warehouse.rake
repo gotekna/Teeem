@@ -491,7 +491,7 @@ namespace :warehouse do
           folder_segment: wt.display_name,
           order_position: 0,
           enabled: true,
-          is_system_tab: wt.is_system,
+          is_system: wt.is_system,
           warehouse_enabled: true
         )
         puts "  Created root folder for #{wt.code} (#{wt.display_name})"

@@ -256,7 +256,7 @@ class WarehouseFolder < ApplicationRecord
 
   # Check if this folder can be deleted
   def can_delete?
-    return false if is_system || is_system_tab
+    return false if is_system
     return false if children.exists?
     return false if warehouse_folder_document_types.exists?
 
@@ -266,7 +266,7 @@ class WarehouseFolder < ApplicationRecord
   # Get the reason why deletion is blocked
   def deletion_blocked_reason
     return nil if can_delete?
-    return "System folders cannot be deleted" if is_system || is_system_tab
+    return "System folders cannot be deleted" if is_system
 
     reasons = []
     reasons << "#{children.count} sub-folders" if children.exists?
@@ -454,7 +454,6 @@ class WarehouseFolder < ApplicationRecord
       is_photo_category: is_photo_category,
       is_cad_category: is_cad_category,
       is_system: is_system,
-      is_system_tab: is_system_tab,
       is_mailbox: is_mailbox,
       enabled: enabled,
       order_position: order_position,
@@ -497,7 +496,6 @@ class WarehouseFolder < ApplicationRecord
       display_mode: display_mode || 'both',
       hidden_by_default: hidden_by_default,
       component_name: component_name,
-      is_system_tab: is_system_tab,
       is_system: is_system,
       is_mailbox: is_mailbox,
       dynamic_type: dynamic_type,
@@ -557,7 +555,7 @@ class WarehouseFolder < ApplicationRecord
   end
 
   def prevent_system_deletion
-    if is_system || is_system_tab
+    if is_system
       errors.add(:base, "System folders cannot be deleted")
       throw(:abort)
     end

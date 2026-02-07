@@ -178,7 +178,7 @@ export function TakeoffCanvas({
   const [snapResult, setSnapResult] = useState<{
     snapped: Point;
     isSnapped: boolean;
-    snapType: "endpoint" | "intersection" | "midpoint" | "perpendicular" | "edge" | null;
+    snapType: "endpoint" | "intersection" | "midpoint" | "perpendicular" | "edge" | "pdf-edge" | null;
   } | null>(null);
 
   // Initialize snap points hook
@@ -191,6 +191,7 @@ export function TakeoffCanvas({
     pageHeight,
     zoom,
     config: snapConfig,
+    pdfCanvas: pdfPage,
   });
 
   // =============================================================================
@@ -837,10 +838,11 @@ export function TakeoffCanvas({
     canvas.add(line);
 
     // Show pixel distance label offset above the line
+    // Skip when verification popup is visible (it already shows the computed distance)
     const dx = ex - sx;
     const dy = ey - sy;
     const pxDist = Math.sqrt(dx * dx + dy * dy);
-    if (pxDist > 10) {
+    if (pxDist > 10 && calibrationStep !== "verifying") {
       const midX = (sx + ex) / 2;
       const midY = (sy + ey) / 2;
       const lineLen = pxDist;
@@ -1256,14 +1258,17 @@ export function TakeoffCanvas({
         </div>
       )}
 
-      {/* Calibration input - positioned near the midpoint of the line */}
+      {/* Calibration input - positioned below the line (avoids toolbar cutoff) */}
       {calibrationStep === "waitingInput" && calibrationLine && (
         <div
           className="absolute z-10"
           style={{
-            left: ((calibrationLine.start.x + calibrationLine.end.x) / 2) * zoom,
-            top: ((calibrationLine.start.y + calibrationLine.end.y) / 2) * zoom - 50,
-            transform: "translate(-50%, -100%)",
+            left: Math.max(120, Math.min(
+              pageWidth * zoom - 120,
+              ((calibrationLine.start.x + calibrationLine.end.x) / 2) * zoom
+            )),
+            top: Math.max(calibrationLine.start.y, calibrationLine.end.y) * zoom + 60,
+            transform: "translate(-50%, 0)",
           }}
         >
           <div className="bg-background/95 backdrop-blur-sm rounded-lg px-4 py-3 border-2 border-amber-500 shadow-xl min-w-[220px]">
@@ -1319,9 +1324,12 @@ export function TakeoffCanvas({
           <div
             className="absolute z-10"
             style={{
-              left: ((calibrationLine.start.x + calibrationLine.end.x) / 2) * zoom,
-              top: Math.max(10, ((calibrationLine.start.y + calibrationLine.end.y) / 2) * zoom - 50),
-              transform: `translate(-50%, ${((calibrationLine.start.y + calibrationLine.end.y) / 2) * zoom < 160 ? "0%" : "-100%"})`,
+              left: Math.max(120, Math.min(
+                pageWidth * zoom - 120,
+                ((calibrationLine.start.x + calibrationLine.end.x) / 2) * zoom
+              )),
+              top: Math.max(calibrationLine.start.y, calibrationLine.end.y) * zoom + 60,
+              transform: "translate(-50%, 0)",
             }}
           >
             <div className="bg-background/95 backdrop-blur-sm rounded-lg px-4 py-3 border-2 border-green-500 shadow-xl min-w-[220px]">

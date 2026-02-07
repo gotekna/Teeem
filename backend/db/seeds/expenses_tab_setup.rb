@@ -54,7 +54,7 @@ expenses_tab.assign_attributes(
   enabled: true,
   parent_id: finance_tab.id,  # Child of Finance
   order_position: 10,         # After Claims
-  is_system_tab: true,
+  is_system: true,
   component_name: 'JobExpensesTab'
 )
 

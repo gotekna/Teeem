@@ -41,8 +41,7 @@ export interface WarehouseFolder {
   display_mode: TabDisplayMode;  // SSoT: How tab renders (icon_only, text_only, both)
   hidden_by_default: boolean;  // SSoT: Tab hidden in overflow menu by default
   component_name: string | null;
-  is_system_tab: boolean;
-  is_system?: boolean;  // SSoT: System folder (system-generated content)
+  is_system: boolean;  // SSoT: System-generated (can't delete)
   is_mailbox?: boolean;  // SSoT: Mailbox folder (shows synced email mailboxes)
   dynamic_type?: 'mailbox' | null;  // SSoT: Dynamic folder type (computed from is_mailbox or folder_segment tokens)
   // SSoT: Visibility rules - when this tab is shown/hidden
@@ -124,7 +123,7 @@ export interface WarehouseFolderCreateParams {
   is_cad_category?: boolean;
   display_mode?: TabDisplayMode;  // SSoT: How tab renders
   hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
-  is_system_tab?: boolean;  // SSoT: System-locked tabs cannot be deleted
+  is_system?: boolean;  // SSoT: System-generated (can't delete)
   /** @deprecated Use tab_type instead */
   is_mailbox?: boolean;
 }
@@ -152,7 +151,7 @@ export interface WarehouseFolderUpdateParams {
   is_cad_category?: boolean;
   display_mode?: TabDisplayMode;  // SSoT: How tab renders
   hidden_by_default?: boolean;  // SSoT: Tab hidden in overflow menu
-  is_system_tab?: boolean;  // SSoT: System-locked tabs cannot be deleted
+  is_system?: boolean;  // SSoT: System-generated (can't delete)
   /** @deprecated Use tab_type instead */
   is_mailbox?: boolean;
 }
