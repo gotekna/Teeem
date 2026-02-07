@@ -62,6 +62,8 @@ interface WarehouseType {
 interface WarehouseFolderInType {
   id: number;
   name: string;
+  parent_id: number | null;
+  children_count?: number;
   folder_path_template?: string;
   full_path_template?: string;
   path_preview?: string;
@@ -319,9 +321,12 @@ export function WarehouseTypesTab() {
     // Update warehouse folder assignments using the dedicated endpoint
     // This handles BOTH adding AND removing folders from this warehouse type
     // When a root folder is selected, include ALL its children (inheritance)
-    if (editingType && warehouseFolderToggles.length > 0) {
+    // Skip for corporate/job/contact types - those are managed via their own config pages
+    const AUTO_MANAGED_TYPES = ["Corporate", "Job", "Contact"];
+    if (editingType && !["corporate", "job", "contact"].includes(editingType.code) && warehouseFolderToggles.length > 0) {
+      // Only send non-auto-managed folders to avoid overwriting corporate/job/contact assignments
       const selectedFolderIds = warehouseFolderToggles
-        .filter(bf => bf.enabled)
+        .filter(bf => bf.enabled && !AUTO_MANAGED_TYPES.includes(getFolderCategory(bf.warehouse_type_name || "Unassigned")))
         .flatMap(bf => [bf.id, ...bf.children_ids]);  // Include children
 
       try {
@@ -606,22 +611,38 @@ export function WarehouseTypesTab() {
                   {type.folder_path_template || "-"}
                 </TableCell>
                 <TableCell className="align-top py-2">
-                  <div className="flex flex-wrap gap-1">
-                    {type.warehouse_folders.length > 0 ? (
-                      type.warehouse_folders.map((bf) => (
-                        <Badge
-                          key={bf.id}
-                          variant="secondary"
-                          className="text-xs font-normal"
-                        >
-                          <Folder className="h-3 w-3 mr-1" />
-                          {bf.name}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground text-xs">-</span>
-                    )}
-                  </div>
+                  {(() => {
+                    const folders = type.warehouse_folders;
+                    if (folders.length === 0) return <span className="text-muted-foreground text-xs">-</span>;
+                    const roots = folders.filter(f => !f.parent_id);
+                    const children = folders.filter(f => {
+                      if (!f.parent_id) return false;
+                      return roots.some(r => r.id === f.parent_id);
+                    });
+                    const grandchildren = folders.length - roots.length - children.length;
+                    return (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary" className="text-xs">{folders.length}</Badge>
+                          <span className="text-[10px] text-muted-foreground">
+                            {roots.length} root{children.length > 0 && ` + ${children.length} child`}{grandchildren > 0 && ` + ${grandchildren} grandchild`}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {roots.map((bf) => (
+                            <Badge
+                              key={bf.id}
+                              variant="outline"
+                              className="text-[10px] font-normal py-0"
+                            >
+                              <Folder className="h-2.5 w-2.5 mr-0.5" />
+                              {bf.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="align-top py-2">
                   <Badge variant={type.enabled ? "default" : "outline"}>
@@ -751,18 +772,18 @@ export function WarehouseTypesTab() {
                 helpText={`Full path: ${formData.display_name || "TypeName"}/${formData.folder_path_template || "..."}`}
               />
 
-              {/* Warehouse Folders - Tree View (only show when editing) */}
-              {editingType && warehouseFolderToggles.length > 0 && (() => {
+              {/* Warehouse Folders - Tree View (only show when editing, hidden for corporate/job/contact - managed via their own config pages) */}
+              {editingType && !["corporate", "job", "contact"].includes(editingType.code) && warehouseFolderToggles.length > 0 && (() => {
                 const searchTerm = warehouseFolderSearch.toLowerCase().trim();
+                // Exclude Corporate/Job/Contact folders - those are auto-assigned via their own config pages
+                const AUTO_MANAGED_TYPES = ["Corporate", "Job", "Contact"];
+                const availableToggles = warehouseFolderToggles.filter(
+                  t => !AUTO_MANAGED_TYPES.includes(getFolderCategory(t.warehouse_type_name || "Unassigned"))
+                );
 
-                // Check if a root folder matches search + primary category filter
+                // Check if a root folder matches search filter
                 // Also matches if any child folder name matches the search
                 const rootMatchesFilter = (toggle: WarehouseFolderToggle): boolean => {
-                  // Primary category filter
-                  if (folderTypeFilter !== "all") {
-                    const folderCategory = getFolderCategory(toggle.warehouse_type_name || "Unassigned");
-                    if (folderCategory !== folderTypeFilter) return false;
-                  }
                   // Search - match root name OR any child name
                   if (searchTerm) {
                     if (toggle.name.toLowerCase().includes(searchTerm)) return true;
@@ -772,7 +793,7 @@ export function WarehouseTypesTab() {
                   return true;
                 };
 
-                const filteredToggles = warehouseFolderToggles
+                const filteredToggles = availableToggles
                   .filter(rootMatchesFilter)
                   .sort((a, b) => {
                     if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
@@ -784,7 +805,7 @@ export function WarehouseTypesTab() {
                     <div className="flex items-center justify-between">
                       <Label>Warehouse Folders</Label>
                       <span className="text-xs text-muted-foreground">
-                        {warehouseFolderToggles
+                        {availableToggles
                           .filter(bf => bf.enabled)
                           .reduce((sum, bf) => sum + 1 + bf.children_ids.length, 0)} folders assigned
                       </span>
@@ -792,32 +813,6 @@ export function WarehouseTypesTab() {
                     <p className="text-xs text-muted-foreground -mt-1">
                       Selecting a root folder includes all its subfolders
                     </p>
-
-                    {/* Primary tab filter: All, Corporate, Job, Contact, System */}
-                    <div className="flex flex-wrap gap-1">
-                      {(["all", "Corporate", "Job", "Contact", "System"] as const).map((tab) => {
-                        const count = tab === "all"
-                          ? warehouseFolderToggles.reduce((sum, t) => sum + 1 + t.children_ids.length, 0)
-                          : folderCategoryCounts[tab] || 0;
-                        const isActive = folderTypeFilter === tab;
-                        return (
-                          <button
-                            key={tab}
-                            type="button"
-                            onClick={() => setFolderTypeFilter(isActive && tab !== "all" ? "all" : tab)}
-                            className={cn(
-                              "inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium border transition-all",
-                              isActive
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "bg-background hover:bg-muted text-muted-foreground border-border"
-                            )}
-                          >
-                            {tab === "all" ? "All" : tab}
-                            <span className="text-[10px] opacity-70">{count}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
 
                     {/* Search */}
                     <div className="relative">

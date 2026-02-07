@@ -124,6 +124,7 @@ import {
   closestCenter,
   type DragEndEvent,
   type DragStartEvent,
+  type DragOverEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -202,6 +203,36 @@ function SortableToken({
     transition,
   };
 
+  // Separator tokens (e.g., "/" in folder paths) - small, removable, not draggable
+  const isSeparator = item.type === "text" && /^[\s/]+$/.test(item.value);
+
+  if (isSeparator) {
+    return (
+      <span
+        ref={setNodeRef}
+        style={style}
+        className={cn(
+          "inline-flex items-center text-sm font-mono px-1 py-0.5 text-muted-foreground/50 group",
+          isDragging && "opacity-20"
+        )}
+      >
+        <span>/</span>
+        {!disabled && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity ml-0.5"
+          >
+            <X className="h-2.5 w-2.5" />
+          </button>
+        )}
+      </span>
+    );
+  }
+
   const color = item.type === "placeholder" ? getPlaceholderColor(item.value) : "gray";
   const colorClasses = PLACEHOLDER_COLOR_CLASSES[color];
 
@@ -214,7 +245,7 @@ function SortableToken({
         colorClasses.bg,
         colorClasses.text,
         colorClasses.border,
-        isDragging && "opacity-50 shadow-lg z-50",
+        isDragging && "opacity-20 border-dashed border-primary",
         !disabled && "cursor-grab active:cursor-grabbing"
       )}
     >
@@ -250,15 +281,28 @@ function SortableToken({
   );
 }
 
-// Drag overlay token (shown while dragging)
+// Drop indicator shown between tokens during drag
+function DropIndicator() {
+  return (
+    <div className="w-0.5 self-stretch min-h-[28px] bg-primary rounded-full animate-pulse" />
+  );
+}
+
+// Drag overlay token (shown while dragging) - distinctive with ring + shadow
 function DragOverlayToken({ item }: { item: TokenItem }) {
+  const isSeparator = item.type === "text" && /^[\s/]+$/.test(item.value);
+  if (isSeparator) {
+    return <span className="text-sm font-mono text-muted-foreground px-1">/</span>;
+  }
+
   const color = item.type === "placeholder" ? getPlaceholderColor(item.value) : "gray";
   const colorClasses = PLACEHOLDER_COLOR_CLASSES[color];
 
   return (
     <span
       className={cn(
-        "inline-flex items-center font-mono text-xs px-2 py-1 gap-1.5 rounded-none border shadow-lg",
+        "inline-flex items-center font-mono text-xs px-2 py-1 gap-1.5 rounded-none border",
+        "shadow-xl ring-2 ring-primary/50 scale-105",
         colorClasses.bg,
         colorClasses.text,
         colorClasses.border
@@ -320,6 +364,7 @@ export function PlaceholderBuilder({
 }: TokenBuilderProps) {
   const [customText, setCustomText] = React.useState("");
   const [activeId, setActiveId] = React.useState<string | null>(null);
+  const [overId, setOverId] = React.useState<string | null>(null);
   const [paletteExpanded, setPaletteExpanded] = React.useState(defaultExpanded);
   const [search, setSearch] = React.useState("");
   const [categoryFilter, setCategoryFilter] = React.useState<TokenCategory>("all");
@@ -370,26 +415,20 @@ export function PlaceholderBuilder({
 
   const tokens: TokenItem[] = React.useMemo(() => {
     const parsed = parseTemplate(value ?? "");
-
-    // In folder path mode, filter out separator-only text tokens
-    const filtered = isFolderPathMode
-      ? parsed.filter(token => !(token.type === "text" && token.value.trim() === "/"))
-      : parsed;
-
-    return filtered.map((token, index) => ({
+    return parsed.map((token, index) => ({
       ...token,
       id: `token-${index}-${token.value}`,
     }));
-  }, [value, isFolderPathMode]);
+  }, [value]);
 
   // Parse prefix value into read-only tokens (for inherited values)
   const prefixTokens: TokenItem[] = React.useMemo(() => {
     if (!prefixValue) return [];
     const parsed = parseTemplate(prefixValue);
 
-    // In folder path mode, filter out separator-only text tokens
+    // In folder path mode, filter out text tokens that are only separators
     const filtered = isFolderPathMode
-      ? parsed.filter(token => !(token.type === "text" && token.value.trim() === "/"))
+      ? parsed.filter(token => !(token.type === "text" && /^[\s/]+$/.test(token.value)))
       : parsed;
 
     return filtered.map((token, index) => ({
@@ -403,9 +442,9 @@ export function PlaceholderBuilder({
     if (!defaultValue) return [];
     const parsed = parseTemplate(defaultValue);
 
-    // In folder path mode, filter out separator-only text tokens
+    // In folder path mode, filter out text tokens that are only separators
     const filtered = isFolderPathMode
-      ? parsed.filter(token => !(token.type === "text" && token.value.trim() === "/"))
+      ? parsed.filter(token => !(token.type === "text" && /^[\s/]+$/.test(token.value)))
       : parsed;
 
     return filtered.map((token, index) => ({
@@ -454,17 +493,14 @@ export function PlaceholderBuilder({
   // Remove a token at index
   const removeToken = (index: number) => {
     const newTokens = tokens.filter((_, i) => i !== index);
-    console.log('[TokenBuilder] removeToken:', { index, currentTokens: tokens.length, newTokens: newTokens.length, isFolderPathMode });
 
-    // In folder path mode, rebuild by joining placeholders with separator
     if (isFolderPathMode) {
-      const newValue = newTokens.map(t => t.value).join(separator);
-      console.log('[TokenBuilder] Calling onChange with:', JSON.stringify(newValue));
+      // Concatenate values, then normalize double separators
+      let newValue = newTokens.map(t => t.value).join("");
+      newValue = newValue.replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
       onChange(newValue);
     } else {
-      const newValue = buildTemplate(newTokens.map(({ type, value }) => ({ type, value })));
-      console.log('[TokenBuilder] Calling onChange with:', JSON.stringify(newValue));
-      onChange(newValue);
+      onChange(buildTemplate(newTokens.map(({ type, value }) => ({ type, value }))));
     }
   };
 
@@ -490,19 +526,31 @@ export function PlaceholderBuilder({
     setActiveId(event.active.id as string);
   };
 
+  // Handle drag over - track position for drop indicator
+  const handleDragOver = (event: DragOverEvent) => {
+    setOverId((event.over?.id as string) || null);
+  };
+
+  // Handle drag cancel - reset state
+  const handleDragCancel = () => {
+    setActiveId(null);
+    setOverId(null);
+  };
+
   // Handle drag end - reorder tokens
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
+    setOverId(null);
 
     if (over && active.id !== over.id) {
       const oldIndex = tokens.findIndex((t) => t.id === active.id);
       const newIndex = tokens.findIndex((t) => t.id === over.id);
       const reordered = arrayMove(tokens, oldIndex, newIndex);
 
-      // In folder path mode, rebuild by joining with separator
       if (isFolderPathMode) {
-        const newValue = reordered.map(t => t.value).join(separator);
+        // Concatenate values directly (separator tokens are part of the array)
+        const newValue = reordered.map(t => t.value).join("");
         onChange(newValue);
       } else {
         onChange(buildTemplate(reordered.map(({ type, value }) => ({ type, value }))));
@@ -530,9 +578,9 @@ export function PlaceholderBuilder({
           <ReadOnlyToken key={token.id} item={token} />
         ))}
 
-        {/* Separator between prefix and editable tokens */}
-        {prefixTokens.length > 0 && tokens.length > 0 && (
-          <span className="text-muted-foreground/50 mx-0.5">/</span>
+        {/* Visual separator between prefix and editable (non-removable) */}
+        {isFolderPathMode && prefixTokens.length > 0 && tokens.length > 0 && (
+          <span className="text-sm font-mono text-muted-foreground/40 select-none">/</span>
         )}
 
         {/* Editable tokens with drag-and-drop */}
@@ -562,20 +610,32 @@ export function PlaceholderBuilder({
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
           >
             <SortableContext
               items={tokens.map((t) => t.id)}
               strategy={horizontalListSortingStrategy}
             >
-              {tokens.map((token, index) => (
-                <SortableToken
-                  key={token.id}
-                  item={token}
-                  disabled={disabled}
-                  onRemove={() => removeToken(index)}
-                />
-              ))}
+              {(() => {
+                const activeIdx = activeId ? tokens.findIndex(t => t.id === activeId) : -1;
+                const overIdx = overId ? tokens.findIndex(t => t.id === overId) : -1;
+                return tokens.map((token, index) => {
+                  const isDropTarget = activeId !== null && overId === token.id && activeId !== token.id;
+                  return (
+                    <React.Fragment key={token.id}>
+                      {isDropTarget && activeIdx > overIdx && <DropIndicator />}
+                      <SortableToken
+                        item={token}
+                        disabled={disabled}
+                        onRemove={() => removeToken(index)}
+                      />
+                      {isDropTarget && activeIdx < overIdx && <DropIndicator />}
+                    </React.Fragment>
+                  );
+                });
+              })()}
             </SortableContext>
 
             <DragOverlay>

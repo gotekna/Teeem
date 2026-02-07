@@ -249,6 +249,7 @@ interface WarehouseFoldersConfigProps {
   title?: string;                   // Override default title
   description?: string;             // Override default description
   compact?: boolean;                // Hide title/description for embedded use
+  readOnly?: boolean;               // Hide add/edit/delete controls (managed via Warehouse Types)
 }
 
 export function WarehouseFoldersConfig({
@@ -260,6 +261,7 @@ export function WarehouseFoldersConfig({
   title,
   description,
   compact = false,
+  readOnly = false,
 }: WarehouseFoldersConfigProps) {
   const {
     tabs,
@@ -1420,9 +1422,9 @@ export function WarehouseFoldersConfig({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span
-                className="font-medium cursor-pointer hover:text-primary hover:underline"
-                onClick={() => openEditDialog(tab)}
-                title="Click to edit"
+                className={cn("font-medium", !readOnly && "cursor-pointer hover:text-primary hover:underline")}
+                onClick={readOnly ? undefined : () => openEditDialog(tab)}
+                title={readOnly ? undefined : "Click to edit"}
               >
                 {tab.display_name}
               </span>
@@ -1655,24 +1657,26 @@ export function WarehouseFoldersConfig({
               </>
             )}
 
-            {/* Edit button */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => openEditDialog(tab)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Edit tab</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            {/* Edit button - hidden in readOnly mode (managed via Warehouse Types) */}
+            {!readOnly && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => openEditDialog(tab)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Edit tab</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
 
             {/* Visibility toggle */}
             <TooltipProvider>
@@ -1698,8 +1702,8 @@ export function WarehouseFoldersConfig({
               </Tooltip>
             </TooltipProvider>
 
-            {/* Delete button (only for non-system tabs with no documents) */}
-            {!tab.is_system_tab && (
+            {/* Delete button (only for non-system tabs with no documents) - hidden in readOnly mode */}
+            {!readOnly && !tab.is_system_tab && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1754,14 +1758,16 @@ export function WarehouseFoldersConfig({
                 );
               })()}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => openCreateDialog(group)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Tab
-            </Button>
+            {!readOnly && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openCreateDialog(group)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Tab
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -1804,7 +1810,8 @@ export function WarehouseFoldersConfig({
   }
 
   // Action buttons - rendered in Card header for compact mode, or standalone for non-compact
-  const actionButtons = (
+  // Hidden in readOnly mode (folder management done via Warehouse Types)
+  const actionButtons = readOnly ? null : (
     <div className="flex items-center gap-2">
       {scope === "corporate" && (
         <Button

@@ -61,6 +61,8 @@ export default function TakeoffPage() {
   // Tool state
   const [currentTool, setCurrentTool] = React.useState<TakeoffTool>("select");
   const [zoom, setZoom] = React.useState(1);
+  const zoomModeRef = React.useRef<"fit" | "manual">("fit");
+  const canvasContainerRef = React.useRef<HTMLDivElement>(null);
 
   // Pricebook selector state
   const [pricebookSelectorOpen, setPricebookSelectorOpen] = React.useState(false);
@@ -90,6 +92,76 @@ export default function TakeoffPage() {
   // PDF loading
   const pdfUrl = planData?.current_revision?.download_url || null;
   const { pages, currentPage, pageCount, isLoading: isLoadingPdf, error: pdfError } = useTakeoffPdf(pdfUrl);
+
+  // Fit-to-page zoom calculation
+  const calcFitZoom = React.useCallback(() => {
+    if (!currentPage || !canvasContainerRef.current) return null;
+    const w = canvasContainerRef.current.clientWidth;
+    const h = canvasContainerRef.current.clientHeight;
+    if (w <= 0 || h <= 0) return null;
+    const fitZoom = Math.min(
+      (w - 4) / currentPage.width,
+      (h - 4) / currentPage.height
+    );
+    return Math.max(0.1, Math.min(fitZoom, 3));
+  }, [currentPage]);
+
+  // Auto fit-to-page on page change and container resize (only in fit mode)
+  const lastContainerSize = React.useRef({ w: 0, h: 0 });
+  React.useEffect(() => {
+    if (!currentPage || !canvasContainerRef.current) return;
+
+    const container = canvasContainerRef.current;
+    let rafId: number;
+
+    const applyFitZoom = () => {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w <= 0 || h <= 0) return;
+      if (Math.abs(w - lastContainerSize.current.w) < 2 && Math.abs(h - lastContainerSize.current.h) < 2) return;
+      lastContainerSize.current = { w, h };
+      const fit = calcFitZoom();
+      if (fit !== null) {
+        setZoom(fit);
+        container.scrollTop = 0;
+        container.scrollLeft = 0;
+      }
+    };
+
+    zoomModeRef.current = "fit";
+    lastContainerSize.current = { w: 0, h: 0 };
+    applyFitZoom();
+
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (zoomModeRef.current === "fit") applyFitZoom();
+      });
+    });
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(rafId);
+    };
+  }, [currentPage, calcFitZoom]);
+
+  const handleZoomChange = React.useCallback((newZoom: number) => {
+    zoomModeRef.current = "manual";
+    setZoom(newZoom);
+  }, []);
+
+  const handleFitToView = React.useCallback(() => {
+    zoomModeRef.current = "fit";
+    lastContainerSize.current = { w: 0, h: 0 };
+    const fit = calcFitZoom();
+    if (fit !== null) {
+      setZoom(fit);
+      if (canvasContainerRef.current) {
+        canvasContainerRef.current.scrollTop = 0;
+        canvasContainerRef.current.scrollLeft = 0;
+      }
+    }
+  }, [calcFitZoom]);
 
   // =============================================================================
   // Data Fetching
@@ -835,7 +907,8 @@ export default function TakeoffPage() {
         currentTool={currentTool}
         onToolChange={setCurrentTool}
         zoom={zoom}
-        onZoomChange={setZoom}
+        onZoomChange={handleZoomChange}
+        onFitToView={handleFitToView}
         activeLayer={activeLayer}
         layers={layers}
         onLayerChange={setActiveLayer}
@@ -895,7 +968,7 @@ export default function TakeoffPage() {
         </div>
 
         {/* Canvas area */}
-        <PdfChrome className="p-0.5">
+        <PdfChrome ref={canvasContainerRef} className="p-0.5">
           {pdfError && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
@@ -940,7 +1013,7 @@ export default function TakeoffPage() {
                 layers={layers}
                 currentTool={currentTool}
                 zoom={zoom}
-                onZoomChange={setZoom}
+                onZoomChange={handleZoomChange}
               />
             </div>
           )}

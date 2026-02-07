@@ -20,6 +20,7 @@ import {
   MinusSquare,
   ZoomIn,
   ZoomOut,
+  Maximize2,
   Undo2,
   Redo2,
 } from "lucide-react";
@@ -42,6 +43,7 @@ interface TakeoffToolbarProps {
   // Zoom
   zoom: number;
   onZoomChange: (zoom: number) => void;
+  onFitToView?: () => void;
 
   // Layer
   activeLayer: TakeoffLayer | null;
@@ -105,6 +107,7 @@ export function TakeoffToolbar({
   onToolChange,
   zoom,
   onZoomChange,
+  onFitToView,
   activeLayer,
   layers,
   onLayerChange,
@@ -131,6 +134,34 @@ export function TakeoffToolbar({
   pdfUrl,
   onSyncComplete,
 }: TakeoffToolbarProps) {
+  // Editable zoom input state
+  const [isEditingZoom, setIsEditingZoom] = React.useState(false);
+  const [zoomInputValue, setZoomInputValue] = React.useState("");
+  const zoomInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleZoomInputStart = () => {
+    setZoomInputValue(String(Math.round(zoom * 100)));
+    setIsEditingZoom(true);
+    setTimeout(() => zoomInputRef.current?.select(), 0);
+  };
+
+  const handleZoomInputCommit = () => {
+    setIsEditingZoom(false);
+    const parsed = parseInt(zoomInputValue, 10);
+    if (!isNaN(parsed) && parsed >= 10 && parsed <= 300) {
+      onZoomChange(parsed / 100);
+    }
+  };
+
+  const handleZoomInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleZoomInputCommit();
+    } else if (e.key === "Escape") {
+      setIsEditingZoom(false);
+    }
+    e.stopPropagation(); // Prevent toolbar shortcuts while typing
+  };
+
   // Keyboard shortcuts
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -149,13 +180,13 @@ export function TakeoffToolbar({
         return;
       }
 
-      // Zoom shortcuts
+      // Zoom shortcuts (5% steps)
       if (e.key === "+" || e.key === "=") {
         e.preventDefault();
-        onZoomChange(Math.min(zoom + 0.25, 3));
+        onZoomChange(Math.min(zoom + 0.05, 3));
       } else if (e.key === "-") {
         e.preventDefault();
-        onZoomChange(Math.max(zoom - 0.25, 0.25));
+        onZoomChange(Math.max(zoom - 0.05, 0.1));
       }
 
       // Undo/Redo
@@ -336,7 +367,7 @@ export function TakeoffToolbar({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => onZoomChange(Math.max(zoom - 0.25, 0.25))}
+              onClick={() => onZoomChange(Math.max(zoom - 0.05, 0.1))}
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
@@ -344,22 +375,55 @@ export function TakeoffToolbar({
           <TooltipContent>Zoom Out (-)</TooltipContent>
         </Tooltip>
 
-        <span className="text-sm font-medium w-14 text-center">
-          {Math.round(zoom * 100)}%
-        </span>
+        {isEditingZoom ? (
+          <input
+            ref={zoomInputRef}
+            type="text"
+            inputMode="numeric"
+            value={zoomInputValue}
+            onChange={(e) => setZoomInputValue(e.target.value.replace(/[^0-9]/g, ""))}
+            onBlur={handleZoomInputCommit}
+            onKeyDown={handleZoomInputKeyDown}
+            className="w-14 text-sm font-medium text-center bg-muted border rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-primary"
+            autoFocus
+          />
+        ) : (
+          <button
+            onClick={handleZoomInputStart}
+            className="text-sm font-medium w-14 text-center hover:bg-muted rounded px-1 py-0.5 cursor-text"
+            title="Click to type zoom %"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+        )}
 
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => onZoomChange(Math.min(zoom + 0.25, 3))}
+              onClick={() => onZoomChange(Math.min(zoom + 0.05, 3))}
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Zoom In (+)</TooltipContent>
         </Tooltip>
+
+        {onFitToView && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onFitToView}
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Fit to View</TooltipContent>
+          </Tooltip>
+        )}
       </div>
     </TooltipProvider>
   );

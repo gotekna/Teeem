@@ -85,6 +85,7 @@ export default function DocsortTakeoffPage() {
   // Tool state
   const [currentTool, setCurrentTool] = React.useState<TakeoffTool>("select");
   const [zoom, setZoom] = React.useState(1);
+  const zoomModeRef = React.useRef<"fit" | "manual">("fit");
   const canvasContainerRef = React.useRef<HTMLDivElement>(null);
 
   // Pricebook selector state
@@ -115,7 +116,21 @@ export default function DocsortTakeoffPage() {
     return itemData?.page_scales.find((ps) => ps.page_number === currentPageNumber) || null;
   }, [itemData, currentPageNumber]);
 
-  // Fit-to-page zoom - recalculates when container resizes (e.g. sidebar toggle)
+  // Fit-to-page zoom calculation
+  const calcFitZoom = React.useCallback(() => {
+    if (!currentPage || !canvasContainerRef.current) return null;
+    const w = canvasContainerRef.current.clientWidth;
+    const h = canvasContainerRef.current.clientHeight;
+    if (w <= 0 || h <= 0) return null;
+    // p-0.5 = 2px padding each side (4px total) so ring-1 border isn't clipped by overflow
+    const fitZoom = Math.min(
+      (w - 4) / currentPage.width,
+      (h - 4) / currentPage.height
+    );
+    return Math.max(0.1, Math.min(fitZoom, 3));
+  }, [currentPage]);
+
+  // Auto fit-to-page on page change and container resize (only in fit mode)
   const lastContainerSize = React.useRef({ w: 0, h: 0 });
   React.useEffect(() => {
     if (!currentPage || !canvasContainerRef.current) return;
@@ -123,7 +138,7 @@ export default function DocsortTakeoffPage() {
     const container = canvasContainerRef.current;
     let rafId: number;
 
-    const calcFitZoom = () => {
+    const applyFitZoom = () => {
       const w = container.clientWidth;
       const h = container.clientHeight;
       if (w <= 0 || h <= 0) return;
@@ -132,28 +147,53 @@ export default function DocsortTakeoffPage() {
       if (Math.abs(w - lastContainerSize.current.w) < 2 && Math.abs(h - lastContainerSize.current.h) < 2) return;
       lastContainerSize.current = { w, h };
 
-      // p-0.5 = 2px padding each side (4px total) so ring-1 border isn't clipped by overflow
-      const fitZoom = Math.min(
-        (w - 4) / currentPage.width,
-        (h - 4) / currentPage.height
-      );
-      setZoom(Math.max(0.1, Math.min(fitZoom, 3)));
-      container.scrollTop = 0;
-      container.scrollLeft = 0;
+      const fit = calcFitZoom();
+      if (fit !== null) {
+        setZoom(fit);
+        container.scrollTop = 0;
+        container.scrollLeft = 0;
+      }
     };
 
-    calcFitZoom();
+    // Always fit on page change
+    zoomModeRef.current = "fit";
+    lastContainerSize.current = { w: 0, h: 0 };
+    applyFitZoom();
 
     const observer = new ResizeObserver(() => {
       cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(calcFitZoom);
+      rafId = requestAnimationFrame(() => {
+        // Only auto-recalculate in fit mode (sidebar toggle, window resize)
+        // Uses ref to always read latest value without re-subscribing
+        if (zoomModeRef.current === "fit") applyFitZoom();
+      });
     });
     observer.observe(container);
     return () => {
       observer.disconnect();
       cancelAnimationFrame(rafId);
     };
-  }, [currentPage]);
+  }, [currentPage, calcFitZoom]);
+
+  // Manual zoom handler - switches out of fit mode
+  const handleZoomChange = React.useCallback((newZoom: number) => {
+    zoomModeRef.current = "manual";
+    setZoom(newZoom);
+  }, []);
+
+  // Fit to view handler - resets to fit mode
+  const handleFitToView = React.useCallback(() => {
+    zoomModeRef.current = "fit";
+    lastContainerSize.current = { w: 0, h: 0 };
+    const fit = calcFitZoom();
+    if (fit !== null) {
+      setZoom(fit);
+      if (canvasContainerRef.current) {
+        canvasContainerRef.current.scrollTop = 0;
+        canvasContainerRef.current.scrollLeft = 0;
+      }
+    }
+  }, [calcFitZoom]);
 
   // =============================================================================
   // Data Fetching
@@ -698,7 +738,8 @@ export default function DocsortTakeoffPage() {
         currentTool={currentTool}
         onToolChange={setCurrentTool}
         zoom={zoom}
-        onZoomChange={setZoom}
+        onZoomChange={handleZoomChange}
+        onFitToView={handleFitToView}
         activeLayer={activeLayer}
         layers={layers}
         onLayerChange={setActiveLayer}
@@ -826,7 +867,7 @@ export default function DocsortTakeoffPage() {
                 layers={layers}
                 currentTool={currentTool}
                 zoom={zoom}
-                onZoomChange={setZoom}
+                onZoomChange={handleZoomChange}
               />
             </div>
           )}

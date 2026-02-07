@@ -115,6 +115,26 @@ export function TakeoffCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
 
+  // Refs for event handlers - avoids stale closures in Fabric event listeners
+  // ⚠️ DO NOT SIMPLIFY - Canvas event listeners capture closures at registration time.
+  // Without refs, switching tools (e.g. select → calibrate) won't work because
+  // the canvas still calls the old handler that captured the previous currentTool value.
+  const handlersRef = useRef<{
+    mouseDown: (e: fabric.TPointerEventInfo) => void;
+    mouseMove: (e: fabric.TPointerEventInfo) => void;
+    mouseUp: () => void;
+    doubleClick: () => void;
+    selectionCreated: (e: SelectionEvent) => void;
+    selectionCleared: () => void;
+  }>({
+    mouseDown: () => {},
+    mouseMove: () => {},
+    mouseUp: () => {},
+    doubleClick: () => {},
+    selectionCreated: () => {},
+    selectionCleared: () => {},
+  });
+
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPoints, setCurrentPoints] = useState<Point[]>([]);
@@ -168,6 +188,15 @@ export function TakeoffCanvas({
       fabricRef.current = null;
     };
   }, [pageWidth, pageHeight]);
+
+  // =============================================================================
+  // Update canvas selection mode when tool changes
+  // =============================================================================
+
+  useEffect(() => {
+    if (!fabricRef.current) return;
+    fabricRef.current.selection = currentTool === "select";
+  }, [currentTool]);
 
   // =============================================================================
   // Update canvas size on zoom
@@ -400,14 +429,15 @@ export function TakeoffCanvas({
   // =============================================================================
 
   const setupEventHandlers = (canvas: fabric.Canvas) => {
-    canvas.on("mouse:down", handleMouseDown);
-    canvas.on("mouse:move", handleMouseMove);
-    canvas.on("mouse:up", handleMouseUp);
-    canvas.on("mouse:dblclick", handleDoubleClick);
-    // Selection events have different type signature
+    // Use wrapper functions that delegate to refs - this ensures the canvas
+    // always calls the latest handler even when dependencies change
+    canvas.on("mouse:down", (e: fabric.TPointerEventInfo) => handlersRef.current.mouseDown(e));
+    canvas.on("mouse:move", (e: fabric.TPointerEventInfo) => handlersRef.current.mouseMove(e));
+    canvas.on("mouse:up", () => handlersRef.current.mouseUp());
+    canvas.on("mouse:dblclick", () => handlersRef.current.doubleClick());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    canvas.on("selection:created", handleSelectionCreated as any);
-    canvas.on("selection:cleared", handleSelectionCleared);
+    canvas.on("selection:created", ((e: SelectionEvent) => handlersRef.current.selectionCreated(e)) as any);
+    canvas.on("selection:cleared", () => handlersRef.current.selectionCleared());
   };
 
   // =============================================================================
@@ -516,6 +546,16 @@ export function TakeoffCanvas({
   const handleSelectionCleared = useCallback(() => {
     onMeasurementSelect(null);
   }, [onMeasurementSelect]);
+
+  // Keep handler refs in sync so canvas event wrappers always call latest
+  handlersRef.current = {
+    mouseDown: handleMouseDown,
+    mouseMove: handleMouseMove,
+    mouseUp: handleMouseUp,
+    doubleClick: handleDoubleClick,
+    selectionCreated: handleSelectionCreated,
+    selectionCleared: handleSelectionCleared,
+  };
 
   // =============================================================================
   // Count Tool
