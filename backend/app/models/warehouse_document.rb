@@ -605,21 +605,6 @@ class WarehouseDocument < ApplicationRecord
     "#{emails_folder}/Attachments/#{year}/#{month}/#{att.id}_#{safe_filename}"
   end
 
-  # Compute job document legacy path if not stored
-  # SSoT: Uses WarehouseProvider for base folder (Jan 2026)
-  def compute_job_document_legacy_path(doc)
-    return nil unless doc.id.present?
-
-    job = doc.job
-    return nil unless job
-
-    jobs_folder = WarehouseProvider.instance&.path_for(:jobs) || "Jobs"
-    doc_type = doc.document_type&.name || "Documents"
-    filename = doc.filename.presence || "#{doc.id}"
-    safe_filename = filename.gsub(/[<>:"|?*\\\/]/, "_")
-    "#{jobs_folder}/#{job.job_code}/#{doc_type}/#{safe_filename}"
-  end
-
   # Full sanitization for 100% accurate filenames
   def sanitize_filename(name)
     return "document" if name.blank?

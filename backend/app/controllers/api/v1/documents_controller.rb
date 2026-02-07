@@ -1916,7 +1916,7 @@ module Api
         end
       end
 
-      # SSoT: Job hierarchy follows template {{JobCode}}/{{TabName}}
+      # SSoT: Job hierarchy follows template {{JobStatus}}/{{JobType}}/{{JobCode}}/{{TabName}}
       # SSoT (Feb 2026): Uses WarehouseDocument for job document counts, WarehouseFolder for tabs
       def build_job_hierarchy
         # Get document tabs for job scope (SSoT: WarehouseFolder is THE ONE)
@@ -1926,33 +1926,54 @@ module Api
                         .enabled
                         .ordered
 
-        # Get recent jobs (limit for performance)
-        Job.order(created_at: :desc).limit(100).map do |job|
-          {
-            id: "job-#{job.id}",
-            name: job.job_number,
-            token: "JobCode",
-            type: "folder",
-            jobId: job.id,
-            jobTitle: job.title,
-            children: tabs.map do |tab|
-              doc_count = if tab.document_type_ids.present?
-                WarehouseDocument
-                  .where(source_type: "job", linkable: job)
-                  .where("metadata->>'document_type_id' IN (?)", tab.document_type_ids.map(&:to_s))
-                  .count
-              else
-                0
-              end
+        # Get recent jobs with associations for grouping
+        jobs = Job.includes(:job_status, :job_type)
+                  .order(created_at: :desc)
+                  .limit(100)
 
+        # Group by JobStatus → JobType → Individual Jobs (mirrors folder_path_template)
+        jobs.group_by(&:job_status).map do |status, status_jobs|
+          {
+            id: "status-#{status&.id || 'none'}",
+            name: status&.name || "No Status",
+            token: "JobStatus",
+            type: "folder",
+            children: status_jobs.group_by(&:job_type).map do |jtype, type_jobs|
               {
-                id: "tab-#{job.id}-#{tab.id}",
-                name: tab.display_name,
-                token: "TabName",
+                id: "type-#{status&.id || 'none'}-#{jtype&.id || 'none'}",
+                name: jtype&.name || "No Type",
+                token: "JobType",
                 type: "folder",
-                entityTabId: tab.id,
-                jobId: job.id,
-                fileCount: doc_count
+                children: type_jobs.map do |job|
+                  {
+                    id: "job-#{job.id}",
+                    name: job.job_number,
+                    token: "JobCode",
+                    type: "folder",
+                    jobId: job.id,
+                    jobTitle: job.title,
+                    children: tabs.map do |tab|
+                      doc_count = if tab.document_type_ids.present?
+                        WarehouseDocument
+                          .where(source_type: "job", linkable: job)
+                          .where("metadata->>'document_type_id' IN (?)", tab.document_type_ids.map(&:to_s))
+                          .count
+                      else
+                        0
+                      end
+
+                      {
+                        id: "tab-#{job.id}-#{tab.id}",
+                        name: tab.display_name,
+                        token: "TabName",
+                        type: "folder",
+                        entityTabId: tab.id,
+                        jobId: job.id,
+                        fileCount: doc_count
+                      }
+                    end
+                  }
+                end
               }
             end
           }
