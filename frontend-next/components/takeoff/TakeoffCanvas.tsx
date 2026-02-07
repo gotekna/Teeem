@@ -16,7 +16,7 @@ import type {
 } from "./types";
 import { DEFAULT_DRAWING_STYLE } from "./types";
 import { useSnapPoints, type SnapConfig } from "./useSnapPoints";
-import { SnapIndicator, SnapPointsLayer } from "./SnapIndicator";
+import { SnapIndicator, SnapPointsLayer, SnapMagnifier } from "./SnapIndicator";
 import { PdfFrame } from "@/components/ui/pdf-chrome";
 
 // =============================================================================
@@ -179,10 +179,11 @@ export function TakeoffCanvas({
     snapped: Point;
     isSnapped: boolean;
     snapType: "endpoint" | "intersection" | "midpoint" | "perpendicular" | "edge" | "pdf-edge" | null;
+    pdfCandidates?: Array<{ x: number; y: number }>;
   } | null>(null);
 
   // Initialize snap points hook
-  const { findSnapPoint, getVisibleSnapPoints } = useSnapPoints({
+  const { findSnapPoint, getVisibleSnapPoints, overridePdfSnap } = useSnapPoints({
     measurements: measurements.map(m => ({
       id: m.id,
       geometry_data: m.geometry_data,
@@ -563,8 +564,10 @@ export function TakeoffCanvas({
       panDragRef.current = null;
     }
 
-    // Apply snapping for measurement tools
-    const shouldSnap = ["count", "area", "linear", "perimeter", "deduction", "calibrate"].includes(currentTool);
+    // Apply snapping for measurement tools (hold Alt to bypass snap)
+    const nativeEvt = e.e as PointerEvent;
+    const altHeld = nativeEvt?.altKey ?? false;
+    const shouldSnap = !altHeld && ["count", "area", "linear", "perimeter", "deduction", "calibrate"].includes(currentTool);
     const { snapped: point } = shouldSnap ? findSnapPoint(rawPoint.x, rawPoint.y) : { snapped: rawPoint };
 
     switch (currentTool) {
@@ -648,7 +651,10 @@ export function TakeoffCanvas({
     const rawPoint = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
 
     // Always check for snap points when using measurement tools (for visual feedback)
-    const shouldSnap = ["count", "area", "linear", "perimeter", "deduction", "calibrate"].includes(currentTool);
+    // Hold Alt to temporarily suppress snapping
+    const moveNativeEvt = e.e as PointerEvent;
+    const altHeldMove = moveNativeEvt?.altKey ?? false;
+    const shouldSnap = !altHeldMove && ["count", "area", "linear", "perimeter", "deduction", "calibrate"].includes(currentTool);
     if (shouldSnap) {
       const snap = findSnapPoint(rawPoint.x, rawPoint.y);
       setCursorPoint(rawPoint);
@@ -1039,6 +1045,15 @@ export function TakeoffCanvas({
     clearTempDrawing();
   };
 
+  // Handle magnifier candidate selection — overrides the PDF snap lock
+  const handleMagnifierSelect = useCallback((candidate: { x: number; y: number }) => {
+    overridePdfSnap(candidate);
+    setSnapResult(prev => prev ? {
+      ...prev,
+      snapped: candidate,
+    } : null);
+  }, [overridePdfSnap]);
+
   // =============================================================================
   // Helpers
   // =============================================================================
@@ -1110,12 +1125,44 @@ export function TakeoffCanvas({
       } else if (e.key === "Enter" && isDrawing) {
         // Complete drawing
         completeDrawing();
+      } else if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+        setSnapResult(prev => {
+          if (!prev?.isSnapped || prev.snapType !== "pdf-edge") return prev;
+          e.preventDefault(); // Don't scroll the page
+
+          if (e.shiftKey) {
+            // Shift + Arrow = nudge snap point 1px for fine positioning
+            const step = 0.5;
+            let dx = 0, dy = 0;
+            if (e.key === "ArrowLeft") dx = -step;
+            if (e.key === "ArrowRight") dx = step;
+            if (e.key === "ArrowUp") dy = -step;
+            if (e.key === "ArrowDown") dy = step;
+            const nudged = { x: prev.snapped.x + dx, y: prev.snapped.y + dy };
+            overridePdfSnap(nudged);
+            return { ...prev, snapped: nudged };
+          }
+
+          // Plain Arrow = cycle between candidates
+          if (!prev.pdfCandidates || prev.pdfCandidates.length < 2) return prev;
+          const candidates = prev.pdfCandidates;
+          const currentIdx = candidates.findIndex(c => c.x === prev.snapped.x && c.y === prev.snapped.y);
+          let nextIdx: number;
+          if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+            nextIdx = (currentIdx + 1) % candidates.length;
+          } else {
+            nextIdx = (currentIdx - 1 + candidates.length) % candidates.length;
+          }
+          const next = candidates[nextIdx];
+          overridePdfSnap(next);
+          return { ...prev, snapped: next };
+        });
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedMeasurement, isDrawing, currentPoints]);
+  }, [selectedMeasurement, isDrawing, currentPoints, overridePdfSnap]);
 
   // =============================================================================
   // Fabric.js cursor sync with usePdfPanZoom hook
@@ -1193,6 +1240,19 @@ export function TakeoffCanvas({
         )}
       </svg>
 
+      {/* Snap magnifier for ambiguous PDF edge snaps (2+ junctions nearby) */}
+      {snapResult?.pdfCandidates && snapResult.pdfCandidates.length >= 1 && pdfPage && (
+        <SnapMagnifier
+          candidates={snapResult.pdfCandidates}
+          activeCandidate={snapResult.snapped}
+          pdfCanvas={pdfPage}
+          zoom={zoom}
+          pageWidth={pageWidth}
+          pageHeight={pageHeight}
+          onSelect={handleMagnifierSelect}
+        />
+      )}
+
       {/* Zoom-to-rect selection overlay (right-click drag) */}
       {zoomRect && (
         <div
@@ -1226,6 +1286,12 @@ export function TakeoffCanvas({
         <div className="absolute top-4 right-4 bg-green-500/90 text-white rounded-lg px-3 py-1.5 text-xs font-medium shadow-lg flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
           Snap: {snapResult.snapType}
+          {snapResult.snapType === "pdf-edge" && (
+            <span className="opacity-70 ml-1">
+              {snapResult.pdfCandidates && snapResult.pdfCandidates.length > 1 ? "← → switch" : ""}
+              {" ⇧+↑↓←→ nudge"}
+            </span>
+          )}
         </div>
       )}
 

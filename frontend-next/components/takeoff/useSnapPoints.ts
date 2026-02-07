@@ -71,6 +71,8 @@ export function useSnapPoints(options: UseSnapPointsOptions) {
   // PDF edge snap lock — once locked to a tick mark, hold it steady until cursor
   // moves beyond the snap threshold (prevents jitter from pixel-level recalculation)
   const pdfSnapLockRef = useRef<{ x: number; y: number } | null>(null);
+  // All junction candidates from last PDF edge scan (for magnifier disambiguation)
+  const lastPdfCandidatesRef = useRef<Array<{ x: number; y: number }>>([]);
 
   // Extract snap points from existing measurements
   const extractSnapPoints = useCallback(() => {
@@ -154,7 +156,7 @@ export function useSnapPoints(options: UseSnapPointsOptions) {
 
   // Find the nearest snap point to a given position
   const findSnapPoint = useCallback(
-    (x: number, y: number): { snapped: Point; isSnapped: boolean; snapType: SnapPoint["type"] | null } => {
+    (x: number, y: number): { snapped: Point; isSnapped: boolean; snapType: SnapPoint["type"] | null; pdfCandidates?: Array<{ x: number; y: number }> } => {
       if (!config.enabled) {
         return { snapped: { x, y }, isSnapped: false, snapType: null };
       }
@@ -191,16 +193,29 @@ export function useSnapPoints(options: UseSnapPointsOptions) {
           const distToLocked = Math.sqrt((locked.x - x) ** 2 + (locked.y - y) ** 2);
           if (distToLocked < threshold) {
             // Still within range of locked tick mark — hold steady
-            return { snapped: locked, isSnapped: true, snapType: "pdf-edge" };
+            const candidates = lastPdfCandidatesRef.current;
+            return {
+              snapped: locked,
+              isSnapped: true,
+              snapType: "pdf-edge",
+              pdfCandidates: candidates.length > 0 ? candidates : undefined,
+            };
           }
           // Cursor moved away — release lock
           pdfSnapLockRef.current = null;
+          lastPdfCandidatesRef.current = [];
         }
 
-        const edgePoint = findNearestPdfEdge(x, y, pdfCanvas, threshold);
-        if (edgePoint) {
-          pdfSnapLockRef.current = edgePoint; // Lock to this tick mark
-          return { snapped: edgePoint, isSnapped: true, snapType: "pdf-edge" };
+        const junctions = findPdfJunctions(x, y, pdfCanvas, threshold);
+        lastPdfCandidatesRef.current = junctions;
+        if (junctions.length > 0) {
+          pdfSnapLockRef.current = junctions[0]; // Lock to nearest junction
+          return {
+            snapped: junctions[0],
+            isSnapped: true,
+            snapType: "pdf-edge",
+            pdfCandidates: junctions.length > 0 ? junctions : undefined,
+          };
         }
       }
 
@@ -283,10 +298,16 @@ export function useSnapPoints(options: UseSnapPointsOptions) {
     [config, zoom, measurements]
   );
 
+  // Override the PDF snap lock — used by magnifier to select a specific candidate
+  const overridePdfSnap = useCallback((point: { x: number; y: number }) => {
+    pdfSnapLockRef.current = point;
+  }, []);
+
   return {
     findSnapPoint,
     getVisibleSnapPoints,
     snapToNearestEdge,
+    overridePdfSnap,
     config,
   };
 }
@@ -295,19 +316,19 @@ export function useSnapPoints(options: UseSnapPointsOptions) {
 // PDF Edge Detection
 // =============================================================================
 
-// Detect tick marks / line junctions on the PDF canvas — the little 45° or 90°
-// dashes at the ends of dimension lines. Only snaps when dark pixels form a
-// junction (2+ directions with dark runs), NOT plain lines or text.
-// This means the snap indicator only appears at precise measurement endpoints.
-function findNearestPdfEdge(
+// Detect ALL tick mark / line junctions on the PDF canvas within threshold range.
+// Returns an array of distinct junction points sorted by distance to cursor.
+// Nearby junctions are clustered so each tick mark appears only once.
+// When multiple junctions exist, the magnifier can show them for disambiguation.
+function findPdfJunctions(
   x: number,
   y: number,
   pdfCanvas: HTMLCanvasElement,
   thresholdPx: number
-): { x: number; y: number } | null {
+): Array<{ x: number; y: number }> {
   const dpr = window.devicePixelRatio || 1;
   const ctx = pdfCanvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return null;
+  if (!ctx) return [];
 
   const cx = Math.round(x * dpr);
   const cy = Math.round(y * dpr);
@@ -317,7 +338,7 @@ function findNearestPdfEdge(
   const sy = Math.max(0, cy - radius);
   const sw = Math.min(pdfCanvas.width - sx, radius * 2);
   const sh = Math.min(pdfCanvas.height - sy, radius * 2);
-  if (sw <= 0 || sh <= 0) return null;
+  if (sw <= 0 || sh <= 0) return [];
 
   const imageData = ctx.getImageData(sx, sy, sw, sh);
   const { data, width } = imageData;
@@ -369,13 +390,33 @@ function findNearestPdfEdge(
     }
   }
 
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) return [];
 
   candidates.sort((a, b) => a.dist - b.dist);
-  const checkLimit = Math.min(candidates.length, 30);
+
+  // Spread checks across the search area by skipping pixels too close to
+  // already-checked ones. This avoids wasting budget on thick line interiors
+  // and reaches junctions farther from the cursor.
+  const skipRadius = Math.round(2 * dpr); // canvas pixels — skip nearby pixels already checked
+  const checked: Array<{ x: number; y: number }> = [];
+  const toCheck: typeof candidates = [];
+  for (const c of candidates) {
+    if (toCheck.length >= 200) break;
+    const tooClose = checked.some(p =>
+      Math.abs(p.x - c.canvasX) <= skipRadius && Math.abs(p.y - c.canvasY) <= skipRadius
+    );
+    if (!tooClose) {
+      toCheck.push(c);
+      checked.push({ x: c.canvasX, y: c.canvasY });
+    }
+  }
+  const checkLimit = toCheck.length;
+
+  const clusterRadius = 3; // page pixels — nearby junction pixels belong to same tick mark
+  const junctions: Array<{ x: number; y: number }> = [];
 
   for (let i = 0; i < checkLimit; i++) {
-    const c = candidates[i];
+    const c = toCheck[i];
 
     // Measure dark runs in 4 directions from this pixel:
     // horizontal, vertical, 45° (NE-SW), 135° (NW-SE)
@@ -392,12 +433,20 @@ function findNearestPdfEdge(
     // This catches: tick marks (line + diagonal), line crossings, T-junctions, corners
     // Plain lines (only 1 direction) and noise (no direction) are filtered out
     if (hasMainLine && tickDirs >= 2) {
-      return { x: c.canvasX / dpr, y: c.canvasY / dpr };
+      const pageX = c.canvasX / dpr;
+      const pageY = c.canvasY / dpr;
+
+      // Cluster: skip if too close to an existing junction (same tick mark)
+      const tooClose = junctions.some(j =>
+        Math.sqrt((j.x - pageX) ** 2 + (j.y - pageY) ** 2) < clusterRadius
+      );
+      if (!tooClose) {
+        junctions.push({ x: pageX, y: pageY });
+      }
     }
   }
 
-  // No junction/tick mark found — don't snap to plain lines
-  return null;
+  return junctions;
 }
 
 // =============================================================================
