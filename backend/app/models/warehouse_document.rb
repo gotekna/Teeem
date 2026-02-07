@@ -42,9 +42,13 @@ class WarehouseDocument < ApplicationRecord
   # This enables syncing ui_name when templates change
   before_validation :set_warehouse_folder_document_type, on: :create
 
-  # NOTE (Feb 2026 FRC Fix): Removed compute_folder_from_template callback
-  # Folder paths are now computed at runtime via computed_folder_path method
-  # This eliminates sync issues between stored folder and WarehouseFolder SSoT
+  # Materialized Path (Feb 2026): Compute and store folder_path on save
+  # This materializes the path for fast SQL-based tree queries.
+  # Falls back to computed_folder_path for documents without materialized path.
+  before_save :materialize_folder_path, if: :needs_path_recomputation?
+
+  # Materialized Path: Invalidate folder counts when documents change folders
+  after_commit :invalidate_folder_counts, on: [:create, :update, :destroy]
 
   # ========================================
   # Associations
@@ -69,6 +73,9 @@ class WarehouseDocument < ApplicationRecord
   # SSoT (Feb 2026): Direct FK to template config
   # Enables syncing ui_name when templates change in WarehouseFolderDocumentType
   belongs_to :warehouse_folder_document_type, optional: true
+
+  # Materialized Path (Feb 2026): FK to template folder for path versioning
+  belongs_to :warehouse_folder, optional: true
 
   # ========================================
   # Validations
@@ -482,8 +489,51 @@ class WarehouseDocument < ApplicationRecord
     nil
   end
 
-  # NOTE (Feb 2026 FRC Fix): Removed compute_folder_from_template method
-  # Folder paths are now computed at runtime by computed_folder_path
+  # ========================================
+  # Materialized Path Computation (Feb 2026)
+  # ========================================
+
+  # Check if folder_path needs (re)computation
+  def needs_path_recomputation?
+    new_record? ||
+      folder_path.blank? ||
+      source_type_changed? ||
+      documentable_type_changed? ||
+      documentable_id_changed? ||
+      linkable_type_changed? ||
+      linkable_id_changed?
+  end
+
+  # Compute and store the materialized folder path using WarehousePathComputer
+  def materialize_folder_path
+    result = WarehousePathComputer.new.compute(self)
+    self.folder_path = result[:folder_path]
+    self.warehouse_folder_id = result[:warehouse_folder_id]
+    self.path_template_version = result[:path_template_version]
+  rescue StandardError => e
+    # Non-fatal: log and continue without materialized path
+    # computed_folder_path still works as runtime fallback
+    Rails.logger.warn "[WarehouseDocument] materialize_folder_path failed for #{id}: #{e.message}"
+  end
+
+  # Invalidate folder counts for affected paths
+  def invalidate_folder_counts
+    return unless tenant_id.present?
+    return unless saved_change_to_folder_path? || destroyed?
+
+    paths_to_invalidate = []
+
+    # Invalidate old path (if changed or destroyed)
+    old_path = destroyed? ? folder_path : saved_changes.dig("folder_path", 0)
+    paths_to_invalidate << old_path if old_path.present?
+
+    # Invalidate new path (if created or changed)
+    paths_to_invalidate << folder_path if folder_path.present? && !destroyed?
+
+    InvalidateFolderCountsJob.perform_later(tenant_id, paths_to_invalidate.compact.uniq) if paths_to_invalidate.any?
+  rescue StandardError => e
+    Rails.logger.debug "[WarehouseDocument] invalidate_folder_counts failed: #{e.message}"
+  end
 
   # Map source_type to warehouse template key
   def source_type_to_warehouse_type

@@ -54,6 +54,7 @@ import { XeroTabRenderer } from "@/components/xero/XeroTabRenderer";
 // ActivityTab is used for main "activity-main" tab (not overview sub-tab)
 import { ActivityTab } from "@/components/tabs";
 import { Spinner } from "@/components/ui/spinner";
+import { ScopedWarehouseView } from "@/components/warehouse/ScopedWarehouseView";
 // Shared types for corporate entities (SSoT for Company type)
 import type { Corporate } from "@/lib/types/corporate";
 
@@ -561,8 +562,13 @@ export default function CompanyDetailPage() {
             </div>
           )}
 
+          {/* Warehouse Tab - Scoped warehouse sub-tree for this company */}
+          {activeTab === "warehouse" && (
+            <ScopedWarehouseView linkableType="CorporateCompany" linkableId={Number(companyId)} />
+          )}
+
           {/* Document Category Tabs */}
-          {computedDocumentTabs.find(t => t.id === activeTab)?.name && activeTab !== "activity-main" && activeTab !== "documents-main" && activeTab !== "data-main" && activeTab !== "xero" && (
+          {computedDocumentTabs.find(t => t.id === activeTab)?.name && activeTab !== "activity-main" && activeTab !== "documents-main" && activeTab !== "data-main" && activeTab !== "xero" && activeTab !== "warehouse" && (
             <>
               <CompanyDocumentsTab
                 companyId={companyId}
