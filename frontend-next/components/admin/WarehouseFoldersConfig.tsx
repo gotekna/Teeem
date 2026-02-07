@@ -1326,7 +1326,7 @@ export function WarehouseFoldersConfig({
           )}
 
           {/* Tab type badge */}
-          <TabTypeBadgeCompact tabType={deriveTabType(tab)} />
+          <TabTypeBadgeCompact tabType={deriveTabType(tab)} isSystem={tab.is_system} />
 
           {/* Name and badges */}
           <div className="flex-1 min-w-0">
@@ -2219,7 +2219,7 @@ export function WarehouseFoldersConfig({
               </h2>
               {/* SSoT: Tab type badge */}
               {editingTab && (
-                <TabTypeBadge tabType={formData.tab_type || deriveTabType(editingTab)} />
+                <TabTypeBadge tabType={formData.tab_type || deriveTabType(editingTab)} isSystem={editingTab.is_system} />
               )}
               {/* SSoT: Show subtab indicator when editing a child tab */}
               {(formData.parent_id || editingTab?.parent_id) && (() => {

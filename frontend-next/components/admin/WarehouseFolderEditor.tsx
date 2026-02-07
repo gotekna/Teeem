@@ -179,7 +179,7 @@ export function WarehouseFolderEditor({
             <DialogTitle>Edit Warehouse Folder</DialogTitle>
             {/* SSoT: Tab type badge */}
             {folder && (
-              <TabTypeBadge tabType={deriveTabType(folder)} />
+              <TabTypeBadge tabType={deriveTabType(folder)} isSystem={folder.is_system} />
             )}
           </div>
           <DialogDescription>
