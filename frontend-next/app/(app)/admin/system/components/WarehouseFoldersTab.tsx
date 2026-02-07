@@ -649,7 +649,7 @@ export function WarehouseFoldersTab() {
                 onClick={() => handleSort("warehouse_folders_count")}
               >
                 <div className="flex items-center">
-                  Folders
+                  Child Folders
                   {getSortIcon("warehouse_folders_count")}
                 </div>
               </TableHead>

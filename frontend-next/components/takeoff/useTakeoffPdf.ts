@@ -114,11 +114,15 @@ export function useTakeoffPdf(url: string | null): UseTakeoffPdfReturn {
             canvas: thumbCanvas,
           }).promise;
 
+          // Return logical dimensions (without DPR/scale multiplier)
+          // so zoom calculations and Fabric.js work in CSS pixel space.
+          // The canvas itself is high-res for sharp rendering.
+          const baseViewport = page.getViewport({ scale: 2 });
           loadedPages.push({
             pageNumber: i,
             canvas,
-            width: viewport.width,
-            height: viewport.height,
+            width: baseViewport.width,
+            height: baseViewport.height,
             thumbnail: thumbCanvas.toDataURL("image/jpeg", 0.7),
           });
 

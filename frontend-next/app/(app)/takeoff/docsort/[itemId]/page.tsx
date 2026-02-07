@@ -117,8 +117,11 @@ export default function DocsortTakeoffPage() {
       if (Math.abs(w - lastContainerSize.current.w) < 2 && Math.abs(h - lastContainerSize.current.h) < 2) return;
       lastContainerSize.current = { w, h };
 
-      // Fit width - scroll vertically if needed. Preserves aspect ratio.
-      const fitZoom = (w - 8) / currentPage.width;
+      // Fit entire page in container with margin for scrollbar + breathing room
+      const fitZoom = Math.min(
+        (w - 32) / currentPage.width,
+        (h - 32) / currentPage.height
+      );
       setZoom(Math.max(0.1, Math.min(fitZoom, 3)));
       container.scrollTop = 0;
       container.scrollLeft = 0;
@@ -674,8 +677,7 @@ export default function DocsortTakeoffPage() {
   const isCalibrated = pageScale?.calibrated || false;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden border-4 border-blue-500 relative">
-      <div className="absolute top-0 left-0 bg-blue-600 text-white px-2 py-0.5 text-[10px] font-bold z-50">[1] OUTER (BLUE)</div>
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Toolbar */}
       <TakeoffToolbar
         currentTool={currentTool}
@@ -705,8 +707,7 @@ export default function DocsortTakeoffPage() {
       />
 
       {/* Main content */}
-      <div className="flex flex-1 overflow-hidden border-4 border-green-500 relative">
-        <div className="absolute top-0 left-24 bg-green-600 text-white px-2 py-0.5 text-[10px] font-bold z-50">[2] FLEX (GREEN)</div>
+      <div className="flex flex-1 overflow-hidden">
         {/* Thumbnails sidebar */}
         <div className="w-24 border-r bg-muted/30 flex flex-col">
           <div className="p-2 border-b text-xs font-medium text-muted-foreground flex items-center justify-between">
@@ -765,8 +766,7 @@ export default function DocsortTakeoffPage() {
         </div>
 
         {/* Canvas area */}
-        <div ref={canvasContainerRef} className="flex-1 overflow-auto bg-muted/20 relative border border-border/20 border-4 border-purple-500">
-          <div className="absolute top-0 left-0 bg-purple-600 text-white px-2 py-0.5 text-[10px] font-bold z-50">[3] SCROLL + PAGE BORDER (PURPLE)</div>
+        <div ref={canvasContainerRef} className="flex-1 overflow-auto bg-muted/20 relative">
           {pdfError && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
@@ -787,7 +787,7 @@ export default function DocsortTakeoffPage() {
 
           {currentPage && (
             <div
-              className="relative mx-auto"
+              className="relative mx-auto border border-border/40"
               style={{
                 width: currentPage.width * zoom,
                 height: currentPage.height * zoom,
