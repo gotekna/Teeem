@@ -78,14 +78,9 @@ class UserDocument < ApplicationRecord
     CATEGORIES[category] || :users
   end
 
-  # SSoT (Feb 2026): Get the WarehouseFolder from DocumentType (primary_base_folder method)
-  # This provides the folder name and full_folder_path template
   def effective_warehouse_folder
     document_type&.primary_warehouse_folder
   end
-
-  # DEPRECATED: Use effective_warehouse_folder (Jan 2026)
-  alias_method :effective_entity_tab, :effective_warehouse_folder
 
   # SSoT (Feb 2026): Get the storage folder path template from WarehouseFolder
   # This is the database-stored template, NOT a hardcoded constant

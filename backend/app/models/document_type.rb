@@ -13,22 +13,6 @@ class DocumentType < ApplicationRecord
   has_many :warehouse_folder_document_types, foreign_key: :document_type_id, dependent: :destroy
   has_many :warehouse_folders, through: :warehouse_folder_document_types
 
-  # Backwards compatibility aliases (deprecated - use warehouse_folder_* methods)
-  alias_method :base_folder_document_types, :warehouse_folder_document_types
-  alias_method :base_folders, :warehouse_folders
-  alias_method :storage_location_document_types, :warehouse_folder_document_types
-  alias_method :storage_locations, :warehouse_folders
-
-  # DEPRECATED: Use warehouse_folder_document_types
-  def entity_tab_document_types
-    warehouse_folder_document_types
-  end
-
-  # DEPRECATED: Use warehouse_folders
-  def entity_tabs
-    warehouse_folders
-  end
-
   # Get location names for display
   def location_names
     warehouse_folders.pluck(:display_name)
@@ -40,11 +24,6 @@ class DocumentType < ApplicationRecord
     primary_join = warehouse_folder_document_types.find_by(is_primary: true)
     primary_join&.warehouse_folder || warehouse_folders.ordered.first
   end
-
-  # Backwards compatibility aliases
-  alias_method :primary_base_folder, :primary_warehouse_folder
-  alias_method :primary_storage_location, :primary_warehouse_folder
-  alias_method :primary_entity_tab, :primary_warehouse_folder
 
   # ══════════════════════════════════════════════════════════════════════════════
   # SSoT: Derived attributes from primary WarehouseFolder
@@ -96,20 +75,10 @@ class DocumentType < ApplicationRecord
     end
   end
 
-  # Backwards compatibility aliases for setters
-  alias_method :base_folder_ids=, :warehouse_folder_ids=
-  alias_method :storage_location_ids=, :warehouse_folder_ids=
-  alias_method :folder_ids=, :warehouse_folder_ids=
-
   # Get WarehouseFolder IDs (SSoT: Feb 2026)
   def warehouse_folder_ids
     warehouse_folder_document_types.pluck(:warehouse_folder_id)
   end
-
-  # Backwards compatibility aliases for getters (must be after method definition)
-  alias_method :base_folder_ids, :warehouse_folder_ids
-  alias_method :storage_location_ids, :warehouse_folder_ids
-  alias_method :folder_ids, :warehouse_folder_ids
 
   # Sync warehouse_folder_ids with the database (SSoT: Feb 2026)
   # SSoT: Uses is_primary flag to track primary vs secondary locations
@@ -150,9 +119,6 @@ class DocumentType < ApplicationRecord
       update_column(:scope, new_scope) if read_attribute(:scope) != new_scope
     end
   end
-
-  # Backwards compatibility alias
-  alias_method :sync_base_folder_ids, :sync_warehouse_folder_ids
 
   # Callbacks
   # SSoT: WarehouseDocument.ui_name is computed dynamically via SendNameResolver

@@ -174,30 +174,22 @@ class SmScheduleMaster < ApplicationRecord
     plan_type_ids || []
   end
 
-  # WarehouseFolders for documents sent on START (SSoT - Feb 2026)
-  def start_base_folders
+  # WarehouseFolders for documents sent on START
+  def start_warehouse_folders
     return [] if start_entity_tab_ids.blank?
     WarehouseFolder.where(id: start_entity_tab_ids)
   end
 
-  # WarehouseFolders for documents received on COMPLETE (SSoT - Feb 2026)
-  def complete_base_folders
+  # WarehouseFolders for documents received on COMPLETE
+  def complete_warehouse_folders
     return [] if complete_entity_tab_ids.blank?
     WarehouseFolder.where(id: complete_entity_tab_ids)
   end
 
   # All linked WarehouseFolder IDs (start + complete)
-  def all_base_folder_ids
+  def all_warehouse_folder_ids
     (start_entity_tab_ids || []) + (complete_entity_tab_ids || [])
   end
-
-  # Backwards compatibility aliases
-  alias_method :start_warehouse_folders, :start_base_folders
-  alias_method :complete_warehouse_folders, :complete_base_folders
-  alias_method :all_warehouse_folder_ids, :all_base_folder_ids
-  alias_method :start_entity_tabs, :start_base_folders
-  alias_method :complete_entity_tabs, :complete_base_folders
-  alias_method :all_entity_tab_ids, :all_base_folder_ids
 
   # Multi-template management methods
 
