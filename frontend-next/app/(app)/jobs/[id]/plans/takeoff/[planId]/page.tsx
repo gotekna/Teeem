@@ -92,7 +92,7 @@ export default function TakeoffPage() {
   const { pages, currentPage, pageCount, isLoading: isLoadingPdf, error: pdfError } = useTakeoffPdf(pdfUrl);
 
   // Pan/zoom — SSoT hook for all PDF interaction (zoom, fit-to-view, pan, scroll-wheel zoom)
-  const { zoom, onZoomChange: handleZoomChange, onFitToView: handleFitToView, zoomToRect, containerRef: canvasContainerRef, isPanning, isSpaceHeld } = usePdfPanZoom({
+  const { zoom, effectiveMaxZoom, onZoomChange: handleZoomChange, onFitToView: handleFitToView, zoomToRect, containerRef: canvasContainerRef, isPanning, isSpaceHeld } = usePdfPanZoom({
     pageWidth: currentPage?.width ?? 0,
     pageHeight: currentPage?.height ?? 0,
     panToolActive: currentTool === "pan",
@@ -842,6 +842,7 @@ export default function TakeoffPage() {
         currentTool={currentTool}
         onToolChange={setCurrentTool}
         zoom={zoom}
+        maxZoom={effectiveMaxZoom}
         onZoomChange={handleZoomChange}
         onFitToView={handleFitToView}
         activeLayer={activeLayer}

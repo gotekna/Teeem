@@ -137,6 +137,9 @@ export function TakeoffCanvas({
   // Left-click pan: track drag start in screen coords for scrolling
   const panDragRef = useRef<{ clientX: number; clientY: number; scrollLeft: number; scrollTop: number } | null>(null);
 
+  // Cached PDF background image — created once per page, re-scaled on zoom
+  const pdfBgImageRef = useRef<fabric.FabricImage | null>(null);
+
   // Refs for event handlers - avoids stale closures in Fabric event listeners
   // ⚠️ DO NOT SIMPLIFY - Canvas event listeners capture closures at registration time.
   // Without refs, switching tools (e.g. select → calibrate) won't work because
@@ -250,22 +253,29 @@ export function TakeoffCanvas({
   }, [zoom, pageWidth, pageHeight]);
 
   // =============================================================================
-  // Render PDF background
+  // Render PDF background — create image once per page, re-scale on zoom
   // =============================================================================
 
+  // Create FabricImage only when page changes (expensive: toDataURL + image decode)
   useEffect(() => {
     if (!fabricRef.current || !pdfPage) return;
 
-    // Add PDF as background image
     const dataUrl = pdfPage.toDataURL();
     fabric.FabricImage.fromURL(dataUrl).then((img) => {
       if (!fabricRef.current) return;
-
+      pdfBgImageRef.current = img;
       img.scaleToWidth(pageWidth * zoom);
       fabricRef.current.backgroundImage = img;
       fabricRef.current.renderAll();
     });
-  }, [pdfPage, zoom, pageWidth]);
+  }, [pdfPage, pageWidth]);
+
+  // Re-scale cached image on zoom (cheap: just changes scale + re-render)
+  useEffect(() => {
+    if (!fabricRef.current || !pdfBgImageRef.current) return;
+    pdfBgImageRef.current.scaleToWidth(pageWidth * zoom);
+    fabricRef.current.renderAll();
+  }, [zoom, pageWidth]);
 
   // =============================================================================
   // Render Measurements
@@ -1310,8 +1320,8 @@ export function TakeoffCanvas({
             className="absolute z-10"
             style={{
               left: ((calibrationLine.start.x + calibrationLine.end.x) / 2) * zoom,
-              top: ((calibrationLine.start.y + calibrationLine.end.y) / 2) * zoom - 50,
-              transform: "translate(-50%, -100%)",
+              top: Math.max(10, ((calibrationLine.start.y + calibrationLine.end.y) / 2) * zoom - 50),
+              transform: `translate(-50%, ${((calibrationLine.start.y + calibrationLine.end.y) / 2) * zoom < 160 ? "0%" : "-100%"})`,
             }}
           >
             <div className="bg-background/95 backdrop-blur-sm rounded-lg px-4 py-3 border-2 border-green-500 shadow-xl min-w-[220px]">

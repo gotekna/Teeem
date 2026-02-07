@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 interface UsePdfPanZoomOptions {
   pageWidth: number;
@@ -13,6 +12,7 @@ interface UsePdfPanZoomOptions {
 
 interface UsePdfPanZoomReturn {
   zoom: number;
+  effectiveMaxZoom: number;
   onZoomChange: (zoom: number) => void;
   onFitToView: () => void;
   zoomToRect: (rect: { x: number; y: number; width: number; height: number }) => void;
@@ -21,11 +21,16 @@ interface UsePdfPanZoomReturn {
   isSpaceHeld: boolean;
 }
 
+// Fabric.js canvas must stay under browser limits to avoid blank white screen.
+// Chrome limit: ~16384px per dimension, but GPU memory varies.
+// 8192 is safe across all GPUs and still allows generous zoom.
+const MAX_CANVAS_DIM = 8192;
+
 export function usePdfPanZoom({
   pageWidth,
   pageHeight,
   minZoom = 0.1,
-  maxZoom = 10,
+  maxZoom = 5,
   fitOnMount = true,
   panToolActive = false,
   onCursorChange,
@@ -49,7 +54,17 @@ export function usePdfPanZoom({
   const isSpaceHeldRef = useRef(false);
   const isPanningRef = useRef(false);
 
-  const clamp = (val: number) => Math.max(minZoom, Math.min(val, maxZoom));
+  // Dynamic max zoom: prevent canvas from exceeding browser limits
+  const effectiveMaxZoom = Math.min(
+    maxZoom,
+    pageWidth > 0 ? MAX_CANVAS_DIM / pageWidth : maxZoom,
+    pageHeight > 0 ? MAX_CANVAS_DIM / pageHeight : maxZoom,
+  );
+
+  const clamp = useCallback(
+    (val: number) => Math.max(minZoom, Math.min(val, effectiveMaxZoom)),
+    [minZoom, effectiveMaxZoom],
+  );
 
   // ── Fit-to-page calculation ──────────────────────────────────────────────
   const calcFitZoom = useCallback(() => {
@@ -60,7 +75,7 @@ export function usePdfPanZoom({
     // 4px padding so ring-1 border isn't clipped by overflow
     const fitZoom = Math.min((w - 4) / pageWidth, (h - 4) / pageHeight);
     return clamp(fitZoom);
-  }, [pageWidth, pageHeight, minZoom, maxZoom]);
+  }, [pageWidth, pageHeight, clamp]);
 
   // ── Auto fit on page change + ResizeObserver ─────────────────────────────
   useEffect(() => {
@@ -105,7 +120,7 @@ export function usePdfPanZoom({
   const onZoomChange = useCallback((newZoom: number) => {
     zoomModeRef.current = "manual";
     setZoom(clamp(newZoom));
-  }, [minZoom, maxZoom]);
+  }, [clamp]);
 
   // ── Fit to view ──────────────────────────────────────────────────────────
   const onFitToView = useCallback(() => {
@@ -221,7 +236,7 @@ export function usePdfPanZoom({
 
       const currentZoom = zoomRef.current;
       const delta = -e.deltaY * 0.001;
-      const newZoom = Math.min(Math.max(currentZoom + delta, minZoom), maxZoom);
+      const newZoom = Math.min(Math.max(currentZoom + delta, minZoom), effectiveMaxZoom);
 
       const rect = container.getBoundingClientRect();
       const mouseX = e.clientX - rect.left + container.scrollLeft;
@@ -241,11 +256,24 @@ export function usePdfPanZoom({
 
     container.addEventListener("wheel", handleWheel, { passive: false });
     return () => container.removeEventListener("wheel", handleWheel);
-  }, [minZoom, maxZoom]);
+  }, [minZoom, effectiveMaxZoom]);
 
   // ── Zoom to rectangle (marquee zoom) ──────────────────────────────────
-  // Uses flushSync to force React to commit DOM changes synchronously,
-  // so the content div has new dimensions before we set scroll position.
+  // Three-phase scroll positioning for reliability:
+  // 1. useLayoutEffect: after DOM commit, before paint (fastest)
+  // 2. rAF inside layoutEffect: catches canvas resize reflows
+  // 3. setTimeout in zoomToRect: catches async effects (PDF image loading)
+  const pendingScrollRef = useRef<{ left: number; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const pending = pendingScrollRef.current;
+    if (!pending || !containerRef.current) return;
+    const container = containerRef.current;
+    void container.scrollHeight; // Force layout recalculation
+    container.scrollLeft = pending.left;
+    container.scrollTop = pending.top;
+  }, [zoom]);
+
   const zoomToRect = useCallback((rect: { x: number; y: number; width: number; height: number }) => {
     const container = containerRef.current;
     if (!container || rect.width < 10 || rect.height < 10) return;
@@ -256,26 +284,25 @@ export function usePdfPanZoom({
     const newZoom = clamp(Math.min(containerW / rect.width, containerH / rect.height) * 0.95);
     const scaledW = rect.width * newZoom;
     const scaledH = rect.height * newZoom;
-    const scrollLeft = rect.x * newZoom - (containerW - scaledW) / 2;
-    const scrollTop = rect.y * newZoom - (containerH - scaledH) / 2;
+    const scrollLeft = Math.max(0, rect.x * newZoom - (containerW - scaledW) / 2);
+    const scrollTop = Math.max(0, rect.y * newZoom - (containerH - scaledH) / 2);
 
     zoomModeRef.current = "manual";
+    pendingScrollRef.current = { left: scrollLeft, top: scrollTop };
+    setZoom(newZoom);
 
-    // flushSync forces React to commit DOM immediately — content div
-    // gets new width/height before we try to scroll to the target area
-    flushSync(() => {
-      setZoom(newZoom);
-    });
-
-    // Force browser layout reflow so scrollWidth reflects the new content size
-    void container.scrollHeight;
-
-    container.scrollLeft = Math.max(0, scrollLeft);
-    container.scrollTop = Math.max(0, scrollTop);
-  }, [minZoom, maxZoom]);
+    // Backup: apply scroll after all effects complete (catches canvas resize reflows)
+    setTimeout(() => {
+      if (!containerRef.current) return;
+      containerRef.current.scrollLeft = scrollLeft;
+      containerRef.current.scrollTop = scrollTop;
+      pendingScrollRef.current = null;
+    }, 50);
+  }, [clamp]);
 
   return {
     zoom,
+    effectiveMaxZoom,
     onZoomChange,
     onFitToView,
     zoomToRect,

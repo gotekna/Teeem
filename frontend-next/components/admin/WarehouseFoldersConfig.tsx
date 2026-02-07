@@ -991,8 +991,7 @@ export function WarehouseFoldersConfig({
           display_name: formData.display_name,
           display_code: formData.display_code,
           description: formData.description,
-          tab_type: formData.tab_type,  // SSoT: THE ONE field for folder behavior
-          tab_group: formData.tab_group,
+          tab_type: formData.tab_type,  // SSoT: THE ONE field for folder behavior (backend auto-derives tab_group)
           // Use null (not undefined) so JSON serialization includes it
           parent_id: formData.parent_id ?? null,
           entity_filters: formData.entity_filters,
@@ -1032,11 +1031,10 @@ export function WarehouseFoldersConfig({
         const createParams: WarehouseFolderCreateParams = {
           scope,
           tab_key: formData.tab_key || formData.display_name?.toLowerCase().replace(/\s+/g, "-") || "",
-          tab_type: formData.tab_type,  // SSoT: THE ONE field for folder behavior
+          tab_type: formData.tab_type,  // SSoT: THE ONE field for folder behavior (backend auto-derives tab_group)
           display_name: formData.display_name || "",
           display_code: formData.display_code,
           description: formData.description,
-          tab_group: formData.tab_group,
           entity_filters: formData.entity_filters,
           enabled: formData.enabled ?? true,
           icon_name: formData.icon_name,
@@ -2347,35 +2345,6 @@ export function WarehouseFoldersConfig({
                 </div>
               )}
 
-              {/* Tab Group - SSoT: Only 2 groups (Jan 2026 simplification)
-                  - documents: User uploads files, Document Types enabled
-                  - data: System-generated content, no Document Types */}
-              <div className="space-y-2">
-                <Label htmlFor="tab_group">Tab Group</Label>
-                <Select
-                  value={formData.tab_group === 'documents' ? 'documents' : 'data'}
-                  onValueChange={(value: TabGroup) =>
-                    setFormData((prev) => ({ ...prev, tab_group: value }))
-                  }
-                  disabled={editingTab?.is_system_tab}
-                >
-                  <SelectTrigger className={editingTab?.is_system_tab ? "opacity-60" : ""}>
-                    <SelectValue placeholder="Select tab group" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="documents">Documents (user uploads)</SelectItem>
-                    <SelectItem value="data">Data (system-generated)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {editingTab?.is_system_tab
-                    ? "System tab - type cannot be changed"
-                    : formData.tab_group === 'documents'
-                      ? "Users can upload files here. Document Types can be linked."
-                      : "System-generated content. No document uploads allowed."}
-                </p>
-              </div>
-
               {/* Description */}
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
@@ -2713,7 +2682,7 @@ export function WarehouseFoldersConfig({
               <h3 className="text-sm font-medium text-muted-foreground border-b pb-2 sticky top-0 bg-background">Document Types</h3>
 
               {/* Document Types (SSoT: Link document types to this tab) */}
-              {(editingTab?.tab_group === 'documents' || formData.tab_group === 'documents') ? (
+              {(formData.tab_type !== 'system') ? (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Linked Types</Label>

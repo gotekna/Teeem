@@ -91,3 +91,8 @@ export function deriveTabType(folder: {
   if (folder.tab_group === 'documents') return 'document';
   return 'system';
 }
+
+// Auto-derive tab_group from tab_type (system → 'data', everything else → 'documents')
+export function tabGroupFromTabType(tabType: TabType): 'data' | 'documents' {
+  return tabType === 'system' ? 'data' : 'documents';
+}

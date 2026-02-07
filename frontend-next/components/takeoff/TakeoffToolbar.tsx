@@ -42,6 +42,7 @@ interface TakeoffToolbarProps {
 
   // Zoom
   zoom: number;
+  maxZoom?: number;
   onZoomChange: (zoom: number) => void;
   onFitToView?: () => void;
 
@@ -106,6 +107,7 @@ export function TakeoffToolbar({
   currentTool,
   onToolChange,
   zoom,
+  maxZoom = 5,
   onZoomChange,
   onFitToView,
   activeLayer,
@@ -142,13 +144,13 @@ export function TakeoffToolbar({
   const handleZoomInputStart = () => {
     setZoomInputValue(String(Math.round(zoom * 100)));
     setIsEditingZoom(true);
-    setTimeout(() => zoomInputRef.current?.select(), 0);
+    setTimeout(() => zoomInputRef.current?.select(), 50);
   };
 
   const handleZoomInputCommit = () => {
     setIsEditingZoom(false);
     const parsed = parseInt(zoomInputValue, 10);
-    if (!isNaN(parsed) && parsed >= 10 && parsed <= 1000) {
+    if (!isNaN(parsed) && parsed >= 10 && parsed <= Math.round(maxZoom * 100)) {
       onZoomChange(parsed / 100);
     }
   };
@@ -183,7 +185,7 @@ export function TakeoffToolbar({
       // Zoom shortcuts (5% steps)
       if (e.key === "+" || e.key === "=") {
         e.preventDefault();
-        onZoomChange(Math.min(zoom + 0.05, 3));
+        onZoomChange(Math.min(zoom + 0.05, maxZoom));
       } else if (e.key === "-") {
         e.preventDefault();
         onZoomChange(Math.max(zoom - 0.05, 0.1));
@@ -402,7 +404,7 @@ export function TakeoffToolbar({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => onZoomChange(Math.min(zoom + 0.05, 3))}
+              onClick={() => onZoomChange(Math.min(zoom + 0.05, maxZoom))}
             >
               <ZoomIn className="h-4 w-4" />
             </Button>

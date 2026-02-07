@@ -552,6 +552,8 @@ class WarehouseFolder < ApplicationRecord
     self.is_mailbox = (tab_type == 'mailbox')
     self.is_photo_category = (tab_type == 'photo')
     self.is_cad_category = (tab_type == 'revit')
+    # SSoT: Auto-derive tab_group from tab_type (system → 'data', everything else → 'documents')
+    self.tab_group = (tab_type == 'system') ? 'data' : 'documents'
   end
 
   def prevent_system_deletion
