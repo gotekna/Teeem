@@ -552,6 +552,10 @@ class Contact < ApplicationRecord
   # If invoice.contact_name matches contact.display_name exactly, link them
   after_commit :auto_link_unlinked_invoices, on: [:create, :update], if: :should_auto_link_invoices?
 
+  # Materialized Path: Recompute warehouse document paths when contact name changes
+  after_commit :queue_warehouse_path_recompute,
+    if: -> { saved_change_to_display_name? || saved_change_to_first_name? || saved_change_to_last_name? }
+
   # Phase 3: Prevent deletion of Contacts that have linked Users
   before_destroy :prevent_destruction_if_has_user
 
@@ -1569,6 +1573,11 @@ class Contact < ApplicationRecord
   end
 
   private
+
+  # Materialized Path: Queue recomputation of warehouse document paths
+  def queue_warehouse_path_recompute
+    RecomputeDocumentPathsJob.perform_later("Contact", id)
+  end
 
   # SSoT: Sync mobile_phone to linked user
   def sync_mobile_to_user

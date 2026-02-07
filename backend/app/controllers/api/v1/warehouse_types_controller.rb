@@ -64,15 +64,115 @@ module Api
           warehouse_folders: { children: :children }
         )
 
-        # Get document counts by source_type
+        # Use materialized path counts when available, fall back to source_type counts
         document_counts = fetch_document_counts
+        path_counts = fetch_path_counts_by_warehouse_type
 
         render json: {
           success: true,
           data: {
-            tree: warehouse_types.map { |wt| warehouse_type_tree_node(wt, document_counts) },
+            tree: warehouse_types.map { |wt|
+              node = warehouse_type_tree_node(wt, document_counts)
+              # Enrich with materialized path count if available
+              node[:pathFileCount] = path_counts[wt.display_name] || path_counts[wt.code] || 0
+              node
+            },
             counts: document_counts,
-            total: WarehouseDocument.count
+            pathCounts: path_counts,
+            total: WarehouseDocument.count,
+            materializedCount: WarehouseDocument.where.not(folder_path: nil).count
+          }
+        }
+      end
+
+      # GET /api/v1/warehouse_types/tree/children?path=Job/Active&depth=1
+      # Returns children folders at a given depth under a path prefix
+      # Uses materialized folder_path for fast tree rendering
+      def tree_children
+        prefix = params[:path].to_s
+        depth = (params[:depth] || 1).to_i
+        target_depth = prefix.count("/") + 1 + depth
+
+        children = WarehouseDocument
+          .where(tenant_id: current_tenant&.id)
+          .where("folder_path LIKE ?", "#{ActiveRecord::Base.sanitize_sql_like(prefix)}/%")
+          .where.not(folder_path: nil)
+          .group(Arel.sql("split_part(folder_path, '/', #{target_depth})"))
+          .count
+
+        # Filter out empty segments
+        children.reject! { |k, _| k.blank? }
+
+        render json: {
+          success: true,
+          data: {
+            children: children,
+            parentPath: prefix,
+            depth: target_depth
+          }
+        }
+      end
+
+      # GET /api/v1/warehouse_types/scoped_tree?linkable_type=Job&linkable_id=123
+      # Returns a sub-tree of folders for a specific linked record
+      # Used by Job/Contact/Corporate warehouse tabs
+      def scoped_tree
+        linkable_type = params[:linkable_type]
+        linkable_id = params[:linkable_id]
+
+        docs = WarehouseDocument
+          .where(tenant_id: current_tenant&.id)
+          .where(linkable_type: linkable_type, linkable_id: linkable_id)
+          .where.not(folder_path: nil)
+
+        # Also check documentable (some older docs use documentable instead of linkable)
+        documentable_docs = WarehouseDocument
+          .where(tenant_id: current_tenant&.id)
+          .where(documentable_type: linkable_type, documentable_id: linkable_id)
+          .where.not(folder_path: nil)
+
+        all_paths = (docs.pluck(:folder_path) + documentable_docs.pluck(:folder_path)).compact.uniq
+
+        if all_paths.empty?
+          return render json: {
+            success: true,
+            data: { tree: {}, prefix: nil, documentCount: 0 }
+          }
+        end
+
+        # Find common prefix to strip (the record-specific part)
+        common_prefix = find_common_prefix(all_paths)
+        prefix_depth = common_prefix.present? ? common_prefix.count("/") + 2 : 1
+
+        # Build sub-tree from remaining path segments
+        tree = {}
+        all_paths.each do |path|
+          remaining = common_prefix.present? ? path.sub("#{common_prefix}/", "") : path
+          segments = remaining.split("/")
+          segments.each_with_index do |segment, i|
+            key = segments[0..i].join("/")
+            tree[key] ||= { name: segment, depth: i, count: 0 }
+          end
+          # Count at the leaf
+          leaf_key = remaining
+          tree[leaf_key][:count] += 1 if tree[leaf_key]
+        end
+
+        # Get folder-level counts
+        combined_ids = (docs.pluck(:id) + documentable_docs.pluck(:id)).uniq
+        folder_counts = WarehouseDocument
+          .where(id: combined_ids)
+          .group(:folder_path)
+          .count
+
+        render json: {
+          success: true,
+          data: {
+            tree: folder_counts.transform_keys { |k|
+              common_prefix.present? ? k.sub("#{common_prefix}/", "") : k
+            },
+            prefix: common_prefix,
+            documentCount: combined_ids.size
           }
         }
       end
@@ -466,6 +566,38 @@ module Api
           system: WarehouseType.system_types.count,
           custom: WarehouseType.custom_types.count
         }
+      end
+
+      # ═══════════════════════════════════════════════════════════════════════════
+      # Materialized Path helpers (Feb 2026)
+      # ═══════════════════════════════════════════════════════════════════════════
+
+      # Fetch document counts using materialized folder_path (top-level segments)
+      def fetch_path_counts_by_warehouse_type
+        WarehouseDocument
+          .where(tenant_id: current_tenant&.id)
+          .where.not(folder_path: nil)
+          .group(Arel.sql("split_part(folder_path, '/', 1)"))
+          .count
+      end
+
+      # Find the longest common prefix among a set of paths
+      def find_common_prefix(paths)
+        return "" if paths.empty?
+        return paths.first if paths.size == 1
+
+        # Split all paths into segments
+        split_paths = paths.map { |p| p.split("/") }
+        min_length = split_paths.map(&:length).min
+
+        prefix_segments = []
+        (0...min_length).each do |i|
+          segment = split_paths.first[i]
+          break unless split_paths.all? { |sp| sp[i] == segment }
+          prefix_segments << segment
+        end
+
+        prefix_segments.join("/")
       end
 
       # ═══════════════════════════════════════════════════════════════════════════

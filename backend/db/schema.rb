@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_07_098000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_08_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10153,9 +10153,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_07_098000) do
     t.integer "version_number", default: 1
     t.boolean "is_latest_version", default: true
     t.bigint "warehouse_folder_document_type_id"
+    t.string "folder_path"
+    t.bigint "warehouse_folder_id"
+    t.integer "path_template_version", default: 0
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["folder"], name: "index_warehouse_documents_on_folder"
+    t.index ["linkable_type", "linkable_id", "folder_path"], name: "idx_wd_linkable_folder_path"
     t.index ["linkable_type", "linkable_id"], name: "idx_warehouse_docs_linkable"
     t.index ["metadata"], name: "idx_warehouse_docs_metadata", using: :gin
     t.index ["parent_document_id", "source_type"], name: "idx_warehouse_docs_parent_source", where: "(parent_document_id IS NOT NULL)"
@@ -10164,11 +10168,25 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_07_098000) do
     t.index ["source_type"], name: "index_warehouse_documents_on_source_type"
     t.index ["storage_blob_id", "source_type"], name: "idx_warehouse_docs_blob_source"
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
+    t.index ["tenant_id", "folder_path"], name: "idx_wd_tenant_folder_path"
     t.index ["tenant_id", "source_type", "folder"], name: "idx_warehouse_docs_tenant_scope_folder"
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
     t.index ["ui_name"], name: "index_warehouse_documents_on_ui_name"
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
     t.index ["warehouse_folder_document_type_id"], name: "index_warehouse_documents_on_warehouse_folder_document_type_id"
+    t.index ["warehouse_folder_id"], name: "idx_wd_warehouse_folder"
+  end
+
+  create_table "warehouse_folder_counts", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "folder_path_prefix", null: false
+    t.integer "depth", null: false
+    t.integer "document_count", default: 0
+    t.datetime "stale_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "depth", "folder_path_prefix"], name: "idx_wfc_tenant_depth_path", unique: true
+    t.index ["tenant_id", "stale_at"], name: "idx_wfc_tenant_stale", where: "(stale_at IS NOT NULL)"
   end
 
   create_table "warehouse_folder_document_types", force: :cascade do |t|
@@ -10220,6 +10238,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_07_098000) do
     t.boolean "uses_custom_path", default: false
     t.boolean "is_mailbox", default: false, null: false
     t.string "tab_type", default: "document", null: false
+    t.integer "template_version", default: 1, null: false
     t.index "tenant_id, warehouse_type_id, COALESCE(parent_id, (0)::bigint), name", name: "idx_warehouse_folders_unique_name", unique: true
     t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
     t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
@@ -11838,6 +11857,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_07_098000) do
   add_foreign_key "warehouse_documents", "storage_blobs"
   add_foreign_key "warehouse_documents", "warehouse_documents", column: "parent_document_id", on_delete: :nullify, validate: false
   add_foreign_key "warehouse_documents", "warehouse_folder_document_types"
+  add_foreign_key "warehouse_documents", "warehouse_folders", on_delete: :nullify, validate: false
+  add_foreign_key "warehouse_folder_counts", "tenants", on_delete: :cascade, validate: false
   add_foreign_key "warehouse_folder_document_types", "document_types"
   add_foreign_key "warehouse_folder_document_types", "warehouse_folders"
   add_foreign_key "warehouse_folders", "tenants"

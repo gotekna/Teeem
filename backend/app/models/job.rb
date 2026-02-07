@@ -168,6 +168,9 @@ class Job < ApplicationRecord
   after_create :apply_schedule_template_from_job_type
   after_commit :sync_xero_tracking_option, on: :create
   after_commit :scan_warehouse_for_matching_emails, on: :create
+  # Materialized Path: Recompute warehouse document paths when job data changes
+  after_commit :queue_warehouse_path_recompute,
+    if: -> { saved_change_to_job_status_id? || saved_change_to_title? || saved_change_to_job_type_id? || saved_change_to_job_code? }
   before_update :track_status_and_stage_changes
   after_update :log_status_and_stage_changes
   # Performance: Maintain JobAddressSearch for fast email matching
@@ -524,6 +527,11 @@ class Job < ApplicationRecord
   end
 
   private
+
+  # Materialized Path: Queue recomputation of warehouse document paths
+  def queue_warehouse_path_recompute
+    RecomputeDocumentPathsJob.perform_later("Job", id)
+  end
 
   # Normalize postcode: strip whitespace and clear invalid ones
   # Australian postcodes must be exactly 4 digits

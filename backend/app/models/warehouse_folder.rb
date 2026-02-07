@@ -75,6 +75,11 @@ class WarehouseFolder < ApplicationRecord
   after_create :ensure_parent_is_system
   before_destroy :prevent_system_deletion
 
+  # Materialized Path: Increment template_version and queue path recompute
+  # when folder structure changes (segment rename, parent move, suffix change)
+  after_commit :queue_template_recompute,
+    if: -> { saved_change_to_folder_segment? || saved_change_to_parent_id? || saved_change_to_folder_path_suffix? }
+
   # Scopes
   scope :enabled, -> { where(enabled: true) }
   scope :system_folders, -> { where(is_system: true) }
@@ -569,6 +574,14 @@ class WarehouseFolder < ApplicationRecord
   end
 
   private
+
+  # Materialized Path: Increment template_version and queue path recomputation
+  def queue_template_recompute
+    increment!(:template_version)
+    RecomputeWarehouseTypePathsJob.perform_later(warehouse_type_id, tenant_id) if tenant_id.present?
+  rescue StandardError => e
+    Rails.logger.warn "[WarehouseFolder] queue_template_recompute failed for ##{id}: #{e.message}"
+  end
 
   def sync_display_name_and_folder_segment
     # If display_name is set but folder_segment is not, use display_name

@@ -161,7 +161,12 @@ export function useSnapPoints(options: UseSnapPointsOptions) {
         return { snapped: { x, y }, isSnapped: false, snapType: null };
       }
 
+      // Snap threshold in page pixels — for measurement snap points (endpoints, midpoints)
       const threshold = config.threshold / zoom;
+      // PDF junction search needs a wider radius so it finds all nearby line
+      // intersections even at high zoom. Minimum 8 page-pixels ensures we catch
+      // tick marks, corners, and T-junctions that are a few pixels apart.
+      const pdfThreshold = Math.max(8, config.threshold / zoom);
       const snapPoints = extractSnapPoints();
 
       let nearestPoint: SnapPoint | null = null;
@@ -206,7 +211,7 @@ export function useSnapPoints(options: UseSnapPointsOptions) {
           lastPdfCandidatesRef.current = [];
         }
 
-        const junctions = findPdfJunctions(x, y, pdfCanvas, threshold);
+        const junctions = findPdfJunctions(x, y, pdfCanvas, pdfThreshold);
         lastPdfCandidatesRef.current = junctions;
         if (junctions.length > 0) {
           pdfSnapLockRef.current = junctions[0]; // Lock to nearest junction

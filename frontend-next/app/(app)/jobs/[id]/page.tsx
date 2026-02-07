@@ -158,6 +158,15 @@ const SpecificationBuilder = dynamic(() => import("@/components/specifications/S
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const ScopedWarehouseViewBase = dynamic(() => import("@/components/warehouse/ScopedWarehouseView").then(m => m.ScopedWarehouseView), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+// Wrapper: maps Job tab props to ScopedWarehouseView props
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const JobWarehouseTab = (props: any) => (
+  <ScopedWarehouseViewBase linkableType="Job" linkableId={props.jobId} />
+);
 
 // Loading skeleton shown while tab component loads
 function TabLoadingSkeleton() {
@@ -209,6 +218,7 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "coms": JobCommunicationsTab,
   "revit": RevitTab,
   "revit-dwg": RevitTab,
+  "warehouse": JobWarehouseTab,
 };
 
 // Tabs that need special rendering (complex inline JSX or special behavior)

@@ -3104,6 +3104,8 @@ Rails.application.routes.draw do
         collection do
           get :options  # For select dropdowns
           get :tree     # For File Warehouse page tree view
+          get :tree_children  # Materialized path: lazy-load tree children
+          get :scoped_tree    # Materialized path: sub-tree for Job/Contact/Corporate tabs
         end
         member do
           patch :update_warehouse_folders  # Batch update warehouse folder assignments

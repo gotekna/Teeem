@@ -172,6 +172,21 @@ export function TakeoffCanvas({
   const [calibrationInput, setCalibrationInput] = useState("");
   const calibrationInputRef = useRef<HTMLInputElement>(null);
   const [showPinnedMagnifiers, setShowPinnedMagnifiers] = useState(true);
+  const [verificationInput, setVerificationInput] = useState("");
+  const [verificationConfirmed, setVerificationConfirmed] = useState(false);
+  const verificationInputRef = useRef<HTMLInputElement>(null);
+
+  // Refs for calibration state — avoids stale closures in placeToolPoint
+  // ⚠️ DO NOT SIMPLIFY - placeToolPoint is called from both canvas mousedown and
+  // SnapMagnifier candidate clicks. Without refs, rapid mousemove (which updates
+  // calibrationLine on every frame) causes placeToolPoint to capture stale values,
+  // preventing the "firstPoint" → "waitingInput" transition on second click.
+  const calibrationLineRef = useRef(calibrationLine);
+  calibrationLineRef.current = calibrationLine;
+  const calibrationStepRef = useRef(calibrationStep);
+  calibrationStepRef.current = calibrationStep;
+  const pageScaleRef = useRef(pageScale);
+  pageScaleRef.current = pageScale;
 
   // Count marker state
   const [nextCountLabel, setNextCountLabel] = useState(1);
@@ -237,6 +252,17 @@ export function TakeoffCanvas({
       setCalibrationInput("");
     }
   }, [calibrationStep, pageScale]);
+
+  // Re-render Fabric calibration line when calibration state changes.
+  // This replaces the direct renderTempCalibrationLine() calls that were inside
+  // placeToolPoint — those captured stale closure state. The useEffect sees
+  // fresh state from React's committed render.
+  useEffect(() => {
+    if (calibrationLine && (calibrationStep === "firstPoint" || calibrationStep === "waitingInput" || calibrationStep === "verifying")) {
+      renderTempCalibrationLine();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calibrationLine, calibrationStep]);
 
   // =============================================================================
   // Update canvas selection mode when tool changes
@@ -549,26 +575,31 @@ export function TakeoffCanvas({
   // Shared point-placement logic — called by both canvas mousedown and magnifier candidate click.
   // The SnapMagnifier's candidate buttons sit on top of the Fabric canvas and intercept clicks,
   // so we need this shared path to ensure points are placed regardless of which element receives the click.
+  // ⚠️ DO NOT ADD calibrationLine/calibrationStep/pageScale to deps — use refs instead.
+  // During "firstPoint" phase, handleMouseMove calls setCalibrationLine() on every frame,
+  // which would recreate this callback constantly and cause stale closure bugs.
   const placeToolPoint = useCallback((point: Point) => {
+    const calStep = calibrationStepRef.current;
+    const calLine = calibrationLineRef.current;
+    const pScale = pageScaleRef.current;
+
     switch (currentTool) {
       case "calibrate": {
-        if (calibrationStep === "waitingInput" || calibrationStep === "verifying") return;
-        if (!calibrationLine) {
+        if (calStep === "waitingInput" || calStep === "verifying") return;
+        if (!calLine) {
           setCalibrationLine({ start: point, end: point });
           setCalibrationStep("firstPoint");
           setIsDrawing(true);
         } else {
-          const updatedLine = { ...calibrationLine, end: point };
+          const updatedLine = { ...calLine, end: point };
           setCalibrationLine(updatedLine);
           setIsDrawing(false);
-          if (pageScale?.calibrated && pageScale.scale_factor) {
+          if (pScale?.calibrated && pScale.scale_factor) {
             setCalibrationStep("verifying");
-            renderTempCalibrationLine();
           } else {
             setCalibrationStep("waitingInput");
             setCalibrationInput("");
-            renderTempCalibrationLine();
-            setTimeout(() => calibrationInputRef.current?.focus(), 50);
+            setTimeout(() => calibrationInputRef.current?.focus(), 100);
           }
         }
         break;
@@ -584,7 +615,7 @@ export function TakeoffCanvas({
         setCurrentPoints((prev) => [...prev, point]);
         break;
     }
-  }, [currentTool, calibrationStep, calibrationLine, pageScale]);
+  }, [currentTool]);
 
   const handleMouseDown = useCallback((e: fabric.TPointerEventInfo) => {
     const canvas = fabricRef.current;
@@ -686,9 +717,8 @@ export function TakeoffCanvas({
     const point = shouldSnap && snapResult?.isSnapped ? snapResult.snapped : rawPoint;
 
     if (currentTool === "calibrate" && calibrationLine && calibrationStep === "firstPoint") {
-      // Preview line from first click to cursor
+      // Preview line from first click to cursor — useEffect handles renderTempCalibrationLine
       setCalibrationLine({ ...calibrationLine, end: point });
-      renderTempCalibrationLine();
     } else if (
       (currentTool === "area" || currentTool === "linear" ||
        currentTool === "perimeter" || currentTool === "deduction") &&
@@ -1334,7 +1364,7 @@ export function TakeoffCanvas({
                 preferSide="left"
                 onSelect={(newPoint) => {
                   setCalibrationLine(prev => prev ? { ...prev, start: newPoint } : null);
-                  renderTempCalibrationLine();
+                  // useEffect handles renderTempCalibrationLine on calibrationLine change
                 }}
               />
               {(calibrationStep === "waitingInput" || calibrationStep === "verifying") && (
@@ -1349,7 +1379,7 @@ export function TakeoffCanvas({
                   preferSide="right"
                   onSelect={(newPoint) => {
                     setCalibrationLine(prev => prev ? { ...prev, end: newPoint } : null);
-                    renderTempCalibrationLine();
+                    // useEffect handles renderTempCalibrationLine on calibrationLine change
                   }}
                 />
               )}
@@ -1512,30 +1542,46 @@ export function TakeoffCanvas({
         </div>
       )}
 
-      {/* Verification overlay - shows computed distance after calibration */}
+      {/* Verification overlay - shows computed distance + accuracy check input */}
       {calibrationStep === "verifying" && calibrationLine && pageScale?.scale_factor && (() => {
         const dx = calibrationLine.end.x - calibrationLine.start.x;
         const dy = calibrationLine.end.y - calibrationLine.start.y;
         const pxDist = Math.sqrt(dx * dx + dy * dy);
         const computedMm = pxDist * pageScale.scale_factor;
         const computedM = computedMm / 1000;
+        const expectedMm = parseFloat(verificationInput);
+        const hasExpected = verificationInput.length > 0 && !isNaN(expectedMm) && expectedMm > 0;
+        const diffMm = hasExpected ? Math.abs(computedMm - expectedMm) : 0;
+        const diffPercent = hasExpected ? (diffMm / expectedMm) * 100 : 0;
+        // Thresholds: <0.5% = excellent, <1% = acceptable, >=1% = problem
+        const isAcceptable = hasExpected && diffPercent >= 0.5 && diffPercent < 1;
+        const isProblem = hasExpected && diffPercent >= 1;
+        const borderColor = !verificationConfirmed ? "border-green-500"
+          : isProblem ? "border-red-500"
+          : isAcceptable ? "border-amber-500"
+          : "border-green-500";
+
+        const confirmVerification = () => {
+          if (hasExpected) setVerificationConfirmed(true);
+        };
+
         return (
           <div
             className="absolute z-10"
             style={{
-              left: Math.max(120, Math.min(
-                pageWidth * zoom - 120,
+              left: Math.max(160, Math.min(
+                pageWidth * zoom - 160,
                 ((calibrationLine.start.x + calibrationLine.end.x) / 2) * zoom
               )),
               top: Math.max(calibrationLine.start.y, calibrationLine.end.y) * zoom + 60,
               transform: "translate(-50%, 0)",
             }}
           >
-            <div className="bg-background/95 backdrop-blur-sm rounded-lg px-4 py-3 border-2 border-green-500 shadow-xl min-w-[240px]">
+            <div className={`bg-background/95 backdrop-blur-sm rounded-lg px-4 py-3 border-2 ${borderColor} shadow-xl min-w-[280px] ${verificationConfirmed && isProblem ? "animate-pulse" : ""}`}>
               <div className="text-xs text-muted-foreground mb-1">
                 Verification ({Math.round(pxDist)} px)
               </div>
-              <div className="text-lg font-bold text-green-600 dark:text-green-400 mb-1">
+              <div className="text-lg font-bold text-green-600 dark:text-green-400 mb-2">
                 {computedMm >= 1000
                   ? `${computedM.toFixed(2)} m`
                   : `${computedMm.toFixed(1)} mm`
@@ -1544,39 +1590,130 @@ export function TakeoffCanvas({
                   ({computedMm.toFixed(0)} mm)
                 </span>
               </div>
-              <div className="text-xs text-muted-foreground mb-2">
-                Compare this to the dimension on the drawing
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    // Dismiss and immediately allow another verification
-                    setCalibrationLine(null);
-                    setCalibrationStep("idle");
-                    clearTempDrawing();
-                  }}
-                  className="flex-1 px-3 py-1 text-sm font-medium bg-green-500 text-white rounded hover:bg-green-600"
-                >
-                  Check Another
-                </button>
-                <button
-                  onClick={() => {
-                    // Switch to re-calibrate mode with this line
-                    setCalibrationStep("waitingInput");
-                    setCalibrationInput("");
-                    setTimeout(() => calibrationInputRef.current?.focus(), 50);
-                  }}
-                  className="px-3 py-1 text-sm font-medium border rounded hover:bg-muted"
-                >
-                  Recalibrate
-                </button>
-                <button
-                  onClick={handleCalibrationCancel}
-                  className="px-2 py-1 text-sm text-muted-foreground hover:text-foreground"
-                >
-                  Done
-                </button>
-              </div>
+
+              {/* Step 1: Enter expected dimension */}
+              {!verificationConfirmed && (
+                <>
+                  <div className="mb-2">
+                    <div className="text-xs text-muted-foreground mb-1">What does the drawing say? (mm)</div>
+                    <div className="flex gap-2">
+                      <input
+                        ref={verificationInputRef}
+                        type="text"
+                        inputMode="numeric"
+                        value={verificationInput}
+                        onChange={(e) => setVerificationInput(e.target.value.replace(/[^0-9.]/g, ""))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") confirmVerification();
+                          if (e.key === "Escape") {
+                            setVerificationInput("");
+                            setVerificationConfirmed(false);
+                            handleCalibrationCancel();
+                          }
+                          e.stopPropagation();
+                        }}
+                        placeholder="e.g. 13010"
+                        className="flex-1 text-sm bg-muted border rounded px-2 py-1 outline-none focus:ring-2 focus:ring-green-500"
+                        autoFocus
+                      />
+                      <button
+                        onClick={confirmVerification}
+                        disabled={!hasExpected}
+                        className="px-3 py-1 text-sm font-medium bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                      >
+                        Check
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setVerificationInput("");
+                        setVerificationConfirmed(false);
+                        handleCalibrationCancel();
+                      }}
+                      className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Step 2: Show accuracy result + action buttons */}
+              {verificationConfirmed && hasExpected && (
+                <>
+                  <div className="text-sm text-muted-foreground mb-1">
+                    Expected: <span className="font-medium text-foreground">{expectedMm >= 1000 ? `${(expectedMm/1000).toFixed(2)} m` : `${expectedMm} mm`}</span>
+                  </div>
+
+                  <div className={`rounded px-3 py-2 mb-3 text-sm ${
+                    isProblem
+                      ? "bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-800"
+                      : isAcceptable
+                      ? "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
+                      : "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-800"
+                  }`}>
+                    <div className="font-bold text-base">
+                      {isProblem
+                        ? `Off by ${diffMm.toFixed(0)}mm (${diffPercent.toFixed(1)}%)`
+                        : isAcceptable
+                        ? `Off by ${diffMm.toFixed(0)}mm (${diffPercent.toFixed(2)}%)`
+                        : `Off by ${diffMm.toFixed(0)}mm (${diffPercent.toFixed(2)}%)`
+                      }
+                    </div>
+                    <div className="font-semibold mt-1">
+                      {isProblem
+                        ? "Calibration may be inaccurate — recalibrate with a longer line"
+                        : isAcceptable
+                        ? "Acceptable — within tolerance for construction takeoffs"
+                        : "Excellent — highly accurate calibration"
+                      }
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setCalibrationLine(null);
+                        setCalibrationStep("idle");
+                        setVerificationInput("");
+                        setVerificationConfirmed(false);
+                        clearTempDrawing();
+                      }}
+                      className={`flex-1 px-3 py-1.5 text-sm font-medium text-white rounded ${
+                        isProblem ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600"
+                      }`}
+                    >
+                      Check Another
+                    </button>
+                    {isProblem && (
+                      <button
+                        onClick={() => {
+                          setCalibrationStep("waitingInput");
+                          setCalibrationInput("");
+                          setVerificationInput("");
+                          setVerificationConfirmed(false);
+                          setTimeout(() => calibrationInputRef.current?.focus(), 50);
+                        }}
+                        className="px-3 py-1.5 text-sm font-medium bg-red-500 text-white rounded hover:bg-red-600"
+                      >
+                        Recalibrate
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setVerificationInput("");
+                        setVerificationConfirmed(false);
+                        handleCalibrationCancel();
+                      }}
+                      className="px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         );

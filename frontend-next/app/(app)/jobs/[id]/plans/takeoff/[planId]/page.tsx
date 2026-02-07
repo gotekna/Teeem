@@ -440,8 +440,8 @@ export default function TakeoffPage() {
             description: `Scale set to ${pageScaleData.scale_label}`,
           });
 
-          // Switch to select tool after calibration
-          setCurrentTool("select");
+          // Stay in calibrate mode so user can immediately verify with other dimensions
+          // (magnifiers + "verify accuracy" prompt remain visible)
         } else {
           throw new Error(response?.error || "Failed to calibrate");
         }

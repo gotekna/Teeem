@@ -27,7 +27,7 @@ const PdfFrame = React.forwardRef<HTMLDivElement, PdfFrameProps>(
     <div
       ref={ref}
       className={cn(
-        "overflow-hidden ring-1 ring-border/50 shadow-sm rounded-sm",
+        "overflow-visible ring-1 ring-border/50 shadow-sm rounded-sm",
         className
       )}
       {...props}

@@ -202,6 +202,10 @@ class Corporate < ApplicationRecord
   # SSoT: Sync ABN back to Contact (two-way sync for ABN only)
   after_commit :sync_abn_to_contact, if: :should_sync_abn_to_contact?
 
+  # Materialized Path: Recompute warehouse document paths when company data changes
+  after_commit :queue_warehouse_path_recompute,
+    if: -> { saved_change_to_company_code? || saved_change_to_company_group_id? || saved_change_to_name? }
+
   # Instance methods
 
   # Primary trading name (first in array, if any)
@@ -489,6 +493,11 @@ class Corporate < ApplicationRecord
   end
 
   private
+
+  # Materialized Path: Queue recomputation of warehouse document paths
+  def queue_warehouse_path_recompute
+    RecomputeDocumentPathsJob.perform_later("Corporate", id)
+  end
 
   def calculate_hierarchy_level(parent_id)
     parent = Corporate.find_by(id: parent_id)
