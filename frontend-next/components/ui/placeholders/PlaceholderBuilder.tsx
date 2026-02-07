@@ -600,7 +600,11 @@ export function PlaceholderBuilder({
     if (fromIdx === undefined || toIdx === undefined) return;
     const reordered = arrayMove(tokens, fromIdx, toIdx);
     if (isFolderPathMode) {
-      emitChange(reordered.map(t => t.value).join(""));
+      // Strip separator tokens and rejoin with "/" for correct placement
+      const nonSeparatorValues = reordered
+        .filter(t => !(t.type === "text" && /^[\s/]+$/.test(t.value)))
+        .map(t => t.value);
+      emitChange(nonSeparatorValues.join("/"));
     } else {
       emitChange(buildTemplate(reordered.map(({ type, value }) => ({ type, value }))));
     }
@@ -634,9 +638,12 @@ export function PlaceholderBuilder({
       const reordered = arrayMove(tokens, oldIndex, newIndex);
 
       if (isFolderPathMode) {
-        // Concatenate values directly (separator tokens are part of the array)
-        const newValue = reordered.map(t => t.value).join("");
-        emitChange(newValue);
+        // In folder path mode, strip separator tokens and rejoin with "/"
+        // This ensures "/" is always placed correctly between tokens after drag
+        const nonSeparatorValues = reordered
+          .filter(t => !(t.type === "text" && /^[\s/]+$/.test(t.value)))
+          .map(t => t.value);
+        emitChange(nonSeparatorValues.join("/"));
       } else {
         emitChange(buildTemplate(reordered.map(({ type, value }) => ({ type, value }))));
       }

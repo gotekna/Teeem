@@ -296,7 +296,8 @@ class SmTaskAttachment < ApplicationRecord
       JobName: job&.display_name.presence || job&.job_code.presence || "Unassigned Job",
       JobCode: job&.job_code.presence || "No-Job",
       TaskId: task.id,
-      TaskName: task.name&.parameterize || "task-#{task.id}"
+      TaskName: task.name&.parameterize || "task-#{task.id}",
+      TaskStatus: task.status&.titleize || "Unknown"
     }
     folder = config.resolve_virtual_path(folder_type, tokens)
 
