@@ -153,16 +153,28 @@ module Api
       def update_warehouse_folders
         warehouse_folder_ids = params[:warehouse_folder_ids] || params[:base_folder_ids] || []
 
-        # Move removed folders to unassigned type (instead of deleting)
-        removed_folders = @warehouse_type.warehouse_folders.where.not(id: warehouse_folder_ids)
-        if removed_folders.exists?
-          unassigned_type = WarehouseType.unassigned
-          removed_folders.update_all(warehouse_type_id: unassigned_type.id)
-        end
+        ActiveRecord::Base.transaction do
+          # Move removed folders to unassigned type (instead of deleting)
+          removed_folders = @warehouse_type.warehouse_folders.where.not(id: warehouse_folder_ids)
+          if removed_folders.exists?
+            unassigned_type = WarehouseType.find_by(code: WarehouseType::UNASSIGNED_CODE)
+            unless unassigned_type
+              unassigned_type = WarehouseType.create!(
+                code: WarehouseType::UNASSIGNED_CODE,
+                display_name: "Unassigned",
+                description: "System type for unassigned warehouse folders",
+                is_system: true,
+                enabled: false,
+                order_position: 999
+              )
+            end
+            removed_folders.update_all(warehouse_type_id: unassigned_type.id)
+          end
 
-        # Assign selected folders to this type (may steal from other types)
-        if warehouse_folder_ids.present?
-          WarehouseFolder.where(id: warehouse_folder_ids).update_all(warehouse_type_id: @warehouse_type.id)
+          # Assign selected folders to this type (may steal from other types)
+          if warehouse_folder_ids.present?
+            WarehouseFolder.where(id: warehouse_folder_ids).update_all(warehouse_type_id: @warehouse_type.id)
+          end
         end
 
         # Reload and return updated warehouse type

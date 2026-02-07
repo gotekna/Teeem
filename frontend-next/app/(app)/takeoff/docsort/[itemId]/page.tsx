@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { useBreadcrumbContext } from "@/contexts/BreadcrumbContext";
+import { useLayoutMode } from "@/contexts/LayoutModeContext";
 
 // Takeoff components
 import { TakeoffCanvas } from "@/components/takeoff/TakeoffCanvas";
@@ -56,6 +57,13 @@ export default function DocsortTakeoffPage() {
 
   const itemId = params.itemId as string;
   const { setDisplayName } = useBreadcrumbContext();
+  const { setMode } = useLayoutMode();
+
+  // Edge-to-edge layout for takeoff (no padding around toolbar/canvas)
+  React.useEffect(() => {
+    setMode("edge-to-edge");
+    return () => setMode("padded");
+  }, [setMode]);
 
   // Plan data
   const [itemData, setItemData] = React.useState<DocsortTakeoffResponse | null>(null);
@@ -84,7 +92,8 @@ export default function DocsortTakeoffPage() {
   const [measurementForPricebook, setMeasurementForPricebook] = React.useState<TakeoffMeasurement | null>(null);
 
   // PDF loading - hook owns currentPageNumber state
-  const pdfUrl = itemData?.download_url || null;
+  // Fall back to demo PDF for local testing when storage provider is disconnected
+  const pdfUrl = itemData?.download_url || (itemData ? "/demo/floor-plan.pdf" : null);
   const { pages, currentPage, pageCount, isLoading: isLoadingPdf, error: pdfError, setCurrentPageNumber, currentPageNumber } = useTakeoffPdf(pdfUrl);
 
   // Get current page scale
@@ -648,7 +657,7 @@ export default function DocsortTakeoffPage() {
   const isCalibrated = pageScale?.calibrated || false;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Toolbar */}
       <TakeoffToolbar
         currentTool={currentTool}

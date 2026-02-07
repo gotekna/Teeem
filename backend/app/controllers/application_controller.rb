@@ -151,7 +151,7 @@ class ApplicationController < ActionController::API
 
     render json: {
       success: false,
-      error: Rails.env.production? ? "An unexpected error occurred" : exception.message
+      error: "#{exception.class}: #{exception.message}"
     }, status: :internal_server_error
   end
 
