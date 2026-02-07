@@ -5,6 +5,32 @@ import type { SnapPoint } from "./useSnapPoints";
 import { findPdfJunctions } from "./useSnapPoints";
 
 // =============================================================================
+// Helpers
+// =============================================================================
+
+/** Convert a mouse/pointer event position within a magnifier to PDF page coordinates */
+function magEventToPdf(
+  e: React.MouseEvent | MouseEvent,
+  containerEl: HTMLElement,
+  magSize: number,
+  centerX: number,
+  centerY: number,
+  cropSize: number,
+): { x: number; y: number } | null {
+  const rect = containerEl.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  // Only accept clicks inside the circular magnifier
+  const dx = mx - magSize / 2;
+  const dy = my - magSize / 2;
+  if (dx * dx + dy * dy > (magSize / 2) * (magSize / 2)) return null;
+  return {
+    x: centerX + (mx / magSize - 0.5) * cropSize,
+    y: centerY + (my / magSize - 0.5) * cropSize,
+  };
+}
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -429,34 +455,22 @@ export function PinnedMagnifier({
             borderRadius: "50%",
           }}
         />
-        {/* Clickable hit targets for each candidate */}
-        {onSelect && allPoints.map((c, i) => {
-          const mx = ((c.x - centerX + cropSize / 2) / cropSize) * PINNED_MAG_SIZE;
-          const my = ((c.y - centerY + cropSize / 2) / cropSize) * PINNED_MAG_SIZE;
-          return (
-            <button
-              key={i}
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                setActivePoint(c); // Immediate visual feedback
-                onSelect(c);       // Save to backend
-              }}
-              className="absolute rounded-full hover:scale-125 transition-transform"
-              style={{
-                left: mx - 12,
-                top: my - 12,
-                width: 24,
-                height: 24,
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                pointerEvents: "auto",
-              }}
-              title={`Snap point ${i + 1}`}
-            />
-          );
-        })}
+        {/* Interactive overlay — click anywhere or drag to fine-tune */}
+        {onSelect && (
+          <MagnifierInteractiveOverlay
+            magSize={PINNED_MAG_SIZE}
+            centerX={centerX}
+            centerY={centerY}
+            cropSize={cropSize}
+            candidates={allPoints}
+            activeCandidate={activePoint}
+            onSelect={(pt) => {
+              setActivePoint(pt);
+              onSelect(pt);
+            }}
+            onPreview={(pt) => setActivePoint(pt)}
+          />
+        )}
         <div
           className="text-xs font-bold text-center"
           style={{ marginTop: 2, color, pointerEvents: "none" }}
@@ -472,6 +486,101 @@ export function PinnedMagnifier({
 // Snap Magnifier — zoomed PDF crop with selectable junction candidates
 // =============================================================================
 
+// =============================================================================
+// MagnifierInteractiveOverlay — click anywhere / drag to fine-tune point
+// Shared between SnapMagnifier and PinnedMagnifier
+// =============================================================================
+
+interface MagnifierInteractiveOverlayProps {
+  magSize: number;
+  centerX: number;
+  centerY: number;
+  cropSize: number;
+  candidates: Array<{ x: number; y: number }>;
+  activeCandidate: { x: number; y: number };
+  /** Called on click or drag-release with the final position */
+  onSelect: (point: { x: number; y: number }) => void;
+  /** Called during drag with intermediate positions (for live preview) */
+  onPreview?: (point: { x: number; y: number }) => void;
+}
+
+function MagnifierInteractiveOverlay({
+  magSize, centerX, centerY, cropSize, candidates, activeCandidate, onSelect, onPreview,
+}: MagnifierInteractiveOverlayProps) {
+  const overlayRef = React.useRef<HTMLDivElement>(null);
+  const dragging = React.useRef(false);
+
+  const getPdfPoint = React.useCallback((e: React.PointerEvent) => {
+    const el = overlayRef.current;
+    if (!el) return null;
+    return magEventToPdf(e, el, magSize, centerX, centerY, cropSize);
+  }, [magSize, centerX, centerY, cropSize]);
+
+  const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    dragging.current = true;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    const pt = getPdfPoint(e);
+    if (pt && onPreview) onPreview(pt);
+  }, [getPdfPoint, onPreview]);
+
+  const handlePointerMove = React.useCallback((e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    e.stopPropagation();
+    const pt = getPdfPoint(e);
+    if (pt && onPreview) onPreview(pt);
+  }, [getPdfPoint, onPreview]);
+
+  const handlePointerUp = React.useCallback((e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    const pt = getPdfPoint(e);
+    if (pt) onSelect(pt);
+  }, [getPdfPoint, onSelect]);
+
+  return (
+    <div
+      ref={overlayRef}
+      className="absolute top-0 left-0"
+      style={{
+        width: magSize,
+        height: magSize,
+        borderRadius: "50%",
+        cursor: "crosshair",
+        pointerEvents: "auto",
+      }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    >
+      {/* Candidate hit-target badges (larger touch targets over detected points) */}
+      {candidates.map((c, i) => {
+        const mx = ((c.x - centerX + cropSize / 2) / cropSize) * magSize;
+        const my = ((c.y - centerY + cropSize / 2) / cropSize) * magSize;
+        const isActive = Math.abs(c.x - activeCandidate.x) < 0.5
+          && Math.abs(c.y - activeCandidate.y) < 0.5;
+        return (
+          <div
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              left: mx - 10,
+              top: my - 10,
+              width: 20,
+              height: 20,
+              border: isActive ? "2px solid #22c55e" : "1px solid rgba(236,72,153,0.4)",
+              background: isActive ? "rgba(34,197,94,0.15)" : "transparent",
+              pointerEvents: "none", // parent overlay handles all pointer events
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 const MAG_SIZE = 180;
 
 interface SnapMagnifierProps {
@@ -482,6 +591,8 @@ interface SnapMagnifierProps {
   pageWidth: number;
   pageHeight: number;
   onSelect: (candidate: { x: number; y: number }) => void;
+  /** Called during drag for live preview without finalizing */
+  onPreview?: (candidate: { x: number; y: number }) => void;
 }
 
 export function SnapMagnifier({
@@ -492,6 +603,7 @@ export function SnapMagnifier({
   pageWidth,
   pageHeight,
   onSelect,
+  onPreview,
 }: SnapMagnifierProps) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
@@ -644,32 +756,17 @@ export function SnapMagnifier({
           borderRadius: "50%",
         }}
       />
-      {/* Clickable hit targets for each candidate */}
-      {candidates.map((c, i) => {
-        const mx = ((c.x - centerX + cropSize / 2) / cropSize) * MAG_SIZE;
-        const my = ((c.y - centerY + cropSize / 2) / cropSize) * MAG_SIZE;
-        return (
-          <button
-            key={i}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect(c);
-            }}
-            className="absolute rounded-full hover:scale-125 transition-transform"
-            style={{
-              left: mx - 14,
-              top: my - 14,
-              width: 28,
-              height: 28,
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              pointerEvents: "auto",
-            }}
-            title={`Snap point ${i + 1}`}
-          />
-        );
-      })}
+      {/* Interactive overlay — click anywhere or drag to fine-tune */}
+      <MagnifierInteractiveOverlay
+        magSize={MAG_SIZE}
+        centerX={centerX}
+        centerY={centerY}
+        cropSize={cropSize}
+        candidates={candidates}
+        activeCandidate={activeCandidate}
+        onSelect={onSelect}
+        onPreview={onPreview}
+      />
       {/* Label */}
       <div
         className="text-xs font-medium text-center"
@@ -679,7 +776,7 @@ export function SnapMagnifier({
           pointerEvents: "none",
         }}
       >
-        Click a point to select
+        Click or drag to position
       </div>
     </div>
   );

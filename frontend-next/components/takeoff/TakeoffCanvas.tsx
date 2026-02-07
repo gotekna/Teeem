@@ -175,6 +175,12 @@ export function TakeoffCanvas({
   const [verificationInput, setVerificationInput] = useState("");
   const [verificationConfirmed, setVerificationConfirmed] = useState(false);
   const verificationInputRef = useRef<HTMLInputElement>(null);
+  const [completedVerifications, setCompletedVerifications] = useState<Array<{
+    line: { start: Point; end: Point };
+    computedMm: number;
+    expectedMm: number;
+    diffPercent: number;
+  }>>([]);
 
   // Refs for calibration state — avoids stale closures in placeToolPoint
   // ⚠️ DO NOT SIMPLIFY - placeToolPoint is called from both canvas mousedown and
@@ -263,6 +269,19 @@ export function TakeoffCanvas({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calibrationLine, calibrationStep]);
+
+  // Sync calibration line endpoint with snap point when cycling magnifier candidates
+  // (arrow keys change snapResult.snapped but don't move the mouse, so handleMouseMove
+  // won't fire — we need this effect to update the preview line + distance label)
+  useEffect(() => {
+    if (isDrawing && currentTool === "calibrate" && calibrationStep === "firstPoint" && snapResult?.isSnapped && calibrationLine) {
+      const snapped = snapResult.snapped;
+      // Only update if the snap point actually differs from the current endpoint
+      if (snapped.x !== calibrationLine.end.x || snapped.y !== calibrationLine.end.y) {
+        setCalibrationLine(prev => prev ? { ...prev, end: snapped } : null);
+      }
+    }
+  }, [snapResult?.snapped?.x, snapResult?.snapped?.y, isDrawing, currentTool, calibrationStep]);
 
   // =============================================================================
   // Update canvas selection mode when tool changes
@@ -921,10 +940,14 @@ export function TakeoffCanvas({
           Math.pow(calibrationLine.end.y - calibrationLine.start.y, 2)
         );
         const computedMm = pxDistUnscaled * pageScale.scale_factor;
-        labelText = computedMm >= 1000
-          ? `${(computedMm / 1000).toFixed(2)} m (${Math.round(pxDist)} px)`
-          : `${computedMm.toFixed(1)} mm (${Math.round(pxDist)} px)`;
+        labelText = `${Math.round(computedMm).toLocaleString()} mm (${pageScale.scale_factor.toFixed(2)} mm/px)`;
       }
+
+      // Rotate label to follow the line direction
+      let angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+      // Keep text readable: flip if it would be upside-down
+      if (angleDeg > 90) angleDeg -= 180;
+      if (angleDeg < -90) angleDeg += 180;
 
       const label = new fabric.FabricText(labelText, {
         left: labelX,
@@ -934,6 +957,7 @@ export function TakeoffCanvas({
         backgroundColor: "rgba(255,255,255,0.85)",
         originX: "center",
         originY: "bottom",
+        angle: angleDeg,
         selectable: false,
       }) as FabricObjectWithData;
       label.data = { isTempCalibration: true };
@@ -1092,16 +1116,52 @@ export function TakeoffCanvas({
   };
 
   // Handle magnifier candidate selection — overrides the PDF snap lock
+  // Handles calibration point placement directly (not via placeToolPoint) to avoid
+  // stale closure / guard issues when the magnifier button intercepts the click.
   const handleMagnifierSelect = useCallback((candidate: { x: number; y: number }) => {
     overridePdfSnap(candidate);
     setSnapResult(prev => prev ? {
       ...prev,
       snapped: candidate,
     } : null);
-    // Also place the point — the magnifier button intercepted the click that
-    // was meant for the Fabric canvas, so we execute the placement here too.
-    placeToolPoint(candidate);
-  }, [overridePdfSnap, placeToolPoint]);
+
+    // Place the point — the magnifier button intercepted the click that
+    // was meant for the Fabric canvas, so we execute the placement here.
+    // For calibrate tool, handle inline to avoid guard/ref timing issues.
+    if (currentTool === "calibrate") {
+      const calStep = calibrationStepRef.current;
+      const calLine = calibrationLineRef.current;
+      const pScale = pageScaleRef.current;
+      if (calStep === "waitingInput" || calStep === "verifying") return;
+      if (!calLine) {
+        setCalibrationLine({ start: candidate, end: candidate });
+        setCalibrationStep("firstPoint");
+        setIsDrawing(true);
+      } else {
+        setCalibrationLine({ ...calLine, end: candidate });
+        setIsDrawing(false);
+        if (pScale?.calibrated && pScale.scale_factor) {
+          setCalibrationStep("verifying");
+        } else {
+          setCalibrationStep("waitingInput");
+          setCalibrationInput("");
+          setTimeout(() => calibrationInputRef.current?.focus(), 100);
+        }
+      }
+    } else {
+      placeToolPoint(candidate);
+    }
+  }, [overridePdfSnap, currentTool, placeToolPoint]);
+
+  // Preview handler for magnifier drag — updates snap/line position without finalizing
+  const handleMagnifierPreview = useCallback((candidate: { x: number; y: number }) => {
+    overridePdfSnap(candidate);
+    setSnapResult(prev => prev ? { ...prev, snapped: candidate } : null);
+    // During calibrate firstPoint, update the line endpoint live
+    if (currentTool === "calibrate" && calibrationStepRef.current === "firstPoint") {
+      setCalibrationLine(prev => prev ? { ...prev, end: candidate } : null);
+    }
+  }, [overridePdfSnap, currentTool]);
 
   // =============================================================================
   // Helpers
@@ -1299,11 +1359,26 @@ export function TakeoffCanvas({
           pageWidth={pageWidth}
           pageHeight={pageHeight}
           onSelect={handleMagnifierSelect}
+          onPreview={handleMagnifierPreview}
         />
       )}
 
       {/* Pinned magnifiers at calibration endpoints — shows exactly where each point snapped */}
-      {currentTool === "calibrate" && pdfPage && showPinnedMagnifiers && (
+      {currentTool === "calibrate" && pdfPage && showPinnedMagnifiers && (() => {
+        // Determine if the calibration/verification line is more vertical than horizontal
+        // to position magnifiers appropriately (left/right for horizontal, left/right for vertical too
+        // but we could use "left" for start and "right" for end either way)
+        const calLineForSide = calibrationLine || (pageScale?.calibration_line ? {
+          start: { x: pageScale.calibration_line.x1, y: pageScale.calibration_line.y1 },
+          end: { x: pageScale.calibration_line.x2, y: pageScale.calibration_line.y2 },
+        } : null);
+        const isVerticalLine = calLineForSide
+          ? Math.abs(calLineForSide.end.y - calLineForSide.start.y) > Math.abs(calLineForSide.end.x - calLineForSide.start.x)
+          : false;
+        // For vertical lines, put both magnifiers on the same side (left) to avoid overlapping the line
+        const sideA = "left" as const;
+        const sideB = isVerticalLine ? "left" : "right" as const;
+        return (
         <>
           {/* Original calibration line endpoints (from saved pageScale) */}
           {pageScale?.calibration_line && pageScale.reference_length_mm && (
@@ -1316,7 +1391,7 @@ export function TakeoffCanvas({
                 pageHeight={pageHeight}
                 label="Cal A"
                 color="#F59E0B"
-                preferSide="left"
+                preferSide={sideA}
                 onSelect={(newPoint) => {
                   // Re-calibrate with adjusted start point
                   onCalibrate({
@@ -1336,7 +1411,7 @@ export function TakeoffCanvas({
                 pageHeight={pageHeight}
                 label="Cal B"
                 color="#F59E0B"
-                preferSide="right"
+                preferSide={sideB}
                 onSelect={(newPoint) => {
                   // Re-calibrate with adjusted end point
                   onCalibrate({
@@ -1361,7 +1436,7 @@ export function TakeoffCanvas({
                 pageHeight={pageHeight}
                 label={pageScale?.calibrated ? "Verify A" : "New A"}
                 color={pageScale?.calibrated ? "#16A34A" : "#3B82F6"}
-                preferSide="left"
+                preferSide={sideA}
                 onSelect={(newPoint) => {
                   setCalibrationLine(prev => prev ? { ...prev, start: newPoint } : null);
                   // useEffect handles renderTempCalibrationLine on calibrationLine change
@@ -1376,7 +1451,7 @@ export function TakeoffCanvas({
                   pageHeight={pageHeight}
                   label={pageScale?.calibrated ? "Verify B" : "New B"}
                   color={pageScale?.calibrated ? "#16A34A" : "#3B82F6"}
-                  preferSide="right"
+                  preferSide={sideB}
                   onSelect={(newPoint) => {
                     setCalibrationLine(prev => prev ? { ...prev, end: newPoint } : null);
                     // useEffect handles renderTempCalibrationLine on calibrationLine change
@@ -1386,7 +1461,62 @@ export function TakeoffCanvas({
             </>
           )}
         </>
-      )}
+        );
+      })()}
+
+      {/* Completed verification results — persist on page after "Check Another" */}
+      {completedVerifications.map((v, i) => {
+        const midX = ((v.line.start.x + v.line.end.x) / 2) * zoom;
+        const midY = ((v.line.start.y + v.line.end.y) / 2) * zoom;
+        const isProblem = v.diffPercent >= 1;
+        const isAcceptable = v.diffPercent >= 0.5 && v.diffPercent < 1;
+        const bgColor = isProblem
+          ? "bg-red-500"
+          : isAcceptable
+          ? "bg-amber-500"
+          : "bg-green-500";
+        const displayMm = `${Math.round(v.computedMm).toLocaleString()}mm`;
+        const expectedDisplay = `${Math.round(v.expectedMm).toLocaleString()}mm`;
+        return (
+          <div
+            key={i}
+            className="absolute pointer-events-none z-5"
+            style={{
+              left: midX,
+              top: midY - 30,
+              transform: "translate(-50%, -100%)",
+            }}
+          >
+            {/* Verification line (SVG dashed line) */}
+            <svg
+              className="absolute pointer-events-none"
+              style={{
+                left: "50%",
+                top: "100%",
+                width: Math.abs(v.line.end.x - v.line.start.x) * zoom + 4,
+                height: Math.abs(v.line.end.y - v.line.start.y) * zoom + 4,
+                transform: `translate(-50%, 0)`,
+                overflow: "visible",
+              }}
+            >
+              <line
+                x1={v.line.start.x * zoom - midX + Math.abs(v.line.end.x - v.line.start.x) * zoom / 2 + 2}
+                y1={v.line.start.y * zoom - midY + 30}
+                x2={v.line.end.x * zoom - midX + Math.abs(v.line.end.x - v.line.start.x) * zoom / 2 + 2}
+                y2={v.line.end.y * zoom - midY + 30}
+                stroke={isProblem ? "#ef4444" : isAcceptable ? "#f59e0b" : "#22c55e"}
+                strokeWidth={2}
+                strokeDasharray="6 3"
+                opacity={0.6}
+              />
+            </svg>
+            {/* Result badge */}
+            <div className={`${bgColor} text-white text-xs font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap ${isProblem ? "animate-pulse" : ""}`}>
+              {displayMm} vs {expectedDisplay} ({v.diffPercent < 0.01 ? "0%" : v.diffPercent < 1 ? `${v.diffPercent.toFixed(2)}%` : `${v.diffPercent.toFixed(1)}%`})
+            </div>
+          </div>
+        );
+      })}
 
       {/* Zoom-to-rect selection overlay (right-click drag) */}
       {zoomRect && (
@@ -1582,13 +1712,12 @@ export function TakeoffCanvas({
                 Verification ({Math.round(pxDist)} px)
               </div>
               <div className="text-lg font-bold text-green-600 dark:text-green-400 mb-2">
-                {computedMm >= 1000
-                  ? `${computedM.toFixed(2)} m`
-                  : `${computedMm.toFixed(1)} mm`
-                }
-                <span className="text-sm font-normal text-muted-foreground ml-2">
-                  ({computedMm.toFixed(0)} mm)
-                </span>
+                {Math.round(computedMm).toLocaleString()} mm
+                {computedMm >= 1000 && (
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    ({computedM.toFixed(3)} m)
+                  </span>
+                )}
               </div>
 
               {/* Step 1: Enter expected dimension */}
@@ -1644,7 +1773,7 @@ export function TakeoffCanvas({
               {verificationConfirmed && hasExpected && (
                 <>
                   <div className="text-sm text-muted-foreground mb-1">
-                    Expected: <span className="font-medium text-foreground">{expectedMm >= 1000 ? `${(expectedMm/1000).toFixed(2)} m` : `${expectedMm} mm`}</span>
+                    Expected: <span className="font-medium text-foreground">{Math.round(expectedMm).toLocaleString()} mm{expectedMm >= 1000 ? ` (${(expectedMm/1000).toFixed(3)} m)` : ""}</span>
                   </div>
 
                   <div className={`rounded px-3 py-2 mb-3 text-sm ${
@@ -1675,6 +1804,15 @@ export function TakeoffCanvas({
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
+                        // Save this verification result to display on the page
+                        if (calibrationLine) {
+                          setCompletedVerifications(prev => [...prev, {
+                            line: { start: calibrationLine.start, end: calibrationLine.end },
+                            computedMm,
+                            expectedMm,
+                            diffPercent,
+                          }]);
+                        }
                         setCalibrationLine(null);
                         setCalibrationStep("idle");
                         setVerificationInput("");
@@ -1705,6 +1843,7 @@ export function TakeoffCanvas({
                       onClick={() => {
                         setVerificationInput("");
                         setVerificationConfirmed(false);
+                        setCompletedVerifications([]);
                         handleCalibrationCancel();
                       }}
                       className="px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground"
