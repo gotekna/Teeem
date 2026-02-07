@@ -350,11 +350,6 @@ class WarehouseFolder < ApplicationRecord
     for_warehouse_type(type_key).root_folders.first
   end
 
-  # Alias for backwards compatibility
-  def self.base_folder_for(type_key)
-    warehouse_folder_for(type_key)
-  end
-
   # Get mapping of warehouse type codes to warehouse folder names
   # @return [Hash] { "job" => "Jobs", "contact" => "Contacts", ... }
   def self.warehouse_type_to_warehouse_folder
@@ -364,11 +359,6 @@ class WarehouseFolder < ApplicationRecord
       result[folder.warehouse_type.code] = folder.display_name || folder.name
     end
     result
-  end
-
-  # Alias for backwards compatibility
-  def self.warehouse_type_to_base_folder
-    warehouse_type_to_warehouse_folder
   end
 
   # Get list of available warehouse type codes
@@ -402,11 +392,6 @@ class WarehouseFolder < ApplicationRecord
     result
   end
 
-  # Alias for backwards compatibility
-  def self.folder_templates_mapping
-    warehouse_folders_mapping
-  end
-
   # Get mapping of warehouse types to download name templates
   # @return [Hash] { "job" => "{JobCode} {DocType}.pdf", ... }
   def self.download_names_mapping
@@ -427,6 +412,65 @@ class WarehouseFolder < ApplicationRecord
       result[folder.warehouse_type.code] = folder.ui_name_template
     end
     result
+  end
+
+  # ════════════════════════════════════════════════════════════════════════════════
+  # SSoT: Folder Navigation (used by documents_controller for File Warehouse)
+  # ════════════════════════════════════════════════════════════════════════════════
+
+  # Given a root folder name (e.g., "Jobs"), return the warehouse_type code (e.g., "job")
+  # @param folder_name [String] Root folder display name
+  # @return [String, nil] Warehouse type code
+  def self.warehouse_type_code_for_root_folder(folder_name)
+    warehouse_type_to_warehouse_folder.invert[folder_name]
+  end
+
+  # Given a warehouse type code (e.g., "job"), return the root folder name (e.g., "Jobs")
+  # @param type_code [String] Warehouse type code
+  # @return [String, nil] Root folder display name
+  def self.root_folder_name_for(type_code)
+    warehouse_type_to_warehouse_folder[type_code.to_s]
+  end
+
+  # Given a root folder name (e.g., "Jobs"), return its child tabs for UI display
+  # @param folder_name [String] Root folder display name
+  # @return [Array<Hash>] Child tab data for rendering
+  def self.tabs_for_root_folder(folder_name)
+    type_code = warehouse_type_code_for_root_folder(folder_name)
+    return [] unless type_code
+
+    root = warehouse_folder_for(type_code)
+    return [] unless root
+
+    root.children.enabled.ordered.map do |child|
+      { name: child.display_name || child.name, path: "#{folder_name}/#{child.display_name || child.name}" }
+    end
+  end
+
+  # Given a path like "Jobs/Photo", return child tabs at that level
+  # @param path [String] Folder path with "/" separators
+  # @return [Array<Hash>] Child tab data for rendering
+  def self.child_tabs_for_path(path)
+    segments = path.to_s.split("/")
+    return [] if segments.empty?
+
+    root_name = segments.first
+    type_code = warehouse_type_code_for_root_folder(root_name)
+    return [] unless type_code
+
+    root = warehouse_folder_for(type_code)
+    return [] unless root
+
+    # Walk the tree to find the target folder
+    current = root
+    segments[1..].each do |segment|
+      current = current.children.enabled.find_by("display_name = ? OR name = ?", segment, segment)
+      return [] unless current
+    end
+
+    current.children.enabled.ordered.map do |child|
+      { name: child.display_name || child.name, path: "#{path}/#{child.display_name || child.name}" }
+    end
   end
 
   # ════════════════════════════════════════════════════════════════════════════════

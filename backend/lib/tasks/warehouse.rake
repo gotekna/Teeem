@@ -94,7 +94,7 @@ namespace :warehouse do
     puts "Total documents: #{total}"
 
     start_time = Time.current
-    tree = { base_folders: Hash.new(0), paths: {} }
+    tree = { root_folders: Hash.new(0), paths: {} }
     processed = 0
 
     WarehouseDocument.includes(:documentable).find_each(batch_size: 1000) do |doc|
@@ -104,7 +104,7 @@ namespace :warehouse do
       tree[:paths][doc.id] = computed_path
 
       root = computed_path.split("/").first
-      tree[:base_folders][root] += 1
+      tree[:root_folders][root] += 1
 
       processed += 1
       if processed % 10000 == 0
@@ -115,17 +115,15 @@ namespace :warehouse do
       end
     end
 
-    # Convert to regular hash for caching
-    tree[:base_folders] = tree[:base_folders].to_h
+    tree[:root_folders] = tree[:root_folders].to_h
 
-    # Cache for 1 hour
     Rails.cache.write("warehouse_folder_tree_v2", tree, expires_in: 1.hour)
 
     elapsed = (Time.current - start_time).round
     puts ""
     puts "Done in #{elapsed} seconds!"
-    puts "Base folders:"
-    tree[:base_folders].each do |name, count|
+    puts "Root folders:"
+    tree[:root_folders].each do |name, count|
       puts "  #{name}: #{count} documents"
     end
   end
