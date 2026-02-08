@@ -56,11 +56,11 @@ module Api
       # GET /api/v1/external_invoices/:id
       # Note: corporate_company_documents DROPPED (Jan 2026) - migrated to warehouse_documents
       def show
-        invoice = ExternalInvoice.find(params[:id])
+        invoice = ExternalInvoice.includes(:warehouse_documents).find(params[:id])
 
-        # Check if PDF is available (SSoT: now via warehouse_documents)
+        # Check if PDF is available (includes child attachments for bills)
+        has_pdf = invoice_has_pdf?(invoice)
         pdf_doc = invoice.warehouse_documents.find_by("metadata->>'document_type' = ?", document_type_for(invoice.invoice_type))
-        has_pdf = pdf_doc&.storage_blob.present?
 
         render json: {
           success: true,
@@ -77,11 +77,11 @@ module Api
       # Find invoice by Xero ID (external_id) - for invoice detail modal
       # Note: corporate_company_documents DROPPED (Jan 2026) - migrated to warehouse_documents
       def by_external_id
-        invoice = ExternalInvoice.find_by!(external_id: params[:external_id])
+        invoice = ExternalInvoice.includes(:warehouse_documents).find_by!(external_id: params[:external_id])
 
-        # Check if PDF is available (SSoT: now via warehouse_documents)
+        # Check if PDF is available (includes child attachments for bills)
+        has_pdf = invoice_has_pdf?(invoice)
         pdf_doc = invoice.warehouse_documents.find_by("metadata->>'document_type' = ?", document_type_for(invoice.invoice_type))
-        has_pdf = pdf_doc&.storage_blob.present?
 
         render json: {
           success: true,
@@ -476,6 +476,18 @@ module Api
         # SSoT: Find PDF via warehouse_documents (document_type stored in metadata)
         existing_pdf = invoice.warehouse_documents.find_by("metadata->>'document_type' = ?", document_type_for(invoice.invoice_type))
 
+        # For bills: primary doc has storage_blob nil (no auto-generated PDF).
+        # Check child attachments linked via parent_document_id.
+        if existing_pdf && !existing_pdf.storage_blob.present?
+          child_with_blob = WarehouseDocument.where(parent_document_id: existing_pdf.id)
+                                             .where.not(storage_blob_id: nil)
+                                             .first
+          existing_pdf = child_with_blob if child_with_blob
+        end
+
+        # Also check any warehouse_document for this invoice that has a blob
+        existing_pdf ||= invoice.warehouse_documents.where.not(storage_blob_id: nil).first
+
         if existing_pdf&.storage_blob.present?
           # Use fetch_from_storage which handles paths correctly for any provider
           content = fetch_from_storage(existing_pdf)
@@ -607,6 +619,22 @@ module Api
 
       private
 
+      # Check if an invoice has a PDF available (direct or via child attachments)
+      # Bills have primary warehouse_documents with storage_blob nil; their actual
+      # file attachments are child WarehouseDocuments linked via parent_document_id.
+      def invoice_has_pdf?(invoice)
+        docs = invoice.warehouse_documents.to_a
+        return true if docs.any? { |wd| wd.storage_blob_id.present? }
+
+        # Check child documents (bill attachments linked via parent_document_id)
+        doc_ids = docs.map(&:id)
+        return false if doc_ids.empty?
+
+        WarehouseDocument.where(parent_document_id: doc_ids)
+                         .where.not(storage_blob_id: nil)
+                         .exists?
+      end
+
       # SSoT: Maps invoice_type to document_type - MUST match XeroAttachmentSyncService.document_type_for_invoice
       def document_type_for(invoice_type)
         case invoice_type
@@ -662,7 +690,8 @@ module Api
           xero_type: invoice.xero_type,
           xero_status: invoice.xero_status,
           # PDF sync status - true if a WarehouseDocument with storage_blob exists
-          has_pdf: invoice.warehouse_documents.any? { |wd| wd.storage_blob_id.present? }
+          # (includes child attachments for bills via parent_document_id)
+          has_pdf: invoice_has_pdf?(invoice)
         }
 
         if include_details
