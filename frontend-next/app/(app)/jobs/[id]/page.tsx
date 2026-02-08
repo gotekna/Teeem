@@ -163,6 +163,7 @@ const WarehouseTreeBase = dynamic(() => import("@/components/warehouse/Warehouse
   loading: () => <TabLoadingSkeleton />,
 });
 // Wrapper: maps Job tab props to WarehouseTree scoped mode
+// Token values are auto-fetched by useWarehouseTree from the backend (fix once, benefit everywhere)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const JobWarehouseTab = (props: any) => (
   <WarehouseTreeBase
@@ -258,6 +259,7 @@ interface Job {
   name: string;
   status: string;
   stage: string;
+  job_code?: string;
   job_type?: { id: number; name: string; icon?: string };
   job_type_id?: number;
   job_status?: { id: number; name: string; color?: string };

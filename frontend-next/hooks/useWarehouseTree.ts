@@ -90,6 +90,11 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
   const [rootPath, setRootPath] = useState<string>("");
   const [virtualScopes, setVirtualScopes] = useState<Record<string, boolean>>({});
 
+  // Scoped mode: auto-resolved token values from backend (fix once, benefit everywhere)
+  const [scopedTokenValues, setScopedTokenValues] = useState<Record<string, string | null> | undefined>(
+    mode.type === "scoped" ? mode.recordTokenValues : undefined
+  );
+
   // ─── Fetch storage config ──────────────────────────────────────
   useEffect(() => {
     const fetchStorageConfig = async () => {
@@ -115,6 +120,36 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
     };
     fetchStorageConfig();
   }, []);
+
+  // ─── Scoped mode: auto-fetch token values from backend ────────
+  // Fix once here = every consumer (Job, Contact, Corporate) benefits automatically.
+  // Falls back to mode.recordTokenValues if provided (for backwards compat).
+  useEffect(() => {
+    if (mode.type !== "scoped") return;
+    // If consumer already provided token values, use those
+    if (mode.recordTokenValues && Object.keys(mode.recordTokenValues).length > 0) {
+      setScopedTokenValues(mode.recordTokenValues);
+      return;
+    }
+    // Otherwise fetch from backend using the records endpoint
+    const fetchTokenValues = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: { record: RecordNode | null };
+        }>(`/api/v1/warehouse_types/${mode.warehouseTypeCode}/records`, {
+          params: { record_id: mode.linkableId }
+        });
+        if (response?.success && response.data?.record?.tokenValues) {
+          setScopedTokenValues(response.data.record.tokenValues);
+        }
+      } catch (err) {
+        console.error("Failed to fetch scoped token values:", err);
+      }
+    };
+    fetchTokenValues();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode.type === "scoped" ? mode.linkableId : null]);
 
   // ─── Fetch warehouse types tree ────────────────────────────────
   const fetchWarehouseTypesTree = useCallback(async () => {
@@ -766,11 +801,21 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         }];
       }
 
-      // Build a synthetic record node from the props (skip the record-selection level)
+      // Wait for token values to be resolved before building tree
+      // Without tokens, all paths stay virtual and fetch ALL records instead of scoped
+      if (!scopedTokenValues) {
+        return [{
+          id: "loading-tokens",
+          name: "Loading...",
+          type: "loading" as const,
+        }];
+      }
+
+      // Build a synthetic record node using auto-resolved token values (SSoT)
       const syntheticRecord: RecordNode = {
         id: mode.linkableId,
         name: "",
-        tokenValues: mode.recordTokenValues,
+        tokenValues: scopedTokenValues,
       };
 
       // Get warehouse folders as if we're inside a record
@@ -818,7 +863,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
 
     // ── Full mode: convert all warehouse types ──
     return warehouseTypesTree.map(convertWarehouseTypeToTreeNode);
-  }, [warehouseTypesTree, warehouseTreeLoading, s3Folders, warehouseRecords, loadingRecords, mode]);
+  }, [warehouseTypesTree, warehouseTreeLoading, s3Folders, warehouseRecords, loadingRecords, mode, scopedTokenValues]);
 
   // ─── Collapse all folders ─────────────────────────────────────
   const collapseAll = useCallback(() => {

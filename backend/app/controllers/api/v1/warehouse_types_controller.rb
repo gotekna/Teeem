@@ -348,13 +348,26 @@ module Api
           }
         end
 
+        model = @warehouse_type.source_model.constantize
+        eager_loads = derive_eager_loads
+
+        # Single record lookup (used by scoped warehouse tree to resolve token values)
+        if params[:record_id].present?
+          scope = eager_loads.any? ? model.includes(*eager_loads) : model.all
+          record = scope.find_by(id: params[:record_id])
+          return render json: {
+            success: true,
+            data: {
+              record: record ? serialize_record_from_config(record) : nil
+            }
+          }
+        end
+
         limit = (params[:limit] || 50).to_i.clamp(1, 100)
         offset = (params[:offset] || 0).to_i
         search = params[:search]&.strip
         config = @warehouse_type.records_config
 
-        model = @warehouse_type.source_model.constantize
-        eager_loads = derive_eager_loads
         scope = eager_loads.any? ? model.includes(*eager_loads) : model.all
         scope = apply_dynamic_search(scope, model, config['search'], search)
         scope = apply_order_joins(scope, model, config['order'])
@@ -670,10 +683,11 @@ module Api
 
       # Build a tree node for a warehouse type
       def warehouse_type_tree_node(warehouse_type, counts)
-        # Get only root-level folders (parent_id: nil) - children are nested via children association
-        # FRC (Feb 2026): Without this filter, .includes() eager-loads ALL folders into memory,
-        # so warehouse_type.warehouse_folders returns root AND children at the same level
-        warehouse_folders = warehouse_type.warehouse_folders.enabled.ordered.where(parent_id: nil)
+        # Get only root-level, warehouse-enabled folders (parent_id: nil)
+        # FRC (Feb 2026): Without parent_id filter, .includes() eager-loads ALL folders at same level
+        # FRC (Feb 2026): Without warehouse_enabled filter, system tabs (Overview, Schedule, etc.)
+        # appear in the warehouse tree despite having no storage purpose
+        warehouse_folders = warehouse_type.warehouse_folders.enabled.where(warehouse_enabled: true).ordered.where(parent_id: nil)
 
         # Get count for this warehouse type
         file_count = counts[warehouse_type.code] || 0
