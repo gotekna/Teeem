@@ -79,7 +79,7 @@ import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { ContactHeader, XeroLink } from "./components/ContactHeader";
-import { ScopedWarehouseView } from "@/components/warehouse/ScopedWarehouseView";
+import { WarehouseTree } from "@/components/warehouse/WarehouseTree";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import { getIcon } from "@/lib/icon-map";
 import {
@@ -2192,7 +2192,14 @@ export default function ContactDetailPage() {
 
         {/* Warehouse Tab - Scoped warehouse sub-tree for this contact */}
         <TabsContent value="warehouse" className="mt-6">
-          <ScopedWarehouseView linkableType="Contact" linkableId={contact.id} />
+          <WarehouseTree
+            mode={{
+              type: "scoped",
+              linkableType: "Contact",
+              linkableId: contact.id,
+              warehouseTypeCode: "contact",
+            }}
+          />
         </TabsContent>
 
       </Tabs>
