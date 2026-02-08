@@ -266,6 +266,9 @@ export function TakeoffCanvas({
   useEffect(() => {
     if (calibrationLine && (calibrationStep === "firstPoint" || calibrationStep === "waitingInput" || calibrationStep === "verifying")) {
       renderTempCalibrationLine();
+    } else if (!calibrationLine) {
+      // Clean up stale Fabric objects when calibration is cancelled/completed
+      clearTempDrawing();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calibrationLine, calibrationStep]);
@@ -538,7 +541,15 @@ export function TakeoffCanvas({
     ) as FabricObjectWithData;
     connector.data = { isMeasurement: true, isCalibration: true };
 
-    const label = new fabric.FabricText(`${scale.reference_length_mm}mm (${scale.scale_label})`, {
+    const refMm = Number(scale.reference_length_mm);
+    const sf = Number(scale.scale_factor);
+    const labelStr = `${Math.round(refMm).toLocaleString()} mm (${sf.toFixed(2)} mm/px)`;
+    // Rotate label to follow line direction (keep text readable)
+    let labelAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+    if (labelAngle > 90) labelAngle -= 180;
+    if (labelAngle < -90) labelAngle += 180;
+
+    const label = new fabric.FabricText(labelStr, {
       left: labelX,
       top: labelY - 8,
       fontSize: 12,
@@ -546,6 +557,7 @@ export function TakeoffCanvas({
       backgroundColor: "rgba(255,255,255,0.9)",
       originX: "center",
       originY: "bottom",
+      angle: labelAngle,
       selectable: false,
       evented: true,  // Receive clicks even though not selectable
       hoverCursor: "pointer",
@@ -601,11 +613,6 @@ export function TakeoffCanvas({
     const calStep = calibrationStepRef.current;
     const calLine = calibrationLineRef.current;
     const pScale = pageScaleRef.current;
-
-    // DEBUG: trace calibration flow — remove after fixing
-    if (currentTool === "calibrate") {
-      console.log("[placeToolPoint]", { calStep, hasCalLine: !!calLine, calibrated: pScale?.calibrated, scaleFactor: pScale?.scale_factor, point });
-    }
 
     switch (currentTool) {
       case "calibrate": {
@@ -692,10 +699,6 @@ export function TakeoffCanvas({
       if (target?.data?.isCalibrationLabel) return;
     }
 
-    // DEBUG: trace canvas click — remove after fixing
-    if (currentTool === "calibrate") {
-      console.log("[handleMouseDown] calling placeToolPoint", { rawPoint, point, target: (e.target as any)?.data });
-    }
     placeToolPoint(point);
   }, [currentTool, zoom, findSnapPoint, placeToolPoint, isPanningProp, isSpaceHeldProp]);
 
@@ -913,6 +916,7 @@ export function TakeoffCanvas({
       strokeWidth: 3,
       strokeDashArray: [10, 5],
       selectable: false,
+      evented: false,  // Don't intercept canvas clicks — purely visual
     }) as FabricObjectWithData;
     line.data = { isTempCalibration: true };
     canvas.add(line);
@@ -937,6 +941,7 @@ export function TakeoffCanvas({
         strokeWidth: 1,
         strokeDashArray: [2, 2],
         selectable: false,
+        evented: false,
       }) as FabricObjectWithData;
       connector.data = { isTempCalibration: true };
       canvas.add(connector);
@@ -968,6 +973,7 @@ export function TakeoffCanvas({
         originY: "bottom",
         angle: angleDeg,
         selectable: false,
+        evented: false,  // Don't intercept canvas clicks
       }) as FabricObjectWithData;
       label.data = { isTempCalibration: true };
       canvas.add(label);
@@ -1141,8 +1147,6 @@ export function TakeoffCanvas({
       const calStep = calibrationStepRef.current;
       const calLine = calibrationLineRef.current;
       const pScale = pageScaleRef.current;
-      // DEBUG: trace magnifier select flow — remove after fixing
-      console.log("[handleMagnifierSelect]", { calStep, hasCalLine: !!calLine, calibrated: pScale?.calibrated, scaleFactor: pScale?.scale_factor, candidate });
       if (calStep === "waitingInput" || calStep === "verifying") return;
       if (!calLine) {
         setCalibrationLine({ start: candidate, end: candidate });
@@ -1852,9 +1856,17 @@ export function TakeoffCanvas({
                     )}
                     <button
                       onClick={() => {
+                        // Save this verification result before closing (same as Check Another)
+                        if (calibrationLine) {
+                          setCompletedVerifications(prev => [...prev, {
+                            line: { start: calibrationLine.start, end: calibrationLine.end },
+                            computedMm,
+                            expectedMm,
+                            diffPercent,
+                          }]);
+                        }
                         setVerificationInput("");
                         setVerificationConfirmed(false);
-                        setCompletedVerifications([]);
                         handleCalibrationCancel();
                       }}
                       className="px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground"
