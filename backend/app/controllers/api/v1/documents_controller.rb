@@ -250,13 +250,14 @@ module Api
         scope = params[:scope].to_s.downcase
         path = params[:path].to_s.strip.gsub(%r{^/+|/+$}, "")
         path_segments = path.present? ? path.split("/") : []
+        folder_type = params[:folder_type].to_s.presence
 
         # Get template from WarehouseProvider
         config = WarehouseProvider.instance
         template = config.path_for(scope) rescue nil
 
         # Build live folder tree based on scope
-        result = build_live_folder_tree(scope, path_segments)
+        result = build_live_folder_tree(scope, path_segments, folder_type)
 
         render json: {
           success: true,
@@ -1558,10 +1559,10 @@ module Api
       # SSoT (Jan 2026): Unified folder tree builder
       # Email has special logic (mailboxes, years, months from SyncedEmail)
       # All other scopes use generic folder-based approach from WarehouseDocument.folder
-      def build_live_folder_tree(scope, path_segments)
+      def build_live_folder_tree(scope, path_segments, folder_type = nil)
         case scope
         when "email", "emails"
-          build_email_live_tree(path_segments)
+          build_email_live_tree(path_segments, folder_type)
         else
           # Generic: job, contact, corporate, people, task, etc.
           # All use WarehouseDocument.folder + WarehouseFolder tabs (SSoT Feb 2026)
@@ -1639,18 +1640,157 @@ module Api
         { folders: folders, files: files }
       end
 
-      # Email structure: {{Mailbox}}/{{Year}}/Email Body|Attachments/{{Month}}/files
-      # Level 0: Mailboxes
-      # Level 1: Years
-      # Level 2: "Email Body" and "Attachments" folders
-      # Level 3: Months
-      # Level 4: Files
-      def build_email_live_tree(path_segments)
+      # Email live folder tree
+      #
+      # Without folder_type (original):
+      #   Level 0: Mailboxes → Level 1: Years → Level 2: "Email Body"/"Attachments"
+      #   → Level 3: Months → Level 4: Files
+      #
+      # With folder_type (filtered - used by warehouse page):
+      #   folder_type=mailbox: Level 0 returns mailboxes with is_mailbox/external_link flags
+      #   folder_type=body:    Level 0: Mailboxes → Level 1: Years → Level 2: Months → Level 3: Email files
+      #   folder_type=attachments: Same as body but returns attachment files
+      #
+      # The filtered mode collapses the "Email Body"/"Attachments" selection level since
+      # the warehouse page already shows these as separate tree folders.
+      def build_email_live_tree(path_segments, folder_type = nil)
+        depth = path_segments.size
+
+        if folder_type.present?
+          build_email_filtered_tree(path_segments, folder_type)
+        else
+          build_email_combined_tree(path_segments)
+        end
+      end
+
+      # Filtered email tree: pre-selects body/attachments/mailbox branch
+      # Path: mailbox/year/month (3 levels to files, no folder_type level)
+      def build_email_filtered_tree(path_segments, folder_type)
         depth = path_segments.size
 
         case depth
         when 0
-          # Root: Show unique mailboxes
+          # Root: Show mailboxes
+          mailboxes = SyncedEmail.where.not(mailbox_owner_email: [nil, ""])
+                                 .group(:mailbox_owner_email)
+                                 .count
+
+          folders = mailboxes.map do |email, count|
+            base = { name: email, path: email, count: count }
+            if folder_type == "mailbox"
+              # Mailbox mode: add flags for drawer/navigation behavior
+              base.merge(is_mailbox: true, mailbox_email: email, external_link: "/email?mailbox=#{CGI.escape(email)}")
+            else
+              base
+            end
+          end.sort_by { |f| f[:name].to_s.downcase }
+
+          { folders: folders, files: [] }
+
+        when 1
+          # Mailbox selected → show years
+          mailbox = path_segments[0]
+
+          if folder_type == "attachments"
+            years = WarehouseDocument.where(source_type: "email_attachment")
+                                     .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
+                                     .where(synced_emails: { mailbox_owner_email: mailbox })
+                                     .where.not(synced_emails: { received_at: nil })
+                                     .group("EXTRACT(YEAR FROM synced_emails.received_at)::INTEGER")
+                                     .count
+          else
+            years = SyncedEmail.where(mailbox_owner_email: mailbox)
+                               .where.not(received_at: nil)
+                               .group("EXTRACT(YEAR FROM received_at)::INTEGER")
+                               .count
+          end
+
+          folders = years.map do |year, count|
+            year_str = year.to_i.to_s
+            { name: year_str, path: "#{mailbox}/#{year_str}", count: count }
+          end.sort_by { |f| -f[:name].to_i }
+
+          { folders: folders, files: [] }
+
+        when 2
+          # Year selected → show months (skips the Email Body/Attachments level)
+          mailbox = path_segments[0]
+          year = path_segments[1].to_i
+
+          if folder_type == "attachments"
+            months = WarehouseDocument.where(source_type: "email_attachment")
+                                      .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
+                                      .where(synced_emails: { mailbox_owner_email: mailbox })
+                                      .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
+                                      .group("EXTRACT(MONTH FROM synced_emails.received_at)::INTEGER")
+                                      .count
+          else
+            months = SyncedEmail.where(mailbox_owner_email: mailbox)
+                                .where("EXTRACT(YEAR FROM received_at) = ?", year)
+                                .group("EXTRACT(MONTH FROM received_at)::INTEGER")
+                                .count
+          end
+
+          month_names = %w[Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec]
+          folders = months.map do |month, count|
+            month_name = month_names[month.to_i - 1] || month.to_s.rjust(2, "0")
+            month_str = month.to_s.rjust(2, "0")
+            { name: "#{month_str} - #{month_name}", path: "#{mailbox}/#{year}/#{month_str}", count: count }
+          end.sort_by { |f| -f[:name].to_i }
+
+          { folders: folders, files: [] }
+
+        else
+          # Month selected → show files
+          mailbox = path_segments[0]
+          year = path_segments[1].to_i
+          month = path_segments[2].to_i
+
+          if folder_type == "attachments"
+            attachments = WarehouseDocument.where(source_type: "email_attachment")
+                                           .includes(:storage_blob)
+                                           .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
+                                           .where(synced_emails: { mailbox_owner_email: mailbox })
+                                           .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
+                                           .where("EXTRACT(MONTH FROM synced_emails.received_at) = ?", month)
+                                           .order("synced_emails.received_at DESC")
+                                           .limit(500)
+
+            files = attachments.map { |att| warehouse_document_to_json(att) }
+          else
+            emails = SyncedEmail.where(mailbox_owner_email: mailbox)
+                                .where("EXTRACT(YEAR FROM received_at) = ?", year)
+                                .where("EXTRACT(MONTH FROM received_at) = ?", month)
+                                .order(received_at: :desc)
+                                .limit(500)
+
+            files = emails.map do |email|
+              {
+                id: email.id,
+                name: email.subject || "(No Subject)",
+                type: "email",
+                mimeType: "message/rfc822",
+                fileSize: 0,
+                receivedAt: email.received_at&.iso8601,
+                from: email.from_email,
+                fromName: email.from_name,
+                hasAttachments: email.has_attachments,
+                attachmentCount: email.attachment_count
+              }
+            end
+          end
+
+          { folders: [], files: files }
+        end
+      end
+
+      # Original combined email tree (no folder_type filter)
+      # Path: mailbox/year/folderType/month (4 levels to files)
+      def build_email_combined_tree(path_segments)
+        depth = path_segments.size
+
+        case depth
+        when 0
           mailboxes = SyncedEmail.where.not(mailbox_owner_email: [nil, ""])
                                  .group(:mailbox_owner_email)
                                  .count
@@ -1662,7 +1802,6 @@ module Api
           { folders: folders, files: [] }
 
         when 1
-          # Level 1: Mailbox selected, show years
           mailbox = path_segments[0]
 
           years = SyncedEmail.where(mailbox_owner_email: mailbox)
@@ -1673,12 +1812,11 @@ module Api
           folders = years.map do |year, count|
             year_str = year.to_i.to_s
             { name: year_str, path: "#{mailbox}/#{year_str}", count: count }
-          end.sort_by { |f| -f[:name].to_i }  # Newest first
+          end.sort_by { |f| -f[:name].to_i }
 
           { folders: folders, files: [] }
 
         when 2
-          # Level 2: Year selected, show "Email Body" and "Attachments" folders
           mailbox = path_segments[0]
           year = path_segments[1].to_i
 
@@ -1686,7 +1824,6 @@ module Api
                                    .where("EXTRACT(YEAR FROM received_at) = ?", year)
                                    .count
 
-          # Count attachments from warehouse_documents (SSoT Jan 2026)
           attachment_count = WarehouseDocument.where(source_type: "email_attachment")
                                               .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
                                               .where(synced_emails: { mailbox_owner_email: mailbox })
@@ -1701,13 +1838,11 @@ module Api
           { folders: folders, files: [] }
 
         when 3
-          # Level 3: Show months for selected year and folder type
           mailbox = path_segments[0]
           year = path_segments[1].to_i
-          folder_type = path_segments[2]  # "Email Body" or "Attachments"
+          folder_type_seg = path_segments[2]
 
-          if folder_type == "Attachments"
-            # Count attachments by month (SSoT Jan 2026: WarehouseDocument)
+          if folder_type_seg == "Attachments"
             months = WarehouseDocument.where(source_type: "email_attachment")
                                       .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
                                       .where(synced_emails: { mailbox_owner_email: mailbox })
@@ -1715,7 +1850,6 @@ module Api
                                       .group("EXTRACT(MONTH FROM synced_emails.received_at)::INTEGER")
                                       .count
           else
-            # Count emails by month
             months = SyncedEmail.where(mailbox_owner_email: mailbox)
                                 .where("EXTRACT(YEAR FROM received_at) = ?", year)
                                 .group("EXTRACT(MONTH FROM received_at)::INTEGER")
@@ -1726,20 +1860,18 @@ module Api
           folders = months.map do |month, count|
             month_name = month_names[month.to_i - 1] || month.to_s.rjust(2, "0")
             month_str = month.to_s.rjust(2, "0")
-            { name: "#{month_str} - #{month_name}", path: "#{mailbox}/#{year}/#{folder_type}/#{month_str}", count: count }
-          end.sort_by { |f| -f[:name].to_i }  # Newest first
+            { name: "#{month_str} - #{month_name}", path: "#{mailbox}/#{year}/#{folder_type_seg}/#{month_str}", count: count }
+          end.sort_by { |f| -f[:name].to_i }
 
           { folders: folders, files: [] }
 
         else
-          # Level 4+: Show actual files
           mailbox = path_segments[0]
           year = path_segments[1].to_i
-          folder_type = path_segments[2]  # "Email Body" or "Attachments"
+          folder_type_seg = path_segments[2]
           month = path_segments[3].to_i
 
-          if folder_type == "Attachments"
-            # Show email attachments (SSoT Jan 2026: WarehouseDocument)
+          if folder_type_seg == "Attachments"
             attachments = WarehouseDocument.where(source_type: "email_attachment")
                                            .includes(:storage_blob)
                                            .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
@@ -1750,19 +1882,18 @@ module Api
                                            .limit(500)
 
             files = attachments.map do |att|
-              email = SyncedEmail.find_by(id: att.metadata["synced_email_id"])
+              email_record = SyncedEmail.find_by(id: att.metadata["synced_email_id"])
               {
                 id: att.id,
                 name: att.display_name || "(Unknown)",
                 type: "attachment",
                 mimeType: att.storage_blob&.content_type || "application/octet-stream",
                 fileSize: att.storage_blob&.file_size,
-                receivedAt: email&.received_at&.iso8601,
-                emailSubject: email&.subject
+                receivedAt: email_record&.received_at&.iso8601,
+                emailSubject: email_record&.subject
               }
             end
           else
-            # Show emails
             emails = SyncedEmail.where(mailbox_owner_email: mailbox)
                                 .where("EXTRACT(YEAR FROM received_at) = ?", year)
                                 .where("EXTRACT(MONTH FROM received_at) = ?", month)
