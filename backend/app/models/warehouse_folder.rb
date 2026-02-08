@@ -69,9 +69,9 @@ class WarehouseFolder < ApplicationRecord
   # Callbacks
   before_validation :sync_display_name_and_folder_segment
   before_validation :sync_tab_key_from_display_name
+  before_validation :enforce_parent_system_type
+  before_validation :enforce_leaf_document_type
   before_save :sync_booleans_from_tab_type
-  before_save :enforce_parent_system_type
-  before_save :enforce_leaf_document_type
   after_create :ensure_parent_is_system
   before_destroy :prevent_system_deletion
 
