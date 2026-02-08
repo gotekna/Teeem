@@ -1961,24 +1961,19 @@ export default function AllDocumentsPage() {
     }, 200); // 200ms delay to detect double-click
   }, []);
 
-  // Open mailbox drawer (for single-click on mailbox folder)
-  // Uses a delay to allow double-click to cancel and navigate instead
+  // Single-click: navigate to full email page for this mailbox
   const handleMailboxClick = useCallback((mailboxEmail: string) => {
-    // Cancel any existing timer
     if (mailboxClickTimerRef.current) {
       clearTimeout(mailboxClickTimerRef.current);
     }
-    // Set a new timer - if double-click happens, this will be cancelled
     mailboxClickTimerRef.current = setTimeout(() => {
-      setSelectedMailbox(mailboxEmail);
-      setMailboxDrawerOpen(true);
+      router.push(`/email?mailbox=${encodeURIComponent(mailboxEmail)}`);
       mailboxClickTimerRef.current = null;
-    }, 200); // 200ms delay to detect double-click
-  }, []);
+    }, 200);
+  }, [router]);
 
-  // Open mailbox in new window (for double-click on mailbox folder)
+  // Double-click: open mailbox email page in a new tab (bookmarkable)
   const handleMailboxDoubleClick = useCallback((externalLink: string) => {
-    // Cancel any pending single-click action
     if (mailboxClickTimerRef.current) {
       clearTimeout(mailboxClickTimerRef.current);
       mailboxClickTimerRef.current = null;
