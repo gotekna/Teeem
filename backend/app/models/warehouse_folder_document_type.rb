@@ -14,6 +14,8 @@
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 #
 class WarehouseFolderDocumentType < ApplicationRecord
+  acts_as_tenant :tenant
+
   belongs_to :warehouse_folder
   belongs_to :document_type
 
@@ -26,7 +28,7 @@ class WarehouseFolderDocumentType < ApplicationRecord
   after_update :schedule_warehouse_document_sync, if: :template_changed?
 
   # Validations
-  validates :warehouse_folder_id, uniqueness: { scope: :document_type_id }
+  validates :warehouse_folder_id, uniqueness: { scope: [:tenant_id, :document_type_id] }
 
   # ════════════════════════════════════════════════════════════════════════════════
   # SSoT: Template Resolution Methods

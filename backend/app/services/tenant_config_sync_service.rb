@@ -69,6 +69,14 @@ class TenantConfigSyncService
       description: "Job status to stage mappings",
       group: "jobs"
     },
+    job_tabs: {
+      model: "JobTab",
+      name_field: :name,
+      match_fields: [:slug],
+      sync_fields: [:name, :slug, :icon, :position, :is_active],
+      description: "Job navigation tabs",
+      group: "jobs"
+    },
 
     # ============================================================================
     # Documents Group
@@ -92,6 +100,52 @@ class TenantConfigSyncService
                     :data_schema, :is_active, :sort_order, :template_type, :layout,
                     :is_legal_format, :legal_source, :local_template_path],
       description: "Document generation templates",
+      group: "documents"
+    },
+    folder_templates: {
+      model: "FolderTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :template_type, :is_system_default, :is_active],
+      description: "Folder structure templates",
+      group: "documents"
+    },
+    claim_invoice_templates: {
+      model: "ClaimInvoiceTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :style_key, :is_default, :is_active, :primary_color,
+                    :secondary_color, :font_family, :show_logo, :show_company_details,
+                    :show_bank_details, :show_payment_terms, :logo_position, :header_style,
+                    :header_text, :footer_text, :payment_instructions],
+      description: "Claim invoice PDF templates",
+      group: "documents"
+    },
+    invoice_templates: {
+      model: "InvoiceTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :sections, :primary_color, :accent_color, :font_family,
+                    :paper_size, :orientation, :margins, :output_naming_pattern, :is_active,
+                    :is_default, :default_terms, :default_notes, :footer_text, :bank_name,
+                    :bank_bsb, :bank_account_number, :bank_account_name],
+      description: "Invoice PDF templates",
+      group: "documents"
+    },
+    specification_templates: {
+      model: "SpecificationTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :sections, :is_default, :is_active],
+      description: "Specification document templates",
+      group: "documents"
+    },
+    colour_selection_templates: {
+      model: "ColourSelectionTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :categories, :is_default, :is_active],
+      description: "Colour selection sheet templates",
       group: "documents"
     },
 
@@ -167,6 +221,39 @@ class TenantConfigSyncService
       description: "Schedule Master trades",
       group: "schedule"
     },
+    sm_stages: {
+      model: "SmStage",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name],
+      description: "Schedule Master stages",
+      group: "schedule"
+    },
+    sm_hold_reasons: {
+      model: "SmHoldReason",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :color, :icon, :sequence_order, :is_active],
+      description: "Schedule Master hold reasons",
+      group: "schedule"
+    },
+    sm_resources: {
+      model: "SmResource",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:resource_type, :name, :code, :description, :trade, :hourly_rate,
+                    :daily_rate, :unit, :unit_cost, :is_active, :availability_hours_per_day],
+      description: "Schedule Master resources",
+      group: "schedule"
+    },
+    sm_schedule_master_document_types: {
+      model: "SmScheduleMasterDocumentType",
+      name_field: :id,
+      match_fields: [:sm_schedule_master_id, :document_type_id],
+      sync_fields: [:sm_schedule_master_id, :document_type_id, :lag_days],
+      description: "Schedule Master document type assignments",
+      group: "schedule"
+    },
 
     # ============================================================================
     # Operations Group
@@ -210,6 +297,23 @@ class TenantConfigSyncService
       description: "Regional public holidays",
       group: "operations"
     },
+    cost_centres: {
+      model: "CostCentre",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :description, :centre_type, :parent_id,
+                    :overhead_allocation_percent, :budget_amount, :active, :metadata],
+      description: "Cost centre definitions",
+      group: "operations"
+    },
+    supervisor_checklist_templates: {
+      model: "SupervisorChecklistTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :category, :sequence_order, :is_active, :response_type],
+      description: "Supervisor checklist item templates",
+      group: "operations"
+    },
 
     # ============================================================================
     # Estimating Group
@@ -221,6 +325,34 @@ class TenantConfigSyncService
       sync_fields: [:name, :description, :category, :is_system, :is_active, :configuration,
                     :usage_count],
       description: "Measurement/takeoff templates for estimating",
+      group: "estimating"
+    },
+    recipe_categories: {
+      model: "RecipeCategory",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :description, :parent_id, :position, :is_active],
+      description: "Recipe/assembly categories",
+      group: "estimating"
+    },
+    recipes: {
+      model: "Recipe",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :description, :recipe_type, :status, :recipe_category_id,
+                    :cached_total, :version_number, :notes, :metadata],
+      description: "Recipe/assembly definitions",
+      group: "estimating"
+    },
+    quantity_variables: {
+      model: "QuantityVariable",
+      name_field: :display_name,
+      match_fields: [:variable_name],
+      sync_fields: [:variable_name, :display_name, :category, :data_type, :unit_label,
+                    :min_value, :max_value, :default_value, :select_options, :formula,
+                    :is_computed, :required_for_po_generation, :is_system_variable,
+                    :position, :description],
+      description: "Quantity variables for recipe calculations",
       group: "estimating"
     },
 
@@ -262,6 +394,72 @@ class TenantConfigSyncService
                     :visibility_rule, :download_name, :folder_path, :ui_name, :warehouse_folder],
       description: "Warehouse folder tabs and structure",
       group: "warehouse"
+    },
+    warehouse_folder_document_types: {
+      model: "WarehouseFolderDocumentType",
+      name_field: :id,
+      match_fields: [:warehouse_folder_id, :document_type_id],
+      sync_fields: [:warehouse_folder_id, :document_type_id, :is_primary,
+                    :ui_name_template, :download_name_template],
+      description: "Warehouse folder to document type mappings",
+      group: "warehouse"
+    },
+
+    # ============================================================================
+    # WHS Group
+    # ============================================================================
+    whs_induction_templates: {
+      model: "WHSInductionTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :induction_type, :description, :active, :version,
+                    :content_sections, :expiry_months, :requires_renewal, :has_quiz,
+                    :min_passing_score, :acknowledgment_statement, :metadata],
+      description: "WHS induction templates",
+      group: "whs"
+    },
+    whs_inspection_templates: {
+      model: "WHSInspectionTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :inspection_type, :category, :description,
+                    :pass_threshold_percentage, :active, :checklist_items, :metadata],
+      description: "WHS inspection templates",
+      group: "whs"
+    },
+
+    # ============================================================================
+    # Email Group
+    # ============================================================================
+    email_templates: {
+      model: "EmailTemplate",
+      name_field: :name,
+      match_fields: [:name, :category],
+      sync_fields: [:name, :subject, :body_html, :body_text, :variables, :category,
+                    :is_shared, :position],
+      description: "Email templates for notifications and outreach",
+      group: "email"
+    },
+
+    # ============================================================================
+    # Plans Group
+    # ============================================================================
+    plan_types: {
+      model: "PlanType",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:name, :code, :allows_variants, :notes, :sequence_order, :is_active,
+                    :short_name_template, :long_name_template],
+      description: "Plan/drawing type definitions",
+      group: "plans"
+    },
+    plan_categories: {
+      model: "PlanCategory",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:name, :code, :is_active, :sequence_order],
+      description: "Plan category groupings",
+      group: "plans"
     }
   }.freeze
 
@@ -285,7 +483,10 @@ class TenantConfigSyncService
     "operations" => "Operations",
     "estimating" => "Estimating",
     "finance" => "Finance",
-    "warehouse" => "Warehouse"
+    "warehouse" => "Warehouse",
+    "whs" => "WHS",
+    "email" => "Email",
+    "plans" => "Plans"
   }.freeze
 
   # List all available config tables with counts

@@ -239,6 +239,7 @@ class WarehousePathComputer
     when "contact", "people" then "contact"
     when "case" then "case"
     when "notebook" then "notebook"
+    when "user" then "user"
     else "unassigned"
     end
   end
@@ -469,6 +470,11 @@ class WarehousePathComputer
       tokens[:CompanyCode] ||= cc.company_code
       tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
       tokens[:CompanyName] ||= cc.name
+    end
+
+    # User context
+    if doc.source_type == "user" && documentable.respond_to?(:user) && documentable.user
+      tokens[:UserName] ||= documentable.user.name.presence || "User-#{documentable.user.id}"
     end
 
     # Case context

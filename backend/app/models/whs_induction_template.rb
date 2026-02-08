@@ -1,4 +1,6 @@
 class WHSInductionTemplate < ApplicationRecord
+  acts_as_tenant :tenant
+
   # Associations
   # Prevent deletion if inductions exist using this template (data integrity)
   has_many :whs_inductions, dependent: :restrict_with_error

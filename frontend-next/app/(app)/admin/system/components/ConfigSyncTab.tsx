@@ -32,7 +32,10 @@ import {
   Settings,
   Calculator,
   DollarSign,
-  Warehouse
+  Warehouse,
+  ShieldCheck,
+  Mail,
+  Map
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -70,6 +73,9 @@ const GROUP_ICONS: Record<string, React.ReactNode> = {
   estimating: <Calculator className="h-4 w-4" />,
   finance: <DollarSign className="h-4 w-4" />,
   warehouse: <Warehouse className="h-4 w-4" />,
+  whs: <ShieldCheck className="h-4 w-4" />,
+  email: <Mail className="h-4 w-4" />,
+  plans: <Map className="h-4 w-4" />,
 };
 
 interface TenantInfo {

@@ -263,6 +263,11 @@ namespace :warehouse do
         tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
       end
 
+      # User context
+      if doc.source_type == "user" && documentable.respond_to?(:user) && documentable.user
+        tokens[:UserName] = documentable.user.name.presence || "User-#{documentable.user.id}"
+      end
+
       # Case context
       if documentable.respond_to?(:case_number)
         tokens[:CaseId] = documentable.case_number
