@@ -79,47 +79,47 @@ test:
 # for a full overview on how database connection configuration can be specified.
 #
 # =============================================================================
-# PRODUCTION DATABASE CONFIG (Option C Refactor)
+# PRODUCTION DATABASE CONFIG
 # =============================================================================
-# SSoT: Connection pool sizing for separate queue database
+# SSoT: Connection pool sizing for shared database across 3 environments
 #
-# Architecture (after Option C refactor):
-# - Primary DB (DATABASE_URL): Main app, cable, cache - Heroku essential-0 (20 conn)
-# - Queue DB (QUEUE_DATABASE_URL): SolidQueue - separate Heroku essential-0 (20 conn)
+# Architecture:
+# - Primary DB (DATABASE_URL): Main app, cable, cache - shared across
+#   staging/beta/production (40-connection limit)
+# - Queue DB (QUEUE_DATABASE_URL): SolidQueue - separate Heroku essential-0
 #
-# CALCULATION (per dyno, PRIMARY DB):
-#   primary: 5 connections (main app queries)
-#   cable: 2 connections (ActionCable - minimal)
-#   cache: 2 connections (SolidCache - minimal)
-#   Total per dyno: 9 connections
-#   Web + Worker: 18 connections (leaves 2 headroom)
+# CONNECTION BUDGET (40-connection limit shared across 3 environments):
+#   Per dyno (primary DB): primary(3) + cable(1) + cache(1) = 5 connections
+#   Per environment (web + worker dynos): 10 connections
+#   3 environments (staging + beta + production): 30 connections
+#   Release phase headroom: 10 connections remaining
+#   Total: 30 + release ≤ 40
 #
-# CALCULATION (per dyno, QUEUE DB):
-#   queue: 5 connections
-#   Worker-only dyno: 5 connections (web doesn't use queue heavily)
+# Queue DB (separate, per dyno): 3 connections
 #
-# To provision queue database:
-#   heroku addons:create heroku-postgresql:essential-0 --app teeemlive --as QUEUE_DATABASE
+# Override via env vars if needed:
+#   DB_POOL_PRIMARY=5  (increase for single-env setups)
+#   DB_POOL_QUEUE=5    (increase if queue DB has headroom)
 # =============================================================================
 production:
   primary:
     <<: *default
     url: <%= ENV["DATABASE_URL"] %>
-    pool: <%= ENV.fetch("DB_POOL_PRIMARY", 5) %>
+    pool: <%= ENV.fetch("DB_POOL_PRIMARY", 3) %>
   cable:
     <<: *default
     url: <%= ENV["DATABASE_URL"] %>
     migrations_paths: db/cable_migrate
-    pool: 2  # ActionCable needs minimal connections
+    pool: 1
   cache:
     <<: *default
     url: <%= ENV["DATABASE_URL"] %>
     migrations_paths: db/cache_migrate
-    pool: 2  # SolidCache needs minimal connections
+    pool: 1
   queue:
     <<: *default
     # SSoT: Use separate queue database if available, else fallback to primary
     # This allows deploying code first, then provisioning queue DB
     url: <%= ENV.fetch("QUEUE_DATABASE_URL") { ENV["DATABASE_URL"] } %>
     migrations_paths: db/queue_migrate
-    pool: <%= ENV.fetch("DB_POOL_QUEUE", 5) %>
+    pool: <%= ENV.fetch("DB_POOL_QUEUE", 3) %>
