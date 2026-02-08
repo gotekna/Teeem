@@ -65,6 +65,8 @@ interface TakeoffToolbarProps {
   // Scale status
   isCalibrated: boolean;
   scaleLabel?: string;
+  showCalibrationOverlay?: boolean;
+  onToggleCalibrationOverlay?: () => void;
 
   // AI Scale Detection
   pageCanvas: HTMLCanvasElement | null;
@@ -124,6 +126,8 @@ export function TakeoffToolbar({
   onRedo,
   isCalibrated,
   scaleLabel,
+  showCalibrationOverlay,
+  onToggleCalibrationOverlay,
   pageCanvas,
   pageNumber,
   pageWidth,
@@ -234,14 +238,30 @@ export function TakeoffToolbar({
           highlight={!isCalibrated}
         />
 
-        {/* Scale indicator */}
-        <div className="px-2 text-xs">
-          {isCalibrated ? (
-            <span className="text-green-600 dark:text-green-400">{scaleLabel}</span>
-          ) : (
+        {/* Scale indicator — click to toggle calibration overlay visibility */}
+        {isCalibrated ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onToggleCalibrationOverlay}
+                className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                  showCalibrationOverlay
+                    ? "text-green-600 dark:text-green-400 bg-green-500/10 ring-1 ring-green-500/30"
+                    : "text-muted-foreground hover:text-green-600 dark:hover:text-green-400"
+                }`}
+              >
+                {scaleLabel}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {showCalibrationOverlay ? "Hide calibration overlay" : "Show calibration overlay"}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <div className="px-2 text-xs">
             <span className="text-amber-600 dark:text-amber-400">Not calibrated</span>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* AI Scale Detection */}
         <ScaleDetector

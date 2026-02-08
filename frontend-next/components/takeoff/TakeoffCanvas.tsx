@@ -90,6 +90,10 @@ interface TakeoffCanvasProps {
   // Container ref for calibration input positioning
   containerRef?: React.RefObject<HTMLDivElement | null>;
 
+  // Calibration overlay toggle — hides all calibration visuals (lines, magnifiers, badges)
+  showCalibrationOverlay?: boolean;
+  onToggleCalibrationOverlay?: () => void;
+
   // Pan state from usePdfPanZoom hook — suppresses tool clicks during pan
   isPanning?: boolean;
   isSpaceHeld?: boolean;
@@ -122,6 +126,8 @@ export function TakeoffCanvas({
   zoom,
   snapConfig,
   showSnapPoints = false,
+  showCalibrationOverlay: showCalibrationOverlayProp,
+  onToggleCalibrationOverlay: onToggleCalibrationOverlayProp,
   containerRef,
   isPanning: isPanningProp = false,
   isSpaceHeld: isSpaceHeldProp = false,
@@ -171,7 +177,12 @@ export function TakeoffCanvas({
   const [calibrationStep, setCalibrationStep] = useState<"idle" | "firstPoint" | "waitingInput" | "verifying">("idle");
   const [calibrationInput, setCalibrationInput] = useState("");
   const calibrationInputRef = useRef<HTMLInputElement>(null);
-  const [showPinnedMagnifiers, setShowPinnedMagnifiers] = useState(true);
+  // Internal state fallback when parent doesn't control the toggle
+  const [showCalibrationOverlayInternal, setShowCalibrationOverlayInternal] = useState(true);
+  const showCalibrationOverlay = showCalibrationOverlayProp ?? showCalibrationOverlayInternal;
+  const setShowCalibrationOverlay = onToggleCalibrationOverlayProp
+    ? () => onToggleCalibrationOverlayProp()
+    : () => setShowCalibrationOverlayInternal(prev => !prev);
   const [verificationInput, setVerificationInput] = useState("");
   const [verificationConfirmed, setVerificationConfirmed] = useState(false);
   const verificationInputRef = useRef<HTMLInputElement>(null);
@@ -193,6 +204,12 @@ export function TakeoffCanvas({
   calibrationStepRef.current = calibrationStep;
   const pageScaleRef = useRef(pageScale);
   pageScaleRef.current = pageScale;
+  // Refs for polygon auto-close in placeToolPoint
+  const currentPointsRef = useRef(currentPoints);
+  currentPointsRef.current = currentPoints;
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const completeDrawingRef = useRef<() => void>(() => {});
 
   // Count marker state
   const [nextCountLabel, setNextCountLabel] = useState(1);
@@ -264,14 +281,14 @@ export function TakeoffCanvas({
   // placeToolPoint — those captured stale closure state. The useEffect sees
   // fresh state from React's committed render.
   useEffect(() => {
-    if (calibrationLine && (calibrationStep === "firstPoint" || calibrationStep === "waitingInput" || calibrationStep === "verifying")) {
+    if (calibrationLine && showCalibrationOverlay && (calibrationStep === "firstPoint" || calibrationStep === "waitingInput" || calibrationStep === "verifying")) {
       renderTempCalibrationLine();
-    } else if (!calibrationLine) {
-      // Clean up stale Fabric objects when calibration is cancelled/completed
+    } else if (!calibrationLine || !showCalibrationOverlay) {
+      // Clean up stale Fabric objects when calibration is cancelled/completed/hidden
       clearTempDrawing();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calibrationLine, calibrationStep]);
+  }, [calibrationLine, calibrationStep, showCalibrationOverlay]);
 
   // Sync calibration line endpoint with snap point when cycling magnifier candidates
   // (arrow keys change snapResult.snapped but don't move the mouse, so handleMouseMove
@@ -641,10 +658,26 @@ export function TakeoffCanvas({
       case "area":
       case "linear":
       case "perimeter":
-      case "deduction":
+      case "deduction": {
+        const pts = currentPointsRef.current;
+        const isPolygonTool = currentTool === "area" || currentTool === "perimeter" || currentTool === "deduction";
+
+        // Auto-close polygon: if 3+ points placed and clicking near the first point, complete the shape
+        if (isPolygonTool && pts.length >= 3) {
+          const firstPt = pts[0];
+          const dx = (point.x - firstPt.x) * zoomRef.current;
+          const dy = (point.y - firstPt.y) * zoomRef.current;
+          const screenDist = Math.sqrt(dx * dx + dy * dy);
+          if (screenDist < 15) {
+            completeDrawingRef.current();
+            break;
+          }
+        }
+
         setIsDrawing(true);
         setCurrentPoints((prev) => [...prev, point]);
         break;
+      }
     }
   }, [currentTool]);
 
@@ -888,6 +921,7 @@ export function TakeoffCanvas({
     setIsDrawing(false);
     clearTempDrawing();
   };
+  completeDrawingRef.current = completeDrawing;
 
   // =============================================================================
   // Calibration
@@ -1082,13 +1116,24 @@ export function TakeoffCanvas({
       canvas.add(label);
     }
 
+    // Check if cursor is near the first point (for polygon close indicator)
+    const isNearFirstPoint = isPolygon && currentPoints.length >= 3 && (() => {
+      const firstScaled = scaledPoints[0];
+      const cursorScaled = { x: cursorPoint.x * zoom, y: cursorPoint.y * zoom };
+      const dx = cursorScaled.x - firstScaled.x;
+      const dy = cursorScaled.y - firstScaled.y;
+      return Math.sqrt(dx * dx + dy * dy) < 15;
+    })();
+
     // Draw markers at each point
     scaledPoints.forEach((p, i) => {
+      // Skip the first point marker — we draw it separately with close indicator logic
+      if (i === 0) return;
       const marker = new fabric.Circle({
         left: p.x - 5,
         top: p.y - 5,
         radius: 5,
-        fill: i === 0 ? "#fff" : color,  // First point is white (start indicator)
+        fill: color,
         stroke: color,
         strokeWidth: 2,
         selectable: false,
@@ -1096,6 +1141,36 @@ export function TakeoffCanvas({
       marker.data = { isTempDrawing: true };
       canvas.add(marker);
     });
+
+    // Draw first-point marker with close indicator when cursor is near
+    if (scaledPoints.length > 0) {
+      const fp = scaledPoints[0];
+      if (isNearFirstPoint) {
+        // Outer glow ring to signal "click to close"
+        const glow = new fabric.Circle({
+          left: fp.x - 12,
+          top: fp.y - 12,
+          radius: 12,
+          fill: `${color}33`,
+          stroke: color,
+          strokeWidth: 2,
+          selectable: false,
+        }) as FabricObjectWithData;
+        glow.data = { isTempDrawing: true };
+        canvas.add(glow);
+      }
+      const firstMarker = new fabric.Circle({
+        left: fp.x - (isNearFirstPoint ? 7 : 5),
+        top: fp.y - (isNearFirstPoint ? 7 : 5),
+        radius: isNearFirstPoint ? 7 : 5,
+        fill: "#fff",
+        stroke: color,
+        strokeWidth: isNearFirstPoint ? 3 : 2,
+        selectable: false,
+      }) as FabricObjectWithData;
+      firstMarker.data = { isTempDrawing: true };
+      canvas.add(firstMarker);
+    }
 
     canvas.renderAll();
   };
@@ -1336,12 +1411,12 @@ export function TakeoffCanvas({
         }}
       />
 
-      {/* SVG overlay for snap indicators */}
+      {/* SVG overlay for snap indicators — z-20 ensures it's above Fabric upper-canvas */}
       <svg
         className="absolute inset-0 pointer-events-none"
         width={pageWidth * zoom}
         height={pageHeight * zoom}
-        style={{ overflow: "visible" }}
+        style={{ overflow: "visible", zIndex: 20 }}
       >
         {/* Debug: Show all available snap points */}
         <SnapPointsLayer
@@ -1379,108 +1454,92 @@ export function TakeoffCanvas({
       )}
 
       {/* Pinned magnifiers at calibration endpoints — shows exactly where each point snapped */}
-      {currentTool === "calibrate" && pdfPage && showPinnedMagnifiers && (() => {
-        // Determine if the calibration/verification line is more vertical than horizontal
-        // to position magnifiers appropriately (left/right for horizontal, left/right for vertical too
-        // but we could use "left" for start and "right" for end either way)
-        const calLineForSide = calibrationLine || (pageScale?.calibration_line ? {
-          start: { x: pageScale.calibration_line.x1, y: pageScale.calibration_line.y1 },
-          end: { x: pageScale.calibration_line.x2, y: pageScale.calibration_line.y2 },
-        } : null);
-        const isVerticalLine = calLineForSide
-          ? Math.abs(calLineForSide.end.y - calLineForSide.start.y) > Math.abs(calLineForSide.end.x - calLineForSide.start.x)
-          : false;
-        // For vertical lines, put both magnifiers on the same side (left) to avoid overlapping the line
-        const sideA = "left" as const;
-        const sideB = isVerticalLine ? "left" : "right" as const;
+      {/* Original calibration magnifiers: always visible when showCalibrationOverlay is on */}
+      {pdfPage && showCalibrationOverlay && pageScale?.calibration_line && pageScale.reference_length_mm && (() => {
+        const calLine = pageScale.calibration_line!;
+        const isVerticalCal = Math.abs(calLine.y2 - calLine.y1) > Math.abs(calLine.x2 - calLine.x1);
         return (
-        <>
-          {/* Original calibration line endpoints (from saved pageScale) */}
-          {pageScale?.calibration_line && pageScale.reference_length_mm && (
-            <>
+          <>
+            <PinnedMagnifier
+              point={{ x: calLine.x1, y: calLine.y1 }}
+              pdfCanvas={pdfPage}
+              zoom={zoom}
+              pageWidth={pageWidth}
+              pageHeight={pageHeight}
+              label="Cal A"
+              color="#F59E0B"
+              preferSide="left"
+              onSelect={(newPoint) => {
+                onCalibrate({
+                  lineStart: newPoint,
+                  lineEnd: { x: calLine.x2, y: calLine.y2 },
+                  referenceLengthMm: pageScale.reference_length_mm!,
+                  canvasWidth: pageWidth,
+                  canvasHeight: pageHeight,
+                });
+              }}
+            />
+            <PinnedMagnifier
+              point={{ x: calLine.x2, y: calLine.y2 }}
+              pdfCanvas={pdfPage}
+              zoom={zoom}
+              pageWidth={pageWidth}
+              pageHeight={pageHeight}
+              label="Cal B"
+              color="#F59E0B"
+              preferSide={isVerticalCal ? "left" : "right"}
+              onSelect={(newPoint) => {
+                onCalibrate({
+                  lineStart: { x: calLine.x1, y: calLine.y1 },
+                  lineEnd: newPoint,
+                  referenceLengthMm: pageScale.reference_length_mm!,
+                  canvasWidth: pageWidth,
+                  canvasHeight: pageHeight,
+                });
+              }}
+            />
+          </>
+        );
+      })()}
+      {/* Active calibration/verification line magnifiers: only when calibrate tool is active */}
+      {currentTool === "calibrate" && pdfPage && showCalibrationOverlay && calibrationLine && (() => {
+        const isVerticalActive = Math.abs(calibrationLine.end.y - calibrationLine.start.y) > Math.abs(calibrationLine.end.x - calibrationLine.start.x);
+        return (
+          <>
+            <PinnedMagnifier
+              point={calibrationLine.start}
+              pdfCanvas={pdfPage}
+              zoom={zoom}
+              pageWidth={pageWidth}
+              pageHeight={pageHeight}
+              label={pageScale?.calibrated ? "Verify A" : "New A"}
+              color={pageScale?.calibrated ? "#16A34A" : "#3B82F6"}
+              preferSide="left"
+              onSelect={(newPoint) => {
+                setCalibrationLine(prev => prev ? { ...prev, start: newPoint } : null);
+              }}
+            />
+            {(calibrationStep === "waitingInput" || calibrationStep === "verifying") && (
               <PinnedMagnifier
-                point={{ x: pageScale.calibration_line.x1, y: pageScale.calibration_line.y1 }}
+                point={calibrationLine.end}
                 pdfCanvas={pdfPage}
                 zoom={zoom}
                 pageWidth={pageWidth}
                 pageHeight={pageHeight}
-                label="Cal A"
-                color="#F59E0B"
-                preferSide={sideA}
-                onSelect={(newPoint) => {
-                  // Re-calibrate with adjusted start point
-                  onCalibrate({
-                    lineStart: newPoint,
-                    lineEnd: { x: pageScale.calibration_line!.x2, y: pageScale.calibration_line!.y2 },
-                    referenceLengthMm: pageScale.reference_length_mm!,
-                    canvasWidth: pageWidth,
-                    canvasHeight: pageHeight,
-                  });
-                }}
-              />
-              <PinnedMagnifier
-                point={{ x: pageScale.calibration_line.x2, y: pageScale.calibration_line.y2 }}
-                pdfCanvas={pdfPage}
-                zoom={zoom}
-                pageWidth={pageWidth}
-                pageHeight={pageHeight}
-                label="Cal B"
-                color="#F59E0B"
-                preferSide={sideB}
-                onSelect={(newPoint) => {
-                  // Re-calibrate with adjusted end point
-                  onCalibrate({
-                    lineStart: { x: pageScale.calibration_line!.x1, y: pageScale.calibration_line!.y1 },
-                    lineEnd: newPoint,
-                    referenceLengthMm: pageScale.reference_length_mm!,
-                    canvasWidth: pageWidth,
-                    canvasHeight: pageHeight,
-                  });
-                }}
-              />
-            </>
-          )}
-          {/* Current verification/new calibration line endpoints */}
-          {calibrationLine && (
-            <>
-              <PinnedMagnifier
-                point={calibrationLine.start}
-                pdfCanvas={pdfPage}
-                zoom={zoom}
-                pageWidth={pageWidth}
-                pageHeight={pageHeight}
-                label={pageScale?.calibrated ? "Verify A" : "New A"}
+                label={pageScale?.calibrated ? "Verify B" : "New B"}
                 color={pageScale?.calibrated ? "#16A34A" : "#3B82F6"}
-                preferSide={sideA}
+                preferSide={isVerticalActive ? "left" : "right"}
                 onSelect={(newPoint) => {
-                  setCalibrationLine(prev => prev ? { ...prev, start: newPoint } : null);
-                  // useEffect handles renderTempCalibrationLine on calibrationLine change
+                  setCalibrationLine(prev => prev ? { ...prev, end: newPoint } : null);
                 }}
               />
-              {(calibrationStep === "waitingInput" || calibrationStep === "verifying") && (
-                <PinnedMagnifier
-                  point={calibrationLine.end}
-                  pdfCanvas={pdfPage}
-                  zoom={zoom}
-                  pageWidth={pageWidth}
-                  pageHeight={pageHeight}
-                  label={pageScale?.calibrated ? "Verify B" : "New B"}
-                  color={pageScale?.calibrated ? "#16A34A" : "#3B82F6"}
-                  preferSide={sideB}
-                  onSelect={(newPoint) => {
-                    setCalibrationLine(prev => prev ? { ...prev, end: newPoint } : null);
-                    // useEffect handles renderTempCalibrationLine on calibrationLine change
-                  }}
-                />
-              )}
-            </>
-          )}
-        </>
+            )}
+          </>
         );
       })()}
 
       {/* Completed verification results — persist on page after "Check Another" */}
-      {completedVerifications.map((v, i) => {
+      {showCalibrationOverlay && completedVerifications.map((v, i) => {
         const midX = ((v.line.start.x + v.line.end.x) / 2) * zoom;
         const midY = ((v.line.start.y + v.line.end.y) / 2) * zoom;
         const isProblem = v.diffPercent >= 1;
@@ -1490,11 +1549,13 @@ export function TakeoffCanvas({
           : isAcceptable
           ? "bg-amber-500"
           : "bg-green-500";
+        const vColor = isProblem ? "#ef4444" : isAcceptable ? "#f59e0b" : "#22c55e";
         const displayMm = `${Math.round(v.computedMm).toLocaleString()}mm`;
         const expectedDisplay = `${Math.round(v.expectedMm).toLocaleString()}mm`;
+        const vIsVertical = Math.abs(v.line.end.y - v.line.start.y) > Math.abs(v.line.end.x - v.line.start.x);
         return (
+          <React.Fragment key={i}>
           <div
-            key={i}
             className="absolute pointer-events-none z-5"
             style={{
               left: midX,
@@ -1519,7 +1580,7 @@ export function TakeoffCanvas({
                 y1={v.line.start.y * zoom - midY + 30}
                 x2={v.line.end.x * zoom - midX + Math.abs(v.line.end.x - v.line.start.x) * zoom / 2 + 2}
                 y2={v.line.end.y * zoom - midY + 30}
-                stroke={isProblem ? "#ef4444" : isAcceptable ? "#f59e0b" : "#22c55e"}
+                stroke={vColor}
                 strokeWidth={2}
                 strokeDasharray="6 3"
                 opacity={0.6}
@@ -1530,6 +1591,32 @@ export function TakeoffCanvas({
               {displayMm} vs {expectedDisplay} ({v.diffPercent < 0.01 ? "0%" : v.diffPercent < 1 ? `${v.diffPercent.toFixed(2)}%` : `${v.diffPercent.toFixed(1)}%`})
             </div>
           </div>
+          {/* PinnedMagnifiers at each verification line endpoint */}
+          {pdfPage && showCalibrationOverlay && (
+            <>
+              <PinnedMagnifier
+                point={v.line.start}
+                pdfCanvas={pdfPage}
+                zoom={zoom}
+                pageWidth={pageWidth}
+                pageHeight={pageHeight}
+                label={`V${i + 1} A`}
+                color={vColor}
+                preferSide="left"
+              />
+              <PinnedMagnifier
+                point={v.line.end}
+                pdfCanvas={pdfPage}
+                zoom={zoom}
+                pageWidth={pageWidth}
+                pageHeight={pageHeight}
+                label={`V${i + 1} B`}
+                color={vColor}
+                preferSide={vIsVertical ? "left" : "right"}
+              />
+            </>
+          )}
+          </React.Fragment>
         );
       })}
 
@@ -1599,10 +1686,10 @@ export function TakeoffCanvas({
           {pageScale?.calibrated && (
             <>
               <button
-                onClick={() => setShowPinnedMagnifiers(prev => !prev)}
+                onClick={setShowCalibrationOverlay}
                 className="bg-background/90 backdrop-blur-sm border rounded-lg px-3 py-2 text-sm font-medium shadow-lg hover:bg-muted"
               >
-                {showPinnedMagnifiers ? "Hide" : "Show"} Magnifiers
+                {showCalibrationOverlay ? "Hide" : "Show"} Calibration
               </button>
               <button
                 onClick={async () => {
@@ -1635,7 +1722,7 @@ export function TakeoffCanvas({
       {/* Calibration input - positioned below the line (avoids toolbar cutoff) */}
       {calibrationStep === "waitingInput" && calibrationLine && (
         <div
-          className="absolute z-10"
+          className="absolute z-30"
           style={{
             left: Math.max(120, Math.min(
               pageWidth * zoom - 120,
@@ -1712,7 +1799,7 @@ export function TakeoffCanvas({
 
         return (
           <div
-            className="absolute z-10"
+            className="absolute z-30"
             style={{
               left: Math.max(160, Math.min(
                 pageWidth * zoom - 160,
