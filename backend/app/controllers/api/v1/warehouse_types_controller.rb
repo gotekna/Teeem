@@ -683,11 +683,10 @@ module Api
 
       # Build a tree node for a warehouse type
       def warehouse_type_tree_node(warehouse_type, counts)
-        # Get only root-level, warehouse-enabled folders (parent_id: nil)
-        # FRC (Feb 2026): Without parent_id filter, .includes() eager-loads ALL folders at same level
-        # FRC (Feb 2026): Without warehouse_enabled filter, system tabs (Overview, Schedule, etc.)
-        # appear in the warehouse tree despite having no storage purpose
-        warehouse_folders = warehouse_type.warehouse_folders.enabled.where(warehouse_enabled: true).ordered.where(parent_id: nil)
+        # Get only root-level folders (parent_id: nil) - children are nested via children association
+        # FRC (Feb 2026): Without this filter, .includes() eager-loads ALL folders into memory,
+        # so warehouse_type.warehouse_folders returns root AND children at the same level
+        warehouse_folders = warehouse_type.warehouse_folders.enabled.ordered.where(parent_id: nil)
 
         # Get count for this warehouse type
         file_count = counts[warehouse_type.code] || 0
