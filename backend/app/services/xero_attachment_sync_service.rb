@@ -387,19 +387,18 @@ class XeroAttachmentSyncService
   # SSoT (Feb 2026): Folder Computation from WarehouseFolder
   # ========================================
 
-  # Compute folder path from DocumentType's primary WarehouseFolder
-  # SSoT: Uses full_folder_path method (Feb 2026 consolidation)
+  # Compute folder path for Xero documents
+  # Path structure: Contacts/{{ContactName}}/Financial/{{XeroOrgName}}/Bills
+  # Falls back to: Contacts/{{ContactName}}/Financial/Bills (if no Xero org)
   def compute_folder_from_document_type(document_type)
-    wf = document_type.primary_warehouse_folder
-    return nil unless wf
+    contact_name = contact_folder_name
+    xero_org = @xero_tenant_name.presence
+    doc_folder = document_type.folder.presence || document_type.primary_tab.presence || "Documents"
 
-    # SSoT (Feb 2026): full_folder_path returns complete path template
-    # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Invoices & Credit Notes"
-    template = wf.full_folder_path
-    return nil unless template.present?
-
-    # Expand template with context from invoice/contact
-    expand_folder_template(template)
+    parts = ["Contacts", contact_name, "Financial"]
+    parts << xero_org if xero_org
+    parts << doc_folder
+    parts.compact.join("/")
   end
 
   # Expand folder template with invoice/contact context
@@ -415,6 +414,7 @@ class XeroAttachmentSyncService
       "CompanyGroup" => company&.company_group&.name.presence || "Default",
       "CompanyCode" => company&.company_code.presence || "Unknown",
       "CompanyName" => company&.name,
+      "XeroConnectionName" => @xero_tenant_name,
       "Year" => (external_invoice.invoice_date || Date.current).year,
       "Month" => format("%02d", (external_invoice.invoice_date || Date.current).month)
     }
