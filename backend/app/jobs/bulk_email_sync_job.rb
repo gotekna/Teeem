@@ -248,7 +248,6 @@ class BulkEmailSyncJob < ApplicationJob
           doc.documentable = email
           doc.ui_name = filename
           doc.original_filename = filename
-          doc.folder = 'Emails/Attachments'
           doc.tenant_id = email.tenant_id
           doc.content_type = content_type || existing_blob.content_type
           doc.file_size = file_size || existing_blob.file_size
@@ -270,7 +269,6 @@ class BulkEmailSyncJob < ApplicationJob
           storage_blob_id: blob.id,
           ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
           original_filename: filename,
-          folder: 'Emails/Attachments',
           source_type: 'email_attachment',
           tenant_id: email.tenant_id,
           content_type: content_type || blob.content_type,

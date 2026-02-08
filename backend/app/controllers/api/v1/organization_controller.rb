@@ -552,7 +552,7 @@ module Api
           contact_documents_count: warehouse_by_source["contact"] || 0,
           total_records: warehouse_docs.count,
           by_source: warehouse_by_source,
-          by_folder: warehouse_docs.group(:folder).count,
+          by_folder: warehouse_docs.group(:folder_path).count,
           total_file_size: warehouse_docs.joins(:storage_blob).sum("storage_blobs.file_size") || 0,
           latest_upload: warehouse_docs.maximum(:created_at),
           warehouse_total: warehouse_docs.count,

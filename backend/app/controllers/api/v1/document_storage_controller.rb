@@ -1676,10 +1676,10 @@ module Api
             if params[:include_descendants] == 'true'
               # Cascade view: include this folder AND all subfolders
               folder_path = params[:folder]
-              warehouse_docs = warehouse_docs.where("folder = ? OR folder LIKE ?", folder_path, "#{folder_path}/%")
+              warehouse_docs = warehouse_docs.where("folder_path = ? OR folder_path LIKE ?", folder_path, "#{folder_path}/%")
             else
               # Exact folder match only
-              warehouse_docs = warehouse_docs.where(folder: params[:folder])
+              warehouse_docs = warehouse_docs.where(folder_path: params[:folder])
             end
           end
 
@@ -1697,7 +1697,7 @@ module Api
               download_url: doc.download_url ? "#{request.base_url}/api/v1/documents/warehouse_download?id=#{doc.id}" : nil,
               modified: doc.updated_at&.iso8601,
               type: "file",
-              folder_path: doc.folder || "",
+              folder_path: doc.folder_path || "",
               document_type_id: nil,
               document_type_name: doc.document_type_name,
               from_cache: false
@@ -2011,7 +2011,7 @@ module Api
           end
 
           # Determine upload folder (same as parent document)
-          folder_path = parent_doc.folder || ""
+          folder_path = parent_doc.folder_path || ""
 
           # Generate filename with "Signed" suffix
           original_name = File.basename(file.original_filename, ".*")
@@ -2048,7 +2048,6 @@ module Api
             storage_blob: blob,
             ui_name: signed_filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
             original_filename: signed_filename,
-            folder: folder_path,
             metadata: {
               document_type_id: doc_type_id,
               document_type: doc_type&.name,
@@ -3395,7 +3394,7 @@ module Api
           current_name: doc.ui_name || doc.original_filename,
           original_name: doc.original_filename,
           proposed_name: doc.meta("ai_proposed_name"),
-          folder_path: doc.folder,
+          folder_path: doc.folder_path,
           file_extension: File.extname(doc.original_filename.to_s).delete("."),
           file_type: doc.storage_blob&.content_type,
           file_size: doc.file_size || doc.storage_blob&.file_size,

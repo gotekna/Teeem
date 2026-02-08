@@ -348,7 +348,7 @@ class DocumentVerificationService
     # Update document record with AI suggestions
     update_attrs = {
       file_name: analysis[:suggested_name],
-      folder: analysis[:suggested_folder] || @document.folder,
+      folder: analysis[:suggested_folder] || @document.folder_path,
       document_type: analysis[:suggested_type] || @document.document_type,
       ref_date: analysis[:extracted_date].presence || @document.ref_date,
       ai_verification_status: "verified",
@@ -608,7 +608,7 @@ class DocumentVerificationService
         context_parts << "Previous company names: #{@company.previous_names.join(', ')}"
       end
     end
-    context_parts << "Current folder: #{@document.folder}" if @document.folder.present?
+    context_parts << "Current folder: #{@document.folder_path}" if @document.folder_path.present?
     context_parts << "Source: #{@document.source}" if @document.source.present?
 
     document_context = context_parts.join("\n")

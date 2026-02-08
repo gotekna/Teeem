@@ -176,7 +176,6 @@ class XeroAttachmentSyncService
       source_type: "xero",
       ui_name: build_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: filename,
-      folder: folder,
       tenant_id: @tenant.id,
       content_type: "application/pdf",
       file_size: pdf_content.bytesize,
@@ -215,7 +214,6 @@ class XeroAttachmentSyncService
       source_type: "xero",
       ui_name: build_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: nil,
-      folder: folder,
       tenant_id: @tenant.id,
       content_type: nil,
       file_size: 0,
@@ -333,7 +331,6 @@ class XeroAttachmentSyncService
       source_type: "xero",
       ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: filename,
-      folder: folder,
       tenant_id: @tenant.id,
       content_type: mime_type,
       file_size: content.bytesize,
@@ -568,7 +565,6 @@ class XeroAttachmentSyncService
     doc.assign_attributes(
       documentable: external_invoice,
       source_type: "xero",
-      folder: folder,
       linkable: external_invoice.contact,
       metadata: (doc.metadata || {}).merge(
         "xero_id" => external_invoice.external_id,

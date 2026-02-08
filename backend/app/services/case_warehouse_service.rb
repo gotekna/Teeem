@@ -422,7 +422,7 @@ class CaseWarehouseService
       color: "blue",
       metadata: {
         source_type: doc.source_type,
-        folder: doc.folder
+        folder: doc.folder_path
       }
     }
   end

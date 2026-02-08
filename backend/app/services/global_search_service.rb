@@ -195,7 +195,7 @@ class GlobalSearchService
         title: record.display_name || record.original_filename,
         subtitle: record.source_type&.titleize || "Document",
         date: record.created_at&.iso8601,
-        folder: record.folder
+        folder: record.folder_path
       }
     when "Job"
       {

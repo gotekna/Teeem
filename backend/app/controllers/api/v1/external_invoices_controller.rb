@@ -594,7 +594,7 @@ module Api
             title: doc.ui_name,
             file_name: doc.original_filename,
             document_type: doc.metadata&.dig("document_type"),
-            folder: doc.folder,
+            folder: doc.folder_path,
             file_size: doc.file_size,
             mime_type: doc.content_type,
             has_file: doc.storage_blob.present?,

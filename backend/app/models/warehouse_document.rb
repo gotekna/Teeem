@@ -8,7 +8,7 @@
 #   WarehouseDocument (THE ONE table for 5000 clients)
 #   ├── documentable (polymorphic link to source record - optional for new docs)
 #   ├── storage_blob (deduplicated file content)
-#   ├── folder (virtual path - instant reorganization)
+#   ├── folder_path (materialized path - instant reorganization)
 #   ├── metadata (JSONB - flexible type-specific fields)
 #   ├── parent_document (attachment→email, version→original)
 #   ├── linkable (optional link to Job/Contact/etc for filtering)
@@ -20,7 +20,7 @@
 #   - download_name: What file is CALLED when downloaded/emailed ("TA Tax Return 2024.pdf")
 #
 # Virtual Folders:
-#   - folder: Virtual path, changing is instant (DB update only, no S3 copy)
+#   - folder_path: Materialized path, changing is instant (DB update only, no S3 copy)
 #
 # SSoT: Uses TenantResolvable for fail-fast tenant derivation (Jan 2026 fix)
 #
@@ -94,8 +94,6 @@ class WarehouseDocument < ApplicationRecord
 
   # Basic scopes
   scope :by_source, ->(source) { where(source_type: source) }
-  # NOTE (Feb 2026 FRC Fix): Removed in_folder scope - folder column removed
-  # Use computed_folder_path for folder filtering (requires Ruby-side filtering)
   scope :with_blob, -> { where.not(storage_blob_id: nil) }
   scope :without_blob, -> { where(storage_blob_id: nil) }
 
@@ -205,24 +203,6 @@ class WarehouseDocument < ApplicationRecord
     else source_type&.titleize || "Documents"
     end
   end
-
-  # SSoT (Feb 2026): Base folder name from WarehouseFolder path templates
-  # Uses FK chain: linkable_type → warehouse_type → folder name
-  # Fallback to source_type_to_root_folder if WarehouseFolder not configured
-  def folder
-    # Try linkable_type first (most precise), then source_type fallback
-    wt_code = if linkable_type.present?
-                WarehousePathComputer.new.send(:linkable_type_to_warehouse_type_code, linkable_type)
-              end
-    wt_code ||= WarehousePathComputer.new.send(:source_type_to_warehouse_type_code, source_type)
-    WarehouseFolder.warehouse_type_to_warehouse_folder[wt_code] || source_type_to_root_folder
-  end
-
-  # ⚠️ WARNING (Feb 2026): The `folder` DB column STILL EXISTS in the table.
-  # This method SHADOWS the column reader. To access the actual DB value use:
-  #   doc.read_attribute(:folder)  # → historical value (e.g., "Emails/rachel@tekna.com.au/2025/11")
-  #   doc.folder                   # → computed value (e.g., "Emails")
-  # The DB column retains historical path data used as fallback in WarehousePathComputer.
 
   # ========================================
   # Computed UI Name (Runtime Resolution)

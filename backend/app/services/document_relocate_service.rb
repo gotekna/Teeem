@@ -38,7 +38,7 @@ class DocumentRelocateService
     if needs_move
       target_folder_path = build_target_folder_path(
         company_id: new_company_id || @document.company_id,
-        folder: new_folder || @document.folder
+        folder: new_folder || @document.folder_path
       )
 
       unless target_folder_path

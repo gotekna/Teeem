@@ -1514,7 +1514,7 @@ module Api
         # Filter by folder if tab_key provided (simplified - no document_type linkage in WarehouseDocument)
         if params[:tab_key].present?
           # Map tab_key to folder for filtering
-          documents = documents.where(folder: params[:tab_key])
+          documents = documents.where(folder_path: params[:tab_key])
         end
 
         # Filter by folder with optional cascade (include_descendants)
@@ -1523,10 +1523,10 @@ module Api
             # Cascade view: include this folder AND all subfolders
             # Use LIKE query with folder path prefix
             folder_path = params[:folder]
-            documents = documents.where("folder = ? OR folder LIKE ?", folder_path, "#{folder_path}/%")
+            documents = documents.where("folder_path = ? OR folder_path LIKE ?", folder_path, "#{folder_path}/%")
           else
             # Exact folder match only
-            documents = documents.where(folder: params[:folder])
+            documents = documents.where(folder_path: params[:folder])
           end
         end
 
@@ -1561,7 +1561,7 @@ module Api
             id: doc.id,
             name: doc.storage_blob&.original_filename || doc.ui_name,
             displayName: doc.ui_name,
-            folder: doc.folder,
+            folder: doc.folder_path,
             fileSize: doc.storage_blob&.file_size,
             contentType: doc.storage_blob&.content_type,
             source: doc.source_type,
