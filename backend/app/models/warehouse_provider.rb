@@ -944,11 +944,15 @@ class WarehouseProvider < ApplicationRecord
       # Link expiry days for presigned URLs (from TenantSetting - SSoT)
       link_expiry_days: TenantSetting.link_expiry_days,
 
-      # SSoT: Base path templates read DIRECTLY from warehouse_types table
-      # FRC (Feb 2026): Was going through WarehouseFolder.warehouse_folders_mapping which
-      # iterated tabs and picked the wrong one. Now reads straight from the source.
-      # { "contact" => "Contacts/{{ContactName}}", "job" => "Job/{{JobStatus}}/..." }
-      scope_folders: WarehouseType.enabled.pluck(:code, :display_name).to_h,
+      # SSoT: Root folder segment from folder_path_template (for path → scope resolution)
+      # FRC (Feb 2026): Was returning display_name ("User", "Job") but paths use template
+      # roots ("Teeem Docs", "Jobs"). Frontend getScopeFromPath matches first path segment
+      # against these values, so they MUST match the actual template root.
+      scope_folders: WarehouseType.enabled
+        .where.not(folder_path_template: [nil, ''])
+        .pluck(:code, :folder_path_template)
+        .to_h
+        .transform_values { |t| t.split('/').first },
       warehouse_folders: WarehouseType.enabled.where.not(folder_path_template: [nil, '']).pluck(:code, :folder_path_template).to_h,
       warehouse_folder_templates: WarehouseType.enabled.where.not(folder_path_template: [nil, '']).pluck(:code, :folder_path_template).to_h,
       download_names: WarehouseFolder.download_names_mapping,
