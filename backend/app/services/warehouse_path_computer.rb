@@ -409,7 +409,9 @@ class WarehousePathComputer
       if task
         tokens[:TaskId] = task.id
         tokens[:TaskName] = task.name&.parameterize || "task-#{task.id}"
-        tokens[:TaskStatus] = task.status&.titleize || "Unknown"
+        status_label = task.status&.titleize || "Unknown"
+        tokens[:TaskStatus] = status_label
+        tokens[:Status] = status_label
         if task.respond_to?(:job) && task.job
           tokens[:JobName] = task.job.name.presence || task.job.job_code
           tokens[:JobCode] = task.job.job_code
@@ -436,7 +438,9 @@ class WarehousePathComputer
       if task
         tokens[:TaskId] ||= task.id
         tokens[:TaskName] ||= task.name&.parameterize || "task-#{task.id}"
-        tokens[:TaskStatus] ||= task.status&.titleize || "Unknown"
+        status_label = task.status&.titleize || "Unknown"
+        tokens[:TaskStatus] ||= status_label
+        tokens[:Status] ||= status_label
         if task.respond_to?(:job) && task.job
           tokens[:JobName] ||= task.job.name.presence || task.job.job_code
           tokens[:JobCode] ||= task.job.job_code

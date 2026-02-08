@@ -480,10 +480,14 @@ class WarehouseProvider < ApplicationRecord
 
     # Task context for task documents
     if record.is_a?(DocumentTask) || record.class.name == "SmTaskAttachment"
-      tokens[:TaskId] = record.sm_task&.id || record.id
+      task = record.respond_to?(:sm_task) ? record.sm_task : nil
+      tokens[:TaskId] = task&.id || record.id
       # TaskName: parameterize for URL-safe folder names
-      task_name = record.sm_task&.name.presence || "task-#{record.id}"
+      task_name = task&.name.presence || "task-#{record.id}"
       tokens[:TaskName] = task_name.parameterize
+      status_label = task&.status&.titleize || "Unknown"
+      tokens[:TaskStatus] = status_label
+      tokens[:Status] = status_label
     end
 
     tokens

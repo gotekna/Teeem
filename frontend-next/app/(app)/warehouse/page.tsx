@@ -276,6 +276,8 @@ interface WarehouseFolderTreeNode2 {
   folderPathTemplate: string | null;
   pathPreview?: string;
   isSystem: boolean;
+  isMailbox?: boolean;
+  dynamicType?: string;
   children: WarehouseFolderChildNode[];
   warehouseFolder: {
     id: number;
@@ -1452,6 +1454,29 @@ export default function AllDocumentsPage() {
       }));
     };
 
+    // Build S3 sub-folder nodes for a folder path
+    // S3 folder listing returns sub-folders with optional mailbox properties
+    const buildS3FolderNodes = (folderPath: string | null, sourceType: string): TreeNode[] => {
+      if (!folderPath) return [];
+      const s3Data = s3Folders[folderPath];
+      if (!s3Data?.folders?.length) return [];
+
+      return s3Data.folders.map(folder => ({
+        id: `s3-folder-${(folder.path || "").replace(/\//g, "-")}`,
+        name: folder.name,
+        type: "category" as const,
+        icon: folder.is_mailbox ? SCOPE_ICONS.email : <Folder className="h-4 w-4" />,
+        fullPath: folder.path || undefined,
+        fileCount: folder.count || 0,
+        sourceType,
+        isMailbox: folder.is_mailbox || false,
+        mailboxEmail: folder.mailbox_email || undefined,
+        externalLink: folder.external_link || undefined,
+        mailboxCount: folder.mailbox_count || undefined,
+        children: buildS3FolderNodes(folder.path, sourceType),
+      }));
+    };
+
     // Convert WarehouseFolderChildNode (tabs) to TreeNode recursively
     // sourceType is passed down from warehouse type for WarehouseDocument queries
     const convertWarehouseFolderChildToTreeNode = (
@@ -1466,6 +1491,7 @@ export default function AllDocumentsPage() {
       // Check if path contains template tokens (virtual folder)
       const isVirtual = folderPath?.includes('{{') || false;
       const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath); // Don't build S3 files for virtual folders
+      const s3SubFolders = isVirtual ? [] : buildS3FolderNodes(folderPath, sourceType);
       const children = folder.children.map(child => convertWarehouseFolderChildToTreeNode(child, sourceType, tokenValues, recordId));
 
       return {
@@ -1477,7 +1503,7 @@ export default function AllDocumentsPage() {
         fileCount: folder.fileCount,
         sourceType,
         isVirtual,
-        children: [...children, ...s3Files],
+        children: [...children, ...s3SubFolders, ...s3Files],
       };
     };
 
@@ -1502,6 +1528,7 @@ export default function AllDocumentsPage() {
       // Check if path contains template tokens (virtual folder)
       const isVirtual = folderPath?.includes('{{') || false;
       const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath); // Don't build S3 files for virtual folders
+      const s3SubFolders = isVirtual ? [] : buildS3FolderNodes(folderPath, sourceType);
       const children = warehouseFolder.children.map(child => convertWarehouseFolderChildToTreeNode(child, sourceType));
 
       return {
@@ -1514,7 +1541,8 @@ export default function AllDocumentsPage() {
         fileCount: 0,
         sourceType,
         isVirtual,
-        children: [...children, ...s3Files],
+        isMailbox: warehouseFolder.isMailbox || false,
+        children: [...children, ...s3SubFolders, ...s3Files],
       };
     };
 
@@ -1546,6 +1574,7 @@ export default function AllDocumentsPage() {
         const folderPath = resolvePathTokens(rawPath, record.tokenValues);
         const isVirtual = folderPath?.includes('{{') || false;
         const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath);
+        const s3SubFolders = isVirtual ? [] : buildS3FolderNodes(folderPath, warehouseType.code);
 
         // Get warehouse folder children (tabs) — pass tokenValues for path resolution
         const warehouseFolderChildren = warehouseFolder.children.map(child =>
@@ -1568,7 +1597,7 @@ export default function AllDocumentsPage() {
           fileCount: 0,
           sourceType: warehouseType.code,
           isVirtual,
-          children: [...childWarehouseFolderNodes, ...warehouseFolderChildren, ...s3Files],
+          children: [...childWarehouseFolderNodes, ...warehouseFolderChildren, ...s3SubFolders, ...s3Files],
         };
       };
 
@@ -1595,6 +1624,7 @@ export default function AllDocumentsPage() {
       // Check if warehouse type has template tokens (virtual)
       const isVirtual = warehouseType.folderPathTemplate?.includes('{{') || false;
       const s3Files = isVirtual ? [] : (folderPath ? buildS3FileNodes(folderPath) : []);
+      const s3SubFolders = isVirtual ? [] : (folderPath ? buildS3FolderNodes(folderPath, warehouseType.code) : []);
 
       // Get loaded records for this warehouse type (Feb 2026)
       const recordData = warehouseRecords[warehouseType.code];
@@ -1675,7 +1705,7 @@ export default function AllDocumentsPage() {
         fileCount: warehouseType.fileCount,
         sourceType: warehouseType.code,
         isVirtual,
-        children: [...children, ...s3Files],
+        children: [...children, ...s3SubFolders, ...s3Files],
       };
     };
 
