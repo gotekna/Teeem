@@ -217,15 +217,16 @@ module Api
         # Get last sync time - SSoT: use this contact's most recent sync, not global
         contact_last_sync = invoices.maximum(:last_synced_at)
 
-        # Group invoices by tenant_id for tabbed display
-        grouped_by_tenant = invoices.group_by(&:tenant_id)
+        # Group invoices by xero_org_id (Xero UUID) for tabbed display
+        # Frontend matches by xero_tenant_id (UUID), not TEEEM tenant_id (integer)
+        grouped_by_tenant = invoices.group_by(&:xero_org_id)
 
         # Build tenant info lookup
         tenant_info = {}
-        grouped_by_tenant.keys.compact.each do |tenant_id|
-          config = SyncConfiguration.find_by(xero_tenant_id: tenant_id)
-          tenant_info[tenant_id] = {
-            tenant_id: tenant_id,
+        grouped_by_tenant.keys.compact.each do |xero_org_id|
+          config = SyncConfiguration.find_by(xero_tenant_id: xero_org_id)
+          tenant_info[xero_org_id] = {
+            tenant_id: xero_org_id,
             tenant_name: config&.xero_tenant_name || "Unknown Xero Company",
             badge_color: config&.badge_color || "blue"
           }
@@ -233,16 +234,16 @@ module Api
 
         # Build by_tenant response
         by_tenant = {}
-        grouped_by_tenant.each do |tenant_id, tenant_invoices|
-          next unless tenant_id
+        grouped_by_tenant.each do |xero_org_id, tenant_invoices|
+          next unless xero_org_id
 
           tenant_sales = tenant_invoices.select(&:sales_invoice?)
           tenant_bills = tenant_invoices.select(&:bill?)
           tenant_credit_notes = tenant_invoices.select(&:credit_note?)
           tenant_quotes = tenant_invoices.select(&:quote?)
 
-          by_tenant[tenant_id] = {
-            tenant_info: tenant_info[tenant_id],
+          by_tenant[xero_org_id] = {
+            tenant_info: tenant_info[xero_org_id],
             invoices: tenant_sales.map { |inv| serialize_invoice(inv) },
             bills: tenant_bills.map { |inv| serialize_invoice(inv) },
             credit_notes: tenant_credit_notes.map { |inv| serialize_invoice(inv) },
