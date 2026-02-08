@@ -88,23 +88,23 @@ export function MailboxDrawer({ mailbox, jobId, open, onOpenChange }: MailboxDra
       }
 
       const response = await api.get<{
-        success: boolean;
-        data: {
-          emails: Email[];
-          total_count: number;
+        emails: Email[];
+        pagination: {
+          page: number;
+          per_page: number;
+          total: number;
           total_pages: number;
-          current_page: number;
         };
       }>(`/api/v1/synced_emails?${params.toString()}`);
 
-      if (response?.success && response.data) {
+      if (response?.emails) {
         if (append) {
-          setEmails(prev => [...prev, ...response.data.emails]);
+          setEmails(prev => [...prev, ...response.emails]);
         } else {
-          setEmails(response.data.emails);
+          setEmails(response.emails);
         }
-        setTotalCount(response.data.total_count);
-        setHasMore(response.data.current_page < response.data.total_pages);
+        setTotalCount(response.pagination?.total || 0);
+        setHasMore((response.pagination?.page || 1) < (response.pagination?.total_pages || 1));
       }
     } catch (error) {
       console.error("Failed to fetch emails:", error);

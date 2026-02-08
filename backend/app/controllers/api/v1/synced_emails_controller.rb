@@ -156,15 +156,17 @@ class Api::V1::SyncedEmailsController < ApplicationController
       emails = emails.where(email_mailbox_id: params[:email_mailbox_id])
     end
 
-    # Filter by mailbox_owner_email (for Warehouse links to historical mailboxes)
+    # Filter by mailbox_owner_email or mailbox (for Warehouse links to historical mailboxes)
     # This allows filtering by mailbox even if it's not a connected account
     # ⚠️ FRC (Jan 2026): When microsoft_credential_id is present, SKIP this filter!
     # Ultra Email Architecture stores emails once with the FIRST mailbox's owner.
     # If James and Robert both receive the same email, it has mailbox_owner_email=robert
     # but James's mailbox appearance exists in the join table. Filtering here would exclude it.
     # The MS365 block below will handle mailbox filtering via the join table instead.
-    if params[:mailbox_owner_email].present? && params[:microsoft_credential_id].blank?
-      emails = emails.where("LOWER(synced_emails.mailbox_owner_email) = LOWER(?)", params[:mailbox_owner_email])
+    # FRC (Feb 2026): Added params[:mailbox] as alias - MailboxDrawer sends "mailbox" param
+    mailbox_filter = params[:mailbox_owner_email].presence || params[:mailbox].presence
+    if mailbox_filter.present? && params[:microsoft_credential_id].blank?
+      emails = emails.where("LOWER(synced_emails.mailbox_owner_email) = LOWER(?)", mailbox_filter)
     end
 
     # Filter by folder name or ID (e.g., "Sent Items", "Inbox", etc.)
