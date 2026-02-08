@@ -758,7 +758,6 @@ class DocumentStorageService
       documentable: email,
       storage_blob: blob,
       source_type: "email",
-      folder: email.virtual_folder_path,
       ui_name: email.subject.presence || "No Subject",  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: "#{email.id}.eml",
       tenant_id: @tenant.id,

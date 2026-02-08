@@ -283,7 +283,6 @@ class SmTaskCompletionService
       content_type: "application/pdf",
       file_size: result[:pdf_content].bytesize,
       storage_blob: blob,
-      folder: document_type.target_folder || "Certificates",
       linkable: job,
       metadata: {
         document_type_id: document_type.id,

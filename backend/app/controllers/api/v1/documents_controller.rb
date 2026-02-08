@@ -192,7 +192,7 @@ module Api
 
         # Filter by folder
         if params[:folder].present?
-          documents = documents.where("folder LIKE ?", "#{params[:folder]}%")
+          documents = documents.where("folder_path LIKE ?", "#{params[:folder]}%")
         end
 
         # Full-text search on display_name
@@ -209,8 +209,8 @@ module Api
 
         # Get folder counts for this query
         folder_counts = WarehouseDocument.where(source_type: params[:source_type])
-                                         .where.not(folder: [nil, ""])
-                                         .group(:folder)
+                                         .where.not(folder_path: [nil, ""])
+                                         .group(:folder_path)
                                          .count
 
         render json: {
@@ -335,7 +335,7 @@ module Api
 
         # Filter by base path if provided
         if full_path.present?
-          documents = documents.where("folder LIKE ?", "#{full_path}%")
+          documents = documents.where("folder_path LIKE ?", "#{full_path}%")
         end
 
         # Search filter
@@ -349,9 +349,9 @@ module Api
 
         # Get files at EXACTLY this level (folder matches full_path exactly)
         files_at_level = if full_path.present?
-          documents.where(folder: full_path).limit(500)
+          documents.where(folder_path: full_path).limit(500)
         else
-          documents.where(folder: [nil, ""]).limit(500)
+          documents.where(folder_path: [nil, ""]).limit(500)
         end
 
         render json: {
@@ -415,8 +415,8 @@ module Api
         # SSoT (Jan 2026): Uses WarehouseDocument.folder for corporate documents
         folders = if sources == ["corporate"]
           folder_counts = WarehouseDocument.where(source_type: "corporate")
-                                           .where.not(folder: [nil, ""])
-                                           .group(:folder)
+                                           .where.not(folder_path: [nil, ""])
+                                           .group(:folder_path)
                                            .count
           folder_counts.keys.sort.map.with_index do |folder_name, index|
             {
@@ -693,8 +693,8 @@ module Api
 
           # Get actual document counts for each tab folder
           subfolder_counts = base_scope
-            .where("folder LIKE ?", "#{sanitize_sql_like(path)}/%")
-            .group(Arel.sql("split_part(folder, '/', 2)"))
+            .where("folder_path LIKE ?", "#{sanitize_sql_like(path)}/%")
+            .group(Arel.sql("split_part(folder_path, '/', 2)"))
             .count
 
           # Enrich tabs with counts, include tabs even with 0 documents
@@ -721,8 +721,8 @@ module Api
 
           # Get actual document counts for subfolders
           subfolder_counts = base_scope
-            .where("folder LIKE ?", "#{sanitize_sql_like(path)}/%")
-            .group(Arel.sql("split_part(folder, '/', #{path_depth})"))
+            .where("folder_path LIKE ?", "#{sanitize_sql_like(path)}/%")
+            .group(Arel.sql("split_part(folder_path, '/', #{path_depth})"))
             .count
 
           # Start with configured child tabs
@@ -774,7 +774,7 @@ module Api
 
           # Get files at this exact folder path
           docs_at_path = base_scope
-            .where(folder: path)
+            .where(folder_path: path)
             .includes(:storage_blob)
             .limit(500)
 
@@ -800,8 +800,8 @@ module Api
           # Get subfolders: documents where folder starts with 'path/' and has more levels
           # SQL: SELECT split_part(folder, '/', depth), COUNT(*) WHERE folder LIKE 'path/%' GROUP BY 1
           subfolder_counts = base_scope
-            .where("folder LIKE ?", "#{sanitize_sql_like(path)}/%")
-            .group(Arel.sql("split_part(folder, '/', #{path_depth})"))
+            .where("folder_path LIKE ?", "#{sanitize_sql_like(path)}/%")
+            .group(Arel.sql("split_part(folder_path, '/', #{path_depth})"))
             .count
 
           # Filter out empty subfolder names (documents at this exact path level)
@@ -838,7 +838,7 @@ module Api
           # Get files at this exact folder path (not in subfolders)
           # SQL: SELECT * WHERE folder = 'exact/path'
           docs_at_path = base_scope
-            .where(folder: path)
+            .where(folder_path: path)
             .includes(:storage_blob)
             .limit(500)  # Paginate for performance
 
@@ -1218,7 +1218,7 @@ module Api
         end
 
         begin
-          @document.update!(folder: new_folder_path)
+          @document.update!(folder_path: new_folder_path)
 
           render json: {
             success: true,
@@ -1929,9 +1929,9 @@ module Api
       # @return [Hash] { folders: [{ name, path, count }...], total_files: Integer }
       def build_virtual_folder_tree(documents, base_path)
         # Get all unique folder paths
-        all_folders = documents.where.not(folder: [nil, ""])
+        all_folders = documents.where.not(folder_path: [nil, ""])
                                .distinct
-                               .pluck(:folder)
+                               .pluck(:folder_path)
 
         # Find immediate child folders (one level deeper than base_path)
         child_folders = {}
@@ -1961,7 +1961,7 @@ module Api
           # Count documents in this folder subtree
           child_folders[first_segment] ||= { name: first_segment, path: full_child_path, count: 0 }
           # Count documents whose folder starts with this child path
-          child_folders[first_segment][:count] = documents.where("folder LIKE ?", "#{full_child_path}%").count
+          child_folders[first_segment][:count] = documents.where("folder_path LIKE ?", "#{full_child_path}%").count
         end
 
         # Sort folders alphabetically
@@ -2214,7 +2214,7 @@ module Api
             filename = doc.original_filename || doc.ui_name || "Untitled"
             {
               name: doc.ui_name || filename,
-              path: doc.folder || "",
+              path: doc.folder_path || "",
               size: doc.file_size || doc.storage_blob&.file_size || 0,
               content_type: doc.storage_blob&.content_type || MiniMime.lookup_by_filename(filename)&.content_type || "application/octet-stream",
               last_modified: doc.updated_at&.iso8601,
@@ -2243,7 +2243,7 @@ module Api
             filename = doc.original_filename || doc.ui_name || "Untitled"
             {
               name: doc.ui_name || filename,
-              path: doc.folder || "",
+              path: doc.folder_path || "",
               size: doc.file_size || doc.storage_blob&.file_size || 0,
               content_type: doc.storage_blob&.content_type || MiniMime.lookup_by_filename(filename)&.content_type || "application/octet-stream",
               last_modified: doc.updated_at&.iso8601,
@@ -2381,7 +2381,7 @@ module Api
         doc = WarehouseDocument.find_by(id: document_id)
         return unless doc
 
-        doc.update(display_name: new_filename, original_filename: new_filename, folder: new_path)
+        doc.update(display_name: new_filename, original_filename: new_filename, folder_path: new_path)
 
         # Also update storage blob path if needed
         doc.storage_blob&.update(storage_path: new_path) if doc.storage_blob
@@ -2446,7 +2446,7 @@ module Api
           job_id: linkable.is_a?(Job) ? linkable.id : nil,
           uploaded_at: doc.created_at&.iso8601,
           uploaded_by: doc.meta("uploaded_by") || "Unknown",
-          folder_path: doc.folder,
+          folder_path: doc.folder_path,
           document_type: doc_type ? {
             id: doc_type.id,
             name: doc_type.name,
@@ -2658,7 +2658,7 @@ module Api
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
           fileUrl: generate_download_url(doc),  # S3: presigned URL, SharePoint: file_url
-          folderPath: doc.folder,
+          folderPath: doc.folder_path,
           storagePath: doc.storage_path,  # Full S3 key - SSoT for rename/download
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
@@ -2717,7 +2717,7 @@ module Api
           mimeType: doc.content_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
           fileUrl: doc.download_url,
-          folderPath: doc.folder,
+          folderPath: doc.folder_path,
           storagePath: doc.storage_path,
           storageProvider: nil,
           createdAt: doc.created_at&.iso8601,
@@ -2749,7 +2749,7 @@ module Api
           mimeType: doc.content_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
           fileUrl: doc.download_url,
-          folderPath: doc.folder,
+          folderPath: doc.folder_path,
           storagePath: doc.storage_path,
           storageProvider: nil,
           createdAt: doc.created_at&.iso8601,

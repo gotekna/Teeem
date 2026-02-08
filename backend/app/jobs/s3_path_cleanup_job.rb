@@ -159,7 +159,7 @@ class S3PathCleanupJob < ApplicationJob
 
     source_type = document.source_type
     filename = clean_filename(document.original_filename || document.ui_name || "untitled")
-    subfolder = clean_subfolder(document.folder.presence || "Documents")
+    subfolder = clean_subfolder(document.folder_path.presence || "Documents")
 
     case source_type
     when "job"

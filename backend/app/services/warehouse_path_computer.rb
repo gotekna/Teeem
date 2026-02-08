@@ -60,19 +60,6 @@ class WarehousePathComputer
 
       if expanded.present?
         expanded_clean = sanitize_path(expanded)
-        expanded_segments = expanded_clean&.split("/")&.length || 0
-
-        # If template expansion produced only a bare category name (1 segment like
-        # "Email" or "Contacts" - no tokens expanded), prefer the DB folder column
-        # which has richer historical data (e.g., "Emails/rachel@tekna.com.au/2025/11")
-        db_folder = doc.read_attribute(:folder)
-        if expanded_segments <= 1 && db_folder.present? && db_folder.split("/").length > 1
-          return {
-            folder_path: sanitize_path(db_folder),
-            warehouse_folder_id: folder.id,
-            path_template_version: folder.template_version
-          }
-        end
 
         return {
           folder_path: expanded_clean,
@@ -80,16 +67,6 @@ class WarehousePathComputer
           path_template_version: folder.template_version
         }
       end
-    end
-
-    # Fallback: use existing DB folder column if available (historical correct data)
-    db_folder = doc.read_attribute(:folder)
-    if db_folder.present?
-      return {
-        folder_path: sanitize_path(db_folder),
-        warehouse_folder_id: folder&.id,
-        path_template_version: 0
-      }
     end
 
     # Last resort: source_type default (only for truly unmapped docs)
@@ -374,12 +351,6 @@ class WarehousePathComputer
       tokens[:Month] = received_at.strftime("%m")
     end
 
-    # 6. Fallback: derive missing tokens from existing folder column
-    #    When linkable is nil and documentable chain is broken (deleted class
-    #    like ContactDocument), the existing `folder` column has correct
-    #    historical paths we can parse tokens from.
-    derive_tokens_from_folder(tokens, doc)
-
     tokens
   end
 
@@ -536,55 +507,6 @@ class WarehousePathComputer
   rescue => _e
     # Table might not exist in all environments - silently skip
     nil
-  end
-
-  # Derive missing tokens from the existing `folder` DB column on the document.
-  # This is a last-resort fallback for when:
-  #   - linkable_type is nil (no direct FK to Job/Contact/etc.)
-  #   - documentable class was deleted (e.g., ContactDocument → WarehouseDocument)
-  #
-  # The DB `folder` column has correct historical paths like:
-  #   "Contacts/7 Eleven", "Email/inbox@tekna.com.au", "Corporate/Default/Acme Corp"
-  #
-  # ⚠️ DO NOT SIMPLIFY - Column shadowing fix (Feb 2026)
-  # ════════════════════════════════════════════════════════════════════
-  # Why: The model defines a `folder` METHOD that overrides the column reader.
-  #      doc.folder → computed base name (e.g., "Emails")
-  #      doc.read_attribute(:folder) → actual DB value (e.g., "Emails/rachel@tekna.com.au/2025/11")
-  # ❌ WRONG: doc.folder (returns computed method, loses historical data)
-  # ✅ CORRECT: doc.read_attribute(:folder) (reads actual DB column)
-  # ════════════════════════════════════════════════════════════════════
-  #
-  # Uses ||= so this never overwrites tokens from linkable/documentable (higher priority).
-  def derive_tokens_from_folder(tokens, doc)
-    # Read the actual DB column, not the computed method
-    db_folder = doc.read_attribute(:folder)
-    return unless db_folder.present?
-
-    parts = db_folder.split("/")
-
-    case doc.source_type
-    when "contact", "people"
-      # "Contacts/7 Eleven" → ContactName = "7 Eleven"
-      if tokens[:ContactName].blank? && parts.length >= 2
-        tokens[:ContactName] = parts[1]
-      end
-    when "email", "email_attachment"
-      # "Emails/rachel@tekna.com.au/2025/11" → Mailbox, Year, Month
-      if parts.length >= 2 && parts[0].downcase.start_with?("email")
-        if tokens[:Mailbox].blank? || tokens[:Mailbox] == "Unknown"
-          tokens[:Mailbox] = parts[1]
-        end
-        tokens[:Year] = parts[2] if parts.length >= 3 && parts[2] =~ /^\d{4}$/
-        tokens[:Month] = parts[3] if parts.length >= 4 && parts[3] =~ /^\d{2}$/
-      end
-    when "corporate", "xero", "financial"
-      # "Corporate/Default/Acme Corp" → CompanyGroup, CompanyName
-      if parts.length >= 3 && parts[0] == "Corporate"
-        tokens[:CompanyGroup] ||= parts[1]
-        tokens[:CompanyName] ||= parts[2]
-      end
-    end
   end
 
   # ════════════════════════════════════════════════════════════════════

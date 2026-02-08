@@ -600,7 +600,6 @@ class ImapEmailService
         storage_blob_id: blob.id,
         ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
         original_filename: filename,
-        folder: 'Emails/Attachments',
         source_type: 'email_attachment',
         tenant_id: email.tenant_id,
         content_type: content_type || blob.content_type,
@@ -649,7 +648,6 @@ class ImapEmailService
     ) do |d|
       d.storage_blob = blob
       d.source_type = "email"
-      d.folder = email.virtual_folder_path
       d.ui_name = email.subject.presence || "No Subject"  # SSoT: display_name renamed to ui_name (Feb 2026)
       d.original_filename = "#{email.id}.eml"
       d.tenant_id = tenant.id
