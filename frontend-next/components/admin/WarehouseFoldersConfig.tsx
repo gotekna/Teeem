@@ -951,6 +951,20 @@ export function WarehouseFoldersConfig({
   const availableParents = React.useMemo(() => {
     if (!editingTab) return [];
 
+    // Flatten the tree: tabs only contains root-level items, children are nested
+    const flattenTabs = (tabList: WarehouseFolder[]): WarehouseFolder[] => {
+      const result: WarehouseFolder[] = [];
+      const walk = (items: WarehouseFolder[]) => {
+        items.forEach(t => {
+          result.push(t);
+          if (t.children?.length) walk(t.children);
+        });
+      };
+      walk(tabList);
+      return result;
+    };
+    const allTabs = flattenTabs(tabs);
+
     // Collect all descendant IDs of the editing tab to prevent circular references
     const getDescendantIds = (tab: WarehouseFolder): Set<number> => {
       const ids = new Set<number>();
@@ -962,7 +976,7 @@ export function WarehouseFoldersConfig({
     };
     const descendantIds = getDescendantIds(editingTab);
 
-    return tabs.filter((t) => {
+    return allTabs.filter((t) => {
       // Can't be the tab we're editing
       if (t.id === editingTab.id) return false;
       // Can't be a descendant of the editing tab (would create circular reference)
@@ -975,6 +989,19 @@ export function WarehouseFoldersConfig({
       return true;
     });
   }, [tabs, editingTab]);
+
+  // Lookup map for all tabs (including children) - used for parent label display
+  const allTabsById = React.useMemo(() => {
+    const map = new Map<number, WarehouseFolder>();
+    const walk = (items: WarehouseFolder[]) => {
+      items.forEach(t => {
+        map.set(t.id, t);
+        if (t.children?.length) walk(t.children);
+      });
+    };
+    walk(tabs);
+    return map;
+  }, [tabs]);
 
   // SSoT: Check if moving to root level would conflict with existing root tab
   const canMoveToRoot = React.useMemo(() => {
@@ -2402,7 +2429,7 @@ export function WarehouseFoldersConfig({
                       </SelectItem>
                       {availableParents.map((parent) => {
                         // Show hierarchy for nested tabs (e.g., "Financial > XERO Organisational Level")
-                        const parentOfParent = parent.parent_id ? tabs.find(t => t.id === parent.parent_id) : null;
+                        const parentOfParent = parent.parent_id ? allTabsById.get(parent.parent_id) : null;
                         const label = parentOfParent
                           ? `${parentOfParent.display_name} > ${parent.display_name}`
                           : parent.display_name;
