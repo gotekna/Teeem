@@ -552,7 +552,10 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         externalLink: folder.external_link || undefined,
         mailboxCount: folder.mailbox_count || undefined,
         emailFolderType: folder.email_folder_type || emailFolderType,
-        children: buildS3FolderNodes(folder.path, sourceType, folder.email_folder_type || emailFolderType),
+        children: [
+          ...buildS3FolderNodes(folder.path, sourceType, folder.email_folder_type || emailFolderType),
+          ...buildS3FileNodes(folder.path),
+        ],
       }));
     };
 
