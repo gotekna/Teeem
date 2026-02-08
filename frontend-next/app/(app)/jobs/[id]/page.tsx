@@ -158,14 +158,21 @@ const SpecificationBuilder = dynamic(() => import("@/components/specifications/S
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-const ScopedWarehouseViewBase = dynamic(() => import("@/components/warehouse/ScopedWarehouseView").then(m => m.ScopedWarehouseView), {
+const WarehouseTreeBase = dynamic(() => import("@/components/warehouse/WarehouseTree").then(m => m.WarehouseTree), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-// Wrapper: maps Job tab props to ScopedWarehouseView props
+// Wrapper: maps Job tab props to WarehouseTree scoped mode
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const JobWarehouseTab = (props: any) => (
-  <ScopedWarehouseViewBase linkableType="Job" linkableId={props.jobId} />
+  <WarehouseTreeBase
+    mode={{
+      type: "scoped",
+      linkableType: "Job",
+      linkableId: props.jobId,
+      warehouseTypeCode: "job",
+    }}
+  />
 );
 
 // Loading skeleton shown while tab component loads
