@@ -252,7 +252,7 @@ class WarehousePathComputer
       job = doc.linkable
       if job
         tokens[:JobCode] = job.job_code
-        tokens[:JobName] = job.display_name.presence || job.job_code
+        tokens[:JobName] = job.name.presence || job.job_code
       end
     when "Contact"
       contact = doc.linkable
@@ -274,7 +274,7 @@ class WarehousePathComputer
         tokens[:TaskName] = task.name&.parameterize || "task-#{task.id}"
         tokens[:TaskStatus] = task.status&.titleize || "Unknown"
         if task.respond_to?(:job) && task.job
-          tokens[:JobName] = task.job.display_name.presence || task.job.job_code
+          tokens[:JobName] = task.job.name.presence || task.job.job_code
           tokens[:JobCode] = task.job.job_code
         else
           tokens[:JobName] = "Unassigned Job"
@@ -301,7 +301,7 @@ class WarehousePathComputer
         tokens[:TaskName] ||= task.name&.parameterize || "task-#{task.id}"
         tokens[:TaskStatus] ||= task.status&.titleize || "Unknown"
         if task.respond_to?(:job) && task.job
-          tokens[:JobName] ||= task.job.display_name.presence || task.job.job_code
+          tokens[:JobName] ||= task.job.name.presence || task.job.job_code
           tokens[:JobCode] ||= task.job.job_code
         else
           tokens[:JobName] ||= "Unassigned Job"
@@ -312,7 +312,7 @@ class WarehousePathComputer
     # Job context (||= to not overwrite tokens set by linkable)
     if documentable.respond_to?(:job) && documentable.job
       tokens[:JobCode] ||= documentable.job.job_code
-      tokens[:JobName] ||= documentable.job.display_name.presence
+      tokens[:JobName] ||= documentable.job.name.presence
     elsif documentable.respond_to?(:job_code)
       tokens[:JobCode] ||= documentable.job_code
     end

@@ -526,16 +526,24 @@ function MagnifierInteractiveOverlay({
   // We call onSelect on pointerDown (not click/pointerUp) because
   // pointerDown is the FIRST event that fires — before Fabric can interfere.
   // For drag: pointerDown starts, pointerMove previews, pointerUp finalizes.
+  // CRITICAL: stopPropagation/preventDefault must come AFTER getPdfPoint()
+  // validation — if the click is outside the circle, we MUST let it through
+  // so the Fabric canvas can process the click as a calibration point placement.
   // ❌ WRONG: onClick or onPointerUp — may never fire if Fabric captures mouse
-  // ✅ CORRECT: onPointerDown for instant click, onPointerUp for drag release
+  // ❌ WRONG: stopPropagation before circle check — eats clicks outside circle
+  // ✅ CORRECT: onPointerDown for instant click, validate first, then prevent
   // ════════════════════════════════════════════════════════════
   const hasMoved = React.useRef(false);
 
+  // ⚠️ DO NOT SIMPLIFY — Fabric.js event interception order matters (2026-02-08)
+  // stopPropagation/preventDefault MUST come AFTER getPdfPoint validation.
+  // If the click is outside the circular magnifier area, we let it fall through
+  // so the Fabric canvas (or whatever is beneath) can process the click.
   const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
+    const pt = getPdfPoint(e);
+    if (!pt) return; // Outside circle — let event pass through to canvas below
     e.stopPropagation();
     e.preventDefault(); // Prevent Fabric from also seeing this as a mousedown
-    const pt = getPdfPoint(e);
-    if (!pt) return;
     dragging.current = true;
     hasMoved.current = false;
     downPoint.current = pt;
