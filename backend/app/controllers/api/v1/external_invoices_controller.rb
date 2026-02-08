@@ -35,11 +35,15 @@ module Api
         per_page = (params[:per_page] || 50).to_i.clamp(1, 200)
 
         total_count = invoices.count
-        invoices = invoices.order(invoice_date: :desc).offset((page - 1) * per_page).limit(per_page)
+        invoices = invoices.order(invoice_date: :desc).offset((page - 1) * per_page).limit(per_page).to_a
+
+        # Batch-load SyncConfigurations to avoid N+1
+        tenant_ids = invoices.map(&:tenant_id).compact.uniq
+        config_lookup = SyncConfiguration.where(xero_tenant_id: tenant_ids).index_by(&:xero_tenant_id)
 
         render json: {
           success: true,
-          data: invoices.map { |inv| serialize_invoice(inv) },
+          data: invoices.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
           meta: {
             total_count: total_count,
             page: page,
@@ -125,13 +129,17 @@ module Api
           end
         end
 
+        # Batch-load SyncConfigurations to avoid N+1 in serialize_invoice
+        tenant_ids = invoices.map(&:tenant_id).compact.uniq
+        config_lookup = SyncConfiguration.where(xero_tenant_id: tenant_ids).index_by(&:xero_tenant_id)
+
         render json: {
           success: true,
           data: {
-            invoices: sales_invoices.map { |inv| serialize_invoice(inv) },
-            bills: bills.map { |inv| serialize_invoice(inv) },
-            credit_notes: credit_notes.map { |inv| serialize_invoice(inv) },
-            quotes: quotes.map { |inv| serialize_invoice(inv) },
+            invoices: sales_invoices.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            bills: bills.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            credit_notes: credit_notes.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            quotes: quotes.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
             total_invoices: sales_invoices.count,
             total_bills: bills.count,
             total_credit_notes: credit_notes.count,
@@ -221,10 +229,14 @@ module Api
         # Frontend matches by xero_tenant_id (UUID), not TEEEM tenant_id (integer)
         grouped_by_tenant = invoices.group_by(&:xero_org_id)
 
+        # Batch-load all SyncConfigurations for this contact's invoices (avoids N+1)
+        xero_org_ids = grouped_by_tenant.keys.compact
+        config_lookup = SyncConfiguration.where(xero_tenant_id: xero_org_ids).index_by(&:xero_tenant_id)
+
         # Build tenant info lookup
         tenant_info = {}
-        grouped_by_tenant.keys.compact.each do |xero_org_id|
-          config = SyncConfiguration.find_by(xero_tenant_id: xero_org_id)
+        xero_org_ids.each do |xero_org_id|
+          config = config_lookup[xero_org_id]
           tenant_info[xero_org_id] = {
             tenant_id: xero_org_id,
             tenant_name: config&.xero_tenant_name || "Unknown Xero Company",
@@ -244,10 +256,10 @@ module Api
 
           by_tenant[xero_org_id] = {
             tenant_info: tenant_info[xero_org_id],
-            invoices: tenant_sales.map { |inv| serialize_invoice(inv) },
-            bills: tenant_bills.map { |inv| serialize_invoice(inv) },
-            credit_notes: tenant_credit_notes.map { |inv| serialize_invoice(inv) },
-            quotes: tenant_quotes.map { |inv| serialize_invoice(inv) },
+            invoices: tenant_sales.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            bills: tenant_bills.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            credit_notes: tenant_credit_notes.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            quotes: tenant_quotes.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
             total_invoices: tenant_sales.count,
             total_bills: tenant_bills.count,
             total_credit_notes: tenant_credit_notes.count,
@@ -261,10 +273,10 @@ module Api
             # Grouped by tenant (new - for tabbed display)
             by_tenant: by_tenant,
             # Flat lists (backwards compatible)
-            invoices: sales_invoices.map { |inv| serialize_invoice(inv) },
-            bills: bills.map { |inv| serialize_invoice(inv) },
-            credit_notes: credit_notes.map { |inv| serialize_invoice(inv) },
-            quotes: quotes.map { |inv| serialize_invoice(inv) },
+            invoices: sales_invoices.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            bills: bills.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            credit_notes: credit_notes.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            quotes: quotes.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
             total_invoices: sales_invoices.count,
             total_bills: bills.count,
             total_credit_notes: credit_notes.count,
@@ -606,11 +618,15 @@ module Api
         end
       end
 
-      def serialize_invoice(invoice, include_details: false)
-        # Look up tenant name from SyncConfiguration
+      def serialize_invoice(invoice, include_details: false, config_lookup: nil)
+        # Look up tenant name from SyncConfiguration (use pre-loaded hash if available)
         tenant_name = nil
         if invoice.tenant_id.present?
-          config = SyncConfiguration.find_by(xero_tenant_id: invoice.tenant_id)
+          config = if config_lookup
+            config_lookup[invoice.tenant_id]
+          else
+            SyncConfiguration.find_by(xero_tenant_id: invoice.tenant_id)
+          end
           tenant_name = config&.xero_tenant_name
         end
 

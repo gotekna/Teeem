@@ -11,11 +11,15 @@ module Api
                                    .pending_review
                                    .includes(:contact)
                                    .order(created_at: :desc)
+                                   .to_a
+
+        # Batch-load configs and invoice counts to avoid N+1
+        configs, invoice_counts = batch_load_link_data(links)
 
         render json: {
           success: true,
           pending_count: links.count,
-          links: links.map { |link| serialize_xero_link_with_review(link) }
+          links: links.map { |link| serialize_xero_link_with_review(link, configs: configs, invoice_counts: invoice_counts) }
         }
       end
 
@@ -77,11 +81,14 @@ module Api
 
       # GET /api/v1/contacts/:contact_id/xero_links
       def index
-        @xero_links = @contact.xero_links.includes(:contact)
+        @xero_links = @contact.xero_links.includes(:contact).to_a
+
+        # Batch-load configs and invoice counts to avoid N+1
+        configs, invoice_counts = batch_load_link_data(@xero_links)
 
         render json: {
           success: true,
-          xero_links: @xero_links.map { |link| serialize_xero_link(link) }
+          xero_links: @xero_links.map { |link| serialize_xero_link(link, configs: configs, invoice_counts: invoice_counts) }
         }
       end
 
@@ -272,15 +279,38 @@ module Api
         )
       end
 
-      def serialize_xero_link(link)
-        config = SyncConfiguration.find_by(xero_tenant_id: link.xero_org_id)
+      # Batch-load SyncConfigurations and invoice counts for a set of links
+      # Eliminates N+1 queries (was: 2 queries per link → now: 2 queries total)
+      def batch_load_link_data(links)
+        xero_org_ids = links.map(&:xero_org_id).compact.uniq
+        contact_ids = links.map(&:contact_id).compact.uniq
 
-        # Count invoices for this contact from this Xero tenant
-        invoice_count = ExternalInvoice.where(
-          contact_id: link.contact_id,
-          xero_org_id: link.xero_org_id,
-          source: "xero"
-        ).count
+        # Single query for all SyncConfigurations
+        configs = SyncConfiguration.where(xero_tenant_id: xero_org_ids).index_by(&:xero_tenant_id)
+
+        # Single query for all invoice counts, grouped by contact+xero_org
+        raw_counts = ExternalInvoice
+          .where(contact_id: contact_ids, xero_org_id: xero_org_ids, source: "xero")
+          .group(:contact_id, :xero_org_id)
+          .count
+        # Key as "contact_id:xero_org_id" for O(1) lookup
+        invoice_counts = raw_counts.transform_keys { |k| "#{k[0]}:#{k[1]}" }
+
+        [configs, invoice_counts]
+      end
+
+      def serialize_xero_link(link, configs: nil, invoice_counts: nil)
+        config = if configs
+          configs[link.xero_org_id]
+        else
+          SyncConfiguration.find_by(xero_tenant_id: link.xero_org_id)
+        end
+
+        inv_count = if invoice_counts
+          invoice_counts["#{link.contact_id}:#{link.xero_org_id}"] || 0
+        else
+          ExternalInvoice.where(contact_id: link.contact_id, xero_org_id: link.xero_org_id, source: "xero").count
+        end
 
         {
           id: link.id,
@@ -304,7 +334,7 @@ module Api
           badge_color: config&.badge_color || "blue",
           accounting_system: config&.accounting_system || link.source,
           # Invoice count from this tenant
-          invoice_count: invoice_count,
+          invoice_count: inv_count,
           # Review fields
           needs_review: link.needs_review,
           match_type: link.match_type,
@@ -317,8 +347,8 @@ module Api
       end
 
       # Extended serializer for pending review list
-      def serialize_xero_link_with_review(link)
-        serialize_xero_link(link).merge(
+      def serialize_xero_link_with_review(link, configs: nil, invoice_counts: nil)
+        serialize_xero_link(link, configs: configs, invoice_counts: invoice_counts).merge(
           contact_name: link.contact&.display_name,
           contact_email: link.contact&.email,
           contact_tax_number: link.contact&.abn,

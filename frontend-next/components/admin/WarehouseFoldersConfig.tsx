@@ -916,12 +916,13 @@ export function WarehouseFoldersConfig({
   // Open edit dialog - always opens the edit dialog for tab settings
   // (Special config sheets are accessed via dedicated buttons, not the edit action)
   const openEditDialog = (tab: WarehouseFolder) => {
-    // Note: Both {{TabName}} (parent) and {{SubTabName}} (current) are valid for subtabs
-    // FRC (Feb 2026): Use folder_segment (tab's own piece), NOT folder_path (full path including base)
-    // folder_path = full_folder_path from backend = "Contacts/{{ContactName}}/Financial/Bills"
-    // folder_segment = just "Bills" (what the user actually edits)
-    // Using full path caused: 1) duplicate base path in preview, 2) corrupted folder_path_suffix on save
-    const folderPath = (tab as any).folder_segment || tab.folder_path || "";
+    // FRC (Feb 2026): Use folder_path_suffix (extra custom path), NOT folder_path or folder_segment
+    // folder_path = full_folder_path from backend = "Contacts/{{ContactName}}/Financial/Bills" (read-only)
+    // folder_segment = tab's own folder name, auto-synced from display_name (read-only)
+    // folder_path_suffix = extra custom path AFTER the segment (editable, e.g., "{{Year}}/{{Category}}")
+    // Using folder_path caused corruption. Using folder_segment caused "Bills/Bills" (segment + suffix both set).
+    // folder_path_suffix is the ONLY field the user should edit - it's mapped back to folder_path_suffix on save.
+    const folderPath = tab.folder_path_suffix || "";
 
     // SSoT: Store original display_name for folder rename detection
     setOriginalDisplayName(tab.display_name);
@@ -2591,76 +2592,93 @@ export function WarehouseFoldersConfig({
                   </div>
                 )}
 
-                {/* Editable folder path */}
-                {/* SSoT: Show inherited base path as greyed-out prefix, then editable tab folder */}
-                <PlaceholderBuilder
-                  label="Full Warehouse Folder Path"
-                  value={formData.folder_path ?? ""}
-                  onChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      folder_path: value,
-                    }))
-                  }
-                  scope="storage"
-                  // SSoT: Base path ALWAYS from warehouse_types.folder_path_template
-                  // Same for root and child tabs - never use parent's folder_path
-                  prefixValue={getBasePath(scope)}
-                  separator="/"
-                  // SSoT: Filter placeholders based on tab hierarchy
-                  // - Root tabs: show {{TabName}} only (no subtab)
-                  // - Subtabs: show BOTH {{TabName}} (parent) and {{SubTabName}} (current)
-                  placeholders={STORAGE_PLACEHOLDERS.filter((p) => {
-                    const isSubtab = !!(formData.parent_id || editingTab?.parent_id);
-                    if (isSubtab) {
-                      // Subtabs: show BOTH TabName (parent) and SubTabName (current)
-                      return true;
-                    } else {
-                      // Root tabs: show TabName only, hide SubTabName
-                      return p.code !== "{{SubTabName}}";
-                    }
-                  })}
-                  showPreview={false}
-                  placeholder="Enter folder name or click tokens..."
-                />
-
-                {/* Full path preview - uses ACTUAL tab names, not generic examples */}
+                {/* Editable folder path suffix */}
+                {/* SSoT (Feb 2026): The editable field is folder_path_suffix - extra path AFTER the tab's segment.
+                    The prefix shows: basePath (from warehouse_types) + ancestor chain + current tab's segment.
+                    Most tabs have no suffix - the folder is just their display_name in the tree hierarchy. */}
                 {(() => {
-                  // SSoT: Base path ALWAYS from warehouse_types.folder_path_template
-                  const basePath = getBasePath(scope);
-
+                  // Build ancestor chain: walk up parent tree to collect folder segments
                   const parentId = formData.parent_id || editingTab?.parent_id;
                   const findTabById = (tabList: WarehouseFolder[], id: number): WarehouseFolder | null => {
-                    for (const tab of tabList) {
-                      if (tab.id === id) return tab;
-                      if (tab.children?.length) {
-                        const found = findTabById(tab.children, id);
+                    for (const t of tabList) {
+                      if (t.id === id) return t;
+                      if (t.children?.length) {
+                        const found = findTabById(t.children, id);
                         if (found) return found;
                       }
                     }
                     return null;
                   };
+
+                  // Collect ancestor segments from root to immediate parent
+                  const ancestorSegments: string[] = [];
+                  let currentParentId = parentId;
+                  while (currentParentId) {
+                    const ancestorTab = findTabById(tabs, currentParentId);
+                    if (!ancestorTab) break;
+                    ancestorSegments.unshift(ancestorTab.folder_segment || ancestorTab.display_name);
+                    currentParentId = ancestorTab.parent_id;
+                  }
+
+                  // Current tab's own segment (from display_name, matching backend sync_display_name_and_folder_segment)
+                  const currentTabSegment = formData.display_name || editingTab?.display_name || "";
                   const parentTab = parentId ? findTabById(tabs, parentId) : null;
-                  const currentTabName = formData.display_name || editingTab?.display_name || "";
                   const parentTabName = parentTab?.display_name || "";
 
-                  // Resolve with ACTUAL values, not generic examples
-                  let folderPath = formData.folder_path || currentTabName;
-                  folderPath = folderPath
-                    .replace(/\{\{SubTabName\}\}/g, currentTabName)
-                    .replace(/\{\{TabName\}\}/g, parentTabName || currentTabName)
-                    .replace(/\{\{JobCode\}\}/g, "077")
-                    .replace(/\{\{Category\}\}/g, currentTabName)
-                    .replace(/\{\{CompanyGroup\}\}/g, "Teeem Group")
-                    .replace(/\{\{CompanyCode\}\}/g, "TH")
-                    .replace(/\{\{ContactName\}\}/g, "Robert Harder");
+                  // Full prefix: basePath + ancestors + current tab segment
+                  const basePath = getBasePath(scope);
+                  const allSegments = [...ancestorSegments, currentTabSegment].filter(Boolean);
+                  const fullPrefix = allSegments.length > 0
+                    ? `${basePath}/${allSegments.join("/")}`
+                    : basePath;
 
-                  const fullPath = `${basePath}/${folderPath}`;
+                  // Resolve suffix with actual values for preview
+                  let resolvedSuffix = formData.folder_path || "";
+                  if (resolvedSuffix) {
+                    resolvedSuffix = resolvedSuffix
+                      .replace(/\{\{SubTabName\}\}/g, currentTabSegment)
+                      .replace(/\{\{TabName\}\}/g, parentTabName || currentTabSegment)
+                      .replace(/\{\{JobCode\}\}/g, "077")
+                      .replace(/\{\{Category\}\}/g, currentTabSegment)
+                      .replace(/\{\{CompanyGroup\}\}/g, "Teeem Group")
+                      .replace(/\{\{CompanyCode\}\}/g, "TH")
+                      .replace(/\{\{ContactName\}\}/g, "Robert Harder");
+                  }
+
+                  const fullPath = resolvedSuffix
+                    ? `${fullPrefix}/${resolvedSuffix}`
+                    : fullPrefix;
+
                   return (
-                    <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
-                      <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                      <span className="text-green-700 dark:text-green-300">{fullPath}</span>
-                    </div>
+                    <>
+                      <PlaceholderBuilder
+                        label="Custom Path Suffix (optional)"
+                        value={formData.folder_path ?? ""}
+                        onChange={(value) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            folder_path: value,
+                          }))
+                        }
+                        scope="storage"
+                        // Prefix shows full computed path up to this tab's segment
+                        prefixValue={fullPrefix}
+                        separator="/"
+                        placeholders={STORAGE_PLACEHOLDERS.filter((p) => {
+                          const isSubtab = !!(formData.parent_id || editingTab?.parent_id);
+                          if (isSubtab) return true;
+                          return p.code !== "{{SubTabName}}";
+                        })}
+                        showPreview={false}
+                        placeholder="Add extra path tokens (optional)..."
+                      />
+
+                      {/* Full path preview */}
+                      <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
+                        <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
+                        <span className="text-green-700 dark:text-green-300">{fullPath}</span>
+                      </div>
+                    </>
                   );
                 })()}
               </div>

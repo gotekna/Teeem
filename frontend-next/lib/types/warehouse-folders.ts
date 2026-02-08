@@ -50,7 +50,9 @@ export interface WarehouseFolder {
   xero_scope: 'primary' | null;  // Which Xero account this tab uses
   xero_account_name: string | null;  // Resolved name (e.g., "Teeem Homes")
   warehouse_enabled: boolean;
-  folder_path: string | null;  // SSoT: Path template (e.g., "Cases/{{CaseId}}")
+  folder_path: string | null;  // SSoT: full_folder_path from backend (computed, read-only)
+  folder_segment: string | null;  // SSoT: Tab's own folder name (auto-synced from display_name)
+  folder_path_suffix: string | null;  // SSoT: Extra custom path after folder_segment (editable)
   download_name: string | null;  // SSoT: Document Download Name template (null = use default {{OriginalFileName}})
   ui_name: string | null;  // SSoT: Document UI Name template (null = use default {{OriginalFileName}})
   full_warehouse_path: string | null;
