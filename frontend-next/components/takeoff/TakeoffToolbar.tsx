@@ -274,7 +274,10 @@ export function TakeoffToolbar({
         <ToolButton
           tool="count"
           current={currentTool}
-          onClick={onToolChange}
+          onClick={(tool) => {
+            // Toggle: click again to finish count session and go back to select
+            onToolChange(currentTool === tool ? "select" : tool);
+          }}
           disabled={!isCalibrated && false} // Count doesn't need scale
         />
         <ToolButton

@@ -77,10 +77,8 @@ export default function DocsortTakeoffPage() {
   const [summary, setSummary] = React.useState<MeasurementSummary | null>(null);
   const [selectedMeasurement, setSelectedMeasurement] = React.useState<TakeoffMeasurement | null>(null);
 
-  // Layers - DocSort standalone doesn't have job-linked layers, use virtual layers
-  const [layers, setLayers] = React.useState<TakeoffLayer[]>([
-    { id: -1, name: "Measurements", color: "#3B82F6", display_order: 1, visible: true, locked: false, measurement_count: 0 }
-  ]);
+  // Layers - persisted to backend via /api/v1/pdf_takeoff/docsort/:id/layers
+  const [layers, setLayers] = React.useState<TakeoffLayer[]>([]);
   // null = "All" view (shows all layers, saves to default layer)
   const [activeLayer, setActiveLayer] = React.useState<TakeoffLayer | null>(null);
 
@@ -167,14 +165,7 @@ export default function DocsortTakeoffPage() {
       }>(`/api/v1/pdf_takeoff/docsort/${itemId}/measurements`);
 
       if (response?.success && response?.data) {
-        // Preserve virtual layer assignments when refreshing from backend
-        setMeasurements((prev) => {
-          const layerMap = new Map(prev.map((m) => [m.id, m.layer]));
-          return response.data.measurements.map((m) => ({
-            ...m,
-            layer: layerMap.get(m.id) || m.layer,
-          }));
-        });
+        setMeasurements(response.data.measurements);
         setSummary(response.data.summary);
       }
     } catch (err) {
@@ -188,55 +179,109 @@ export default function DocsortTakeoffPage() {
   }, [fetchMeasurements]);
 
   // =============================================================================
-  // Layer Management (Local only for standalone takeoff)
+  // Layer Management (Backend-persisted)
   // =============================================================================
 
-  // Create layer (local only)
+  // Fetch layers from backend
+  const fetchLayers = React.useCallback(async () => {
+    if (!itemId) return;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: { layers: TakeoffLayer[] };
+      }>(`/api/v1/pdf_takeoff/docsort/${itemId}/layers`);
+
+      if (response?.success && response?.data) {
+        setLayers(response.data.layers);
+      }
+    } catch (err) {
+      console.error("Failed to fetch layers:", err);
+    }
+  }, [itemId]);
+
+  // Fetch layers on mount
+  React.useEffect(() => {
+    fetchLayers();
+  }, [fetchLayers]);
+
+  // Create layer
   const handleCreateLayer = React.useCallback(
     async (name: string, color: string) => {
-      const newLayer: TakeoffLayer = {
-        id: -Date.now(), // Negative temp ID for local layers
-        name,
-        color,
-        display_order: layers.length + 1,
-        visible: true,
-        locked: false,
-        measurement_count: 0,
-      };
-      setLayers((prev) => [...prev, newLayer]);
-      setActiveLayer(newLayer);
+      if (!itemId) return;
+      try {
+        const response = await api.post<{
+          success: boolean;
+          data: TakeoffLayer;
+        }>(`/api/v1/pdf_takeoff/docsort/${itemId}/layers`, {
+          layer: { name, color },
+        });
+
+        if (response?.success && response?.data) {
+          const newLayer = response.data;
+          setLayers((prev) => [...prev, newLayer]);
+          setActiveLayer(newLayer);
+        }
+      } catch (err) {
+        console.error("Failed to create layer:", err);
+        toast({ title: "Error", description: "Failed to create layer", variant: "destructive" });
+      }
     },
-    [layers.length]
+    [itemId, toast]
   );
 
-  // Update layer (local only)
+  // Update layer
   const handleUpdateLayer = React.useCallback(
     async (id: number, updates: Partial<TakeoffLayer>) => {
-      setLayers((prev) =>
-        prev.map((l) => (l.id === id ? { ...l, ...updates } : l))
-      );
-      if (activeLayer?.id === id) {
-        setActiveLayer((prev) => (prev ? { ...prev, ...updates } : prev));
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: TakeoffLayer;
+        }>(`/api/v1/pdf_takeoff/layers/${id}`, {
+          layer: updates,
+        });
+
+        if (response?.success) {
+          setLayers((prev) =>
+            prev.map((l) => (l.id === id ? { ...l, ...updates } : l))
+          );
+          if (activeLayer?.id === id) {
+            setActiveLayer((prev) => (prev ? { ...prev, ...updates } : prev));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to update layer:", err);
       }
     },
     [activeLayer]
   );
 
-  // Delete layer (local only)
+  // Delete layer
   const handleDeleteLayer = React.useCallback(
     async (id: number) => {
-      setLayers((prev) => {
-        const remaining = prev.filter((l) => l.id !== id);
-        if (activeLayer?.id === id && remaining.length > 0) {
-          setActiveLayer(remaining[0]);
+      try {
+        const response = await api.delete<{ success: boolean }>(
+          `/api/v1/pdf_takeoff/layers/${id}`
+        );
+
+        if (response?.success) {
+          setLayers((prev) => {
+            const remaining = prev.filter((l) => l.id !== id);
+            if (activeLayer?.id === id) {
+              setActiveLayer(null);
+            }
+            return remaining;
+          });
+          // Refresh measurements since deleted layer's measurements move to default
+          fetchMeasurements();
         }
-        return remaining;
-      });
+      } catch (err) {
+        console.error("Failed to delete layer:", err);
+      }
     },
-    [activeLayer]
+    [activeLayer, fetchMeasurements]
   );
 
-  // Toggle layer visibility (local only)
+  // Toggle layer visibility (local only - doesn't need backend persistence)
   const handleToggleLayerVisibility = React.useCallback(
     async (id: number, visible: boolean) => {
       setLayers((prev) =>
@@ -249,7 +294,7 @@ export default function DocsortTakeoffPage() {
     [activeLayer]
   );
 
-  // Toggle layer lock (local only)
+  // Toggle layer lock (local only - doesn't need backend persistence)
   const handleToggleLayerLock = React.useCallback(
     async (id: number, locked: boolean) => {
       setLayers((prev) =>
@@ -368,7 +413,7 @@ export default function DocsortTakeoffPage() {
     [itemId, currentPageNumber, toast]
   );
 
-  // Create measurement
+  // Create measurement — returns the created measurement for count accumulation
   const handleMeasurementCreate = React.useCallback(
     async (
       type: TakeoffMeasurement["measurement_type"],
@@ -376,8 +421,8 @@ export default function DocsortTakeoffPage() {
       pixelValue: number,
       pageNumber: number,
       options?: MeasurementCreateOptions
-    ) => {
-      if (!itemId) return;
+    ): Promise<TakeoffMeasurement | null> => {
+      if (!itemId) return null;
 
       try {
         const response = await api.post<{
@@ -390,6 +435,7 @@ export default function DocsortTakeoffPage() {
             pixel_value: pixelValue,
             page_number: pageNumber,
             geometry_data: geometryData,
+            takeoff_layer_id: activeLayer?.id,
             is_deduction: options?.isDeduction,
             parent_measurement_id: options?.parentMeasurementId,
           },
@@ -397,11 +443,7 @@ export default function DocsortTakeoffPage() {
 
         if (response?.success && response?.data) {
           const measurementData = response.data;
-          // Stamp the active layer onto the measurement (docsort layers are virtual/client-side)
-          const newMeasurement = {
-            ...measurementData.measurement,
-            layer: activeLayer ? { id: activeLayer.id, name: activeLayer.name, color: activeLayer.color } : measurementData.measurement.layer,
-          };
+          const newMeasurement = measurementData.measurement;
           setMeasurements((prev) => [...prev, newMeasurement]);
           setSummary(measurementData.summary);
 
@@ -409,6 +451,7 @@ export default function DocsortTakeoffPage() {
             title: "Measurement Added",
             description: `${type}: ${newMeasurement.formatted_value}`,
           });
+          return newMeasurement;
         } else {
           throw new Error(response?.error || "Failed to create measurement");
         }
@@ -419,9 +462,38 @@ export default function DocsortTakeoffPage() {
           description: message,
           variant: "destructive",
         });
+        return null;
       }
     },
     [itemId, activeLayer, toast]
+  );
+
+  // Add point to existing count measurement
+  const handleCountPointAdd = React.useCallback(
+    async (measurementId: number, point: { x: number; y: number }): Promise<TakeoffMeasurement | null> => {
+      try {
+        const response = await api.post<{
+          success: boolean;
+          data: TakeoffMeasurement;
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/measurements/${measurementId}/count_point`, {
+          point: { x: point.x, y: point.y },
+        });
+
+        if (response?.success && response?.data) {
+          const updated = response.data;
+          setMeasurements((prev) =>
+            prev.map((m) => (m.id === measurementId ? updated : m))
+          );
+          return updated;
+        }
+        return null;
+      } catch (err) {
+        console.error("Failed to add count point:", err);
+        return null;
+      }
+    },
+    []
   );
 
   // Handle AI element detection result
@@ -565,7 +637,7 @@ export default function DocsortTakeoffPage() {
         });
         if (response?.success && response?.data) {
           setMeasurements((prev) =>
-            prev.map((m) => (m.id === id ? { ...response.data, layer: m.layer } : m))
+            prev.map((m) => (m.id === id ? { ...response.data } : m))
           );
         }
       } catch {
@@ -603,7 +675,7 @@ export default function DocsortTakeoffPage() {
 
         if (response?.success && response?.data) {
           setMeasurements((prev) =>
-            prev.map((m) => (m.id === measurementForPricebook.id ? { ...response.data, layer: m.layer } : m))
+            prev.map((m) => (m.id === measurementForPricebook.id ? { ...response.data } : m))
           );
           if (selectedMeasurement?.id === measurementForPricebook.id) {
             setSelectedMeasurement((prev) => prev ? { ...response.data, layer: prev.layer } : response.data);
@@ -645,7 +717,7 @@ export default function DocsortTakeoffPage() {
 
       if (response?.success && response?.data) {
         setMeasurements((prev) =>
-          prev.map((m) => (m.id === measurementForPricebook.id ? { ...response.data, layer: m.layer } : m))
+          prev.map((m) => (m.id === measurementForPricebook.id ? { ...response.data } : m))
         );
         if (selectedMeasurement?.id === measurementForPricebook.id) {
           setSelectedMeasurement((prev) => prev ? { ...response.data, layer: prev.layer } : response.data);
@@ -846,6 +918,7 @@ export default function DocsortTakeoffPage() {
                   (m) => m.page_number === currentPageNumber
                 )}
                 onMeasurementCreate={handleMeasurementCreate}
+                onCountPointAdd={handleCountPointAdd}
                 onMeasurementDelete={handleMeasurementDelete}
                 onMeasurementSelect={setSelectedMeasurement}
                 selectedMeasurement={selectedMeasurement}

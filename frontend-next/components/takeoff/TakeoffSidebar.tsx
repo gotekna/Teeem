@@ -98,10 +98,20 @@ export function TakeoffSidebar({
     return groups;
   }, [filteredMeasurements, layers]);
 
-  // Expanded layers
+  // Expanded layers — auto-expand new layers as they appear
   const [expandedLayers, setExpandedLayers] = React.useState<Set<number>>(
     new Set(layers.map((l) => l.id))
   );
+
+  React.useEffect(() => {
+    setExpandedLayers((prev) => {
+      const next = new Set(prev);
+      layers.forEach((l) => {
+        if (!prev.has(l.id)) next.add(l.id);
+      });
+      return next.size !== prev.size ? next : prev;
+    });
+  }, [layers]);
 
   const toggleLayer = (layerId: number) => {
     setExpandedLayers((prev) => {
@@ -121,7 +131,7 @@ export function TakeoffSidebar({
       <div className="p-4 border-b flex items-center justify-between">
         <div>
           <h2 className="font-semibold">
-            {activeLayer ? activeLayer.name : "Measurements"}
+            {activeLayer ? activeLayer.name : "All Layers"}
           </h2>
           <p className="text-xs text-muted-foreground">
             {filteredMeasurements.length} items{activeLayer && measurements.length !== filteredMeasurements.length ? ` (${measurements.length} total)` : ""}
@@ -371,7 +381,7 @@ function MeasurementItem({
   const [nameValue, setNameValue] = React.useState(category || "");
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  const typeLabel = measurement_type === "count" ? `#${display_label}`
+  const typeLabel = measurement_type === "count" ? "Count"
     : measurement_type === "area" ? "Area"
     : measurement_type === "length" ? "Lin"
     : measurement_type === "perimeter" ? "Per"
