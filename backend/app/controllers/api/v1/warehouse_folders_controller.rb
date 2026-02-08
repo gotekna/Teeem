@@ -421,8 +421,10 @@ module Api
         end
 
         # Map folder_path to folder_path_suffix for legacy compatibility
-        if params[:warehouse_folder][:folder_path].present?
-          permitted[:folder_path_suffix] = params[:warehouse_folder][:folder_path]
+        # FRC (Feb 2026): folder_path from frontend = the suffix value only (not full path)
+        # .key? check ensures we can clear the suffix by sending empty string → nil
+        if params[:warehouse_folder].key?(:folder_path)
+          permitted[:folder_path_suffix] = params[:warehouse_folder][:folder_path].presence
         end
 
         # Map ui_name to ui_name_template

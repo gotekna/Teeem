@@ -607,7 +607,9 @@ export function WarehouseTypesTab() {
                   </div>
                 </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground align-top py-2">
-                  {type.folder_path_template || "-"}
+                  {type.folder_path_template
+                    ? `${type.display_name}/${type.folder_path_template}`
+                    : type.display_name || "-"}
                 </TableCell>
                 <TableCell className="align-top py-2">
                   {(() => {
