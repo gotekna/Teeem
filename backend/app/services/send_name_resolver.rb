@@ -139,7 +139,7 @@ class SendNameResolver
     # Add warehouse document specific values
     context[:ui_name] = warehouse_document.ui_name
     context[:original_filename] = warehouse_document.original_filename
-    context[:folder] = warehouse_document.folder
+    context[:folder] = warehouse_document.folder_path
 
     context
   end

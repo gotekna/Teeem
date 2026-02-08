@@ -1,6 +1,8 @@
 class DocumentType < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = [:name, :scope]
 
   # Associations
   # Note: corporate_company_documents and job_documents associations REMOVED (Jan 2026) - tables dropped

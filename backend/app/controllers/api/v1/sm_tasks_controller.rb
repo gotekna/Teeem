@@ -1227,7 +1227,6 @@ module Api
           ui_name: file.original_filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
           storage_blob: blob,
           source_type: "task",
-          folder: folder_path,
           documentable: @task
         )
 

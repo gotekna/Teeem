@@ -7,6 +7,8 @@ class JobStatusStage < ApplicationRecord
   belongs_to :job_stage
 
   # Uniqueness scoped by tenant_id (acts_as_tenant handles the scoping automatically)
+  include ConfigSyncable
+  self.sync_key_source = [:job_type_id, :job_status_id, :job_stage_id]
   validates :job_stage_id, uniqueness: { scope: [:job_type_id, :job_status_id, :tenant_id] }
 
   default_scope { order(:position) }

@@ -7,6 +7,7 @@
 #
 class FolderTemplate < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
 
   belongs_to :created_by, class_name: "User", optional: true
 

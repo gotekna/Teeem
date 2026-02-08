@@ -1,5 +1,6 @@
 class SupervisorChecklistTemplate < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
 
   RESPONSE_TYPES = %w[checkbox photo note photo_and_note].freeze
 

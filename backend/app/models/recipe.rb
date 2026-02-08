@@ -12,6 +12,8 @@
 #
 class Recipe < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = :code
 
   # Constants
   TYPES = %w[materials labour full_assembly subcontract].freeze

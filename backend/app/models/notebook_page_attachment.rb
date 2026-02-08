@@ -180,7 +180,6 @@ class NotebookPageAttachment < ApplicationRecord
     create_warehouse_document!(
       tenant_id: tenant.id,
       source_type: "warehouse",
-      folder: virtual_folder_path,
       display_name: file_name,
       original_filename: file_name,
       storage_blob: storage_blob,

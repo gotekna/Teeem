@@ -7,6 +7,8 @@
 #
 class JobTab < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = :slug
 
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: { scope: :tenant_id }

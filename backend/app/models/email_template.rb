@@ -6,6 +6,8 @@
 #
 class EmailTemplate < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = [:name, :category]
 
   belongs_to :user
 

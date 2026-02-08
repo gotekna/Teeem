@@ -861,7 +861,7 @@ export function WarehouseFoldersTab() {
                     // Clear parent when warehouse type changes (parent must be same type)
                     setFormData({ ...formData, warehouse_type_id: selectedId, parent_id: null });
                   }}
-                  disabled={editingFolder?.is_system}
+                  disabled={false}
                 >
                   <SelectTrigger id="warehouse_type_id">
                     <SelectValue placeholder="Select warehouse type" />

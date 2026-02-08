@@ -184,7 +184,6 @@ module Api
           warehouse_doc.update!(
             ui_name: params[:filename],  # SSoT: display_name renamed to ui_name (Feb 2026)
             original_filename: params[:filename],
-            folder: params[:folder_path],
             file_size: params[:file_size].to_i,
             metadata: (warehouse_doc.metadata || {}).merge(
               "job_code" => job.job_code,

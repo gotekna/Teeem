@@ -4,6 +4,8 @@ class Contact < ApplicationRecord
 
   include SelfHealing  # Auto-fix formatting issues and earn System kudos
   include Searchable
+  include ConfigSyncable
+  self.sync_key_source = :display_name
 
   # FRC (Feb 2026): Contacts page took 7 seconds due to N+1 queries in record_to_json.
   # The default apply_eager_loading skips self-referential belongs_to (line 1390 records_controller),

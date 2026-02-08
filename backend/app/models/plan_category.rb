@@ -2,6 +2,8 @@
 # Categories: Drawings, Certification Drawings, Cabinets
 class PlanCategory < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = :code
 
   has_many :plan_category_plan_types, dependent: :destroy
   has_many :plan_types, through: :plan_category_plan_types
