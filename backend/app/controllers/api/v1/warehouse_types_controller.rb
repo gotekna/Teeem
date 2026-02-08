@@ -357,7 +357,7 @@ module Api
         eager_loads = derive_eager_loads
         scope = eager_loads.any? ? model.includes(*eager_loads) : model.all
         scope = apply_dynamic_search(scope, model, config['search'], search)
-        scope = scope.order(Arel.sql(config['order']))
+        scope = apply_order_joins(scope, model, config['order'])
 
         total = scope.count
         paginated = scope.limit(limit).offset(offset).to_a
@@ -409,6 +409,21 @@ module Api
           .select { |p| p.is_a?(String) && p.include?('.') }
           .map { |p| p.split('.').first.to_sym }
           .uniq
+      end
+
+      # Auto-join for table-prefixed ORDER BY columns (e.g., "contacts.display_name ASC")
+      def apply_order_joins(scope, model, order_clause)
+        return scope if order_clause.blank?
+
+        order_clause.split(',').each do |part|
+          col = part.strip.split(/\s+/).first # e.g. "contacts.display_name"
+          next unless col.include?('.')
+
+          assoc = col.split('.').first.singularize.to_sym
+          scope = scope.joins(assoc) if model.reflect_on_association(assoc) && !scope.joins_values.include?(assoc)
+        end
+
+        scope.order(Arel.sql(order_clause))
       end
 
       # Apply search with auto-derived joins for table-prefixed columns
