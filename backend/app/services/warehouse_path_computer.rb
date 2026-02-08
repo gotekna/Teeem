@@ -34,11 +34,16 @@
 #   # => [{ id: 1, folder_path: "...", warehouse_folder_id: 123, path_template_version: 1 }, ...]
 #
 class WarehousePathComputer
+  # The resolved WarehouseFolderDocumentType from the last compute() call.
+  # Used by backfill to persist the FK on documents that were missing it.
+  attr_reader :resolved_wfdt
+
   # Compute folder path for a single document
   #
   # @param doc [WarehouseDocument] The document to compute for
   # @return [Hash] { folder_path:, warehouse_folder_id:, path_template_version: }
   def compute(doc)
+    @resolved_wfdt = nil  # Reset per-document
     # 1. Find the warehouse folder (FK-driven)
     folder = find_warehouse_folder_for_doc(doc)
 
@@ -58,11 +63,12 @@ class WarehousePathComputer
         expanded_segments = expanded_clean&.split("/")&.length || 0
 
         # If template expansion produced only a bare category name (1 segment like
-        # "Email" or "Contacts" - no tokens expanded), prefer the folder column
+        # "Email" or "Contacts" - no tokens expanded), prefer the DB folder column
         # which has richer historical data (e.g., "Emails/rachel@tekna.com.au/2025/11")
-        if expanded_segments <= 1 && doc.folder.present? && doc.folder.split("/").length > 1
+        db_folder = doc.read_attribute(:folder)
+        if expanded_segments <= 1 && db_folder.present? && db_folder.split("/").length > 1
           return {
-            folder_path: sanitize_path(doc.folder),
+            folder_path: sanitize_path(db_folder),
             warehouse_folder_id: folder.id,
             path_template_version: folder.template_version
           }
@@ -76,10 +82,11 @@ class WarehousePathComputer
       end
     end
 
-    # Fallback: use existing folder column if available (historical correct data)
-    if doc.folder.present?
+    # Fallback: use existing DB folder column if available (historical correct data)
+    db_folder = doc.read_attribute(:folder)
+    if db_folder.present?
       return {
-        folder_path: sanitize_path(doc.folder),
+        folder_path: sanitize_path(db_folder),
         warehouse_folder_id: folder&.id,
         path_template_version: 0
       }
@@ -126,8 +133,9 @@ class WarehousePathComputer
   #
   # Priority:
   #   1. warehouse_folder_document_type FK → its warehouse_folder (most precise)
-  #   2. linkable_type → warehouse_type → root folder (always correct)
-  #   3. source_type → warehouse_type code (fallback for docs without linkable)
+  #   2. document_type_id → WarehouseFolderDocumentType lookup (backfill recovery)
+  #   3. linkable_type → warehouse_type → root folder (always correct)
+  #   4. source_type → warehouse_type code (fallback for docs without linkable)
   #
   # @param doc [WarehouseDocument]
   # @return [WarehouseFolder, nil]
@@ -137,9 +145,16 @@ class WarehousePathComputer
       return doc.warehouse_folder_document_type.warehouse_folder
     end
 
-    # 2. From linkable type → warehouse_type → root folder
-    #    (Moved BEFORE warehouse_folder_id because old backfills may have
-    #     set warehouse_folder_id to wrong folders - linkable is always correct)
+    # 2. Derive from document_type_id (backfill recovery for existing docs without FK)
+    #    Same logic as WarehouseDocument#set_warehouse_folder_document_type callback
+    #    but works during backfill when the FK wasn't set on creation.
+    wfdt = resolve_warehouse_folder_document_type(doc)
+    if wfdt
+      @resolved_wfdt = wfdt  # Store for backfill to persist the FK
+      return wfdt.warehouse_folder
+    end
+
+    # 3. From linkable type → warehouse_type → root folder
     if doc.linkable_type.present?
       wt_code = linkable_type_to_warehouse_type_code(doc.linkable_type)
       if wt_code
@@ -148,9 +163,42 @@ class WarehousePathComputer
       end
     end
 
-    # 3. From source_type → warehouse_type code (fallback for docs without linkable)
+    # 4. From source_type → warehouse_type code (fallback for docs without linkable)
     wt_code = source_type_to_warehouse_type_code(doc.source_type)
     cached_folder_for(wt_code)
+  end
+
+  # Resolve the WarehouseFolderDocumentType for a document using document_type_id.
+  # This is the same logic as the model callback but usable during backfill.
+  #
+  # @param doc [WarehouseDocument]
+  # @return [WarehouseFolderDocumentType, nil]
+  def resolve_warehouse_folder_document_type(doc)
+    return nil unless doc.tenant_id.present?
+
+    # Get document_type_id from metadata or documentable
+    doc_type_id = doc.metadata&.dig("document_type_id")
+    if doc_type_id.blank? && doc.documentable.present?
+      doc_type_id = doc.documentable.document_type_id if doc.documentable.respond_to?(:document_type_id)
+    end
+    return nil if doc_type_id.blank?
+
+    # Determine warehouse_type code
+    wt_code = if doc.linkable_type.present?
+                linkable_type_to_warehouse_type_code(doc.linkable_type)
+              end
+    wt_code ||= source_type_to_warehouse_type_code(doc.source_type)
+
+    # Find matching WarehouseFolderDocumentType
+    WarehouseFolderDocumentType
+      .joins(warehouse_folder: :warehouse_type)
+      .where(document_type_id: doc_type_id)
+      .where(warehouse_types: { code: wt_code })
+      .where(warehouse_folders: { tenant_id: doc.tenant_id })
+      .first
+  rescue NameError
+    # Documentable class may have been deleted
+    nil
   end
 
   # Map linkable_type (model class name) to warehouse_type code
@@ -450,19 +498,30 @@ class WarehousePathComputer
     # Table might not exist in all environments - silently skip
   end
 
-  # Derive missing tokens from the existing `folder` column on the document.
+  # Derive missing tokens from the existing `folder` DB column on the document.
   # This is a last-resort fallback for when:
   #   - linkable_type is nil (no direct FK to Job/Contact/etc.)
   #   - documentable class was deleted (e.g., ContactDocument → WarehouseDocument)
   #
-  # The `folder` column has correct historical paths like:
+  # The DB `folder` column has correct historical paths like:
   #   "Contacts/7 Eleven", "Email/inbox@tekna.com.au", "Corporate/Default/Acme Corp"
+  #
+  # ⚠️ DO NOT SIMPLIFY - Column shadowing fix (Feb 2026)
+  # ════════════════════════════════════════════════════════════════════
+  # Why: The model defines a `folder` METHOD that overrides the column reader.
+  #      doc.folder → computed base name (e.g., "Emails")
+  #      doc.read_attribute(:folder) → actual DB value (e.g., "Emails/rachel@tekna.com.au/2025/11")
+  # ❌ WRONG: doc.folder (returns computed method, loses historical data)
+  # ✅ CORRECT: doc.read_attribute(:folder) (reads actual DB column)
+  # ════════════════════════════════════════════════════════════════════
   #
   # Uses ||= so this never overwrites tokens from linkable/documentable (higher priority).
   def derive_tokens_from_folder(tokens, doc)
-    return unless doc.folder.present?
+    # Read the actual DB column, not the computed method
+    db_folder = doc.read_attribute(:folder)
+    return unless db_folder.present?
 
-    parts = doc.folder.split("/")
+    parts = db_folder.split("/")
 
     case doc.source_type
     when "contact", "people"

@@ -43,8 +43,8 @@ import { DEFAULT_LAYER_COLORS } from "./types";
 
 interface LayerManagerProps {
   layers: TakeoffLayer[];
-  activeLayer: TakeoffLayer | null;
-  onLayerChange: (layer: TakeoffLayer) => void;
+  activeLayer: TakeoffLayer | null;  // null = "All" view
+  onLayerChange: (layer: TakeoffLayer | null) => void;
   onCreateLayer: (name: string, color: string) => Promise<void>;
   onUpdateLayer: (id: number, updates: Partial<TakeoffLayer>) => Promise<void>;
   onDeleteLayer: (id: number) => Promise<void>;
@@ -150,17 +150,35 @@ export function LayerManager({
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" className="gap-2">
             <Layers className="h-4 w-4" />
-            <span
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: activeLayer?.color || "#6B7280" }}
-            />
-            <span className="max-w-[100px] truncate">
-              {activeLayer?.name || "Layer"}
-            </span>
+            {activeLayer ? (
+              <>
+                <span
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: activeLayer.color }}
+                />
+                <span className="max-w-[100px] truncate">
+                  {activeLayer.name}
+                </span>
+              </>
+            ) : (
+              <span className="max-w-[100px] truncate">All</span>
+            )}
             <ChevronDown className="h-3 w-3" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
+          {/* "All" option — shows all layers */}
+          <button
+            onClick={() => onLayerChange(null)}
+            className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm ${
+              activeLayer === null ? "bg-accent" : "hover:bg-accent/50"
+            }`}
+          >
+            <Layers className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+            <span className="flex-1 text-left">All</span>
+          </button>
+          <DropdownMenuSeparator />
+
           {/* Layer list */}
           {layers.map((layer) => (
             <div

@@ -37,24 +37,33 @@ namespace :warehouse do
 
       computer = WarehousePathComputer.new
       updated = 0
+      fk_set = 0
       errors = 0
 
       scope.find_each(batch_size: 500) do |doc|
         result = computer.compute(doc)
-        doc.update_columns(
+
+        updates = {
           folder_path: result[:folder_path],
           warehouse_folder_id: result[:warehouse_folder_id],
           path_template_version: result[:path_template_version],
           updated_at: Time.current
-        )
+        }
+
+        if computer.resolved_wfdt && doc.warehouse_folder_document_type_id.nil?
+          updates[:warehouse_folder_document_type_id] = computer.resolved_wfdt.id
+          fk_set += 1
+        end
+
+        doc.update_columns(updates)
         updated += 1
-        print "\r  #{updated}/#{total} (#{(updated * 100.0 / total).round(1)}%)" if (updated % 100).zero?
+        print "\r  #{updated}/#{total} (#{(updated * 100.0 / total).round(1)}%) - #{fk_set} FKs" if (updated % 100).zero?
       rescue StandardError => e
         errors += 1
         puts "\n  Error for doc##{doc.id}: #{e.message}"
       end
 
-      puts "\n\nDone! #{updated} updated, #{errors} errors"
+      puts "\n\nDone! #{updated} updated, #{fk_set} FKs set, #{errors} errors"
     end
 
     desc "Reconcile stale paths (find and fix mismatches)"
@@ -89,24 +98,34 @@ namespace :warehouse do
 
       computer = WarehousePathComputer.new
       updated = 0
+      fk_set = 0
       errors = 0
       error_details = Hash.new(0)
       started_at = Time.current
 
       scope.find_each(batch_size: 500) do |doc|
         result = computer.compute(doc)
-        doc.update_columns(
+
+        # Two-phase: set FK + compute path in one pass
+        updates = {
           folder_path: result[:folder_path],
           warehouse_folder_id: result[:warehouse_folder_id],
           path_template_version: result[:path_template_version],
           updated_at: Time.current
-        )
+        }
+
+        if computer.resolved_wfdt && doc.warehouse_folder_document_type_id.nil?
+          updates[:warehouse_folder_document_type_id] = computer.resolved_wfdt.id
+          fk_set += 1
+        end
+
+        doc.update_columns(updates)
         updated += 1
         if (updated % 1000).zero?
           elapsed = Time.current - started_at
           rate = updated / elapsed
           eta = ((total - updated) / rate).round
-          print "\r  #{updated}/#{total} (#{(updated * 100.0 / total).round(1)}%) - #{rate.round(0)}/s - ETA: #{eta}s  "
+          print "\r  #{updated}/#{total} (#{(updated * 100.0 / total).round(1)}%) - #{rate.round(0)}/s - ETA: #{eta}s - #{fk_set} FKs set  "
         end
       rescue StandardError => e
         errors += 1
@@ -117,6 +136,7 @@ namespace :warehouse do
       elapsed = (Time.current - started_at).round(1)
       puts "\n\nDone in #{elapsed}s!"
       puts "  Updated: #{updated}"
+      puts "  FKs set: #{fk_set}"
       puts "  Errors:  #{errors}"
       if error_details.any?
         puts "  Error breakdown:"
@@ -135,6 +155,10 @@ namespace :warehouse do
       # Check for generic root-only paths
       generic_count = WarehouseDocument.where(warehouse_folder_id: nil).count
       puts "\nDocs without warehouse_folder_id: #{generic_count} (#{total.zero? ? 0 : (generic_count * 100.0 / total).round(1)}%)"
+
+      # Check for docs with FK set
+      with_wfdt = WarehouseDocument.where.not(warehouse_folder_document_type_id: nil).count
+      puts "Docs with document type FK: #{with_wfdt} (#{total.zero? ? 0 : (with_wfdt * 100.0 / total).round(1)}%)"
     end
 
     desc "Show materialization stats"

@@ -49,7 +49,7 @@ interface TakeoffToolbarProps {
   // Layer
   activeLayer: TakeoffLayer | null;
   layers: TakeoffLayer[];
-  onLayerChange: (layer: TakeoffLayer) => void;
+  onLayerChange: (layer: TakeoffLayer | null) => void;
   onCreateLayer: (name: string, color: string) => Promise<void>;
   onUpdateLayer: (id: number, updates: Partial<TakeoffLayer>) => Promise<void>;
   onDeleteLayer: (id: number) => Promise<void>;
@@ -460,11 +460,11 @@ function ToolButton({ tool, current, onClick, disabled, highlight }: ToolButtonP
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant={isActive ? "secondary" : "ghost"}
+          variant={isActive ? "default" : "ghost"}
           size="icon"
           onClick={() => onClick(tool)}
           disabled={disabled}
-          className={highlightClass}
+          className={isActive ? "bg-primary text-primary-foreground shadow-sm" : highlightClass}
         >
           {TOOL_ICONS[tool]}
         </Button>

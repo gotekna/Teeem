@@ -2,8 +2,14 @@
 
 # BackfillWarehousePathsJob - Compute folder_path for all existing documents
 #
+# Two-phase backfill:
+#   Phase 0: Resolve warehouse_folder_document_type_id FK (enables child folder matching)
+#   Phase 1: Compute folder_path using FK chain (now finds correct child folders)
+#
+# Without Phase 0, documents only resolve to ROOT folders (e.g., "Contacts/7 Eleven").
+# With Phase 0, documents resolve to CHILD folders (e.g., "Contacts/7 Eleven/Financial/Bills").
+#
 # Runs in batches of 1000, idempotent, safe to re-run.
-# Processes documents that have NULL folder_path (not yet materialized).
 # Self-chains: queues next batch automatically until all documents are processed.
 #
 # Usage:
@@ -24,17 +30,27 @@ class BackfillWarehousePathsJob < ApplicationJob
 
     computer = WarehousePathComputer.new
     updated_count = 0
+    fk_set_count = 0
     error_count = 0
 
     documents.find_each do |doc|
       result = computer.compute(doc)
 
-      doc.update_columns(
+      # Phase 0: Persist the resolved FK if the computer found one
+      # This enables future path computations to find the correct child folder directly
+      updates = {
         folder_path: result[:folder_path],
         warehouse_folder_id: result[:warehouse_folder_id],
         path_template_version: result[:path_template_version],
         updated_at: Time.current
-      )
+      }
+
+      if computer.resolved_wfdt && doc.warehouse_folder_document_type_id.nil?
+        updates[:warehouse_folder_document_type_id] = computer.resolved_wfdt.id
+        fk_set_count += 1
+      end
+
+      doc.update_columns(updates)
       updated_count += 1
     rescue StandardError => e
       error_count += 1
@@ -42,7 +58,7 @@ class BackfillWarehousePathsJob < ApplicationJob
     end
 
     Rails.logger.info "[BackfillWarehousePathsJob] Batch #{batch_offset}: " \
-                      "#{updated_count} updated, #{error_count} errors" \
+                      "#{updated_count} updated, #{fk_set_count} FKs set, #{error_count} errors" \
                       "#{tenant_id ? " (tenant##{tenant_id})" : ""}"
 
     # Queue next batch if this batch was full

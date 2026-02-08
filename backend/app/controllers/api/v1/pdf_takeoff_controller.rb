@@ -193,12 +193,14 @@ module Api
         measurement.session_id ||= SecureRandom.uuid
 
         # Get page scale for conversion if needed
-        if params[:page_number].present? && params[:pixel_value].present?
-          page_scale = PageScale.find_by(job_plan: @job_plan, page_number: params[:page_number])
+        # pixel_value and page_number come nested inside the measurement hash
+        m_params = params[:measurement] || {}
+        if m_params[:page_number].present? && m_params[:pixel_value].present?
+          page_scale = PageScale.find_by(job_plan: @job_plan, page_number: m_params[:page_number])
           if page_scale&.calibrated?
             measurement.value = convert_measurement(
-              params[:pixel_value].to_f,
-              params[:measurement_type],
+              m_params[:pixel_value].to_f,
+              m_params[:measurement_type],
               page_scale
             )
           end
@@ -547,12 +549,14 @@ module Api
         measurement.session_id ||= SecureRandom.uuid
 
         # Get page scale for conversion if needed
-        if params[:page_number].present? && params[:pixel_value].present?
-          page_scale = PageScale.find_by(docsort_item: @docsort_item, page_number: params[:page_number])
+        # pixel_value and page_number come nested inside the measurement hash
+        m_params = params[:measurement] || {}
+        if m_params[:page_number].present? && m_params[:pixel_value].present?
+          page_scale = PageScale.find_by(docsort_item: @docsort_item, page_number: m_params[:page_number])
           if page_scale&.calibrated?
             measurement.value = convert_measurement(
-              params[:pixel_value].to_f,
-              params[:measurement_type],
+              m_params[:pixel_value].to_f,
+              m_params[:measurement_type],
               page_scale
             )
           end

@@ -163,10 +163,7 @@ export default function TakeoffPage() {
 
       if (response.success && response.data) {
         setLayers(response.data.layers);
-        // Set first layer as active if none selected
-        if (!activeLayer && response.data.layers.length > 0) {
-          setActiveLayer(response.data.layers[0]);
-        }
+        // Default to "All" view (activeLayer = null)
       }
     } catch (err) {
       console.error("Failed to fetch layers:", err);
@@ -665,6 +662,28 @@ export default function TakeoffPage() {
     [selectedMeasurement, fetchMeasurements, toast]
   );
 
+  // Rename a measurement (update category)
+  const handleRenameMeasurement = React.useCallback(
+    async (id: number, name: string) => {
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: TakeoffMeasurement;
+        }>(`/api/v1/pdf_takeoff/measurements/${id}`, {
+          category: name || null,
+        });
+        if (response?.success && response?.data) {
+          setMeasurements((prev) =>
+            prev.map((m) => (m.id === id ? response.data : m))
+          );
+        }
+      } catch {
+        toast({ title: "Error", description: "Failed to rename measurement", variant: "destructive" });
+      }
+    },
+    [toast]
+  );
+
   // Open pricebook selector for a measurement
   const handleAssignPricebook = React.useCallback(
     (measurementId: number) => {
@@ -992,11 +1011,13 @@ export default function TakeoffPage() {
             <TakeoffSidebar
               measurements={measurements}
               layers={layers}
+              activeLayer={activeLayer}
               summary={summary}
               selectedMeasurement={selectedMeasurement}
               onMeasurementSelect={setSelectedMeasurement}
               onMeasurementDelete={handleMeasurementDelete}
               onAssignPricebook={handleAssignPricebook}
+              onRenameMeasurement={handleRenameMeasurement}
               onGeneratePO={handleGeneratePO}
               isLoading={isGeneratingPO}
               onClose={() => setSidebarOpen(false)}

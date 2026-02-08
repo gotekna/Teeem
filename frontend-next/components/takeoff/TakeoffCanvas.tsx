@@ -388,11 +388,16 @@ export function TakeoffCanvas({
       layers.filter((l) => !l.visible).map((l) => l.id)
     );
 
-    // Render each measurement (skip hidden layers)
+    // Render each measurement — filter by active layer (null = show all)
     measurements.forEach((m) => {
-      // Skip if measurement's layer is hidden
+      // Skip if measurement's layer is hidden (via visibility toggle)
       if (m.layer?.id && hiddenLayerIds.has(m.layer.id)) {
         return;
+      }
+      // Skip if a specific layer is selected and this measurement isn't on it
+      if (activeLayer) {
+        const mLayerId = m.layer?.id || -1;
+        if (mLayerId !== activeLayer.id) return;
       }
       renderMeasurement(canvas, m);
     });
@@ -403,7 +408,7 @@ export function TakeoffCanvas({
     }
 
     canvas.renderAll();
-  }, [measurements, pageScale, zoom, layers]);
+  }, [measurements, pageScale, zoom, layers, selectedMeasurement, activeLayer]);
 
   useEffect(() => {
     renderMeasurements();
@@ -423,19 +428,39 @@ export function TakeoffCanvas({
     }));
 
     const isSelected = selectedMeasurement?.id === measurement.id;
+    // Selected = vivid green highlight so user can confirm which shape they clicked
+    const effectiveColor = isSelected ? "#22C55E" : color;
     const strokeWidth = isSelected ? 3 : 2;
 
     switch (geometry_data.type) {
       case "point": {
         // Count marker
         const point = scaledPoints[0];
+        const markerRadius = drawingStyle.markerSize / 2;
+
+        // Selected: add a large glow ring behind the marker
+        if (isSelected) {
+          const glow = new fabric.Circle({
+            left: point.x - markerRadius - 6,
+            top: point.y - markerRadius - 6,
+            radius: markerRadius + 6,
+            fill: "rgba(34,197,94,0.2)",
+            stroke: "#22C55E",
+            strokeWidth: 3,
+            selectable: false,
+            evented: false,
+          }) as FabricObjectWithData;
+          glow.data = { isMeasurement: true, measurementId: measurement.id };
+          canvas.add(glow);
+        }
+
         const marker = new fabric.Circle({
-          left: point.x - drawingStyle.markerSize / 2,
-          top: point.y - drawingStyle.markerSize / 2,
-          radius: drawingStyle.markerSize / 2,
-          fill: color,
-          stroke: isSelected ? "#000" : "#fff",
-          strokeWidth: 2,
+          left: point.x - markerRadius,
+          top: point.y - markerRadius,
+          radius: markerRadius,
+          fill: isSelected ? "#22C55E" : color,
+          stroke: isSelected ? "#fff" : "#fff",
+          strokeWidth: isSelected ? 3 : 2,
           selectable: currentTool === "select",
         }) as FabricObjectWithData;
         marker.data = { isMeasurement: true, measurementId: measurement.id };
@@ -459,10 +484,10 @@ export function TakeoffCanvas({
       }
 
       case "polygon": {
-        // Area measurement
+        // Area/perimeter measurement
         const polygon = new fabric.Polygon(scaledPoints, {
-          fill: `${color}33`,  // 20% opacity
-          stroke: color,
+          fill: isSelected ? "#22C55E44" : `${color}33`,
+          stroke: effectiveColor,
           strokeWidth,
           selectable: currentTool === "select",
         }) as FabricObjectWithData;
@@ -475,9 +500,9 @@ export function TakeoffCanvas({
           left: centroid.x,
           top: centroid.y,
           fontSize: drawingStyle.fontSize,
-          fill: color,
+          fill: effectiveColor,
           fontWeight: "bold",
-          backgroundColor: "rgba(255,255,255,0.8)",
+          backgroundColor: isSelected ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.8)",
           originX: "center",
           originY: "center",
           selectable: false,
@@ -491,7 +516,7 @@ export function TakeoffCanvas({
         // Linear measurement
         const line = new fabric.Polyline(scaledPoints, {
           fill: "transparent",
-          stroke: color,
+          stroke: effectiveColor,
           strokeWidth,
           selectable: currentTool === "select",
         }) as FabricObjectWithData;
@@ -505,9 +530,9 @@ export function TakeoffCanvas({
           left: midpoint.x,
           top: midpoint.y - 20,
           fontSize: drawingStyle.fontSize,
-          fill: color,
+          fill: effectiveColor,
           fontWeight: "bold",
-          backgroundColor: "rgba(255,255,255,0.8)",
+          backgroundColor: isSelected ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.8)",
           originX: "center",
           selectable: false,
         }) as FabricObjectWithData;
@@ -636,7 +661,7 @@ export function TakeoffCanvas({
   // ⚠️ DO NOT ADD calibrationLine/calibrationStep/pageScale to deps — use refs instead.
   // During "firstPoint" phase, handleMouseMove calls setCalibrationLine() on every frame,
   // which would recreate this callback constantly and cause stale closure bugs.
-  const placeToolPoint = useCallback((point: Point) => {
+  const placeToolPoint = useCallback((point: Point, rawPoint?: Point) => {
     const calStep = calibrationStepRef.current;
     const calLine = calibrationLineRef.current;
     const pScale = pageScaleRef.current;
@@ -673,10 +698,12 @@ export function TakeoffCanvas({
         const isPolygonTool = currentTool === "area" || currentTool === "perimeter" || currentTool === "deduction";
 
         // Auto-close polygon: if 3+ points placed and clicking near the first point, complete the shape
+        // Use raw (pre-snap) cursor position so snapping to a nearby PDF edge doesn't false-trigger close
         if (isPolygonTool && pts.length >= 3) {
           const firstPt = pts[0];
-          const dx = (point.x - firstPt.x) * zoomRef.current;
-          const dy = (point.y - firstPt.y) * zoomRef.current;
+          const checkPt = rawPoint || point;
+          const dx = (checkPt.x - firstPt.x) * zoomRef.current;
+          const dy = (checkPt.y - firstPt.y) * zoomRef.current;
           const screenDist = Math.sqrt(dx * dx + dy * dy);
           if (screenDist < 25) {
             completeDrawingRef.current();
@@ -742,7 +769,7 @@ export function TakeoffCanvas({
       if (target?.data?.isCalibrationLabel) return;
     }
 
-    placeToolPoint(point);
+    placeToolPoint(point, rawPoint);
   }, [currentTool, zoom, findSnapPoint, placeToolPoint, isPanningProp, isSpaceHeldProp]);
 
   const handleMouseMove = useCallback((e: fabric.TPointerEventInfo) => {
@@ -786,13 +813,7 @@ export function TakeoffCanvas({
     }
 
     // Only update drawing if actively drawing
-    if (!isDrawing) {
-      // DEBUG: log when we bail out due to isDrawing=false while in a polygon tool
-      if (["area", "perimeter", "deduction"].includes(currentTool) && currentPoints.length > 0) {
-        console.log("[CLOSE-DBG] handleMouseMove: isDrawing=false but have", currentPoints.length, "points — renderTempDrawing NOT called");
-      }
-      return;
-    }
+    if (!isDrawing) return;
 
     const point = shouldSnap && snapResult?.isSnapped ? snapResult.snapped : rawPoint;
 
@@ -920,11 +941,10 @@ export function TakeoffCanvas({
       pixelValue = calculatePolylineLength(currentPoints);
     }
 
-    const measurementType = currentTool === "area" || currentTool === "deduction"
+    // Perimeter tool draws a closed polygon and calculates area (m²), same as area tool
+    const measurementType = currentTool === "area" || currentTool === "perimeter" || currentTool === "deduction"
       ? "area"
-      : currentTool === "perimeter"
-        ? "perimeter"
-        : "length";
+      : "length";
 
     // Pass deduction flag if using deduction tool
     const options: MeasurementCreateOptions | undefined = currentTool === "deduction"
@@ -1034,7 +1054,6 @@ export function TakeoffCanvas({
   };
 
   // Render temporary polygon/polyline while drawing (live preview)
-  const closeDbgLastLog = useRef(0);
   const renderTempDrawing = (cursorPoint: Point, rawCursorPoint?: Point) => {
     const canvas = fabricRef.current;
     if (!canvas || currentPoints.length === 0) return;
@@ -1045,23 +1064,36 @@ export function TakeoffCanvas({
     );
     toRemove.forEach((obj) => canvas.remove(obj));
 
-    // Build points array with cursor position
-    const allPoints = [...currentPoints, cursorPoint];
+    const isPolygon = currentTool === "area" || currentTool === "perimeter" || currentTool === "deduction";
+    const color = activeLayer?.color || drawingStyle.strokeColor;
+
+    // Check if cursor is near the first point BEFORE building the polygon
+    // so we can snap the preview closed when near
+    const checkPoint = rawCursorPoint || cursorPoint;
+    const closeDistScreen = isPolygon && currentPoints.length >= 3 ? (() => {
+      const first = currentPoints[0];
+      const dx = (checkPoint.x - first.x) * zoom;
+      const dy = (checkPoint.y - first.y) * zoom;
+      return Math.sqrt(dx * dx + dy * dy);
+    })() : null;
+    // Visual indicator at 40px screen distance (close check uses 25px with raw cursor)
+    const isNearFirstPoint = closeDistScreen !== null && closeDistScreen < 40;
+
+    // Build points array — when near first point, snap cursor to first point for clean close preview
+    const effectiveCursor = isNearFirstPoint ? currentPoints[0] : cursorPoint;
+    const allPoints = [...currentPoints, effectiveCursor];
     const scaledPoints = allPoints.map((p) => ({
       x: p.x * zoom,
       y: p.y * zoom,
     }));
 
-    const isPolygon = currentTool === "area" || currentTool === "perimeter" || currentTool === "deduction";
-    const color = activeLayer?.color || drawingStyle.strokeColor;
-
     if (isPolygon) {
-      // Draw polygon preview with semi-transparent fill
+      // Draw polygon preview — solid stroke when snapped-to-close, dashed otherwise
       const polygon = new fabric.Polygon(scaledPoints, {
-        fill: `${color}22`,  // ~13% opacity for preview
+        fill: isNearFirstPoint ? `${color}33` : `${color}22`,
         stroke: color,
-        strokeWidth: 2,
-        strokeDashArray: [5, 5],  // Dashed to show it's not final
+        strokeWidth: isNearFirstPoint ? 3 : 2,
+        strokeDashArray: isNearFirstPoint ? undefined : [5, 5],
         selectable: false,
       }) as FabricObjectWithData;
       polygon.data = { isTempDrawing: true };
@@ -1132,27 +1164,20 @@ export function TakeoffCanvas({
       }) as FabricObjectWithData;
       label.data = { isTempDrawing: true };
       canvas.add(label);
-    }
 
-    // Check if cursor is near the first point (for polygon close indicator)
-    // Use raw cursor position (before snap) so the indicator appears gradually
-    // as the user approaches, rather than jumping when snap kicks in
-    const checkPoint = rawCursorPoint || cursorPoint;
-    const closeDistScreen = isPolygon && currentPoints.length >= 3 ? (() => {
-      const first = currentPoints[0];
-      const dx = (checkPoint.x - first.x) * zoom;
-      const dy = (checkPoint.y - first.y) * zoom;
-      return Math.sqrt(dx * dx + dy * dy);
-    })() : null;
-    const isNearFirstPoint = closeDistScreen !== null && closeDistScreen < 25;
-
-    // DEBUG: log close-detection state (throttled to ~once per second)
-    if (isPolygon && currentPoints.length >= 3) {
-      if (Date.now() - closeDbgLastLog.current > 1000) {
-        closeDbgLastLog.current = Date.now();
-        console.log(
-          `[CLOSE-DBG] pts=${currentPoints.length} dist=${closeDistScreen?.toFixed(1)}px near=${isNearFirstPoint} raw=(${checkPoint.x.toFixed(0)},${checkPoint.y.toFixed(0)}) first=(${currentPoints[0].x.toFixed(0)},${currentPoints[0].y.toFixed(0)}) zoom=${zoom.toFixed(2)}`
-        );
+      // Hint: show "Double-click to finish" near cursor when 2+ points placed
+      if (currentPoints.length >= 2) {
+        const lastPt = scaledPoints[scaledPoints.length - 1];
+        const hint = new fabric.FabricText("Double-click to finish", {
+          left: lastPt.x + 15,
+          top: lastPt.y + 10,
+          fontSize: 11,
+          fill: "#6B7280",
+          backgroundColor: "rgba(255,255,255,0.85)",
+          selectable: false,
+        }) as FabricObjectWithData;
+        hint.data = { isTempDrawing: true };
+        canvas.add(hint);
       }
     }
 
@@ -1177,28 +1202,29 @@ export function TakeoffCanvas({
     if (scaledPoints.length > 0) {
       const fp = scaledPoints[0];
       if (isNearFirstPoint) {
-        // Outer glow ring to signal "click to close"
+        // Large outer glow ring to signal "click to close"
         const glow = new fabric.Circle({
-          left: fp.x - 16,
-          top: fp.y - 16,
-          radius: 16,
-          fill: `${color}22`,
+          left: fp.x - 22,
+          top: fp.y - 22,
+          radius: 22,
+          fill: `${color}33`,
           stroke: color,
-          strokeWidth: 2,
-          strokeDashArray: [3, 3],
+          strokeWidth: 3,
+          strokeDashArray: [4, 4],
           selectable: false,
         }) as FabricObjectWithData;
         glow.data = { isTempDrawing: true };
         canvas.add(glow);
 
-        // "Click to close" label
+        // "Click to close" label with background for contrast
         const closeLabel = new fabric.FabricText("Click to close", {
-          left: fp.x + 20,
-          top: fp.y - 8,
-          fontSize: 11,
-          fill: color,
+          left: fp.x + 26,
+          top: fp.y - 10,
+          fontSize: 13,
+          fill: "#fff",
           fontWeight: "bold",
-          backgroundColor: "rgba(255,255,255,0.9)",
+          backgroundColor: color,
+          padding: 4,
           selectable: false,
         }) as FabricObjectWithData;
         closeLabel.data = { isTempDrawing: true };
