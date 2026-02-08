@@ -510,6 +510,24 @@ export default function CompanyDetailPage() {
               </button>
             );
           })}
+          {/* Warehouse tab - only shows if warehouse tab exists in API */}
+          {entityTabs.some(t => t.tab_key === 'warehouse' && t.enabled) && (() => {
+            const WarehouseIcon = getIcon('Warehouse');
+            return (
+              <button
+                onClick={() => handleTabChange("warehouse")}
+                className={cn(
+                  "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+                  activeTab === "warehouse"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                )}
+              >
+                <WarehouseIcon className="h-4 w-4 mr-2" />
+                Warehouse
+              </button>
+            );
+          })()}
         </div>
         </div>
       </div>
