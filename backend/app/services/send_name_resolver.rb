@@ -30,19 +30,6 @@ class SendNameResolver
   # Invalid characters for filenames (Windows + Unix combined)
   INVALID_FILENAME_CHARS = /[:\/*?"<>|\\]/
 
-  # Default templates by source type
-  # Email template includes time for chronological ordering
-  DEFAULT_TEMPLATES = {
-    "email" => "{ReceivedDateSort} {ReceivedTime} - {Subject}.eml",
-    "corporate" => "{CompanyCode} {DocTypeName} {Date}",
-    "job" => "{JobCode} {DocTypeName} {Date}",
-    "task" => "Task {Number} - {Description}",
-    "people" => "{PersonName} {DocTypeName}",
-    "contact" => "{Name} {DocTypeName}",
-    "user" => "{Name}",
-    "template" => "{Name}"
-  }.freeze
-
   # Resolve Send Name for a WarehouseDocument
   # @param warehouse_document [WarehouseDocument] The warehouse document record
   # @return [String] The resolved filename (sanitized, with extension)
@@ -89,9 +76,8 @@ class SendNameResolver
     # Build context from documentable
     context = build_context_from_documentable(documentable)
 
-    # Get template
-    template = documentable.try(:document_type)&.download_name.presence ||
-               DEFAULT_TEMPLATES[source_type]
+    # Get template from DocumentType (SSoT for non-warehouse documents)
+    template = documentable.try(:document_type)&.download_name.presence
 
     if template.present?
       expanded = expand_template(template, context)
@@ -120,15 +106,16 @@ class SendNameResolver
       return warehouse_document.download_name
     end
 
-    # 2. Try DocumentType.download_name template
-    # Note: Use document_type_record (association) not document_type (string column)
-    doc_type_record = documentable.try(:document_type_record) || documentable.try(:document_type)
-    if doc_type_record.respond_to?(:download_name) && doc_type_record.download_name.present?
-      return doc_type_record.download_name
+    # 2. SSoT: Use WarehouseFolderDocumentType template chain (same path as ui_name)
+    # Chain: WFDT.download_name_template → DocumentType.download_name → WarehouseFolder.download_name_template
+    wfdt = warehouse_document.warehouse_folder_document_type
+    if wfdt
+      effective = wfdt.effective_download_name_template
+      return effective if effective.present?
     end
 
-    # 3. Use source-specific default template
-    DEFAULT_TEMPLATES[warehouse_document.source_type]
+    # No template found — falls through to fallback chain in resolve()
+    nil
   end
 
   # Build template context from warehouse document
