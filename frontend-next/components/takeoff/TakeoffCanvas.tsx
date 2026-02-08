@@ -65,7 +65,8 @@ interface TakeoffCanvasProps {
     pixelValue: number,
     pageNumber: number,
     options?: MeasurementCreateOptions
-  ) => Promise<void>;
+  ) => Promise<TakeoffMeasurement | null>;
+  onCountPointAdd: (measurementId: number, point: Point) => Promise<TakeoffMeasurement | null>;
   onMeasurementDelete: (id: number) => Promise<void>;
   onMeasurementSelect: (measurement: TakeoffMeasurement | null) => void;
   selectedMeasurement: TakeoffMeasurement | null;
@@ -112,6 +113,7 @@ export function TakeoffCanvas({
   onClearCalibration,
   measurements,
   onMeasurementCreate,
+  onCountPointAdd,
   onMeasurementDelete,
   onMeasurementSelect,
   selectedMeasurement,
@@ -434,52 +436,53 @@ export function TakeoffCanvas({
 
     switch (geometry_data.type) {
       case "point": {
-        // Count marker
-        const point = scaledPoints[0];
+        // Count markers — one measurement can have multiple points
         const markerRadius = drawingStyle.markerSize / 2;
 
-        // Selected: add a large glow ring behind the marker
-        if (isSelected) {
-          const glow = new fabric.Circle({
-            left: point.x - markerRadius - 6,
-            top: point.y - markerRadius - 6,
-            radius: markerRadius + 6,
-            fill: "rgba(34,197,94,0.2)",
-            stroke: "#22C55E",
-            strokeWidth: 3,
-            selectable: false,
-            evented: false,
+        scaledPoints.forEach((point, idx) => {
+          // Selected: add a large glow ring behind each marker
+          if (isSelected) {
+            const glow = new fabric.Circle({
+              left: point.x - markerRadius - 6,
+              top: point.y - markerRadius - 6,
+              radius: markerRadius + 6,
+              fill: "rgba(34,197,94,0.2)",
+              stroke: "#22C55E",
+              strokeWidth: 3,
+              selectable: false,
+              evented: false,
+            }) as FabricObjectWithData;
+            glow.data = { isMeasurement: true, measurementId: measurement.id };
+            canvas.add(glow);
+          }
+
+          const marker = new fabric.Circle({
+            left: point.x - markerRadius,
+            top: point.y - markerRadius,
+            radius: markerRadius,
+            fill: isSelected ? "#22C55E" : color,
+            stroke: isSelected ? "#fff" : "#fff",
+            strokeWidth: isSelected ? 3 : 2,
+            selectable: currentTool === "select",
           }) as FabricObjectWithData;
-          glow.data = { isMeasurement: true, measurementId: measurement.id };
-          canvas.add(glow);
-        }
+          marker.data = { isMeasurement: true, measurementId: measurement.id };
 
-        const marker = new fabric.Circle({
-          left: point.x - markerRadius,
-          top: point.y - markerRadius,
-          radius: markerRadius,
-          fill: isSelected ? "#22C55E" : color,
-          stroke: isSelected ? "#fff" : "#fff",
-          strokeWidth: isSelected ? 3 : 2,
-          selectable: currentTool === "select",
-        }) as FabricObjectWithData;
-        marker.data = { isMeasurement: true, measurementId: measurement.id };
+          // Label — numbered 1, 2, 3... within this count group
+          const label = new fabric.FabricText(String(idx + 1), {
+            left: point.x,
+            top: point.y,
+            fontSize: drawingStyle.fontSize,
+            fill: "#fff",
+            fontWeight: "bold",
+            originX: "center",
+            originY: "center",
+            selectable: false,
+          }) as FabricObjectWithData;
+          label.data = { isMeasurement: true, measurementId: measurement.id };
 
-        // Label
-        const label = new fabric.FabricText(display_label || "?", {
-          left: point.x,
-          top: point.y,
-          fontSize: drawingStyle.fontSize,
-          fill: "#fff",
-          fontWeight: "bold",
-          originX: "center",
-          originY: "center",
-          selectable: false,
-        }) as FabricObjectWithData;
-        label.data = { isMeasurement: true, measurementId: measurement.id };
-
-        canvas.add(marker);
-        canvas.add(label);
+          canvas.add(marker);
+          canvas.add(label);
+        });
         break;
       }
 
@@ -902,16 +905,38 @@ export function TakeoffCanvas({
   // Count Tool
   // =============================================================================
 
-  const handleCountClick = async (point: Point) => {
-    const geometryData: GeometryData = {
-      type: "point",
-      points: [point],
-      canvasWidth: pageWidth,
-      canvasHeight: pageHeight,
-    };
+  // Track active count measurement — clicks accumulate into one measurement
+  const activeCountIdRef = useRef<number | null>(null);
 
-    await onMeasurementCreate("count", geometryData, 1, pageNumber);
-    setNextCountLabel((prev) => prev + 1);
+  // Reset active count when tool changes away from count
+  useEffect(() => {
+    if (currentTool !== "count") {
+      activeCountIdRef.current = null;
+    }
+  }, [currentTool]);
+
+  const handleCountClick = async (point: Point) => {
+    if (activeCountIdRef.current) {
+      // Add point to existing count measurement
+      const updated = await onCountPointAdd(activeCountIdRef.current, point);
+      if (updated) {
+        setNextCountLabel((prev) => prev + 1);
+      }
+    } else {
+      // First click — create new count measurement
+      const geometryData: GeometryData = {
+        type: "point",
+        points: [point],
+        canvasWidth: pageWidth,
+        canvasHeight: pageHeight,
+      };
+
+      const created = await onMeasurementCreate("count", geometryData, 1, pageNumber);
+      if (created) {
+        activeCountIdRef.current = created.id;
+        setNextCountLabel(2);
+      }
+    }
   };
 
   // =============================================================================

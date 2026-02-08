@@ -2364,10 +2364,13 @@ Rails.application.routes.draw do
         post "docsort/:docsort_item_id/detect_elements", action: :detect_elements_docsort
         get "docsort/:docsort_item_id/measurements", action: :measurements_docsort
         post "docsort/:docsort_item_id/measurements", action: :create_measurement_docsort
+        get "docsort/:docsort_item_id/layers", action: :layers_docsort
+        post "docsort/:docsort_item_id/layers", action: :create_layer_docsort
 
         # Measurement operations
         patch "measurements/:id", action: :update_measurement
         delete "measurements/:id", action: :delete_measurement
+        post "measurements/:id/count_point", action: :add_count_point
 
         # Generate Purchase Order from measurements
         post "plans/:job_plan_id/generate_po", action: :generate_po

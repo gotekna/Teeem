@@ -11,8 +11,8 @@ module Api
     #
     class PdfTakeoffController < ApplicationController
       before_action :set_job_plan, only: [:show, :calibrate, :measurements, :create_measurement, :generate_po, :detect_scale, :detect_elements]
-      before_action :set_docsort_item, only: [:show_docsort, :calibrate_docsort, :measurements_docsort, :create_measurement_docsort, :detect_scale_docsort, :detect_elements_docsort]
-      before_action :set_job, only: [:layers, :create_layer, :update_layer, :delete_layer]
+      before_action :set_docsort_item, only: [:show_docsort, :calibrate_docsort, :measurements_docsort, :create_measurement_docsort, :detect_scale_docsort, :detect_elements_docsort, :layers_docsort, :create_layer_docsort]
+      before_action :set_job, only: [:layers, :create_layer]
 
       # GET /api/v1/pdf_takeoff/plans/:job_plan_id
       # Get plan details with page scales for takeoff
@@ -196,13 +196,18 @@ module Api
         # pixel_value and page_number come nested inside the measurement hash
         m_params = params[:measurement] || {}
         if m_params[:page_number].present? && m_params[:pixel_value].present?
-          page_scale = PageScale.find_by(job_plan: @job_plan, page_number: m_params[:page_number])
-          if page_scale&.calibrated?
-            measurement.value = convert_measurement(
-              m_params[:pixel_value].to_f,
-              m_params[:measurement_type],
-              page_scale
-            )
+          if m_params[:measurement_type] == "count"
+            # Count doesn't need calibration — value is always the raw count
+            measurement.value = m_params[:pixel_value].to_f
+          else
+            page_scale = PageScale.find_by(job_plan: @job_plan, page_number: m_params[:page_number])
+            if page_scale&.calibrated?
+              measurement.value = convert_measurement(
+                m_params[:pixel_value].to_f,
+                m_params[:measurement_type],
+                page_scale
+              )
+            end
           end
         end
 
@@ -271,6 +276,46 @@ module Api
         update_params[:notes] = params[:notes] if params.key?(:notes)
 
         if measurement.update(update_params)
+          render json: {
+            success: true,
+            data: measurement_json(measurement.reload)
+          }
+        else
+          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/pdf_takeoff/measurements/:id/count_point
+      # Add a point to an existing count measurement (accumulate clicks)
+      def add_count_point
+        measurement = UnrealMeasurement.find(params[:id])
+
+        # Verify access
+        if measurement.job.present?
+          unless measurement.job.accessible_by?(current_user)
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        elsif measurement.docsort_item.present?
+          unless measurement.docsort_item.tenant_id == current_tenant.id
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        end
+
+        unless measurement.measurement_type == "count"
+          return render json: { success: false, error: "Not a count measurement" }, status: :unprocessable_entity
+        end
+
+        # Append the new point to geometry_data.points
+        geo = measurement.geometry_data || {}
+        points = geo["points"] || []
+        points << { "x" => params[:point][:x].to_f, "y" => params[:point][:y].to_f }
+        geo["points"] = points
+        measurement.geometry_data = geo
+
+        # Increment count value
+        measurement.value = points.length
+
+        if measurement.save
           render json: {
             success: true,
             data: measurement_json(measurement.reload)
@@ -522,6 +567,13 @@ module Api
       # GET /api/v1/pdf_takeoff/docsort/:docsort_item_id/measurements
       # Get measurements for a docsort item
       def measurements_docsort
+        # Auto-assign unassigned measurements to default layer
+        unassigned = @docsort_item.unreal_measurements.from_pdf_takeoff.where(takeoff_layer_id: nil)
+        if unassigned.any?
+          default_layer = TakeoffLayer.default_layer_for_docsort(@docsort_item)
+          unassigned.update_all(takeoff_layer_id: default_layer.id)
+        end
+
         scope = @docsort_item.unreal_measurements.from_pdf_takeoff
 
         scope = scope.for_page(params[:page_number].to_i) if params[:page_number].present?
@@ -552,14 +604,25 @@ module Api
         # pixel_value and page_number come nested inside the measurement hash
         m_params = params[:measurement] || {}
         if m_params[:page_number].present? && m_params[:pixel_value].present?
-          page_scale = PageScale.find_by(docsort_item: @docsort_item, page_number: m_params[:page_number])
-          if page_scale&.calibrated?
-            measurement.value = convert_measurement(
-              m_params[:pixel_value].to_f,
-              m_params[:measurement_type],
-              page_scale
-            )
+          if m_params[:measurement_type] == "count"
+            # Count doesn't need calibration — value is always the raw count
+            measurement.value = m_params[:pixel_value].to_f
+          else
+            page_scale = PageScale.find_by(docsort_item: @docsort_item, page_number: m_params[:page_number])
+            if page_scale&.calibrated?
+              measurement.value = convert_measurement(
+                m_params[:pixel_value].to_f,
+                m_params[:measurement_type],
+                page_scale
+              )
+            end
           end
+        end
+
+        # Auto-assign to default layer if none specified
+        if measurement.takeoff_layer_id.blank?
+          default_layer = TakeoffLayer.default_layer_for_docsort(@docsort_item)
+          measurement.takeoff_layer_id = default_layer.id
         end
 
         # Set display label for counts
@@ -649,14 +712,78 @@ module Api
       def delete_layer
         layer = TakeoffLayer.find(params[:id])
 
-        # Move measurements to General layer before deleting
+        # Move measurements to default layer before deleting
         if layer.measurements.any?
-          general = TakeoffLayer.general_layer_for(layer.job)
-          layer.measurements.update_all(takeoff_layer_id: general.id)
+          default_layer = if layer.job
+            TakeoffLayer.default_layer_for(layer.job)
+          else
+            TakeoffLayer.default_layer_for_docsort(layer.docsort_item)
+          end
+          layer.measurements.update_all(takeoff_layer_id: default_layer.id)
         end
 
         layer.destroy
         render json: { success: true }
+      end
+
+      # =============================================================================
+      # DocSort Layer Management
+      # =============================================================================
+
+      # GET /api/v1/pdf_takeoff/docsort/:docsort_item_id/layers
+      def layers_docsort
+        layers = @docsort_item.takeoff_layers.ordered.map do |layer|
+          {
+            id: layer.id,
+            name: layer.name,
+            color: layer.color,
+            display_order: layer.display_order,
+            visible: layer.visible,
+            locked: layer.locked,
+            measurement_count: layer.measurement_count
+          }
+        end
+
+        # Create default layers if none exist
+        if layers.empty?
+          TakeoffLayer.create_defaults_for_docsort(@docsort_item)
+          layers = @docsort_item.takeoff_layers.reload.ordered.map do |layer|
+            {
+              id: layer.id,
+              name: layer.name,
+              color: layer.color,
+              display_order: layer.display_order,
+              visible: layer.visible,
+              locked: layer.locked,
+              measurement_count: layer.measurement_count
+            }
+          end
+        end
+
+        render json: { success: true, data: { layers: layers } }
+      end
+
+      # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/layers
+      def create_layer_docsort
+        layer = @docsort_item.takeoff_layers.build(layer_params)
+        layer.tenant = current_tenant
+
+        if layer.save
+          render json: {
+            success: true,
+            data: {
+              id: layer.id,
+              name: layer.name,
+              color: layer.color,
+              display_order: layer.display_order,
+              visible: layer.visible,
+              locked: layer.locked,
+              measurement_count: 0
+            }
+          }, status: :created
+        else
+          render json: { success: false, errors: layer.errors.full_messages }, status: :unprocessable_entity
+        end
       end
 
       private

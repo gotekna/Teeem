@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_08_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_08_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9484,7 +9484,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_08_100000) do
 
   create_table "takeoff_layers", force: :cascade do |t|
     t.bigint "tenant_id", null: false
-    t.bigint "job_id", null: false
+    t.bigint "job_id"
     t.string "name", null: false
     t.string "color", default: "#3B82F6", null: false
     t.integer "display_order", default: 0, null: false
@@ -9492,6 +9492,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_08_100000) do
     t.boolean "locked", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "docsort_item_id"
+    t.index ["docsort_item_id", "display_order"], name: "index_takeoff_layers_on_docsort_item_id_and_order"
+    t.index ["docsort_item_id", "name"], name: "index_takeoff_layers_on_docsort_item_id_and_name", unique: true, where: "(docsort_item_id IS NOT NULL)"
+    t.index ["docsort_item_id"], name: "index_takeoff_layers_on_docsort_item_id"
     t.index ["job_id", "display_order"], name: "index_takeoff_layers_on_job_id_and_display_order"
     t.index ["job_id", "name"], name: "index_takeoff_layers_on_job_id_and_name", unique: true
     t.index ["job_id"], name: "index_takeoff_layers_on_job_id"
@@ -11781,6 +11785,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_08_100000) do
   add_foreign_key "synced_emails", "email_mailboxes"
   add_foreign_key "synced_emails", "tenants"
   add_foreign_key "table_health_checks", "foundations"
+  add_foreign_key "takeoff_layers", "docsort_items"
   add_foreign_key "takeoff_layers", "jobs"
   add_foreign_key "takeoff_layers", "tenants"
   add_foreign_key "takeoff_templates", "tenants"

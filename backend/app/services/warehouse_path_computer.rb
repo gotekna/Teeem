@@ -171,6 +171,11 @@ class WarehousePathComputer
   # Resolve the WarehouseFolderDocumentType for a document using document_type_id.
   # This is the same logic as the model callback but usable during backfill.
   #
+  # Sources for document_type_id (in priority order):
+  #   1. metadata["document_type_id"] (set during creation)
+  #   2. documentable.document_type_id (if model responds to it)
+  #   3. contact_documents table (legacy FK - for ContactDocument docs without linkable)
+  #
   # @param doc [WarehouseDocument]
   # @return [WarehouseFolderDocumentType, nil]
   def resolve_warehouse_folder_document_type(doc)
@@ -181,6 +186,14 @@ class WarehousePathComputer
     if doc_type_id.blank? && doc.documentable.present?
       doc_type_id = doc.documentable.document_type_id if doc.documentable.respond_to?(:document_type_id)
     end
+
+    # Fallback: recover document_type_id from contact_documents table (legacy FK)
+    # The ContactDocument model was removed but the table persists with document_type_id column.
+    # ~2,333 contact_documents rows have a document_type_id we can recover.
+    if doc_type_id.blank? && doc.documentable_type == "ContactDocument" && doc.documentable_id.present?
+      doc_type_id = recover_document_type_id_from_contact_documents(doc.documentable_id)
+    end
+
     return nil if doc_type_id.blank?
 
     # Determine warehouse_type code
@@ -496,6 +509,23 @@ class WarehousePathComputer
     end
   rescue => _e
     # Table might not exist in all environments - silently skip
+  end
+
+  # Recover document_type_id from the legacy contact_documents table.
+  # ~2,333 rows have a document_type_id that isn't stored anywhere else.
+  # Used by resolve_warehouse_folder_document_type to enable WFDT lookup
+  # for contact docs that would otherwise be stuck at depth-2 paths.
+  #
+  # @param documentable_id [Integer] The ContactDocument ID
+  # @return [Integer, nil] The document_type_id if found
+  def recover_document_type_id_from_contact_documents(documentable_id)
+    result = ActiveRecord::Base.connection.exec_query(
+      "SELECT document_type_id FROM contact_documents WHERE id = #{documentable_id.to_i} LIMIT 1"
+    )
+    result.first&.dig("document_type_id")
+  rescue => _e
+    # Table might not exist in all environments - silently skip
+    nil
   end
 
   # Derive missing tokens from the existing `folder` DB column on the document.

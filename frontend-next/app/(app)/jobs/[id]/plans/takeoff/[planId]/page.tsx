@@ -484,8 +484,8 @@ export default function TakeoffPage() {
       pixelValue: number,
       pageNumber: number,
       options?: MeasurementCreateOptions
-    ) => {
-      if (!planId) return;
+    ): Promise<TakeoffMeasurement | null> => {
+      if (!planId) return null;
 
       try {
         const response = await api.post<{
@@ -513,6 +513,7 @@ export default function TakeoffPage() {
             title: "Measurement Added",
             description: `${type}: ${measurementData.measurement.formatted_value}`,
           });
+          return measurementData.measurement;
         } else {
           throw new Error(response?.error || "Failed to create measurement");
         }
@@ -523,9 +524,38 @@ export default function TakeoffPage() {
           description: message,
           variant: "destructive",
         });
+        return null;
       }
     },
     [planId, activeLayer, toast]
+  );
+
+  // Add point to existing count measurement
+  const handleCountPointAdd = React.useCallback(
+    async (measurementId: number, point: { x: number; y: number }): Promise<TakeoffMeasurement | null> => {
+      try {
+        const response = await api.post<{
+          success: boolean;
+          data: TakeoffMeasurement;
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/measurements/${measurementId}/count_point`, {
+          point: { x: point.x, y: point.y },
+        });
+
+        if (response?.success && response?.data) {
+          const updated = response.data;
+          setMeasurements((prev) =>
+            prev.map((m) => (m.id === measurementId ? updated : m))
+          );
+          return updated;
+        }
+        return null;
+      } catch (err) {
+        console.error("Failed to add count point:", err);
+        return null;
+      }
+    },
+    []
   );
 
   // Handle AI element detection result
@@ -984,6 +1014,7 @@ export default function TakeoffPage() {
                   (m) => m.page_number === currentPageNumber
                 )}
                 onMeasurementCreate={handleMeasurementCreate}
+                onCountPointAdd={handleCountPointAdd}
                 onMeasurementDelete={handleMeasurementDelete}
                 onMeasurementSelect={setSelectedMeasurement}
                 selectedMeasurement={selectedMeasurement}
