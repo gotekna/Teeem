@@ -81,7 +81,8 @@ export default function DocsortTakeoffPage() {
   const [layers, setLayers] = React.useState<TakeoffLayer[]>([
     { id: -1, name: "Measurements", color: "#3B82F6", display_order: 1, visible: true, locked: false, measurement_count: 0 }
   ]);
-  const [activeLayer, setActiveLayer] = React.useState<TakeoffLayer | null>(layers[0]);
+  // null = "All" view (shows all layers, saves to default layer)
+  const [activeLayer, setActiveLayer] = React.useState<TakeoffLayer | null>(null);
 
   // Tool state
   const [currentTool, setCurrentTool] = React.useState<TakeoffTool>("select");
@@ -166,7 +167,14 @@ export default function DocsortTakeoffPage() {
       }>(`/api/v1/pdf_takeoff/docsort/${itemId}/measurements`);
 
       if (response?.success && response?.data) {
-        setMeasurements(response.data.measurements);
+        // Preserve virtual layer assignments when refreshing from backend
+        setMeasurements((prev) => {
+          const layerMap = new Map(prev.map((m) => [m.id, m.layer]));
+          return response.data.measurements.map((m) => ({
+            ...m,
+            layer: layerMap.get(m.id) || m.layer,
+          }));
+        });
         setSummary(response.data.summary);
       }
     } catch (err) {
@@ -389,12 +397,17 @@ export default function DocsortTakeoffPage() {
 
         if (response?.success && response?.data) {
           const measurementData = response.data;
-          setMeasurements((prev) => [...prev, measurementData.measurement]);
+          // Stamp the active layer onto the measurement (docsort layers are virtual/client-side)
+          const newMeasurement = {
+            ...measurementData.measurement,
+            layer: activeLayer ? { id: activeLayer.id, name: activeLayer.name, color: activeLayer.color } : measurementData.measurement.layer,
+          };
+          setMeasurements((prev) => [...prev, newMeasurement]);
           setSummary(measurementData.summary);
 
           toast({
             title: "Measurement Added",
-            description: `${type}: ${measurementData.measurement.formatted_value}`,
+            description: `${type}: ${newMeasurement.formatted_value}`,
           });
         } else {
           throw new Error(response?.error || "Failed to create measurement");
@@ -408,7 +421,7 @@ export default function DocsortTakeoffPage() {
         });
       }
     },
-    [itemId, toast]
+    [itemId, activeLayer, toast]
   );
 
   // Handle AI element detection result
@@ -540,6 +553,28 @@ export default function DocsortTakeoffPage() {
     [selectedMeasurement, fetchMeasurements, toast]
   );
 
+  // Rename a measurement (update category)
+  const handleRenameMeasurement = React.useCallback(
+    async (id: number, name: string) => {
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: TakeoffMeasurement;
+        }>(`/api/v1/pdf_takeoff/measurements/${id}`, {
+          category: name || null,
+        });
+        if (response?.success && response?.data) {
+          setMeasurements((prev) =>
+            prev.map((m) => (m.id === id ? { ...response.data, layer: m.layer } : m))
+          );
+        }
+      } catch {
+        toast({ title: "Error", description: "Failed to rename measurement", variant: "destructive" });
+      }
+    },
+    [toast]
+  );
+
   // Open pricebook selector for a measurement
   const handleAssignPricebook = React.useCallback(
     (measurementId: number) => {
@@ -568,10 +603,10 @@ export default function DocsortTakeoffPage() {
 
         if (response?.success && response?.data) {
           setMeasurements((prev) =>
-            prev.map((m) => (m.id === measurementForPricebook.id ? response.data : m))
+            prev.map((m) => (m.id === measurementForPricebook.id ? { ...response.data, layer: m.layer } : m))
           );
           if (selectedMeasurement?.id === measurementForPricebook.id) {
-            setSelectedMeasurement(response.data);
+            setSelectedMeasurement((prev) => prev ? { ...response.data, layer: prev.layer } : response.data);
           }
           fetchMeasurements();
 
@@ -610,10 +645,10 @@ export default function DocsortTakeoffPage() {
 
       if (response?.success && response?.data) {
         setMeasurements((prev) =>
-          prev.map((m) => (m.id === measurementForPricebook.id ? response.data : m))
+          prev.map((m) => (m.id === measurementForPricebook.id ? { ...response.data, layer: m.layer } : m))
         );
         if (selectedMeasurement?.id === measurementForPricebook.id) {
-          setSelectedMeasurement(response.data);
+          setSelectedMeasurement((prev) => prev ? { ...response.data, layer: prev.layer } : response.data);
         }
         fetchMeasurements();
 
@@ -838,11 +873,13 @@ export default function DocsortTakeoffPage() {
             <TakeoffSidebar
               measurements={measurements}
               layers={layers}
+              activeLayer={activeLayer}
               summary={summary}
               selectedMeasurement={selectedMeasurement}
               onMeasurementSelect={setSelectedMeasurement}
               onMeasurementDelete={handleMeasurementDelete}
               onAssignPricebook={handleAssignPricebook}
+              onRenameMeasurement={handleRenameMeasurement}
               onGeneratePO={handleGeneratePO}
               isLoading={false}
               onClose={() => setSidebarOpen(false)}

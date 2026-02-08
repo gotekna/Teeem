@@ -218,9 +218,11 @@ class WarehouseDocument < ApplicationRecord
     WarehouseFolder.warehouse_type_to_warehouse_folder[wt_code] || source_type_to_root_folder
   end
 
-  # NOTE (Feb 2026 SSoT): folder column REMOVED from table.
-  # The folder method now computes folder path at RUNTIME by querying WarehouseFolder SSoT.
-  # This ensures folder names always match WarehouseFolder configuration without sync issues.
+  # ⚠️ WARNING (Feb 2026): The `folder` DB column STILL EXISTS in the table.
+  # This method SHADOWS the column reader. To access the actual DB value use:
+  #   doc.read_attribute(:folder)  # → historical value (e.g., "Emails/rachel@tekna.com.au/2025/11")
+  #   doc.folder                   # → computed value (e.g., "Emails")
+  # The DB column retains historical path data used as fallback in WarehousePathComputer.
 
   # ========================================
   # Computed UI Name (Runtime Resolution)
