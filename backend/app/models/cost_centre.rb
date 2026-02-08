@@ -16,6 +16,8 @@
 #
 class CostCentre < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = :code
 
   # Centre types
   CENTRE_TYPES = %w[department project division region other].freeze

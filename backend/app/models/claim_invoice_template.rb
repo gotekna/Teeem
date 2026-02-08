@@ -12,6 +12,7 @@
 #
 class ClaimInvoiceTemplate < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
 
   # Style keys for the different template designs
   STYLE_KEYS = %w[classic modern bold minimal].freeze

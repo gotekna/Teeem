@@ -20,6 +20,8 @@
 class WarehouseType < ApplicationRecord
   # Multi-tenancy - optional to allow global templates
   acts_as_tenant :tenant, optional: true
+  include ConfigSyncable
+  self.sync_key_source = :code
 
   # Constants
   UNASSIGNED_CODE = "unassigned".freeze

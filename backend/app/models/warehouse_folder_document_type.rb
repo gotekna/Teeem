@@ -15,6 +15,8 @@
 #
 class WarehouseFolderDocumentType < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = [:warehouse_folder_id, :document_type_id]
 
   belongs_to :warehouse_folder
   belongs_to :document_type

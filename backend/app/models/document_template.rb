@@ -42,6 +42,7 @@
 class DocumentTemplate < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
+  include ConfigSyncable
 
   # Constants
   CATEGORIES = %w[job contact quote invoice contract letter report certificate].freeze

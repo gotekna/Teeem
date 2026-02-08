@@ -568,7 +568,6 @@ module Api
             ui_name: review.new_file_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
             original_filename: review.new_file_name,
             source_type: "corporate",
-            folder: folder_path,
             content_type: Marcel::MimeType.for(name: review.new_file_name),
             file_size: review.new_file_size,
             documentable: @case.corporate

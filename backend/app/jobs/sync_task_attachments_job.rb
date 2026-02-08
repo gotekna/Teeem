@@ -101,7 +101,6 @@ class SyncTaskAttachmentsJob < ApplicationJob
     # Create the warehouse document
     att.create_warehouse_document!(
       source_type: "task",
-      folder: folder,
       display_name: display_name,
       original_filename: att.attachable&.try(:original_filename) || att.attachable&.try(:file_name),
       storage_blob: blob,

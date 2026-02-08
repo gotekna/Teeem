@@ -6,6 +6,8 @@
 #
 class RecipeCategory < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = :code
 
   # Self-referential for hierarchy
   belongs_to :parent, class_name: 'RecipeCategory', optional: true

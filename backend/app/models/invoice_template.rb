@@ -23,6 +23,7 @@
 #
 class InvoiceTemplate < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
 
   # Constants
   SECTION_TYPES = %w[header client job line_items totals payment footer custom].freeze

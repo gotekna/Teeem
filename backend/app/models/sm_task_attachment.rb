@@ -171,7 +171,7 @@ class SmTaskAttachment < ApplicationRecord
 
     # FRC (Feb 2026): Prevent duplicate WarehouseDocuments for same blob+folder
     # Same file can appear in multiple folders, but NOT multiple times in same folder
-    existing = WarehouseDocument.find_by(storage_blob_id: blob.id, folder: folder)
+    existing = WarehouseDocument.find_by(storage_blob_id: blob.id, folder_path: folder)
     if existing
       Rails.logger.debug("[SmTaskAttachment] ##{id}: Skipping duplicate - WD #{existing.id} already exists for blob #{blob.id} in #{folder}")
       return
@@ -182,7 +182,6 @@ class SmTaskAttachment < ApplicationRecord
     create_warehouse_document!(
       tenant_id: sm_task.tenant_id,
       source_type: "task",
-      folder: folder,
       display_name: name,
       original_filename: filename,
       storage_blob: blob,

@@ -447,7 +447,6 @@ class BankStatementReport < ApplicationRecord
       source_type: "xero",
       display_name: display_name,
       original_filename: filename,
-      folder: folder_path,
       storage_blob: blob,
       linkable: corporate,
       metadata: {

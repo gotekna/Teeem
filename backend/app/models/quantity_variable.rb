@@ -11,6 +11,8 @@
 #
 class QuantityVariable < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = :variable_name
 
   # Constants
   CATEGORIES = %w[dimensions counts specifications computed].freeze

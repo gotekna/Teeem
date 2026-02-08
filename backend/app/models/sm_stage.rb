@@ -6,6 +6,7 @@
 #
 class SmStage < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
 
   validates :name, presence: true
 

@@ -1,6 +1,7 @@
 class MeetingType < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
+  include ConfigSyncable
 
   # Validations
   validates :name, presence: true, uniqueness: { scope: :tenant_id }

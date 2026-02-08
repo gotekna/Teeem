@@ -2,6 +2,8 @@
 # When a task completes, spawns "GET - {DocumentType.display_name}" tasks
 class SmScheduleMasterDocumentType < ApplicationRecord
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = [:sm_schedule_master_id, :document_type_id]
 
   belongs_to :sm_schedule_master
   belongs_to :document_type

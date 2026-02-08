@@ -472,8 +472,7 @@ module Api
           document = WarehouseDocument.create!(
             ui_name: "Invoice #{invoice.invoice_number || 'Draft'}",  # SSoT: display_name renamed to ui_name (Feb 2026)
             documentable: invoice,
-            source_type: "generated",
-            folder: "Invoices"
+            source_type: "generated"
           )
 
           # Attach the PDF via StorageBlob
