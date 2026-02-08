@@ -573,16 +573,24 @@ export function XeroInvoicesListByTenant({
       clearTimeout(clickTimeoutRef.current);
       clickTimeoutRef.current = null;
       setSelectedInvoice(invoice);
-      fetchPdfUrl(invoice.id);
+      if (invoice.has_pdf) {
+        fetchPdfUrl(invoice.id);
+      } else {
+        setPdfUrl(null);
+      }
       fetchInvoiceDetails(invoice.external_id);
       setFullPageOpen(true);
     } else {
       // Single click - wait to see if double click follows
       clickTimeoutRef.current = setTimeout(() => {
         clickTimeoutRef.current = null;
-        // Single click confirmed - open drawer with PDF
+        // Single click confirmed - open drawer with PDF or details
         setSelectedInvoice(invoice);
-        fetchPdfUrl(invoice.id);
+        if (invoice.has_pdf) {
+          fetchPdfUrl(invoice.id);
+        } else {
+          setPdfUrl(null);
+        }
         setDrawerOpen(true);
       }, 250);
     }
@@ -703,7 +711,7 @@ export function XeroInvoicesListByTenant({
                 </div>
               )}
             </SheetHeader>
-            <div className="flex-1 h-[calc(100vh-120px)]">
+            <div className="flex-1 h-[calc(100vh-120px)] overflow-auto">
               {loadingPdf ? (
                 <div className="flex items-center justify-center h-full">
                   <Spinner size={24} className="text-muted-foreground" />
@@ -714,6 +722,53 @@ export function XeroInvoicesListByTenant({
                   className="w-full h-full border-0"
                   title={selectedInvoice?.invoice_number || "Invoice PDF"}
                 />
+              ) : selectedInvoice ? (
+                <div className="p-6 space-y-6">
+                  {/* Bill/Invoice summary when no PDF */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Number</p>
+                        <p className="font-medium">{selectedInvoice.invoice_number}</p>
+                      </div>
+                      {selectedInvoice.reference && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Reference</p>
+                          <p className="font-medium">{selectedInvoice.reference}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs text-muted-foreground">Contact</p>
+                        <p className="font-medium">{selectedInvoice.contact_name}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Status</p>
+                        <Badge variant="secondary">{selectedInvoice.status}</Badge>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total</p>
+                        <p className="font-semibold text-lg">${selectedInvoice.total?.toLocaleString("en-AU", { minimumFractionDigits: 2 })}</p>
+                      </div>
+                      {selectedInvoice.amount_due > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Amount Due</p>
+                          <p className="font-semibold text-orange-600 dark:text-orange-400">${selectedInvoice.amount_due?.toLocaleString("en-AU", { minimumFractionDigits: 2 })}</p>
+                        </div>
+                      )}
+                    </div>
+                    {selectedInvoice.job_title && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Job</p>
+                        <p className="font-medium">{selectedInvoice.job_title}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-center py-4 text-muted-foreground border-t">
+                    <FileText className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No PDF available from Xero</p>
+                    <p className="text-xs mt-1">Bills don&apos;t have auto-generated PDFs. Double-click to see full details.</p>
+                  </div>
+                </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   No PDF available
