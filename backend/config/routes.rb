@@ -2384,6 +2384,28 @@ Rails.application.routes.draw do
         delete "layers/:id", action: :delete_layer
       end
 
+      # Room Takeoff Instances (template-based measurement checklists)
+      scope "pdf_takeoff", controller: :takeoff_room_instances do
+        # Room instances scoped to plan or docsort
+        get "plans/:job_plan_id/rooms", action: :index_for_plan
+        post "plans/:job_plan_id/rooms", action: :create_for_plan
+        get "docsort/:docsort_item_id/rooms", action: :index_for_docsort
+        post "docsort/:docsort_item_id/rooms", action: :create_for_docsort
+
+        # Room instance operations
+        get "rooms/:id", action: :show
+        patch "rooms/:id", action: :update
+        delete "rooms/:id", action: :destroy
+
+        # Slot operations
+        post "rooms/:id/slots/:slot_id/fill", action: :fill_slot
+        delete "rooms/:id/slots/:slot_id/fill", action: :clear_slot
+        patch "rooms/:id/slots/:slot_id", action: :update_slot
+
+        # PO generation from room
+        post "rooms/:id/generate_po", action: :generate_po
+      end
+
       # Takeoff Templates (measurement patterns)
       resources :takeoff_templates, path: "pdf_takeoff/templates", only: [ :index, :show, :create, :update, :destroy ] do
         member do

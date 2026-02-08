@@ -24,12 +24,12 @@ import {
   Undo2,
   Redo2,
 } from "lucide-react";
-import type { TakeoffTool, TakeoffLayer } from "./types";
+import type { TakeoffTool, TakeoffLayer, TakeoffRoomInstance } from "./types";
 import { TAKEOFF_TOOLS } from "./types";
 import { LayerManager } from "./LayerManager";
 import { ScaleDetector } from "./ScaleDetector";
 import { ElementDetector, type DetectedElement } from "./ElementDetector";
-import { TemplateSelector, type TakeoffTemplate, type TemplateStep } from "./TemplateSelector";
+import { RoomManager, type TakeoffTemplate as RoomTemplate } from "./RoomManager";
 import { OfflineIndicator } from "./OfflineIndicator";
 
 // =============================================================================
@@ -76,8 +76,14 @@ interface TakeoffToolbarProps {
   onScaleDetected: (scaleText: string, referenceMm: number) => void;
   onElementsDetected: (elements: DetectedElement[]) => void;
 
-  // Templates
-  onTemplateSelect: (template: TakeoffTemplate, steps: TemplateStep[]) => void;
+  // Room Instances
+  rooms?: TakeoffRoomInstance[];
+  activeRoom?: TakeoffRoomInstance | null;
+  onRoomChange?: (room: TakeoffRoomInstance | null) => void;
+  onCreateRoom?: (templateId: number, name?: string) => Promise<void>;
+  onUpdateRoom?: (id: number, updates: { name?: string; status?: string; notes?: string }) => Promise<void>;
+  onDeleteRoom?: (id: number) => Promise<void>;
+  roomTemplates?: RoomTemplate[];
 
   // Offline
   pdfUrl?: string | null;
@@ -132,7 +138,13 @@ export function TakeoffToolbar({
   docsortItemId,
   onScaleDetected,
   onElementsDetected,
-  onTemplateSelect,
+  rooms = [],
+  activeRoom = null,
+  onRoomChange,
+  onCreateRoom,
+  onUpdateRoom,
+  onDeleteRoom,
+  roomTemplates = [],
   pdfUrl,
   onSyncComplete,
 }: TakeoffToolbarProps) {
@@ -305,11 +317,18 @@ export function TakeoffToolbar({
           disabled={!isCalibrated}
         />
 
-        {/* Templates */}
-        <TemplateSelector
-          onTemplateSelect={onTemplateSelect}
-          disabled={!isCalibrated}
-        />
+        {/* Room Manager */}
+        {onRoomChange && onCreateRoom && onUpdateRoom && onDeleteRoom && (
+          <RoomManager
+            rooms={rooms}
+            activeRoom={activeRoom}
+            onRoomChange={onRoomChange}
+            onCreateRoom={onCreateRoom}
+            onUpdateRoom={onUpdateRoom}
+            onDeleteRoom={onDeleteRoom}
+            templates={roomTemplates}
+          />
+        )}
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 

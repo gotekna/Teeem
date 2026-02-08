@@ -22,6 +22,7 @@ class UnrealMeasurement < ApplicationRecord
   # PDF Takeoff associations (Feb 2026)
   belongs_to :takeoff_layer, optional: true
   belongs_to :parent_measurement, class_name: "UnrealMeasurement", optional: true
+  belongs_to :takeoff_room_slot, optional: true
   has_many :deductions, class_name: "UnrealMeasurement", foreign_key: :parent_measurement_id, dependent: :nullify
 
   # Validations
@@ -58,6 +59,7 @@ class UnrealMeasurement < ApplicationRecord
 
   # Callbacks
   before_validation :set_default_unit, on: :create
+  before_destroy :clear_room_slot
 
   # Instance Methods
 
@@ -148,6 +150,17 @@ class UnrealMeasurement < ApplicationRecord
   end
 
   private
+
+  # Clear linked room slot when measurement is deleted
+  def clear_room_slot
+    return unless takeoff_room_slot_id.present?
+
+    takeoff_room_slot&.update(
+      measurement_id: nil,
+      quantity: 0,
+      is_filled: false
+    )
+  end
 
   def set_default_unit
     return if unit.present?

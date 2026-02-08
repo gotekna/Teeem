@@ -225,6 +225,43 @@ export const DEFAULT_DRAWING_STYLE: DrawingStyle = {
 };
 
 // =============================================================================
+// Room Instances (Template-Based Measurement Checklists)
+// =============================================================================
+
+export interface TakeoffRoomSlot {
+  id: number;
+  step_index: number;
+  label: string;
+  measurement_type: "count" | "area" | "linear" | "perimeter";
+  color: string | null;
+  prompt: string | null;
+  pricebook_item_id: number | null;
+  pricebook_item_code: string | null;
+  pricebook_item_name: string | null;
+  pricebook_item_price: number | null;
+  measurement_id: number | null;
+  quantity: number;
+  is_filled: boolean;
+  line_total: number | null;
+  unit_display: string;
+}
+
+export interface TakeoffRoomInstance {
+  id: number;
+  name: string;
+  status: "in_progress" | "complete";
+  display_order: number;
+  notes: string | null;
+  template_name: string;
+  template_category: string | null;
+  filled: number;
+  total: number;
+  total_cost: number;
+  slots: TakeoffRoomSlot[];
+  created_at: string;
+}
+
+// =============================================================================
 // Events
 // =============================================================================
 
