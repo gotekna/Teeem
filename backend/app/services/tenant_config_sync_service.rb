@@ -212,8 +212,44 @@ class TenantConfigSyncService
     },
 
     # ============================================================================
+    # Estimating Group
+    # ============================================================================
+    takeoff_templates: {
+      model: "TakeoffTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :category, :is_system, :is_active, :configuration,
+                    :usage_count],
+      description: "Measurement/takeoff templates for estimating",
+      group: "estimating"
+    },
+
+    # ============================================================================
+    # Finance Group
+    # ============================================================================
+    xero_chart_of_accounts: {
+      model: "XeroChartOfAccount",
+      name_field: :account_name,
+      match_fields: [:account_code],
+      sync_fields: [:account_code, :account_name, :account_type, :tax_type, :description,
+                    :active],
+      description: "Chart of accounts for Xero mapping",
+      group: "finance"
+    },
+
+    # ============================================================================
     # Warehouse Group
     # ============================================================================
+    warehouse_types: {
+      model: "WarehouseType",
+      name_field: :display_name,
+      match_fields: [:code],
+      sync_fields: [:code, :display_name, :description, :icon_name, :folder_path_template,
+                    :is_system, :enabled, :order_position, :source_model, :token_config,
+                    :records_config],
+      description: "Warehouse type definitions (job, contact, corporate, etc.)",
+      group: "warehouse"
+    },
     warehouse_folders: {
       model: "WarehouseFolder",
       name_field: :display_name,
@@ -247,6 +283,8 @@ class TenantConfigSyncService
     "contacts" => "Contacts",
     "schedule" => "Schedule Master",
     "operations" => "Operations",
+    "estimating" => "Estimating",
+    "finance" => "Finance",
     "warehouse" => "Warehouse"
   }.freeze
 

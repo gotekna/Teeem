@@ -3,6 +3,19 @@ module Api
     class EmailCaseProposalsController < ApplicationController
       before_action :set_proposal, only: [ :show, :approve, :reject, :re_extract ]
 
+      # GET /api/v1/email_case_proposals/pending_count
+      # Lightweight count-only endpoint for sidebar badges
+      # FRC (Feb 2026): Sidebar was fetching full proposal objects just to count them,
+      # adding 3-5 seconds to every page load. This returns only the count.
+      def pending_count
+        tenant_synced_email_ids = SyncedEmail.pluck(:id)
+        count = EmailCaseProposal
+          .where(email_warehouse_id: tenant_synced_email_ids, status: "pending")
+          .count
+
+        render json: { success: true, count: count }
+      end
+
       # GET /api/v1/email_case_proposals
       # List proposals with filtering
       # SSoT (Jan 2026): Tenant scoping via SyncedEmail join

@@ -624,52 +624,43 @@ export function Sidebar() {
       return null;
     };
 
+    // FRC (Feb 2026): Badge counts were fetching full proposal objects sequentially,
+    // adding 3-8 seconds to every page load. Now uses lightweight count endpoints
+    // and runs all fetches in parallel with Promise.allSettled.
     const loadBadgeCounts = async () => {
-      // Load pending email job proposals count (for Leads)
-      const jobResponse = await safeFetch<{ proposals: Array<{ status: string }> }>(
-        "/api/v1/email_job_proposals?status=pending"
-      );
-      if (jobResponse) {
-        const pendingJobCount = (jobResponse.proposals || []).filter(p => p.status === "pending").length;
-        setBadges(prev => ({ ...prev, pendingProposals: pendingJobCount }));
-      }
+      const [jobResult, caseResult, billResult, plansResult, emailResult] = await Promise.allSettled([
+        safeFetch<{ count: number }>("/api/v1/email_job_proposals/pending_count"),
+        safeFetch<{ count: number }>("/api/v1/email_case_proposals/pending_count"),
+        safeFetch<{ pending: number; errors: number; awaiting_approval: number }>("/api/v1/bill_inbox/stats"),
+        safeFetch<{ pending_count: number }>("/api/v1/plan_folder_scans/pending_count"),
+        safeFetch<{ total: number; by_account: Array<{ email: string; count: number }> }>("/api/v1/synced_emails/unread_counts"),
+      ]);
 
-      // Load pending email case proposals count (for Cases)
-      const caseResponse = await safeFetch<{ proposals: Array<{ status: string }> }>(
-        "/api/v1/email_case_proposals?status=pending"
-      );
-      if (caseResponse) {
-        const pendingCaseCount = (caseResponse.proposals || []).filter(p => p.status === "pending").length;
-        setBadges(prev => ({ ...prev, pendingCaseProposals: pendingCaseCount }));
-      }
+      setBadges(prev => {
+        const updated = { ...prev };
+        if (jobResult.status === "fulfilled" && jobResult.value) {
+          updated.pendingProposals = jobResult.value.count || 0;
+        }
+        if (caseResult.status === "fulfilled" && caseResult.value) {
+          updated.pendingCaseProposals = caseResult.value.count || 0;
+        }
+        if (billResult.status === "fulfilled" && billResult.value) {
+          const bill = billResult.value;
+          updated.pendingBills = (bill.pending || 0) + (bill.errors || 0) + (bill.awaiting_approval || 0);
+        }
+        if (plansResult.status === "fulfilled" && plansResult.value) {
+          updated.plans_pending = plansResult.value.pending_count || 0;
+        }
+        if (emailResult.status === "fulfilled" && emailResult.value) {
+          updated.unreadEmails = emailResult.value.total || 0;
+        }
+        return updated;
+      });
 
-      // Load pending bills count (for Finance)
-      const billResponse = await safeFetch<{ pending: number; errors: number; awaiting_approval: number }>(
-        "/api/v1/bill_inbox/stats"
-      );
-      if (billResponse) {
-        // Show badge for pending + errors + awaiting approval
-        const pendingBillsCount = (billResponse.pending || 0) + (billResponse.errors || 0) + (billResponse.awaiting_approval || 0);
-        setBadges(prev => ({ ...prev, pendingBills: pendingBillsCount }));
-      }
-
-      // Load pending plans count (for Plans under Documents)
-      const plansResponse = await safeFetch<{ pending_count: number }>(
-        "/api/v1/plan_folder_scans/pending_count"
-      );
-      if (plansResponse) {
-        setBadges(prev => ({ ...prev, plans_pending: plansResponse.pending_count || 0 }));
-      }
-
-      // Load unread email counts
-      const emailResponse = await safeFetch<{ total: number; by_account: Array<{ email: string; count: number }> }>(
-        "/api/v1/synced_emails/unread_counts"
-      );
-      if (emailResponse) {
-        setBadges(prev => ({ ...prev, unreadEmails: emailResponse.total || 0 }));
-        // Store per-account counts for email account badges
+      // Update email account badges separately (outside the main setBadges)
+      if (emailResult.status === "fulfilled" && emailResult.value) {
         const accountBadges: Record<string, number> = {};
-        (emailResponse.by_account || []).forEach(({ email, count }) => {
+        (emailResult.value.by_account || []).forEach(({ email, count }) => {
           if (email) {
             accountBadges[email.toLowerCase()] = count;
           }
@@ -683,10 +674,10 @@ export function Sidebar() {
       if (badgeFetchingRef.current) return;
       badgeFetchingRef.current = true;
 
-      // Small delay to ensure auth state is fully propagated
+      // Defer badge counts to let page content load first (FRC: was 100ms, blocking page paint)
       const initialDelay = setTimeout(() => {
         loadBadgeCounts();
-      }, 100);
+      }, 1500);
 
       // Refresh every 60 seconds
       const interval = setInterval(loadBadgeCounts, 60000);

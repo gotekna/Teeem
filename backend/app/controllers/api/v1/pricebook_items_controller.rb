@@ -683,6 +683,8 @@ module Api
             .select { |ph| ph.date_effective.nil? || ph.date_effective <= today }
             .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
 
+          # FRC (Feb 2026): new_price and current_price are nullable decimals (allow_nil: true).
+          # Must use .to_f for nil-safe arithmetic to avoid NoMethodError/TypeError on nil values.
           if active_price && active_price.new_price != item.current_price
             issues << {
               item_id: item.id,
@@ -694,7 +696,7 @@ module Api
               active_price_id: active_price.id,
               active_price_value: active_price.new_price,
               active_price_date: active_price.date_effective || active_price.created_at,
-              difference: (active_price.new_price - item.current_price).round(2)
+              difference: (active_price.new_price.to_f - item.current_price.to_f).round(2)
             }
           elsif !active_price && item.current_price.present?
             issues << {
