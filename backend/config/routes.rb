@@ -1570,6 +1570,9 @@ Rails.application.routes.draw do
 
       # Email Job Proposals (AI-powered job creation from emails)
       resources :email_job_proposals, only: [ :index, :show, :create ] do
+        collection do
+          get :pending_count
+        end
         member do
           post :approve
           post :reject
@@ -1581,6 +1584,7 @@ Rails.application.routes.draw do
       resources :email_case_proposals, only: [ :index, :show, :create ] do
         collection do
           get :relationship_types
+          get :pending_count
         end
         member do
           post :approve

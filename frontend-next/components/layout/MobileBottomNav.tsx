@@ -63,9 +63,9 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [
   {
     id: "photos",
     label: "Photos",
-    href: "/job-photos",
+    href: "/jobs/photos",
     icon: Camera,
-    matchPrefix: "/job-photos",
+    matchPrefix: "/jobs/photos",
   },
   {
     id: "pos",

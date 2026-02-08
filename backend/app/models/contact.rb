@@ -5,6 +5,15 @@ class Contact < ApplicationRecord
   include SelfHealing  # Auto-fix formatting issues and earn System kudos
   include Searchable
 
+  # FRC (Feb 2026): Contacts page took 7 seconds due to N+1 queries in record_to_json.
+  # The default apply_eager_loading skips self-referential belongs_to (line 1390 records_controller),
+  # but record_to_json expands ALL _id columns via record.send(association_name) (line 1043).
+  # For 100 records × 4 self-refs = 400 individual SELECT queries.
+  # This whitelist includes the self-refs so they're batch-loaded in 4 queries total.
+  def self.safe_eager_load_associations
+    [:primary_company, :parent_company_contact, :support_contact, :upline_contact]
+  end
+
   # Searchable columns for full-text search (GIN index)
   # Note: email/mobile_phone columns removed - data now in contact_emails/contact_phones tables
   searchable_columns :first_name, :last_name, :company_name_or_trust, :display_name, :abn
