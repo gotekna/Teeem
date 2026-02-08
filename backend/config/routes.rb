@@ -2371,6 +2371,8 @@ Rails.application.routes.draw do
         patch "measurements/:id", action: :update_measurement
         delete "measurements/:id", action: :delete_measurement
         post "measurements/:id/count_point", action: :add_count_point
+        patch "measurements/:id/move_point", action: :move_point
+        delete "measurements/:id/remove_point", action: :remove_point
 
         # Generate Purchase Order from measurements
         post "plans/:job_plan_id/generate_po", action: :generate_po
