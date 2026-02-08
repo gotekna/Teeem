@@ -946,16 +946,27 @@ export function WarehouseFoldersConfig({
     setEditingTab(tab);
   };
 
-  // Get available parent tabs (root-level tabs that can be parents)
-  // SSoT: Filter out parents that already have a child with the same tab_key (prevents duplicate key conflicts)
+  // Get available parent tabs (any tab that can be a parent, including nested tabs)
+  // SSoT: Filter out self, descendants (circular ref), and tabs with duplicate tab_key children
   const availableParents = React.useMemo(() => {
     if (!editingTab) return [];
 
+    // Collect all descendant IDs of the editing tab to prevent circular references
+    const getDescendantIds = (tab: WarehouseFolder): Set<number> => {
+      const ids = new Set<number>();
+      (tab.children || []).forEach(child => {
+        ids.add(child.id);
+        getDescendantIds(child).forEach(id => ids.add(id));
+      });
+      return ids;
+    };
+    const descendantIds = getDescendantIds(editingTab);
+
     return tabs.filter((t) => {
-      // Must be a root tab (no parent)
-      if (t.parent_id) return false;
       // Can't be the tab we're editing
       if (t.id === editingTab.id) return false;
+      // Can't be a descendant of the editing tab (would create circular reference)
+      if (descendantIds.has(t.id)) return false;
       // Can't have a child with the same tab_key (would cause duplicate key conflict)
       // Exclude the tab being edited from this check (it's already a child of this parent)
       const hasChildWithSameKey = t.children?.some(child => child.tab_key === editingTab.tab_key && child.id !== editingTab.id);
@@ -2389,11 +2400,18 @@ export function WarehouseFoldersConfig({
                       <SelectItem value="none" disabled={!canMoveToRoot}>
                         No parent (root level){!canMoveToRoot && " - tab key already exists at root"}
                       </SelectItem>
-                      {availableParents.map((parent) => (
-                        <SelectItem key={parent.id} value={parent.id.toString()}>
-                          {parent.display_name}
-                        </SelectItem>
-                      ))}
+                      {availableParents.map((parent) => {
+                        // Show hierarchy for nested tabs (e.g., "Financial > XERO Organisational Level")
+                        const parentOfParent = parent.parent_id ? tabs.find(t => t.id === parent.parent_id) : null;
+                        const label = parentOfParent
+                          ? `${parentOfParent.display_name} > ${parent.display_name}`
+                          : parent.display_name;
+                        return (
+                          <SelectItem key={parent.id} value={parent.id.toString()}>
+                            {label}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
