@@ -2518,84 +2518,12 @@ export function WarehouseFoldersConfig({
             <div className="space-y-4 overflow-y-auto">
               <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">Storage Configuration</h3>
 
-            {/* Storage Folder Path */}
+            {/* Storage Folder Path - SSoT (Feb 2026) */}
+            {/* Shows two badges: Base Path (from warehouse_types) and Full Path (computed).
+                Suffix editor only shown when suffix exists or user clicks to add one. */}
             {showSharePointPaths && (
               <div className="space-y-3">
-                {/* Base path from WarehouseProvider - SSoT for scope folders */}
-                {/* SSoT: Sub-tabs inherit base path from parent - not editable */}
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">
-                    Base Path
-                    {(formData.parent_id || editingTab?.parent_id) && (
-                      <span className="ml-1 text-blue-600 dark:text-blue-400">(inherited from parent)</span>
-                    )}
-                  </Label>
-                  {(formData.parent_id || editingTab?.parent_id) ? (
-                    // Sub-tabs: base path is ALWAYS from warehouse_types table (SSoT)
-                    // SSoT (Feb 2026): getBasePath reads warehouse_types.folder_path_template directly
-                    // Never use parent's folder_path - it can be corrupted
-                    <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
-                      <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                        {getBasePath(scope)}
-                      </span>
-                      <span className="text-muted-foreground">/</span>
-                    </div>
-                  ) : scope === "contact" && formData.tab_type !== 'system' ? (
-                    // Root contact DOCUMENT tabs: can choose between /Contacts/ or /Corporate/People/
-                    // System tabs don't need this - they're structural, not document storage
-                    <div className="flex items-center gap-1">
-                      <Select
-                        value={formData.warehouse_type_override === 'corporate' ? 'people' : 'contact'}
-                        onValueChange={(value) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            warehouse_type_override: value === 'people' ? 'corporate' : 'contacts',
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="w-full font-mono text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="contact">
-                            <span className="font-mono">/{getBasePath("contact")}/</span>
-                            <span className="text-muted-foreground ml-2">- Contact documents</span>
-                          </SelectItem>
-                          <SelectItem value="people">
-                            <span className="font-mono">/{getBasePath("people")}/</span>
-                            <span className="text-muted-foreground ml-2">- Corporate people</span>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : (
-                    // Other scopes: read-only display
-                    <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
-                      <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                        {getBasePath(scope)}
-                      </span>
-                      <span className="text-muted-foreground">/</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Warehouse Folder Path (read-only from warehouse_folders table) */}
-                {editingTab?.base_folder_path_template && (
-                  <div className="space-y-1">
-                    <Label className="text-xs">Warehouse Folder Path</Label>
-                    <div className="p-2 border rounded bg-muted/30 font-mono text-xs text-muted-foreground">
-                      {editingTab.base_folder_path_template}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Inherited from warehouse folder configuration
-                    </p>
-                  </div>
-                )}
-
-                {/* Editable folder path suffix */}
-                {/* SSoT (Feb 2026): The editable field is folder_path_suffix - extra path AFTER the tab's segment.
-                    The prefix shows: basePath (from warehouse_types) + ancestor chain + current tab's segment.
-                    Most tabs have no suffix - the folder is just their display_name in the tree hierarchy. */}
+                {/* Computed path section */}
                 {(() => {
                   // Build ancestor chain: walk up parent tree to collect folder segments
                   const parentId = formData.parent_id || editingTab?.parent_id;
@@ -2649,35 +2577,86 @@ export function WarehouseFoldersConfig({
                     ? `${fullPrefix}/${resolvedSuffix}`
                     : fullPrefix;
 
+                  const hasSuffix = !!(formData.folder_path);
+
                   return (
                     <>
-                      <PlaceholderBuilder
-                        label="Custom Path Suffix (optional)"
-                        value={formData.folder_path ?? ""}
-                        onChange={(value) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            folder_path: value,
-                          }))
-                        }
-                        scope="storage"
-                        // Prefix shows full computed path up to this tab's segment
-                        prefixValue={fullPrefix}
-                        separator="/"
-                        placeholders={STORAGE_PLACEHOLDERS.filter((p) => {
-                          const isSubtab = !!(formData.parent_id || editingTab?.parent_id);
-                          if (isSubtab) return true;
-                          return p.code !== "{{SubTabName}}";
-                        })}
-                        showPreview={false}
-                        placeholder="Add extra path tokens (optional)..."
-                      />
-
-                      {/* Full path preview */}
-                      <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
-                        <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                        <span className="text-green-700 dark:text-green-300">{fullPath}</span>
+                      {/* Base Path badge - from warehouse_types (SSoT) */}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Base Path</Label>
+                        {scope === "contact" && !parentId && formData.tab_type !== 'system' ? (
+                          // Root contact DOCUMENT tabs: can choose between /Contacts/ or /Corporate/People/
+                          <Select
+                            value={formData.warehouse_type_override === 'corporate' ? 'people' : 'contact'}
+                            onValueChange={(value) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                warehouse_type_override: value === 'people' ? 'corporate' : 'contacts',
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="w-full font-mono text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="contact">
+                                <span className="font-mono">/{getBasePath("contact")}/</span>
+                                <span className="text-muted-foreground ml-2">- Contact documents</span>
+                              </SelectItem>
+                              <SelectItem value="people">
+                                <span className="font-mono">/{getBasePath("people")}/</span>
+                                <span className="text-muted-foreground ml-2">- Corporate people</span>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="font-mono text-xs px-2 py-1.5 rounded border bg-muted text-foreground dark:bg-slate-800 dark:text-slate-300">
+                            {basePath}
+                          </div>
+                        )}
                       </div>
+
+                      {/* Full Path badge - computed from tree structure */}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Full Path</Label>
+                        <div className="text-xs bg-green-100 dark:bg-green-950/50 border border-green-300 dark:border-green-700 rounded px-2 py-1.5 font-mono" title={fullPath}>
+                          <span className="text-green-800 dark:text-green-200">{fullPath}</span>
+                        </div>
+                      </div>
+
+                      {/* Suffix editor - hidden unless suffix exists or user clicks to show */}
+                      {hasSuffix ? (
+                        <div className="space-y-1">
+                          <PlaceholderBuilder
+                            label="Custom Path Suffix"
+                            value={formData.folder_path ?? ""}
+                            onChange={(value) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                folder_path: value,
+                              }))
+                            }
+                            scope="storage"
+                            prefixValue=""
+                            separator="/"
+                            placeholders={STORAGE_PLACEHOLDERS.filter((p) => {
+                              const isSubtab = !!(formData.parent_id || editingTab?.parent_id);
+                              if (isSubtab) return true;
+                              return p.code !== "{{SubTabName}}";
+                            })}
+                            showPreview={false}
+                            placeholder="Extra path tokens..."
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          onClick={() => setFormData((prev) => ({ ...prev, folder_path: " " }))}
+                        >
+                          + Add custom path suffix
+                        </button>
+                      )}
                     </>
                   );
                 })()}
