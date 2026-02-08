@@ -43,10 +43,11 @@ class WarehousePathComputer
     folder = find_warehouse_folder_for_doc(doc)
 
     if folder
-      # 2. Get the template from the folder hierarchy
-      template = folder.full_folder_path
+      # 2. Build template from WT base + child folder segments only
+      #    (NOT full_folder_path which duplicates root segment with WT template)
+      template = build_path_template(folder)
 
-      # 3. Extract tokens from linkable + documentable
+      # 3. Extract tokens from linkable + documentable + folder fallback
       tokens = extract_tokens(doc)
 
       # 4. Expand template
@@ -59,6 +60,15 @@ class WarehousePathComputer
           path_template_version: folder.template_version
         }
       end
+    end
+
+    # Fallback: use existing folder column if available (historical correct data)
+    if doc.folder.present?
+      return {
+        folder_path: sanitize_path(doc.folder),
+        warehouse_folder_id: folder&.id,
+        path_template_version: 0
+      }
     end
 
     # Last resort: source_type default (only for truly unmapped docs)
@@ -197,6 +207,51 @@ class WarehousePathComputer
   end
 
   # ════════════════════════════════════════════════════════════════════
+  # Path Template Construction
+  # ════════════════════════════════════════════════════════════════════
+
+  # Build path template from warehouse_type base template + child folder segments.
+  #
+  # ⚠️ DO NOT USE folder.full_folder_path here!
+  # full_folder_path includes the root folder's own segment ON TOP of the
+  # warehouse_type template, causing duplication:
+  #   WT template = "Contacts/{{ContactName}}", root segment = "Contacts"
+  #   full_folder_path = "Contacts/{{ContactName}}/Contacts" ← WRONG
+  #
+  # Instead: WT template + child-only segments (excluding root)
+  #   = "Contacts/{{ContactName}}" for root folders
+  #   = "Contacts/{{ContactName}}/Receipts" for child folders
+  #
+  # @param folder [WarehouseFolder]
+  # @return [String] Path template with {{Token}} placeholders
+  def build_path_template(folder)
+    wt = folder.warehouse_type
+    return folder.folder_segment || "Unknown" unless wt
+
+    base = wt.folder_path_template.presence
+    return folder.folder_segment || wt.code.titleize unless base
+
+    # For root folders (no parent), just use the WT template
+    if folder.parent_id.nil?
+      result = base
+      result = "#{result}/#{folder.folder_path_suffix}" if folder.folder_path_suffix.present?
+      return result
+    end
+
+    # For child folders: WT template + child segments (skip root folder's segment)
+    segments = []
+    current = folder
+    while current && current.parent_id.present?
+      segments.unshift(current.folder_segment) if current.folder_segment.present?
+      current = current.parent
+    end
+
+    result = segments.any? ? "#{base}/#{segments.join('/')}" : base
+    result = "#{result}/#{folder.folder_path_suffix}" if folder.folder_path_suffix.present?
+    result
+  end
+
+  # ════════════════════════════════════════════════════════════════════
   # Token Extraction (Linkable-First)
   # ════════════════════════════════════════════════════════════════════
 
@@ -241,6 +296,12 @@ class WarehousePathComputer
       tokens[:Year] = received_at.year.to_s
       tokens[:Month] = received_at.strftime("%m")
     end
+
+    # 6. Fallback: derive missing tokens from existing folder column
+    #    When linkable is nil and documentable chain is broken (deleted class
+    #    like ContactDocument), the existing `folder` column has correct
+    #    historical paths we can parse tokens from.
+    derive_tokens_from_folder(tokens, doc)
 
     tokens
   end
@@ -352,6 +413,42 @@ class WarehousePathComputer
         cc = asset.corporate
         tokens[:CompanyCode] ||= cc.company_code
         tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
+      end
+    end
+  end
+
+  # Derive missing tokens from the existing `folder` column on the document.
+  # This is a last-resort fallback for when:
+  #   - linkable_type is nil (no direct FK to Job/Contact/etc.)
+  #   - documentable class was deleted (e.g., ContactDocument → WarehouseDocument)
+  #
+  # The `folder` column has correct historical paths like:
+  #   "Contacts/7 Eleven", "Email/inbox@tekna.com.au", "Corporate/Default/Acme Corp"
+  #
+  # Uses ||= so this never overwrites tokens from linkable/documentable (higher priority).
+  def derive_tokens_from_folder(tokens, doc)
+    return unless doc.folder.present?
+
+    parts = doc.folder.split("/")
+
+    case doc.source_type
+    when "contact", "people"
+      # "Contacts/7 Eleven" → ContactName = "7 Eleven"
+      if tokens[:ContactName].blank? && parts.length >= 2
+        tokens[:ContactName] = parts[1]
+      end
+    when "email", "email_attachment"
+      # "Email/inbox@tekna.com.au" → Mailbox = "inbox@tekna.com.au"
+      if tokens[:Mailbox].blank? || tokens[:Mailbox] == "Unknown"
+        if parts.length >= 2 && parts[0].downcase == "email"
+          tokens[:Mailbox] = parts[1]
+        end
+      end
+    when "corporate", "xero", "financial"
+      # "Corporate/Default/Acme Corp" → CompanyGroup, CompanyName
+      if parts.length >= 3 && parts[0] == "Corporate"
+        tokens[:CompanyGroup] ||= parts[1]
+        tokens[:CompanyName] ||= parts[2]
       end
     end
   end

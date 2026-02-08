@@ -65,8 +65,6 @@ interface TakeoffToolbarProps {
   // Scale status
   isCalibrated: boolean;
   scaleLabel?: string;
-  showCalibrationOverlay?: boolean;
-  onToggleCalibrationOverlay?: () => void;
 
   // AI Scale Detection
   pageCanvas: HTMLCanvasElement | null;
@@ -126,8 +124,6 @@ export function TakeoffToolbar({
   onRedo,
   isCalibrated,
   scaleLabel,
-  showCalibrationOverlay,
-  onToggleCalibrationOverlay,
   pageCanvas,
   pageNumber,
   pageWidth,
@@ -230,38 +226,25 @@ export function TakeoffToolbar({
 
         <Separator orientation="vertical" className="h-6 mx-1" />
 
-        {/* Calibration */}
+        {/* Calibration — toggle: click to enter/exit calibrate mode */}
         <ToolButton
           tool="calibrate"
           current={currentTool}
-          onClick={onToolChange}
-          highlight={!isCalibrated}
+          onClick={(tool) => {
+            // Toggle: if already in calibrate mode, go back to select
+            onToolChange(currentTool === tool ? "select" : tool);
+          }}
+          highlight={isCalibrated ? "green" : "amber"}
         />
 
-        {/* Scale indicator — click to toggle calibration overlay visibility */}
-        {isCalibrated ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={onToggleCalibrationOverlay}
-                className={`px-2 py-0.5 text-xs rounded transition-colors ${
-                  showCalibrationOverlay
-                    ? "text-green-600 dark:text-green-400 bg-green-500/10 ring-1 ring-green-500/30"
-                    : "text-muted-foreground hover:text-green-600 dark:hover:text-green-400"
-                }`}
-              >
-                {scaleLabel}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {showCalibrationOverlay ? "Hide calibration overlay" : "Show calibration overlay"}
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <div className="px-2 text-xs">
+        {/* Scale badge — green when calibrated, amber when not */}
+        <div className="px-2 text-xs font-medium">
+          {isCalibrated ? (
+            <span className="text-green-600 dark:text-green-400">{scaleLabel}</span>
+          ) : (
             <span className="text-amber-600 dark:text-amber-400">Not calibrated</span>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* AI Scale Detection */}
         <ScaleDetector
@@ -460,12 +443,18 @@ interface ToolButtonProps {
   current: TakeoffTool;
   onClick: (tool: TakeoffTool) => void;
   disabled?: boolean;
-  highlight?: boolean;
+  highlight?: "amber" | "green" | boolean;
 }
 
 function ToolButton({ tool, current, onClick, disabled, highlight }: ToolButtonProps) {
   const config = TAKEOFF_TOOLS[tool];
   const isActive = tool === current;
+
+  const highlightClass = highlight === "amber" || highlight === true
+    ? "ring-2 ring-amber-500 ring-offset-1"
+    : highlight === "green"
+    ? "text-green-600 dark:text-green-400"
+    : "";
 
   return (
     <Tooltip>
@@ -475,7 +464,7 @@ function ToolButton({ tool, current, onClick, disabled, highlight }: ToolButtonP
           size="icon"
           onClick={() => onClick(tool)}
           disabled={disabled}
-          className={highlight ? "ring-2 ring-amber-500 ring-offset-1" : ""}
+          className={highlightClass}
         >
           {TOOL_ICONS[tool]}
         </Button>

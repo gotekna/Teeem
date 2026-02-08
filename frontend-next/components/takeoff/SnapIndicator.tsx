@@ -285,17 +285,22 @@ export function PinnedMagnifier({
 
   // Detect junction candidates near this endpoint
   React.useEffect(() => {
-    const threshold = 20; // page pixels search radius
+    const threshold = 10; // page pixels search radius (tight to avoid clutter on dense drawings)
     const junctions = findPdfJunctions(activePoint.x, activePoint.y, pdfCanvas, threshold);
     // Always include the current active point as a candidate
     const hasCurrentPoint = junctions.some(j =>
       Math.sqrt((j.x - activePoint.x) ** 2 + (j.y - activePoint.y) ** 2) < 1.5
     );
-    if (!hasCurrentPoint) {
-      setCandidates([activePoint, ...junctions]);
-    } else {
-      setCandidates(junctions);
+    let result = hasCurrentPoint ? junctions : [activePoint, ...junctions];
+    // Cap at 5 nearest candidates to avoid clutter
+    if (result.length > 5) {
+      result = result
+        .map(c => ({ x: c.x, y: c.y, _d: Math.sqrt((c.x - activePoint.x) ** 2 + (c.y - activePoint.y) ** 2) }))
+        .sort((a, b) => a._d - b._d)
+        .slice(0, 5)
+        .map(c => ({ x: c.x, y: c.y }));
     }
+    setCandidates(result);
   }, [activePoint, pdfCanvas]);
 
   // Compute crop area: center on centroid of all candidates
