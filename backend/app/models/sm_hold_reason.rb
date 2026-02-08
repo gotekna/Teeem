@@ -6,12 +6,14 @@
 # See GANTT_ARCHITECTURE_PLAN.md Section 2.5
 #
 class SmHoldReason < ApplicationRecord
+  acts_as_tenant :tenant
+
   # Associations
   has_many :sm_tasks, dependent: :nullify
   has_many :sm_hold_logs, dependent: :nullify
 
   # Validations
-  validates :name, presence: true, uniqueness: true, length: { maximum: 100 }
+  validates :name, presence: true, uniqueness: { scope: :tenant_id }, length: { maximum: 100 }
   validates :color, length: { maximum: 20 }
   validates :icon, length: { maximum: 50 }
   validates :sequence_order, presence: true, numericality: { only_integer: true }

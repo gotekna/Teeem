@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class SpecificationTemplate < ApplicationRecord
+  acts_as_tenant :tenant
+
   belongs_to :job_type, optional: true
 
   validates :name, presence: true

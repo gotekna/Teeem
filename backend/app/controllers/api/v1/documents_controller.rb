@@ -1571,44 +1571,62 @@ module Api
       end
 
       # SSoT (Feb 2026): ONE generic method for all folder-based scopes
-      # Queries WarehouseDocument.folder + WarehouseFolder tabs
+      # Queries WarehouseDocument.folder_path (materialized) + WarehouseFolder tabs
       # Works for: job, contact, corporate, people, task, case, warehouse, etc.
       #
       # IMPORTANT: Returns RELATIVE paths (without root folder prefix)
       # Frontend adds root folder prefix when building UI paths
       # e.g., for Contacts scope: returns "7 Eleven/Bills", frontend adds "Contacts/" prefix
+      #
+      # ⚠️ FRC Fix (Feb 2026): Three naming mismatches were causing "No files" everywhere:
+      #   1. root_folder came from WarehouseFolder.display_name (e.g., "Site", "Cases", "Teeem Docs")
+      #   2. DB folder column had different prefixes (e.g., "Jobs/", "Contacts/", "Teeem Docs/")
+      #   3. Frontend scope_folders used WarehouseType.display_name (e.g., "Job", "Contacts", "User")
+      # Fix: Use WarehouseType.folder_path_template first segment as SSoT root prefix,
+      #      query folder_path column (materialized by WarehousePathComputer), and
+      #      add source_type scoping for robustness.
       def build_generic_folder_tree(scope, path_segments)
-        # Get root folder from scope (e.g., "job" → "Jobs", "contact" → "Contacts")
-        # SSoT (Feb 2026): WarehouseFolder.root_folder_name_for returns the root folder name
-        root_folder = WarehouseFolder.root_folder_name_for(scope)
-        return { folders: [], files: [] } unless root_folder
+        # SSoT: Root prefix from WarehouseType.folder_path_template first static segment
+        # This matches what WarehousePathComputer writes to folder_path column
+        wt = WarehouseType.find_by(code: scope)
+        return { folders: [], files: [] } unless wt
 
-        # Build full DB path (includes root folder for querying WarehouseDocument.folder)
+        template = wt.folder_path_template
+        root_folder = template&.split("/")&.first
+        return { folders: [], files: [] } unless root_folder.present?
+
+        # Build full DB path (includes root folder for querying WarehouseDocument.folder_path)
         full_db_path = path_segments.any? ? "#{root_folder}/#{path_segments.join('/')}" : nil
-        # Relative path for response (what frontend will use)
         relative_path = path_segments.any? ? path_segments.join('/') : nil
         path_depth = path_segments.size + 2  # "RootFolder" is depth 1, first segment is depth 2
 
-        # Base scope: all documents in this root folder
-        base_scope = WarehouseDocument.where("folder LIKE ?", "#{root_folder}/%")
+        # Base scope: documents in this root folder + source_type for robustness
+        # folder_path is the materialized column (set by WarehousePathComputer on save)
+        # Also fall back to legacy folder column for docs not yet backfilled
+        base_scope = WarehouseDocument.where(source_type: scope)
+          .where(
+            "folder_path LIKE :prefix OR (folder_path IS NULL AND folder LIKE :prefix)",
+            prefix: "#{root_folder}/%"
+          )
 
         # Get configured tabs for this path level (SSoT: from WarehouseFolder)
         tabs_from_config = if full_db_path
-          WarehouseFolder.child_tabs_for_path(full_db_path)
+          WarehouseFolder.child_tabs_for_type_code_path(scope, full_db_path)
         else
-          WarehouseFolder.tabs_for_root_folder(root_folder)
+          WarehouseFolder.tabs_for_type_code(scope, root_folder)
         end
 
         # Get subfolder counts from documents
-        subfolder_scope = full_db_path ? base_scope.where("folder LIKE ?", "#{full_db_path}/%") : base_scope
+        # Use COALESCE to prefer folder_path, fall back to folder for unbackfilled docs
+        path_col = "COALESCE(folder_path, folder)"
+        subfolder_scope = full_db_path ? base_scope.where("#{path_col} LIKE ?", "#{full_db_path}/%") : base_scope
         subfolder_counts = subfolder_scope
-          .group(Arel.sql("split_part(folder, '/', #{path_depth})"))
+          .group(Arel.sql("split_part(#{path_col}, '/', #{path_depth})"))
           .count
 
         # Build folders: configured tabs (with counts) + extra folders from documents
         # SSoT: Return RELATIVE paths - frontend adds root folder prefix
         folders = tabs_from_config.map do |tab|
-          # Strip root folder from path (WarehouseFolder methods return full paths)
           relative_tab_path = tab[:path].to_s.sub(/^#{Regexp.escape(root_folder)}\//, '')
           {
             name: tab[:name],
@@ -1624,7 +1642,6 @@ module Api
         config_names = tabs_from_config.map { |t| t[:name] }
         extra_folders = subfolder_counts.reject { |name, _| config_names.include?(name) || name.blank? }
         extra_folders.each do |name, count|
-          # Build relative path (without root folder)
           folder_relative_path = relative_path ? "#{relative_path}/#{name}" : name
           folders << { name: name, path: folder_relative_path, count: count }
         end
@@ -1632,7 +1649,10 @@ module Api
         # Get files at exactly this level (only if we have a path)
         files = []
         if full_db_path
-          files_at_level = base_scope.where(folder: full_db_path).includes(:storage_blob).limit(500)
+          files_at_level = base_scope
+            .where("#{path_col} = ?", full_db_path)
+            .includes(:storage_blob)
+            .limit(500)
           files = files_at_level.map { |doc| warehouse_document_to_json(doc) }
         end
 

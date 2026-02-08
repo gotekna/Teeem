@@ -22,6 +22,8 @@
 #   }
 #
 class InvoiceTemplate < ApplicationRecord
+  acts_as_tenant :tenant
+
   # Constants
   SECTION_TYPES = %w[header client job line_items totals payment footer custom].freeze
   PAPER_SIZES = %w[A4 Letter Legal].freeze
@@ -187,6 +189,6 @@ class InvoiceTemplate < ApplicationRecord
   def ensure_single_default
     return unless is_default_changed? && is_default?
 
-    InvoiceTemplate.where.not(id: id).update_all(is_default: false)
+    self.class.where.not(id: id).update_all(is_default: false)
   end
 end

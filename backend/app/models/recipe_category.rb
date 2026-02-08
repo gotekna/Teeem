@@ -5,13 +5,15 @@
 # like drag-drop reordering and keyboard navigation.
 #
 class RecipeCategory < ApplicationRecord
+  acts_as_tenant :tenant
+
   # Self-referential for hierarchy
   belongs_to :parent, class_name: 'RecipeCategory', optional: true
   has_many :children, class_name: 'RecipeCategory', foreign_key: :parent_id, dependent: :nullify
   has_many :recipes, dependent: :nullify
 
   # Validations
-  validates :code, presence: true, uniqueness: true
+  validates :code, presence: true, uniqueness: { scope: :tenant_id }
   validates :name, presence: true
 
   # Scopes
