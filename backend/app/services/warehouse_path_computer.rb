@@ -54,8 +54,22 @@ class WarehousePathComputer
       expanded = expand_template(template, tokens)
 
       if expanded.present?
+        expanded_clean = sanitize_path(expanded)
+        expanded_segments = expanded_clean&.split("/")&.length || 0
+
+        # If template expansion produced only a bare category name (1 segment like
+        # "Email" or "Contacts" - no tokens expanded), prefer the folder column
+        # which has richer historical data (e.g., "Emails/rachel@tekna.com.au/2025/11")
+        if expanded_segments <= 1 && doc.folder.present? && doc.folder.split("/").length > 1
+          return {
+            folder_path: sanitize_path(doc.folder),
+            warehouse_folder_id: folder.id,
+            path_template_version: folder.template_version
+          }
+        end
+
         return {
-          folder_path: sanitize_path(expanded),
+          folder_path: expanded_clean,
           warehouse_folder_id: folder.id,
           path_template_version: folder.template_version
         }
@@ -112,9 +126,8 @@ class WarehousePathComputer
   #
   # Priority:
   #   1. warehouse_folder_document_type FK → its warehouse_folder (most precise)
-  #   2. warehouse_folder_id FK (set during backfill/creation)
-  #   3. linkable_type → warehouse_type → root folder
-  #   4. source_type → warehouse_type code (legacy fallback)
+  #   2. linkable_type → warehouse_type → root folder (always correct)
+  #   3. source_type → warehouse_type code (fallback for docs without linkable)
   #
   # @param doc [WarehouseDocument]
   # @return [WarehouseFolder, nil]
@@ -124,13 +137,9 @@ class WarehousePathComputer
       return doc.warehouse_folder_document_type.warehouse_folder
     end
 
-    # 2. Direct warehouse_folder FK (set during backfill/creation)
-    if doc.warehouse_folder_id.present?
-      folder = doc.warehouse_folder || WarehouseFolder.find_by(id: doc.warehouse_folder_id)
-      return folder if folder
-    end
-
-    # 3. From linkable type → warehouse_type → root folder
+    # 2. From linkable type → warehouse_type → root folder
+    #    (Moved BEFORE warehouse_folder_id because old backfills may have
+    #     set warehouse_folder_id to wrong folders - linkable is always correct)
     if doc.linkable_type.present?
       wt_code = linkable_type_to_warehouse_type_code(doc.linkable_type)
       if wt_code
@@ -139,7 +148,7 @@ class WarehousePathComputer
       end
     end
 
-    # 4. From source_type → warehouse_type code (legacy fallback for orphans)
+    # 3. From source_type → warehouse_type code (fallback for docs without linkable)
     wt_code = source_type_to_warehouse_type_code(doc.source_type)
     cached_folder_for(wt_code)
   end
@@ -274,6 +283,12 @@ class WarehousePathComputer
       end
     rescue NameError
       # Deleted model class (e.g. JobDocument) - skip enrichment
+    end
+
+    # 2b. Special case: ContactDocument table still exists with contact_id FK
+    #     Used when linkable is nil and documentable chain is broken
+    if tokens[:ContactName].blank? && doc.documentable_type == "ContactDocument" && doc.documentable_id.present?
+      resolve_contact_from_contact_documents(tokens, doc)
     end
 
     # 3. Document type from warehouse_folder_document_type FK
@@ -417,6 +432,24 @@ class WarehousePathComputer
     end
   end
 
+  # Resolve ContactName from the contact_documents table (legacy table still in DB).
+  # ContactDocument model was removed in Jan 2026 but the table persists with contact_id FK.
+  # This resolves the 10K+ contact docs that have no linkable and broken documentable chain.
+  def resolve_contact_from_contact_documents(tokens, doc)
+    result = ActiveRecord::Base.connection.exec_query(
+      "SELECT contact_id FROM contact_documents WHERE id = #{doc.documentable_id.to_i} LIMIT 1"
+    )
+    if (contact_id = result.first&.dig("contact_id"))
+      contact = Contact.find_by(id: contact_id)
+      if contact
+        tokens[:ContactName] = contact.display_name.presence || "Contact-#{contact.id}"
+        tokens[:ContactId] = contact.id
+      end
+    end
+  rescue => _e
+    # Table might not exist in all environments - silently skip
+  end
+
   # Derive missing tokens from the existing `folder` column on the document.
   # This is a last-resort fallback for when:
   #   - linkable_type is nil (no direct FK to Job/Contact/etc.)
@@ -438,11 +471,13 @@ class WarehousePathComputer
         tokens[:ContactName] = parts[1]
       end
     when "email", "email_attachment"
-      # "Email/inbox@tekna.com.au" → Mailbox = "inbox@tekna.com.au"
-      if tokens[:Mailbox].blank? || tokens[:Mailbox] == "Unknown"
-        if parts.length >= 2 && parts[0].downcase == "email"
+      # "Emails/rachel@tekna.com.au/2025/11" → Mailbox, Year, Month
+      if parts.length >= 2 && parts[0].downcase.start_with?("email")
+        if tokens[:Mailbox].blank? || tokens[:Mailbox] == "Unknown"
           tokens[:Mailbox] = parts[1]
         end
+        tokens[:Year] = parts[2] if parts.length >= 3 && parts[2] =~ /^\d{4}$/
+        tokens[:Month] = parts[3] if parts.length >= 4 && parts[3] =~ /^\d{2}$/
       end
     when "corporate", "xero", "financial"
       # "Corporate/Default/Acme Corp" → CompanyGroup, CompanyName
