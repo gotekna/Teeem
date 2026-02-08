@@ -18,6 +18,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { initVitals } from "@/lib/performance/vitals";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import consoleCapture from "@/utils/consoleCapture";
+import { POInvoiceModal } from "@/components/purchase-orders/POInvoiceModal";
 
 // Initialize console capture immediately to catch ALL errors from the start
 // This ensures the error count badge in the sidebar matches DevTools
@@ -126,6 +127,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Environment Badge - fixed bottom left, shows when not on production */}
       <EnvironmentBadge />
+
+      {/* Global PO vs Invoice Modal - accessible from any page via usePOInvoiceModal() */}
+      <POInvoiceModal />
     </div>
   );
 }
