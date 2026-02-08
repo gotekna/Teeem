@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_09_100002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -131,7 +131,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.string "ai_model", default: "sonnet"
     t.boolean "ai_always", default: false
     t.boolean "active", default: true
-    t.jsonb "extra_config", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["service_type"], name: "index_ai_service_configs_on_service_type", unique: true
@@ -400,7 +399,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.date "effective_from", null: false
     t.date "effective_until"
     t.boolean "is_division_43", default: false
-    t.string "division_43_category"
     t.decimal "division_43_rate", precision: 5, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -749,14 +747,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.datetime "aba_generated_at"
     t.string "aba_sequence_number"
     t.string "processing_description"
-    t.string "self_balancing_reference"
     t.bigint "created_by_id"
     t.bigint "approved_by_id"
     t.datetime "approved_at"
     t.bigint "bpmn_process_instance_id"
     t.datetime "submitted_to_bank_at"
     t.datetime "completed_at"
-    t.text "bank_response"
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -782,9 +778,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.string "payee_bsb"
     t.string "payee_account_number"
     t.string "payment_reference", limit: 18
-    t.string "remittance_email"
-    t.boolean "send_remittance", default: true
-    t.datetime "remittance_sent_at"
     t.string "xero_payment_id"
     t.datetime "synced_to_xero_at"
     t.string "sync_error"
@@ -1299,7 +1292,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.integer "override_min_length"
     t.decimal "override_min_value", precision: 15, scale: 2
     t.decimal "override_max_value", precision: 15, scale: 2
-    t.text "override_validation_message"
     t.integer "type_version_applied", default: 0
     t.datetime "last_compliance_check"
     t.string "lookup_foundation_slug"
@@ -1326,7 +1318,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.bigint "approver_id"
     t.string "approver_role"
     t.bigint "approver_group_id"
-    t.integer "escalation_hours"
     t.bigint "escalation_to_user_id"
     t.bigint "bpmn_process_id"
     t.jsonb "config", default: {}
@@ -2243,21 +2234,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.index ["warehouse_document_id"], name: "index_docsort_items_on_warehouse_document_id"
   end
 
-  create_table "document_activities", force: :cascade do |t|
-    t.bigint "company_document_id", null: false
-    t.bigint "user_id"
-    t.string "action", null: false
-    t.jsonb "old_values", default: {}
-    t.jsonb "new_values", default: {}
-    t.text "notes"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["action"], name: "index_document_activities_on_action"
-    t.index ["company_document_id"], name: "index_document_activities_on_company_document_id"
-    t.index ["created_at"], name: "index_document_activities_on_created_at"
-    t.index ["user_id"], name: "index_document_activities_on_user_id"
-  end
-
   create_table "document_duplicate_reviews", force: :cascade do |t|
     t.bigint "case_id", null: false
     t.bigint "existing_document_id", null: false
@@ -2363,31 +2339,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.index ["warehouse_type_id"], name: "index_document_types_on_warehouse_type_id"
   end
 
-  create_table "document_verification_feedbacks", force: :cascade do |t|
-    t.bigint "company_document_id", null: false
-    t.bigint "user_id", null: false
-    t.string "ai_suggested_name"
-    t.string "ai_suggested_folder"
-    t.string "ai_suggested_type"
-    t.string "ai_suggested_fy"
-    t.integer "ai_confidence"
-    t.string "user_final_name"
-    t.string "user_final_folder"
-    t.string "user_final_type"
-    t.string "user_final_fy"
-    t.string "action", null: false
-    t.text "rejection_reason"
-    t.text "document_text_snippet"
-    t.string "company_code"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["action"], name: "index_document_verification_feedbacks_on_action"
-    t.index ["company_code", "action"], name: "idx_on_company_code_action_af023a5fcb"
-    t.index ["company_code"], name: "index_document_verification_feedbacks_on_company_code"
-    t.index ["company_document_id"], name: "index_document_verification_feedbacks_on_company_document_id"
-    t.index ["user_id"], name: "index_document_verification_feedbacks_on_user_id"
-  end
-
   create_table "documentation_categories", force: :cascade do |t|
     t.string "name", null: false
     t.string "icon"
@@ -2409,7 +2360,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.string "signed_document_hash", null: false
     t.text "signature_chain"
     t.jsonb "signers_summary", default: []
-    t.string "certificate_storage_file_id"
     t.string "verification_token"
     t.datetime "generated_at"
     t.datetime "created_at", null: false
@@ -2523,7 +2473,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.string "ip_address"
     t.string "user_agent"
     t.string "signing_device"
-    t.string "browser_fingerprint"
     t.bigint "contact_id"
     t.text "decline_reason"
     t.datetime "created_at", null: false
@@ -2542,7 +2491,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.string "target_address", null: false
     t.string "alias_type", default: "alias"
     t.boolean "is_active", default: true
-    t.string "polaris_alias_id"
     t.datetime "provisioned_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -2861,7 +2809,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.decimal "wholesale_cost", precision: 10, scale: 2
     t.string "stripe_subscription_id"
     t.string "stripe_customer_id"
-    t.string "stripe_payment_method_id"
     t.date "next_billing_date"
     t.date "current_period_start"
     t.date "current_period_end"
@@ -2888,11 +2835,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.string "status", default: "pending"
     t.datetime "last_sync_at"
     t.datetime "sync_started_at"
-    t.datetime "oldest_email_synced"
     t.integer "total_emails_synced", default: 0
     t.integer "emails_synced_this_run", default: 0
     t.text "last_error"
-    t.string "sync_cursor"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
@@ -3043,16 +2988,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.string "sync_error"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "source_of_truth", default: "xero"
     t.boolean "sync_to_xero", default: false, null: false
     t.datetime "synced_to_xero_at"
     t.datetime "xero_updated_at"
     t.datetime "local_updated_at"
     t.boolean "sync_conflict", default: false, null: false
     t.string "payment_link_token"
-    t.boolean "payment_portal_enabled", default: true
-    t.datetime "last_payment_reminder_at"
-    t.integer "payment_reminder_count", default: 0
     t.string "xero_org_id"
     t.index ["contact_id"], name: "index_external_invoices_on_contact_id"
     t.index ["created_in_teeem"], name: "index_external_invoices_on_created_in_teeem"
@@ -3297,7 +3238,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.datetime "detected_at", null: false
     t.datetime "resolved_at"
     t.integer "duration_seconds"
-    t.boolean "notification_sent", default: false
     t.boolean "acknowledged", default: false
     t.bigint "acknowledged_by_id"
     t.datetime "acknowledged_at"
@@ -4290,8 +4230,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.decimal "total_cost", precision: 15, scale: 2
     t.string "cost_code"
     t.text "notes"
-    t.decimal "start_meter"
-    t.decimal "end_meter"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["equipment_id", "usage_date"], name: "idx_equipment_usage_date"
@@ -4378,7 +4316,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
   create_table "gl_invoice_lines", force: :cascade do |t|
     t.bigint "gl_invoice_id", null: false
     t.bigint "gl_account_id"
-    t.string "external_line_id"
     t.integer "line_number", default: 1
     t.string "item_code"
     t.text "description"
@@ -4437,7 +4374,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.boolean "created_in_teeem", default: false
     t.datetime "teeem_updated_at"
     t.string "sync_error"
-    t.jsonb "sync_metadata", default: {}
     t.text "description"
     t.text "notes"
     t.boolean "has_attachments", default: false
@@ -4448,7 +4384,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.integer "recurring_sequence"
     t.string "payment_url"
     t.string "payment_token"
-    t.datetime "payment_token_expires_at"
     t.bigint "department_id"
     t.index ["approved_by_id"], name: "index_gl_invoices_on_approved_by_id"
     t.index ["company_id", "invoice_date"], name: "idx_gl_inv_company_date"
@@ -5140,7 +5075,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.text "error_message"
     t.jsonb "summary_stats", default: {}
     t.string "export_format"
-    t.string "export_file_id"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -5418,7 +5352,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.decimal "gst_paid", precision: 15, scale: 2, default: "0.0"
     t.decimal "tax_withheld", precision: 15, scale: 2, default: "0.0"
     t.boolean "no_abn_quoted", default: false
-    t.boolean "abn_withheld", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["contact_id"], name: "index_gl_tpar_payees_on_contact_id"
@@ -5589,15 +5522,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.index ["user_id"], name: "index_grok_plans_on_user_id"
   end
 
-  create_table "health_check_caches", force: :cascade do |t|
-    t.integer "foundation_id"
-    t.string "check_type"
-    t.jsonb "results"
-    t.datetime "last_run_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
   create_table "health_kudos_events", force: :cascade do |t|
     t.string "actor_type", default: "user", null: false
     t.bigint "user_id"
@@ -5747,12 +5671,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
 
   create_table "insurance_policies", force: :cascade do |t|
     t.bigint "company_id", null: false
-    t.string "cover_type"
-    t.string "insured_party"
     t.date "start_date"
     t.date "renewal_date"
     t.decimal "annual_premium"
-    t.decimal "monthly_premium"
     t.string "broker"
     t.text "notes"
     t.datetime "created_at", null: false
@@ -6009,7 +5930,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.string "last_modified_by"
     t.string "sync_status", default: "synced"
     t.datetime "last_synced_at"
-    t.jsonb "cad_metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "ai_suggested_type_id"
@@ -6080,20 +6000,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.index ["sync_status"], name: "index_job_documents_on_sync_status"
     t.index ["version_id"], name: "index_job_documents_on_version_id"
     t.index ["version_status"], name: "index_job_documents_on_version_status"
-  end
-
-  create_table "job_people", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.bigint "contact_id", null: false
-    t.string "role"
-    t.text "notes"
-    t.boolean "is_primary", default: false, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["contact_id"], name: "index_job_people_on_contact_id"
-    t.index ["job_id", "contact_id"], name: "index_job_people_on_job_id_and_contact_id", unique: true
-    t.index ["job_id", "is_primary"], name: "index_job_people_on_job_id_and_is_primary"
-    t.index ["job_id"], name: "index_job_people_on_job_id"
   end
 
   create_table "job_plan_revisions", force: :cascade do |t|
@@ -6932,24 +6838,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.index ["tenant_id"], name: "index_organizations_on_tenant_id"
   end
 
-  create_table "page_help_contents", force: :cascade do |t|
-    t.string "route_pattern", null: false
-    t.string "title", null: false
-    t.text "description"
-    t.text "quick_tips"
-    t.text "common_tasks"
-    t.text "related_pages"
-    t.integer "chapter_number"
-    t.string "video_url"
-    t.boolean "is_active", default: true, null: false
-    t.bigint "last_updated_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_page_help_contents_on_is_active"
-    t.index ["last_updated_by_id"], name: "index_page_help_contents_on_last_updated_by_id"
-    t.index ["route_pattern"], name: "index_page_help_contents_on_route_pattern", unique: true
-  end
-
   create_table "page_scales", force: :cascade do |t|
     t.bigint "tenant_id", null: false
     t.bigint "job_plan_id"
@@ -7112,9 +7000,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.string "document_type", null: false
     t.date "document_date"
     t.date "expiry_date"
-    t.string "document_number"
-    t.string "issuing_authority"
-    t.string "issuing_country"
     t.string "file_name"
     t.integer "file_size"
     t.string "mime_type"
@@ -7124,7 +7009,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.bigint "document_type_id"
     t.string "content_hash"
     t.string "external_id"
-    t.bigint "legacy_corporate_document_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "storage_provider"
@@ -7144,7 +7028,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.index ["document_type_id"], name: "index_people_documents_on_document_type_id"
     t.index ["expiry_date"], name: "index_people_documents_on_expiry_date"
     t.index ["external_id"], name: "index_people_documents_on_external_id"
-    t.index ["legacy_corporate_document_id"], name: "index_people_documents_on_legacy_corporate_document_id"
     t.index ["migration_status"], name: "index_people_documents_on_migration_status"
     t.index ["storage_blob_id"], name: "index_people_documents_on_storage_blob_id"
     t.index ["storage_provider", "migration_status"], name: "idx_people_docs_provider_migration"
@@ -7353,7 +7236,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.bigint "identified_plan_type_id"
     t.bigint "identified_plan_category_id"
     t.text "ocr_raw_text"
-    t.jsonb "ocr_structured_fields", default: {}
     t.integer "ocr_confidence"
     t.integer "pattern_match_plan_type_id"
     t.integer "pattern_match_confidence"
@@ -7450,7 +7332,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
   create_table "polaris_credentials", force: :cascade do |t|
     t.text "api_key"
     t.text "api_secret"
-    t.string "reseller_id"
     t.string "status", default: "pending", null: false
     t.boolean "is_active", default: true, null: false
     t.text "error_message"
@@ -8705,17 +8586,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.datetime "updated_at", null: false
     t.boolean "is_checkin_photo", default: false
     t.boolean "is_checkout_photo", default: false
-    t.jsonb "face_verification_result"
-    t.decimal "face_match_confidence", precision: 5, scale: 2
     t.boolean "face_verified", default: false
-    t.decimal "site_visibility_score", precision: 5, scale: 2
-    t.boolean "site_visible"
     t.jsonb "ai_analysis"
-    t.string "weather_detected", limit: 30
     t.string "lighting_conditions", limit: 30
     t.decimal "exif_latitude", precision: 10, scale: 7
     t.decimal "exif_longitude", precision: 10, scale: 7
-    t.datetime "exif_timestamp"
     t.bigint "document_type_id"
     t.string "storage_path"
     t.string "storage_item_id"
@@ -9162,8 +9037,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
 
   create_table "stripe_configurations", force: :cascade do |t|
     t.boolean "enabled", default: false, null: false
-    t.string "stripe_account_id"
-    t.string "webhook_endpoint_id"
     t.string "webhook_secret_encrypted"
     t.decimal "surcharge_percentage", precision: 5, scale: 2, default: "0.0"
     t.decimal "minimum_payment", precision: 15, scale: 2, default: "0.0"
@@ -9172,7 +9045,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
-    t.index ["stripe_account_id"], name: "index_stripe_configurations_on_stripe_account_id", unique: true, where: "(stripe_account_id IS NOT NULL)"
     t.index ["tenant_id"], name: "index_stripe_configurations_on_tenant_id"
   end
 
@@ -9423,8 +9295,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.jsonb "internet_headers", default: {}
     t.jsonb "email_classification", default: {}
     t.string "user_classification"
-    t.datetime "user_classification_at"
-    t.bigint "user_classification_by_id"
     t.bigint "ssot_owner_id"
     t.string "body_preview", limit: 500
     t.text "ai_summary"
@@ -9504,15 +9374,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.index ["enabled"], name: "index_table_health_checks_on_enabled"
     t.index ["foundation_id"], name: "index_table_health_checks_on_foundation_id"
     t.index ["table_name"], name: "index_table_health_checks_on_table_name"
-  end
-
-  create_table "table_protections", force: :cascade do |t|
-    t.string "table_name", null: false
-    t.boolean "is_protected", default: true, null: false
-    t.text "description"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
   end
 
   create_table "takeoff_layers", force: :cascade do |t|
@@ -9806,7 +9667,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.string "email"
     t.string "website"
     t.string "billing_email"
-    t.text "billing_address"
     t.string "stripe_customer_id"
     t.bigint "default_job_type_id"
     t.bigint "default_job_status_id"
@@ -10095,21 +9955,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_user_groups_on_name", unique: true
-  end
-
-  create_table "user_job_tab_configs", force: :cascade do |t|
-    t.bigint "user_id", null: false
-    t.bigint "job_tab_id", null: false
-    t.integer "position", default: 0, null: false
-    t.integer "parent_job_tab_id"
-    t.boolean "is_hidden", default: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["job_tab_id"], name: "index_user_job_tab_configs_on_job_tab_id"
-    t.index ["user_id", "job_tab_id"], name: "idx_user_job_tab_config_unique", unique: true
-    t.index ["user_id", "parent_job_tab_id"], name: "index_user_job_tab_configs_on_user_id_and_parent_job_tab_id"
-    t.index ["user_id", "position"], name: "index_user_job_tab_configs_on_user_id_and_position"
-    t.index ["user_id"], name: "index_user_job_tab_configs_on_user_id"
   end
 
   create_table "user_navigation_configs", force: :cascade do |t|
@@ -10883,25 +10728,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
     t.index ["duplicate_group_id"], name: "index_xero_duplicate_items_on_duplicate_group_id"
   end
 
-  create_table "xero_feature_tabs", force: :cascade do |t|
-    t.string "tab_key", null: false
-    t.string "display_name", null: false
-    t.string "tab_group", default: "data"
-    t.integer "order_position", default: 0
-    t.boolean "enabled", default: true
-    t.string "component_name"
-    t.string "icon_name"
-    t.text "description"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "group_member", default: false, null: false
-    t.string "parent_key"
-    t.boolean "visible", default: true, null: false
-    t.index ["enabled"], name: "index_xero_feature_tabs_on_enabled"
-    t.index ["order_position"], name: "index_xero_feature_tabs_on_order_position"
-    t.index ["tab_key"], name: "index_xero_feature_tabs_on_tab_key", unique: true
-  end
-
   create_table "xero_health_events", force: :cascade do |t|
     t.bigint "xero_credential_id"
     t.string "event_type", null: false
@@ -11164,7 +10990,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
   add_foreign_key "docsort_items", "users", column: "overridden_by_id"
   add_foreign_key "docsort_items", "users", column: "uploaded_by_id"
   add_foreign_key "docsort_items", "warehouse_documents"
-  add_foreign_key "document_activities", "users"
   add_foreign_key "document_duplicate_reviews", "cases"
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
   add_foreign_key "document_tasks", "jobs"
@@ -11172,7 +10997,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
   add_foreign_key "document_templates", "tenants"
   add_foreign_key "document_types", "tenants"
   add_foreign_key "document_types", "warehouse_types"
-  add_foreign_key "document_verification_feedbacks", "users"
   add_foreign_key "e_signature_certificates", "e_signature_requests"
   add_foreign_key "e_signature_events", "e_signature_requests"
   add_foreign_key "e_signature_events", "e_signature_signers"
@@ -11542,8 +11366,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
   add_foreign_key "job_documents", "storage_blobs"
   add_foreign_key "job_documents", "users", column: "rename_approved_by_id", on_delete: :nullify
   add_foreign_key "job_documents", "users", column: "signed_by_id"
-  add_foreign_key "job_people", "contacts"
-  add_foreign_key "job_people", "jobs"
   add_foreign_key "job_plan_revisions", "job_plans"
   add_foreign_key "job_plan_revisions", "users", column: "issued_by_id"
   add_foreign_key "job_plan_tabs", "job_plan_tabs", column: "parent_id"
@@ -11637,7 +11459,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
   add_foreign_key "notifications", "users"
   add_foreign_key "organizations", "corporates", column: "company_id"
   add_foreign_key "organizations", "tenants"
-  add_foreign_key "page_help_contents", "users", column: "last_updated_by_id"
   add_foreign_key "page_scales", "docsort_items"
   add_foreign_key "page_scales", "job_plan_revisions"
   add_foreign_key "page_scales", "job_plans"
@@ -11955,9 +11776,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_000003) do
   add_foreign_key "user_documents", "document_types"
   add_foreign_key "user_documents", "storage_blobs"
   add_foreign_key "user_documents", "users"
-  add_foreign_key "user_job_tab_configs", "job_tabs"
-  add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
-  add_foreign_key "user_job_tab_configs", "users"
   add_foreign_key "user_navigation_configs", "navigation_items", name: "user_navigation_configs_navigation_item_id_fkey"
   add_foreign_key "user_navigation_configs", "users", name: "user_navigation_configs_user_id_fkey"
   add_foreign_key "user_permissions", "permissions"
