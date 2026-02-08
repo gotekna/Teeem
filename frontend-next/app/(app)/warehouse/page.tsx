@@ -153,6 +153,8 @@ interface TreeNode {
   warehouseTypeCode?: string;
   // Load more callback for pagination
   onLoadMore?: () => void;
+  // Email folder type for live_folder_tree drill-down ("mailbox" | "body" | "attachments")
+  emailFolderType?: string;
 }
 
 type ViewMode = "tree" | "list" | "gallery";
@@ -555,7 +557,7 @@ export default function AllDocumentsPage() {
   // SSoT: S3 folder contents - loaded lazily when expanding folders
   // This mirrors the exact Wasabi/S3 folder structure for OneDrive-like browsing
   const [s3Folders, setS3Folders] = useState<Record<string, {
-    folders: Array<{ name: string; path: string; count?: number; external_link?: string; mailbox_count?: number; expandable?: boolean; is_mailbox?: boolean; mailbox_email?: string }>;
+    folders: Array<{ name: string; path: string; count?: number; external_link?: string; mailbox_count?: number; expandable?: boolean; is_mailbox?: boolean; mailbox_email?: string; email_folder_type?: string }>;
     files: Array<{ name: string; path: string; size: number; content_type: string; url?: string; id?: number; type?: string; warehouse_document_id?: number }>;
     loading?: boolean;
     message?: string;
@@ -1454,11 +1456,12 @@ export default function AllDocumentsPage() {
       }));
     };
 
-    // Build S3 sub-folder nodes for a folder path
+    // Build S3 sub-folder nodes for a folder path (or cache key for virtual folders)
     // S3 folder listing returns sub-folders with optional mailbox properties
-    const buildS3FolderNodes = (folderPath: string | null, sourceType: string): TreeNode[] => {
-      if (!folderPath) return [];
-      const s3Data = s3Folders[folderPath];
+    // emailFolderType propagates through the drill-down chain for email live_folder_tree
+    const buildS3FolderNodes = (cacheKey: string | null, sourceType: string, emailFolderType?: string): TreeNode[] => {
+      if (!cacheKey) return [];
+      const s3Data = s3Folders[cacheKey];
       if (!s3Data?.folders?.length) return [];
 
       return s3Data.folders.map(folder => ({
@@ -1473,7 +1476,8 @@ export default function AllDocumentsPage() {
         mailboxEmail: folder.mailbox_email || undefined,
         externalLink: folder.external_link || undefined,
         mailboxCount: folder.mailbox_count || undefined,
-        children: buildS3FolderNodes(folder.path, sourceType),
+        emailFolderType: folder.email_folder_type || emailFolderType,
+        children: buildS3FolderNodes(folder.path, sourceType, folder.email_folder_type || emailFolderType),
       }));
     };
 
@@ -1490,12 +1494,15 @@ export default function AllDocumentsPage() {
       const folderPath = tokenValues ? resolvePathTokens(rawPath, tokenValues) : rawPath;
       // Check if path contains template tokens (virtual folder)
       const isVirtual = folderPath?.includes('{{') || false;
-      const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath); // Don't build S3 files for virtual folders
-      const s3SubFolders = isVirtual ? [] : buildS3FolderNodes(folderPath, sourceType);
+      // For virtual folders, use node ID as cache key (fetchEmailDrillDown stores under folderId)
+      const nodeId = recordId ? `${folder.id}-rec-${recordId}` : folder.id;
+      const s3CacheKey = isVirtual ? nodeId : folderPath;
+      const s3Files = buildS3FileNodes(s3CacheKey);
+      const s3SubFolders = buildS3FolderNodes(s3CacheKey, sourceType);
       const children = folder.children.map(child => convertWarehouseFolderChildToTreeNode(child, sourceType, tokenValues, recordId));
 
       return {
-        id: recordId ? `${folder.id}-rec-${recordId}` : folder.id,
+        id: nodeId,
         name: folder.name,
         type: "category" as const,
         icon: getIconComponent(folder.iconName, folder.name),
@@ -1527,8 +1534,10 @@ export default function AllDocumentsPage() {
       const folderPath = warehouseFolder.warehouseFolder?.folderPath || warehouseFolder.folderPathTemplate;
       // Check if path contains template tokens (virtual folder)
       const isVirtual = folderPath?.includes('{{') || false;
-      const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath); // Don't build S3 files for virtual folders
-      const s3SubFolders = isVirtual ? [] : buildS3FolderNodes(folderPath, sourceType);
+      // For virtual folders, use node ID as cache key (fetchEmailDrillDown stores under folderId)
+      const s3CacheKey = isVirtual ? warehouseFolder.id : folderPath;
+      const s3Files = buildS3FileNodes(s3CacheKey);
+      const s3SubFolders = buildS3FolderNodes(s3CacheKey, sourceType);
       const children = warehouseFolder.children.map(child => convertWarehouseFolderChildToTreeNode(child, sourceType));
 
       return {
@@ -1573,8 +1582,11 @@ export default function AllDocumentsPage() {
         // Resolve record's tokenValues into the path template
         const folderPath = resolvePathTokens(rawPath, record.tokenValues);
         const isVirtual = folderPath?.includes('{{') || false;
-        const s3Files = isVirtual ? [] : buildS3FileNodes(folderPath);
-        const s3SubFolders = isVirtual ? [] : buildS3FolderNodes(folderPath, warehouseType.code);
+        // For virtual folders, use compound node ID as cache key
+        const nodeId = `${warehouseFolder.id}-rec-${record.id}`;
+        const s3CacheKey = isVirtual ? nodeId : folderPath;
+        const s3Files = buildS3FileNodes(s3CacheKey);
+        const s3SubFolders = buildS3FolderNodes(s3CacheKey, warehouseType.code);
 
         // Get warehouse folder children (tabs) — pass tokenValues for path resolution
         const warehouseFolderChildren = warehouseFolder.children.map(child =>
@@ -1623,8 +1635,10 @@ export default function AllDocumentsPage() {
       const folderPath = warehouseType.folderPathTemplate?.split('/')[0]; // Get the root folder name
       // Check if warehouse type has template tokens (virtual)
       const isVirtual = warehouseType.folderPathTemplate?.includes('{{') || false;
-      const s3Files = isVirtual ? [] : (folderPath ? buildS3FileNodes(folderPath) : []);
-      const s3SubFolders = isVirtual ? [] : (folderPath ? buildS3FolderNodes(folderPath, warehouseType.code) : []);
+      // For virtual warehouse types (like Email), use the type id as cache key
+      const s3CacheKey = isVirtual ? `wt-${warehouseType.code}` : folderPath;
+      const s3Files = s3CacheKey ? buildS3FileNodes(s3CacheKey) : [];
+      const s3SubFolders = s3CacheKey ? buildS3FolderNodes(s3CacheKey, warehouseType.code) : [];
 
       // Get loaded records for this warehouse type (Feb 2026)
       const recordData = warehouseRecords[warehouseType.code];
@@ -1797,14 +1811,77 @@ export default function AllDocumentsPage() {
     }
   }, [s3Folders, loadingS3Folders]);
 
+  // Fetch email folder contents from live_folder_tree endpoint
+  // Used for email warehouse type drill-down: mailbox → year → month → files
+  // folder_type determines the branch: "mailbox" (list only), "body" (emails), "attachments"
+  const fetchEmailDrillDown = useCallback(async (folderType: string, path: string, scopeKey: string) => {
+    if (s3Folders[scopeKey] || loadingS3Folders.has(scopeKey)) return;
+
+    setLoadingS3Folders(prev => new Set(prev).add(scopeKey));
+    try {
+      const params = new URLSearchParams({ scope: 'email', folder_type: folderType });
+      if (path) params.set('path', path);
+
+      const response = await api.get<{
+        success: boolean;
+        folders: Array<{ name: string; path: string; count: number; is_mailbox?: boolean; mailbox_email?: string; external_link?: string }>;
+        files: Array<{ id: number; name: string; type?: string; mimeType?: string; fileSize?: number; fileUrl?: string; displayName?: string; receivedAt?: string; from?: string; fromName?: string }>;
+      }>(`/api/v1/documents/live_folder_tree?${params}`);
+
+      if (response?.success) {
+        setS3Folders(prev => ({
+          ...prev,
+          [scopeKey]: {
+            folders: (response.folders || []).map(f => ({
+              name: f.name,
+              path: f.path || '',
+              count: f.count || 0,
+              is_mailbox: f.is_mailbox || false,
+              mailbox_email: f.mailbox_email,
+              external_link: f.external_link,
+              email_folder_type: folderType,
+            })),
+            files: (response.files || []).map(f => ({
+              name: f.displayName || f.name || '(Unknown)',
+              path: '',
+              size: f.fileSize || 0,
+              content_type: f.mimeType || 'application/octet-stream',
+              url: f.fileUrl,
+              id: f.id,
+            }))
+          }
+        }));
+      }
+    } catch (err) {
+      console.error(`Failed to fetch email folder tree for ${folderType}/${path}:`, err);
+      setS3Folders(prev => ({ ...prev, [scopeKey]: { folders: [], files: [] } }));
+    } finally {
+      setLoadingS3Folders(prev => {
+        const next = new Set(prev);
+        next.delete(scopeKey);
+        return next;
+      });
+    }
+  }, [s3Folders, loadingS3Folders]);
+
+  // Derive email folder type from the last path segment name
+  const deriveEmailFolderType = useCallback((folderPath?: string): string => {
+    const lastSegment = (folderPath || '').split('/').pop()?.toLowerCase() || '';
+    if (lastSegment.includes('mailbox')) return 'mailbox';
+    if (lastSegment.includes('attachment')) return 'attachments';
+    return 'body';
+  }, []);
+
   // Toggle folder expansion and fetch folder contents
   // SSoT: Virtual folders load from WarehouseDocument, physical folders from S3
+  // Email folders use live_folder_tree for dynamic drill-down
   const toggleFolder = useCallback((
     folderId: string,
     folderPath?: string,
     externalLink?: string,
     sourceType?: string,
-    isVirtual?: boolean
+    isVirtual?: boolean,
+    emailFolderType?: string
   ) => {
     // If folder has external link (e.g., Emails → /email), navigate instead of expanding
     if (externalLink) {
@@ -1836,6 +1913,16 @@ export default function AllDocumentsPage() {
         if (warehouseTypeCode !== "email") {
           fetchRecords(warehouseTypeCode);
         }
+      } else if (sourceType === "email" && (isVirtual || emailFolderType)) {
+        // Email folders use live_folder_tree for dynamic browsing
+        // isVirtual = first expansion of warehouse folder (has {{}} tokens)
+        // emailFolderType = subsequent drill-down (propagated from parent)
+        const folderType = emailFolderType || deriveEmailFolderType(folderPath);
+        const drillPath = isVirtual ? '' : (folderPath || '');
+        // Cache key: for initial warehouse folder (isVirtual), use folderId
+        // For subsequent s3-folder drill-down, use folderPath so buildS3FolderNodes can find it
+        const cacheKey = isVirtual ? folderId : (folderPath || folderId);
+        fetchEmailDrillDown(folderType, drillPath, cacheKey);
       } else if (isVirtual && sourceType) {
         // Virtual folder - fetch from WarehouseDocument
         // Use folderId as scope key for caching
@@ -1846,7 +1933,7 @@ export default function AllDocumentsPage() {
         fetchS3Folders(folderPath);
       }
     }
-  }, [expandedFolders, fetchS3Folders, fetchVirtualFolderFiles, fetchRecords, router]);
+  }, [expandedFolders, fetchS3Folders, fetchVirtualFolderFiles, fetchEmailDrillDown, fetchRecords, deriveEmailFolderType, router]);
 
   // Open file in new window (for double-click)
   const openFileInNewWindow = useCallback((doc: DocumentItem) => {
@@ -2210,7 +2297,7 @@ export default function AllDocumentsPage() {
               isExpanded && "bg-muted/30"
             )}
             style={{ paddingLeft: `${paddingLeft}px` }}
-            onClick={() => toggleFolder(node.id, node.fullPath, node.externalLink, node.sourceType, node.isVirtual)}
+            onClick={() => toggleFolder(node.id, node.fullPath, node.externalLink, node.sourceType, node.isVirtual, node.emailFolderType)}
           >
             <ChevronRight
               className={cn(
@@ -2393,7 +2480,7 @@ export default function AllDocumentsPage() {
             if (node.isMailbox && node.mailboxEmail) {
               handleMailboxClick(node.mailboxEmail);
             } else {
-              toggleFolder(node.id, folderPath, node.externalLink, node.sourceType, node.isVirtual);
+              toggleFolder(node.id, folderPath, node.externalLink, node.sourceType, node.isVirtual, node.emailFolderType);
             }
           }}
           onDoubleClick={() => {
@@ -2404,9 +2491,11 @@ export default function AllDocumentsPage() {
           }}
           title={node.fullPath || undefined}
         >
-          {/* Show chevron if expandable (has children OR files OR is S3-driven folder OR is virtual folder)
-              BUT NOT for mailbox folders (they open drawer) or external link folders (they navigate away) */}
-          {!node.externalLink && !node.isMailbox && (hasChildren || fileCount > 0 || node.isVirtual || node.id.startsWith("s3-folder-") || ["job", "corporate", "contact", "contacts"].includes(node.id)) ? (
+          {/* Show chevron if expandable (has children OR files OR is S3-driven folder OR is virtual folder OR email drill-down)
+              BUT NOT for individual mailbox folders (they open drawer) or external link folders (they navigate away)
+              Note: isMailbox WITHOUT mailboxEmail = container Mailbox folder (expandable)
+                    isMailbox WITH mailboxEmail = individual mailbox (opens drawer) */}
+          {!node.externalLink && !(node.isMailbox && node.mailboxEmail) && (hasChildren || fileCount > 0 || node.isVirtual || node.emailFolderType || node.id.startsWith("s3-folder-") || ["job", "corporate", "contact", "contacts"].includes(node.id)) ? (
             isLoading ? (
               <Loader2 className="h-4 w-4 text-muted-foreground animate-spin shrink-0" />
             ) : (
