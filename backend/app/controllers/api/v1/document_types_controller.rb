@@ -9,7 +9,7 @@ module Api
       # SSoT: Include join table to ensure is_primary flag is available
       # SSoT (Feb 2026): Use warehouse_folder_document_types/warehouse_folder
       def index
-        @document_types = DocumentType.includes(warehouse_folder_document_types: { warehouse_folder: :parent })
+        @document_types = DocumentType.includes(warehouse_folder_document_types: { warehouse_folder: [:parent, :warehouse_type] })
 
         # Filter by scope (company, job, both)
         if params[:scope].present?
@@ -296,7 +296,7 @@ module Api
       private
 
       def set_document_type
-        @document_type = DocumentType.find(params[:id])
+        @document_type = DocumentType.includes(warehouse_folder_document_types: { warehouse_folder: [:parent, :warehouse_type] }).find(params[:id])
       end
 
       def document_type_params
@@ -339,7 +339,9 @@ module Api
             id: tab.id,
             tab_key: tab.tab_key,
             display_name: tab.display_name,
-            hierarchy_path: tab.full_ancestor_path,  # SSoT: WarehouseFolder uses full_ancestor_path
+            hierarchy_path: [tab.warehouse_type&.display_name, tab.full_ancestor_path].compact.join('/'),
+            warehouse_type_code: tab.warehouse_type&.code,
+            warehouse_type_name: tab.warehouse_type&.display_name,
             parent_id: tab.parent_id,
             parent_name: tab.parent&.display_name,
             is_primary: wfdt.is_primary
