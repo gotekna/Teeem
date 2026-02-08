@@ -16,47 +16,51 @@ class AddWarehouseTabsToEntityPages < ActiveRecord::Migration[7.2]
     contact_type = execute("SELECT id FROM warehouse_types WHERE code = 'contact' LIMIT 1").first
     corporate_type = execute("SELECT id FROM warehouse_types WHERE code = 'corporate' LIMIT 1").first
 
-    # Get tenant_id (Tekna - the only tenant with warehouse config)
-    tenant = execute("SELECT id FROM tenants LIMIT 1").first
-    tenant_id = tenant&.fetch("id", nil)
+    # Create warehouse tabs for ALL tenants (multi-tenant safe)
+    tenants = execute("SELECT id, name FROM tenants ORDER BY id")
 
-    unless tenant_id
-      puts "[AddWarehouseTabsToEntityPages] No tenant found - skipping"
+    if tenants.none?
+      puts "[AddWarehouseTabsToEntityPages] No tenants found - skipping"
       return
     end
 
-    [
-      { type_id: job_type&.fetch("id", nil),       code: "job",       order: 20 },
-      { type_id: contact_type&.fetch("id", nil),   code: "contact",   order: 12 },
-      { type_id: corporate_type&.fetch("id", nil), code: "corporate", order: 22 },
-    ].each do |config|
-      next unless config[:type_id]
+    tenants.each do |tenant|
+      tenant_id = tenant["id"]
+      tenant_name = tenant["name"]
 
-      # Idempotent: skip if already exists
-      existing = execute(<<-SQL.squish).first
-        SELECT id FROM warehouse_folders
-        WHERE warehouse_type_id = #{config[:type_id]}
-          AND tab_key = 'warehouse'
-          AND tenant_id = #{tenant_id}
-        LIMIT 1
-      SQL
-      next if existing
+      [
+        { type_id: job_type&.fetch("id", nil),       code: "job",       order: 20 },
+        { type_id: contact_type&.fetch("id", nil),   code: "contact",   order: 12 },
+        { type_id: corporate_type&.fetch("id", nil), code: "corporate", order: 22 },
+      ].each do |config|
+        next unless config[:type_id]
 
-      execute(<<-SQL.squish)
-        INSERT INTO warehouse_folders (
-          warehouse_type_id, tenant_id, name, display_name, folder_segment,
-          tab_key, tab_type, tab_group, icon_name,
-          order_position, enabled, warehouse_enabled, is_system,
-          parent_id, created_at, updated_at
-        ) VALUES (
-          #{config[:type_id]}, #{tenant_id}, 'Warehouse', 'Warehouse', 'Warehouse',
-          'warehouse', 'system', 'data', 'Warehouse',
-          #{config[:order]}, TRUE, FALSE, FALSE,
-          NULL, NOW(), NOW()
-        )
-      SQL
+        # Idempotent: skip if already exists for this tenant
+        existing = execute(<<-SQL.squish).first
+          SELECT id FROM warehouse_folders
+          WHERE warehouse_type_id = #{config[:type_id]}
+            AND tab_key = 'warehouse'
+            AND tenant_id = #{tenant_id}
+          LIMIT 1
+        SQL
+        next if existing
 
-      puts "[AddWarehouseTabsToEntityPages] Created Warehouse tab for #{config[:code]}"
+        execute(<<-SQL.squish)
+          INSERT INTO warehouse_folders (
+            warehouse_type_id, tenant_id, name, display_name, folder_segment,
+            tab_key, tab_type, tab_group, icon_name,
+            order_position, enabled, warehouse_enabled, is_system,
+            parent_id, created_at, updated_at
+          ) VALUES (
+            #{config[:type_id]}, #{tenant_id}, 'Warehouse', 'Warehouse', 'Warehouse',
+            'warehouse', 'system', 'data', 'Warehouse',
+            #{config[:order]}, TRUE, FALSE, FALSE,
+            NULL, NOW(), NOW()
+          )
+        SQL
+
+        puts "[AddWarehouseTabsToEntityPages] Created Warehouse tab for #{config[:code]} (tenant: #{tenant_name})"
+      end
     end
   end
 
