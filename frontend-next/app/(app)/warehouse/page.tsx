@@ -1047,7 +1047,7 @@ export default function AllDocumentsPage() {
                 onMailboxClick={handleMailboxClick}
                 onMailboxDoubleClick={handleMailboxDoubleClick}
                 selectedDocument={previewDocument}
-                showPathTemplates={true}
+                hideToolbar
                 treeDisplayMode={treeDisplayMode}
                 onTreeDisplayModeChange={(m) => setTreeDisplayMode(m)}
               />
