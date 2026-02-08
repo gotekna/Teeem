@@ -48,11 +48,11 @@ class AddRecordConfigToWarehouseTypes < ActiveRecord::Migration[8.0]
         source_model: 'Corporate',
         token_config: {
           'CompanyCode' => 'code',
-          'CompanyName' => 'display_name',
+          'CompanyName' => 'name',
           'CompanyGroup' => 'company_group.name'
         },
         records_config: {
-          'display' => { 'name' => 'display_name', 'subtitle' => 'company_group.name' },
+          'display' => { 'name' => 'name', 'subtitle' => 'company_group.name' },
           'search' => %w[corporates.name corporates.code],
           'order' => 'corporates.name ASC'
         }
