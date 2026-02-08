@@ -90,10 +90,6 @@ interface TakeoffCanvasProps {
   // Container ref for calibration input positioning
   containerRef?: React.RefObject<HTMLDivElement | null>;
 
-  // Calibration overlay toggle — hides all calibration visuals (lines, magnifiers, badges)
-  showCalibrationOverlay?: boolean;
-  onToggleCalibrationOverlay?: () => void;
-
   // Pan state from usePdfPanZoom hook — suppresses tool clicks during pan
   isPanning?: boolean;
   isSpaceHeld?: boolean;
@@ -126,8 +122,6 @@ export function TakeoffCanvas({
   zoom,
   snapConfig,
   showSnapPoints = false,
-  showCalibrationOverlay: showCalibrationOverlayProp,
-  onToggleCalibrationOverlay: onToggleCalibrationOverlayProp,
   containerRef,
   isPanning: isPanningProp = false,
   isSpaceHeld: isSpaceHeldProp = false,
@@ -177,21 +171,37 @@ export function TakeoffCanvas({
   const [calibrationStep, setCalibrationStep] = useState<"idle" | "firstPoint" | "waitingInput" | "verifying">("idle");
   const [calibrationInput, setCalibrationInput] = useState("");
   const calibrationInputRef = useRef<HTMLInputElement>(null);
-  // Internal state fallback when parent doesn't control the toggle
-  const [showCalibrationOverlayInternal, setShowCalibrationOverlayInternal] = useState(true);
-  const showCalibrationOverlay = showCalibrationOverlayProp ?? showCalibrationOverlayInternal;
-  const setShowCalibrationOverlay = onToggleCalibrationOverlayProp
-    ? () => onToggleCalibrationOverlayProp()
-    : () => setShowCalibrationOverlayInternal(prev => !prev);
+  // Calibration overlay visible only when calibrate tool is active
+  const showCalibrationOverlay = currentTool === "calibrate";
   const [verificationInput, setVerificationInput] = useState("");
   const [verificationConfirmed, setVerificationConfirmed] = useState(false);
   const verificationInputRef = useRef<HTMLInputElement>(null);
-  const [completedVerifications, setCompletedVerifications] = useState<Array<{
+  // Verifications stored per page so they persist across page switches
+  type VerificationResult = {
     line: { start: Point; end: Point };
     computedMm: number;
     expectedMm: number;
     diffPercent: number;
-  }>>([]);
+  };
+  const [verificationsByPage, setVerificationsByPage] = useState<Record<number, VerificationResult[]>>({});
+  const completedVerifications = verificationsByPage[pageNumber] || [];
+  const setCompletedVerifications = useCallback((updater: VerificationResult[] | ((prev: VerificationResult[]) => VerificationResult[])) => {
+    setVerificationsByPage(prev => {
+      const current = prev[pageNumber] || [];
+      const next = typeof updater === "function" ? updater(current) : updater;
+      return { ...prev, [pageNumber]: next };
+    });
+  }, [pageNumber]);
+
+  // Reset active calibration UI (not verifications) when switching pages
+  useEffect(() => {
+    setCalibrationLine(null);
+    setCalibrationStep("idle");
+    setCalibrationInput("");
+    setVerificationInput("");
+    setVerificationConfirmed(false);
+    setIsDrawing(false);
+  }, [pageNumber]);
 
   // Refs for calibration state — avoids stale closures in placeToolPoint
   // ⚠️ DO NOT SIMPLIFY - placeToolPoint is called from both canvas mousedown and
@@ -668,7 +678,7 @@ export function TakeoffCanvas({
           const dx = (point.x - firstPt.x) * zoomRef.current;
           const dy = (point.y - firstPt.y) * zoomRef.current;
           const screenDist = Math.sqrt(dx * dx + dy * dy);
-          if (screenDist < 15) {
+          if (screenDist < 25) {
             completeDrawingRef.current();
             break;
           }
@@ -776,7 +786,13 @@ export function TakeoffCanvas({
     }
 
     // Only update drawing if actively drawing
-    if (!isDrawing) return;
+    if (!isDrawing) {
+      // DEBUG: log when we bail out due to isDrawing=false while in a polygon tool
+      if (["area", "perimeter", "deduction"].includes(currentTool) && currentPoints.length > 0) {
+        console.log("[CLOSE-DBG] handleMouseMove: isDrawing=false but have", currentPoints.length, "points — renderTempDrawing NOT called");
+      }
+      return;
+    }
 
     const point = shouldSnap && snapResult?.isSnapped ? snapResult.snapped : rawPoint;
 
@@ -789,7 +805,8 @@ export function TakeoffCanvas({
       currentPoints.length > 0
     ) {
       // Render live preview while drawing polygon/polyline
-      renderTempDrawing(point);
+      // Pass raw point too so close-indicator uses pre-snap position
+      renderTempDrawing(point, rawPoint);
     }
   }, [isDrawing, currentTool, calibrationLine, calibrationStep, zoom, currentPoints, activeLayer, findSnapPoint, snapResult]);
 
@@ -1017,7 +1034,8 @@ export function TakeoffCanvas({
   };
 
   // Render temporary polygon/polyline while drawing (live preview)
-  const renderTempDrawing = (cursorPoint: Point) => {
+  const closeDbgLastLog = useRef(0);
+  const renderTempDrawing = (cursorPoint: Point, rawCursorPoint?: Point) => {
     const canvas = fabricRef.current;
     if (!canvas || currentPoints.length === 0) return;
 
@@ -1117,13 +1135,26 @@ export function TakeoffCanvas({
     }
 
     // Check if cursor is near the first point (for polygon close indicator)
-    const isNearFirstPoint = isPolygon && currentPoints.length >= 3 && (() => {
-      const firstScaled = scaledPoints[0];
-      const cursorScaled = { x: cursorPoint.x * zoom, y: cursorPoint.y * zoom };
-      const dx = cursorScaled.x - firstScaled.x;
-      const dy = cursorScaled.y - firstScaled.y;
-      return Math.sqrt(dx * dx + dy * dy) < 15;
-    })();
+    // Use raw cursor position (before snap) so the indicator appears gradually
+    // as the user approaches, rather than jumping when snap kicks in
+    const checkPoint = rawCursorPoint || cursorPoint;
+    const closeDistScreen = isPolygon && currentPoints.length >= 3 ? (() => {
+      const first = currentPoints[0];
+      const dx = (checkPoint.x - first.x) * zoom;
+      const dy = (checkPoint.y - first.y) * zoom;
+      return Math.sqrt(dx * dx + dy * dy);
+    })() : null;
+    const isNearFirstPoint = closeDistScreen !== null && closeDistScreen < 25;
+
+    // DEBUG: log close-detection state (throttled to ~once per second)
+    if (isPolygon && currentPoints.length >= 3) {
+      if (Date.now() - closeDbgLastLog.current > 1000) {
+        closeDbgLastLog.current = Date.now();
+        console.log(
+          `[CLOSE-DBG] pts=${currentPoints.length} dist=${closeDistScreen?.toFixed(1)}px near=${isNearFirstPoint} raw=(${checkPoint.x.toFixed(0)},${checkPoint.y.toFixed(0)}) first=(${currentPoints[0].x.toFixed(0)},${currentPoints[0].y.toFixed(0)}) zoom=${zoom.toFixed(2)}`
+        );
+      }
+    }
 
     // Draw markers at each point
     scaledPoints.forEach((p, i) => {
@@ -1148,22 +1179,36 @@ export function TakeoffCanvas({
       if (isNearFirstPoint) {
         // Outer glow ring to signal "click to close"
         const glow = new fabric.Circle({
-          left: fp.x - 12,
-          top: fp.y - 12,
-          radius: 12,
-          fill: `${color}33`,
+          left: fp.x - 16,
+          top: fp.y - 16,
+          radius: 16,
+          fill: `${color}22`,
           stroke: color,
           strokeWidth: 2,
+          strokeDashArray: [3, 3],
           selectable: false,
         }) as FabricObjectWithData;
         glow.data = { isTempDrawing: true };
         canvas.add(glow);
+
+        // "Click to close" label
+        const closeLabel = new fabric.FabricText("Click to close", {
+          left: fp.x + 20,
+          top: fp.y - 8,
+          fontSize: 11,
+          fill: color,
+          fontWeight: "bold",
+          backgroundColor: "rgba(255,255,255,0.9)",
+          selectable: false,
+        }) as FabricObjectWithData;
+        closeLabel.data = { isTempDrawing: true };
+        canvas.add(closeLabel);
       }
       const firstMarker = new fabric.Circle({
-        left: fp.x - (isNearFirstPoint ? 7 : 5),
-        top: fp.y - (isNearFirstPoint ? 7 : 5),
-        radius: isNearFirstPoint ? 7 : 5,
-        fill: "#fff",
+        left: fp.x - (isNearFirstPoint ? 8 : 5),
+        top: fp.y - (isNearFirstPoint ? 8 : 5),
+        radius: isNearFirstPoint ? 8 : 5,
+        fill: isNearFirstPoint ? `${color}44` : "#fff",
         stroke: color,
         strokeWidth: isNearFirstPoint ? 3 : 2,
         selectable: false,
@@ -1470,8 +1515,8 @@ export function TakeoffCanvas({
               color="#F59E0B"
               preferSide="left"
               onSelect={(newPoint) => {
-                onCalibrate({
-                  lineStart: newPoint,
+                void onCalibrate({
+                  lineStart: { x: newPoint.x, y: newPoint.y },
                   lineEnd: { x: calLine.x2, y: calLine.y2 },
                   referenceLengthMm: pageScale.reference_length_mm!,
                   canvasWidth: pageWidth,
@@ -1489,9 +1534,9 @@ export function TakeoffCanvas({
               color="#F59E0B"
               preferSide={isVerticalCal ? "left" : "right"}
               onSelect={(newPoint) => {
-                onCalibrate({
+                void onCalibrate({
                   lineStart: { x: calLine.x1, y: calLine.y1 },
-                  lineEnd: newPoint,
+                  lineEnd: { x: newPoint.x, y: newPoint.y },
                   referenceLengthMm: pageScale.reference_length_mm!,
                   canvasWidth: pageWidth,
                   canvasHeight: pageHeight,
@@ -1633,16 +1678,16 @@ export function TakeoffCanvas({
         />
       )}
 
-      {/* Scale indicator */}
-      {pageScale?.calibrated && (
+      {/* Scale indicator — only visible in calibrate mode */}
+      {pageScale?.calibrated && showCalibrationOverlay && (
         <div className="absolute bottom-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-2 border shadow-sm">
           <div className="text-xs text-muted-foreground">Scale</div>
           <div className="text-sm font-medium">{pageScale.scale_label}</div>
         </div>
       )}
 
-      {/* Not calibrated warning */}
-      {!pageScale?.calibrated && (
+      {/* Not calibrated warning — only when calibrate tool is active */}
+      {!pageScale?.calibrated && showCalibrationOverlay && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-amber-500/90 text-white rounded-lg px-4 py-2 text-sm font-medium shadow-lg">
           Page not calibrated - Use Calibrate tool to set scale
         </div>
@@ -1684,30 +1729,22 @@ export function TakeoffCanvas({
             }
           </div>
           {pageScale?.calibrated && (
-            <>
-              <button
-                onClick={setShowCalibrationOverlay}
-                className="bg-background/90 backdrop-blur-sm border rounded-lg px-3 py-2 text-sm font-medium shadow-lg hover:bg-muted"
-              >
-                {showCalibrationOverlay ? "Hide" : "Show"} Calibration
-              </button>
-              <button
-                onClick={async () => {
-                  if (onClearCalibration) {
-                    await onClearCalibration();
-                    // Reset all calibration UI state for a fresh start
-                    setCalibrationLine(null);
-                    setCalibrationStep("idle");
-                    setCalibrationInput("");
-                    setIsDrawing(false);
-                    clearTempDrawing();
-                  }
-                }}
-                className="bg-red-500/90 text-white rounded-lg px-3 py-2 text-sm font-medium shadow-lg hover:bg-red-600"
-              >
-                Clear Calibration
-              </button>
-            </>
+            <button
+              onClick={async () => {
+                if (onClearCalibration) {
+                  await onClearCalibration();
+                  // Reset all calibration UI state for a fresh start
+                  setCalibrationLine(null);
+                  setCalibrationStep("idle");
+                  setCalibrationInput("");
+                  setIsDrawing(false);
+                  clearTempDrawing();
+                }
+              }}
+              className="bg-red-500/90 text-white rounded-lg px-3 py-2 text-sm font-medium shadow-lg hover:bg-red-600"
+            >
+              Clear Calibration
+            </button>
           )}
         </div>
       )}
