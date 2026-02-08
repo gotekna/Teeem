@@ -797,8 +797,9 @@ export function WarehouseTypesTab() {
                 onChange={(value) => setFormData(prev => ({ ...prev, folder_path_template: value }))}
                 scope={getWarehouseScopeForType(formData.code)}
                 separator="/"
+                prefixValue={(formData.display_name || "TypeName") + "/"}
                 showPreview
-                helpText={`Storage path: ${formData.folder_path_template || "..."}`}
+                helpText={`Full path: ${formData.display_name || "TypeName"}/${formData.folder_path_template || "..."}`}
               />
 
               {/* Warehouse Folders - Tree View (only show when editing, hidden for corporate/job/contact - managed via their own config pages) */}
