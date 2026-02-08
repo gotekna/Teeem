@@ -84,7 +84,7 @@ class TenantConfigSyncService
     document_types: {
       model: "DocumentType",
       name_field: :name,
-      match_fields: [:name, :scope],
+      match_fields: [:name],
       sync_fields: [:name, :scope, :file_name, :display_name, :abbreviation, :category,
                     :folder, :primary_tab, :aliases, :requires_filing, :supports_versioning,
                     :generates_certificate, :certificate_template, :form_number_mapping,
