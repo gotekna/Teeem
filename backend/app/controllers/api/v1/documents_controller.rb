@@ -147,6 +147,8 @@ module Api
       #   folder: Filter by virtual folder path
       #   search: Full-text search on display_name
       #   documentable_type: Filter by underlying model (SyncedEmail, etc.)
+      #   linkable_type: Filter by linked record type (Job, Contact, etc.)
+      #   linkable_id: Filter by linked record ID
       #   limit: Max results (default: 100)
       #   offset: Pagination offset
       def warehouse
@@ -161,6 +163,31 @@ module Api
         # Filter by documentable_type
         if params[:documentable_type].present?
           documents = documents.where(documentable_type: params[:documentable_type])
+        end
+
+        # Filter by linkable (scoped to a specific Job, Contact, etc.)
+        # Also includes cross-linked documents via "Also show in" + FK chains
+        if params[:linkable_type].present? && params[:linkable_id].present?
+          linkable_type = params[:linkable_type]
+          linkable_id = params[:linkable_id]
+
+          direct_docs = WarehouseDocument
+            .where(tenant_id: current_tenant&.id)
+            .where(linkable_type: linkable_type, linkable_id: linkable_id)
+
+          documentable_docs = WarehouseDocument
+            .where(tenant_id: current_tenant&.id)
+            .where(documentable_type: linkable_type, documentable_id: linkable_id)
+
+          cross_docs = cross_linked_warehouse_documents(linkable_type, linkable_id)
+
+          combined_ids = (
+            direct_docs.pluck(:id) +
+            documentable_docs.pluck(:id) +
+            cross_docs.pluck(:id)
+          ).uniq
+
+          documents = documents.where(id: combined_ids)
         end
 
         # Filter by folder
@@ -2291,6 +2318,43 @@ module Api
       # Reads from WarehouseFolder database (e.g., "task" → "Tasks", "job" → "Jobs")
       def warehouse_root_folder_name(scope)
         WarehouseFolder.root_folder_name_for(scope)
+      end
+
+      # ═══════════════════════════════════════════════════════════════════════════
+      # Cross-linked documents (Feb 2026)
+      # "Also show in" — documents appear in secondary warehouse types via FK chains
+      # Mirrors logic in WarehouseTypesController#cross_linked_documents
+      # ═══════════════════════════════════════════════════════════════════════════
+
+      # Find documents that should appear via "Also show in" + FK chains
+      def cross_linked_warehouse_documents(linkable_type, linkable_id)
+        case linkable_type
+        when "Job"
+          # Find Xero docs whose ExternalInvoice.job_id matches this job,
+          # but only if the document type has a secondary folder in the Job warehouse type
+          invoice_ids = ExternalInvoice.where(job_id: linkable_id).pluck(:id)
+          return WarehouseDocument.none if invoice_ids.empty?
+
+          job_wt = WarehouseType.find_by(code: "job")
+          return WarehouseDocument.none unless job_wt
+
+          secondary_doc_type_ids = WarehouseFolderDocumentType
+            .joins(:warehouse_folder)
+            .where(is_primary: false)
+            .where(warehouse_folders: { warehouse_type_id: job_wt.id })
+            .pluck(:document_type_id)
+          return WarehouseDocument.none if secondary_doc_type_ids.empty?
+
+          WarehouseDocument
+            .where(tenant_id: current_tenant&.id)
+            .where(documentable_type: "ExternalInvoice", documentable_id: invoice_ids)
+            .where(
+              "metadata->>'document_type_id' IN (?)",
+              secondary_doc_type_ids.map(&:to_s)
+            )
+        else
+          WarehouseDocument.none
+        end
       end
 
       # Phase 3: Serialize WarehouseDocument (universal format)

@@ -116,6 +116,12 @@ module Api
       # GET /api/v1/warehouse_types/scoped_tree?linkable_type=Job&linkable_id=123
       # Returns a sub-tree of folders for a specific linked record
       # Used by Job/Contact/Corporate warehouse tabs
+      #
+      # Three document sources:
+      #   1. Direct linkable match (e.g., docs linked to this Job)
+      #   2. Documentable match (older docs that use documentable instead of linkable)
+      #   3. Cross-linked via "Also show in" + FK chains (e.g., Xero bills linked to Contact
+      #      but visible in Job warehouse because document type has secondary folder in Job)
       def scoped_tree
         linkable_type = params[:linkable_type]
         linkable_id = params[:linkable_id]
@@ -131,7 +137,17 @@ module Api
           .where(documentable_type: linkable_type, documentable_id: linkable_id)
           .where.not(folder_path: nil)
 
-        all_paths = (docs.pluck(:folder_path) + documentable_docs.pluck(:folder_path)).compact.uniq
+        # Cross-linked documents via "Also show in" config + FK chains
+        cross_docs = cross_linked_documents(linkable_type, linkable_id)
+
+        # Direct + documentable paths use their actual folder_path
+        direct_paths = (docs.pluck(:folder_path) + documentable_docs.pluck(:folder_path)).compact
+
+        # Cross-linked docs need their paths remapped to the secondary folder
+        # in the target warehouse type (e.g., Contact path → Job path)
+        cross_remapped = remap_cross_linked_paths(cross_docs, linkable_type)
+
+        all_paths = (direct_paths + cross_remapped.keys).compact.uniq
 
         if all_paths.empty?
           return render json: {
@@ -158,12 +174,20 @@ module Api
           tree[leaf_key][:count] += 1 if tree[leaf_key]
         end
 
-        # Get folder-level counts
-        combined_ids = (docs.pluck(:id) + documentable_docs.pluck(:id)).uniq
-        folder_counts = WarehouseDocument
-          .where(id: combined_ids)
-          .group(:folder_path)
-          .count
+        # Get folder-level counts for direct + documentable docs
+        direct_ids = (docs.pluck(:id) + documentable_docs.pluck(:id)).uniq
+        folder_counts = if direct_ids.any?
+          WarehouseDocument.where(id: direct_ids).group(:folder_path).count
+        else
+          {}
+        end
+
+        # Add cross-linked doc counts under their remapped paths
+        cross_remapped.each do |remapped_path, doc_ids|
+          folder_counts[remapped_path] = (folder_counts[remapped_path] || 0) + doc_ids.size
+        end
+
+        combined_ids = (direct_ids + cross_docs.pluck(:id)).uniq
 
         render json: {
           success: true,
@@ -702,6 +726,160 @@ module Api
           isMailbox: warehouse_folder.is_mailbox,
           dynamicType: warehouse_folder.dynamic_type
         }
+      end
+
+      # ═══════════════════════════════════════════════════════════════════════════
+      # Cross-linked documents (Feb 2026)
+      # "Also show in" — documents appear in secondary warehouse types via FK chains
+      #
+      # Architecture:
+      #   WarehouseDocument.warehouse_folder_document_type_id (FK)
+      #     → WarehouseFolderDocumentType.document_type_id
+      #       → all WarehouseFolderDocumentType rows for that doc type (primary + secondary)
+      #         → secondary folders in the target warehouse type = "Also show in"
+      #
+      # For Jobs: ExternalInvoice.job_id → documents whose document type has
+      #           a secondary (is_primary=false) folder in the Job warehouse type.
+      #
+      # For Corporate: ExternalInvoice.contact → Contact.company → CorporateCompany
+      #                (future extension when FK chain is established)
+      # ═══════════════════════════════════════════════════════════════════════════
+
+      # Find documents that should appear via "Also show in" + FK chains
+      # @param linkable_type [String] "Job", "Contact", etc.
+      # @param linkable_id [Integer] The ID of the linked record
+      # @return [ActiveRecord::Relation] Documents to include
+      def cross_linked_documents(linkable_type, linkable_id)
+        case linkable_type
+        when "Job"
+          cross_linked_documents_for_job(linkable_id)
+        else
+          WarehouseDocument.none
+        end
+      end
+
+      # Find Xero documents whose ExternalInvoice.job_id matches this job,
+      # but only if the document type has a secondary folder in the Job warehouse type.
+      # This respects the "Also show in" config — only shows if configured.
+      def cross_linked_documents_for_job(job_id)
+        # Find ExternalInvoices linked to this job
+        invoice_ids = ExternalInvoice.where(job_id: job_id).pluck(:id)
+        return WarehouseDocument.none if invoice_ids.empty?
+
+        # Find document_type_ids that have a secondary (non-primary) folder in Job warehouse
+        job_wt = WarehouseType.find_by(code: "job")
+        return WarehouseDocument.none unless job_wt
+
+        secondary_doc_type_ids = WarehouseFolderDocumentType
+          .joins(:warehouse_folder)
+          .where(is_primary: false)
+          .where(warehouse_folders: { warehouse_type_id: job_wt.id })
+          .pluck(:document_type_id)
+        return WarehouseDocument.none if secondary_doc_type_ids.empty?
+
+        # Find warehouse documents for these invoices whose document type
+        # has a secondary folder configured in the Job warehouse
+        WarehouseDocument
+          .where(tenant_id: current_tenant&.id)
+          .where(documentable_type: "ExternalInvoice", documentable_id: invoice_ids)
+          .where.not(folder_path: nil)
+          .where(
+            "metadata->>'document_type_id' IN (?)",
+            secondary_doc_type_ids.map(&:to_s)
+          )
+      end
+
+      # Remap folder paths for cross-linked documents to the secondary folder's path
+      # in the target warehouse type. E.g., a Xero bill stored at
+      # "Contacts/Bunnings/Financial/Bills" should appear as "Job/J-001/Smith Residence/Finance/Bills"
+      # when viewed in a Job's warehouse.
+      #
+      # Uses WarehousePathComputer to expand the secondary folder's template with
+      # the target record's tokens (JobCode, JobName, etc.)
+      #
+      # @param cross_docs [ActiveRecord::Relation] Cross-linked documents
+      # @param target_linkable_type [String] The target context (e.g., "Job")
+      # @param target_linkable_id [Integer] The target record ID
+      # @return [Hash] { expanded_folder_path => [doc_id, ...] }
+      def remap_cross_linked_paths(cross_docs, target_linkable_type, target_linkable_id = nil)
+        return {} unless cross_docs.any?
+        target_linkable_id ||= params[:linkable_id]
+
+        target_wt_code = case target_linkable_type
+                         when "Job" then "job"
+                         when "Contact" then "contact"
+                         when "CorporateCompany" then "corporate"
+                         else return {}
+                         end
+
+        target_wt = WarehouseType.find_by(code: target_wt_code)
+        return {} unless target_wt
+
+        # Build token values from the target record for template expansion
+        tokens = build_tokens_for_linkable(target_linkable_type, target_linkable_id)
+
+        # Pre-load secondary folder templates for this target warehouse type
+        # { document_type_id => path_template }
+        secondary_template_map = {}
+        computer = WarehousePathComputer.new
+        WarehouseFolderDocumentType
+          .joins(:warehouse_folder)
+          .where(is_primary: false)
+          .where(warehouse_folders: { warehouse_type_id: target_wt.id })
+          .includes(warehouse_folder: :warehouse_type)
+          .each do |wfdt|
+            template = computer.send(:build_path_template, wfdt.warehouse_folder)
+            secondary_template_map[wfdt.document_type_id] = template
+          end
+
+        result = Hash.new { |h, k| h[k] = [] }
+
+        cross_docs.select(:id, :metadata).find_each do |doc|
+          doc_type_id = doc.metadata&.dig("document_type_id")&.to_i
+          next unless doc_type_id
+
+          template = secondary_template_map[doc_type_id]
+          next unless template
+
+          # Expand the template with the target record's tokens
+          expanded = computer.send(:expand_template, template, tokens)
+          expanded = computer.send(:sanitize_path, expanded)
+          next if expanded.blank?
+
+          result[expanded] << doc.id
+        end
+
+        result
+      end
+
+      # Build token values for a linkable record (for template expansion)
+      # @param linkable_type [String] "Job", "Contact", etc.
+      # @param linkable_id [Integer] Record ID
+      # @return [Hash] Token name => value (e.g., { JobCode: "J-001", JobName: "Smith" })
+      def build_tokens_for_linkable(linkable_type, linkable_id)
+        tokens = {}
+        case linkable_type
+        when "Job"
+          job = Job.find_by(id: linkable_id)
+          if job
+            tokens[:JobCode] = job.job_code
+            tokens[:JobName] = job.name.presence || job.job_code
+          end
+        when "Contact"
+          contact = Contact.find_by(id: linkable_id)
+          if contact
+            tokens[:ContactName] = contact.display_name.presence || "Contact-#{contact.id}"
+            tokens[:ContactId] = contact.id
+          end
+        when "CorporateCompany"
+          cc = CorporateCompany.find_by(id: linkable_id)
+          if cc
+            tokens[:CompanyCode] = cc.company_code
+            tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
+            tokens[:CompanyName] = cc.name
+          end
+        end
+        tokens
       end
 
       # SSoT (Feb 2026): No cascade needed - paths are computed dynamically
