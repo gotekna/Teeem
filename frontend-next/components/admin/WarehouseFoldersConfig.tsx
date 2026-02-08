@@ -2530,22 +2530,12 @@ export function WarehouseFoldersConfig({
                     )}
                   </Label>
                   {(formData.parent_id || editingTab?.parent_id) ? (
-                    // Sub-tabs: inherit from parent - read-only display
-                    // FRC (Feb 2026): Use parent's folder_path (includes full parent chain)
+                    // Sub-tabs: base path is ALWAYS from warehouse_types table (SSoT)
+                    // SSoT (Feb 2026): getBasePath reads warehouse_types.folder_path_template directly
+                    // Never use parent's folder_path - it can be corrupted
                     <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
                       <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                        {(() => {
-                          const pid = formData.parent_id || editingTab?.parent_id;
-                          if (!pid) return getBasePath(scope);
-                          const findTab = (tabList: WarehouseFolder[], id: number): WarehouseFolder | null => {
-                            for (const t of tabList) {
-                              if (t.id === id) return t;
-                              if (t.children?.length) { const f = findTab(t.children, id); if (f) return f; }
-                            }
-                            return null;
-                          };
-                          return findTab(tabs, pid)?.folder_path || getBasePath(scope);
-                        })()}
+                        {getBasePath(scope)}
                       </span>
                       <span className="text-muted-foreground">/</span>
                     </div>
@@ -2613,30 +2603,9 @@ export function WarehouseFoldersConfig({
                     }))
                   }
                   scope="storage"
-                  // SSoT: Show inherited base path as greyed prefix
-                  // For ROOT tabs: show warehouse_type base template (e.g., "Contacts/{{ContactName}}")
-                  // For CHILD tabs: show parent's full folder_path (includes parent chain)
-                  prefixValue={(() => {
-                    const parentId = formData.parent_id || editingTab?.parent_id;
-                    if (!parentId) {
-                      // ROOT tab: prefix is the warehouse_type base template
-                      return getBasePath(scope);
-                    }
-                    // CHILD tab: use parent's folder_path (includes full parent chain)
-                    // FRC (Feb 2026): Use parent's folder_path, not getBasePath which misses parent segments
-                    const findTab = (tabList: WarehouseFolder[], id: number): WarehouseFolder | null => {
-                      for (const t of tabList) {
-                        if (t.id === id) return t;
-                        if (t.children?.length) {
-                          const found = findTab(t.children, id);
-                          if (found) return found;
-                        }
-                      }
-                      return null;
-                    };
-                    const parent = findTab(tabs, parentId);
-                    return parent?.folder_path || getBasePath(scope);
-                  })()}
+                  // SSoT: Base path ALWAYS from warehouse_types.folder_path_template
+                  // Same for root and child tabs - never use parent's folder_path
+                  prefixValue={getBasePath(scope)}
                   separator="/"
                   // SSoT: Filter placeholders based on tab hierarchy
                   // - Root tabs: show {{TabName}} only (no subtab)
@@ -2657,11 +2626,10 @@ export function WarehouseFoldersConfig({
 
                 {/* Full path preview - uses ACTUAL tab names, not generic examples */}
                 {(() => {
-                  // SSoT: Get base path for preview
-                  // For ROOT tabs: use warehouse_type base template (e.g., "Contacts/{{ContactName}}")
-                  // For CHILD tabs: use parent's full folder_path (includes parent chain)
+                  // SSoT: Base path ALWAYS from warehouse_types.folder_path_template
+                  const basePath = getBasePath(scope);
+
                   const parentId = formData.parent_id || editingTab?.parent_id;
-                  // Recursive search to find parent tab (might be nested)
                   const findTabById = (tabList: WarehouseFolder[], id: number): WarehouseFolder | null => {
                     for (const tab of tabList) {
                       if (tab.id === id) return tab;
@@ -2673,14 +2641,6 @@ export function WarehouseFoldersConfig({
                     return null;
                   };
                   const parentTab = parentId ? findTabById(tabs, parentId) : null;
-
-                  const isRootTab = !parentId;
-                  // FRC (Feb 2026): For child tabs, use parent's folder_path as base (includes full parent chain)
-                  // e.g., Bills (child of Financial) → basePath = "Contacts/{{ContactName}}/Financial"
-                  const basePath = isRootTab
-                    ? getBasePath(scope)
-                    : (parentTab?.folder_path || getBasePath(scope));
-
                   const currentTabName = formData.display_name || editingTab?.display_name || "";
                   const parentTabName = parentTab?.display_name || "";
 

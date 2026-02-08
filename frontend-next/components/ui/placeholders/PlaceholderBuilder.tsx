@@ -528,19 +528,20 @@ export function PlaceholderBuilder({
     return undefined;
   }, [tokens, activeId]);
 
-  // Generate preview
+  // Generate preview (includes prefix for full path visibility)
   const preview = React.useMemo(() => {
     if (!showPreview) return "";
+    const fullTemplate = prefixValue ? `${prefixValue}${value ?? ""}` : (value ?? "");
     if (previewData) {
-      let result = value ?? "";  // Handle null value
+      let result = fullTemplate;
       Object.entries(previewData).forEach(([key, val]) => {
         // Support both {Key} and {{Key}} formats
         result = result.replace(new RegExp(`\\{\\{?${key}\\}\\}?`, "g"), val);
       });
       return result;
     }
-    return resolveWithExamples(value ?? "", previewUseLong);  // Handle null value
-  }, [value, showPreview, previewData, previewUseLong]);
+    return resolveWithExamples(fullTemplate, previewUseLong);
+  }, [value, prefixValue, showPreview, previewData, previewUseLong]);
 
   // Insert a token at the end (auto-add separator if needed)
   const insertToken = (code: string) => {
@@ -752,7 +753,7 @@ export function PlaceholderBuilder({
       </div>
 
       {/* Preview */}
-      {showPreview && (value || isShowingDefault) && (
+      {showPreview && (value || prefixValue || isShowingDefault) && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Preview:</span>
           <span className={cn(
