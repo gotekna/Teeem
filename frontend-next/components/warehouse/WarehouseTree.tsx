@@ -24,7 +24,7 @@
  */
 
 import React, { useState, useCallback } from "react";
-import { Search, RefreshCw, Folder } from "lucide-react";
+import { Search, RefreshCw, Folder, ChevronsDownUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -124,6 +124,20 @@ export function WarehouseTree({
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* Collapse All button - shown in full mode when any folder is expanded */}
+      {mode.type === "full" && tree.expandedFolders.size > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={tree.collapseAll}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
+            title="Collapse all"
+          >
+            <ChevronsDownUp className="h-3.5 w-3.5" />
+            Collapse all
+          </button>
         </div>
       )}
 

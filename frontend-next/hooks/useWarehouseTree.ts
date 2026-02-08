@@ -43,6 +43,7 @@ export interface UseWarehouseTreeReturn {
     isVirtual?: boolean,
     emailFolderType?: string
   ) => void;
+  collapseAll: () => void;
   treeDisplayMode: TreeDisplayMode;
   setTreeDisplayMode: (mode: TreeDisplayMode) => void;
   s3Folders: Record<string, S3FolderData>;
@@ -64,9 +65,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
   // ─── Shared state ───────────────────────────────────────────────
   const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
-    mode.type === "full"
-      ? new Set(["wt-job", "wt-corporate", "wt-contact"])
-      : new Set<string>()
+    new Set<string>()
   );
 
   // SSoT: Warehouse types tree from database (Feb 2026)
@@ -821,6 +820,11 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
     return warehouseTypesTree.map(convertWarehouseTypeToTreeNode);
   }, [warehouseTypesTree, warehouseTreeLoading, s3Folders, warehouseRecords, loadingRecords, mode]);
 
+  // ─── Collapse all folders ─────────────────────────────────────
+  const collapseAll = useCallback(() => {
+    setExpandedFolders(new Set<string>());
+  }, []);
+
   // ─── Refresh handler ───────────────────────────────────────────
   const refresh = useCallback(() => {
     setS3Folders({});
@@ -832,6 +836,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
     treeData,
     expandedFolders,
     toggleFolder,
+    collapseAll,
     treeDisplayMode,
     setTreeDisplayMode,
     s3Folders,
