@@ -223,21 +223,12 @@ export function WarehouseTypesTab() {
   const openEditDialog = async (type: WarehouseType) => {
     setEditingType(type);
 
-    // Strip the display_name prefix from folder_path_template for editing
-    let pathWithoutPrefix = type.folder_path_template || "";
-    const prefix = `${type.display_name}/`;
-    if (pathWithoutPrefix.startsWith(prefix)) {
-      pathWithoutPrefix = pathWithoutPrefix.slice(prefix.length);
-    } else if (pathWithoutPrefix === type.display_name) {
-      pathWithoutPrefix = "";
-    }
-
     setFormData({
       code: type.code,
       display_name: type.display_name,
       description: type.description || "",
       icon_name: type.icon_name || "",
-      folder_path_template: pathWithoutPrefix,
+      folder_path_template: type.folder_path_template || "",
       enabled: type.enabled,
       order_position: type.order_position,
     });
@@ -310,13 +301,7 @@ export function WarehouseTypesTab() {
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) e.preventDefault();
 
-    // Build full path with display_name prefix
-    const dataToSave = {
-      ...formData,
-      folder_path_template: formData.folder_path_template
-        ? `${formData.display_name}/${formData.folder_path_template}`
-        : formData.display_name || "",
-    };
+    const dataToSave = { ...formData };
 
     // Update warehouse folder assignments using the dedicated endpoint
     // This handles BOTH adding AND removing folders from this warehouse type
@@ -797,9 +782,7 @@ export function WarehouseTypesTab() {
                 onChange={(value) => setFormData(prev => ({ ...prev, folder_path_template: value }))}
                 scope={getWarehouseScopeForType(formData.code)}
                 separator="/"
-                prefixValue={(formData.display_name || "TypeName") + "/"}
                 showPreview
-                helpText={`Full path: ${formData.display_name || "TypeName"}/${formData.folder_path_template || "..."}`}
               />
 
               {/* Warehouse Folders - Tree View (only show when editing, hidden for corporate/job/contact - managed via their own config pages) */}
