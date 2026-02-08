@@ -43,6 +43,12 @@ class SmTask < ApplicationRecord
     "T-#{id}"
   end
 
+  # Warehouse display: human-readable status for folder paths
+  # e.g., "Not Started", "Completed", "Waiting For Response"
+  def status_label
+    status&.titleize || "Unknown"
+  end
+
   # Warehouse display: "J69 83 West Ridge..." for folder paths
   def warehouse_job_label
     job ? "#{job.job_code} #{job.name}" : nil

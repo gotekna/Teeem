@@ -659,9 +659,10 @@ module Api
 
           folders = folders.sort_by { |f| f[:name].to_s.downcase }
           files = []
-        elsif path == "Emails"
-          # Emails folder expanded: Show individual mailboxes
+        elsif path == "Emails" || email_mailbox_folder_path?(path)
+          # Emails folder or mailbox warehouse folder expanded: Show individual mailboxes
           # Single-click opens drawer with emails, double-click opens /email?mailbox=xxx
+          # Handles both "Emails" (old path) and "Emails/Mailbox" (warehouse folder tree path)
           mailboxes = SyncedEmail.where.not(mailbox_owner_email: [ nil, "" ])
                                   .group(:mailbox_owner_email)
                                   .count
@@ -669,7 +670,7 @@ module Api
           folders = mailboxes.map do |email, count|
             {
               name: email,
-              path: "Emails/#{email}",
+              path: "#{path}/#{email}",
               count: count,
               is_mailbox: true,                                      # Flag for frontend drawer handling
               mailbox_email: email,                                  # Email address for API calls
@@ -1327,6 +1328,18 @@ module Api
       end
 
       private
+
+      # Check if path corresponds to a mailbox-type warehouse folder under Emails
+      # e.g., "Emails/Mailbox" where "Mailbox" is a warehouse folder with is_mailbox=true
+      def email_mailbox_folder_path?(path)
+        return false unless path.start_with?("Emails/")
+
+        email_wt = WarehouseType.find_by(code: "email")
+        return false unless email_wt
+
+        folder_name = path.sub("Emails/", "")
+        email_wt.warehouse_folders.exists?(is_mailbox: true, name: folder_name)
+      end
 
       # ========================================
       # SSoT: Computed Folder Tree Helpers
