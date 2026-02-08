@@ -325,6 +325,130 @@ module Api
         end
       end
 
+      # DELETE /api/v1/pdf_takeoff/measurements/:id/remove_point
+      # Remove a single point from a count measurement (or delete measurement if last point)
+      def remove_point
+        measurement = UnrealMeasurement.find(params[:id])
+
+        # Verify access
+        if measurement.job.present?
+          unless measurement.job.accessible_by?(current_user)
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        elsif measurement.docsort_item.present?
+          unless measurement.docsort_item.tenant_id == current_tenant.id
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        end
+
+        unless measurement.measurement_type == "count"
+          return render json: { success: false, error: "Only count measurements support point removal" }, status: :unprocessable_entity
+        end
+
+        point_index = params[:point_index].to_i
+        geo = measurement.geometry_data || {}
+        points = geo["points"] || []
+
+        unless point_index >= 0 && point_index < points.length
+          return render json: { success: false, error: "Invalid point index" }, status: :unprocessable_entity
+        end
+
+        # If this is the last point, delete the entire measurement
+        if points.length <= 1
+          measurement.destroy
+          return render json: { success: true, data: { deleted: true } }
+        end
+
+        # Remove the point and update count
+        points.delete_at(point_index)
+        geo["points"] = points
+        measurement.geometry_data = geo
+        measurement.value = points.length
+
+        if measurement.save
+          render json: {
+            success: true,
+            data: measurement_json(measurement.reload)
+          }
+        else
+          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # PATCH /api/v1/pdf_takeoff/measurements/:id/move_point
+      # Move a specific point in a measurement's geometry_data
+      def move_point
+        measurement = UnrealMeasurement.find(params[:id])
+
+        # Verify access
+        if measurement.job.present?
+          unless measurement.job.accessible_by?(current_user)
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        elsif measurement.docsort_item.present?
+          unless measurement.docsort_item.tenant_id == current_tenant.id
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        end
+
+        point_index = params[:point_index].to_i
+        geo = measurement.geometry_data || {}
+        points = geo["points"] || []
+
+        unless point_index >= 0 && point_index < points.length
+          return render json: { success: false, error: "Invalid point index" }, status: :unprocessable_entity
+        end
+
+        points[point_index] = { "x" => params[:x].to_f, "y" => params[:y].to_f }
+        geo["points"] = points
+        measurement.geometry_data = geo
+
+        # Recalculate value for area/length measurements after vertex move
+        if measurement.measurement_type.in?(%w[area length perimeter]) && points.length >= 2
+          page_scale = if measurement.job_plan.present?
+                         PageScale.find_by(job_plan: measurement.job_plan, page_number: measurement.page_number)
+                       elsif measurement.docsort_item.present?
+                         PageScale.find_by(docsort_item: measurement.docsort_item, page_number: measurement.page_number)
+                       end
+          pixel_value = case geo["type"]
+                        when "polygon"
+                          # Shoelace formula for polygon area
+                          n = points.length
+                          area = 0.0
+                          n.times do |i|
+                            j = (i + 1) % n
+                            area += points[i]["x"].to_f * points[j]["y"].to_f
+                            area -= points[j]["x"].to_f * points[i]["y"].to_f
+                          end
+                          (area / 2.0).abs
+                        when "polyline"
+                          # Sum of segment lengths
+                          total = 0.0
+                          (1...points.length).each do |i|
+                            dx = points[i]["x"].to_f - points[i - 1]["x"].to_f
+                            dy = points[i]["y"].to_f - points[i - 1]["y"].to_f
+                            total += Math.sqrt(dx * dx + dy * dy)
+                          end
+                          total
+                        else
+                          nil
+                        end
+
+          if pixel_value && page_scale
+            measurement.value = convert_measurement(pixel_value, measurement.measurement_type, page_scale)
+          end
+        end
+
+        if measurement.save
+          render json: {
+            success: true,
+            data: measurement_json(measurement.reload)
+          }
+        else
+          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
       # POST /api/v1/pdf_takeoff/plans/:job_plan_id/generate_po
       # Generate Purchase Order(s) from measurements
       def generate_po

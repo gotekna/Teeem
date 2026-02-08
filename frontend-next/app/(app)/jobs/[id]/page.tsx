@@ -1796,6 +1796,25 @@ export default function JobDetailPage() {
             );
           }
 
+          // SSoT: Registered components take priority over folder_path rendering
+          // This prevents tabs like "purchase-orders" (which have folder_path set
+          // from warehouse config) from being hijacked by the folder_path check below
+          const Component = JOB_TAB_COMPONENTS[tab.tab_key];
+          if (Component) {
+            const className = tab.tab_key === "schedule" ? "mt-4 h-[calc(100vh-300px)]" : "mt-4";
+            return (
+              <TabsContent key={tabValue} value={tabValue} className={className}>
+                <Component
+                  jobId={job.id}
+                  job={job}
+                  jobTitle={job.name}
+                  onUpdate={loadJob}
+                  contractValue={job.contract_value}
+                />
+              </TabsContent>
+            );
+          }
+
           // Document/Photo tabs use JobDocumentsTab with initialCategory
           // SSoT: Pass composite key (parent__child) to disambiguate same-named categories
           // e.g., "photo__site" ensures Photo > Site photos shown, not Site > Site docs
@@ -1841,36 +1860,17 @@ export default function JobDetailPage() {
             );
           }
 
-          // Look up component from registry
-          const Component = JOB_TAB_COMPONENTS[tab.tab_key];
-          if (!Component) {
-            // Tab exists in WarehouseFolders but no component registered - show placeholder
-            return (
-              <TabsContent key={tabValue} value={tabValue} className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{tab.display_name}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">{tab.display_name} coming soon.</p>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            );
-          }
-
-          // Special handling for schedule tab (needs different height)
-          const className = tab.tab_key === "schedule" ? "mt-4 h-[calc(100vh-300px)]" : "mt-4";
-
+          // Tab exists in WarehouseFolders but no component registered - show placeholder
           return (
-            <TabsContent key={tabValue} value={tabValue} className={className}>
-              <Component
-                jobId={job.id}
-                job={job}
-                jobTitle={job.name}
-                onUpdate={loadJob}
-                contractValue={job.contract_value}
-              />
+            <TabsContent key={tabValue} value={tabValue} className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{tab.display_name}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">{tab.display_name} coming soon.</p>
+                </CardContent>
+              </Card>
             </TabsContent>
           );
         })}

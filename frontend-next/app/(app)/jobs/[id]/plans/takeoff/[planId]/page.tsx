@@ -558,6 +558,65 @@ export default function TakeoffPage() {
     []
   );
 
+  // Move a count point to a new position
+  const handleMovePoint = React.useCallback(
+    async (measurementId: number, pointIndex: number, newPoint: { x: number; y: number }): Promise<void> => {
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: TakeoffMeasurement;
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/measurements/${measurementId}/move_point`, {
+          point_index: pointIndex,
+          x: newPoint.x,
+          y: newPoint.y,
+        });
+
+        if (response?.success && response?.data) {
+          const updated = response.data;
+          setMeasurements((prev) =>
+            prev.map((m) => (m.id === measurementId ? updated : m))
+          );
+          // Keep it selected so user can immediately adjust another vertex
+          setSelectedMeasurement(updated);
+        }
+      } catch (err) {
+        console.error("Failed to move point:", err);
+      }
+    },
+    []
+  );
+
+  // Remove a single point from a count measurement (Delete key while repositioning)
+  const handleRemovePoint = React.useCallback(
+    async (measurementId: number, pointIndex: number): Promise<void> => {
+      try {
+        const response = await api.delete<{
+          success: boolean;
+          data: TakeoffMeasurement | { deleted: boolean };
+        }>(`/api/v1/pdf_takeoff/measurements/${measurementId}/remove_point`, {
+          params: { point_index: pointIndex },
+        });
+
+        if (response?.success) {
+          if ("deleted" in response.data && response.data.deleted) {
+            setMeasurements((prev) => prev.filter((m) => m.id !== measurementId));
+            setSelectedMeasurement(null);
+          } else {
+            const updated = response.data as TakeoffMeasurement;
+            setMeasurements((prev) =>
+              prev.map((m) => (m.id === measurementId ? updated : m))
+            );
+            setSelectedMeasurement(updated);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to remove point:", err);
+      }
+    },
+    []
+  );
+
   // Handle AI element detection result
   const handleElementsDetected = React.useCallback(
     async (elements: DetectedElement[]) => {
@@ -656,6 +715,17 @@ export default function TakeoffPage() {
       // The TemplateRunner component can be added to the UI for step tracking
     },
     [toast]
+  );
+
+  // Select measurement — auto-switch to select tool so vertex handles appear
+  const handleMeasurementSelect = React.useCallback(
+    (measurement: TakeoffMeasurement | null) => {
+      setSelectedMeasurement(measurement);
+      if (measurement) {
+        setCurrentTool("select");
+      }
+    },
+    []
   );
 
   // Delete measurement
@@ -1015,6 +1085,8 @@ export default function TakeoffPage() {
                 )}
                 onMeasurementCreate={handleMeasurementCreate}
                 onCountPointAdd={handleCountPointAdd}
+                onMovePoint={handleMovePoint}
+                onRemovePoint={handleRemovePoint}
                 onMeasurementDelete={handleMeasurementDelete}
                 onMeasurementSelect={setSelectedMeasurement}
                 selectedMeasurement={selectedMeasurement}
@@ -1045,7 +1117,7 @@ export default function TakeoffPage() {
               activeLayer={activeLayer}
               summary={summary}
               selectedMeasurement={selectedMeasurement}
-              onMeasurementSelect={setSelectedMeasurement}
+              onMeasurementSelect={handleMeasurementSelect}
               onMeasurementDelete={handleMeasurementDelete}
               onAssignPricebook={handleAssignPricebook}
               onRenameMeasurement={handleRenameMeasurement}

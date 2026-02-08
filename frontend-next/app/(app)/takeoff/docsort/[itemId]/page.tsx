@@ -496,6 +496,67 @@ export default function DocsortTakeoffPage() {
     []
   );
 
+  // Move a vertex/point to a new position — keeps measurement selected after
+  const handleMovePoint = React.useCallback(
+    async (measurementId: number, pointIndex: number, newPoint: { x: number; y: number }): Promise<void> => {
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: TakeoffMeasurement;
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/measurements/${measurementId}/move_point`, {
+          point_index: pointIndex,
+          x: newPoint.x,
+          y: newPoint.y,
+        });
+
+        if (response?.success && response?.data) {
+          const updated = response.data;
+          setMeasurements((prev) =>
+            prev.map((m) => (m.id === measurementId ? updated : m))
+          );
+          // Keep it selected so user can immediately adjust another vertex
+          setSelectedMeasurement(updated);
+        }
+      } catch (err) {
+        console.error("Failed to move point:", err);
+      }
+    },
+    []
+  );
+
+  // Remove a single point from a count measurement (Delete key while repositioning)
+  const handleRemovePoint = React.useCallback(
+    async (measurementId: number, pointIndex: number): Promise<void> => {
+      try {
+        const response = await api.delete<{
+          success: boolean;
+          data: TakeoffMeasurement | { deleted: boolean };
+        }>(`/api/v1/pdf_takeoff/measurements/${measurementId}/remove_point`, {
+          params: { point_index: pointIndex },
+        });
+
+        if (response?.success) {
+          if ("deleted" in response.data && response.data.deleted) {
+            // Last point removed — measurement was deleted
+            setMeasurements((prev) => prev.filter((m) => m.id !== measurementId));
+            setSelectedMeasurement(null);
+          } else {
+            // Point removed, measurement still exists with fewer points
+            const updated = response.data as TakeoffMeasurement;
+            setMeasurements((prev) =>
+              prev.map((m) => (m.id === measurementId ? updated : m))
+            );
+            setSelectedMeasurement(updated);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to remove point:", err);
+      }
+    },
+    []
+  );
+
   // Handle AI element detection result
   const handleElementsDetected = React.useCallback(
     async (elements: DetectedElement[]) => {
@@ -589,6 +650,17 @@ export default function DocsortTakeoffPage() {
       // TODO: Implement full template runner with step-by-step guidance
     },
     [toast]
+  );
+
+  // Select measurement — auto-switch to select tool so vertex handles appear
+  const handleMeasurementSelect = React.useCallback(
+    (measurement: TakeoffMeasurement | null) => {
+      setSelectedMeasurement(measurement);
+      if (measurement) {
+        setCurrentTool("select");
+      }
+    },
+    []
   );
 
   // Delete measurement
@@ -919,6 +991,8 @@ export default function DocsortTakeoffPage() {
                 )}
                 onMeasurementCreate={handleMeasurementCreate}
                 onCountPointAdd={handleCountPointAdd}
+                onMovePoint={handleMovePoint}
+                onRemovePoint={handleRemovePoint}
                 onMeasurementDelete={handleMeasurementDelete}
                 onMeasurementSelect={setSelectedMeasurement}
                 selectedMeasurement={selectedMeasurement}
@@ -949,7 +1023,7 @@ export default function DocsortTakeoffPage() {
               activeLayer={activeLayer}
               summary={summary}
               selectedMeasurement={selectedMeasurement}
-              onMeasurementSelect={setSelectedMeasurement}
+              onMeasurementSelect={handleMeasurementSelect}
               onMeasurementDelete={handleMeasurementDelete}
               onAssignPricebook={handleAssignPricebook}
               onRenameMeasurement={handleRenameMeasurement}

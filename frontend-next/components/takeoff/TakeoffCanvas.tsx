@@ -27,6 +27,7 @@ import { PdfFrame } from "@/components/ui/pdf-chrome";
 interface TakeoffObjectData {
   isMeasurement?: boolean;
   measurementId?: number;
+  pointIndex?: number;  // For count markers — which point in geometry_data.points
   isCalibration?: boolean;
   isCalibrationLabel?: boolean;
   isTempCalibration?: boolean;
@@ -67,6 +68,8 @@ interface TakeoffCanvasProps {
     options?: MeasurementCreateOptions
   ) => Promise<TakeoffMeasurement | null>;
   onCountPointAdd: (measurementId: number, point: Point) => Promise<TakeoffMeasurement | null>;
+  onMovePoint: (measurementId: number, pointIndex: number, newPoint: Point) => Promise<void>;
+  onRemovePoint: (measurementId: number, pointIndex: number) => Promise<void>;
   onMeasurementDelete: (id: number) => Promise<void>;
   onMeasurementSelect: (measurement: TakeoffMeasurement | null) => void;
   selectedMeasurement: TakeoffMeasurement | null;
@@ -114,6 +117,8 @@ export function TakeoffCanvas({
   measurements,
   onMeasurementCreate,
   onCountPointAdd,
+  onMovePoint,
+  onRemovePoint,
   onMeasurementDelete,
   onMeasurementSelect,
   selectedMeasurement,
@@ -163,6 +168,18 @@ export function TakeoffCanvas({
     selectionCreated: () => {},
     selectionCleared: () => {},
   });
+
+  // Reposition mode: click a count marker to pick it up, click again to place it
+  // Works like calibration's "select which line to snap to" pattern
+  const [repositioning, setRepositioning] = useState<{
+    measurementId: number;
+    pointIndex: number;
+    originalPoint: Point;  // For visual feedback (dashed line from old → cursor)
+  } | null>(null);
+  const repositioningRef = useRef(repositioning);
+  repositioningRef.current = repositioning;
+  // Ghost preview position (raw PDF coords) — follows cursor while repositioning
+  const [repositionPreview, setRepositionPreview] = useState<Point | null>(null);
 
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false);
@@ -222,6 +239,16 @@ export function TakeoffCanvas({
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
   const completeDrawingRef = useRef<() => void>(() => {});
+  // Ref for onMovePoint — avoids stale closure in event handler
+  const onMovePointRef = useRef(onMovePoint);
+  onMovePointRef.current = onMovePoint;
+  // Ref for onRemovePoint — avoids stale closure in keyboard handler
+  const onRemovePointRef = useRef(onRemovePoint);
+  onRemovePointRef.current = onRemovePoint;
+  // ⚠️ DO NOT SIMPLIFY — renderMeasurements removes all Fabric objects then re-adds them.
+  // This triggers Fabric's selection:cleared event, which would null the selectedMeasurement.
+  // This ref suppresses that false-positive during re-render so selection persists.
+  const isReRenderingRef = useRef(false);
 
   // Count marker state
   const [nextCountLabel, setNextCountLabel] = useState(1);
@@ -379,6 +406,9 @@ export function TakeoffCanvas({
     const canvas = fabricRef.current;
     if (!canvas) return;
 
+    // Suppress selection:cleared during re-render (removing objects triggers it)
+    isReRenderingRef.current = true;
+
     // Clear existing measurement objects
     const toRemove = (canvas.getObjects() as FabricObjectWithData[]).filter(
       (obj) => obj.data?.isMeasurement
@@ -410,7 +440,8 @@ export function TakeoffCanvas({
     }
 
     canvas.renderAll();
-  }, [measurements, pageScale, zoom, layers, selectedMeasurement, activeLayer]);
+    isReRenderingRef.current = false;
+  }, [measurements, pageScale, zoom, layers, selectedMeasurement, activeLayer, repositioning]);
 
   useEffect(() => {
     renderMeasurements();
@@ -440,15 +471,19 @@ export function TakeoffCanvas({
         const markerRadius = drawingStyle.markerSize / 2;
 
         scaledPoints.forEach((point, idx) => {
-          // Selected: add a large glow ring behind each marker
+          // Is this specific point currently being repositioned?
+          const isBeingRepositioned = repositioning?.measurementId === measurement.id && repositioning?.pointIndex === idx;
+
+          // Selected: add a glow ring behind each marker
           if (isSelected) {
             const glow = new fabric.Circle({
               left: point.x - markerRadius - 6,
               top: point.y - markerRadius - 6,
               radius: markerRadius + 6,
-              fill: "rgba(34,197,94,0.2)",
-              stroke: "#22C55E",
-              strokeWidth: 3,
+              fill: isBeingRepositioned ? "rgba(59,130,246,0.3)" : "rgba(34,197,94,0.2)",
+              stroke: isBeingRepositioned ? "#3B82F6" : "#22C55E",
+              strokeWidth: isBeingRepositioned ? 4 : 3,
+              strokeDashArray: isBeingRepositioned ? [4, 3] : undefined,
               selectable: false,
               evented: false,
             }) as FabricObjectWithData;
@@ -460,12 +495,17 @@ export function TakeoffCanvas({
             left: point.x - markerRadius,
             top: point.y - markerRadius,
             radius: markerRadius,
-            fill: isSelected ? "#22C55E" : color,
+            fill: isBeingRepositioned ? "#3B82F680" : isSelected ? "#22C55E" : color,
             stroke: isSelected ? "#fff" : "#fff",
             strokeWidth: isSelected ? 3 : 2,
             selectable: currentTool === "select",
+            opacity: isBeingRepositioned ? 0.5 : 1,
           }) as FabricObjectWithData;
-          marker.data = { isMeasurement: true, measurementId: measurement.id };
+          marker.data = {
+            isMeasurement: true,
+            measurementId: measurement.id,
+            pointIndex: idx,
+          };
 
           // Label — numbered 1, 2, 3... within this count group
           const label = new fabric.FabricText(String(idx + 1), {
@@ -478,7 +518,7 @@ export function TakeoffCanvas({
             originY: "center",
             selectable: false,
           }) as FabricObjectWithData;
-          label.data = { isMeasurement: true, measurementId: measurement.id };
+          label.data = { isMeasurement: true, measurementId: measurement.id, pointIndex: idx };
 
           canvas.add(marker);
           canvas.add(label);
@@ -512,6 +552,28 @@ export function TakeoffCanvas({
         }) as FabricObjectWithData;
         valueLabel.data = { isMeasurement: true, measurementId: measurement.id };
         canvas.add(valueLabel);
+
+        // Vertex handles — visible when selected, clickable to reposition
+        if (isSelected && currentTool === "select") {
+          scaledPoints.forEach((pt, idx) => {
+            const isBeingRepositioned = repositioning?.measurementId === measurement.id && repositioning?.pointIndex === idx;
+            const handle = new fabric.Circle({
+              left: pt.x - 6,
+              top: pt.y - 6,
+              radius: 6,
+              fill: isBeingRepositioned ? "#3B82F680" : "#fff",
+              stroke: isBeingRepositioned ? "#3B82F6" : "#22C55E",
+              strokeWidth: 2,
+              strokeDashArray: isBeingRepositioned ? [3, 2] : undefined,
+              opacity: isBeingRepositioned ? 0.5 : 1,
+              selectable: true,
+              hasControls: false,
+              hasBorders: false,
+            }) as FabricObjectWithData;
+            handle.data = { isMeasurement: true, measurementId: measurement.id, pointIndex: idx };
+            canvas.add(handle);
+          });
+        }
         break;
       }
 
@@ -541,6 +603,28 @@ export function TakeoffCanvas({
         }) as FabricObjectWithData;
         valueLabel.data = { isMeasurement: true, measurementId: measurement.id };
         canvas.add(valueLabel);
+
+        // Vertex handles — visible when selected, clickable to reposition
+        if (isSelected && currentTool === "select") {
+          scaledPoints.forEach((pt, idx) => {
+            const isBeingRepositioned = repositioning?.measurementId === measurement.id && repositioning?.pointIndex === idx;
+            const handle = new fabric.Circle({
+              left: pt.x - 6,
+              top: pt.y - 6,
+              radius: 6,
+              fill: isBeingRepositioned ? "#3B82F680" : "#fff",
+              stroke: isBeingRepositioned ? "#3B82F6" : "#22C55E",
+              strokeWidth: 2,
+              strokeDashArray: isBeingRepositioned ? [3, 2] : undefined,
+              opacity: isBeingRepositioned ? 0.5 : 1,
+              selectable: true,
+              hasControls: false,
+              hasBorders: false,
+            }) as FabricObjectWithData;
+            handle.data = { isMeasurement: true, measurementId: measurement.id, pointIndex: idx };
+            canvas.add(handle);
+          });
+        }
         break;
       }
     }
@@ -730,6 +814,42 @@ export function TakeoffCanvas({
 
     const rawPoint = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
 
+    // ── Reposition mode: click to place the picked-up point at cursor (with snap) ──
+    const repo = repositioningRef.current;
+    if (repo) {
+      const nativeEvt = e.e as PointerEvent;
+      const altHeld = nativeEvt?.altKey ?? false;
+      const currentSnap = snapResultRef.current;
+      const placePt = !altHeld && currentSnap?.isSnapped
+        ? currentSnap.snapped
+        : !altHeld ? findSnapPoint(rawPoint.x, rawPoint.y).snapped : rawPoint;
+      onMovePointRef.current(repo.measurementId, repo.pointIndex, placePt);
+      setRepositioning(null);
+      setRepositionPreview(null);
+      return;  // Consumed the click
+    }
+
+    // ── Select mode: click a vertex handle or count marker to reposition it ──
+    if (currentTool === "select") {
+      const target = e.target as FabricObjectWithData | undefined;
+      if (target?.data?.isMeasurement && target.data.pointIndex != null && target.data.measurementId) {
+        // Only reposition vertices of the currently selected measurement
+        const selMeasurement = measurements.find(m => m.id === target.data!.measurementId);
+        if (selMeasurement && selMeasurement.id === selectedMeasurement?.id && selMeasurement.geometry_data?.points) {
+          const pts = selMeasurement.geometry_data.points;
+          const origPt = pts[target.data.pointIndex];
+          if (origPt) {
+            setRepositioning({
+              measurementId: target.data.measurementId,
+              pointIndex: target.data.pointIndex,
+              originalPoint: origPt,
+            });
+            return;  // Don't trigger selection/pan — enter reposition mode
+          }
+        }
+      }
+    }
+
     // Select mode drag on empty area:
     //   Left-click drag = pan the PDF
     //   Right-click drag = zoom-to-rect (draws overlay rectangle)
@@ -773,7 +893,7 @@ export function TakeoffCanvas({
     }
 
     placeToolPoint(point, rawPoint);
-  }, [currentTool, zoom, findSnapPoint, placeToolPoint, isPanningProp, isSpaceHeldProp]);
+  }, [currentTool, zoom, findSnapPoint, placeToolPoint, isPanningProp, isSpaceHeldProp, measurements, selectedMeasurement]);
 
   const handleMouseMove = useCallback((e: fabric.TPointerEventInfo) => {
     if (!e.pointer) return;
@@ -801,15 +921,27 @@ export function TakeoffCanvas({
 
     const rawPoint = { x: e.pointer.x / zoom, y: e.pointer.y / zoom };
 
-    // Always check for snap points when using measurement tools (for visual feedback)
+    // Reposition preview: track cursor so ghost marker follows mouse
+    if (repositioningRef.current) {
+      setRepositionPreview(rawPoint);
+    }
+
+    // Always check for snap points when using measurement tools OR repositioning (for visual feedback)
     // Hold Alt to temporarily suppress snapping
     const moveNativeEvt = e.e as PointerEvent;
     const altHeldMove = moveNativeEvt?.altKey ?? false;
-    const shouldSnap = !altHeldMove && ["count", "area", "linear", "perimeter", "deduction", "calibrate"].includes(currentTool);
+    const isRepositioning = !!repositioningRef.current;
+    const shouldSnap = !altHeldMove && (
+      isRepositioning || ["count", "area", "linear", "perimeter", "deduction", "calibrate"].includes(currentTool)
+    );
     if (shouldSnap) {
       const snap = findSnapPoint(rawPoint.x, rawPoint.y);
       setCursorPoint(rawPoint);
       setSnapResult(snap);
+      // Update ghost preview to snapped position when repositioning
+      if (isRepositioning && snap.isSnapped) {
+        setRepositionPreview(snap.snapped);
+      }
     } else {
       setCursorPoint(null);
       setSnapResult(null);
@@ -888,6 +1020,8 @@ export function TakeoffCanvas({
   }, [measurements, onMeasurementSelect]);
 
   const handleSelectionCleared = useCallback(() => {
+    // Don't deselect during re-render — removing Fabric objects fires this event
+    if (isReRenderingRef.current) return;
     onMeasurementSelect(null);
   }, [onMeasurementSelect]);
 
@@ -913,6 +1047,9 @@ export function TakeoffCanvas({
     if (currentTool !== "count") {
       activeCountIdRef.current = null;
     }
+    // Cancel any active repositioning when tool changes
+    setRepositioning(null);
+    setRepositionPreview(null);
   }, [currentTool]);
 
   const handleCountClick = async (point: Point) => {
@@ -1405,6 +1542,9 @@ export function TakeoffCanvas({
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       if (e.key === "Escape") {
+        // Cancel reposition mode
+        setRepositioning(null);
+        setRepositionPreview(null);
         // Cancel current drawing / calibration
         setCurrentPoints([]);
         setIsDrawing(false);
@@ -1413,7 +1553,16 @@ export function TakeoffCanvas({
         setCalibrationInput("");
         clearTempDrawing();
       } else if (e.key === "Delete" || e.key === "Backspace") {
-        // Delete selected measurement
+        // If repositioning a count point, delete just that point (not the whole measurement)
+        const repo = repositioningRef.current;
+        if (repo) {
+          e.preventDefault();
+          onRemovePointRef.current(repo.measurementId, repo.pointIndex);
+          setRepositioning(null);
+          setRepositionPreview(null);
+          return;
+        }
+        // Otherwise delete the entire selected measurement
         if (selectedMeasurement) {
           onMeasurementDelete(selectedMeasurement.id);
         }
@@ -1472,11 +1621,15 @@ export function TakeoffCanvas({
     } else if (isSpaceHeldProp) {
       fabricRef.current.defaultCursor = "grab";
       fabricRef.current.hoverCursor = "grab";
+    } else if (repositioning) {
+      // Crosshair cursor while placing a repositioned point
+      fabricRef.current.defaultCursor = "crosshair";
+      fabricRef.current.hoverCursor = "crosshair";
     } else {
       fabricRef.current.defaultCursor = getCursorForTool(currentTool);
       fabricRef.current.hoverCursor = getCursorForTool(currentTool);
     }
-  }, [isPanningProp, isSpaceHeldProp, currentTool]);
+  }, [isPanningProp, isSpaceHeldProp, currentTool, repositioning]);
 
   // =============================================================================
   // Render
@@ -1735,6 +1888,78 @@ export function TakeoffCanvas({
           <div className="text-xs text-muted-foreground">Scale</div>
           <div className="text-sm font-medium">{pageScale.scale_label}</div>
         </div>
+      )}
+
+      {/* Reposition mode: banner + ghost marker following cursor + dashed line from origin */}
+      {repositioning && (
+        <>
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-500/90 text-white rounded-lg px-4 py-2 text-sm font-medium shadow-lg z-30 flex items-center gap-2">
+            Click to place point #{repositioning.pointIndex + 1}
+            {(() => {
+              const repoM = measurements.find(m => m.id === repositioning.measurementId);
+              return repoM?.geometry_data?.type === "point" ? (
+                <span className="text-white/70 text-xs ml-1">| Delete to remove</span>
+              ) : null;
+            })()}
+            <button
+              onClick={() => { setRepositioning(null); setRepositionPreview(null); }}
+              className="ml-2 text-white/80 hover:text-white underline text-xs"
+            >
+              Cancel (Esc)
+            </button>
+          </div>
+
+          {/* Ghost marker at cursor position + dashed line from original location */}
+          {repositionPreview && (() => {
+            const repoMeasurement = measurements.find(m => m.id === repositioning.measurementId);
+            const isCountType = repoMeasurement?.geometry_data?.type === "point";
+            return (
+              <svg
+                className="absolute inset-0 pointer-events-none"
+                width={pageWidth * zoom}
+                height={pageHeight * zoom}
+                style={{ overflow: "visible", zIndex: 25 }}
+              >
+                {/* Dashed line from original position to cursor */}
+                <line
+                  x1={repositioning.originalPoint.x * zoom}
+                  y1={repositioning.originalPoint.y * zoom}
+                  x2={repositionPreview.x * zoom}
+                  y2={repositionPreview.y * zoom}
+                  stroke="#3B82F6"
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                  opacity={0.7}
+                />
+                {/* Ghost handle at cursor — large circle for count, small dot for vertex */}
+                <circle
+                  cx={repositionPreview.x * zoom}
+                  cy={repositionPreview.y * zoom}
+                  r={isCountType ? drawingStyle.markerSize / 2 : 6}
+                  fill="#3B82F6"
+                  fillOpacity={0.6}
+                  stroke="#fff"
+                  strokeWidth={2}
+                />
+                {/* Point number label — only for count markers */}
+                {isCountType && (
+                  <text
+                    x={repositionPreview.x * zoom}
+                    y={repositionPreview.y * zoom}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fill="#fff"
+                    fontWeight="bold"
+                    fontSize={drawingStyle.fontSize}
+                    style={{ pointerEvents: "none" }}
+                  >
+                    {repositioning.pointIndex + 1}
+                  </text>
+                )}
+              </svg>
+            );
+          })()}
+        </>
       )}
 
       {/* Not calibrated warning — only when calibrate tool is active */}
