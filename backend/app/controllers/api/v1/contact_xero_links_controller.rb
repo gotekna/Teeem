@@ -278,7 +278,7 @@ module Api
         # Count invoices for this contact from this Xero tenant
         invoice_count = ExternalInvoice.where(
           contact_id: link.contact_id,
-          tenant_id: link.xero_org_id,
+          xero_org_id: link.xero_org_id,
           source: "xero"
         ).count
 
