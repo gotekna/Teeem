@@ -917,7 +917,11 @@ export function WarehouseFoldersConfig({
   // (Special config sheets are accessed via dedicated buttons, not the edit action)
   const openEditDialog = (tab: WarehouseFolder) => {
     // Note: Both {{TabName}} (parent) and {{SubTabName}} (current) are valid for subtabs
-    const folderPath = tab.folder_path || "";
+    // FRC (Feb 2026): Use folder_segment (tab's own piece), NOT folder_path (full path including base)
+    // folder_path = full_folder_path from backend = "Contacts/{{ContactName}}/Financial/Bills"
+    // folder_segment = just "Bills" (what the user actually edits)
+    // Using full path caused: 1) duplicate base path in preview, 2) corrupted folder_path_suffix on save
+    const folderPath = (tab as any).folder_segment || tab.folder_path || "";
 
     // SSoT: Store original display_name for folder rename detection
     setOriginalDisplayName(tab.display_name);
@@ -2527,14 +2531,27 @@ export function WarehouseFoldersConfig({
                   </Label>
                   {(formData.parent_id || editingTab?.parent_id) ? (
                     // Sub-tabs: inherit from parent - read-only display
+                    // FRC (Feb 2026): Use parent's folder_path (includes full parent chain)
                     <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
                       <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                        {editingTab?.warehouse_base_path || getBasePath(scope)}
+                        {(() => {
+                          const pid = formData.parent_id || editingTab?.parent_id;
+                          if (!pid) return getBasePath(scope);
+                          const findTab = (tabList: WarehouseFolder[], id: number): WarehouseFolder | null => {
+                            for (const t of tabList) {
+                              if (t.id === id) return t;
+                              if (t.children?.length) { const f = findTab(t.children, id); if (f) return f; }
+                            }
+                            return null;
+                          };
+                          return findTab(tabs, pid)?.folder_path || getBasePath(scope);
+                        })()}
                       </span>
                       <span className="text-muted-foreground">/</span>
                     </div>
-                  ) : scope === "contact" ? (
-                    // Root contact tabs: can choose between /Contacts/ or /Corporate/People/
+                  ) : scope === "contact" && formData.tab_type !== 'system' ? (
+                    // Root contact DOCUMENT tabs: can choose between /Contacts/ or /Corporate/People/
+                    // System tabs don't need this - they're structural, not document storage
                     <div className="flex items-center gap-1">
                       <Select
                         value={formData.warehouse_type_override === 'corporate' ? 'people' : 'contact'}
@@ -2564,7 +2581,7 @@ export function WarehouseFoldersConfig({
                     // Other scopes: read-only display
                     <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
                       <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                        {editingTab?.warehouse_base_path || getBasePath(scope)}
+                        {getBasePath(scope)}
                       </span>
                       <span className="text-muted-foreground">/</span>
                     </div>
@@ -2597,21 +2614,28 @@ export function WarehouseFoldersConfig({
                   }
                   scope="storage"
                   // SSoT: Show inherited base path as greyed prefix
-                  // For ROOT tabs: show just root_path (tab's warehouse_folder IS the full template)
-                  // For CHILD tabs: show parent's path from warehouse_base_path
+                  // For ROOT tabs: show warehouse_type base template (e.g., "Contacts/{{ContactName}}")
+                  // For CHILD tabs: show parent's full folder_path (includes parent chain)
                   prefixValue={(() => {
-                    const isRootTab = !editingTab?.parent_id && !formData.parent_id;
-                    if (isRootTab) {
-                      // ROOT tab: prefix is just the storage root path (no duplication)
-                      return storageConfig?.root_path || "";
+                    const parentId = formData.parent_id || editingTab?.parent_id;
+                    if (!parentId) {
+                      // ROOT tab: prefix is the warehouse_type base template
+                      return getBasePath(scope);
                     }
-                    // CHILD tab: use parent's base path
-                    if (scope === "contact") {
-                      return formData.warehouse_type_override === 'corporate'
-                        ? getBasePath("people")
-                        : getBasePath("contact");
-                    }
-                    return editingTab?.warehouse_base_path || getBasePath(scope);
+                    // CHILD tab: use parent's folder_path (includes full parent chain)
+                    // FRC (Feb 2026): Use parent's folder_path, not getBasePath which misses parent segments
+                    const findTab = (tabList: WarehouseFolder[], id: number): WarehouseFolder | null => {
+                      for (const t of tabList) {
+                        if (t.id === id) return t;
+                        if (t.children?.length) {
+                          const found = findTab(t.children, id);
+                          if (found) return found;
+                        }
+                      }
+                      return null;
+                    };
+                    const parent = findTab(tabs, parentId);
+                    return parent?.folder_path || getBasePath(scope);
                   })()}
                   separator="/"
                   // SSoT: Filter placeholders based on tab hierarchy
@@ -2634,18 +2658,8 @@ export function WarehouseFoldersConfig({
                 {/* Full path preview - uses ACTUAL tab names, not generic examples */}
                 {(() => {
                   // SSoT: Get base path for preview
-                  // For ROOT tabs: use just root_path (tab's warehouse_folder IS the full template)
-                  // For CHILD tabs: use parent's path from warehouse_base_path
-                  const isRootTab = !editingTab?.parent_id && !formData.parent_id;
-                  const basePath = isRootTab
-                    ? (storageConfig?.root_path || "")
-                    : (scope === "contact"
-                        ? (formData.warehouse_type_override === 'corporate'
-                            ? getBasePath("people")
-                            : getBasePath("contact"))
-                        : (editingTab?.warehouse_base_path || getBasePath(scope)));
-
-                  // Get actual tab names for preview
+                  // For ROOT tabs: use warehouse_type base template (e.g., "Contacts/{{ContactName}}")
+                  // For CHILD tabs: use parent's full folder_path (includes parent chain)
                   const parentId = formData.parent_id || editingTab?.parent_id;
                   // Recursive search to find parent tab (might be nested)
                   const findTabById = (tabList: WarehouseFolder[], id: number): WarehouseFolder | null => {
@@ -2659,6 +2673,14 @@ export function WarehouseFoldersConfig({
                     return null;
                   };
                   const parentTab = parentId ? findTabById(tabs, parentId) : null;
+
+                  const isRootTab = !parentId;
+                  // FRC (Feb 2026): For child tabs, use parent's folder_path as base (includes full parent chain)
+                  // e.g., Bills (child of Financial) → basePath = "Contacts/{{ContactName}}/Financial"
+                  const basePath = isRootTab
+                    ? getBasePath(scope)
+                    : (parentTab?.folder_path || getBasePath(scope));
+
                   const currentTabName = formData.display_name || editingTab?.display_name || "";
                   const parentTabName = parentTab?.display_name || "";
 

@@ -386,13 +386,16 @@ class WarehouseFolder < ApplicationRecord
     folder&.display_name || folder&.name || default_name
   end
 
-  # Get mapping of warehouse types to full folder path templates
-  # @return [Hash] { "job" => "Job/{{JobCode}}/{{JobName}}", ... }
+  # Get mapping of warehouse types to base folder path templates
+  # SSoT: Returns warehouse_type.folder_path_template (the BASE path), not any tab's full_folder_path
+  # FRC (Feb 2026): Was returning full_folder_path from last root tab, causing wrong base paths
+  # (e.g., "Contacts/{{ContactName}}/Cases" instead of "Contacts/{{ContactName}}")
+  # @return [Hash] { "job" => "Job/{{JobCode}}/{{JobName}}", "contact" => "Contacts/{{ContactName}}", ... }
   def self.warehouse_folders_mapping
     result = {}
-    root_folders.includes(:warehouse_type).each do |folder|
-      next unless folder.warehouse_type
-      result[folder.warehouse_type.code] = folder.full_folder_path
+    WarehouseType.enabled.each do |wt|
+      next if wt.folder_path_template.blank?
+      result[wt.code] = wt.folder_path_template
     end
     result
   end
