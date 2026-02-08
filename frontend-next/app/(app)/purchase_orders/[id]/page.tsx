@@ -74,78 +74,18 @@ import { api, getApiBaseUrl } from "@/lib/api";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/formatters";
-
-interface Supplier {
-  id: number;
-  display_name?: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  /** Pricebook item IDs this supplier has price histories for */
-  supplied_pricebook_item_ids?: number[];
-  /** Payment terms for calculating PO due date */
-  bill_due_day?: number;
-  bill_due_type?: string; // DAYSAFTERBILLDATE, OFFOLLOWINGMONTH, etc.
-  payment_terms?: string;
-}
-
-interface PricebookItem {
-  id: number;
-  item_code: string;
-  item_name: string;
-  active_price?: number;  // From PO line items (includes active_price method)
-  current_price?: number; // From pricebook search API
-  unit_of_measure?: string;
-  gst_code?: string;
-  default_supplier?: {
-    id: number;
-    display_name?: string;
-    name?: string;
-  };
-}
-
-// GST codes and their tax rates
-const GST_CODES = [
-  { value: "GST", label: "GST", rate: 0.10 },
-  { value: "GST Free", label: "GST Free", rate: 0.00 },
-  { value: "Input Taxed", label: "Input Taxed", rate: 0.00 },
-] as const;
-
-function getGstRate(gstCode: string | undefined): number {
-  const code = GST_CODES.find((c) => c.value === gstCode);
-  return code?.rate ?? 0.10; // Default to 10% GST
-}
-
-interface LineItem {
-  id?: number;
-  pricebook_item_id?: number;
-  pricebook_item?: PricebookItem;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  gst_code?: string;
-  notes?: string;
-  line_number?: number;
-  _destroy?: boolean;
-}
-
-interface Job {
-  id: number;
-  title: string;
-  site_supervisor_info?: {
-    id: number;
-    display_name: string;
-  } | null;
-}
-
-interface SmTask {
-  id: number;
-  name: string;
-  task_number: number;
-  sequence_order: number;
-  sm_schedule_master_id: number;
-  start_date?: string; // SSoT: Used to auto-populate PO required_date
-}
+import {
+  type PurchaseOrder,
+  type POSupplier as Supplier,
+  type POPricebookItem as PricebookItem,
+  type POLineItem as LineItem,
+  type POJob as Job,
+  type POSmTask as SmTask,
+  GST_CODES,
+  getGstRate,
+  STATUS_OPTIONS,
+  STATUS_BADGE_VARIANTS,
+} from "@/lib/constants/purchase-order-constants";
 
 // Schedule Sync Preview Types
 interface SyncTaskPredecessor {
@@ -232,57 +172,6 @@ interface TaskComboboxItem extends ComboboxItem {
   start_date?: string; // SSoT: Used to auto-populate PO required_date
 }
 
-interface PurchaseOrder {
-  id: number;
-  purchase_order_number: string;
-  description?: string;
-  status: string;
-  sub_total: number;
-  tax: number;
-  total: number;
-  budget?: number;
-  required_date?: string;
-  due_date?: string; // Payment due date (from supplier terms)
-  ordered_date?: string;
-  special_instructions?: string;
-  delivery_address?: string;
-  supplier?: Supplier;
-  supplier_id?: number;
-  job?: Job;
-  job_id?: number;
-  line_items: LineItem[];
-  sm_tasks?: SmTask[]; // SSoT: Linked tasks via SmTask.purchase_order_id
-  // Labour budget tracking (Site Presence)
-  is_labour_po?: boolean;
-  labour_budget?: number;
-  labour_actual?: number;
-  // Budget lockdown
-  budget_locked?: boolean;
-  budget_locked_by_name?: string;
-  budget_locked_at?: string;
-}
-
-const STATUS_OPTIONS = [
-  { value: "draft", label: "Draft" },
-  { value: "pending", label: "Pending" },
-  { value: "approved", label: "Approved" },
-  { value: "sent", label: "Sent" },
-  { value: "received", label: "Received" },
-  { value: "invoiced", label: "Invoiced" },
-  { value: "paid", label: "Paid" },
-  { value: "cancelled", label: "Cancelled" },
-];
-
-const STATUS_BADGE_VARIANTS: Record<string, string> = {
-  draft: "bg-muted text-foreground border-border",
-  pending: "bg-status-warning text-status-warning-foreground border-yellow-300",
-  approved: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300",
-  sent: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-300",
-  received: "bg-status-success text-status-success-foreground border-green-300",
-  invoiced: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 border-indigo-300",
-  paid: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border-emerald-300",
-  cancelled: "bg-status-error text-status-error-foreground border-red-300",
-};
 
 /**
  * Calculate payment due date based on supplier's payment terms

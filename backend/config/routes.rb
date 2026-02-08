@@ -838,6 +838,7 @@ Rails.application.routes.draw do
           post :send_to_supplier
           post :mark_received
           get :available_documents
+          get :bills
           post :attach_documents
           get :generate_pdf
           get :schedule_sync_preview
