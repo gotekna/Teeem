@@ -1571,92 +1571,74 @@ module Api
       end
 
       # SSoT (Feb 2026): ONE generic method for all folder-based scopes
-      # Queries WarehouseDocument.folder_path (materialized) + WarehouseFolder tabs
       # Works for: job, contact, corporate, people, task, case, warehouse, etc.
       #
-      # IMPORTANT: Returns RELATIVE paths (without root folder prefix)
-      # Frontend adds root folder prefix when building UI paths
-      # e.g., for Contacts scope: returns "7 Eleven/Bills", frontend adds "Contacts/" prefix
+      # Returns RELATIVE paths (without root prefix). Frontend adds scope root.
       #
-      # ⚠️ FRC Fix (Feb 2026): Three naming mismatches were causing "No files" everywhere:
-      #   1. root_folder came from WarehouseFolder.display_name (e.g., "Site", "Cases", "Teeem Docs")
-      #   2. DB folder column had different prefixes (e.g., "Jobs/", "Contacts/", "Teeem Docs/")
-      #   3. Frontend scope_folders used WarehouseType.display_name (e.g., "Job", "Contacts", "User")
-      # Fix: Use WarehouseType.folder_path_template first segment as SSoT root prefix,
-      #      query folder_path column (materialized by WarehousePathComputer), and
-      #      add source_type scoping for robustness.
+      # ⚠️ FRC Fix (Feb 2026): Was querying legacy `folder` column with wrong root prefix
+      # from WarehouseFolder.display_name. Fix: source_type for scoping, folder_path for tree.
       def build_generic_folder_tree(scope, path_segments)
-        # SSoT: Root prefix from WarehouseType.folder_path_template first static segment
-        # This matches what WarehousePathComputer writes to folder_path column
-        wt = WarehouseType.find_by(code: scope)
-        return { folders: [], files: [] } unless wt
+        # SSoT: source_type scopes documents, folder_path provides tree structure
+        base = WarehouseDocument.where(source_type: scope).where.not(folder_path: [nil, ""])
 
-        template = wt.folder_path_template
-        root_folder = template&.split("/")&.first
-        return { folders: [], files: [] } unless root_folder.present?
+        # Root prefix = first segment of folder_path (set by WarehousePathComputer from template)
+        # e.g., "Job" for job docs, "Contacts" for contact docs
+        root_prefix = base.limit(1).pick(Arel.sql("split_part(folder_path, '/', 1)"))
+        return { folders: [], files: [] } unless root_prefix.present?
 
-        # Build full DB path (includes root folder for querying WarehouseDocument.folder_path)
-        full_db_path = path_segments.any? ? "#{root_folder}/#{path_segments.join('/')}" : nil
-        relative_path = path_segments.any? ? path_segments.join('/') : nil
-        path_depth = path_segments.size + 2  # "RootFolder" is depth 1, first segment is depth 2
+        full_path = ([root_prefix] + path_segments).join("/")
+        relative_path = path_segments.any? ? path_segments.join("/") : nil
+        next_depth = path_segments.size + 2  # root=1, first sub=2, etc.
 
-        # Base scope: documents in this root folder + source_type for robustness
-        # folder_path is the materialized column (set by WarehousePathComputer on save)
-        # Also fall back to legacy folder column for docs not yet backfilled
-        base_scope = WarehouseDocument.where(source_type: scope)
-          .where(
-            "folder_path LIKE :prefix OR (folder_path IS NULL AND folder LIKE :prefix)",
-            prefix: "#{root_folder}/%"
-          )
-
-        # Get configured tabs for this path level (SSoT: from WarehouseFolder)
-        tabs_from_config = if full_db_path
-          WarehouseFolder.child_tabs_for_type_code_path(scope, full_db_path)
-        else
-          WarehouseFolder.tabs_for_type_code(scope, root_folder)
-        end
-
-        # Get subfolder counts from documents
-        # Use COALESCE to prefer folder_path, fall back to folder for unbackfilled docs
-        path_col = "COALESCE(folder_path, folder)"
-        subfolder_scope = full_db_path ? base_scope.where("#{path_col} LIKE ?", "#{full_db_path}/%") : base_scope
-        subfolder_counts = subfolder_scope
-          .group(Arel.sql("split_part(#{path_col}, '/', #{path_depth})"))
+        # Subfolder counts at this level
+        subfolder_counts = base
+          .where("folder_path LIKE ?", "#{full_path}/%")
+          .group(Arel.sql("split_part(folder_path, '/', #{next_depth})"))
           .count
 
-        # Build folders: configured tabs (with counts) + extra folders from documents
-        # SSoT: Return RELATIVE paths - frontend adds root folder prefix
-        folders = tabs_from_config.map do |tab|
-          relative_tab_path = tab[:path].to_s.sub(/^#{Regexp.escape(root_folder)}\//, '')
+        # Configured tabs from WarehouseFolder (for icons, ordering, metadata)
+        root_wf = WarehouseFolder.warehouse_folder_for(scope)
+        current_wf = root_wf
+        if current_wf && path_segments.any?
+          path_segments.each do |seg|
+            current_wf = current_wf.children.enabled.find_by("display_name = ? OR name = ?", seg, seg)
+            break unless current_wf
+          end
+        end
+        config_tabs = current_wf&.children&.enabled&.ordered&.to_a || []
+        config_names = config_tabs.map { |t| t.display_name || t.name }
+
+        # Build folder list: configured tabs first (with metadata), then extras from data
+        folders = config_tabs.map do |tab|
+          name = tab.display_name || tab.name
           {
-            name: tab[:name],
-            path: relative_tab_path,
-            count: subfolder_counts[tab[:name]] || 0,
-            tab_key: tab[:tab_key],
-            icon: tab[:icon],
-            base_folder_id: tab[:base_folder_id],
-            has_children: tab[:has_children]
+            name: name,
+            path: relative_path ? "#{relative_path}/#{name}" : name,
+            count: subfolder_counts[name] || 0,
+            tab_key: tab.tab_key,
+            icon: tab.icon_name,
+            base_folder_id: tab.id,
+            has_children: tab.children.enabled.exists?
           }
         end
 
-        config_names = tabs_from_config.map { |t| t[:name] }
-        extra_folders = subfolder_counts.reject { |name, _| config_names.include?(name) || name.blank? }
-        extra_folders.each do |name, count|
-          folder_relative_path = relative_path ? "#{relative_path}/#{name}" : name
-          folders << { name: name, path: folder_relative_path, count: count }
+        subfolder_counts.each do |name, count|
+          next if config_names.include?(name) || name.blank?
+          folders << {
+            name: name,
+            path: relative_path ? "#{relative_path}/#{name}" : name,
+            count: count
+          }
         end
 
-        # Get files at exactly this level (only if we have a path)
+        # Files at exactly this level
         files = []
-        if full_db_path
-          files_at_level = base_scope
-            .where("#{path_col} = ?", full_db_path)
-            .includes(:storage_blob)
-            .limit(500)
-          files = files_at_level.map { |doc| warehouse_document_to_json(doc) }
+        if path_segments.any?
+          file_docs = base.where(folder_path: full_path).includes(:storage_blob).limit(500)
+          files = file_docs.map { |doc| warehouse_document_to_json(doc) }
         end
 
-        folders = folders.sort_by { |f| f[:name].to_s.downcase }
+        folders.sort_by! { |f| f[:name].to_s.downcase }
         { folders: folders, files: files }
       end
 

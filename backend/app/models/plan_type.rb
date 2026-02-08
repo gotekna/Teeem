@@ -5,12 +5,14 @@
 # - One plan type can belong to multiple categories
 # - PERSPECTIVE can be in Contract Drawings, Construction Drawings, Certification Drawings
 class PlanType < ApplicationRecord
+  acts_as_tenant :tenant
+
   has_many :plan_category_plan_types, dependent: :destroy
   has_many :plan_categories, through: :plan_category_plan_types
   has_many :job_plans, dependent: :restrict_with_error
 
-  validates :name, presence: true, uniqueness: true
-  validates :code, presence: true, uniqueness: true
+  validates :name, presence: true, uniqueness: { scope: :tenant_id }
+  validates :code, presence: true, uniqueness: { scope: :tenant_id }
 
   scope :active, -> { where(is_active: true) }
   scope :ordered, -> { order(:sequence_order, :code) }

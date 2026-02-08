@@ -25,7 +25,9 @@ class EnforceTenantIdOnConfigTables < ActiveRecord::Migration[8.0]
     # Step 2: Add foreign key constraints
     # ========================================================================
     all_tables.each do |table|
-      add_foreign_key table, :tenants, column: :tenant_id, on_delete: :cascade
+      unless foreign_key_exists?(table, :tenants, column: :tenant_id)
+        add_foreign_key table, :tenants, column: :tenant_id, on_delete: :cascade
+      end
     end
 
     # ========================================================================
@@ -157,7 +159,9 @@ class EnforceTenantIdOnConfigTables < ActiveRecord::Migration[8.0]
       cost_centres supervisor_checklist_templates job_tabs
     ]
 
-    all_tables.each do |table|
+    # Only remove FKs and NOT NULL for tables we added them to (not job_tabs - it had them already)
+    new_tables = all_tables - %w[job_tabs]
+    new_tables.each do |table|
       remove_foreign_key table, :tenants, column: :tenant_id
       change_column_null table, :tenant_id, true
     end

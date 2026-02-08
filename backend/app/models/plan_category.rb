@@ -1,12 +1,14 @@
 # Global SSoT for plan categories (like DocumentationCategory)
 # Categories: Drawings, Certification Drawings, Cabinets
 class PlanCategory < ApplicationRecord
+  acts_as_tenant :tenant
+
   has_many :plan_category_plan_types, dependent: :destroy
   has_many :plan_types, through: :plan_category_plan_types
   has_many :job_plan_tabs, dependent: :nullify
 
   validates :name, presence: true
-  validates :code, uniqueness: { allow_blank: true }
+  validates :code, uniqueness: { scope: :tenant_id, allow_blank: true }
 
   scope :active, -> { where(is_active: true) }
   scope :ordered, -> { order(:sequence_order, :name) }
