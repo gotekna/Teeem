@@ -940,14 +940,13 @@ class WarehouseProvider < ApplicationRecord
       # Link expiry days for presigned URLs (from TenantSetting - SSoT)
       link_expiry_days: TenantSetting.link_expiry_days,
 
-      # LIM (Feb 2026): Frontend gets base folder mapping from warehouse_folders SSoT
-      # scope_folders: { contact: "Contacts", job: "Jobs", ... } - NOT full templates
-      scope_folders: WarehouseFolder.warehouse_type_to_warehouse_folder,
-
-      # SSoT (Feb 2026): Full path templates from warehouse_folders table
-      # Frontend needs these for the Warehouse Folders config UI
-      warehouse_folders: WarehouseFolder.warehouse_folders_mapping,
-      warehouse_folder_templates: WarehouseFolder.warehouse_folders_mapping, # Alias for backwards compat
+      # SSoT: Base path templates read DIRECTLY from warehouse_types table
+      # FRC (Feb 2026): Was going through WarehouseFolder.warehouse_folders_mapping which
+      # iterated tabs and picked the wrong one. Now reads straight from the source.
+      # { "contact" => "Contacts/{{ContactName}}", "job" => "Job/{{JobStatus}}/..." }
+      scope_folders: WarehouseType.enabled.pluck(:code, :display_name).to_h,
+      warehouse_folders: WarehouseType.enabled.where.not(folder_path_template: [nil, '']).pluck(:code, :folder_path_template).to_h,
+      warehouse_folder_templates: WarehouseType.enabled.where.not(folder_path_template: [nil, '']).pluck(:code, :folder_path_template).to_h,
       download_names: WarehouseFolder.download_names_mapping,
       ui_name_templates: WarehouseFolder.ui_names_mapping
     }

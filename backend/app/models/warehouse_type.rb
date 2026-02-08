@@ -80,14 +80,9 @@ class WarehouseType < ApplicationRecord
   # @return [Array<Hash>] Array of {value:, label:, code:, base_path:} hashes
   def self.options_for_select
     enabled.ordered.map do |wt|
-      # Build base_path: always starts with display_name, then folder_path_template tokens
-      base_path = if wt.folder_path_template.present?
-        wt.folder_path_template.start_with?(wt.display_name) ? wt.folder_path_template : "#{wt.display_name}/#{wt.folder_path_template}"
-      else
-        wt.display_name
-      end
-
-      { value: wt.id, label: wt.display_name, code: wt.code, base_path: base_path }
+      # SSoT: folder_path_template IS the base path (e.g., "Contacts/{{ContactName}}")
+      # No display_name prefix - that was causing duplication ("Contact/Contacts/...")
+      { value: wt.id, label: wt.display_name, code: wt.code, base_path: wt.folder_path_template || wt.display_name }
     end
   end
 
