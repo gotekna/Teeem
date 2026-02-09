@@ -279,7 +279,7 @@ class EmailMigrationService
     # Note: PolarisMail may need its own OAuth flow or admin consent
     {
       type: "oauth2",
-      tenant_id: @microsoft_credential.tenant_id,
+      tenant_id: @microsoft_credential.azure_tenant_id,
       client_id: @microsoft_credential.app_id,
       # Don't send actual secrets - PolarisMail should use delegated auth
       user_email: migration.source_email

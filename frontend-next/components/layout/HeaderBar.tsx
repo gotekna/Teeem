@@ -202,14 +202,23 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
         // Count actually connected organizations
         const orgs = microsoftResponse?.organizations || [];
+        const totalCount = orgs.length;
         const connectedCount = orgs.filter(o => o.status === "connected").length;
-        const totalCount = 4; // AVAILABLE_ORGANIZATIONS count from Microsoft page
+        const errorCount = orgs.filter(o => o.status === "error" || o.status === "dead").length;
 
-        if (connectedCount > 0) {
+        if (totalCount === 0) {
+          setOffice365Status('disconnected');
+          setOffice365Tooltip('Microsoft 365: Not Configured');
+        } else if (connectedCount === totalCount) {
           setOffice365Status('connected');
+          setOffice365Tooltip(`Microsoft 365: All ${totalCount} Connected`);
+        } else if (errorCount > 0) {
+          setOffice365Status('error');
+          setOffice365Tooltip(`Microsoft 365: ${errorCount} Error, ${connectedCount}/${totalCount} Connected`);
+        } else if (connectedCount > 0) {
+          setOffice365Status('degraded');
           setOffice365Tooltip(`Microsoft 365: ${connectedCount}/${totalCount} Connected`);
         } else {
-          // No orgs connected - show as disconnected
           setOffice365Status('disconnected');
           setOffice365Tooltip(`Microsoft 365: ${connectedCount}/${totalCount} Connected`);
         }

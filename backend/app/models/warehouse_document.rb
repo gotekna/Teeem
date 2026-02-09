@@ -499,9 +499,11 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # Check if folder_path needs (re)computation
+  # Respects explicitly-set folder_path on new records (e.g., Xero sync computes its own path)
   def needs_path_recomputation?
-    new_record? ||
-      folder_path.blank? ||
+    return false if new_record? && folder_path.present?
+
+    folder_path.blank? ||
       source_type_changed? ||
       documentable_type_changed? ||
       documentable_id_changed? ||
