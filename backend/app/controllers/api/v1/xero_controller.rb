@@ -178,7 +178,12 @@ module Api
           }, status: :bad_request
         end
 
-        credential = XeroCredential.find_by(tenant_id: tenant_id)
+        # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant access
+        credential = if current_tenant&.master_tenant?
+                       XeroCredential.find_by(tenant_id: tenant_id)
+                     else
+                       XeroCredential.for_teeem_tenant(current_tenant).find_by(tenant_id: tenant_id)
+                     end
 
         unless credential
           return render json: {
@@ -1301,10 +1306,16 @@ module Api
 
         begin
           # Find the credential for the specific tenant if provided
+          # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant access
+          cred_scope = if current_tenant&.master_tenant?
+                         XeroCredential
+                       else
+                         XeroCredential.for_teeem_tenant(current_tenant)
+                       end
           credential = if tenant_id.present?
-            XeroCredential.find_by(tenant_id: tenant_id)
+            cred_scope.find_by(tenant_id: tenant_id)
           else
-            XeroCredential.current
+            cred_scope.first
           end
 
           unless credential
@@ -1686,7 +1697,13 @@ module Api
           next_invoice_sync = calculate_next_run(now_brisbane, 5, 0)
 
           # SSoT: Check actual rate limit status to determine if sync is paused
-          credential = XeroCredential.where(status: %w[connected degraded]).first
+          # FRC (Feb 2026): Must be tenant-scoped
+          rate_cred_scope = if current_tenant&.master_tenant?
+                              XeroCredential
+                            else
+                              XeroCredential.for_teeem_tenant(current_tenant)
+                            end
+          credential = rate_cred_scope.where(status: %w[connected degraded]).first
           rate_usage = credential ? XeroRateLimitTracker.usage_for(credential.tenant_id) : nil
           daily_percentage = rate_usage&.dig(:daily, :percentage) || 0
           is_rate_limited = daily_percentage >= 80
@@ -2323,8 +2340,14 @@ module Api
           # Group by tenant
           by_tenant = tenant_contacts.group_by(&:tenant_id)
 
+          # FRC (Feb 2026): Build tenant-scoped credential lookup for display names
+          common_cred_scope = if current_tenant&.master_tenant?
+                                XeroCredential
+                              else
+                                XeroCredential.for_teeem_tenant(current_tenant)
+                              end
           by_tenant.each do |tenant_id, contacts|
-            cred = XeroCredential.find_by(tenant_id: tenant_id)
+            cred = common_cred_scope.find_by(tenant_id: tenant_id)
             tenant_name = cred&.tenant_name || tenant_id[0..7]
 
             names = contacts.map { |c| { name: c.contact_name, xero_id: c.external_contact_id } }.uniq { |c| c[:xero_id] }
@@ -2463,7 +2486,14 @@ module Api
             end
 
             # Get tenant name from XeroCredential
-            xero_credential = XeroCredential.find_by(tenant_id: effective_tenant_id) if effective_tenant_id.present?
+            # FRC (Feb 2026): Must be tenant-scoped
+            xero_credential = if effective_tenant_id.present?
+                                if current_tenant&.master_tenant?
+                                  XeroCredential.find_by(tenant_id: effective_tenant_id)
+                                else
+                                  XeroCredential.for_teeem_tenant(current_tenant).find_by(tenant_id: effective_tenant_id)
+                                end
+                              end
 
             # Create or update ContactExternalLink
             link = ContactExternalLink.find_or_initialize_by(
@@ -2975,9 +3005,15 @@ module Api
           Rails.logger.info("[Xero] Starting sync_all_companies")
 
           # Get all corporate companies with Xero connections
+          # FRC (Feb 2026): Must be tenant-scoped - only pluck current tenant's Xero org IDs
+          sync_cred_scope = if current_tenant&.master_tenant?
+                              XeroCredential
+                            else
+                              XeroCredential.for_teeem_tenant(current_tenant)
+                            end
           companies_with_xero = Corporate.joins(:corporate_xero_connection)
             .includes(:corporate_xero_connection)
-            .where(corporate_xero_connections: { xero_tenant_id: XeroCredential.pluck(:tenant_id) })
+            .where(corporate_xero_connections: { xero_tenant_id: sync_cred_scope.pluck(:tenant_id) })
 
           if companies_with_xero.empty?
             return render json: {
@@ -3120,7 +3156,8 @@ module Api
               xero_contact_name: link.external_name,
               xero_contact_id: link.external_contact_id,
               tenant_id: link.xero_org_id,
-              tenant_name: XeroCredential.find_by(tenant_id: link.xero_org_id)&.tenant_name,
+              # FRC (Feb 2026): Must be tenant-scoped
+              tenant_name: (current_tenant&.master_tenant? ? XeroCredential : XeroCredential.for_teeem_tenant(current_tenant)).find_by(tenant_id: link.xero_org_id)&.tenant_name,
               sync_error: link.sync_error,
               teeem_contact_id: link.contact_id,
               teeem_contact_name: link.contact&.display_name,

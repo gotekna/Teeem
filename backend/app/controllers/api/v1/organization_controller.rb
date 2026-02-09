@@ -38,10 +38,12 @@ module Api
       # Returns statistics for each connected Microsoft 365 organization
       def microsoft_org_stats
         # SSoT: Use MicrosoftCredential
-        all_credentials = MicrosoftCredential.app_credentials.order(:name)
+        # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant credential access
+        all_credentials = MicrosoftCredential.for_tenant(current_tenant).app_credentials.order(:name)
 
         # SSoT: Get org names dynamically from database (Jan 2026)
-        all_org_names = MicrosoftCredential.known_org_names
+        # FRC (Feb 2026): Inline known_org_names since .for_tenant() scope can't chain with class method
+        all_org_names = all_credentials.distinct.pluck(:name).compact.reject(&:blank?)
 
         org_stats = all_org_names.map do |org_name|
           credential = all_credentials.find { |c| c.name == org_name }
@@ -305,7 +307,8 @@ module Api
         current_credential_id = warehouse_provider&.credential_id
 
         # Get available S3 credentials for dropdown
-        s3_credentials = S3CompatibleCredential.active.order(:name).map do |cred|
+        # FRC (Feb 2026): Must be tenant-scoped
+        s3_credentials = S3CompatibleCredential.for_tenant(current_tenant).active.order(:name).map do |cred|
           {
             id: cred.id,
             name: cred.name,
@@ -327,7 +330,8 @@ module Api
         last_error = nil
 
         if current_provider == "s3_compatible" && current_credential_id
-          active_credential = S3CompatibleCredential.find_by(id: current_credential_id)
+          # FRC (Feb 2026): Must be tenant-scoped
+          active_credential = S3CompatibleCredential.for_tenant(current_tenant).find_by(id: current_credential_id)
           if active_credential
             credential_status = active_credential.status
             last_error = active_credential.metadata&.dig("last_error")
@@ -381,7 +385,8 @@ module Api
             }, status: :unprocessable_entity
           end
 
-          credential = S3CompatibleCredential.find_by(id: credential_id)
+          # FRC (Feb 2026): Must be tenant-scoped
+          credential = S3CompatibleCredential.for_tenant(current_tenant).find_by(id: credential_id)
           unless credential&.status == "connected"
             return render json: {
               success: false,
@@ -697,8 +702,9 @@ module Api
         storage_config = WarehouseProvider.instance rescue nil
 
         # Auto-detect actual provider from credentials (SSoT: credentials are source of truth)
-        s3_credential = S3CompatibleCredential.active.first rescue nil
-        ms_credential = MicrosoftCredential.connected.first rescue nil
+        # FRC (Feb 2026): Must be tenant-scoped
+        s3_credential = S3CompatibleCredential.for_tenant(current_tenant).active.first rescue nil
+        ms_credential = MicrosoftCredential.for_tenant(current_tenant).connected.first rescue nil
 
         # Determine actual provider based on what's connected (prioritize S3 if active)
         # FRC (Feb 2026): No hardcoded defaults - return actual configured provider or nil
@@ -867,7 +873,13 @@ module Api
             # Per-tenant breakdown
             tenant_breakdown = []
             if defined?(XeroCredential)
-              XeroCredential.where.not(tenant_id: nil).find_each do |cred|
+              # FRC (Feb 2026): Must be tenant-scoped
+              xero_cred_scope = if current_tenant&.master_tenant?
+                                  XeroCredential.where.not(tenant_id: nil)
+                                else
+                                  XeroCredential.for_teeem_tenant(current_tenant).where.not(tenant_id: nil)
+                                end
+              xero_cred_scope.find_each do |cred|
                 tenant_id = cred.tenant_id
                 tenant_name = cred.tenant_name || "Unknown"
 
@@ -1005,7 +1017,8 @@ module Api
         return nil unless current_tenant
 
         # Find the active Wasabi/S3 credential to use as default
-        default_credential = S3CompatibleCredential.active.where(status: "connected").first
+        # FRC (Feb 2026): Must be tenant-scoped
+        default_credential = S3CompatibleCredential.for_tenant(current_tenant).active.where(status: "connected").first
 
         Organization.create!(
           tenant: current_tenant,

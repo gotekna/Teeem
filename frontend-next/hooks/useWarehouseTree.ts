@@ -329,7 +329,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
             [key: string]: unknown;
           }>;
           count: { folders: number; files: number; total: number };
-        }>(`/api/v1/documents/live_folder_tree?scope=${encodeURIComponent(scope)}&path=${encodeURIComponent(relativePath)}${mode.type === "scoped" && mode.linkableType && mode.linkableId ? `&linkable_type=${encodeURIComponent(mode.linkableType)}&linkable_id=${mode.linkableId}` : ""}`);
+        }>(`/api/v1/documents/live_folder_tree?scope=${encodeURIComponent(scope)}&path=${encodeURIComponent(relativePath)}`);
 
         if (response?.success) {
           setS3Folders(prev => ({

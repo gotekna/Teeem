@@ -62,7 +62,13 @@ module Api
         usage = XeroRateLimitTracker.aggregate_usage
 
         # Build credential lookup by tenant_id for status info
-        credentials_by_tenant = XeroCredential.all.index_by(&:tenant_id)
+        # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant rate limit data leak
+        cred_scope = if current_tenant&.master_tenant?
+                       XeroCredential.all
+                     else
+                       XeroCredential.for_teeem_tenant(current_tenant)
+                     end
+        credentials_by_tenant = cred_scope.index_by(&:tenant_id)
 
         # SSoT: Calculate reset time (midnight UTC = 10:00 AM Brisbane)
         # Next reset is: today 10 AM if before 10 AM Brisbane, tomorrow 10 AM if after

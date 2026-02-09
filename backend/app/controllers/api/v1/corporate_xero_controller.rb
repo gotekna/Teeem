@@ -119,7 +119,12 @@ module Api
         end
 
         # Find the credential for this tenant
-        credential = XeroCredential.find_by(tenant_id: tenant_id)
+        # FRC (Feb 2026): Must be tenant-scoped
+        credential = if current_tenant&.master_tenant?
+                       XeroCredential.find_by(tenant_id: tenant_id)
+                     else
+                       XeroCredential.for_teeem_tenant(current_tenant).find_by(tenant_id: tenant_id)
+                     end
 
         if credential.nil?
           render json: { success: false, error: "Xero organization not found. Please authorize with Xero first." }, status: :not_found

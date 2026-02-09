@@ -574,7 +574,9 @@ module Api
       # Download file by provider-specific ID (SharePoint only)
       def download_file_by_id(file_id)
         return nil unless current_provider_type == :sharepoint
-        credential = MicrosoftCredential.sharepoint_credential
+        # FRC (Feb 2026): Must be tenant-scoped
+        credential = MicrosoftCredential.for_tenant(current_tenant).refreshable_delegated.org_level.first ||
+                     MicrosoftCredential.for_tenant(current_tenant).refreshable_app.first
         return nil unless credential&.valid_credential?
 
         graph_client = MicrosoftGraphClient.new(credential)
