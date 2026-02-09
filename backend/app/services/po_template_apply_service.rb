@@ -126,7 +126,7 @@ class PoTemplateApplyService
       sm_task: task,
       status: template_item.status_on_create || "draft",
       budget: template_item.budget,
-      description: template_item.notes
+      description: template_item.name
     )
 
     # Build line items

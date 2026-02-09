@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class PoTemplateLineItem < ApplicationRecord
-  acts_as_tenant :tenant
+  # No acts_as_tenant - scoped through parent po_template_item → po_template_pack → tenant
 
   # Associations
   belongs_to :po_template_item
