@@ -12,6 +12,7 @@ import { MeetingTypesTab } from "@/app/(app)/admin/system/components/MeetingType
 import { SupervisorChecklistTab } from "@/app/(app)/admin/system/components/SupervisorChecklistTab";
 import { SMTasksTab } from "@/app/(app)/admin/system/components/SMTasksTab";
 import { CostTab } from "@/app/(app)/admin/system/components/CostTab";
+import { PoTemplatesTab } from "@/app/(app)/admin/system/components/PoTemplatesTab";
 
 /**
  * Operations Settings Page - Organization Settings
@@ -30,6 +31,7 @@ const OPERATIONS_TABS = [
   { id: "meetings", label: "Meeting Types" },
   { id: "supervisor", label: "Supervisor Checklist" },
   { id: "cost", label: "Cost" },
+  { id: "po-templates", label: "PO Templates" },
 ];
 
 const DEFAULT_TAB = "schedule-master";
@@ -85,6 +87,9 @@ export default function OperationsSettingsPage() {
           </TabsContent>
           <TabsContent value="cost" className="absolute inset-0 overflow-auto">
             <CostTab />
+          </TabsContent>
+          <TabsContent value="po-templates" className="absolute inset-0 overflow-auto">
+            <PoTemplatesTab />
           </TabsContent>
         </div>
       </Tabs>

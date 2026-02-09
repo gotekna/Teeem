@@ -22,6 +22,7 @@ import {
   ExternalLink,
   Lock,
   LockOpen,
+  FileStack,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -104,6 +105,18 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [selectedRowIds] = useAtom(selectedRowsAtom);
   const clearSelection = useSetAtom(clearSelectionAtom);
   const [lockingBudgets, setLockingBudgets] = useState(false);
+
+  // Template apply state
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templatePacks, setTemplatePacks] = useState<Array<{ id: number; name: string; itemCount: number; estimatedTotal: number }>>([]);
+  const [selectedPackId, setSelectedPackId] = useState<number | null>(null);
+  const [templatePreview, setTemplatePreview] = useState<{
+    items: Array<{ name: string; supplierName: string | null; taskName: string | null; taskMatched: boolean; supplierMatched: boolean; lineItemCount: number; estimatedTotal: number }>;
+    totalPos: number; estimatedTotal: number; tasksMatched: number; tasksUnmatched: number; warnings: string[];
+  } | null>(null);
+  const [loadingTemplatePacks, setLoadingTemplatePacks] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -260,6 +273,61 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     return role ? assignedRole === String(role.id) : false;
   };
 
+  // Template pack functions
+  const loadTemplatePacks = async () => {
+    try {
+      setLoadingTemplatePacks(true);
+      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; itemCount: number; estimatedTotal: number }> }>(
+        "/api/v1/po_template_packs"
+      );
+      setTemplatePacks(response?.data || []);
+    } catch (err) {
+      console.error("Failed to load template packs:", err);
+    } finally {
+      setLoadingTemplatePacks(false);
+    }
+  };
+
+  const handleOpenTemplateModal = async () => {
+    setSelectedPackId(null);
+    setTemplatePreview(null);
+    setShowTemplateModal(true);
+    await loadTemplatePacks();
+  };
+
+  const handleSelectPack = async (packId: number) => {
+    setSelectedPackId(packId);
+    setTemplatePreview(null);
+    try {
+      setLoadingPreview(true);
+      const response = await api.get<{ success: boolean; data: typeof templatePreview }>(
+        `/api/v1/po_template_packs/${packId}/preview?job_id=${jobId}`
+      );
+      setTemplatePreview(response?.data || null);
+    } catch (err) {
+      console.error("Failed to load template preview:", err);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const handleApplyTemplate = async () => {
+    if (!selectedPackId) return;
+    try {
+      setApplyingTemplate(true);
+      await api.post(`/api/v1/po_template_packs/${selectedPackId}/apply`, {
+        job_id: jobId,
+      });
+      setShowTemplateModal(false);
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      console.error("Failed to apply template:", err);
+      setError("Failed to apply template");
+    } finally {
+      setApplyingTemplate(false);
+    }
+  };
+
   const handleOpenCreateModal = async () => {
     setError(null);
     setSelectedContact(null);
@@ -393,20 +461,31 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         onAddRow={handleOpenCreateModal}
         customCellRenderer={customCellRenderer}
         leftActions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleToggleBudgetLock}
-            disabled={selectedRowIds.size === 0 || lockingBudgets}
-            className="gap-1"
-          >
-            {lockingBudgets ? (
-              <Spinner size={14} />
-            ) : (
-              <Lock className="h-4 w-4" />
-            )}
-            Lock/Unlock {selectedRowIds.size > 0 && `(${selectedRowIds.size})`}
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenTemplateModal}
+              className="gap-1"
+            >
+              <FileStack className="h-4 w-4" />
+              Apply Template
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleToggleBudgetLock}
+              disabled={selectedRowIds.size === 0 || lockingBudgets}
+              className="gap-1"
+            >
+              {lockingBudgets ? (
+                <Spinner size={14} />
+              ) : (
+                <Lock className="h-4 w-4" />
+              )}
+              Lock/Unlock {selectedRowIds.size > 0 && `(${selectedRowIds.size})`}
+            </Button>
+          </>
         }
       />
 
@@ -665,6 +744,142 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 <>
                   Save & Open
                   <ExternalLink className="h-4 w-4 ml-2" />
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Apply Template Modal */}
+      <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
+        <DialogContent className="sm:max-w-[700px] max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Apply PO Template</DialogTitle>
+            <DialogDescription>
+              Select a template pack to create purchase orders for {jobTitle || "this job"}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 min-h-0 overflow-auto space-y-4 py-2">
+            {/* Pack selection */}
+            <div className="space-y-2">
+              <Label>Template Pack</Label>
+              <ComboboxDropdown
+                items={templatePacks.map((pack) => ({
+                  id: String(pack.id),
+                  label: `${pack.name} (${pack.itemCount} POs)`,
+                }))}
+                selectedItem={selectedPackId ? {
+                  id: String(selectedPackId),
+                  label: templatePacks.find(p => p.id === selectedPackId)?.name || "",
+                } : undefined}
+                onSelect={(item) => handleSelectPack(Number(item.id))}
+                placeholder={loadingTemplatePacks ? "Loading templates..." : "Select template pack..."}
+                searchPlaceholder="Search templates..."
+                emptyResults="No template packs found."
+                disabled={loadingTemplatePacks}
+                isLoading={loadingTemplatePacks}
+              />
+            </div>
+
+            {/* Preview */}
+            {loadingPreview && (
+              <div className="flex items-center justify-center py-6">
+                <Spinner size={20} />
+                <span className="ml-2 text-sm text-muted-foreground">Loading preview...</span>
+              </div>
+            )}
+
+            {templatePreview && !loadingPreview && (
+              <div className="space-y-3">
+                {/* Summary badges */}
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                    {templatePreview.totalPos} POs
+                  </span>
+                  <span className="inline-flex items-center rounded-md bg-green-100 dark:bg-green-900/30 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-400">
+                    {templatePreview.tasksMatched} tasks matched
+                  </span>
+                  {templatePreview.tasksUnmatched > 0 && (
+                    <span className="inline-flex items-center rounded-md bg-amber-100 dark:bg-amber-900/30 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                      {templatePreview.tasksUnmatched} unmatched
+                    </span>
+                  )}
+                  <span className="inline-flex items-center rounded-md bg-muted px-2.5 py-1 text-xs font-mono font-medium">
+                    Est. {new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(templatePreview.estimatedTotal)}
+                  </span>
+                </div>
+
+                {/* Warnings */}
+                {templatePreview.warnings.length > 0 && (
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 space-y-1">
+                    {templatePreview.warnings.map((w, i) => (
+                      <p key={i} className="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        {w}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Item list */}
+                <div className="border rounded-md overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="text-left py-2 px-3 font-medium">PO Name</th>
+                        <th className="text-left py-2 px-3 font-medium">Supplier</th>
+                        <th className="text-left py-2 px-3 font-medium">Task</th>
+                        <th className="text-right py-2 px-3 font-medium">Lines</th>
+                        <th className="text-right py-2 px-3 font-medium">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {templatePreview.items.map((item, idx) => (
+                        <tr key={idx} className="border-t border-border/50">
+                          <td className="py-1.5 px-3">{item.name}</td>
+                          <td className="py-1.5 px-3 text-muted-foreground">
+                            {item.supplierName || <span className="italic text-amber-600 dark:text-amber-400">none</span>}
+                          </td>
+                          <td className="py-1.5 px-3">
+                            {item.taskMatched ? (
+                              <span className="text-green-700 dark:text-green-400">{item.taskName}</span>
+                            ) : (
+                              <span className="text-amber-600 dark:text-amber-400 italic">
+                                {item.taskName || "no link"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-1.5 px-3 text-right">{item.lineItemCount}</td>
+                          <td className="py-1.5 px-3 text-right font-mono">
+                            {new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(item.estimatedTotal)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTemplateModal(false)} disabled={applyingTemplate}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleApplyTemplate}
+              disabled={!selectedPackId || !templatePreview || applyingTemplate}
+            >
+              {applyingTemplate ? (
+                <>
+                  <Spinner size={16} className="mr-2" />
+                  Applying...
+                </>
+              ) : (
+                <>
+                  <FileStack className="h-4 w-4 mr-2" />
+                  Apply All ({templatePreview?.totalPos || 0} POs)
                 </>
               )}
             </Button>

@@ -314,6 +314,39 @@ class TenantConfigSyncService
       description: "Supervisor checklist item templates",
       group: "operations"
     },
+    po_template_packs: {
+      model: "PoTemplatePack",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :is_active, :position],
+      description: "PO template pack definitions",
+      group: "operations"
+    },
+    po_template_items: {
+      model: "PoTemplateItem",
+      name_field: :name,
+      match_fields: [:po_template_pack_id, :name],
+      sync_fields: [:name, :sm_schedule_master_id, :supplier_sync_key,
+                    :position, :budget, :notes, :status_on_create],
+      description: "PO template pack items (individual PO definitions)",
+      group: "operations",
+      remap_fks: {
+        po_template_pack_id: { model: "PoTemplatePack", match_field: :name },
+        sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key }
+      }
+    },
+    po_template_line_items: {
+      model: "PoTemplateLineItem",
+      name_field: :description,
+      match_fields: [:po_template_item_id, :line_number],
+      sync_fields: [:pricebook_item_code, :description, :quantity,
+                    :unit_price, :gst_code, :line_number],
+      description: "PO template line item details",
+      group: "operations",
+      remap_fks: {
+        po_template_item_id: { model: "PoTemplateItem", match_field: :sync_key }
+      }
+    },
 
     # ============================================================================
     # Estimating Group

@@ -44,6 +44,7 @@ import {
   Link2,
   ArrowLeft,
   MessageSquare,
+  Database,
 } from "lucide-react";
 import {
   Dialog,
@@ -66,6 +67,7 @@ import { DocumentActions } from "@/components/documents/DocumentActions";
 import { MailboxDrawer } from "@/components/documents/MailboxDrawer";
 import { formatFileSize } from "@/utils/formatters";
 import { WarehouseTree } from "@/components/warehouse/WarehouseTree";
+import { WarehouseDocTree } from "@/components/warehouse/WarehouseDocTree";
 import type { DocumentItem, TreeDisplayMode } from "@/components/warehouse/types";
 
 interface AllDocumentsResponse {
@@ -81,7 +83,7 @@ interface AllDocumentsResponse {
 }
 
 
-type ViewMode = "tree" | "list" | "gallery";
+type ViewMode = "tree" | "list" | "gallery" | "warehouse-tree";
 
 
 // Sync settings types
@@ -907,9 +909,18 @@ export default function AllDocumentsPage() {
                 Tree
               </Button>
               <Button
-                variant={viewMode === "list" ? "secondary" : "ghost"}
+                variant={viewMode === "warehouse-tree" ? "secondary" : "ghost"}
                 size="sm"
                 className="rounded-none border-x"
+                onClick={() => setViewMode("warehouse-tree")}
+              >
+                <Database className="h-4 w-4 mr-1" />
+                Doc Tree
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="sm"
+                className="rounded-none border-r"
                 onClick={() => setViewMode("list")}
               >
                 <List className="h-4 w-4 mr-1" />
@@ -1050,6 +1061,17 @@ export default function AllDocumentsPage() {
                 hideToolbar
                 treeDisplayMode={treeDisplayMode}
                 onTreeDisplayModeChange={(m) => setTreeDisplayMode(m)}
+              />
+            </div>
+          ) : viewMode === "warehouse-tree" ? (
+            // Warehouse Doc Tree - simple tree from WarehouseDocument.folder_path
+            <div data-tour="warehouse-doc-tree">
+              <WarehouseDocTree
+                onFileClick={openFileInPopup}
+                onFileDoubleClick={openFileInNewWindow}
+                onMailboxClick={handleMailboxClick}
+                onMailboxDoubleClick={handleMailboxDoubleClick}
+                selectedDocument={previewDocument}
               />
             </div>
           ) : viewMode === "list" ? (

@@ -207,10 +207,12 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
   }
 
   // Calculate profit metrics
+  const contractValue = claimsSummary?.contract_value || 0;
+  const revisedContractValue = claimsSummary?.revised_contract_value || contractValue;
   const revenue = claimsSummary?.total_invoiced || 0;
   const costs = expensesTotals?.totalSpent || 0;
-  const grossProfit = revenue - costs;
-  const profitMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+  const grossProfit = revisedContractValue - costs;
+  const profitMargin = revisedContractValue > 0 ? (grossProfit / revisedContractValue) * 100 : 0;
 
   // Cash flow metrics
   const cashIn = claimsSummary?.total_paid || 0;
@@ -218,8 +220,6 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
   const netCashFlow = cashIn - cashOut;
 
   // Contract vs actual
-  const contractValue = claimsSummary?.contract_value || 0;
-  const revisedContractValue = claimsSummary?.revised_contract_value || contractValue;
   const budgetedCosts = expensesTotals?.totalBudget || 0;
   const expectedProfit = revisedContractValue - budgetedCosts;
   const profitVariance = grossProfit - expectedProfit;
