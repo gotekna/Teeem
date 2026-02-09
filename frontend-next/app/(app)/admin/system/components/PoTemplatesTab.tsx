@@ -96,6 +96,7 @@ function formatCurrency(value: number | null | undefined): string {
 }
 
 export function PoTemplatesTab() {
+  console.log("[PoTemplatesTab] Component mounted");
   const [packs, setPacks] = useState<TemplatePack[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedPack, setExpandedPack] = useState<number | null>(null);
@@ -109,12 +110,14 @@ export function PoTemplatesTab() {
   const loadPacks = useCallback(async () => {
     try {
       setLoading(true);
+      console.log("[PoTemplatesTab] Loading packs...");
       const response = await api.get<{ success: boolean; data: TemplatePack[] }>(
         "/api/v1/po_template_packs"
       );
+      console.log("[PoTemplatesTab] Response:", response);
       setPacks(response?.data || []);
     } catch (err) {
-      console.error("Failed to load PO template packs:", err);
+      console.error("[PoTemplatesTab] Failed to load:", err);
       toast.error("Failed to load PO template packs");
     } finally {
       setLoading(false);
@@ -205,6 +208,8 @@ export function PoTemplatesTab() {
       toast.error("Failed to delete template pack");
     }
   };
+
+  console.log("[PoTemplatesTab] Render - loading:", loading, "packs:", packs.length);
 
   if (loading) {
     return (
@@ -485,5 +490,3 @@ export function PoTemplatesTab() {
     </div>
   );
 }
-
-export default PoTemplatesTab;
