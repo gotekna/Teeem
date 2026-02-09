@@ -419,8 +419,6 @@ class SendNameResolver
     case documentable.class.name
     when "SyncedEmail"
       "email"
-    when "JobDocument"
-      "job"
     when "PeopleDocument"
       "people"
     when "UserDocument"

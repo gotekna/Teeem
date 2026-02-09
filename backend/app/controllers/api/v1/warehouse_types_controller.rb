@@ -139,24 +139,7 @@ module Api
       def scoped_tree
         linkable_type = params[:linkable_type]
         linkable_id = params[:linkable_id]
-
-        # Direct linkable match
-        docs = WarehouseDocument
-          .where(tenant_id: current_tenant&.id)
-          .where(linkable_type: linkable_type, linkable_id: linkable_id)
-
-        # Also check documentable (some older docs use documentable instead of linkable)
-        documentable_docs = WarehouseDocument
-          .where(tenant_id: current_tenant&.id)
-          .where(documentable_type: linkable_type, documentable_id: linkable_id)
-
-        # Cross-linked documents via "Also show in" config + FK chains
-        cross_docs = cross_linked_documents(linkable_type, linkable_id)
-
-        # Combine all document IDs
-        direct_ids = (docs.pluck(:id) + documentable_docs.pluck(:id)).uniq
-        cross_ids = cross_docs.pluck(:id)
-        combined_ids = (direct_ids + cross_ids).uniq
+        combined_ids = scoped_document_ids(linkable_type, linkable_id)
 
         if combined_ids.empty?
           return render json: {
@@ -176,8 +159,6 @@ module Api
         folder_id_counts.each do |wf_id, count|
           wf = WarehouseFolder.find_by(id: wf_id)
           next unless wf
-          # Build name path: for nested folders use "Parent/Child" so
-          # getFolderDocCount("Parent") matches via startsWith
           name_path = build_folder_name_path(wf)
           folder_counts[name_path] = (folder_counts[name_path] || 0) + count
         end
@@ -192,6 +173,78 @@ module Api
             tree: folder_counts,
             prefix: nil,
             documentCount: combined_ids.size
+          }
+        }
+      end
+
+      # GET /api/v1/warehouse_types/scoped_folder_files
+      # Returns documents and sub-folders for a specific folder in scoped mode.
+      # Uses warehouse_folder_id FK (SSoT) — no S3 path matching.
+      #
+      # Params:
+      #   linkable_type, linkable_id — the entity (Job, Contact, etc.)
+      #   folder_id — the warehouse_folder_id to list files for
+      def scoped_folder_files
+        linkable_type = params[:linkable_type]
+        linkable_id = params[:linkable_id]
+        folder_id = params[:folder_id].to_i
+
+        combined_ids = scoped_document_ids(linkable_type, linkable_id)
+        empty_response = { success: true, data: { folders: [], files: [], count: { folders: 0, files: 0, total: 0 } } }
+        return render(json: empty_response) if combined_ids.empty?
+
+        target_folder = WarehouseFolder.find_by(id: folder_id)
+        return render(json: empty_response) unless target_folder
+
+        # Files directly in this folder
+        file_docs = WarehouseDocument.where(id: combined_ids, warehouse_folder_id: folder_id)
+          .includes(:storage_blob)
+          .order(created_at: :desc)
+          .limit(500)
+
+        # Child folders that have documents (with counts)
+        child_folder_ids = WarehouseFolder.where(parent_id: folder_id).pluck(:id)
+        child_counts = WarehouseDocument.where(id: combined_ids, warehouse_folder_id: child_folder_ids)
+          .group(:warehouse_folder_id).count
+
+        folders = child_counts.filter_map do |wf_id, count|
+          wf = WarehouseFolder.find_by(id: wf_id)
+          next unless wf
+          { name: wf.display_name.presence || wf.name, count: count, folderId: wf.id }
+        end
+
+        provider = begin
+          DocumentProviders.for_tenant(current_tenant)
+        rescue => e
+          Rails.logger.debug "[WarehouseTypes] No storage provider: #{e.message}"
+          nil
+        end
+
+        files = file_docs.map do |wd|
+          blob = wd.storage_blob
+          download_url = if blob&.storage_path.present? && provider
+            provider.download_url(blob.storage_path, expires_in: 3600, filename: wd.download_filename) rescue nil
+          end
+
+          {
+            id: wd.id,
+            uiName: wd.ui_name,
+            sendName: wd.download_filename,
+            type: wd.source_type || "document",
+            mimeType: wd.content_type || blob&.content_type || "application/octet-stream",
+            fileSize: wd.file_size || blob&.file_size || 0,
+            createdAt: wd.created_at&.iso8601,
+            fileUrl: download_url,
+            isImage: wd.original_filename.present? && wd.original_filename.match?(/\.(jpg|jpeg|png|gif|webp|svg)$/i)
+          }
+        end
+
+        render json: {
+          success: true,
+          data: {
+            folders: folders,
+            files: files,
+            count: { folders: folders.size, files: files.size, total: folders.size + files.size }
           }
         }
       end
@@ -514,6 +567,23 @@ module Api
       # For root folders: just the display_name (e.g., "Photo Documents")
       # For child folders: "Parent/Child" (e.g., "Finance/Bills")
       # Uses display_name (what the UI shows) falling back to name.
+      # Shared: get all WarehouseDocument IDs for an entity (direct + documentable + cross-linked)
+      def scoped_document_ids(linkable_type, linkable_id)
+        direct_ids = WarehouseDocument
+          .where(tenant_id: current_tenant&.id)
+          .where(linkable_type: linkable_type, linkable_id: linkable_id)
+          .pluck(:id)
+
+        documentable_ids = WarehouseDocument
+          .where(tenant_id: current_tenant&.id)
+          .where(documentable_type: linkable_type, documentable_id: linkable_id)
+          .pluck(:id)
+
+        cross_ids = cross_linked_documents(linkable_type, linkable_id).pluck(:id)
+
+        (direct_ids + documentable_ids + cross_ids).uniq
+      end
+
       def build_folder_name_path(warehouse_folder)
         parts = []
         current = warehouse_folder

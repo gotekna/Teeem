@@ -2635,7 +2635,7 @@ module Api
           id: doc.id,
           source: "job",
           fileName: doc.file_name,
-          displayName: doc.file_name,  # JobDocument doesn't have display_name
+          displayName: doc.file_name,
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
           fileUrl: generate_download_url(doc),  # S3: presigned URL, SharePoint: web_url

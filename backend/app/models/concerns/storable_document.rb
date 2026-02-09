@@ -11,7 +11,7 @@
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 # Usage:
-#   class JobDocument < ApplicationRecord
+#   class WarehouseDocument < ApplicationRecord
 #     include StorableDocument
 #     storage_scope :job
 #   end
@@ -247,7 +247,7 @@ module StorableDocument
 
   # SSoT: Unified legacy storage ID accessor
   # Different models use different column names:
-  #   - storage_item_id (JobDocument, ContactDocument - renamed from sharepoint_item_id)
+  #   - storage_item_id (ContactDocument - renamed from sharepoint_item_id)
   #   - storage_file_id (BillInbox - renamed from sharepoint_file_id)
   #   - external_id (PeopleDocument)
   # This method handles all - ONLY use internally, external code should use storage_reference

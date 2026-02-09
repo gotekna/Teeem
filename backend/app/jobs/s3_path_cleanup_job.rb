@@ -14,7 +14,7 @@
 #
 # Usage:
 #   # Rename a single document
-#   S3PathCleanupJob.perform_later(document_id, document_type: 'JobDocument')
+#   S3PathCleanupJob.perform_later(document_id)
 #
 #   # Batch rename all documents with old-style paths
 #   S3PathCleanupJob.rename_all_old_paths!
@@ -23,7 +23,7 @@ class S3PathCleanupJob < ApplicationJob
   queue_as :low
 
   # Batch method to queue all documents needing path cleanup
-  # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+  # SSoT: Uses WarehouseDocument
   def self.rename_all_old_paths!
     count = 0
 
@@ -61,7 +61,7 @@ class S3PathCleanupJob < ApplicationJob
     path.match?(/\A(#{jobs_pattern}\/J\d+|#{corporate_pattern}\/\d+|#{corporate_pattern}\/#{people_pattern}\/\d+)\/[a-zA-Z0-9\-\/\._\s]+\z/)
   end
 
-  # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+  # SSoT: Uses WarehouseDocument
   def perform(document_id, options = {})
     document = WarehouseDocument.find(document_id)
 

@@ -146,7 +146,7 @@ module Api
 
       # POST /api/v1/sharepoint/upload_complete
       # Called by browser after direct upload completes successfully
-      # Updates: 1) JobActivity (audit trail), 2) JobDocument (warehouse indexing)
+      # Updates: 1) JobActivity (audit trail), 2) WarehouseDocument (warehouse indexing)
       #
       # Params:
       #   - job_id: (optional) Job ID for activity logging and indexing
@@ -169,7 +169,7 @@ module Api
           Rails.logger.info "[SharePointUploadSession] Logged activity for #{params[:filename]} on job #{job.id}"
         end
 
-        # SSoT (Jan 2026): Create/update WarehouseDocument directly (no legacy JobDocument)
+        # SSoT: Create/update WarehouseDocument directly
         if job && params[:sharepoint_item_id].present?
           # Detect document type from extension
           extension = File.extname(params[:filename].to_s).delete(".").downcase

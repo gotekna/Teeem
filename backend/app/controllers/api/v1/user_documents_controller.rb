@@ -201,7 +201,7 @@ module Api
           return render json: { success: false, error: "Job not found" }, status: :not_found
         end
 
-        # SSoT (Jan 2026): Create WarehouseDocument directly (no legacy JobDocument)
+        # SSoT: Create WarehouseDocument directly
         # Same StorageBlob = deduplication (same file, new reference)
         folder_path = params[:folder_path].presence || "From My Docs"
 
@@ -228,7 +228,7 @@ module Api
           render json: {
             success: true,
             message: "Document linked to job #{job.job_code}",
-            job_document_id: warehouse_doc.id
+            warehouse_document_id: warehouse_doc.id
           }
         else
           render json: {
