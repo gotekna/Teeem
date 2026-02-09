@@ -313,6 +313,14 @@ class Api::V1::ImapCredentialsController < ApplicationController
         client = MicrosoftAppGraphClient.new(org_cred)
         folders = client.get_user_mail_folders(mailbox_email)
 
+        # FRC (Feb 2026): When Graph API returns no folders (e.g., shared mailboxes or
+        # cross-tenant aliases where the email doesn't match a directory user), fall back
+        # to locally-known folders from synced_emails. Emails load from local DB anyway,
+        # so we can build folder navigation from the same data.
+        if folders.empty?
+          folders = build_local_folders(mailbox_email, org_cred_id)
+        end
+
         render json: {
           success: true,
           data: folders.map { |f|
@@ -329,10 +337,27 @@ class Api::V1::ImapCredentialsController < ApplicationController
           }
         }
       rescue => e
-        render json: {
-          success: false,
-          error: "Failed to fetch folders: #{e.message}"
-        }, status: :unprocessable_entity
+        # FRC (Feb 2026): On Graph API error, still try local folders before giving up
+        local_folders = build_local_folders(mailbox_email, org_cred_id)
+        if local_folders.any?
+          render json: { success: true, data: local_folders.map { |f|
+            {
+              id: f[:id],
+              name: f[:name],
+              display_name: f[:display_name] || f[:name],
+              unread_count: f[:unread_count],
+              total_items: f[:total_items],
+              type: folder_type_from_name(f[:display_name] || f[:name]),
+              depth: f[:depth] || 0,
+              parent_id: f[:parent_id]
+            }
+          } }
+        else
+          render json: {
+            success: false,
+            error: "Failed to fetch folders: #{e.message}"
+          }, status: :unprocessable_entity
+        end
       end
     else
       # Fetch IMAP folders
@@ -1333,6 +1358,31 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   # Map folder name to standardized type for UI icons
+  # FRC (Feb 2026): Build folder list from locally synced emails when Graph API
+  # can't reach the mailbox (shared mailboxes, cross-tenant aliases, etc.)
+  def build_local_folders(mailbox_email, org_cred_id)
+    folder_stats = SyncedEmail
+      .where(mailbox_owner_email: mailbox_email, microsoft_credential_id: org_cred_id)
+      .group(:folder_name)
+      .select("folder_name, COUNT(*) as total_count, SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) as unread_count")
+
+    # Sort: Inbox first, then Sent, Drafts, Archive, Deleted, then alphabetical
+    priority = { "Inbox" => 0, "Sent Items" => 1, "Drafts" => 2, "Archive" => 3, "Deleted Items" => 4 }
+
+    folder_stats.sort_by { |f| [priority[f.folder_name] || 99, f.folder_name.to_s] }.map do |f|
+      folder_name = f.folder_name.to_s
+      {
+        id: "local_#{Digest::MD5.hexdigest(folder_name)[0..7]}",
+        name: folder_name,
+        display_name: folder_name,
+        unread_count: f.unread_count.to_i,
+        total_items: f.total_count.to_i,
+        depth: 0,
+        parent_id: nil
+      }
+    end
+  end
+
   def folder_type_from_name(name)
     normalized = name.to_s.downcase
     case normalized
