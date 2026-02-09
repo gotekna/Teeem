@@ -178,6 +178,7 @@ class XeroAttachmentSyncService
           content_type: "application/pdf",
           file_size: pdf_content.bytesize,
           linkable: external_invoice.contact,
+          folder_path: folder,
           metadata: (existing.metadata || {}).merge(build_metadata(document_type))
         )
         existing.save!
@@ -191,7 +192,8 @@ class XeroAttachmentSyncService
           storage_blob: storage_blob,
           file_size: pdf_content.bytesize,
           content_type: "application/pdf",
-          metadata: build_metadata(document_type)
+          metadata: build_metadata(document_type),
+          folder_path: folder
         )
       end
       results[:pdf] = warehouse_doc
@@ -221,6 +223,7 @@ class XeroAttachmentSyncService
         existing.assign_attributes(
           ui_name: build_display_name,
           linkable: external_invoice.contact,
+          folder_path: folder,
           metadata: (existing.metadata || {}).merge(build_metadata(document_type)).merge("is_bill_record" => true)
         )
         existing.save!
@@ -232,7 +235,8 @@ class XeroAttachmentSyncService
           documentable: external_invoice,
           linkable: external_invoice.contact,
           file_size: 0,
-          metadata: build_metadata(document_type).merge("is_bill_record" => true)
+          metadata: build_metadata(document_type).merge("is_bill_record" => true),
+          folder_path: folder
         )
       end
       Rails.logger.info("[XeroAttachmentSync] Created bill record for attachments: #{external_invoice.invoice_number}")
@@ -343,7 +347,8 @@ class XeroAttachmentSyncService
       file_size: content.bytesize,
       content_type: mime_type,
       parent_document: parent_doc,
-      metadata: build_attachment_metadata(document_type, attachment_id, filename)
+      metadata: build_attachment_metadata(document_type, attachment_id, filename),
+      folder_path: folder
     )
 
     if warehouse_doc.persisted?
@@ -472,7 +477,10 @@ class XeroAttachmentSyncService
   def contact_folder_name
     contact = external_invoice.contact
     return nil unless contact.present?
-    contact.document_folder_name
+
+    # Use display_name directly (NOT document_folder_name which includes "Contacts/" prefix)
+    # compute_folder_from_document_type already adds the "Contacts" root segment
+    SharePoint::FilenameSanitizer.sanitize_path_segment(contact.display_name || contact.name || "Unknown")
   end
 
   def find_matching_purchase_order

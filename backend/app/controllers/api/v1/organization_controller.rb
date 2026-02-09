@@ -1044,7 +1044,7 @@ module Api
         when "sharepoint"
           return {} unless ms_credential
           {
-            site_url: ms_credential.site_url || "https://#{ms_credential.tenant_id}.sharepoint.com",
+            site_url: ms_credential.site_url || "https://#{ms_credential.azure_tenant_id}.sharepoint.com",
             site_id: storage_config&.site_id,
             drive_id: storage_config&.drive_id,
             # SSoT: drive_name comes from WarehouseProvider - no hardcoded fallback

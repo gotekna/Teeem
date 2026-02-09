@@ -96,7 +96,8 @@ class WarehouseDocumentCreator
     content_type: nil,
     metadata: {},
     user: nil,
-    parent_document: nil
+    parent_document: nil,
+    folder_path: nil
   )
     # 1. Look up WFDT from warehouse_folder_id (if provided)
     wfdt = resolve_wfdt(warehouse_folder_id)
@@ -111,7 +112,8 @@ class WarehouseDocumentCreator
     )
 
     # 3. Create WarehouseDocument — callbacks handle folder_path, download_name, tenant_id
-    WarehouseDocument.create!(
+    #    If folder_path is provided, it's respected (materialize_folder_path skips recomputation)
+    attrs = {
       ui_name: filename,
       original_filename: filename,
       source_type: source_type,
@@ -123,7 +125,10 @@ class WarehouseDocumentCreator
       content_type: content_type || storage_blob&.content_type,
       parent_document: parent_document,
       metadata: doc_metadata
-    )
+    }
+    attrs[:folder_path] = folder_path if folder_path.present?
+
+    WarehouseDocument.create!(attrs)
   end
 
   # Create a WarehouseDocument with automatic StorageBlob creation from file content.
@@ -152,7 +157,8 @@ class WarehouseDocumentCreator
     metadata: {},
     user: nil,
     documentable: nil,
-    parent_document: nil
+    parent_document: nil,
+    folder_path: nil
   )
     # Create StorageBlob with content-hash deduplication
     blob = StorageBlob.find_or_create_for_content!(
@@ -173,7 +179,8 @@ class WarehouseDocumentCreator
       content_type: content_type || blob.content_type,
       metadata: metadata,
       user: user,
-      parent_document: parent_document
+      parent_document: parent_document,
+      folder_path: folder_path
     )
   end
 
