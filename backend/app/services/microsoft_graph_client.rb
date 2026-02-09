@@ -598,8 +598,7 @@ class MicrosoftGraphClient
   # SSoT: Microsoft Graph API requires PUT for file uploads to path
   def upload_file(file, parent_folder_id, filename = nil)
     filename ||= File.basename(file.path)
-    # Sanitize filename for SharePoint
-    safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
+    safe_filename = Warehouse::FilenameSanitizer.sanitize(filename)
 
     # Get file size - works with both File and ActionDispatch::Http::UploadedFile
     file_size = file.respond_to?(:size) ? file.size : File.size(file.path)
@@ -742,9 +741,7 @@ class MicrosoftGraphClient
 
   # Upload file content to a folder (accepts raw content or file object)
   def upload_file_content(parent_folder_id, filename, content)
-    # SSoT: Use centralized SharePoint filename sanitization
-    # See lib/sharepoint/filename_sanitizer.rb for rules
-    safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
+    safe_filename = Warehouse::FilenameSanitizer.sanitize(filename)
     encoded_filename = URI.encode_www_form_component(safe_filename)
     response = HTTParty.put(
       "#{GRAPH_API_BASE}#{drive_path}/items/#{parent_folder_id}:/#{encoded_filename}:/content",
