@@ -80,7 +80,13 @@ class SendNameResolver
 
     if template.present?
       expanded = expand_template(template, context)
-      return expanded if expanded.present? && meaningful_filename?(expanded)
+      if expanded.present? && meaningful_filename?(expanded)
+        # Append auto-number if template didn't include {Number} — prevents duplicates
+        if !template.match?(/\{?\{?Number\}?\}?/i) && context[:number].present?
+          return "#{expanded} #{context[:number]}"
+        end
+        return expanded
+      end
     end
 
     # Smart fallback: Generate "{DocTypeName} {Date} {Number}" from WFDT context
