@@ -609,29 +609,21 @@ module Api
         base_scope = base_scope.where.not(source_type: "email") unless include_emails
 
         if path.blank?
-          # SSoT (Feb 2026): Root folder structure comes from WarehouseFolder.warehouse_type_to_warehouse_folder
-          root_folders_from_config = WarehouseFolder.warehouse_type_to_warehouse_folder.values.uniq
+          # SSoT (Feb 2026): Root folders built purely from folder_path column
+          # No config dependency - shows exactly what exists in the data
+          root_counts = base_scope
+            .where.not(folder_path: [nil, ""])
+            .group(Arel.sql("split_part(folder_path, '/', 1)"))
+            .count
 
-          source_type_to_root = warehouse_type_to_folder_mapping
+          root_counts.reject! { |name, _| name.blank? }
 
-          # Count documents by source_type, then map to root folder
-          source_counts = base_scope.group(:source_type).count
-          folder_counts = Hash.new(0)
-          source_counts.each do |source_type, count|
-            root_folder = source_type_to_root[source_type]
-            next unless root_folder
-            folder_counts[root_folder] += count
-          end
-
-          folders = root_folders_from_config.map do |name|
-            { name: name, path: name, count: folder_counts[name] || 0 }
+          folders = root_counts.map do |name, count|
+            { name: name, path: name, count: count }
           end
 
           # Add Emails folder as expandable - shows individual mailboxes when expanded
-          # Each mailbox links to its specific email page
-          # SSoT: Only add if not already in folders (some non-email docs may have folder starting with "Emails/")
           unless include_emails
-            # Check if Emails folder already exists (from non-email docs like attachments)
             existing_emails_folder = folders.find { |f| f[:name] == "Emails" }
 
             email_count = WarehouseDocument.where(source_type: "email").count
@@ -640,18 +632,16 @@ module Api
                                         .count(:mailbox_owner_email)
             if email_count > 0
               if existing_emails_folder
-                # Update existing folder with full email count and mailbox info
                 existing_emails_folder[:count] = email_count
                 existing_emails_folder[:mailbox_count] = mailbox_count
                 existing_emails_folder[:expandable] = true
               else
-                # Add new Emails folder
                 folders << {
                   name: "Emails",
                   path: "Emails",
                   count: email_count,
-                  mailbox_count: mailbox_count,  # Show "X mailboxes" in UI
-                  expandable: true               # User can expand to see mailboxes
+                  mailbox_count: mailbox_count,
+                  expandable: true
                 }
               end
             end
@@ -685,113 +675,6 @@ module Api
           result = build_task_folder_tree_from_template(path)
           folders = result[:folders]
           files = result[:files]
-        elsif !path.include?("/") && WarehouseFolder.warehouse_type_code_for_root_folder(path)
-          # SSoT (Feb 2026): Root folder expanded - show tabs from WarehouseFolder
-          # e.g., "Jobs" → shows Plans, Site, Sales, Photo, etc.
-          tabs_from_config = WarehouseFolder.tabs_for_root_folder(path)
-
-          # Get actual document counts for each tab folder
-          subfolder_counts = base_scope
-            .where("folder_path LIKE ?", "#{sanitize_sql_like(path)}/%")
-            .group(Arel.sql("split_part(folder_path, '/', 2)"))
-            .count
-
-          # Enrich tabs with counts, include tabs even with 0 documents
-          folders = tabs_from_config.map do |tab|
-            tab[:count] = subfolder_counts[tab[:name]] || 0
-            tab
-          end
-
-          # Also add any document folders not in config (from existing documents)
-          config_folder_names = tabs_from_config.map { |t| t[:name] }
-          extra_folders = subfolder_counts.reject { |name, _| config_folder_names.include?(name) || name.blank? }
-          extra_folders.each do |name, count|
-            folders << { name: name, path: "#{path}/#{name}", count: count }
-          end
-
-          folders = folders.sort_by { |f| f[:name].to_s.downcase }
-          files = []
-        elsif path.include?("/") && WarehouseFolder.warehouse_type_code_for_root_folder(path.split("/").first)
-          # SSoT (Feb 2026): Subfolder with configured tabs - check for child tabs
-          # e.g., "Jobs/Photo" → shows Supervisor, Site, Client, etc.
-          root_folder = path.split("/").first
-          child_tabs = WarehouseFolder.child_tabs_for_path(path)
-          path_depth = path.count("/") + 2
-
-          # Get actual document counts for subfolders
-          subfolder_counts = base_scope
-            .where("folder_path LIKE ?", "#{sanitize_sql_like(path)}/%")
-            .group(Arel.sql("split_part(folder_path, '/', #{path_depth})"))
-            .count
-
-          # Start with configured child tabs
-          if child_tabs.any?
-            folders = child_tabs.map do |tab|
-              tab[:count] = subfolder_counts[tab[:name]] || 0
-              tab
-            end
-
-            # Add any extra folders from documents not in config
-            config_folder_names = child_tabs.map { |t| t[:name] }
-            extra_folders = subfolder_counts.reject { |name, _| config_folder_names.include?(name) || name.blank? }
-            extra_folders.each do |name, count|
-              # SSoT: Return relative path (without root folder prefix)
-              full_path = "#{path}/#{name}"
-              relative_path = full_path.sub("#{root_folder}/", "")
-              folders << { name: name, path: relative_path, count: count }
-            end
-          else
-            # No child tabs in config, use document-based folders
-            subfolder_counts.reject! { |name, _| name.blank? }
-            folders = subfolder_counts.map do |name, count|
-              # SSoT: Return relative path (without root folder prefix)
-              full_path = "#{path}/#{name}"
-              relative_path = full_path.sub("#{root_folder}/", "")
-              { name: name, path: relative_path, count: count }
-            end
-          end
-
-          # SSoT: Enrich task folders with task names (for Tasks/*)
-          if path == "Tasks"
-            task_ids = folders.map { |f| f[:name] }
-            tasks_by_id = SmTask.where(id: task_ids)
-                                .pluck(:id, :name)
-                                .to_h { |id, name| [id.to_s, { id: id, name: name }] }
-
-            folders = folders.map do |f|
-              task_info = tasks_by_id[f[:name]]
-              if task_info
-                display = "##{task_info[:id]} #{task_info[:name]}"
-                f.merge(name: display, taskId: f[:name].to_i)
-              else
-                f
-              end
-            end
-          end
-
-          folders = folders.sort_by { |f| f[:name].to_s.downcase }
-
-          # Get files at this exact folder path
-          docs_at_path = base_scope
-            .where(folder_path: path)
-            .includes(:storage_blob)
-            .limit(500)
-
-          files = docs_at_path.map do |doc|
-            blob = doc.storage_blob
-            url = doc.download_url rescue nil
-
-            {
-              name: doc.ui_name || doc.original_filename || "Document #{doc.id}",
-              path: blob&.storage_path,
-              size: doc.file_size || blob&.file_size || 0,
-              content_type: doc.content_type || blob&.content_type || "application/octet-stream",
-              last_modified: doc.updated_at&.iso8601,
-              url: url,
-              id: doc.id,
-              warehouse_document_id: doc.id
-            }
-          end.sort_by { |f| f[:name].to_s.downcase }
         else
           # Subfolder level: Get immediate subfolders and files at this exact path
           path_depth = path.count("/") + 2  # +2 because split_part is 1-indexed and we want next level
