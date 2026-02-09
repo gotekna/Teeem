@@ -743,6 +743,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       sourceType: string,
       tokenValues?: Record<string, string | null>,
       recordId?: number,
+      isScoped?: boolean,
     ): TreeNode => {
       const rawPath = folder.fullPath || folder.folderPath;
       const folderPath = tokenValues ? resolvePathTokens(rawPath, tokenValues) : rawPath;
@@ -750,8 +751,8 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       const nodeId = recordId ? `${folder.id}-rec-${recordId}` : folder.id;
       const s3CacheKey = isVirtual ? nodeId : folderPath;
       const s3Files = buildS3FileNodes(s3CacheKey);
-      const s3SubFolders = buildS3FolderNodes(s3CacheKey, sourceType);
-      const children = folder.children.map(child => convertWarehouseFolderChildToTreeNode(child, sourceType, tokenValues, recordId));
+      const s3SubFolders = isScoped ? [] : buildS3FolderNodes(s3CacheKey, sourceType);
+      const children = folder.children.map(child => convertWarehouseFolderChildToTreeNode(child, sourceType, tokenValues, recordId, isScoped));
 
       return {
         id: nodeId,
@@ -989,10 +990,9 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         const nodeId = `${warehouseFolder.id}-rec-${syntheticRecord.id}`;
         const s3CacheKey = isVirtual ? nodeId : folderPath;
         const s3Files = buildS3FileNodes(s3CacheKey);
-        const s3SubFolders = buildS3FolderNodes(s3CacheKey, warehouseType.code);
 
         const warehouseFolderChildren = warehouseFolder.children.map(child =>
-          convertWarehouseFolderChildToTreeNode(child, warehouseType.code, syntheticRecord.tokenValues, syntheticRecord.id)
+          convertWarehouseFolderChildToTreeNode(child, warehouseType.code, syntheticRecord.tokenValues, syntheticRecord.id, true)
         );
 
         const numericId = parseInt(warehouseFolder.id.replace("wf-", ""), 10);
@@ -1011,7 +1011,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
           fileCount: scopedCountsLoaded ? getFolderDocCount(folderDisplayName) : 0,
           sourceType: warehouseType.code,
           isVirtual,
-          children: [...childWarehouseFolderNodes, ...warehouseFolderChildren, ...s3SubFolders, ...s3Files],
+          children: [...childWarehouseFolderNodes, ...warehouseFolderChildren, ...s3Files],
         };
       };
 
