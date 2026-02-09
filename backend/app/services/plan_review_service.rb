@@ -140,7 +140,7 @@ class PlanReviewService
           # Download file content
           doc = OpenStruct.new(
             storage_path: pdf[:path],
-            sharepoint_file_id: pdf[:id]
+            storage_file_id: pdf[:id]
           )
           result = storage_service.download(doc)
           next unless result[:success] && result[:content].present?

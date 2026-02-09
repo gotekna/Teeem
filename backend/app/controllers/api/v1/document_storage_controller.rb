@@ -2915,8 +2915,8 @@ module Api
       end
 
       # Refresh thumbnail URLs for cached documents
-      # SharePoint thumbnails expire after ~24-48 hours, so we need to fetch fresh ones
-      # Returns hash: { sharepoint_item_id => thumbnail_url }
+      # Storage thumbnails expire after ~24-48 hours, so we need to fetch fresh ones
+      # Returns hash: { storage_item_id => thumbnail_url }
       def refresh_thumbnails_for_docs(docs)
         return {} if docs.empty?
 
@@ -3113,7 +3113,6 @@ module Api
           job_id: job&.id,
           job_title: job&.title,
           # SSoT: Use storage_path from blob (provider-agnostic)
-          sharepoint_item_id: doc.storage_blob&.storage_path,
           storage_reference: doc.storage_blob&.storage_path,
           current_name: doc.ui_name || doc.original_filename,
           original_name: doc.original_filename,

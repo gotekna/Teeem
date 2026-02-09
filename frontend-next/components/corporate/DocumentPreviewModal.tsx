@@ -229,9 +229,8 @@ interface CompanyDocument {
   company?: Company;
   asset_id?: number;
   asset?: Asset;
-  // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
   storage_item_id?: string;
-  sharepoint_file_id?: string;
+  storage_file_id?: string;
   user_validated_at?: string;
   user_validated_by_id?: number;
   ai_verification_status?: "pending" | "processing" | "verified" | "mismatch" | "error" | string;
@@ -404,8 +403,7 @@ export default function DocumentPreviewModal({
   }, [isAmended, editedCompanyId, editedDocumentType, editedFinancialYears]);
 
   // Fetch embeddable preview URL for cloud storage files
-  // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
-  const storageRef = document?.storage_item_id || document?.sharepoint_file_id;
+  const storageRef = document?.storage_item_id || document?.storage_file_id;
 
   React.useEffect(() => {
     const fetchPreviewUrl = async () => {

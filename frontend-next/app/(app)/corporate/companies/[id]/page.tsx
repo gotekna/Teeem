@@ -370,7 +370,7 @@ export default function CompanyDetailPage() {
   // SSoT: Only show storage folder link if company has a configured folder URL
   // Returns null for S3/Wasabi (no web UI) - button is conditionally rendered
   const getStorageFolderUrl = () => {
-    return company.sharepoint_folder_url || company.storage_folder_url || null;
+    return company.storage_folder_url || null;
   };
 
   return (

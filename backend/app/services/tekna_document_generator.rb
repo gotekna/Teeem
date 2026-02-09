@@ -128,11 +128,11 @@ class TeknaDocumentGenerator
       qbcc_required: true
     },
 
-    # SharePoint-sourced documents (fetched from job folder, not generated)
+    # Storage-sourced documents (fetched from job folder, not generated)
     all_plans: {
-      source: :sharepoint,
-      sharepoint_path: "04 Plans/All Plans.pdf",
-      sharepoint_path_alt: "04 Plans/All+Plans.pdf", # Alternative filename (URL encoded)
+      source: :storage,
+      storage_path: "04 Plans/All Plans.pdf",
+      storage_path_alt: "04 Plans/All+Plans.pdf", # Alternative filename (URL encoded)
       category: "contract",
       requires: [ :job ],
       layout: "none",
@@ -177,9 +177,9 @@ class TeknaDocumentGenerator
   def generate(job: nil, contact: nil, purchase_order: nil, extra_data: {})
     validate_requirements!(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
 
-    # Handle SharePoint-sourced documents (fetch existing file, don't generate)
-    if template_config[:source] == :sharepoint
-      return fetch_from_sharepoint(job: job)
+    # Handle storage-sourced documents (fetch existing file, don't generate)
+    if template_config[:source] == :storage
+      return fetch_from_storage(job: job)
     end
 
     # Handle PDF overlay documents (QBCC official PDFs with form filling)
@@ -805,16 +805,16 @@ class TeknaDocumentGenerator
 
   # Fetch document from storage (provider-agnostic)
   # SSoT: Uses DocumentProviderAware for storage operations
-  def fetch_from_sharepoint(job:)
-    sharepoint_path = template_config[:sharepoint_path]
-    raise GenerationError, "Storage path not configured for #{template_key}" unless sharepoint_path
+  def fetch_from_storage(job:)
+    storage_path = template_config[:storage_path]
+    raise GenerationError, "Storage path not configured for #{template_key}" unless storage_path
 
     # Get job storage folder path
     job_folder_path = job.storage_folder_path
     raise GenerationError, "Job folder not found in storage for #{job.name}" unless job_folder_path
 
     # Build full path
-    path_parts = sharepoint_path.split("/")
+    path_parts = storage_path.split("/")
     filename = path_parts.pop
 
     # Resolve folder names from WarehouseFolder
@@ -825,15 +825,15 @@ class TeknaDocumentGenerator
     service = DocumentStorageService.new
 
     # Create a document-like object
-    doc = OpenStruct.new(storage_path: full_path, sharepoint_file_id: nil)
+    doc = OpenStruct.new(storage_path: full_path, storage_file_id: nil)
 
     result = service.download(doc)
 
     # Try alternative filename if primary not found
-    if !result[:success] && template_config[:sharepoint_path_alt]
-      alt_filename = template_config[:sharepoint_path_alt].split("/").last
+    if !result[:success] && template_config[:storage_path_alt]
+      alt_filename = template_config[:storage_path_alt].split("/").last
       alt_path = "#{job_folder_path}/#{resolved_path_parts.join('/')}/#{alt_filename}"
-      doc = OpenStruct.new(storage_path: alt_path, sharepoint_file_id: nil)
+      doc = OpenStruct.new(storage_path: alt_path, storage_file_id: nil)
       result = service.download(doc)
     end
 

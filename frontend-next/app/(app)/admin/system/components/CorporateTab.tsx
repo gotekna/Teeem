@@ -102,7 +102,7 @@ interface Company {
   address: string;
   email: string;
   phone: string;
-  sharepoint_url?: string;
+  storage_folder_url?: string;
 }
 
 // ===== GROUPS SUB-TAB =====
@@ -878,15 +878,15 @@ function CompaniesSubTab() {
                             <Pencil className="h-4 w-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
-                          {company.sharepoint_url && (
+                          {company.storage_folder_url && (
                             <DropdownMenuItem asChild>
                               <a
-                                href={company.sharepoint_url}
+                                href={company.storage_folder_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                               >
                                 <ExternalLink className="h-4 w-4 mr-2" />
-                                SharePoint
+                                Open Folder
                               </a>
                             </DropdownMenuItem>
                           )}
@@ -1210,9 +1210,9 @@ interface CorporateTabConfig {
   order_position?: number;
   description?: string;
   component?: string;
-  // SharePoint folder config
-  has_sharepoint_folder?: boolean;
-  sharepoint_folder_path?: string;
+  // Storage folder config
+  warehouse_enabled?: boolean;
+  folder_path?: string;
   sub_tabs?: Array<{ key: string; name: string; folder: string }>;
   document_types?: Array<{ id: number; name: string; display_name: string; is_primary: boolean }>;
 }

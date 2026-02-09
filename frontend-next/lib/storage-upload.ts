@@ -166,7 +166,7 @@ export async function uploadToSharePointDirect(
       message: "Finalizing...",
     });
 
-    // Always call upload_complete if we have a jobId - even without SharePoint ID
+    // Always call upload_complete if we have a jobId - even without storage ID
     // This ensures warehouse sync happens. Let backend handle missing ID gracefully.
     if (jobId) {
       await api.post("/api/v1/sharepoint/upload_complete", {
@@ -175,7 +175,7 @@ export async function uploadToSharePointDirect(
         file_size: file.size,
         folder_path: folderPath,
         web_url: result.webUrl,
-        sharepoint_item_id: result.id, // May be undefined - backend will sync by path
+        sharepoint_item_id: result.id, // Param name matches backend controller expectation
         warehouse_folder_id: warehouseFolderId,
       });
     }

@@ -13,10 +13,8 @@ export interface ChatMessage {
   message_type: "text" | "image" | "file";
   file_url: string | null;
   file_name: string | null;
-  // SSoT: storage_item_id is the provider-agnostic column
-  // sharepoint_file_id kept for backwards compatibility during migration
   storage_item_id?: string | null;
-  sharepoint_file_id?: string | null;
+  storage_reference?: string | null;
   created_at: string;
   formatted_timestamp?: string;
   read_by: number[];

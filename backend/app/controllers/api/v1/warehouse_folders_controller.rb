@@ -127,8 +127,7 @@ module Api
                 hierarchy_path: tab.full_folder_path,
                 tab_group: tab.tab_group,
                 warehouse_enabled: tab.warehouse_enabled,
-                has_storage_folder: tab.warehouse_enabled,  # Legacy backwards compat
-                has_sharepoint_folder: tab.warehouse_enabled  # Legacy backwards compat
+                has_storage_folder: tab.warehouse_enabled
               }
             end
           }
