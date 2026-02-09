@@ -172,6 +172,8 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
 
   // Settings > Company > Warehouse Config sub-tabs
   "warehouse_folders": "Warehouse Folders",
+  "warehouse_tables": "Warehouse Tables",
+  "warehouse_types": "Warehouse Types",  // Sub-tab within warehouse_tables
   "document_types": "Document Types",
   // Note: "corporate" already defined above for Settings tabs
   "job": "Jobs",
@@ -322,6 +324,11 @@ export function resolveDisplayName(
   if (segments.length === 4 && segments[0] === "settings") {
     const subtabKey = lastSegment;
     const subtabName = TAB_DISPLAY_NAMES[subtabKey] || humanizeSegment(subtabKey);
+    // If there's a ?tab= query param, append it (e.g., warehouse_tables?tab=warehouse_folders)
+    if (effectiveTab && effectiveTab !== subtabKey) {
+      const tabName = TAB_DISPLAY_NAMES[effectiveTab] || humanizeSegment(effectiveTab);
+      return `${subtabName} › ${tabName}`;
+    }
     return subtabName;
   }
 

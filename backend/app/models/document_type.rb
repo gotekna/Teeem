@@ -1,6 +1,8 @@
 class DocumentType < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = [:name, :scope]
 
   # Associations
   # Note: corporate_company_documents and job_documents associations REMOVED (Jan 2026) - tables dropped
@@ -9,53 +11,32 @@ class DocumentType < ApplicationRecord
   # SSoT: WarehouseType association (Feb 2026 - database-driven warehouse types)
   belongs_to :warehouse_type, optional: true
 
-  # SSoT: BaseFolder associations (Feb 2026 - warehouse_folders table eliminated)
-  has_many :base_folder_document_types, foreign_key: :document_type_id, dependent: :destroy
-  has_many :base_folders, through: :base_folder_document_types
-
-  # Backwards compatibility aliases (deprecated - use base_folder_* methods)
-  alias_method :warehouse_folder_document_types, :base_folder_document_types
-  alias_method :warehouse_folders, :base_folders
-  alias_method :storage_location_document_types, :base_folder_document_types
-  alias_method :storage_locations, :base_folders
-
-  # DEPRECATED: Use base_folder_document_types
-  def entity_tab_document_types
-    base_folder_document_types
-  end
-
-  # DEPRECATED: Use base_folders
-  def entity_tabs
-    base_folders
-  end
+  # SSoT: WarehouseFolder associations (Feb 2026 - THE ONE for folder config)
+  has_many :warehouse_folder_document_types, foreign_key: :document_type_id, dependent: :destroy
+  has_many :warehouse_folders, through: :warehouse_folder_document_types
 
   # Get location names for display
   def location_names
-    base_folders.pluck(:display_name)
+    warehouse_folders.pluck(:display_name)
   end
 
-  # Get the primary base folder (uses is_primary flag from join table)
+  # Get the primary warehouse folder (uses is_primary flag from join table)
   # SSoT: is_primary flag is THE ONE way to identify the primary location
-  def primary_base_folder
-    primary_join = base_folder_document_types.find_by(is_primary: true)
-    primary_join&.base_folder || base_folders.ordered.first
+  def primary_warehouse_folder
+    primary_join = warehouse_folder_document_types.find_by(is_primary: true)
+    primary_join&.warehouse_folder || warehouse_folders.ordered.first
   end
-
-  # Backwards compatibility aliases
-  alias_method :primary_warehouse_folder, :primary_base_folder
-  alias_method :primary_storage_location, :primary_base_folder
-  alias_method :primary_entity_tab, :primary_base_folder
 
   # ══════════════════════════════════════════════════════════════════════════════
-  # SSoT: Derived attributes from primary BaseFolder
+  # SSoT: Derived attributes from primary WarehouseFolder
   # These methods are THE ONE source of truth - columns are kept only for migration fallback
   # ══════════════════════════════════════════════════════════════════════════════
 
-  # SSoT: Derive scope from primary BaseFolder's warehouse_type
+  # SSoT: Derive scope from primary WarehouseFolder's warehouse_type
   # This is THE ONE place scope is determined
   # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
   def derived_scope
-    case primary_base_folder&.warehouse_type_code
+    case primary_warehouse_folder&.warehouse_type_code
     when 'corporate' then 'company'
     when 'job' then 'job'
     when 'contact' then 'contacts'
@@ -65,94 +46,68 @@ class DocumentType < ApplicationRecord
 
   # Override scope getter to use derived value (fallback to column during migration)
   def scope
-    primary_base_folder.present? ? derived_scope : read_attribute(:scope)
+    primary_warehouse_folder.present? ? derived_scope : read_attribute(:scope)
   end
 
   # SSoT: folder = primary location's display name
   def folder
-    primary_base_folder&.display_name || read_attribute(:folder)
+    primary_warehouse_folder&.display_name || read_attribute(:folder)
   end
 
   # SSoT: target_folder = primary location's hierarchy path
   def target_folder
-    primary_base_folder&.full_folder_path || read_attribute(:target_folder)
+    primary_warehouse_folder&.full_folder_path || read_attribute(:target_folder)
   end
 
   # SSoT: primary_tab = primary location's display name (for backward compatibility)
   # Used by SmTaskPhoto for filename token resolution
   def primary_tab
-    primary_base_folder&.display_name || read_attribute(:primary_tab)
+    primary_warehouse_folder&.display_name || read_attribute(:primary_tab)
   end
 
-  # SSoT: category is DEPRECATED (Jan 2026)
-  # Was used for legacy folder organization, now superseded by BaseFolder hierarchy
-  # Returns nil - callers use .presence with "General" fallback
-  def category
-    nil
-  end
-
-  # SSoT: tabs is DEPRECATED (Jan 2026)
-  # Was a jsonb array, now superseded by entity_tab_document_types join table
-  # Returns empty array for backward compatibility with API serialization
-  def tabs
-    []
-  end
-
-  # Set base folders by ID (renamed: entity_tab_ids → storage_location_ids → warehouse_folder_ids → base_folder_ids, Feb 2026)
-  def base_folder_ids=(ids)
+  # Set warehouse folders by ID (SSoT: Feb 2026)
+  def warehouse_folder_ids=(ids)
     ids = Array(ids).map(&:to_i).reject(&:zero?)
 
     # For new records, store the IDs and create associations after save
     if new_record?
-      @pending_base_folder_ids = ids
+      @pending_warehouse_folder_ids = ids
     else
-      sync_base_folder_ids(ids)
+      sync_warehouse_folder_ids(ids)
     end
   end
 
-  # Backwards compatibility alias
-  alias_method :warehouse_folder_ids=, :base_folder_ids=
-
-  # Backwards compatibility aliases for setters
-  alias_method :storage_location_ids=, :warehouse_folder_ids=
-  alias_method :folder_ids=, :warehouse_folder_ids=
-
-  # Get BaseFolder IDs (renamed: entity_tab_ids → storage_location_ids → warehouse_folder_ids → base_folder_ids, Feb 2026)
-  def base_folder_ids
-    base_folder_document_types.pluck(:base_folder_id)
+  # Get WarehouseFolder IDs (SSoT: Feb 2026)
+  def warehouse_folder_ids
+    warehouse_folder_document_types.pluck(:warehouse_folder_id)
   end
 
-  # Backwards compatibility aliases for getters (must be after method definition)
-  alias_method :warehouse_folder_ids, :base_folder_ids
-  alias_method :storage_location_ids, :base_folder_ids
-  alias_method :folder_ids, :base_folder_ids
-
-  # Sync base_folder_ids with the database (renamed from sync_warehouse_folder_ids, Feb 2026)
+  # Sync warehouse_folder_ids with the database (SSoT: Feb 2026)
   # SSoT: Uses is_primary flag to track primary vs secondary locations
   # First ID = primary location, rest = secondary ("also show in")
-  def sync_base_folder_ids(ids)
+  def sync_warehouse_folder_ids(ids)
     # Remove old assignments not in the new list
-    base_folder_document_types.where.not(base_folder_id: ids).destroy_all
+    warehouse_folder_document_types.where.not(warehouse_folder_id: ids).destroy_all
 
     # Update/create assignments with is_primary flag
     # First ID = primary, rest = secondary
     ids.each_with_index do |loc_id, index|
       is_primary = (index == 0)
-      existing = base_folder_document_types.find_by(base_folder_id: loc_id)
+      existing = warehouse_folder_document_types.find_by(warehouse_folder_id: loc_id)
       if existing
         existing.update(is_primary: is_primary) if existing.is_primary != is_primary
       else
-        base_folder_document_types.create(base_folder_id: loc_id, is_primary: is_primary)
+        warehouse_folder_document_types.create(warehouse_folder_id: loc_id, is_primary: is_primary)
       end
     end
 
     # NOTE: primary_tab column is DEPRECATED (Jan 2026)
-    # scope, folder, target_folder are now derived from primary_base_folder
+    # scope, folder, target_folder are now derived from primary_warehouse_folder
     # Keeping column sync for backward compatibility during migration
     if respond_to?(:has_attribute?) && has_attribute?(:primary_tab)
       primary_tab_id = ids.first
       if primary_tab_id.present?
-        primary_tab_record = BaseFolder.find_by(id: primary_tab_id)
+        primary_tab_record = WarehouseFolder.find_by(id: primary_tab_id)
         update_column(:primary_tab, primary_tab_record&.display_name) if primary_tab_record
       else
         update_column(:primary_tab, nil)
@@ -167,13 +122,10 @@ class DocumentType < ApplicationRecord
     end
   end
 
-  # Backwards compatibility alias
-  alias_method :sync_warehouse_folder_ids, :sync_base_folder_ids
-
   # Callbacks
   # SSoT: WarehouseDocument.ui_name is computed dynamically via SendNameResolver
-  # Sync pending base_folder_ids after create (deferred from base_folder_ids= setter)
-  after_create :sync_pending_base_folder_ids
+  # Sync pending warehouse_folder_ids after create (deferred from warehouse_folder_ids= setter)
+  after_create :sync_pending_warehouse_folder_ids
   # Track naming format changes for standardization prompts
   after_save :track_naming_format_change, if: :saved_change_to_download_name?
 
@@ -184,19 +136,17 @@ class DocumentType < ApplicationRecord
   # Name must be unique within each scope (company, job, contacts, both)
   # This allows the same name in different scopes (e.g., "Invoice" for both company and job)
   validates :name, presence: true, uniqueness: { scope: [:tenant_id, :scope], message: "has already been taken for this scope" }
-  # Note: category field is deprecated - BaseFolder is now the primary organization method
+  # Note: category field is deprecated - WarehouseFolder is now the primary organization method
 
   # Scopes
   scope :active, -> { where(active: true) }
-  # SSoT: by_folder queries through primary BaseFolder (folder column is derived)
+  # SSoT: by_folder queries through primary WarehouseFolder (folder column is derived)
   scope :by_folder, ->(folder) {
-    joins(:base_folder_document_types)
-      .joins("INNER JOIN base_folders ON base_folders.id = base_folder_document_types.base_folder_id")
-      .where(base_folder_document_types: { is_primary: true })
-      .where(base_folders: { display_name: folder })
+    joins(:warehouse_folder_document_types)
+      .joins("INNER JOIN warehouse_folders ON warehouse_folders.id = warehouse_folder_document_types.warehouse_folder_id")
+      .where(warehouse_folder_document_types: { is_primary: true })
+      .where(warehouse_folders: { display_name: folder })
   }
-  # DEPRECATED: category column removed (Jan 2026) - returns no results
-  scope :by_category, ->(_category) { none }
   scope :by_scope, ->(scope_name) { where(scope: scope_name) }
   scope :for_company, -> { where(scope: %w[company both]) }
   scope :for_job, -> { where(scope: %w[job both]) }
@@ -387,11 +337,11 @@ class DocumentType < ApplicationRecord
     ([ name ] + db_aliases + default_aliases).uniq
   end
 
-  # Group document types by folder (derived from primary BaseFolder)
-  # SSoT: folder is computed from primary_base_folder.display_name
+  # Group document types by folder (derived from primary WarehouseFolder)
+  # SSoT: folder is computed from primary_warehouse_folder.display_name
   def self.grouped_by_folder
-    # Eager load base_folders to prevent N+1, then group by computed folder
-    active.includes(base_folder_document_types: :base_folder)
+    # Eager load warehouse_folders to prevent N+1, then group by computed folder
+    active.includes(warehouse_folder_document_types: :warehouse_folder)
           .order(:name)
           .group_by(&:folder)
           .sort_by { |folder, _| folder || "" }
@@ -431,7 +381,7 @@ class DocumentType < ApplicationRecord
     format.gsub!("{CertType}", "Occupancy")
     format.gsub!("{Consultant}", "ABC Eng")
     format.gsub!("{Number}", "01")
-    format.gsub!("{Category}", category.presence || "General")
+    format.gsub!("{Category}", folder.presence || "General")
 
     # Tab/folder placeholders
     format.gsub!("{TabCode}", "Site")
@@ -497,7 +447,7 @@ class DocumentType < ApplicationRecord
     format.gsub!("{FormNumber}", form_number)
     format.gsub!("{DwellingType}", job.dwelling_type.presence || "")
     format.gsub!("{Number}", number.to_s.rjust(2, "0"))
-    format.gsub!("{Category}", category.presence || "General")
+    format.gsub!("{Category}", folder.presence || "General")
 
     # Tab/folder placeholders
     tab_code = tab&.dig(:code) || tab&.dig("code") || "Site"
@@ -565,12 +515,12 @@ class DocumentType < ApplicationRecord
 
   private
 
-  # Sync pending base_folder_ids that were deferred during create
-  def sync_pending_base_folder_ids
-    return unless @pending_base_folder_ids.present?
+  # Sync pending warehouse_folder_ids that were deferred during create
+  def sync_pending_warehouse_folder_ids
+    return unless @pending_warehouse_folder_ids.present?
 
-    sync_base_folder_ids(@pending_base_folder_ids)
-    @pending_base_folder_ids = nil
+    sync_warehouse_folder_ids(@pending_warehouse_folder_ids)
+    @pending_warehouse_folder_ids = nil
   end
 
   # Track naming format changes for standardization prompts

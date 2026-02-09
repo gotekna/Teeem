@@ -36,7 +36,7 @@ module Api
             file_name: doc.original_filename || doc.ui_name,
             file_size: doc.file_size || blob&.file_size || 0,
             content_type: blob&.content_type || doc.content_type,
-            folder_path: doc.folder,
+            folder_path: doc.folder_path,
             document_type_id: category_id,
             document_type_name: doc.document_type_name,
             status: "uploaded",

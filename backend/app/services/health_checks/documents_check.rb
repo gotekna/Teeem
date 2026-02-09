@@ -106,7 +106,7 @@ module HealthChecks
             id: item.id,
             display: item.ui_name || item.original_filename || "Document ##{item.id}",
             source_type: item.source_type,
-            folder: item.folder,
+            folder: item.folder_path,
             documentable_type: item.documentable_type,
             documentable_id: item.documentable_id
           }

@@ -30,7 +30,7 @@ export function ContextualHelpModal({
     onClose();
     // Navigate to /docs with chapter parameter if available
     if (chapter !== null) {
-      router.push(`/docs?chapter=${chapter}`);
+      router.push(`/docs/${chapter}`);
     } else {
       router.push("/docs");
     }

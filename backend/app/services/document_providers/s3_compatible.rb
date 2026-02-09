@@ -511,9 +511,8 @@ module DocumentProviders
       job_folder
     end
 
-    # SSoT (Feb 2026): Create subfolders from BaseFolder hierarchy
-    def create_subfolders_from_base_folders(parent_path)
-      root_folders = BaseFolder.for_jobs
+    def create_subfolders_from_warehouse_folders(parent_path)
+      root_folders = WarehouseFolder.for_jobs
                            .where(warehouse_enabled: true)
                            .enabled
                            .root_folders
@@ -521,14 +520,11 @@ module DocumentProviders
                            .includes(children: { children: :children })
 
       root_folders.each do |folder|
-        create_base_folder_recursive(folder, parent_path)
+        create_warehouse_folder_recursive(folder, parent_path)
       end
     end
 
-    # Alias for backwards compatibility
-    alias_method :create_subfolders_from_warehouse_folders, :create_subfolders_from_base_folders
-
-    # Recursively create folders for a BaseFolder and its children
+    # Recursively create folders for a WarehouseFolder and its children
     def create_warehouse_folder_recursive(tab, parent_path)
       folder_path = "#{parent_path}/#{tab.display_name}"
       create_folder(folder_path)

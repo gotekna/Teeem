@@ -69,6 +69,14 @@ class TenantConfigSyncService
       description: "Job status to stage mappings",
       group: "jobs"
     },
+    job_tabs: {
+      model: "JobTab",
+      name_field: :name,
+      match_fields: [:slug],
+      sync_fields: [:name, :slug, :icon, :position, :is_active],
+      description: "Job navigation tabs",
+      group: "jobs"
+    },
 
     # ============================================================================
     # Documents Group
@@ -76,7 +84,7 @@ class TenantConfigSyncService
     document_types: {
       model: "DocumentType",
       name_field: :name,
-      match_fields: [:name, :scope],
+      match_fields: [:name],
       sync_fields: [:name, :scope, :file_name, :display_name, :abbreviation, :category,
                     :folder, :primary_tab, :aliases, :requires_filing, :supports_versioning,
                     :generates_certificate, :certificate_template, :form_number_mapping,
@@ -92,6 +100,52 @@ class TenantConfigSyncService
                     :data_schema, :is_active, :sort_order, :template_type, :layout,
                     :is_legal_format, :legal_source, :local_template_path],
       description: "Document generation templates",
+      group: "documents"
+    },
+    folder_templates: {
+      model: "FolderTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :template_type, :is_system_default, :is_active],
+      description: "Folder structure templates",
+      group: "documents"
+    },
+    claim_invoice_templates: {
+      model: "ClaimInvoiceTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :style_key, :is_default, :is_active, :primary_color,
+                    :secondary_color, :font_family, :show_logo, :show_company_details,
+                    :show_bank_details, :show_payment_terms, :logo_position, :header_style,
+                    :header_text, :footer_text, :payment_instructions],
+      description: "Claim invoice PDF templates",
+      group: "documents"
+    },
+    invoice_templates: {
+      model: "InvoiceTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :sections, :primary_color, :accent_color, :font_family,
+                    :paper_size, :orientation, :margins, :output_naming_pattern, :is_active,
+                    :is_default, :default_terms, :default_notes, :footer_text, :bank_name,
+                    :bank_bsb, :bank_account_number, :bank_account_name],
+      description: "Invoice PDF templates",
+      group: "documents"
+    },
+    specification_templates: {
+      model: "SpecificationTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :sections, :is_default, :is_active],
+      description: "Specification document templates",
+      group: "documents"
+    },
+    colour_selection_templates: {
+      model: "ColourSelectionTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :categories, :is_default, :is_active],
+      description: "Colour selection sheet templates",
       group: "documents"
     },
 
@@ -167,6 +221,39 @@ class TenantConfigSyncService
       description: "Schedule Master trades",
       group: "schedule"
     },
+    sm_stages: {
+      model: "SmStage",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name],
+      description: "Schedule Master stages",
+      group: "schedule"
+    },
+    sm_hold_reasons: {
+      model: "SmHoldReason",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :color, :icon, :sequence_order, :is_active],
+      description: "Schedule Master hold reasons",
+      group: "schedule"
+    },
+    sm_resources: {
+      model: "SmResource",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:resource_type, :name, :code, :description, :trade, :hourly_rate,
+                    :daily_rate, :unit, :unit_cost, :is_active, :availability_hours_per_day],
+      description: "Schedule Master resources",
+      group: "schedule"
+    },
+    sm_schedule_master_document_types: {
+      model: "SmScheduleMasterDocumentType",
+      name_field: :id,
+      match_fields: [:sm_schedule_master_id, :document_type_id],
+      sync_fields: [:sm_schedule_master_id, :document_type_id, :lag_days],
+      description: "Schedule Master document type assignments",
+      group: "schedule"
+    },
 
     # ============================================================================
     # Operations Group
@@ -210,22 +297,169 @@ class TenantConfigSyncService
       description: "Regional public holidays",
       group: "operations"
     },
+    cost_centres: {
+      model: "CostCentre",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :description, :centre_type, :parent_id,
+                    :overhead_allocation_percent, :budget_amount, :active, :metadata],
+      description: "Cost centre definitions",
+      group: "operations"
+    },
+    supervisor_checklist_templates: {
+      model: "SupervisorChecklistTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :category, :sequence_order, :is_active, :response_type],
+      description: "Supervisor checklist item templates",
+      group: "operations"
+    },
+
+    # ============================================================================
+    # Estimating Group
+    # ============================================================================
+    takeoff_templates: {
+      model: "TakeoffTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :description, :category, :is_system, :is_active, :configuration,
+                    :usage_count],
+      description: "Measurement/takeoff templates for estimating",
+      group: "estimating"
+    },
+    recipe_categories: {
+      model: "RecipeCategory",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :description, :parent_id, :position, :is_active],
+      description: "Recipe/assembly categories",
+      group: "estimating"
+    },
+    recipes: {
+      model: "Recipe",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :description, :recipe_type, :status, :recipe_category_id,
+                    :cached_total, :version_number, :notes, :metadata],
+      description: "Recipe/assembly definitions",
+      group: "estimating"
+    },
+    quantity_variables: {
+      model: "QuantityVariable",
+      name_field: :display_name,
+      match_fields: [:variable_name],
+      sync_fields: [:variable_name, :display_name, :category, :data_type, :unit_label,
+                    :min_value, :max_value, :default_value, :select_options, :formula,
+                    :is_computed, :required_for_po_generation, :is_system_variable,
+                    :position, :description],
+      description: "Quantity variables for recipe calculations",
+      group: "estimating"
+    },
+
+    # ============================================================================
+    # Finance Group
+    # ============================================================================
+    xero_chart_of_accounts: {
+      model: "XeroChartOfAccount",
+      name_field: :account_name,
+      match_fields: [:account_code],
+      sync_fields: [:account_code, :account_name, :account_type, :tax_type, :description,
+                    :active],
+      description: "Chart of accounts for Xero mapping",
+      group: "finance"
+    },
 
     # ============================================================================
     # Warehouse Group
     # ============================================================================
+    warehouse_types: {
+      model: "WarehouseType",
+      name_field: :display_name,
+      match_fields: [:code],
+      sync_fields: [:code, :display_name, :description, :icon_name, :folder_path_template,
+                    :is_system, :enabled, :order_position, :source_model, :token_config,
+                    :records_config],
+      description: "Warehouse type definitions (job, contact, corporate, etc.)",
+      group: "warehouse"
+    },
     warehouse_folders: {
       model: "WarehouseFolder",
       name_field: :display_name,
       match_fields: [:warehouse_type, :tab_key],
       sync_fields: [:warehouse_type, :tab_key, :display_name, :description, :tab_group,
                     :parent_id, :entity_filters, :order_position, :enabled, :icon_name,
-                    :component_name, :is_system_tab, :warehouse_enabled, :display_code,
+                    :component_name, :is_system, :warehouse_enabled, :display_code,
                     :uses_custom_path, :warehouse_type_override, :is_photo_category,
                     :display_mode, :hidden_by_default, :is_cad_category, :xero_scope,
-                    :visibility_rule, :download_name, :folder_path, :ui_name, :base_folder],
+                    :visibility_rule, :download_name, :folder_path, :ui_name, :warehouse_folder],
       description: "Warehouse folder tabs and structure",
       group: "warehouse"
+    },
+    warehouse_folder_document_types: {
+      model: "WarehouseFolderDocumentType",
+      name_field: :id,
+      match_fields: [:warehouse_folder_id, :document_type_id],
+      sync_fields: [:warehouse_folder_id, :document_type_id, :is_primary,
+                    :ui_name_template, :download_name_template],
+      description: "Warehouse folder to document type mappings",
+      group: "warehouse"
+    },
+
+    # ============================================================================
+    # WHS Group
+    # ============================================================================
+    whs_induction_templates: {
+      model: "WHSInductionTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :induction_type, :description, :active, :version,
+                    :content_sections, :expiry_months, :requires_renewal, :has_quiz,
+                    :min_passing_score, :acknowledgment_statement, :metadata],
+      description: "WHS induction templates",
+      group: "whs"
+    },
+    whs_inspection_templates: {
+      model: "WHSInspectionTemplate",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :inspection_type, :category, :description,
+                    :pass_threshold_percentage, :active, :checklist_items, :metadata],
+      description: "WHS inspection templates",
+      group: "whs"
+    },
+
+    # ============================================================================
+    # Email Group
+    # ============================================================================
+    email_templates: {
+      model: "EmailTemplate",
+      name_field: :name,
+      match_fields: [:name, :category],
+      sync_fields: [:name, :subject, :body_html, :body_text, :variables, :category,
+                    :is_shared, :position],
+      description: "Email templates for notifications and outreach",
+      group: "email"
+    },
+
+    # ============================================================================
+    # Plans Group
+    # ============================================================================
+    plan_types: {
+      model: "PlanType",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:name, :code, :allows_variants, :notes, :sequence_order, :is_active,
+                    :short_name_template, :long_name_template],
+      description: "Plan/drawing type definitions",
+      group: "plans"
+    },
+    plan_categories: {
+      model: "PlanCategory",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:name, :code, :is_active, :sequence_order],
+      description: "Plan category groupings",
+      group: "plans"
     }
   }.freeze
 
@@ -247,7 +481,12 @@ class TenantConfigSyncService
     "contacts" => "Contacts",
     "schedule" => "Schedule Master",
     "operations" => "Operations",
-    "warehouse" => "Warehouse"
+    "estimating" => "Estimating",
+    "finance" => "Finance",
+    "warehouse" => "Warehouse",
+    "whs" => "WHS",
+    "email" => "Email",
+    "plans" => "Plans"
   }.freeze
 
   # List all available config tables with counts
@@ -343,15 +582,13 @@ class TenantConfigSyncService
     model = config[:model].constantize
     match_fields = config[:match_fields]
 
-    # Get master records
-    master_records = ActsAsTenant.with_tenant(master) do
-      model.all.index_by { |r| match_key(r, match_fields) }
-    end
+    # Get all records from both tenants
+    master_all = ActsAsTenant.with_tenant(master) { model.all.to_a }
+    tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
 
-    # Get tenant records
-    tenant_records = ActsAsTenant.with_tenant(tenant) do
-      model.all.index_by { |r| match_key(r, match_fields) }
-    end
+    # Build indexes (sync_key primary, legacy match_key fallback)
+    master_index = build_record_index(master_all, match_fields)
+    tenant_index = build_record_index(tenant_all, match_fields)
 
     result = {
       new_records: [],      # In master but not in tenant
@@ -360,10 +597,16 @@ class TenantConfigSyncService
       unchanged_records: [] # Same in both
     }
 
+    matched_tenant_keys = Set.new
+
     # Find new and modified
-    master_records.each do |key, master_record|
-      if tenant_records[key]
-        tenant_record = tenant_records[key]
+    master_all.each do |master_record|
+      tenant_record = find_match(master_record, tenant_index, match_fields)
+
+      if tenant_record
+        key = record_sync_key(tenant_record) || legacy_match_key(tenant_record, match_fields)
+        matched_tenant_keys << key
+
         if records_differ?(master_record, tenant_record, config[:sync_fields])
           result[:modified_records] << {
             master: record_to_json(master_record, config),
@@ -379,9 +622,10 @@ class TenantConfigSyncService
     end
 
     # Find deleted (in tenant but not in master)
-    tenant_records.each_key do |key|
-      unless master_records[key]
-        result[:deleted_records] << record_to_json(tenant_records[key], config)
+    tenant_all.each do |tenant_record|
+      key = record_sync_key(tenant_record) || legacy_match_key(tenant_record, match_fields)
+      unless matched_tenant_keys.include?(key)
+        result[:deleted_records] << record_to_json(tenant_record, config)
       end
     end
 
@@ -551,16 +795,14 @@ class TenantConfigSyncService
       model.where(id: record_ids)
     end
 
-    # Get existing tenant records for matching
-    existing_records = ActsAsTenant.with_tenant(tenant) do
-      model.all.index_by { |r| match_key(r, config[:match_fields]) }
-    end
+    # Get existing tenant records for matching (sync_key primary, legacy fallback)
+    tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
+    existing_index = build_record_index(tenant_all, config[:match_fields])
 
     # Process each master record
     master_records.each do |master_record|
       begin
-        match_key_value = match_key(master_record, config[:match_fields])
-        existing = existing_records[match_key_value]
+        existing = find_match(master_record, existing_index, config[:match_fields])
 
         if existing
           case mode.to_sym
@@ -719,7 +961,35 @@ class TenantConfigSyncService
     end
   end
 
-  def match_key(record, match_fields)
+  # Primary matching: use sync_key (immutable, survives renames).
+  # Fallback: legacy match_key from match_fields (for records without sync_key yet).
+  def record_sync_key(record)
+    record.respond_to?(:sync_key) ? record.sync_key.presence : nil
+  end
+
+  # Build index of records keyed by sync_key (primary) or legacy match_key (fallback).
+  # Returns hash: { key => record }
+  def build_record_index(records, match_fields)
+    index = {}
+    records.each do |r|
+      key = record_sync_key(r) || legacy_match_key(r, match_fields)
+      index[key] = r if key.present?
+    end
+    index
+  end
+
+  # Find matching record: first try sync_key, then fall back to legacy match_key.
+  def find_match(record, target_index, match_fields)
+    # Try sync_key first
+    sk = record_sync_key(record)
+    return target_index[sk] if sk && target_index[sk]
+
+    # Fallback to legacy match_key
+    lk = legacy_match_key(record, match_fields)
+    target_index[lk]
+  end
+
+  def legacy_match_key(record, match_fields)
     match_fields.map { |f| record.send(f).to_s.downcase.strip }.join("|")
   end
 
@@ -758,6 +1028,7 @@ class TenantConfigSyncService
     json = {
       id: record.id,
       name: record.send(config[:name_field]),
+      sync_key: (record.sync_key if record.respond_to?(:sync_key)),
       created_at: record.created_at,
       updated_at: record.updated_at
     }
@@ -771,12 +1042,10 @@ class TenantConfigSyncService
   end
 
   def import_single_record(source_record, config, model)
-    # Check if already exists in tenant (master)
-    match_key_value = match_key(source_record, config[:match_fields])
-
-    existing = ActsAsTenant.with_tenant(tenant) do
-      model.all.find { |r| match_key(r, config[:match_fields]) == match_key_value }
-    end
+    # Check if already exists in tenant (master) - sync_key primary, legacy fallback
+    tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
+    existing_index = build_record_index(tenant_all, config[:match_fields])
+    existing = find_match(source_record, existing_index, config[:match_fields])
 
     if existing
       # Update existing
@@ -788,11 +1057,16 @@ class TenantConfigSyncService
       end
       { imported: true, record: existing }
     else
-      # Create new
+      # Create new - copy sync_key to establish link
       ActsAsTenant.with_tenant(tenant) do
         new_record = model.new
         config[:sync_fields].each do |field|
           new_record.send("#{field}=", source_record.send(field)) if source_record.respond_to?(field)
+        end
+        if source_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
+          new_record.sync_key = source_record.sync_key.presence || source_record.class.build_sync_key(
+            *Array(source_record.class.try(:sync_key_source) || :name).map { |f| source_record.send(f).to_s }
+          )
         end
         new_record.save!
         { imported: true, record: new_record }
@@ -808,6 +1082,12 @@ class TenantConfigSyncService
       attrs = build_sync_attrs(source_record, config)
       attrs.each do |field, value|
         new_record.send("#{field}=", value) if new_record.respond_to?("#{field}=")
+      end
+      # Copy sync_key from source so the link is established
+      if source_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
+        new_record.sync_key = source_record.sync_key.presence || source_record.class.build_sync_key(
+          *Array(source_record.class.try(:sync_key_source) || :name).map { |f| source_record.send(f).to_s }
+        )
       end
       new_record.save!
       { created: true, record: new_record }

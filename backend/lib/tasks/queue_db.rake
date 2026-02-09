@@ -25,26 +25,16 @@ namespace :queue do
     end
 
     # Rails 8: Multi-database migrations are handled automatically by db:migrate
-    # based on migrations_paths in database.yml. Just verify tables exist.
+    # based on migrations_paths in database.yml. Just verify config exists.
     begin
       queue_config = ActiveRecord::Base.configurations.configs_for(env_name: Rails.env, name: "queue")
       if queue_config
-        # Establish temporary connection to queue database
-        queue_conn = ActiveRecord::Base.establish_connection(queue_config).connection
-
-        if queue_conn.table_exists?(:solid_queue_jobs)
-          puts "  ✅ Queue tables exist"
-        else
-          puts "  ⚠️  Queue tables not found - run 'rails db:migrate' to create them"
-        end
-
-        # Restore primary connection
-        ActiveRecord::Base.establish_connection(:primary)
+        puts "  ✅ Queue database configured"
       else
         puts "  Using primary database connection for queue"
       end
     rescue => e
-      puts "  ⚠️  Could not verify queue database: #{e.message}"
+      puts "  ⚠️  Could not verify queue config: #{e.message}"
     end
 
     puts "Queue database setup complete!"
@@ -63,29 +53,19 @@ namespace :queue do
     end
 
     begin
-      queue_config = ActiveRecord::Base.configurations.configs_for(env_name: Rails.env, name: "queue")
-      if queue_config
-        queue_conn = ActiveRecord::Base.establish_connection(queue_config).connection
+      # Use SolidQueue's own connection (Rails 8 multi-DB handles routing)
+      if defined?(SolidQueue) && SolidQueue::Job.table_exists?
+        jobs_count = SolidQueue::Job.count
+        ready_count = SolidQueue::ReadyExecution.count
+        failed_count = SolidQueue::FailedExecution.count
 
-        # Show SolidQueue stats if tables exist
-        if queue_conn.table_exists?(:solid_queue_jobs)
-          jobs_count = queue_conn.execute("SELECT COUNT(*) FROM solid_queue_jobs").first["count"]
-          ready_count = queue_conn.execute("SELECT COUNT(*) FROM solid_queue_ready_executions").first["count"]
-          failed_count = queue_conn.execute("SELECT COUNT(*) FROM solid_queue_failed_executions").first["count"]
-
-          puts "\nSolidQueue Stats:"
-          puts "  Total jobs: #{jobs_count}"
-          puts "  Ready to run: #{ready_count}"
-          puts "  Failed: #{failed_count}"
-        else
-          puts "\nSolidQueue tables not yet created."
-          puts "Run 'rails db:migrate' to create them."
-        end
-
-        # Restore primary connection
-        ActiveRecord::Base.establish_connection(:primary)
+        puts "\nSolidQueue Stats:"
+        puts "  Total jobs: #{jobs_count}"
+        puts "  Ready to run: #{ready_count}"
+        puts "  Failed: #{failed_count}"
       else
-        puts "\nNo separate queue database configured."
+        puts "\nSolidQueue tables not yet created."
+        puts "Run 'rails db:migrate' to create them."
       end
     rescue => e
       puts "Error: #{e.message}"

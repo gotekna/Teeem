@@ -45,7 +45,7 @@ module Api
             display_name: doc.ui_name,
             file_name: doc.storage_blob&.original_filename || doc.ui_name,
             document_type: doc.metadata&.dig("document_type"),
-            folder: doc.folder,
+            folder: doc.folder_path,
             source: "warehouse",
             file_size: doc.storage_blob&.file_size,
             content_type: doc.storage_blob&.content_type,

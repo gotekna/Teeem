@@ -11,6 +11,9 @@
 # from a template use the same invoice style for that claim stage.
 #
 class ClaimInvoiceTemplate < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+
   # Style keys for the different template designs
   STYLE_KEYS = %w[classic modern bold minimal].freeze
   HEADER_STYLES = %w[standard banner minimal].freeze
@@ -61,7 +64,7 @@ class ClaimInvoiceTemplate < ApplicationRecord
   private
 
   def only_one_default
-    if is_default? && ClaimInvoiceTemplate.where(is_default: true).where.not(id: id).exists?
+    if is_default? && self.class.where(is_default: true).where.not(id: id).exists?
       errors.add(:is_default, "can only be set for one template")
     end
   end

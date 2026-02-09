@@ -189,6 +189,10 @@ class MicrosoftCredential < ApplicationRecord
     if response.status.success?
       data = response.parse
       # Transaction ensures all token fields are updated atomically
+      # FRC (Feb 2026): MUST reset refresh_token_dead on success!
+      # Root cause: fetch_app_token! was setting status="connected" but leaving
+      # refresh_token_dead=true, causing MicrosoftAppGraphClient to raise DeadTokenError
+      # while UI showed green "Connected". This silently broke email sync for 5 days.
       transaction do
         update!(
           access_token: data["access_token"],
@@ -196,7 +200,9 @@ class MicrosoftCredential < ApplicationRecord
           status: "connected",
           error_code: nil,
           error_message: nil,
-          consecutive_failures: 0
+          consecutive_failures: 0,
+          refresh_token_dead: false,
+          last_refresh_attempt_at: Time.current
         )
       end
       Rails.logger.info "[MicrosoftCredential] App token fetched for #{name || id}"

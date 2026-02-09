@@ -1747,7 +1747,7 @@ export function DataWarehouseTab() {
 
             {/* Views List */}
             <div className="space-y-2 max-h-80 overflow-y-auto">
-              {warehouseStatus.views.map((view) => (
+              {(warehouseStatus.views ?? []).map((view) => (
                 <div
                   key={view.key}
                   className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
@@ -1794,7 +1794,7 @@ export function DataWarehouseTab() {
             </div>
 
             {/* Recent Activity */}
-            {warehouseStatus.recent_activity.length > 0 && (
+            {(warehouseStatus.recent_activity?.length ?? 0) > 0 && (
               <div className="pt-4 border-t">
                 <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
                   <Activity className="h-4 w-4" />

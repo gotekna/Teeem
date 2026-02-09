@@ -5,6 +5,9 @@
 # See GANTT_ARCHITECTURE_PLAN.md Section 16
 #
 class SmResource < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+
   # Resource types
   RESOURCE_TYPES = %w[person equipment material].freeze
 

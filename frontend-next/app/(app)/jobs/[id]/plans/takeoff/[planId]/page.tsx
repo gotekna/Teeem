@@ -9,6 +9,8 @@ import { BackButton } from "@/components/ui/back-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { PdfChrome } from "@/components/ui/pdf-chrome";
+import { ChevronLeft } from "lucide-react";
 
 // Takeoff components
 import { TakeoffCanvas } from "@/components/takeoff/TakeoffCanvas";
@@ -16,10 +18,14 @@ import { TakeoffToolbar } from "@/components/takeoff/TakeoffToolbar";
 import { TakeoffSidebar } from "@/components/takeoff/TakeoffSidebar";
 import { PricebookSelector } from "@/components/takeoff/PricebookSelector";
 import { useTakeoffPdf } from "@/components/takeoff/useTakeoffPdf";
+import { usePdfPanZoom } from "@/hooks/usePdfPanZoom";
+import { RoomChecklist } from "@/components/takeoff/RoomChecklist";
 import type {
   TakeoffTool,
   TakeoffMeasurement,
   TakeoffLayer,
+  TakeoffRoomInstance,
+  TakeoffRoomSlot,
   PageScale,
   CalibrationData,
   GeometryData,
@@ -28,7 +34,7 @@ import type {
   MeasurementCreateOptions,
 } from "@/components/takeoff/types";
 import type { DetectedElement } from "@/components/takeoff/ElementDetector";
-import type { TakeoffTemplate, TemplateStep } from "@/components/takeoff/TemplateSelector";
+import type { TakeoffTemplate as RoomTemplate } from "@/components/takeoff/RoomManager";
 
 // =============================================================================
 // Page Component
@@ -58,12 +64,32 @@ export default function TakeoffPage() {
 
   // Tool state
   const [currentTool, setCurrentTool] = React.useState<TakeoffTool>("select");
-  const [zoom, setZoom] = React.useState(1);
+
+  // Room instances
+  const [rooms, setRooms] = React.useState<TakeoffRoomInstance[]>([]);
+  const [activeRoom, setActiveRoom] = React.useState<TakeoffRoomInstance | null>(null);
+  const [activeSlotId, setActiveSlotId] = React.useState<number | null>(null);
+  const [roomTemplates, setRoomTemplates] = React.useState<RoomTemplate[]>([]);
+  const [sidebarMode, setSidebarMode] = React.useState<"measurements" | "room">("measurements");
 
   // Pricebook selector state
   const [pricebookSelectorOpen, setPricebookSelectorOpen] = React.useState(false);
   const [measurementForPricebook, setMeasurementForPricebook] = React.useState<TakeoffMeasurement | null>(null);
   const [isGeneratingPO, setIsGeneratingPO] = React.useState(false);
+
+  // Sidebar state - pinned persists to localStorage
+  const [sidebarPinned, setSidebarPinned] = React.useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('takeoff-sidebar-pinned') === 'true';
+  });
+  const [sidebarOpen, setSidebarOpen] = React.useState(sidebarPinned);
+
+  const handleToggleSidebar = () => setSidebarOpen(prev => !prev);
+  const handlePinSidebar = (pinned: boolean) => {
+    setSidebarPinned(pinned);
+    localStorage.setItem('takeoff-sidebar-pinned', String(pinned));
+    if (pinned) setSidebarOpen(true);
+  };
 
   // Get current page scale
   const [currentPageNumber, setCurrentPageNumber] = React.useState(1);
@@ -74,6 +100,13 @@ export default function TakeoffPage() {
   // PDF loading
   const pdfUrl = planData?.current_revision?.download_url || null;
   const { pages, currentPage, pageCount, isLoading: isLoadingPdf, error: pdfError } = useTakeoffPdf(pdfUrl);
+
+  // Pan/zoom — SSoT hook for all PDF interaction (zoom, fit-to-view, pan, scroll-wheel zoom)
+  const { zoom, effectiveMaxZoom, onZoomChange: handleZoomChange, onFitToView: handleFitToView, zoomToRect, containerRef: canvasContainerRef, isPanning, isSpaceHeld } = usePdfPanZoom({
+    pageWidth: currentPage?.width ?? 0,
+    pageHeight: currentPage?.height ?? 0,
+    panToolActive: currentTool === "pan",
+  });
 
   // =============================================================================
   // Data Fetching
@@ -140,21 +173,249 @@ export default function TakeoffPage() {
 
       if (response.success && response.data) {
         setLayers(response.data.layers);
-        // Set first layer as active if none selected
-        if (!activeLayer && response.data.layers.length > 0) {
-          setActiveLayer(response.data.layers[0]);
-        }
+        // Default to "All" view (activeLayer = null)
       }
     } catch (err) {
       console.error("Failed to fetch layers:", err);
     }
   }, [jobId, activeLayer]);
 
+  // Fetch room instances
+  const fetchRooms = React.useCallback(async () => {
+    if (!planId) return;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: TakeoffRoomInstance[];
+      }>(`/api/v1/pdf_takeoff/plans/${planId}/rooms`);
+      if (response?.success && response?.data) {
+        setRooms(response.data);
+        // Update activeRoom if it changed
+        if (activeRoom) {
+          const updated = response.data.find((r) => r.id === activeRoom.id);
+          if (updated) setActiveRoom(updated);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch rooms:", err);
+    }
+  }, [planId, activeRoom]);
+
+  // Fetch templates for room creation
+  const fetchTemplates = React.useCallback(async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: Array<{ id: number; name: string; category: string | null; configuration: { steps: unknown[] } }>;
+      }>("/api/v1/pdf_takeoff/templates");
+      if (response?.success && response?.data) {
+        setRoomTemplates(
+          response.data.map((t) => ({
+            id: t.id,
+            name: t.name,
+            category: t.category,
+            step_count: t.configuration?.steps?.length || 0,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to fetch templates:", err);
+    }
+  }, []);
+
   // Initial data fetch
   React.useEffect(() => {
     fetchMeasurements();
     fetchLayers();
-  }, [fetchMeasurements, fetchLayers]);
+    fetchRooms();
+    fetchTemplates();
+  }, [fetchMeasurements, fetchLayers, fetchRooms, fetchTemplates]);
+
+  // =============================================================================
+  // Room Management Handlers
+  // =============================================================================
+
+  const handleRoomChange = React.useCallback(
+    (room: TakeoffRoomInstance | null) => {
+      setActiveRoom(room);
+      setActiveSlotId(null);
+      setSidebarMode(room ? "room" : "measurements");
+      if (room) setSidebarOpen(true);
+    },
+    []
+  );
+
+  const handleCreateRoom = React.useCallback(
+    async (templateId: number, name?: string) => {
+      if (!planId) return;
+      try {
+        const response = await api.post<{
+          success: boolean;
+          data: TakeoffRoomInstance;
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/plans/${planId}/rooms`, {
+          template_id: templateId,
+          name,
+        });
+        if (response?.success && response?.data) {
+          const newRoom = response.data;
+          setRooms((prev) => [...prev, newRoom]);
+          handleRoomChange(newRoom);
+          toast({ title: "Room Created", description: newRoom.name });
+        } else {
+          throw new Error(response?.error || "Failed to create room");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to create room";
+        toast({ title: "Error", description: message, variant: "destructive" });
+        throw err;
+      }
+    },
+    [planId, toast, handleRoomChange]
+  );
+
+  const handleUpdateRoom = React.useCallback(
+    async (id: number, updates: { name?: string; status?: string; notes?: string }) => {
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: TakeoffRoomInstance;
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/rooms/${id}`, updates);
+        if (response?.success && response?.data) {
+          const updatedRoom = response.data;
+          setRooms((prev) => prev.map((r) => (r.id === id ? updatedRoom : r)));
+          if (activeRoom?.id === id) setActiveRoom(updatedRoom);
+        } else {
+          throw new Error(response?.error || "Failed to update room");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to update room";
+        toast({ title: "Error", description: message, variant: "destructive" });
+        throw err;
+      }
+    },
+    [activeRoom, toast]
+  );
+
+  const handleDeleteRoom = React.useCallback(
+    async (id: number) => {
+      try {
+        const response = await api.delete<{ success: boolean; error?: string }>(
+          `/api/v1/pdf_takeoff/rooms/${id}`
+        );
+        if (response?.success) {
+          setRooms((prev) => prev.filter((r) => r.id !== id));
+          if (activeRoom?.id === id) {
+            handleRoomChange(null);
+          }
+          toast({ title: "Room Deleted" });
+        } else {
+          throw new Error(response?.error || "Failed to delete room");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to delete room";
+        toast({ title: "Error", description: message, variant: "destructive" });
+        throw err;
+      }
+    },
+    [activeRoom, toast, handleRoomChange]
+  );
+
+  // Slot operations
+  const handleSlotSelect = React.useCallback(
+    (slot: TakeoffRoomSlot | null) => {
+      if (!slot) {
+        setActiveSlotId(null);
+        return;
+      }
+      setActiveSlotId(slot.id);
+      // Auto-switch to the slot's measurement type
+      const toolMap: Record<string, TakeoffTool> = {
+        count: "count",
+        area: "area",
+        linear: "linear",
+        perimeter: "perimeter",
+      };
+      const tool = toolMap[slot.measurement_type];
+      if (tool) setCurrentTool(tool);
+    },
+    []
+  );
+
+  const handleSlotClear = React.useCallback(
+    async (slotId: number) => {
+      if (!activeRoom) return;
+      try {
+        const response = await api.delete<{
+          success: boolean;
+          data: TakeoffRoomInstance;
+        }>(`/api/v1/pdf_takeoff/rooms/${activeRoom.id}/slots/${slotId}/fill`);
+        if (response?.success && response?.data) {
+          const updatedRoom = response.data;
+          setActiveRoom(updatedRoom);
+          setRooms((prev) => prev.map((r) => (r.id === updatedRoom.id ? updatedRoom : r)));
+        }
+      } catch (err) {
+        console.error("Failed to clear slot:", err);
+        toast({ title: "Error", description: "Failed to clear slot", variant: "destructive" });
+      }
+    },
+    [activeRoom, toast]
+  );
+
+  const handleSlotAssignPricebook = React.useCallback(
+    (slotId: number) => {
+      // For now, use the pricebook selector flow
+      // TODO: implement slot-level pricebook assignment via PATCH /rooms/:id/slots/:slot_id
+      toast({ title: "Pricebook", description: "Use template to pre-assign pricebook items to slots" });
+    },
+    [toast]
+  );
+
+  const handleRoomGeneratePO = React.useCallback(
+    async () => {
+      if (!activeRoom) return;
+      setIsGeneratingPO(true);
+      try {
+        const response = await api.post<{
+          success: boolean;
+          data: {
+            purchase_orders: Array<{ id: number; supplier_name: string; line_items_count: number; total: number }>;
+            room_name: string;
+          };
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/rooms/${activeRoom.id}/generate_po`);
+        if (response?.success && response?.data) {
+          const { purchase_orders, room_name } = response.data;
+          toast({
+            title: "Purchase Orders Created",
+            description: `${purchase_orders.length} PO(s) from ${room_name}`,
+          });
+          if (purchase_orders.length === 1) {
+            router.push(`/jobs/${jobId}/purchase-orders/${purchase_orders[0].id}`);
+          }
+        } else {
+          throw new Error(response?.error || "Failed to generate PO");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to generate PO";
+        toast({ title: "Error", description: message, variant: "destructive" });
+      } finally {
+        setIsGeneratingPO(false);
+      }
+    },
+    [activeRoom, jobId, router, toast]
+  );
+
+  const handleRoomMarkComplete = React.useCallback(
+    () => {
+      if (!activeRoom) return;
+      const newStatus = activeRoom.status === "complete" ? "in_progress" : "complete";
+      handleUpdateRoom(activeRoom.id, { status: newStatus });
+    },
+    [activeRoom, handleUpdateRoom]
+  );
 
   // =============================================================================
   // Layer Management Handlers
@@ -417,8 +678,8 @@ export default function TakeoffPage() {
             description: `Scale set to ${pageScaleData.scale_label}`,
           });
 
-          // Switch to select tool after calibration
-          setCurrentTool("select");
+          // Stay in calibrate mode so user can immediately verify with other dimensions
+          // (magnifiers + "verify accuracy" prompt remain visible)
         } else {
           throw new Error(response?.error || "Failed to calibrate");
         }
@@ -434,6 +695,28 @@ export default function TakeoffPage() {
     [planId, currentPageNumber, toast]
   );
 
+  const handleClearCalibration = React.useCallback(
+    async () => {
+      if (!planId) return;
+      try {
+        await api.delete(`/api/v1/pdf_takeoff/plans/${planId}/calibrate`, {
+          params: { page_number: currentPageNumber },
+        });
+        setPlanData((prev) => {
+          if (!prev) return prev;
+          const newScales = prev.page_scales.filter(
+            (ps) => ps.page_number !== currentPageNumber
+          );
+          return { ...prev, page_scales: newScales };
+        });
+        toast({ title: "Calibration Cleared", description: "You can now recalibrate from scratch." });
+      } catch {
+        toast({ title: "Failed to clear calibration", variant: "destructive" });
+      }
+    },
+    [planId, currentPageNumber, toast]
+  );
+
   // Create measurement
   const handleMeasurementCreate = React.useCallback(
     async (
@@ -442,8 +725,8 @@ export default function TakeoffPage() {
       pixelValue: number,
       pageNumber: number,
       options?: MeasurementCreateOptions
-    ) => {
-      if (!planId) return;
+    ): Promise<TakeoffMeasurement | null> => {
+      if (!planId) return null;
 
       try {
         const response = await api.post<{
@@ -467,10 +750,38 @@ export default function TakeoffPage() {
           setMeasurements((prev) => [...prev, measurementData.measurement]);
           setSummary(measurementData.summary);
 
+          // If a room slot is active, fill it with this measurement
+          if (activeRoom && activeSlotId) {
+            try {
+              const fillResponse = await api.post<{
+                success: boolean;
+                data: TakeoffRoomInstance;
+              }>(`/api/v1/pdf_takeoff/rooms/${activeRoom.id}/slots/${activeSlotId}/fill`, {
+                measurement_id: measurementData.measurement.id,
+              });
+              if (fillResponse?.success && fillResponse?.data) {
+                const updatedRoom = fillResponse.data;
+                setActiveRoom(updatedRoom);
+                setRooms((prev) => prev.map((r) => (r.id === updatedRoom.id ? updatedRoom : r)));
+                // Auto-advance to next unfilled slot
+                const nextUnfilled = updatedRoom.slots.find((s) => !s.is_filled);
+                if (nextUnfilled) {
+                  handleSlotSelect(nextUnfilled);
+                } else {
+                  setActiveSlotId(null);
+                  setCurrentTool("select");
+                }
+              }
+            } catch (err) {
+              console.error("Failed to fill slot:", err);
+            }
+          }
+
           toast({
             title: "Measurement Added",
             description: `${type}: ${measurementData.measurement.formatted_value}`,
           });
+          return measurementData.measurement;
         } else {
           throw new Error(response?.error || "Failed to create measurement");
         }
@@ -481,9 +792,97 @@ export default function TakeoffPage() {
           description: message,
           variant: "destructive",
         });
+        return null;
       }
     },
-    [planId, activeLayer, toast]
+    [planId, activeLayer, activeRoom, activeSlotId, handleSlotSelect, toast]
+  );
+
+  // Add point to existing count measurement
+  const handleCountPointAdd = React.useCallback(
+    async (measurementId: number, point: { x: number; y: number }): Promise<TakeoffMeasurement | null> => {
+      try {
+        const response = await api.post<{
+          success: boolean;
+          data: TakeoffMeasurement;
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/measurements/${measurementId}/count_point`, {
+          point: { x: point.x, y: point.y },
+        });
+
+        if (response?.success && response?.data) {
+          const updated = response.data;
+          setMeasurements((prev) =>
+            prev.map((m) => (m.id === measurementId ? updated : m))
+          );
+          return updated;
+        }
+        return null;
+      } catch (err) {
+        console.error("Failed to add count point:", err);
+        return null;
+      }
+    },
+    []
+  );
+
+  // Move a count point to a new position
+  const handleMovePoint = React.useCallback(
+    async (measurementId: number, pointIndex: number, newPoint: { x: number; y: number }): Promise<void> => {
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: TakeoffMeasurement;
+          error?: string;
+        }>(`/api/v1/pdf_takeoff/measurements/${measurementId}/move_point`, {
+          point_index: pointIndex,
+          x: newPoint.x,
+          y: newPoint.y,
+        });
+
+        if (response?.success && response?.data) {
+          const updated = response.data;
+          setMeasurements((prev) =>
+            prev.map((m) => (m.id === measurementId ? updated : m))
+          );
+          // Keep it selected so user can immediately adjust another vertex
+          setSelectedMeasurement(updated);
+        }
+      } catch (err) {
+        console.error("Failed to move point:", err);
+      }
+    },
+    []
+  );
+
+  // Remove a single point from a count measurement (Delete key while repositioning)
+  const handleRemovePoint = React.useCallback(
+    async (measurementId: number, pointIndex: number): Promise<void> => {
+      try {
+        const response = await api.delete<{
+          success: boolean;
+          data: TakeoffMeasurement | { deleted: boolean };
+        }>(`/api/v1/pdf_takeoff/measurements/${measurementId}/remove_point`, {
+          params: { point_index: pointIndex },
+        });
+
+        if (response?.success) {
+          if ("deleted" in response.data && response.data.deleted) {
+            setMeasurements((prev) => prev.filter((m) => m.id !== measurementId));
+            setSelectedMeasurement(null);
+          } else {
+            const updated = response.data as TakeoffMeasurement;
+            setMeasurements((prev) =>
+              prev.map((m) => (m.id === measurementId ? updated : m))
+            );
+            setSelectedMeasurement(updated);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to remove point:", err);
+      }
+    },
+    []
   );
 
   // Handle AI element detection result
@@ -558,32 +957,15 @@ export default function TakeoffPage() {
     [planId, currentPage, currentPageNumber, handleMeasurementCreate, toast]
   );
 
-  // Handle template selection - start guided measurement workflow
-  const handleTemplateSelect = React.useCallback(
-    (template: TakeoffTemplate, steps: TemplateStep[]) => {
-      if (!steps.length) return;
-
-      // For now, just switch to the first step's measurement type
-      const firstStep = steps[0];
-      const toolMap: Record<string, TakeoffTool> = {
-        count: "count",
-        area: "area",
-        linear: "linear",
-        perimeter: "perimeter",
-      };
-
-      const tool = toolMap[firstStep.type] || "linear";
-      setCurrentTool(tool);
-
-      toast({
-        title: `Template: ${template.name}`,
-        description: `Step 1/${steps.length}: ${firstStep.label} - ${firstStep.prompt || `Use ${firstStep.type} tool`}`,
-      });
-
-      // TODO: Implement full template runner with step-by-step guidance
-      // The TemplateRunner component can be added to the UI for step tracking
+  // Select measurement — auto-switch to select tool so vertex handles appear
+  const handleMeasurementSelect = React.useCallback(
+    (measurement: TakeoffMeasurement | null) => {
+      setSelectedMeasurement(measurement);
+      if (measurement) {
+        setCurrentTool("select");
+      }
     },
-    [toast]
+    []
   );
 
   // Delete measurement
@@ -618,6 +1000,28 @@ export default function TakeoffPage() {
       }
     },
     [selectedMeasurement, fetchMeasurements, toast]
+  );
+
+  // Rename a measurement (update category)
+  const handleRenameMeasurement = React.useCallback(
+    async (id: number, name: string) => {
+      try {
+        const response = await api.patch<{
+          success: boolean;
+          data: TakeoffMeasurement;
+        }>(`/api/v1/pdf_takeoff/measurements/${id}`, {
+          category: name || null,
+        });
+        if (response?.success && response?.data) {
+          setMeasurements((prev) =>
+            prev.map((m) => (m.id === id ? response.data : m))
+          );
+        }
+      } catch {
+        toast({ title: "Error", description: "Failed to rename measurement", variant: "destructive" });
+      }
+    },
+    [toast]
   );
 
   // Open pricebook selector for a measurement
@@ -819,7 +1223,9 @@ export default function TakeoffPage() {
         currentTool={currentTool}
         onToolChange={setCurrentTool}
         zoom={zoom}
-        onZoomChange={setZoom}
+        maxZoom={effectiveMaxZoom}
+        onZoomChange={handleZoomChange}
+        onFitToView={handleFitToView}
         activeLayer={activeLayer}
         layers={layers}
         onLayerChange={setActiveLayer}
@@ -837,7 +1243,13 @@ export default function TakeoffPage() {
         planId={planId}
         onScaleDetected={handleScaleDetected}
         onElementsDetected={handleElementsDetected}
-        onTemplateSelect={handleTemplateSelect}
+        rooms={rooms}
+        activeRoom={activeRoom}
+        onRoomChange={handleRoomChange}
+        onCreateRoom={handleCreateRoom}
+        onUpdateRoom={handleUpdateRoom}
+        onDeleteRoom={handleDeleteRoom}
+        roomTemplates={roomTemplates}
         pdfUrl={pdfUrl}
         onSyncComplete={fetchMeasurements}
       />
@@ -879,7 +1291,7 @@ export default function TakeoffPage() {
         </div>
 
         {/* Canvas area */}
-        <div className="flex-1 overflow-auto bg-muted/20 relative">
+        <PdfChrome ref={canvasContainerRef} className="p-0.5">
           {pdfError && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
@@ -900,7 +1312,7 @@ export default function TakeoffPage() {
 
           {currentPage && (
             <div
-              className="relative mx-auto my-4"
+              className="relative mx-auto"
               style={{
                 width: currentPage.width * zoom,
                 height: currentPage.height * zoom,
@@ -913,10 +1325,14 @@ export default function TakeoffPage() {
                 pageHeight={currentPage.height}
                 pageScale={pageScale}
                 onCalibrate={handleCalibrate}
+                onClearCalibration={handleClearCalibration}
                 measurements={measurements.filter(
                   (m) => m.page_number === currentPageNumber
                 )}
                 onMeasurementCreate={handleMeasurementCreate}
+                onCountPointAdd={handleCountPointAdd}
+                onMovePoint={handleMovePoint}
+                onRemovePoint={handleRemovePoint}
                 onMeasurementDelete={handleMeasurementDelete}
                 onMeasurementSelect={setSelectedMeasurement}
                 selectedMeasurement={selectedMeasurement}
@@ -924,24 +1340,69 @@ export default function TakeoffPage() {
                 layers={layers}
                 currentTool={currentTool}
                 zoom={zoom}
-                onZoomChange={setZoom}
+                containerRef={canvasContainerRef}
+                isPanning={isPanning}
+                isSpaceHeld={isSpaceHeld}
+                onZoomToRect={zoomToRect}
               />
             </div>
           )}
+        </PdfChrome>
+
+        {/* Collapsible measurements sidebar */}
+        <div
+          className={cn(
+            "transition-all duration-200 ease-in-out overflow-hidden border-l",
+            sidebarOpen ? "w-80" : "w-0 border-l-0"
+          )}
+        >
+          <div className="w-80 h-full">
+            {sidebarMode === "room" && activeRoom ? (
+              <RoomChecklist
+                room={activeRoom}
+                activeSlotId={activeSlotId}
+                onSlotSelect={handleSlotSelect}
+                onSlotClear={handleSlotClear}
+                onSlotAssignPricebook={handleSlotAssignPricebook}
+                onGeneratePO={handleRoomGeneratePO}
+                onMarkComplete={handleRoomMarkComplete}
+                isLoading={isGeneratingPO}
+                onClose={() => setSidebarOpen(false)}
+                pinned={sidebarPinned}
+                onPinChange={handlePinSidebar}
+                hasJob={true}
+              />
+            ) : (
+              <TakeoffSidebar
+                measurements={measurements}
+                layers={layers}
+                activeLayer={activeLayer}
+                summary={summary}
+                selectedMeasurement={selectedMeasurement}
+                onMeasurementSelect={handleMeasurementSelect}
+                onMeasurementDelete={handleMeasurementDelete}
+                onAssignPricebook={handleAssignPricebook}
+                onRenameMeasurement={handleRenameMeasurement}
+                onGeneratePO={handleGeneratePO}
+                isLoading={isGeneratingPO}
+                onClose={() => setSidebarOpen(false)}
+                pinned={sidebarPinned}
+                onPinChange={handlePinSidebar}
+              />
+            )}
+          </div>
         </div>
 
-        {/* Measurements sidebar */}
-        <TakeoffSidebar
-          measurements={measurements}
-          layers={layers}
-          summary={summary}
-          selectedMeasurement={selectedMeasurement}
-          onMeasurementSelect={setSelectedMeasurement}
-          onMeasurementDelete={handleMeasurementDelete}
-          onAssignPricebook={handleAssignPricebook}
-          onGeneratePO={handleGeneratePO}
-          isLoading={isGeneratingPO}
-        />
+        {/* Sidebar toggle tab (visible when collapsed) */}
+        {!sidebarOpen && (
+          <button
+            onClick={handleToggleSidebar}
+            className="w-6 border-l bg-background hover:bg-muted flex items-center justify-center"
+            title="Show measurements"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Pricebook Selector Modal */}

@@ -16,6 +16,7 @@ class ColumnTypeValidator
   @@column_cache = {}
   @@cache_expires_at = {}
   CACHE_TTL = 5.minutes
+  MAX_CACHE_SIZE = 100
 
   class << self
     # Get column types for a table (with caching)
@@ -31,6 +32,9 @@ class ColumnTypeValidator
 
       # Get columns with their types
       columns = Column.where(foundation_id: foundation.id).pluck(:column_name, :column_type).to_h
+
+      # Evict expired entries before adding new ones
+      evict_expired_entries if @@column_cache.size >= MAX_CACHE_SIZE
 
       # Cache it
       @@column_cache[table_name] = columns
@@ -259,6 +263,17 @@ class ColumnTypeValidator
         if formatted != value
           record.send("#{column_name}=", formatted)
         end
+      end
+    end
+
+    private
+
+    def evict_expired_entries
+      now = Time.current
+      expired_keys = @@cache_expires_at.select { |_, expires| expires <= now }.keys
+      expired_keys.each do |key|
+        @@column_cache.delete(key)
+        @@cache_expires_at.delete(key)
       end
     end
   end

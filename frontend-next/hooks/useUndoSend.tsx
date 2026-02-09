@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { api } from "@/lib/api";
@@ -16,39 +16,57 @@ import type { QueuedEmail, SendEmailParams, PreUploadedAttachment } from "@/lib/
 export function useUndoSend() {
   const [pendingEmails, setPendingEmails] = useState<Map<string, QueuedEmail>>(new Map());
   const toastRefs = useRef<Map<string, { dismiss: () => void; update: (props: any) => void }>>(new Map());
+  // Track timer IDs in a ref so cleanup doesn't depend on stale state
+  const timerRefs = useRef<Map<string, { timeoutId: NodeJS.Timeout; intervalId: NodeJS.Timeout }>>(new Map());
+
+  // Clean up all pending timers on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      timerRefs.current.forEach(({ timeoutId, intervalId }) => {
+        clearTimeout(timeoutId);
+        clearInterval(intervalId);
+      });
+      timerRefs.current.clear();
+    };
+  }, []);
 
   const cancelSend = useCallback((emailId: string) => {
-    const email = pendingEmails.get(emailId);
-    if (email) {
-      // Clear the timers
-      clearTimeout(email.timeoutId);
-      clearInterval(email.intervalId);
-
-      // Remove from pending
-      setPendingEmails((prev) => {
-        const next = new Map(prev);
-        next.delete(emailId);
-        return next;
-      });
-
-      // Dismiss the toast
-      const toastRef = toastRefs.current.get(emailId);
-      if (toastRef) {
-        toastRef.dismiss();
-        toastRefs.current.delete(emailId);
-      }
-
-      // Show cancelled toast
-      toast({
-        title: "Send cancelled",
-        description: "Your email was not sent.",
-      });
+    // Clear timers from ref (always up-to-date, no stale closure)
+    const timers = timerRefs.current.get(emailId);
+    if (timers) {
+      clearTimeout(timers.timeoutId);
+      clearInterval(timers.intervalId);
+      timerRefs.current.delete(emailId);
     }
-  }, [pendingEmails]);
+
+    // Remove from pending
+    setPendingEmails((prev) => {
+      const next = new Map(prev);
+      next.delete(emailId);
+      return next;
+    });
+
+    // Dismiss the toast
+    const toastRef = toastRefs.current.get(emailId);
+    if (toastRef) {
+      toastRef.dismiss();
+      toastRefs.current.delete(emailId);
+    }
+
+    // Show cancelled toast
+    toast({
+      title: "Send cancelled",
+      description: "Your email was not sent.",
+    });
+  }, []);
 
   const actualSend = useCallback(async (email: QueuedEmail) => {
-    // Clear the interval
-    clearInterval(email.intervalId);
+    // Clear timers from ref
+    const timers = timerRefs.current.get(email.id);
+    if (timers) {
+      clearInterval(timers.intervalId);
+      timerRefs.current.delete(email.id);
+    }
 
     // Dismiss the countdown toast
     const toastRef = toastRefs.current.get(email.id);
@@ -180,6 +198,9 @@ export function useUndoSend() {
     // Update the queued email with timers
     queuedEmail.timeoutId = timeoutId;
     queuedEmail.intervalId = intervalId;
+
+    // Track timers in ref for cleanup on unmount
+    timerRefs.current.set(emailId, { timeoutId, intervalId });
 
     // Add to pending emails
     setPendingEmails((prev) => {

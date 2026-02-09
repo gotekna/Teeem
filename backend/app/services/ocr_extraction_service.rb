@@ -18,6 +18,8 @@ class OcrExtractionService
 
     Rails.logger.info "[OCR] Starting OCR extraction for BillInbox ##{@bill.id}"
 
+    @temp_files = []
+
     # Convert PDF to images
     images = pdf_to_images
 
@@ -42,6 +44,8 @@ class OcrExtractionService
     Rails.logger.error "[OCR] Error extracting BillInbox ##{@bill.id}: #{e.message}"
     Rails.logger.error e.backtrace.join("\n")
     { error: e.message }
+  ensure
+    cleanup_temp_files
   end
 
   private
@@ -70,12 +74,14 @@ class OcrExtractionService
         # Split multi-page PDF
         image.pages.each_with_index do |page, idx|
           page_file = Tempfile.new([ "page_#{idx}", ".png" ], binmode: true)
+          @temp_files << page_file
           page.write(page_file.path)
           images << page_file.path
         end
       else
         # Single page
         page_file = Tempfile.new([ "page_0", ".png" ], binmode: true)
+        @temp_files << page_file
         image.write(page_file.path)
         images << page_file.path
       end
@@ -173,6 +179,18 @@ class OcrExtractionService
   def get_image_height(image_path)
     image = MiniMagick::Image.open(image_path)
     image.height
+  end
+
+  def cleanup_temp_files
+    return unless @temp_files
+
+    @temp_files.each do |f|
+      f.close unless f.closed?
+      f.unlink
+    rescue StandardError => e
+      Rails.logger.debug "[OCR] Failed to clean up temp file: #{e.message}"
+    end
+    @temp_files = []
   end
 
   def tesseract_version

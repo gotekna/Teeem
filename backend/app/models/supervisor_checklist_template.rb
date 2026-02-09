@@ -1,7 +1,10 @@
 class SupervisorChecklistTemplate < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+
   RESPONSE_TYPES = %w[checkbox photo note photo_and_note].freeze
 
-  validates :name, presence: true, uniqueness: true
+  validates :name, presence: true, uniqueness: { scope: :tenant_id }
   validates :sequence_order, presence: true
   validates :response_type, presence: true, inclusion: { in: RESPONSE_TYPES }
 
@@ -22,7 +25,7 @@ class SupervisorChecklistTemplate < ApplicationRecord
   def set_default_sequence_order
     return if sequence_order.present?
 
-    max_order = SupervisorChecklistTemplate.maximum(:sequence_order) || 0
+    max_order = self.class.maximum(:sequence_order) || 0
     self.sequence_order = max_order + 1
   end
 

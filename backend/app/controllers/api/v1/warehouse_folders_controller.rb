@@ -1,22 +1,22 @@
 # frozen_string_literal: true
 
 # SSoT: Unified Tab Configuration API
-# This controller now queries BaseFolder (THE ONE table) instead of WarehouseFolder
+# This controller queries WarehouseFolder (THE ONE table)
 # API endpoints remain the same for backwards compatibility
 module Api
   module V1
     class WarehouseFoldersController < ApplicationController
-      before_action :set_base_folder, only: [:show, :update, :destroy]
+      before_action :set_warehouse_folder, only: [:show, :update, :destroy]
 
       # GET /api/v1/warehouse_folders?warehouse_type=corporate
       # Also accepts ?scope= for backwards compatibility
       # Use include_disabled=true for admin views to show all tabs
       #
-      # Performance: Uses BaseFolderQueryService to eliminate N+1 queries
+      # Performance: Uses WarehouseFolderQueryService to eliminate N+1 queries
       def index
         warehouse_type = params[:warehouse_type] || params[:scope]
 
-        service = BaseFolderQueryService.new(
+        service = WarehouseFolderQueryService.new(
           warehouse_type: warehouse_type,
           entity_type: params[:entity_type],
           include_disabled: params[:include_disabled] == "true",
@@ -32,7 +32,7 @@ module Api
             warehouse_type: warehouse_type,
             scope: warehouse_type,  # Legacy backwards compat
             tabs: tabs,
-            groups: BaseFolder::TAB_GROUPS
+            groups: WarehouseFolder::TAB_GROUPS
           }
         }
       end
@@ -41,47 +41,47 @@ module Api
       def show
         render json: {
           success: true,
-          data: @base_folder.as_nested_json
+          data: @warehouse_folder.as_nested_json
         }
       end
 
       # POST /api/v1/warehouse_folders
       def create
-        @base_folder = BaseFolder.new(base_folder_params)
+        @warehouse_folder = WarehouseFolder.new(warehouse_folder_params)
 
-        if @base_folder.save
-          render json: { success: true, data: @base_folder.as_nested_json }, status: :created
+        if @warehouse_folder.save
+          render json: { success: true, data: @warehouse_folder.as_nested_json }, status: :created
         else
-          render json: { success: false, error: @base_folder.errors.full_messages.join(', ') }, status: :unprocessable_entity
+          render json: { success: false, error: @warehouse_folder.errors.full_messages.join(', ') }, status: :unprocessable_entity
         end
       end
 
       # PATCH/PUT /api/v1/warehouse_folders/:id
       def update
-        Rails.logger.info "[WarehouseFolders#update] Received params: #{base_folder_params.inspect}"
+        Rails.logger.info "[WarehouseFolders#update] Received params: #{warehouse_folder_params.inspect}"
 
-        if @base_folder.update(base_folder_params)
-          @base_folder.reload
-          render json: { success: true, data: @base_folder.as_nested_json }
+        if @warehouse_folder.update(warehouse_folder_params)
+          @warehouse_folder.reload
+          render json: { success: true, data: @warehouse_folder.as_nested_json }
         else
-          render json: { success: false, error: @base_folder.errors.full_messages.join(', ') }, status: :unprocessable_entity
+          render json: { success: false, error: @warehouse_folder.errors.full_messages.join(', ') }, status: :unprocessable_entity
         end
       end
 
       # DELETE /api/v1/warehouse_folders/:id
       def destroy
-        unless @base_folder.can_delete?
-          return render json: { success: false, error: @base_folder.deletion_blocked_reason }, status: :unprocessable_entity
+        unless @warehouse_folder.can_delete?
+          return render json: { success: false, error: @warehouse_folder.deletion_blocked_reason }, status: :unprocessable_entity
         end
 
-        @base_folder.destroy
-        render json: { success: true, message: "Folder '#{@base_folder.display_name || @base_folder.name}' deleted" }
+        @warehouse_folder.destroy
+        render json: { success: true, message: "Folder '#{@warehouse_folder.display_name || @warehouse_folder.name}' deleted" }
       end
 
       # POST /api/v1/warehouse_folders/reorder
       def reorder
         params[:tabs].each_with_index do |tab_data, index|
-          BaseFolder.where(id: tab_data[:id]).update_all(
+          WarehouseFolder.where(id: tab_data[:id]).update_all(
             order_position: index,
             parent_id: tab_data[:parent_id]
           )
@@ -92,13 +92,13 @@ module Api
 
       # POST /api/v1/warehouse_folders/:id/toggle
       def toggle
-        @base_folder = BaseFolder.find(params[:id])
-        @base_folder.update!(enabled: !@base_folder.enabled)
+        @warehouse_folder = WarehouseFolder.find(params[:id])
+        @warehouse_folder.update!(enabled: !@warehouse_folder.enabled)
 
         render json: {
           success: true,
-          data: @base_folder.as_nested_json,
-          message: "Folder #{@base_folder.enabled ? 'enabled' : 'disabled'}"
+          data: @warehouse_folder.as_nested_json,
+          message: "Folder #{@warehouse_folder.enabled ? 'enabled' : 'disabled'}"
         }
       end
 
@@ -108,7 +108,7 @@ module Api
       def for_scope
         warehouse_type = params[:warehouse_type] || params[:scope]
 
-        tabs = BaseFolder.for_warehouse_type(warehouse_type)
+        tabs = WarehouseFolder.for_warehouse_type(warehouse_type)
                          .enabled
                          .ordered
                          .includes(:parent, :warehouse_type)
@@ -166,9 +166,9 @@ module Api
       # Returns count of document types linked per warehouse type + total document types
       def document_type_counts
         counts = WarehouseType.enabled.each_with_object({}) do |wt, hash|
-          hash[wt.code] = BaseFolderDocumentType
-            .joins(:base_folder)
-            .where(base_folders: { warehouse_type_id: wt.id })
+          hash[wt.code] = WarehouseFolderDocumentType
+            .joins(:warehouse_folder)
+            .where(warehouse_folders: { warehouse_type_id: wt.id })
             .distinct
             .count(:document_type_id)
         end
@@ -184,7 +184,7 @@ module Api
       # POST /api/v1/warehouse_folders/reset_paths
       # Reset all tabs to use inherited SSoT paths (clears folder_path_suffix, sets uses_custom_path = false)
       def reset_paths
-        updated_count = BaseFolder
+        updated_count = WarehouseFolder
           .where(warehouse_enabled: true)
           .where("uses_custom_path = true OR folder_path_suffix IS NOT NULL")
           .update_all(uses_custom_path: false, folder_path_suffix: nil)
@@ -202,7 +202,7 @@ module Api
       def used_icons
         warehouse_type = params[:warehouse_type] || params[:scope]
 
-        icons = BaseFolder.for_warehouse_type(warehouse_type)
+        icons = WarehouseFolder.for_warehouse_type(warehouse_type)
                           .root_folders
                           .where.not(icon_name: [nil, ''])
                           .pluck(:id, :icon_name, :display_name)
@@ -220,7 +220,7 @@ module Api
         usages = {}
 
         WarehouseType.enabled.each do |wt|
-          BaseFolder.for_warehouse_type(wt.code)
+          WarehouseFolder.for_warehouse_type(wt.code)
                     .root_folders
                     .where.not(icon_name: [nil, ''])
                     .each do |folder|
@@ -232,7 +232,7 @@ module Api
               scope: wt.display_name,  # Legacy backwards compat
               name: folder.display_name || folder.name,
               id: folder.id,
-              type: "base_folder"
+              type: "warehouse_folder"
             }
           end
         end
@@ -262,7 +262,7 @@ module Api
       def tree
         counts = fetch_warehouse_counts
 
-        all_folders = BaseFolder
+        all_folders = WarehouseFolder
           .where(parent_id: nil, warehouse_enabled: true, enabled: true)
           .where.not(folder_segment: [nil, ''])
           .includes(:children, :warehouse_type)
@@ -271,18 +271,18 @@ module Api
         # Group folders by warehouse type's display name
         grouped = all_folders.group_by { |folder| folder.warehouse_type&.display_name }
 
-        tree = grouped.map do |base_folder, folders|
-          next nil if base_folder.blank?
+        tree = grouped.map do |warehouse_folder_name, folders|
+          next nil if warehouse_folder_name.blank?
 
           {
-            id: "base-#{base_folder.downcase.gsub(/\s+/, '-')}",
-            name: base_folder,
+            id: "wf-#{warehouse_folder_name.downcase.gsub(/\s+/, '-')}",
+            name: warehouse_folder_name,
             type: "category",
-            icon: base_folder_icon(base_folder),
+            icon: warehouse_folder_icon(warehouse_folder_name),
             warehouseType: folders.first&.warehouse_type_code,
-            folderPath: base_folder,
-            fullPath: base_folder,
-            fileCount: base_folder_count(base_folder, counts),
+            folderPath: warehouse_folder_name,
+            fullPath: warehouse_folder_name,
+            fileCount: warehouse_folder_count(warehouse_folder_name, counts),
             children: folders.map { |folder| build_tree_node(folder) }
           }
         end.compact
@@ -302,7 +302,7 @@ module Api
 
       private
 
-      def base_folder_icon(name)
+      def warehouse_folder_icon(name)
         {
           "Jobs" => "briefcase",
           "Corporate" => "building2",
@@ -318,7 +318,7 @@ module Api
         }[name] || "folder"
       end
 
-      def base_folder_count(name, counts)
+      def warehouse_folder_count(name, counts)
         mapping = {
           "Jobs" => "jobs",
           "Corporate" => "corporate",
@@ -339,7 +339,7 @@ module Api
           .order(:order_position, :name)
 
         {
-          id: "bf-#{folder.id}",
+          id: "wf-#{folder.id}",
           name: folder.display_name || folder.name,
           type: "category",
           icon: folder.icon_name || "folder",
@@ -367,16 +367,17 @@ module Api
         }
       end
 
-      def set_base_folder
-        @base_folder = BaseFolder.find(params[:id])
+      def set_warehouse_folder
+        @warehouse_folder = WarehouseFolder.find(params[:id])
       end
 
-      def base_folder_params
+      def warehouse_folder_params
         permitted = params.require(:warehouse_folder).permit(
           :warehouse_type_id,
           :warehouse_type,
           :scope,  # Legacy backwards compat
           :tab_key,
+          :tab_type,
           :name,
           :display_name,
           :display_code,
@@ -401,7 +402,7 @@ module Api
           :ui_name_template,
           :download_name_template,
           :is_system,
-          :is_system_tab,
+          :is_mailbox,
           entity_filters: [],
           document_type_ids: []
         )
@@ -420,8 +421,10 @@ module Api
         end
 
         # Map folder_path to folder_path_suffix for legacy compatibility
-        if params[:warehouse_folder][:folder_path].present?
-          permitted[:folder_path_suffix] = params[:warehouse_folder][:folder_path]
+        # FRC (Feb 2026): folder_path from frontend = the suffix value only (not full path)
+        # .key? check ensures we can clear the suffix by sending empty string → nil
+        if params[:warehouse_folder].key?(:folder_path)
+          permitted[:folder_path_suffix] = params[:warehouse_folder][:folder_path].presence
         end
 
         # Map ui_name to ui_name_template

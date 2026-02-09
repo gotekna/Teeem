@@ -32,7 +32,7 @@ namespace :sync do
         component_name: t['component_name'],
         warehouse_enabled: t['warehouse_enabled'] || t['has_storage_folder'] || t['has_sharepoint_folder'],
         storage_folder_path: t['storage_folder_path'] || t['sharepoint_folder_path'],
-        is_system_tab: t['is_system_tab'],
+        is_system: t['is_system_tab'] || t['is_system'],
         entity_filters: t['entity_filters'] || []
       )
       tab.save!

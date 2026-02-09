@@ -336,7 +336,6 @@ module WarehouseSyncable
 
     doc.assign_attributes(
       source_type: source,
-      folder: folder,
       display_name: name,
       original_filename: warehouse_filename,
       storage_blob: blob,

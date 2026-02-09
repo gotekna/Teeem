@@ -17,8 +17,8 @@
 # - Connection config (site IDs, buckets, endpoints)
 # - Root path for the storage location
 #
-# FOLDER STRUCTURE is handled by BaseFolder (SSoT for paths per tab)
-# Each BaseFolder defines its own path template.
+# FOLDER STRUCTURE is handled by WarehouseFolder (SSoT for paths per tab)
+# Each WarehouseFolder defines its own path template.
 #
 # SSoT Hierarchy (Jan 2026 fix):
 #   Tenant       → WarehouseProvider (one per tenant)
@@ -66,7 +66,7 @@ class WarehouseProvider < ApplicationRecord
     xero user
   ].freeze
 
-  # LIM (Jan 2026): scope_base_folders is now a method that returns simple mapping
+  # LIM (Jan 2026): scope_warehouse_folders is now a method that returns simple mapping
   # Note: scope_options was deleted and replaced with exclude_sm_tasks boolean
 
   # Validations
@@ -91,7 +91,7 @@ class WarehouseProvider < ApplicationRecord
   before_save :sync_root_path_for_provider, if: :provider_type_changed?
 
   # NOTE: folder template callbacks REMOVED (Feb 2026)
-  # Folder templates are now stored per-tab in base_folders table (SSoT)
+  # Folder templates are now stored per-tab in warehouse_folders table (SSoT)
   # WarehouseProvider no longer stores customizable folder templates
 
   # Auto-sync root_path based on provider_type
@@ -181,11 +181,11 @@ class WarehouseProvider < ApplicationRecord
   end
 
   # ========================================
-  # Warehouse Root Folders (SSoT: base_folders table ONLY)
+  # Warehouse Root Folders (SSoT: warehouse_folders table ONLY)
   # ========================================
   #
-  # SSoT (Feb 2026): All path templates are stored in base_folders table
-  # To create a new tenant: copy base_folders from existing tenant
+  # SSoT (Feb 2026): All path templates are stored in warehouse_folders table
+  # To create a new tenant: copy warehouse_folders from existing tenant
   # NO hardcoded defaults - database is THE ONE source of truth
   #
 
@@ -293,7 +293,7 @@ class WarehouseProvider < ApplicationRecord
   # @param warehouse_type [String, Symbol] The warehouse type (job, contact, task, etc.)
   # @return [String, nil] Path template like "Jobs/{{JobCode}}" or nil if disabled
   #
-  # SSoT (Feb 2026): Reads ONLY from base_folders table - no hardcoded defaults
+  # SSoT (Feb 2026): Reads ONLY from warehouse_folders table - no hardcoded defaults
   # Database is THE ONE source of truth for path templates
   #
   # Examples:
@@ -305,16 +305,16 @@ class WarehouseProvider < ApplicationRecord
     type_key = warehouse_type.to_s
     type_key = WAREHOUSE_KEY_ALIASES[type_key] || type_key
 
-    # SSoT: Read path template from base_folders table
-    folder = BaseFolder.base_folder_for(type_key)
+    # SSoT: Read path template from warehouse_folders table
+    folder = WarehouseFolder.warehouse_folder_for(type_key)
     path = folder&.full_folder_path
 
     return nil if path.blank? || path == "DISABLED"
     path
   end
 
-  # LIM (Feb 2026): Removed effective_warehouse_folders, scope_base_folders, scope_folder_templates,
-  # scope_download_names, scope_ui_names - all read directly from base_folders table (SSoT)
+  # LIM (Feb 2026): Removed effective_warehouse_folders, scope_warehouse_folders, scope_folder_templates,
+  # scope_download_names, scope_ui_names - all read directly from warehouse_folders table (SSoT)
 
   # ========================================
   # Path Building Helpers
@@ -342,7 +342,7 @@ class WarehouseProvider < ApplicationRecord
   #
   # @param warehouse_type [String, Symbol] The warehouse type name (job, task, contact, etc.)
   # @param substitutions [Hash] Values to substitute in path (e.g., { JobCode: "JOB-001" })
-  # @param subfolder [String] Optional subfolder to append (e.g., BaseFolder.full_folder_path)
+  # @param subfolder [String] Optional subfolder to append (e.g., WarehouseFolder.full_folder_path)
   # @return [String] Full resolved path
   #
   # Example:
@@ -480,10 +480,14 @@ class WarehouseProvider < ApplicationRecord
 
     # Task context for task documents
     if record.is_a?(DocumentTask) || record.class.name == "SmTaskAttachment"
-      tokens[:TaskId] = record.sm_task&.id || record.id
+      task = record.respond_to?(:sm_task) ? record.sm_task : nil
+      tokens[:TaskId] = task&.id || record.id
       # TaskName: parameterize for URL-safe folder names
-      task_name = record.sm_task&.name.presence || "task-#{record.id}"
+      task_name = task&.name.presence || "task-#{record.id}"
       tokens[:TaskName] = task_name.parameterize
+      status_label = task&.status&.titleize || "Unknown"
+      tokens[:TaskStatus] = status_label
+      tokens[:Status] = status_label
     end
 
     tokens
@@ -798,12 +802,12 @@ class WarehouseProvider < ApplicationRecord
 
     if job.present?
       # Job-attached: Use job folder structure
-      # SSoT: BaseFolder defines the folder name, but we use tab_name for document type
+      # SSoT: WarehouseFolder defines the folder name, but we use tab_name for document type
       effective_tab_name = tab_name || default_tab_name_for(scope)
       job_path(job.job_code, effective_tab_name)
     else
       # Standalone: Use warehousing folder structure
-      # SSoT: WarehouseProvider.resolve_path with base_folders
+      # SSoT: WarehouseProvider.resolve_path with warehouse_folders
       resolve_path(scope, {
         UserName: effective_user&.name || "Unknown",
         Year: created_at&.year&.to_s || Time.current.year.to_s,
@@ -856,7 +860,7 @@ class WarehouseProvider < ApplicationRecord
     WarehouseDocument
   end
 
-  # SSoT: Get the BaseFolder warehouse type for a source
+  # SSoT: Get the WarehouseFolder warehouse type for a source
   # @param source [String, Symbol] The document source
   # @return [String] The warehouse type name (contact, corporate, etc.)
   def document_warehouse_type_for(source)
@@ -927,7 +931,7 @@ class WarehouseProvider < ApplicationRecord
       # Root path
       root_path: root_path,
       # LIM (Feb 2026): warehouse_folders, download_names, ui_name_templates removed from as_json
-      # Frontend reads directly from base_folders table via API
+      # Frontend reads directly from warehouse_folders table via API
       # Config links for warehouse folders (URL to external config page)
       config_links: config_links || {},
       # Document routing configuration (SSoT for model selection)
@@ -940,16 +944,19 @@ class WarehouseProvider < ApplicationRecord
       # Link expiry days for presigned URLs (from TenantSetting - SSoT)
       link_expiry_days: TenantSetting.link_expiry_days,
 
-      # LIM (Feb 2026): Frontend gets base folder mapping from base_folders SSoT
-      # scope_folders: { contact: "Contacts", job: "Jobs", ... } - NOT full templates
-      scope_folders: BaseFolder.warehouse_type_to_base_folder,
-
-      # SSoT (Feb 2026): Full path templates from base_folders table
-      # Frontend needs these for the Warehouse Folders config UI
-      warehouse_folders: BaseFolder.warehouse_folders_mapping,
-      warehouse_folder_templates: BaseFolder.warehouse_folders_mapping, # Alias for backwards compat
-      download_names: BaseFolder.download_names_mapping,
-      ui_name_templates: BaseFolder.ui_names_mapping
+      # SSoT: Root folder segment from folder_path_template (for path → scope resolution)
+      # FRC (Feb 2026): Was returning display_name ("User", "Job") but paths use template
+      # roots ("Teeem Docs", "Jobs"). Frontend getScopeFromPath matches first path segment
+      # against these values, so they MUST match the actual template root.
+      scope_folders: WarehouseType.enabled
+        .where.not(folder_path_template: [nil, ''])
+        .pluck(:code, :folder_path_template)
+        .to_h
+        .transform_values { |t| t.split('/').first },
+      warehouse_folders: WarehouseType.enabled.where.not(folder_path_template: [nil, '']).pluck(:code, :folder_path_template).to_h,
+      warehouse_folder_templates: WarehouseType.enabled.where.not(folder_path_template: [nil, '']).pluck(:code, :folder_path_template).to_h,
+      download_names: WarehouseFolder.download_names_mapping,
+      ui_name_templates: WarehouseFolder.ui_names_mapping
     }
   end
 end

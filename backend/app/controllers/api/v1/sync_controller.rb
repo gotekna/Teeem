@@ -750,7 +750,7 @@ module Api
                 type: doc_change_type(doc, subscription),
                 file: {
                   id: doc.id,
-                  path: "#{subscription.remote_path}/#{doc.folder}/#{file_name}",
+                  path: "#{subscription.remote_path}/#{doc.folder_path}/#{file_name}",
                   name: file_name,
                   size: file_size,
                   modified_at: doc.updated_at,

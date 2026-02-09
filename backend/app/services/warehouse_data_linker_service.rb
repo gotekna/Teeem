@@ -141,9 +141,9 @@ class WarehouseDataLinkerService
     # Try to find job by folder path or display_name containing job reference
 
     # If document has a folder that matches a job title pattern
-    if doc.folder.present?
+    if doc.folder_path.present?
       # Try matching folder to job title
-      job = Job.where("title ILIKE ?", "%#{doc.folder}%").first
+      job = Job.where("title ILIKE ?", "%#{doc.folder_path}%").first
       return job if job
     end
 

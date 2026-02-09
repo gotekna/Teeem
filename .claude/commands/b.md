@@ -20,11 +20,11 @@ Commits only THIS chat session's changes and deploys to Staging AND Beta environ
            (Heroku)   (Heroku)
 ```
 
-## Optimizations (Jan 2026)
+## Optimizations (Feb 2026)
 
 | Optimization | Savings |
 |--------------|---------|
-| Single temp directory (reused for both deploys) | ~1s |
+| Pipeline promotion (build once on staging, promote slug to beta) | ~2-3 min |
 | Smart migration check (only if db/migrate changed) | ~10-20s |
 | Vercel branch filtering (each project builds only its branch) | ~6 duplicate builds eliminated |
 
@@ -160,17 +160,17 @@ git diff --name-only HEAD~10 HEAD 2>/dev/null | grep backend/
 ```
 **If backend files were in `git status` but NOT in the commit diff, STOP and investigate!**
 
-### Step 5 - Deploy Backend (OPTIMIZED - Single Directory)
+### Step 5 - Deploy Backend (Pipeline Promotion)
 
 **Check if backend files were in the commit:**
 ```bash
 git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
 ```
 
-**If backend changed, use optimized deploy:**
+**If backend changed, build on staging then promote to beta:**
 
 ```bash
-echo "📦 Starting optimized backend deploy..."
+echo "📦 Starting backend deploy with pipeline promotion..."
 
 cd /Users/robertharder/GitHub/teeem
 
@@ -178,46 +178,38 @@ cd /Users/robertharder/GitHub/teeem
 sync
 sleep 1
 
-# Create SINGLE temp directory (reused for both environments)
+# Build and push to Staging (this is the ONLY slug build)
 DEPLOY_DIR=$(mktemp -d)
-# FIX (Feb 2026): Use rsync to copy ALL files including hidden (.slugignore)
 rsync -a --exclude='.git' backend/ "$DEPLOY_DIR/"
 
 cd "$DEPLOY_DIR"
 git init
 git add -A
 git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
-
-# Add both remotes upfront
 git remote add staging https://git.heroku.com/teeem-staging.git
-git remote add beta https://git.heroku.com/teeem-beta.git
 
-# STEP 1: Deploy to Staging first (safety check)
-echo "📦 Deploying → Staging..."
+echo "📦 Building slug on Staging..."
 git push staging HEAD:main --force
 STAGING_EXIT=$?
 
-if [ $STAGING_EXIT -ne 0 ]; then
-  echo "❌ Staging deploy failed - aborting pipeline"
-  cd /Users/robertharder/GitHub/teeem
-  rm -rf "$DEPLOY_DIR"
-  exit 1
-fi
-echo "✅ Staging backend deployed"
-
-# STEP 2: Deploy to Beta
-echo "📦 Deploying → Beta..."
-git push beta HEAD:main --force
-BETA_EXIT=$?
-
-# Cleanup
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
+if [ $STAGING_EXIT -ne 0 ]; then
+  echo "❌ Staging deploy failed - aborting pipeline"
+  exit 1
+fi
+echo "✅ Staging backend deployed (slug built)"
+
+# Promote compiled slug to Beta (no rebuild - instant copy)
+echo "📦 Promoting Staging → Beta..."
+heroku pipelines:promote --app teeem-staging --to teeem-beta
+BETA_EXIT=$?
+
 if [ $BETA_EXIT -eq 0 ]; then
-  echo "✅ Beta backend deployed"
+  echo "✅ Beta backend promoted"
 else
-  echo "❌ Beta deploy failed (exit: $BETA_EXIT)"
+  echo "❌ Beta promotion failed (exit: $BETA_EXIT)"
 fi
 
 echo "✅ All backend deploys complete"
@@ -266,9 +258,9 @@ Frontend (Vercel - auto-deploy on branch merge):
   ✅ Staging: Staging branch pushed
   ✅ Beta: Staging → Beta merged
 
-Backend (Heroku - optimized single-directory deploy):
-  ✅ Staging: [deployed/skipped]
-  ✅ Beta: [deployed/skipped]
+Backend (Heroku - pipeline promotion):
+  ✅ Staging: [deployed/skipped] (slug built)
+  ✅ Beta: [promoted/skipped] (slug copied, no rebuild)
 ========================================
 ```
 
@@ -286,7 +278,7 @@ If any step fails:
 - Commits only THIS chat session's changes
 - Deploys to Staging AND Beta
 - Frontend auto-deploys via Vercel on GitHub push
-- Backend: Single temp directory, staging first then beta
+- Backend: Build slug on staging, promote to beta via Heroku pipeline
 - Migration verification only runs if db/migrate files changed
 - Use `/ba` if you want to commit ALL pending changes
 - Use `/s` if you only want to deploy to Staging

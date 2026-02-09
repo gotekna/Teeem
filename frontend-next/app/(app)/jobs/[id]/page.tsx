@@ -158,6 +158,23 @@ const SpecificationBuilder = dynamic(() => import("@/components/specifications/S
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const WarehouseTreeBase = dynamic(() => import("@/components/warehouse/WarehouseTree").then(m => m.WarehouseTree), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+// Wrapper: maps Job tab props to WarehouseTree scoped mode
+// Token values are auto-fetched by useWarehouseTree from the backend (fix once, benefit everywhere)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const JobWarehouseTab = (props: any) => (
+  <WarehouseTreeBase
+    mode={{
+      type: "scoped",
+      linkableType: "Job",
+      linkableId: props.jobId,
+      warehouseTypeCode: "job",
+    }}
+  />
+);
 
 // Loading skeleton shown while tab component loads
 function TabLoadingSkeleton() {
@@ -209,6 +226,7 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "coms": JobCommunicationsTab,
   "revit": RevitTab,
   "revit-dwg": RevitTab,
+  "warehouse": JobWarehouseTab,
 };
 
 // Tabs that need special rendering (complex inline JSX or special behavior)
@@ -241,6 +259,7 @@ interface Job {
   name: string;
   status: string;
   stage: string;
+  job_code?: string;
   job_type?: { id: number; name: string; icon?: string };
   job_type_id?: number;
   job_status?: { id: number; name: string; color?: string };
@@ -1774,8 +1793,8 @@ export default function JobDetailPage() {
           // SSoT: Use compositeKey for children to prevent collision with same-named parent tabs
           const tabValue = tab.compositeKey || tab.tab_key;
 
-          // SSoT: CAD category tabs render RevitTab for Revit/DWG/Datasmith files
-          if (tab.is_cad_category) {
+          // SSoT: CAD/Revit tabs render RevitTab for Revit/DWG/Datasmith files
+          if (tab.tab_type === 'revit' || tab.is_cad_category) {
             return (
               <TabsContent key={tabValue} value={tabValue} className="mt-4">
                 <RevitTab
@@ -1786,13 +1805,32 @@ export default function JobDetailPage() {
             );
           }
 
+          // SSoT: Registered components take priority over folder_path rendering
+          // This prevents tabs like "purchase-orders" (which have folder_path set
+          // from warehouse config) from being hijacked by the folder_path check below
+          const Component = JOB_TAB_COMPONENTS[tab.tab_key];
+          if (Component) {
+            const className = tab.tab_key === "schedule" ? "mt-4 h-[calc(100vh-300px)]" : "mt-4";
+            return (
+              <TabsContent key={tabValue} value={tabValue} className={className}>
+                <Component
+                  jobId={job.id}
+                  job={job}
+                  jobTitle={job.name}
+                  onUpdate={loadJob}
+                  contractValue={job.contract_value}
+                />
+              </TabsContent>
+            );
+          }
+
           // Document/Photo tabs use JobDocumentsTab with initialCategory
           // SSoT: Pass composite key (parent__child) to disambiguate same-named categories
           // e.g., "photo__site" ensures Photo > Site photos shown, not Site > Site docs
           // Render JobDocumentsTab for:
-          // 1. Photo categories (is_photo_category: true) - shows photo gallery
-          // 2. Document categories with SharePoint (folder_path set) - shows document viewer
-          if (tab.is_photo_category || tab.folder_path) {
+          // 1. Photo categories (tab_type='photo') - shows photo gallery
+          // 2. Document categories with storage (folder_path set) - shows document viewer
+          if (tab.tab_type === 'photo' || tab.is_photo_category || tab.folder_path) {
             // SSoT: Find parent tab to pass its children as categories
             // This eliminates duplicate API call - parent already has the data from useWarehouseFolders
             const parentTab = visibleJobTabs.find(p =>
@@ -1804,6 +1842,7 @@ export default function JobDetailPage() {
               tab_key: c.tab_key,
               name: c.display_name,
               display_name: c.display_name,
+              tab_type: c.tab_type,
               is_photo_category: c.is_photo_category,
               folder_path: c.folder_path ?? undefined,  // Convert null to undefined
               children: c.children?.map(gc => ({
@@ -1811,6 +1850,7 @@ export default function JobDetailPage() {
                 tab_key: gc.tab_key,
                 name: gc.display_name,
                 display_name: gc.display_name,
+                tab_type: gc.tab_type,
                 is_photo_category: gc.is_photo_category,
                 folder_path: gc.folder_path ?? undefined,  // Convert null to undefined
               })),
@@ -1829,36 +1869,17 @@ export default function JobDetailPage() {
             );
           }
 
-          // Look up component from registry
-          const Component = JOB_TAB_COMPONENTS[tab.tab_key];
-          if (!Component) {
-            // Tab exists in WarehouseFolders but no component registered - show placeholder
-            return (
-              <TabsContent key={tabValue} value={tabValue} className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{tab.display_name}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">{tab.display_name} coming soon.</p>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            );
-          }
-
-          // Special handling for schedule tab (needs different height)
-          const className = tab.tab_key === "schedule" ? "mt-4 h-[calc(100vh-300px)]" : "mt-4";
-
+          // Tab exists in WarehouseFolders but no component registered - show placeholder
           return (
-            <TabsContent key={tabValue} value={tabValue} className={className}>
-              <Component
-                jobId={job.id}
-                job={job}
-                jobTitle={job.name}
-                onUpdate={loadJob}
-                contractValue={job.contract_value}
-              />
+            <TabsContent key={tabValue} value={tabValue} className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{tab.display_name}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">{tab.display_name} coming soon.</p>
+                </CardContent>
+              </Card>
             </TabsContent>
           );
         })}

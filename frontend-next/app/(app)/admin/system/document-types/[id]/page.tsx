@@ -40,6 +40,8 @@ import {
   Calendar,
   FolderTree,
   ListFilter,
+  Check,
+  Wrench,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import {
@@ -103,9 +105,9 @@ const getBasePlaceholders = (scope: string): PlaceholderToken[] => {
 
 // =====================================================================
 // SSoT: Category filter for placeholders (Feb 2026)
-// Matches PlaceholderBuilder component for consistent UX
+// Matches PlaceholderPalette component for consistent UX
 // =====================================================================
-type TokenCategory = "all" | "job" | "company" | "date" | "folder" | "other";
+type TokenCategory = "all" | "job" | "task" | "email" | "company" | "date" | "folder" | "other";
 
 interface CategoryConfig {
   label: string;
@@ -127,23 +129,35 @@ const CATEGORY_CONFIG: Record<TokenCategory, CategoryConfig> = {
     color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700",
     match: (t) => /\{?\{?Job|LotNumber|StreetName|Suburb|Project/i.test(t.code),
   },
+  task: {
+    label: "Task",
+    icon: Wrench,
+    color: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+    match: (t) => /\{?\{?Task|Attachment|Response|\[\[Attachment|\[\[Response/i.test(t.code),
+  },
+  email: {
+    label: "Email",
+    icon: Mail,
+    color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700",
+    match: (t) => /\{?\{?Subject|Sender|Received|Mailbox|\[\[Email/i.test(t.code),
+  },
   company: {
     label: "Company",
     icon: Building2,
     color: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700",
-    match: (t) => /\{?\{?Company|Person|Contact|User|Account|Asset|Bank/i.test(t.code),
+    match: (t) => /\{?\{?Company|Person|Contact|User|Account|Asset|Bank|BSB|Loan|Lender/i.test(t.code),
   },
   date: {
     label: "Date",
     icon: Calendar,
     color: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700",
-    match: (t) => /\{?\{?Date|Year|Month|Time|Day|FY|Period|YYYY|DDMM/i.test(t.code),
+    match: (t) => /\{?\{?Date|Year|Month|Time|Day|FY|Period|YYYY|DDMM|\{EX\}|Expiry/i.test(t.code),
   },
   folder: {
     label: "Doc",
     icon: FileText,
     color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700",
-    match: (t) => /\{?\{?Doc|Tab|Category|Folder|Description|Original|Sequence/i.test(t.code),
+    match: (t) => /DocType|\{BA\}|\{FIA\}|\{Occ\}|BuildingApproval|FinalInspection|Certificate|FormNumber|Invoice|PONum|PONumber/i.test(t.code),
   },
   other: {
     label: "Other",
@@ -156,6 +170,9 @@ const CATEGORY_CONFIG: Record<TokenCategory, CategoryConfig> = {
 // Get category for a token
 function getTokenCategory(token: PlaceholderToken): TokenCategory {
   // Check in priority order (more specific first)
+  // Email before task so [[Email Attachments]] categorizes as email not task
+  if (CATEGORY_CONFIG.email.match(token)) return "email";
+  if (CATEGORY_CONFIG.task.match(token)) return "task";
   if (CATEGORY_CONFIG.job.match(token)) return "job";
   if (CATEGORY_CONFIG.company.match(token)) return "company";
   if (CATEGORY_CONFIG.date.match(token)) return "date";
@@ -170,16 +187,12 @@ interface DocumentType {
   abbreviation?: string;
   downloadName?: string;
   title_preview?: string;
-  category?: string;
   folder?: string;
   description?: string;
   requires_filing?: boolean;
   retention_years?: number;
   active: boolean;
-  // OLD (deprecated) - keeping for backwards compatibility
-  tabs?: string[];
-  primary_tab?: string;
-  // NEW SSoT: EntityTab IDs
+  // SSoT: EntityTab IDs
   entity_tab_ids?: number[];
   entity_tabs?: Array<{
     id: number;
@@ -337,8 +350,12 @@ export default function DocumentTypeDetailPage() {
             if (scopeData.success && scopeData.data?.tabs) {
               // SSoT: Only 'documents' tab_group with warehouse_enabled can store user uploads (Feb 2026)
               // Filter out 'data' tabs and tabs that can't receive documents
+              // Include root tabs that are warehouse-enabled OR have warehouse-enabled children
+              // Contact root folders (Financial, Corporate, etc.) have warehouse_enabled: false
+              // but their children (Invoices, Bills, ID, Tax) have warehouse_enabled: true
               const documentTabs = scopeData.data.tabs.filter((t: any) =>
-                t.tab_group === 'documents' && t.warehouse_enabled
+                (t.tab_group === 'documents' && t.warehouse_enabled) ||
+                (t.children?.some((c: any) => c.tab_group === 'documents' && c.warehouse_enabled))
               );
 
               // Add to all tabs for lookup
@@ -422,13 +439,13 @@ export default function DocumentTypeDetailPage() {
         // Check tabs within this scope
         for (const tab of scopeGroup.children || []) {
           if (tab.id === tabIdNum) {
-            setDocumentType(prev => prev ? { ...prev, folder: tab.name, primary_tab: tab.name } : prev);
+            setDocumentType(prev => prev ? { ...prev, folder: tab.name } : prev);
             return;
           }
           // Check subtabs
           for (const subtab of tab.children || []) {
             if (subtab.id === tabIdNum) {
-              setDocumentType(prev => prev ? { ...prev, folder: tab.name, primary_tab: tab.name } : prev);
+              setDocumentType(prev => prev ? { ...prev, folder: tab.name } : prev);
               return;
             }
           }
@@ -493,14 +510,11 @@ export default function DocumentTypeDetailPage() {
         uiName: "",
         abbreviation: "",
         downloadName: getDefaultFileNameForScope(initialScope),
-        category: "", // Deprecated - not used, kept for backwards compatibility
         folder: "GENERAL",
         description: "",
         requires_filing: false,
         retention_years: undefined,
         active: true,
-        tabs: [],
-        primary_tab: "GENERAL",
         scope: initialScope,
         file_extensions: [".pdf"],
         target_folder: "",
@@ -1603,12 +1617,18 @@ export default function DocumentTypeDetailPage() {
                                 const hasSubTabs = filteredSubTabs.length > 0;
 
                                 if (hasSubTabs) {
-                                  // Tab with subtabs - show tab as header, subtabs as selectable
+                                  // Tab with subtabs - parent is selectable too (so Select value matches when assigned to parent)
                                   return (
                                     <React.Fragment key={tab.id}>
-                                      <SelectLabel className="text-xs text-muted-foreground font-normal px-4 py-1">
-                                        📁 {tab.name}
-                                      </SelectLabel>
+                                      <SelectItem value={tab.id.toString()} className="pl-4 font-medium">
+                                        <span className="text-muted-foreground">
+                                          {tabIdx === filteredTabs.length - 1 ? '└─' : '├─'}
+                                        </span>
+                                        <span className="ml-1">📁 {tab.name}</span>
+                                        {tab.storage_path && tab.storage_path !== tab.name && (
+                                          <span className="text-xs text-muted-foreground ml-1">({tab.storage_path})</span>
+                                        )}
+                                      </SelectItem>
                                       {filteredSubTabs.map((subtab: any, subtabIdx: number) => (
                                         <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
                                           <span className="text-muted-foreground">
@@ -1815,12 +1835,21 @@ export default function DocumentTypeDetailPage() {
                                   const tabAvailable = tab.id && isTabAvailable(tab.id) && matchesSearch(tab.name, tab.storage_path);
 
                                   if (hasSubTabs) {
-                                    // Tab with subtabs - show tab as header (if available), subtabs as selectable
+                                    // Tab with subtabs - parent selectable too (if available)
                                     return (
                                       <React.Fragment key={tab.id}>
-                                        <SelectLabel className="text-xs text-muted-foreground font-normal px-4 py-1">
-                                          📁 {tab.name}
-                                        </SelectLabel>
+                                        {tabAvailable ? (
+                                          <SelectItem value={tab.id.toString()} className="pl-4 font-medium">
+                                            <span className="text-muted-foreground">
+                                              {tabIdx === availableTabs.length - 1 ? '└─' : '├─'}
+                                            </span>
+                                            <span className="ml-1">📁 {tab.name}</span>
+                                          </SelectItem>
+                                        ) : (
+                                          <SelectLabel className="text-xs text-muted-foreground font-normal px-4 py-1">
+                                            📁 {tab.name}
+                                          </SelectLabel>
+                                        )}
                                         {availableSubTabs.map((subtab: any, subtabIdx: number) => (
                                           <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
                                             <span className="text-muted-foreground">
@@ -2529,7 +2558,7 @@ export default function DocumentTypeDetailPage() {
                 </div>
                 {/* Category Filter Buttons - SSoT (Feb 2026) */}
                 <div className="flex flex-wrap gap-1 mb-2">
-                  {(["all", "job", "company", "date", "folder", "other"] as TokenCategory[]).map((cat) => {
+                  {(["all", "job", "task", "email", "company", "date", "folder", "other"] as TokenCategory[]).map((cat) => {
                     const config = CATEGORY_CONFIG[cat];
                     const Icon = config.icon;
                     const isActive = placeholderCategory === cat;
@@ -2572,6 +2601,8 @@ export default function DocumentTypeDetailPage() {
                   {getAvailablePlaceholders().map((placeholder: any, idx: number) => {
                     const colorClasses = PLACEHOLDER_COLOR_CLASSES[placeholder.color as keyof typeof PLACEHOLDER_COLOR_CLASSES]
                       || PLACEHOLDER_COLOR_CLASSES.gray;
+                    const shortUsed = isPlaceholderUsed(placeholder.code);
+                    const longUsed = placeholder.longCode ? isPlaceholderUsed(placeholder.longCode) : false;
                     return (
                     <React.Fragment key={`${placeholder.code}-${idx}`}>
                       {/* Short code */}
@@ -2580,12 +2611,18 @@ export default function DocumentTypeDetailPage() {
                         onDragStart={(e) => handleDragStartFromSource(e, placeholder.code)}
                         onDragEnd={handleDragEnd}
                         className={cn(
-                          "cursor-grab active:cursor-grabbing px-1.5 py-1 rounded border",
+                          "cursor-grab active:cursor-grabbing px-1.5 py-1 rounded border relative",
                           colorClasses.bg,
                           colorClasses.border,
+                          shortUsed && "ring-2 ring-green-500/50 ring-offset-1",
                           draggedPlaceholder === placeholder.code && draggedFromField === "source" && "opacity-50"
                         )}
                       >
+                        {shortUsed && (
+                          <div className="absolute -top-1 -right-1 bg-green-500 rounded-full p-0.5">
+                            <Check className="h-2 w-2 text-white" />
+                          </div>
+                        )}
                         <div className={cn(
                           "text-[9px] font-mono font-medium",
                           colorClasses.text
@@ -2605,12 +2642,18 @@ export default function DocumentTypeDetailPage() {
                           onDragStart={(e) => handleDragStartFromSource(e, placeholder.longCode)}
                           onDragEnd={handleDragEnd}
                           className={cn(
-                            "cursor-grab active:cursor-grabbing px-1.5 py-1 rounded border",
+                            "cursor-grab active:cursor-grabbing px-1.5 py-1 rounded border relative",
                             colorClasses.bg,
                             colorClasses.border,
+                            longUsed && "ring-2 ring-green-500/50 ring-offset-1",
                             draggedPlaceholder === placeholder.longCode && draggedFromField === "source" && "opacity-50"
                           )}
                         >
+                          {longUsed && (
+                            <div className="absolute -top-1 -right-1 bg-green-500 rounded-full p-0.5">
+                              <Check className="h-2 w-2 text-white" />
+                            </div>
+                          )}
                           <div className={cn(
                             "text-[9px] font-mono font-medium truncate",
                             colorClasses.text

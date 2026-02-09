@@ -11,6 +11,10 @@
 # - subcontract: Subcontractor package
 #
 class Recipe < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = :code
+
   # Constants
   TYPES = %w[materials labour full_assembly subcontract].freeze
   STATUSES = %w[draft active archived].freeze
@@ -27,7 +31,7 @@ class Recipe < ApplicationRecord
   accepts_nested_attributes_for :recipe_items, allow_destroy: true
 
   # Validations
-  validates :code, presence: true, uniqueness: true
+  validates :code, presence: true, uniqueness: { scope: :tenant_id }
   validates :name, presence: true
   validates :recipe_type, inclusion: { in: TYPES }
   validates :status, inclusion: { in: STATUSES }

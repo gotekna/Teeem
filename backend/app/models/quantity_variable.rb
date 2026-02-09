@@ -10,6 +10,10 @@
 # - computed: Calculated from other variables (wall_area = perimeter * height)
 #
 class QuantityVariable < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = :variable_name
+
   # Constants
   CATEGORIES = %w[dimensions counts specifications computed].freeze
   DATA_TYPES = %w[number text select].freeze
@@ -18,7 +22,7 @@ class QuantityVariable < ApplicationRecord
   has_many :job_quantity_variables, dependent: :destroy
 
   # Validations
-  validates :variable_name, presence: true, uniqueness: true,
+  validates :variable_name, presence: true, uniqueness: { scope: :tenant_id },
             format: { with: /\A[a-z][a-z0-9_]*\z/, message: 'must be snake_case' }
   validates :display_name, presence: true
   validates :category, presence: true, inclusion: { in: CATEGORIES }

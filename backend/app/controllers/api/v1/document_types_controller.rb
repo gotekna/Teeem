@@ -4,21 +4,16 @@ module Api
       before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate, :detect_signature_fields ]
 
       # GET /api/v1/document_types
-      # PERFORMANCE: Eager load base_folders to prevent N+1 queries in serialize_document_type
+      # PERFORMANCE: Eager load warehouse_folders to prevent N+1 queries in serialize_document_type
       # P95 was 1.4s due to N+1; with eager loading should be <200ms
       # SSoT: Include join table to ensure is_primary flag is available
-      # SSoT (Feb 2026): Use base_folder_document_types/base_folder (warehouse_* are deprecated aliases)
+      # SSoT (Feb 2026): Use warehouse_folder_document_types/warehouse_folder
       def index
-        @document_types = DocumentType.includes(base_folder_document_types: { base_folder: :parent })
+        @document_types = DocumentType.includes(warehouse_folder_document_types: { warehouse_folder: [:parent, :warehouse_type] })
 
         # Filter by scope (company, job, both)
         if params[:scope].present?
           @document_types = @document_types.by_scope(params[:scope])
-        end
-
-        # Filter by category
-        if params[:category].present?
-          @document_types = @document_types.by_category(params[:category])
         end
 
         # Filter by folder
@@ -31,9 +26,9 @@ module Api
 
         # Optionally group by folder
         if params[:grouped] == "true"
-          # SSoT: folder is computed from primary BaseFolder - group in Ruby after query
-          # Include base_folders association for folder computation
-          types = @document_types.active.includes(base_folder_document_types: :base_folder).order(:name)
+          # SSoT: folder is computed from primary WarehouseFolder - group in Ruby after query
+          # Include warehouse_folders association for folder computation
+          types = @document_types.active.includes(warehouse_folder_document_types: :warehouse_folder).order(:name)
           grouped = types.group_by(&:folder).sort_by { |folder, _| folder || "" }.to_h
           render json: {
             success: true,
@@ -74,8 +69,8 @@ module Api
         params[:document_type][:ui_name] = params[:document_type][:uiName] if params[:document_type][:uiName].present?
         params[:document_type][:download_name] = params[:document_type][:downloadName] if params[:document_type][:downloadName].present?
 
-        # SSoT: Map entity_tab_ids to warehouse_folder_ids (frontend uses entity_tab_ids)
-        if params[:document_type][:entity_tab_ids].present? && !params[:document_type][:warehouse_folder_ids].present?
+        # SSoT: entity_tab_ids is THE frontend name → always map to warehouse_folder_ids
+        if params[:document_type][:entity_tab_ids].present?
           params[:document_type][:warehouse_folder_ids] = params[:document_type][:entity_tab_ids]
         end
 
@@ -106,8 +101,9 @@ module Api
         params[:document_type][:ui_name] = params[:document_type][:uiName] if params[:document_type][:uiName].present?
         params[:document_type][:download_name] = params[:document_type][:downloadName] if params[:document_type][:downloadName].present?
 
-        # SSoT: Map entity_tab_ids to warehouse_folder_ids (frontend uses entity_tab_ids)
-        if params[:document_type][:entity_tab_ids].present? && !params[:document_type][:warehouse_folder_ids].present?
+        # SSoT: entity_tab_ids is THE frontend name → always map to warehouse_folder_ids
+        # (frontend sends both entity_tab_ids AND stale warehouse_folder_ids from last load)
+        if params[:document_type][:entity_tab_ids].present?
           params[:document_type][:warehouse_folder_ids] = params[:document_type][:entity_tab_ids]
         end
 
@@ -300,20 +296,18 @@ module Api
       private
 
       def set_document_type
-        @document_type = DocumentType.find(params[:id])
+        @document_type = DocumentType.includes(warehouse_folder_document_types: { warehouse_folder: [:parent, :warehouse_type] }).find(params[:id])
       end
 
       def document_type_params
         params.require(:document_type).permit(
           :name,
           :ui_name,
-          :category,
           :folder,
           :description,
           :requires_filing,
           :retention_years,
           :active,
-          :primary_tab,
           :download_name,
           :abbreviation,
           :scope,
@@ -322,35 +316,35 @@ module Api
           :generates_certificate,     # Auto-generate certificate on task completion
           :certificate_template,      # Template to use (e.g., "form_43")
           :signature_field_config,    # JSONB: Signature field positions for Word→PDF conversion
-          tabs: [],
           file_extensions: [],
-          folder_ids: [],
-          warehouse_folder_ids: [],  # SSoT: New WarehouseFolder IDs
+          warehouse_folder_ids: [],
           form_number_mapping: {}  # Hash: dwelling type -> form number
         )
       end
 
       def serialize_document_type(document_type)
-        # SSoT: BaseFolder data (replaces deprecated document_type_folders)
-        # Use base_folder_document_types to get is_primary flag and proper ordering
+        # SSoT: WarehouseFolder data (replaces deprecated document_type_folders)
+        # Use warehouse_folder_document_types to get is_primary flag and proper ordering
         # Sort by is_primary DESC so primary folder is first, then by order_position
-        # SSoT (Feb 2026): Use base_folder_document_types/base_folder (warehouse_* are deprecated aliases)
-        folder_joins = document_type.base_folder_document_types
-                                    .includes(:base_folder)
-                                    .sort_by { |bfdt| [ bfdt.is_primary ? 0 : 1, bfdt.base_folder&.order_position || 999 ] }
+        # SSoT (Feb 2026): Use warehouse_folder_document_types/warehouse_folder
+        folder_joins = document_type.warehouse_folder_document_types
+                                    .includes(:warehouse_folder)
+                                    .sort_by { |wfdt| [ wfdt.is_primary ? 0 : 1, wfdt.warehouse_folder&.order_position || 999 ] }
 
-        warehouse_folders_data = folder_joins.filter_map do |bfdt|
-          tab = bfdt.base_folder
+        warehouse_folders_data = folder_joins.filter_map do |wfdt|
+          tab = wfdt.warehouse_folder
           next unless tab
 
           {
             id: tab.id,
             tab_key: tab.tab_key,
             display_name: tab.display_name,
-            hierarchy_path: tab.full_ancestor_path,  # SSoT: BaseFolder uses full_ancestor_path
+            hierarchy_path: [tab.warehouse_type&.display_name, tab.full_ancestor_path].compact.join('/'),
+            warehouse_type_code: tab.warehouse_type&.code,
+            warehouse_type_name: tab.warehouse_type&.display_name,
             parent_id: tab.parent_id,
             parent_name: tab.parent&.display_name,
-            is_primary: bfdt.is_primary
+            is_primary: wfdt.is_primary
           }
         end
 
@@ -363,16 +357,12 @@ module Api
           abbreviation: document_type.abbreviation,
           downloadName: document_type.download_name,
           title_preview: document_type.title_preview,
-          category: document_type.category,
           folder: document_type.folder,
           description: document_type.description,
           requires_filing: document_type.requires_filing,
           retention_years: document_type.retention_years,
           active: document_type.active,
-          # Legacy tabs array (for backwards compatibility)
-          tabs: document_type.tabs || [],
-          primary_tab: document_type.primary_tab,
-          # SSoT: WarehouseFolder data (backwards compatible field names)
+          # SSoT: WarehouseFolder data
           folder_ids: warehouse_folders_data.map { |t| t[:id] },
           folders: warehouse_folders_data.map.with_index { |t, i|
             {
@@ -420,8 +410,8 @@ module Api
       end
 
       def all_available_tabs
-        # SSoT (Feb 2026): Get all document tabs from BaseFolder (THE ONE table)
-        BaseFolder.for_warehouse_type('corporate')
+        # SSoT (Feb 2026): Get all document tabs from WarehouseFolder (THE ONE table)
+        WarehouseFolder.for_warehouse_type('corporate')
                  .where(tab_group: 'documents')
                  .where(warehouse_enabled: true)
                  .enabled

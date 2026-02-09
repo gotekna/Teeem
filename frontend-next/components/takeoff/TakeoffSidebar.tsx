@@ -17,6 +17,8 @@ import {
   Package,
   Calculator,
   ShoppingCart,
+  Pin,
+  X,
 } from "lucide-react";
 import type {
   TakeoffMeasurement,
@@ -24,6 +26,7 @@ import type {
   MeasurementSummary,
 } from "./types";
 import { formatCurrency } from "@/utils/formatters";
+import { cn } from "@/lib/utils";
 
 // =============================================================================
 // Props
@@ -32,13 +35,18 @@ import { formatCurrency } from "@/utils/formatters";
 interface TakeoffSidebarProps {
   measurements: TakeoffMeasurement[];
   layers: TakeoffLayer[];
+  activeLayer?: TakeoffLayer | null;  // null = "All" view
   summary: MeasurementSummary | null;
   selectedMeasurement: TakeoffMeasurement | null;
   onMeasurementSelect: (measurement: TakeoffMeasurement | null) => void;
   onMeasurementDelete: (id: number) => void;
   onAssignPricebook: (measurementId: number) => void;
+  onRenameMeasurement: (id: number, name: string) => void;
   onGeneratePO: () => void;
   isLoading?: boolean;
+  onClose?: () => void;
+  pinned?: boolean;
+  onPinChange?: (pinned: boolean) => void;
 }
 
 // =============================================================================
@@ -48,14 +56,28 @@ interface TakeoffSidebarProps {
 export function TakeoffSidebar({
   measurements,
   layers,
+  activeLayer,
   summary,
   selectedMeasurement,
   onMeasurementSelect,
   onMeasurementDelete,
   onAssignPricebook,
+  onRenameMeasurement,
   onGeneratePO,
   isLoading,
+  onClose,
+  pinned,
+  onPinChange,
 }: TakeoffSidebarProps) {
+  // Filter measurements by active layer (null = show all)
+  const filteredMeasurements = React.useMemo(() => {
+    if (!activeLayer) return measurements; // "All" view
+    return measurements.filter((m) => {
+      const layerId = m.layer?.id || -1;
+      return layerId === activeLayer.id;
+    });
+  }, [measurements, activeLayer]);
+
   // Group measurements by layer
   const measurementsByLayer = React.useMemo(() => {
     const groups: Record<number, TakeoffMeasurement[]> = {};
@@ -67,19 +89,29 @@ export function TakeoffSidebar({
     // Add "Unassigned" group
     groups[-1] = [];
 
-    measurements.forEach((m) => {
+    filteredMeasurements.forEach((m) => {
       const layerId = m.layer?.id || -1;
       if (!groups[layerId]) groups[layerId] = [];
       groups[layerId].push(m);
     });
 
     return groups;
-  }, [measurements, layers]);
+  }, [filteredMeasurements, layers]);
 
-  // Expanded layers
+  // Expanded layers — auto-expand new layers as they appear
   const [expandedLayers, setExpandedLayers] = React.useState<Set<number>>(
     new Set(layers.map((l) => l.id))
   );
+
+  React.useEffect(() => {
+    setExpandedLayers((prev) => {
+      const next = new Set(prev);
+      layers.forEach((l) => {
+        if (!prev.has(l.id)) next.add(l.id);
+      });
+      return next.size !== prev.size ? next : prev;
+    });
+  }, [layers]);
 
   const toggleLayer = (layerId: number) => {
     setExpandedLayers((prev) => {
@@ -94,13 +126,39 @@ export function TakeoffSidebar({
   };
 
   return (
-    <div className="w-80 border-l bg-background flex flex-col h-full">
+    <div className="w-80 bg-background flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b">
-        <h2 className="font-semibold">Measurements</h2>
-        <p className="text-xs text-muted-foreground">
-          {measurements.length} items
-        </p>
+      <div className="p-4 border-b flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold">
+            {activeLayer ? activeLayer.name : "All Layers"}
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {filteredMeasurements.length} items{activeLayer && measurements.length !== filteredMeasurements.length ? ` (${measurements.length} total)` : ""}
+          </p>
+        </div>
+        {onClose && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onPinChange?.(!pinned)}
+              title={pinned ? "Unpin sidebar" : "Pin sidebar open"}
+            >
+              <Pin className={cn("h-3.5 w-3.5 transition-colors", pinned && "text-primary fill-primary")} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={onClose}
+              title="Close sidebar"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Measurements List */}
@@ -121,12 +179,13 @@ export function TakeoffSidebar({
                 onSelect={onMeasurementSelect}
                 onDelete={onMeasurementDelete}
                 onAssignPricebook={onAssignPricebook}
+                onRename={onRenameMeasurement}
               />
             );
           })}
 
-          {/* Unassigned measurements */}
-          {measurementsByLayer[-1]?.length > 0 && (
+          {/* Unassigned measurements — only show if no layer with id -1 already exists */}
+          {measurementsByLayer[-1]?.length > 0 && !layers.some(l => l.id === -1) && (
             <LayerGroup
               key={-1}
               layer={{ id: -1, name: "Unassigned", color: "#6B7280", display_order: 999, visible: true, locked: false, measurement_count: measurementsByLayer[-1].length }}
@@ -137,21 +196,23 @@ export function TakeoffSidebar({
               onSelect={onMeasurementSelect}
               onDelete={onMeasurementDelete}
               onAssignPricebook={onAssignPricebook}
+              onRename={onRenameMeasurement}
             />
           )}
 
-          {measurements.length === 0 && (
+          {filteredMeasurements.length === 0 && (
             <div className="text-center text-muted-foreground py-8 text-sm">
-              No measurements yet.
-              <br />
-              Use the tools to start measuring.
+              {activeLayer && measurements.length > 0
+                ? `No measurements on "${activeLayer.name}" layer.`
+                : <>No measurements yet.<br />Use the tools to start measuring.</>
+              }
             </div>
           )}
         </div>
       </ScrollArea>
 
       {/* Summary */}
-      {summary && measurements.length > 0 && (
+      {summary && filteredMeasurements.length > 0 && (
         <>
           <Separator />
           <div className="p-4 space-y-3">
@@ -222,6 +283,7 @@ interface LayerGroupProps {
   onSelect: (m: TakeoffMeasurement | null) => void;
   onDelete: (id: number) => void;
   onAssignPricebook: (id: number) => void;
+  onRename: (id: number, name: string) => void;
 }
 
 function LayerGroup({
@@ -233,6 +295,7 @@ function LayerGroup({
   onSelect,
   onDelete,
   onAssignPricebook,
+  onRename,
 }: LayerGroupProps) {
   // Calculate layer totals
   const totals = React.useMemo(() => {
@@ -276,14 +339,15 @@ function LayerGroup({
               onSelect={() => onSelect(m)}
               onDelete={() => onDelete(m.id)}
               onAssignPricebook={() => onAssignPricebook(m.id)}
+              onRename={onRename}
             />
           ))}
 
           {/* Layer totals */}
           <div className="text-xs text-muted-foreground pt-1 flex gap-3">
-            {totals.area > 0 && <span>{totals.area.toFixed(2)} m²</span>}
-            {totals.length > 0 && <span>{totals.length.toFixed(2)} m</span>}
-            {totals.count > 0 && <span>{totals.count} ea</span>}
+            {Number(totals.area) > 0 && <span>{Number(totals.area).toFixed(2)} m²</span>}
+            {Number(totals.length) > 0 && <span>{Number(totals.length).toFixed(2)} m</span>}
+            {Number(totals.count) > 0 && <span>{Number(totals.count)} ea</span>}
           </div>
         </div>
       </CollapsibleContent>
@@ -301,6 +365,7 @@ interface MeasurementItemProps {
   onSelect: () => void;
   onDelete: () => void;
   onAssignPricebook: () => void;
+  onRename: (id: number, name: string) => void;
 }
 
 function MeasurementItem({
@@ -309,8 +374,33 @@ function MeasurementItem({
   onSelect,
   onDelete,
   onAssignPricebook,
+  onRename,
 }: MeasurementItemProps) {
-  const { measurement_type, formatted_net_value, display_label, pricebook_item, is_deduction } = measurement;
+  const { measurement_type, formatted_net_value, display_label, pricebook_item, is_deduction, category } = measurement;
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [nameValue, setNameValue] = React.useState(category || "");
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const typeLabel = measurement_type === "count" ? "Count"
+    : measurement_type === "area" ? "Area"
+    : measurement_type === "length" ? "Lin"
+    : measurement_type === "perimeter" ? "Per"
+    : measurement_type;
+
+  const handleStartEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setNameValue(category || "");
+    setIsEditing(true);
+    setTimeout(() => inputRef.current?.select(), 50);
+  };
+
+  const handleCommit = () => {
+    setIsEditing(false);
+    const trimmed = nameValue.trim();
+    if (trimmed !== (category || "")) {
+      onRename(measurement.id, trimmed);
+    }
+  };
 
   return (
     <div
@@ -321,16 +411,49 @@ function MeasurementItem({
         ${is_deduction ? "opacity-60" : ""}
       `}
     >
-      {/* Type indicator */}
-      <span className="text-xs text-muted-foreground w-8">
-        {measurement_type === "count" && `#${display_label}`}
-        {measurement_type === "area" && "Area"}
-        {measurement_type === "length" && "Lin"}
-        {measurement_type === "perimeter" && "Per"}
+      {/* Type indicator + name */}
+      <span className="text-xs text-muted-foreground shrink-0">
+        {typeLabel}
       </span>
 
+      {/* Editable name */}
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          type="text"
+          value={nameValue}
+          onChange={(e) => setNameValue(e.target.value)}
+          onBlur={handleCommit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleCommit();
+            if (e.key === "Escape") setIsEditing(false);
+            e.stopPropagation();
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className="flex-1 min-w-0 text-xs bg-muted border rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-primary"
+          placeholder="Name..."
+          autoFocus
+        />
+      ) : category ? (
+        <span
+          onDoubleClick={handleStartEdit}
+          className="text-xs text-muted-foreground truncate max-w-[60px] cursor-text"
+          title={`${category} (double-click to edit)`}
+        >
+          {category}
+        </span>
+      ) : (
+        <span
+          onDoubleClick={handleStartEdit}
+          className="text-xs text-muted-foreground/40 cursor-text opacity-0 group-hover:opacity-100"
+          title="Double-click to name"
+        >
+          name
+        </span>
+      )}
+
       {/* Value */}
-      <span className="flex-1 font-medium">
+      <span className="flex-1 font-medium text-right">
         {is_deduction && "−"}{formatted_net_value}
       </span>
 
@@ -349,7 +472,7 @@ function MeasurementItem({
             </Badge>
             {measurement.net_line_total != null && measurement.net_line_total > 0 && (
               <span className="text-xs text-muted-foreground">
-                ${measurement.net_line_total.toFixed(0)}
+                ${Number(measurement.net_line_total).toFixed(0)}
               </span>
             )}
           </button>
@@ -369,15 +492,19 @@ function MeasurementItem({
         )}
       </div>
 
-      {/* Delete button */}
+      {/* Delete button — always visible when selected, hover-only otherwise */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
+        className={cn(
+          "h-6 w-6 text-destructive hover:text-destructive",
+          isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        )}
         onClick={(e) => {
           e.stopPropagation();
           onDelete();
         }}
+        title="Delete (or press Delete key)"
       >
         <Trash2 className="h-3 w-3" />
       </Button>

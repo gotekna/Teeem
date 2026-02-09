@@ -9,7 +9,6 @@ module Api
     # e.g., "Room" template = area (floor) + perimeter (baseboards) + walls
     #
     class TakeoffTemplatesController < ApplicationController
-      before_action :authenticate_user!
       before_action :set_template, only: [:show, :update, :destroy, :duplicate]
 
       # GET /api/v1/pdf_takeoff/templates

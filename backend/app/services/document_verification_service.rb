@@ -348,7 +348,7 @@ class DocumentVerificationService
     # Update document record with AI suggestions
     update_attrs = {
       file_name: analysis[:suggested_name],
-      folder: analysis[:suggested_folder] || @document.folder,
+      folder: analysis[:suggested_folder] || @document.folder_path,
       document_type: analysis[:suggested_type] || @document.document_type,
       ref_date: analysis[:extracted_date].presence || @document.ref_date,
       ai_verification_status: "verified",
@@ -608,7 +608,7 @@ class DocumentVerificationService
         context_parts << "Previous company names: #{@company.previous_names.join(', ')}"
       end
     end
-    context_parts << "Current folder: #{@document.folder}" if @document.folder.present?
+    context_parts << "Current folder: #{@document.folder_path}" if @document.folder_path.present?
     context_parts << "Source: #{@document.source}" if @document.source.present?
 
     document_context = context_parts.join("\n")
@@ -784,9 +784,9 @@ class DocumentVerificationService
   end
 
   def build_document_types_section
-    # Get document types from database (folder is computed from primary BaseFolder)
-    # SSoT (Feb 2026): BIG BANG - use base_folder_document_types, not warehouse_folder
-    doc_types = DocumentType.active.includes(base_folder_document_types: :base_folder).order(:name)
+    # Get document types from database (folder is computed from primary WarehouseFolder)
+    # SSoT (Feb 2026): BIG BANG - use warehouse_folder_document_types, not deprecated aliases
+    doc_types = DocumentType.active.includes(warehouse_folder_document_types: :warehouse_folder).order(:name)
 
     if doc_types.any?
       # Group by computed folder for better organization

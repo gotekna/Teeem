@@ -42,7 +42,7 @@ class CompanyGroup < ApplicationRecord
   has_many :document_types, foreign_key: :company_group_id, dependent: :destroy
   has_many :sm_schedule_master_templates, foreign_key: :company_group_id, dependent: :destroy
   has_many :public_holidays, foreign_key: :company_group_id, dependent: :destroy
-  # SSoT (Feb 2026): warehouse_folders eliminated - use base_folders via Tenant
+  # SSoT (Feb 2026): warehouse_folders are accessed via Tenant
 
   # Business data (tenant-scoped)
   has_many :jobs, foreign_key: :company_group_id, dependent: :destroy

@@ -20,7 +20,7 @@ namespace :recurring do
       exit 0
     end
 
-    config = YAML.load_file(config_path)
+    config = YAML.safe_load_file(config_path, permitted_classes: [Symbol])
     invalid = []
     valid = 0
 

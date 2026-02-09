@@ -838,6 +838,7 @@ Rails.application.routes.draw do
           post :send_to_supplier
           post :mark_received
           get :available_documents
+          get :bills
           post :attach_documents
           get :generate_pdf
           get :schedule_sync_preview
@@ -1569,6 +1570,9 @@ Rails.application.routes.draw do
 
       # Email Job Proposals (AI-powered job creation from emails)
       resources :email_job_proposals, only: [ :index, :show, :create ] do
+        collection do
+          get :pending_count
+        end
         member do
           post :approve
           post :reject
@@ -1580,6 +1584,7 @@ Rails.application.routes.draw do
       resources :email_case_proposals, only: [ :index, :show, :create ] do
         collection do
           get :relationship_types
+          get :pending_count
         end
         member do
           post :approve
@@ -2350,6 +2355,7 @@ Rails.application.routes.draw do
         # Plan operations (for job-linked plans)
         get "plans/:job_plan_id", action: :show
         post "plans/:job_plan_id/calibrate", action: :calibrate
+        delete "plans/:job_plan_id/calibrate", action: :clear_calibration
         post "plans/:job_plan_id/detect_scale", action: :detect_scale
         post "plans/:job_plan_id/detect_elements", action: :detect_elements
         get "plans/:job_plan_id/measurements", action: :measurements
@@ -2358,14 +2364,20 @@ Rails.application.routes.draw do
         # DocSort standalone takeoff (for plans not yet assigned to a job)
         get "docsort/:docsort_item_id", action: :show_docsort
         post "docsort/:docsort_item_id/calibrate", action: :calibrate_docsort
+        delete "docsort/:docsort_item_id/calibrate", action: :clear_calibration_docsort
         post "docsort/:docsort_item_id/detect_scale", action: :detect_scale_docsort
         post "docsort/:docsort_item_id/detect_elements", action: :detect_elements_docsort
         get "docsort/:docsort_item_id/measurements", action: :measurements_docsort
         post "docsort/:docsort_item_id/measurements", action: :create_measurement_docsort
+        get "docsort/:docsort_item_id/layers", action: :layers_docsort
+        post "docsort/:docsort_item_id/layers", action: :create_layer_docsort
 
         # Measurement operations
         patch "measurements/:id", action: :update_measurement
         delete "measurements/:id", action: :delete_measurement
+        post "measurements/:id/count_point", action: :add_count_point
+        patch "measurements/:id/move_point", action: :move_point
+        delete "measurements/:id/remove_point", action: :remove_point
 
         # Generate Purchase Order from measurements
         post "plans/:job_plan_id/generate_po", action: :generate_po
@@ -2375,6 +2387,28 @@ Rails.application.routes.draw do
         post "jobs/:job_id/layers", action: :create_layer
         patch "layers/:id", action: :update_layer
         delete "layers/:id", action: :delete_layer
+      end
+
+      # Room Takeoff Instances (template-based measurement checklists)
+      scope "pdf_takeoff", controller: :takeoff_room_instances do
+        # Room instances scoped to plan or docsort
+        get "plans/:job_plan_id/rooms", action: :index_for_plan
+        post "plans/:job_plan_id/rooms", action: :create_for_plan
+        get "docsort/:docsort_item_id/rooms", action: :index_for_docsort
+        post "docsort/:docsort_item_id/rooms", action: :create_for_docsort
+
+        # Room instance operations
+        get "rooms/:id", action: :show
+        patch "rooms/:id", action: :update
+        delete "rooms/:id", action: :destroy
+
+        # Slot operations
+        post "rooms/:id/slots/:slot_id/fill", action: :fill_slot
+        delete "rooms/:id/slots/:slot_id/fill", action: :clear_slot
+        patch "rooms/:id/slots/:slot_id", action: :update_slot
+
+        # PO generation from room
+        post "rooms/:id/generate_po", action: :generate_po
       end
 
       # Takeoff Templates (measurement patterns)
@@ -3102,21 +3136,16 @@ Rails.application.routes.draw do
         collection do
           get :options  # For select dropdowns
           get :tree     # For File Warehouse page tree view
+          get :tree_children  # Materialized path: lazy-load tree children
+          get :scoped_tree    # Materialized path: sub-tree for Job/Contact/Corporate tabs
         end
         member do
-          patch :update_base_folders  # Batch update base folder assignments
+          patch :update_warehouse_folders  # Batch update warehouse folder assignments
         end
-        resources :base_folders, only: [:index]  # Nested route for type-specific folders
+        resources :warehouse_folders, only: [:index]  # Nested route for type-specific folders
       end
       # Custom route for fetching records by warehouse type code (not id)
       get 'warehouse_types/:code/records', to: 'warehouse_types#records', as: :warehouse_type_records
-
-      # Base Folders (SSoT: Base folder configuration per warehouse type - Feb 2026)
-      resources :base_folders do
-        collection do
-          get :grouped  # Grouped by warehouse type for UI
-        end
-      end
 
       # Warehouse Folders (SSoT: Unified tab configuration)
       # Replaces: legacy tab configuration (Jan 2026)

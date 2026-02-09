@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 class SpecificationTemplate < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+
   belongs_to :job_type, optional: true
 
   validates :name, presence: true

@@ -11,9 +11,8 @@ Sentry.init do |config|
   # Reduced in production for performance
   config.traces_sample_rate = Rails.env.production? ? 0.1 : 1.0
 
-  # Profiling disabled in development to avoid stackprof warnings
-  # Only enable in production where stackprof gem is available
-  config.profiles_sample_rate = Rails.env.production? ? 0.1 : 0.0
+  # Profiling requires stackprof gem - only enable if installed
+  config.profiles_sample_rate = defined?(StackProf) ? 0.1 : 0.0
 
   # Filter out sensitive parameters
   config.send_default_pii = false

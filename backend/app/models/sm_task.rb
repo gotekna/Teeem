@@ -38,6 +38,22 @@ class SmTask < ApplicationRecord
     moved_after_confirm: "moved_after_confirm"
   }, prefix: true, default: nil
 
+  # Warehouse display: "T-123" format for folder paths
+  def warehouse_task_id
+    "T-#{id}"
+  end
+
+  # Warehouse display: human-readable status for folder paths
+  # e.g., "Not Started", "Completed", "Waiting For Response"
+  def status_label
+    status&.titleize || "Unknown"
+  end
+
+  # Warehouse display: "J69 83 West Ridge..." for folder paths
+  def warehouse_job_label
+    job ? "#{job.job_code} #{job.name}" : nil
+  end
+
   # Progress percentage based on status
   def progress_percentage
     case status
@@ -76,7 +92,7 @@ class SmTask < ApplicationRecord
   belongs_to :assigned_user, class_name: "User", optional: true
   belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
-  belongs_to :photo_entity_tab, class_name: "BaseFolder", optional: true
+  belongs_to :photo_entity_tab, class_name: "WarehouseFolder", optional: true
   belongs_to :spawn_scan_task, class_name: "SmScheduleMaster", optional: true
 
   belongs_to :created_by, class_name: "User", optional: true

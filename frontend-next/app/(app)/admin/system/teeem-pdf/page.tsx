@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -73,7 +73,9 @@ interface Job {
 export default function TeeemPdfPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const pdfId = searchParams.get("id");
+  const params = useParams();
+  // Path-based ID (preferred) or query param fallback for backwards compat
+  const pdfId = (params.id as string) || searchParams.get("id");
   const { setMode } = useLayoutMode();
   const { toast } = useToast();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -217,7 +219,7 @@ export default function TeeemPdfPage() {
             setPdfUrl(blankUrl);
             setIsBlankPdf(true);
 
-            router.replace(`/admin/system/teeem-pdf?id=${response.data.id}`);
+            router.replace(`/admin/system/teeem-pdf/${response.data.id}`);
           }
         }
       } catch (error) {

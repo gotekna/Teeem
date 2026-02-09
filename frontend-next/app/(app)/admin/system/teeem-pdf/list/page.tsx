@@ -72,7 +72,7 @@ export default function PdfListPage() {
 
   // Open PDF
   const handleOpen = (id: number) => {
-    router.push(`/admin/system/teeem-pdf?id=${id}`);
+    router.push(`/admin/system/teeem-pdf/${id}`);
   };
 
   // Delete PDF

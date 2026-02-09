@@ -608,6 +608,10 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // SSoT: Task Groups from Foundation SM Task Groups - for grouping PO and non-PO tasks
   const [availableTaskGroups, setAvailableTaskGroups] = React.useState<{ id: number; name: string }[]>([]);
 
+  // FRC (Feb 2026): Edit dialog data loaded lazily on first edit sheet open.
+  // These 5 endpoints took ~19 seconds combined and were only used in EditRowDialog.
+  const editDialogDataLoadedRef = React.useRef(false);
+
   // Load column status from localStorage on mount
   // SSoT: Using storage-utils for localStorage operations
   React.useEffect(() => {
@@ -654,8 +658,11 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // setGanttTemplateId) which update refs synchronously BEFORE state. This prevents race
   // conditions where effects run after async API completes but before commit phase.
 
+  // FRC (Feb 2026): Split loading into essential (page render) and deferred (edit dialog).
+  // Before: 14 loaders on mount = 37 API calls, 19+ seconds of slow endpoints.
+  // After: Essential loaders on mount, slow edit-dialog data loaded on first edit open.
   React.useEffect(() => {
-    console.log("[ScheduleMasterTab] useEffect running, loading all data...");
+    console.log("[ScheduleMasterTab] useEffect running, loading essential data...");
     loadTemplates();
     loadJobEntityTabs();
     loadTags();
@@ -665,14 +672,25 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     loadCostCentres();
     loadHeaderRows();
     loadChecklists();
-    loadDocumentTypes();
-    loadClaimInvoiceTemplates();
-    loadTradingNames();
-    loadWorkflows();
-    loadTaskGroups();
-    console.log("[ScheduleMasterTab] All loaders called");
+    console.log("[ScheduleMasterTab] Essential loaders called");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
+
+  // FRC (Feb 2026): Lazy-load slow edit dialog data on first edit sheet open.
+  // These 5 endpoints (document_types, claim_invoice_templates, trading_names,
+  // bpmn_processes, sm_task_groups) took ~19 seconds combined but are only
+  // needed when user opens the edit dialog.
+  React.useEffect(() => {
+    if (showEditSheet && !editDialogDataLoadedRef.current) {
+      editDialogDataLoadedRef.current = true;
+      loadDocumentTypes();
+      loadClaimInvoiceTemplates();
+      loadTradingNames();
+      loadWorkflows();
+      loadTaskGroups();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showEditSheet]);
 
   // Load job EntityTabs for photo storage dropdown
   const loadJobEntityTabs = async () => {

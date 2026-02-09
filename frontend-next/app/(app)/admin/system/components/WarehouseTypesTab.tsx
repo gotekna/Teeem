@@ -25,16 +25,18 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { getWarehouseScopeForType } from "@/lib/placeholders";
+import { PlaceholderBuilder } from "@/components/ui/placeholders";
 
-type SortField = "code" | "display_name" | "folder_path_template" | "base_folders_count" | "enabled";
+type SortField = "code" | "display_name" | "folder_path_template" | "warehouse_folders_count" | "enabled";
 type SortDirection = "asc" | "desc";
 
 /**
- * WarehouseTypesTab - Manage warehouse types and base folders
+ * WarehouseTypesTab - Manage warehouse types and warehouse folders
  *
  * SSoT: Database-driven warehouse types (Feb 2026)
  * Replaces the hardcoded WAREHOUSE_TYPES constant
@@ -50,16 +52,18 @@ interface WarehouseType {
   is_system: boolean;
   enabled: boolean;
   order_position: number;
-  base_folders_count: number;
-  base_folders: BaseFolder[];
+  warehouse_folders_count: number;
+  warehouse_folders: WarehouseFolderInType[];
   can_delete: boolean;
   created_at: string;
   updated_at: string;
 }
 
-interface BaseFolder {
+interface WarehouseFolderInType {
   id: number;
   name: string;
+  parent_id: number | null;
+  children_count?: number;
   folder_path_template?: string;
   full_path_template?: string;
   path_preview?: string;
@@ -88,10 +92,23 @@ interface FormData {
   order_position: number;
 }
 
-interface BaseFolderToggle {
+interface WarehouseFolderToggle {
   id: number;
   name: string;
-  enabled: boolean; // true = assigned to current warehouse type
+  enabled: boolean; // true = assigned to current warehouse type (including all children)
+  is_system: boolean;
+  warehouse_type_id: number;
+  warehouse_type_name: string;
+  parent_id: number | null;      // null = root folder
+  children_ids: number[];        // All descendant IDs (recursive)
+}
+
+// Flat folder from API (used to build tree view in dialog)
+interface FlatFolder {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  enabled: boolean;
   is_system: boolean;
   warehouse_type_id: number;
   warehouse_type_name: string;
@@ -108,17 +125,20 @@ const defaultFormData: FormData = {
 };
 
 export function WarehouseTypesTab() {
-  // DEBUG VERSION MARKER - v4 with onChange debugging
-  React.useEffect(() => {
-    console.log("🟣🟣🟣 [WarehouseTypesTab] COMPONENT MOUNTED - DEBUG VERSION v4 (onChange debug) 🟣🟣🟣");
-  }, []);
 
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingType, setEditingType] = React.useState<WarehouseType | null>(null);
   const [formData, setFormData] = React.useState<FormData>(defaultFormData);
-  const [baseFolderToggles, setBaseFolderToggles] = React.useState<BaseFolderToggle[]>([]);
-  const [baseFolderSearch, setBaseFolderSearch] = React.useState("");
+  const [warehouseFolderToggles, setWarehouseFolderToggles] = React.useState<WarehouseFolderToggle[]>([]);
+  const [allFolders, setAllFolders] = React.useState<FlatFolder[]>([]);
+  const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = React.useState<Set<number>>(new Set());
+  const [folderTypeFilter, setFolderTypeFilter] = React.useState<string>("all");
+  // Primary tab categories for folder filter
+  // Corporate, Job, Contact are primary; everything else is "System"
+  const PRIMARY_FOLDER_TABS = ["Corporate", "Job", "Contact"] as const;
+  const [warehouseFolderSearch, setWarehouseFolderSearch] = React.useState("");
   const [showAvailableFolders, setShowAvailableFolders] = React.useState(false);
   const [showSystemTypes, setShowSystemTypes] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -156,33 +176,17 @@ export function WarehouseTypesTab() {
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: FormData }) => {
-      console.log("🟢🟢🟢 [WarehouseTypes] updateMutation.mutationFn EXECUTING 🟢🟢🟢");
-      console.log("🟢 API PATCH to:", `/api/v1/warehouse_types/${id}`);
-      console.log("🟢 Payload:", JSON.stringify({ warehouse_type: data }));
-
-      const response = await api.patch<{ success: boolean; data: WarehouseType }>(`/api/v1/warehouse_types/${id}`, {
+      return api.patch<{ success: boolean; data: WarehouseType }>(`/api/v1/warehouse_types/${id}`, {
         warehouse_type: data,
       });
-
-      console.log("🟢🟢🟢 [WarehouseTypes] updateMutation API RESPONSE 🟢🟢🟢");
-      console.log("🟢 Response:", JSON.stringify(response));
-      return response;
     },
-    onMutate: (variables) => {
-      console.log("🟡🟡🟡 [WarehouseTypes] updateMutation.onMutate 🟡🟡🟡", variables);
-    },
-    onSuccess: (data) => {
-      console.log("🟢🟢🟢 [WarehouseTypes] updateMutation.onSuccess 🟢🟢🟢", data);
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["warehouse-types"] });
       toast.success("Warehouse type updated successfully");
       closeDialog();
     },
     onError: (error: Error) => {
-      console.error("🔴🔴🔴 [WarehouseTypes] updateMutation.onError 🔴🔴🔴", error);
       toast.error(`Failed to update: ${error.message}`);
-    },
-    onSettled: (data, error) => {
-      console.log("⚪⚪⚪ [WarehouseTypes] updateMutation.onSettled ⚪⚪⚪", { data, error });
     },
   });
 
@@ -200,11 +204,11 @@ export function WarehouseTypesTab() {
     },
   });
 
-  // Update base folder (reassign to different warehouse type)
-  const updateBaseFolderMutation = useMutation({
+  // Update warehouse folder (reassign to different warehouse type)
+  const updateWarehouseFolderMutation = useMutation({
     mutationFn: async ({ id, warehouse_type_id }: { id: number; warehouse_type_id: number }) => {
-      return api.patch<{ success: boolean }>(`/api/v1/base_folders/${id}`, {
-        base_folder: { warehouse_type_id },
+      return api.patch<{ success: boolean }>(`/api/v1/warehouse_folders/${id}`, {
+        warehouse_folder: { warehouse_type_id },
       });
     },
   });
@@ -212,54 +216,72 @@ export function WarehouseTypesTab() {
   const openCreateDialog = () => {
     setEditingType(null);
     setFormData(defaultFormData);
-    setBaseFolderToggles([]);
+    setWarehouseFolderToggles([]);
     setIsDialogOpen(true);
   };
 
   const openEditDialog = async (type: WarehouseType) => {
     setEditingType(type);
 
-    // Strip the display_name prefix from folder_path_template for editing
-    let pathWithoutPrefix = type.folder_path_template || "";
-    const prefix = `${type.display_name}/`;
-    if (pathWithoutPrefix.startsWith(prefix)) {
-      pathWithoutPrefix = pathWithoutPrefix.slice(prefix.length);
-    } else if (pathWithoutPrefix === type.display_name) {
-      pathWithoutPrefix = "";
-    }
-
     setFormData({
       code: type.code,
       display_name: type.display_name,
       description: type.description || "",
       icon_name: type.icon_name || "",
-      folder_path_template: pathWithoutPrefix,
+      folder_path_template: type.folder_path_template || "",
       enabled: type.enabled,
       order_position: type.order_position,
     });
 
-    // Fetch ALL base folders (not filtered by type) so user can reassign them
+    // Fetch ALL warehouse folders (not filtered by type) so user can reassign them
+    // Build tree structure to show only root folders with inheritance
     try {
-      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; enabled: boolean; is_system: boolean; warehouse_type_id: number; warehouse_type_name: string }> }>(
-        `/api/v1/base_folders?include_disabled=true`
+      const response = await api.get<{ success: boolean; data: { tabs: Array<{ id: number; name: string; parent_id: number | null; enabled: boolean; is_system: boolean; warehouse_type_id: number; warehouse_type_name: string }> } }>(
+        `/api/v1/warehouse_folders?include_disabled=true`
       );
-      if (response?.data) {
-        setBaseFolderToggles(
-          response.data.map((bf) => ({
-            id: bf.id,
-            name: bf.name,
-            enabled: bf.warehouse_type_id === type.id, // Checked if belongs to this type
-            is_system: bf.is_system,
-            warehouse_type_id: bf.warehouse_type_id,
-            warehouse_type_name: bf.warehouse_type_name,
-          }))
+      const folders: FlatFolder[] = response?.data?.tabs || [];
+      if (folders.length > 0) {
+        // Store all folders for tree rendering
+        setAllFolders(folders);
+
+        // Build a map for quick lookups
+        const folderMap = new Map(folders.map(bf => [bf.id, bf]));
+
+        // Recursive function to get all descendant IDs
+        const getDescendantIds = (folderId: number): number[] => {
+          const children = folders.filter(bf => bf.parent_id === folderId);
+          return children.flatMap(c => [c.id, ...getDescendantIds(c.id)]);
+        };
+
+        // Only include root folders (parent_id is null) in toggles
+        const rootFolders = folders.filter(bf => bf.parent_id === null);
+        setWarehouseFolderToggles(
+          rootFolders.map((bf) => {
+            const childIds = getDescendantIds(bf.id);
+            const allIds = [bf.id, ...childIds];
+            // Folder is "enabled" if it AND all children belong to this warehouse type
+            const allAssigned = allIds.every(id =>
+              folderMap.get(id)?.warehouse_type_id === type.id
+            );
+            return {
+              id: bf.id,
+              name: bf.name,
+              enabled: allAssigned,
+              is_system: bf.is_system,
+              warehouse_type_id: bf.warehouse_type_id,
+              warehouse_type_name: bf.warehouse_type_name,
+              parent_id: bf.parent_id,
+              children_ids: childIds,
+            };
+          })
         );
       }
     } catch (err) {
-      console.error("Failed to fetch base folders:", err);
-      setBaseFolderToggles([]);
+      console.error("Failed to fetch warehouse folders:", err);
+      setWarehouseFolderToggles([]);
     }
 
+    setExpandedGroups(new Set([type.display_name]));
     setIsDialogOpen(true);
   };
 
@@ -267,81 +289,100 @@ export function WarehouseTypesTab() {
     setIsDialogOpen(false);
     setEditingType(null);
     setFormData(defaultFormData);
-    setBaseFolderToggles([]);
-    setBaseFolderSearch("");
+    setWarehouseFolderToggles([]);
+    setAllFolders([]);
+    setExpandedGroups(new Set());
+    setExpandedFolders(new Set());
+    setFolderTypeFilter("all");
+    setWarehouseFolderSearch("");
     setShowAvailableFolders(false);
   };
 
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
-    // PRODUCTION DEBUG: Very visible trace
-    console.log("🔴🔴🔴 [WarehouseTypes] handleSubmit ENTRY POINT 🔴🔴🔴");
-    console.log("🔴 Event:", e?.type, e?.target);
+    if (e) e.preventDefault();
 
-    if (e) {
-      e.preventDefault();
-      console.log("🔴 preventDefault called");
-    }
+    const dataToSave = { ...formData };
 
-    // Build full path with display_name prefix
-    const dataToSave = {
-      ...formData,
-      folder_path_template: formData.folder_path_template
-        ? `${formData.display_name}/${formData.folder_path_template}`
-        : formData.display_name || "",
-    };
-
-    console.log("🔴 [WarehouseTypes] handleSubmit called", { editingType: editingType?.id, dataToSave });
-    console.log("🔴 formData:", JSON.stringify(formData));
-    console.log("🔴 editingType:", editingType ? JSON.stringify({ id: editingType.id, code: editingType.code }) : "null");
-
-    // Update base folder assignments using the dedicated endpoint
+    // Update warehouse folder assignments using the dedicated endpoint
     // This handles BOTH adding AND removing folders from this warehouse type
-    if (editingType && baseFolderToggles.length > 0) {
-      const selectedFolderIds = baseFolderToggles
-        .filter(bf => bf.enabled)
-        .map(bf => bf.id);
-
-      console.log("🟣 [WarehouseTypes] Updating base folder assignments");
-      console.log("🟣 Selected folder IDs:", selectedFolderIds);
+    // When a root folder is selected, include ALL its children (inheritance)
+    // Skip for corporate/job/contact types - those are managed via their own config pages
+    // Only manages unassigned + own-type folders to avoid touching other types' assignments
+    if (editingType && !["corporate", "job", "contact"].includes(editingType.code) && warehouseFolderToggles.length > 0) {
+      const selectedFolderIds = warehouseFolderToggles
+        .filter(bf => bf.enabled && (bf.warehouse_type_name === "Unassigned" || bf.warehouse_type_id === editingType.id))
+        .flatMap(bf => [bf.id, ...bf.children_ids]);  // Include children
 
       try {
-        await api.patch(`/api/v1/warehouse_types/${editingType.id}/update_base_folders`, {
-          base_folder_ids: selectedFolderIds,
+        await api.patch(`/api/v1/warehouse_types/${editingType.id}/update_warehouse_folders`, {
+          warehouse_folder_ids: selectedFolderIds,
         });
-        console.log("🟣 Base folder assignments updated successfully");
-      } catch (err) {
-        console.error("Failed to update base folder assignments:", err);
-        toast.error("Failed to update base folder assignments");
+      } catch (err: any) {
+        console.error("Failed to update warehouse folder assignments:", err);
+        toast.error(`Failed to update folder assignments: ${err?.message || "Unknown error"}`);
+        return; // Don't continue if warehouse folder update fails
       }
     }
 
     if (editingType) {
-      console.log("🔴🔴🔴 [WarehouseTypes] About to call updateMutation.mutate for id:", editingType.id);
-      console.log("🔴 Payload:", JSON.stringify({ id: editingType.id, data: dataToSave }));
-      try {
-        updateMutation.mutate({ id: editingType.id, data: dataToSave });
-        console.log("🔴 updateMutation.mutate() was called successfully (async)");
-      } catch (err) {
-        console.error("🔴 updateMutation.mutate() threw:", err);
-      }
+      updateMutation.mutate({ id: editingType.id, data: dataToSave });
     } else {
-      console.log("🔴🔴🔴 [WarehouseTypes] About to call createMutation.mutate");
-      try {
-        createMutation.mutate(dataToSave);
-        console.log("🔴 createMutation.mutate() was called successfully (async)");
-      } catch (err) {
-        console.error("🔴 createMutation.mutate() threw:", err);
-      }
+      createMutation.mutate(dataToSave);
     }
   };
 
-  const toggleBaseFolder = (folderId: number) => {
-    setBaseFolderToggles((prev) =>
+  const toggleWarehouseFolder = (folderId: number) => {
+    setWarehouseFolderToggles((prev) =>
       prev.map((bf) =>
         bf.id === folderId ? { ...bf, enabled: !bf.enabled } : bf
       )
     );
   };
+
+  const toggleGroupExpanded = (groupName: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupName)) {
+        next.delete(groupName);
+      } else {
+        next.add(groupName);
+      }
+      return next;
+    });
+  };
+
+  const toggleFolderExpanded = (folderId: number) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  };
+
+  // Get direct children of a root folder from allFolders
+  const getDirectChildren = (rootId: number): FlatFolder[] => {
+    return allFolders.filter(f => f.parent_id === rootId);
+  };
+
+  // Map a warehouse_type_name to a primary tab category
+  const getFolderCategory = React.useCallback((warehouseTypeName: string): string => {
+    if (PRIMARY_FOLDER_TABS.includes(warehouseTypeName as any)) return warehouseTypeName;
+    return "System";
+  }, []);
+
+  // Count folders per primary category (root + children)
+  const folderCategoryCounts = React.useMemo(() => {
+    const counts: Record<string, number> = { Corporate: 0, Job: 0, Contact: 0, System: 0 };
+    for (const toggle of warehouseFolderToggles) {
+      const cat = getFolderCategory(toggle.warehouse_type_name || "Unassigned");
+      counts[cat] = (counts[cat] || 0) + 1 + toggle.children_ids.length;
+    }
+    return counts;
+  }, [warehouseFolderToggles, getFolderCategory]);
 
   const handleDelete = (type: WarehouseType) => {
     if (!type.can_delete) {
@@ -385,7 +426,7 @@ export function WarehouseTypesTab() {
           type.code.toLowerCase().includes(query) ||
           type.display_name.toLowerCase().includes(query) ||
           type.description?.toLowerCase().includes(query) ||
-          type.base_folders.some((bf) => bf.name.toLowerCase().includes(query))
+          type.warehouse_folders.some((bf) => bf.name.toLowerCase().includes(query))
       );
     }
 
@@ -402,8 +443,8 @@ export function WarehouseTypesTab() {
         case "folder_path_template":
           comparison = (a.folder_path_template || "").localeCompare(b.folder_path_template || "");
           break;
-        case "base_folders_count":
-          comparison = a.base_folders.length - b.base_folders.length;
+        case "warehouse_folders_count":
+          comparison = a.warehouse_folders.length - b.warehouse_folders.length;
           break;
         case "enabled":
           comparison = (a.enabled === b.enabled) ? 0 : a.enabled ? -1 : 1;
@@ -478,8 +519,8 @@ export function WarehouseTypesTab() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="border rounded-lg">
+      {/* Table - with explicit row borders */}
+      <div className="border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -512,11 +553,11 @@ export function WarehouseTypesTab() {
               </TableHead>
               <TableHead
                 className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort("base_folders_count")}
+                onClick={() => handleSort("warehouse_folders_count")}
               >
                 <div className="flex items-center">
-                  Base Folders
-                  {getSortIcon("base_folders_count")}
+                  Warehouse Folders
+                  {getSortIcon("warehouse_folders_count")}
                 </div>
               </TableHead>
               <TableHead
@@ -533,14 +574,14 @@ export function WarehouseTypesTab() {
           </TableHeader>
           <TableBody>
             {warehouseTypes.map((type) => (
-              <TableRow key={type.id}>
-                <TableCell className="font-mono text-sm">
+              <TableRow key={type.id} className="[&_td]:border-b [&_td]:border-border">
+                <TableCell className="font-mono text-sm align-top py-2">
                   {type.code}
                   {type.is_system && (
                     <Lock className="h-3 w-3 inline ml-1 text-muted-foreground" />
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="align-top py-2">
                   <div className="flex flex-col">
                     <span>{type.display_name}</span>
                     {type.description && (
@@ -550,33 +591,80 @@ export function WarehouseTypesTab() {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
+                <TableCell className="font-mono text-xs text-muted-foreground align-top py-2">
                   {type.folder_path_template || "-"}
                 </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {type.base_folders.length > 0 ? (
-                      type.base_folders.map((bf) => (
-                        <Badge
-                          key={bf.id}
-                          variant="secondary"
-                          className="text-xs font-normal"
-                        >
-                          <Folder className="h-3 w-3 mr-1" />
-                          {bf.name}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground text-xs">-</span>
-                    )}
-                  </div>
+                <TableCell className="align-top py-2">
+                  {(() => {
+                    const folders = type.warehouse_folders;
+                    if (folders.length === 0) return <span className="text-muted-foreground text-xs">-</span>;
+                    const roots = folders.filter(f => !f.parent_id);
+                    const getChildren = (parentId: number) => folders.filter(f => f.parent_id === parentId);
+                    const nonRoots = folders.length - roots.length;
+                    return (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary" className="text-xs">{folders.length}</Badge>
+                          <span className="text-[10px] text-muted-foreground">
+                            {roots.length} root{nonRoots > 0 && ` + ${nonRoots} sub`}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {roots.map((bf) => {
+                            const kids = getChildren(bf.id);
+                            return (
+                              <React.Fragment key={bf.id}>
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] font-normal py-0 bg-muted"
+                                >
+                                  <Folder className="h-2.5 w-2.5 mr-0.5" />
+                                  {bf.name}
+                                  {kids.length > 0 && (
+                                    <span className="text-muted-foreground ml-0.5">({kids.length})</span>
+                                  )}
+                                </Badge>
+                                {kids.map((child) => {
+                                  const grandkids = getChildren(child.id);
+                                  return (
+                                    <React.Fragment key={child.id}>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] font-normal py-0 bg-muted/30"
+                                      >
+                                        <span className="text-muted-foreground mr-0.5">└</span>
+                                        {child.name}
+                                        {grandkids.length > 0 && (
+                                          <span className="text-muted-foreground ml-0.5">({grandkids.length})</span>
+                                        )}
+                                      </Badge>
+                                      {grandkids.map((gk) => (
+                                        <Badge
+                                          key={gk.id}
+                                          variant="outline"
+                                          className="text-[10px] font-normal py-0 text-muted-foreground"
+                                        >
+                                          <span className="mr-0.5">└└</span>
+                                          {gk.name}
+                                        </Badge>
+                                      ))}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </TableCell>
-                <TableCell>
+                <TableCell className="align-top py-2">
                   <Badge variant={type.enabled ? "default" : "outline"}>
                     {type.enabled ? "Yes" : "No"}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right align-top py-2">
                   <div className="flex justify-end gap-1">
                     <Button
                       variant="ghost"
@@ -687,129 +775,220 @@ export function WarehouseTypesTab() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="folder_path_template">Folder Path Template</Label>
-                <div className="flex items-center gap-0">
-                  {/* Fixed prefix showing warehouse type name */}
-                  <div className="px-3 py-2 text-sm font-mono bg-muted border border-r-0 rounded-l-md text-muted-foreground">
-                    {formData.display_name || "TypeName"}/
-                  </div>
-                  <Input
-                    id="folder_path_template"
-                    value={formData.folder_path_template}
-                    onChange={(e) => {
-                      console.log("🔶🔶🔶 [folder_path_template] onChange fired!", {
-                        newValue: e.target.value,
-                        oldValue: formData.folder_path_template,
-                      });
-                      setFormData(prev => {
-                        console.log("🔶 setFormData prev.folder_path_template:", prev.folder_path_template);
-                        return { ...prev, folder_path_template: e.target.value };
-                      });
-                    }}
-                    placeholder="{{TaskId}}/{{TaskName}}"
-                    className="font-mono text-sm rounded-l-none"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Full path: <code className="bg-muted px-1 rounded">{formData.display_name || "TypeName"}/{formData.folder_path_template || "..."}</code>
-                </p>
-                <div className="text-xs text-muted-foreground">
-                  <span className="mr-1">Tokens:</span>
-                  {[
-                    { token: "{{JobCode}}", label: "JobCode" },
-                    { token: "{{JobName}}", label: "JobName" },
-                    { token: "{{ContactName}}", label: "ContactName" },
-                    { token: "{{CompanyCode}}", label: "CompanyCode" },
-                    { token: "{{CompanyGroup}}", label: "CompanyGroup" },
-                    { token: "{{UserName}}", label: "UserName" },
-                    { token: "{{TaskId}}", label: "TaskId" },
-                    { token: "{{TaskName}}", label: "TaskName" },
-                    { token: "{{CaseId}}", label: "CaseId" },
-                    { token: "{{CaseName}}", label: "CaseName" },
-                    { token: "{{AssetCode}}", label: "AssetCode" },
-                    { token: "{{Mailbox}}", label: "Mailbox" },
-                    { token: "{{Year}}", label: "Year" },
-                    { token: "{{Month}}", label: "Month" },
-                  ].map(({ token, label }) => (
-                    <button
-                      key={token}
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => {
-                          const current = prev.folder_path_template;
-                          let newPath: string;
-                          if (!current) {
-                            newPath = token;
-                          } else if (current.endsWith("/")) {
-                            newPath = current + token;
-                          } else {
-                            newPath = current + "/" + token;
-                          }
-                          return { ...prev, folder_path_template: newPath };
-                        });
-                      }}
-                      className="px-1.5 py-0.5 text-[10px] font-mono bg-muted hover:bg-muted/80 rounded border cursor-pointer transition-colors mr-1 mb-1"
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* Folder Path Template - SSoT: Uses PlaceholderBuilder (THE ONE component) */}
+              <PlaceholderBuilder
+                label="Folder Path Template"
+                value={formData.folder_path_template}
+                onChange={(value) => setFormData(prev => ({ ...prev, folder_path_template: value }))}
+                scope={getWarehouseScopeForType(formData.code)}
+                separator="/"
+                showPreview
+              />
 
-              {/* Base Folders - only show when editing */}
-              {editingType && baseFolderToggles.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Base Folders</Label>
-                    <span className="text-xs text-muted-foreground">
-                      {baseFolderToggles.filter(bf => bf.enabled).length} assigned
-                    </span>
+              {/* Warehouse Folders - Tree View (only show when editing, hidden for corporate/job/contact - managed via their own config pages) */}
+              {editingType && !["corporate", "job", "contact"].includes(editingType.code) && warehouseFolderToggles.length > 0 && (() => {
+                const searchTerm = warehouseFolderSearch.toLowerCase().trim();
+                // Only show folders that are unassigned OR already belong to this type
+                const availableToggles = warehouseFolderToggles.filter(
+                  t => t.warehouse_type_name === "Unassigned" || t.warehouse_type_id === editingType.id
+                );
+
+                // Check if a root folder matches search filter
+                // Also matches if any child folder name matches the search
+                const rootMatchesFilter = (toggle: WarehouseFolderToggle): boolean => {
+                  // Search - match root name OR any child name
+                  if (searchTerm) {
+                    if (toggle.name.toLowerCase().includes(searchTerm)) return true;
+                    const children = getDirectChildren(toggle.id);
+                    return children.some(c => c.name.toLowerCase().includes(searchTerm));
+                  }
+                  return true;
+                };
+
+                const filteredToggles = availableToggles
+                  .filter(rootMatchesFilter)
+                  .sort((a, b) => {
+                    if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+                    return a.name.localeCompare(b.name);
+                  });
+
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Warehouse Folders</Label>
+                      <span className="text-xs text-muted-foreground">
+                        {availableToggles
+                          .filter(bf => bf.enabled)
+                          .reduce((sum, bf) => sum + 1 + bf.children_ids.length, 0)} folders assigned
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground -mt-1">
+                      Selecting a root folder includes all its subfolders
+                    </p>
+
+                    {/* Search */}
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search folders..."
+                        value={warehouseFolderSearch}
+                        onChange={(e) => setWarehouseFolderSearch(e.target.value)}
+                        className="pl-8 h-9"
+                      />
+                    </div>
+
+                    {/* Tree view - grouped by warehouse type */}
+                    <div className="border rounded-md max-h-[300px] overflow-y-auto">
+                      {(() => {
+                        // Group filtered folders by their warehouse type
+                        const groups = new Map<string, WarehouseFolderToggle[]>();
+                        for (const toggle of filteredToggles) {
+                          const typeName = toggle.warehouse_type_name || "Unassigned";
+                          if (!groups.has(typeName)) groups.set(typeName, []);
+                          groups.get(typeName)!.push(toggle);
+                        }
+
+                        // Sort groups: editing type first, then alphabetically
+                        const sortedGroups = [...groups.entries()].sort(([a], [b]) => {
+                          if (a === editingType?.display_name) return -1;
+                          if (b === editingType?.display_name) return 1;
+                          return a.localeCompare(b);
+                        });
+
+                        if (sortedGroups.length === 0) {
+                          return (
+                            <div className="p-3 text-center text-xs text-muted-foreground">
+                              No folders match your filter
+                            </div>
+                          );
+                        }
+
+                        return sortedGroups.map(([typeName, folders]) => {
+                          const isExpanded = expandedGroups.has(typeName) || !!searchTerm;
+                          const isEditingTypeGroup = typeName === editingType?.display_name;
+                          const assignedCount = folders.filter(f => f.enabled).length;
+                          const sortedFolders = [...folders].sort((a, b) => a.name.localeCompare(b.name));
+
+                          return (
+                            <div key={typeName}>
+                              {/* Group header - warehouse type name */}
+                              <button
+                                type="button"
+                                onClick={() => toggleGroupExpanded(typeName)}
+                                className={cn(
+                                  "flex items-center gap-1.5 w-full px-2 py-1.5 text-left hover:bg-muted/50 border-b border-border/50",
+                                  isEditingTypeGroup && "bg-primary/5"
+                                )}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                ) : (
+                                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                )}
+                                <span className={cn(
+                                  "text-xs font-semibold uppercase tracking-wide",
+                                  isEditingTypeGroup && "text-primary"
+                                )}>
+                                  {typeName}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground ml-auto">
+                                  {assignedCount > 0 ? `${assignedCount}/${folders.length}` : `${folders.length}`}
+                                </span>
+                              </button>
+
+                              {/* Folder rows under this type */}
+                              {isExpanded && sortedFolders.map((bf, idx) => {
+                                const isLastRoot = idx === sortedFolders.length - 1;
+                                const children = getDirectChildren(bf.id);
+                                const hasChildren = children.length > 0;
+                                const isFolderExpanded = expandedFolders.has(bf.id) || !!searchTerm;
+                                const sortedChildren = [...children].sort((a, b) => a.name.localeCompare(b.name));
+
+                                return (
+                                  <React.Fragment key={bf.id}>
+                                    <div
+                                      className={cn(
+                                        "flex items-center gap-1.5 pl-5 pr-2 py-1 hover:bg-muted/50",
+                                        !(isLastRoot && !isFolderExpanded) && "border-b border-border/30",
+                                        !bf.enabled && "opacity-60"
+                                      )}
+                                    >
+                                      <span className="text-border text-xs font-mono shrink-0 w-4 text-center select-none">
+                                        {isLastRoot ? "└" : "├"}
+                                      </span>
+                                      {hasChildren ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleFolderExpanded(bf.id)}
+                                          className="shrink-0 p-0 h-4 w-4 flex items-center justify-center hover:bg-muted rounded"
+                                        >
+                                          {isFolderExpanded
+                                            ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                            : <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                          }
+                                        </button>
+                                      ) : (
+                                        <span className="shrink-0 w-4" />
+                                      )}
+                                      <Checkbox
+                                        id={`bf-${bf.id}`}
+                                        checked={bf.enabled}
+                                        onCheckedChange={() => toggleWarehouseFolder(bf.id)}
+                                      />
+                                      <label
+                                        htmlFor={`bf-${bf.id}`}
+                                        className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
+                                      >
+                                        <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                        <span className={cn(
+                                          "truncate",
+                                          searchTerm && bf.name.toLowerCase().includes(searchTerm) && "font-medium text-foreground"
+                                        )}>
+                                          {bf.name}
+                                        </span>
+                                        {hasChildren && (
+                                          <span className="text-[10px] text-muted-foreground ml-1">
+                                            ({children.length})
+                                          </span>
+                                        )}
+                                      </label>
+                                    </div>
+                                    {/* Child folders (sub-tabs) - no checkboxes, inherit from parent */}
+                                    {hasChildren && isFolderExpanded && sortedChildren.map((child, cIdx) => {
+                                      const isLastChild = cIdx === sortedChildren.length - 1;
+                                      return (
+                                        <div
+                                          key={child.id}
+                                          className={cn(
+                                            "flex items-center gap-1.5 pl-14 pr-2 py-0.5 hover:bg-muted/30",
+                                            !(isLastRoot && isLastChild) && "border-b border-border/20",
+                                            !bf.enabled && "opacity-50"
+                                          )}
+                                        >
+                                          <span className="text-border/60 text-xs font-mono shrink-0 w-4 text-center select-none">
+                                            {isLastChild ? "└" : "├"}
+                                          </span>
+                                          <Folder className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                                          <span className={cn(
+                                            "text-xs text-muted-foreground truncate",
+                                            searchTerm && child.name.toLowerCase().includes(searchTerm) && "font-medium text-foreground"
+                                          )}>
+                                            {child.name}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </React.Fragment>
+                                );
+                              })}
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
                   </div>
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search folders..."
-                      value={baseFolderSearch}
-                      onChange={(e) => setBaseFolderSearch(e.target.value)}
-                      className="pl-8 h-9"
-                    />
-                  </div>
-                  <div className="border rounded-md p-2 max-h-[140px] overflow-y-auto">
-                    {baseFolderToggles
-                      .filter((bf) =>
-                        baseFolderSearch.trim() === "" ||
-                        bf.name.toLowerCase().includes(baseFolderSearch.toLowerCase())
-                      )
-                      .sort((a, b) => {
-                        if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
-                        return a.name.localeCompare(b.name);
-                      })
-                      .map((bf) => (
-                        <div
-                          key={bf.id}
-                          className={cn(
-                            "flex items-center gap-2 hover:bg-muted/50 p-1 rounded",
-                            !bf.enabled && "opacity-50"
-                          )}
-                        >
-                          <Checkbox
-                            id={`bf-${bf.id}`}
-                            checked={bf.enabled}
-                            onCheckedChange={() => toggleBaseFolder(bf.id)}
-                          />
-                          <label
-                            htmlFor={`bf-${bf.id}`}
-                            className="flex items-center gap-1 text-sm cursor-pointer flex-1 min-w-0"
-                          >
-                            <Folder className="h-3 w-3 text-muted-foreground shrink-0" />
-                            <span className="truncate">{bf.name}</span>
-                          </label>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
             </div>
 
@@ -820,12 +999,7 @@ export function WarehouseTypesTab() {
               <Button
                 type="button"
                 disabled={createMutation.isPending || updateMutation.isPending}
-                onClick={(e) => {
-                  console.log("🔵🔵🔵 [WarehouseTypes] UPDATE BUTTON CLICKED 🔵🔵🔵");
-                  console.log("🔵 Button event:", e.type);
-                  console.log("🔵 isPending:", createMutation.isPending, updateMutation.isPending);
-                  handleSubmit(e);
-                }}
+                onClick={(e) => handleSubmit(e)}
               >
                 {createMutation.isPending || updateMutation.isPending
                   ? "Saving..."

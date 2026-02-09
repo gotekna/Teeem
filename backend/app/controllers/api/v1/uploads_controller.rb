@@ -21,7 +21,6 @@ module Api
     #   - chat: Chat message attachments
     #
     class UploadsController < ApplicationController
-      before_action :authenticate_user!
 
       # POST /api/v1/uploads/presign
       # Get a presigned URL for direct S3 upload
@@ -199,7 +198,6 @@ module Api
           source_type: "corporate",
           ui_name: filename,
           original_filename: filename,
-          folder: metadata[:folder] || metadata["folder"],
           content_type: content_type,
           file_size: file_size,
           storage_blob: blob,
@@ -244,7 +242,6 @@ module Api
           source_type: "job",
           ui_name: filename,
           original_filename: filename,
-          folder: metadata[:folder_path] || metadata["folder_path"] || "Uploads",
           content_type: content_type,
           file_size: file_size,
           storage_blob: blob,

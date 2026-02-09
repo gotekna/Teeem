@@ -312,10 +312,10 @@ module Api
           if params[:include_descendants] == 'true'
             # Cascade view: include this folder AND all subfolders
             folder_path = params[:folder]
-            docs = docs.where("folder = ? OR folder LIKE ?", folder_path, "#{folder_path}/%")
+            docs = docs.where("folder_path = ? OR folder_path LIKE ?", folder_path, "#{folder_path}/%")
           else
             # Exact folder match only
-            docs = docs.where(folder: params[:folder])
+            docs = docs.where(folder_path: params[:folder])
           end
         end
 
@@ -327,7 +327,7 @@ module Api
             id: doc.id,
             name: doc.storage_blob&.original_filename || doc.ui_name,
             displayName: doc.ui_name,
-            folder: doc.folder,
+            folder: doc.folder_path,
             fileSize: doc.storage_blob&.file_size,
             contentType: doc.storage_blob&.content_type,
             source: doc.source_type,

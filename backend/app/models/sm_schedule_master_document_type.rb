@@ -1,10 +1,14 @@
 # Join model linking SmScheduleMaster to DocumentType for GET task spawning
 # When a task completes, spawns "GET - {DocumentType.display_name}" tasks
 class SmScheduleMasterDocumentType < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = [:sm_schedule_master_id, :document_type_id]
+
   belongs_to :sm_schedule_master
   belongs_to :document_type
 
-  validates :sm_schedule_master_id, uniqueness: { scope: :document_type_id }
+  validates :sm_schedule_master_id, uniqueness: { scope: [:tenant_id, :document_type_id] }
   validates :lag_days, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
 
   # Only job-scoped document types are valid for schedule master tasks

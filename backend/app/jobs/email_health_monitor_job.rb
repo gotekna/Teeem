@@ -37,6 +37,11 @@ class EmailHealthMonitorJob < ApplicationJob
       healed = 0
       orphans_cleaned = 0
 
+      # FIX CONTRADICTIONS - detect credentials with status=connected but refresh_token_dead=true
+      # FRC (Feb 2026): This contradiction silently broke email sync for 5 days.
+      # Root cause: fetch_app_token! set status="connected" without clearing refresh_token_dead.
+      contradictions_fixed = fix_status_contradictions
+
       # CLEAN UP ORPHANED JOBS FIRST - these block self-healing!
       orphans_cleaned = cleanup_orphaned_jobs
 
@@ -49,10 +54,11 @@ class EmailHealthMonitorJob < ApplicationJob
       issues_found += attempt_auto_recovery
 
       # Log summary
-      Rails.logger.info "[EmailHealthMonitor] Complete. Orphans cleaned: #{orphans_cleaned}, " \
-                        "Self-healed: #{healed}, Issues: #{issues_found}"
+      Rails.logger.info "[EmailHealthMonitor] Complete. Contradictions fixed: #{contradictions_fixed}, " \
+                        "Orphans cleaned: #{orphans_cleaned}, Self-healed: #{healed}, Issues: #{issues_found}"
 
       {
+        contradictions_fixed: contradictions_fixed,
         orphans_cleaned: orphans_cleaned,
         healed: healed,
         issues_found: issues_found,
@@ -67,6 +73,40 @@ class EmailHealthMonitorJob < ApplicationJob
   end
 
   private
+
+  # FRC (Feb 2026): Detect and fix status contradictions
+  # Root cause: fetch_app_token! was setting status="connected" without clearing refresh_token_dead.
+  # This caused MicrosoftAppGraphClient to raise DeadTokenError while UI showed "Connected".
+  # For app credentials, refresh_token_dead is meaningless (they use client_credentials grant),
+  # so we can safely reset it. For delegated credentials, mark as dead so UI shows the error.
+  def fix_status_contradictions
+    fixed = 0
+
+    MicrosoftCredential.active.where(refresh_token_dead: true).where.not(status: "dead").find_each do |credential|
+      if credential.app_credential?
+        # App credentials don't use refresh tokens - refresh_token_dead is a false alarm
+        # Try to fetch a fresh token to verify the credential actually works
+        if credential.fetch_app_token!
+          Rails.logger.info "[EmailHealthMonitor] Fixed contradiction for app credential #{credential.name}: " \
+                            "cleared refresh_token_dead (status was #{credential.status})"
+          fixed += 1
+        else
+          # Token fetch failed - mark as dead properly
+          credential.mark_dead!("Health monitor: app token fetch failed")
+          Rails.logger.warn "[EmailHealthMonitor] App credential #{credential.name} truly dead - marked status as dead"
+          fixed += 1
+        end
+      else
+        # Delegated credentials with refresh_token_dead=true should have status=dead
+        credential.mark_dead!("Health monitor: refresh_token_dead but status was #{credential.status}")
+        Rails.logger.warn "[EmailHealthMonitor] Fixed contradiction for delegated credential #{credential.name}: " \
+                          "marked as dead (was #{credential.status})"
+        fixed += 1
+      end
+    end
+
+    fixed
+  end
 
   # Clean up orphaned email sync jobs that are stuck in pending
   def cleanup_orphaned_jobs

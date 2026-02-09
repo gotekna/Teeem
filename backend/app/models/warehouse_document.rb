@@ -8,11 +8,11 @@
 #   WarehouseDocument (THE ONE table for 5000 clients)
 #   ├── documentable (polymorphic link to source record - optional for new docs)
 #   ├── storage_blob (deduplicated file content)
-#   ├── folder (virtual path - instant reorganization)
+#   ├── folder_path (materialized path - instant reorganization)
 #   ├── metadata (JSONB - flexible type-specific fields)
 #   ├── parent_document (attachment→email, version→original)
 #   ├── linkable (optional link to Job/Contact/etc for filtering)
-#   ├── base_folder_document_type (FK to template config - Feb 2026)
+#   ├── warehouse_folder_document_type (FK to template config - Feb 2026)
 #   └── version tracking (version_group_id, version_number, is_latest_version)
 #
 # Two Names:
@@ -20,7 +20,7 @@
 #   - download_name: What file is CALLED when downloaded/emailed ("TA Tax Return 2024.pdf")
 #
 # Virtual Folders:
-#   - folder: Virtual path, changing is instant (DB update only, no S3 copy)
+#   - folder_path: Materialized path, changing is instant (DB update only, no S3 copy)
 #
 # SSoT: Uses TenantResolvable for fail-fast tenant derivation (Jan 2026 fix)
 #
@@ -38,13 +38,17 @@ class WarehouseDocument < ApplicationRecord
   # This ensures ALL creation points get tenant_id without manual assignment
   before_validation :set_tenant_from_documentable, on: :create
 
-  # SSoT (Feb 2026): Auto-set base_folder_document_type_id FK on creation
+  # SSoT (Feb 2026): Auto-set warehouse_folder_document_type_id FK on creation
   # This enables syncing ui_name when templates change
-  before_validation :set_base_folder_document_type, on: :create
+  before_validation :set_warehouse_folder_document_type, on: :create
 
-  # NOTE (Feb 2026 FRC Fix): Removed compute_folder_from_template callback
-  # Folder paths are now computed at runtime via computed_folder_path method
-  # This eliminates sync issues between stored folder and WarehouseFolder SSoT
+  # Materialized Path (Feb 2026): Compute and store folder_path on save
+  # This materializes the path for fast SQL-based tree queries.
+  # Falls back to computed_folder_path for documents without materialized path.
+  before_save :materialize_folder_path, if: :needs_path_recomputation?
+
+  # Materialized Path: Invalidate folder counts when documents change folders
+  after_commit :invalidate_folder_counts, on: [:create, :update, :destroy]
 
   # ========================================
   # Associations
@@ -67,8 +71,11 @@ class WarehouseDocument < ApplicationRecord
   belongs_to :linkable, polymorphic: true, optional: true
 
   # SSoT (Feb 2026): Direct FK to template config
-  # Enables syncing ui_name when templates change in BaseFolderDocumentType
-  belongs_to :base_folder_document_type, optional: true
+  # Enables syncing ui_name when templates change in WarehouseFolderDocumentType
+  belongs_to :warehouse_folder_document_type, optional: true
+
+  # Materialized Path (Feb 2026): FK to template folder for path versioning
+  belongs_to :warehouse_folder, optional: true
 
   # ========================================
   # Validations
@@ -87,8 +94,6 @@ class WarehouseDocument < ApplicationRecord
 
   # Basic scopes
   scope :by_source, ->(source) { where(source_type: source) }
-  # NOTE (Feb 2026 FRC Fix): Removed in_folder scope - folder column removed
-  # Use computed_folder_path for folder filtering (requires Ruby-side filtering)
   scope :with_blob, -> { where.not(storage_blob_id: nil) }
   scope :without_blob, -> { where(storage_blob_id: nil) }
 
@@ -169,49 +174,22 @@ class WarehouseDocument < ApplicationRecord
   # Computed Folder Path (Runtime Resolution)
   # ========================================
   #
-  # SSoT (Feb 2026 FRC Fix): Returns the folder path computed at RUNTIME.
-  # This is THE ONE way to get a document's folder path.
-  #
-  # Computation sources (in priority order):
-  # 1. documentable.virtual_folder_path (if documentable responds to it)
-  # 2. WarehouseProvider template expansion (from source_type + metadata)
-  # 3. Default path based on source_type (e.g., "Corporate", "Jobs")
+  # SSoT (Feb 2026): Delegates to WarehousePathComputer which follows FK chain:
+  #   warehouse_folder_document_type → warehouse_folder → full_folder_path template
+  #   Then expands tokens from linkable (Job/Contact/etc.) + documentable
   #
   # @return [String] The computed folder path
   #
   def computed_folder_path
-    # Try to compute from documentable's virtual_folder_path
-    if documentable.present? && documentable.respond_to?(:virtual_folder_path)
-      begin
-        path = documentable.virtual_folder_path
-        return path if path.present?
-      rescue StandardError => e
-        Rails.logger.debug "[WarehouseDocument] computed_folder_path documentable failed for #{id}: #{e.message}"
-      end
-    end
-
-    # Compute from WarehouseProvider template
-    begin
-      config = WarehouseProvider.instance rescue nil
-      if config
-        warehouse_type = source_type_to_warehouse_type
-        if warehouse_type
-          tokens = extract_folder_tokens
-          path = config.resolve_virtual_path(warehouse_type.to_sym, tokens)
-          return path if path.present?
-        end
-      end
-    rescue StandardError => e
-      Rails.logger.debug "[WarehouseDocument] computed_folder_path template failed for #{id}: #{e.message}"
-    end
-
-    # Fallback: derive base folder from source_type
-    source_type_to_base_folder
+    result = WarehousePathComputer.new.compute(self)
+    result[:folder_path] || source_type_to_root_folder
+  rescue StandardError => e
+    Rails.logger.debug "[WarehouseDocument] computed_folder_path failed for #{id}: #{e.message}"
+    source_type_to_root_folder
   end
 
-  # SSoT: Map source_type to base folder name
-  # Used as final fallback when template computation fails
-  def source_type_to_base_folder
+  # SSoT: Map source_type to root folder name
+  def source_type_to_root_folder
     case source_type
     when "corporate", "xero", "financial", "asset" then "Corporate"
     when "job", "compliance" then "Jobs"
@@ -225,20 +203,6 @@ class WarehouseDocument < ApplicationRecord
     else source_type&.titleize || "Documents"
     end
   end
-
-  # SSoT (Feb 2026): Base folder name from WarehouseFolder path templates
-  # Uses warehouse_type_to_base_folder which extracts first segment of path
-  # e.g., "Jobs/{{JobCode}}/Compliance" → "Jobs"
-  # Fallback to source_type_to_base_folder if BaseFolder not configured
-  def folder
-    warehouse_type = source_type_to_warehouse_type
-    # warehouse_type_to_base_folder returns {"job" => "Jobs", "corporate" => "Corporate", ...}
-    BaseFolder.warehouse_type_to_base_folder[warehouse_type] || source_type_to_base_folder
-  end
-
-  # NOTE (Feb 2026 SSoT): folder column REMOVED from table.
-  # The folder method now computes folder path at RUNTIME by querying BaseFolder SSoT.
-  # This ensures folder names always match BaseFolder configuration without sync issues.
 
   # ========================================
   # Computed UI Name (Runtime Resolution)
@@ -457,10 +421,10 @@ class WarehouseDocument < ApplicationRecord
     nil
   end
 
-  # SSoT (Feb 2026): Auto-set base_folder_document_type_id FK on creation
-  # Matches by: source_type → warehouse_type + document_type_id from metadata/documentable
-  def set_base_folder_document_type
-    return if base_folder_document_type_id.present?
+  # SSoT (Feb 2026): Auto-set warehouse_folder_document_type_id FK on creation
+  # Matches by: linkable_type/source_type → warehouse_type + document_type_id
+  def set_warehouse_folder_document_type
+    return if warehouse_folder_document_type_id.present?
     return unless tenant_id.present?
 
     # Try to get document_type_id from metadata or documentable
@@ -468,117 +432,80 @@ class WarehouseDocument < ApplicationRecord
                   (documentable.respond_to?(:document_type_id) ? documentable.document_type_id : nil)
     return unless doc_type_id.present?
 
-    # Map source_type to warehouse_type code
-    warehouse_type_code = source_type_to_warehouse_type
+    # FK-driven: use linkable_type first, then source_type fallback
+    computer = WarehousePathComputer.new
+    wt_code = if linkable_type.present?
+                computer.send(:linkable_type_to_warehouse_type_code, linkable_type)
+              end
+    wt_code ||= computer.send(:source_type_to_warehouse_type_code, source_type)
 
-    # Find matching BaseFolderDocumentType
-    self.base_folder_document_type = BaseFolderDocumentType
-      .joins(base_folder: :warehouse_type)
+    # Find matching WarehouseFolderDocumentType
+    self.warehouse_folder_document_type = WarehouseFolderDocumentType
+      .joins(warehouse_folder: :warehouse_type)
       .where(document_type_id: doc_type_id)
-      .where(warehouse_types: { code: warehouse_type_code })
-      .where(base_folders: { tenant_id: tenant_id })
+      .where(warehouse_types: { code: wt_code })
+      .where(warehouse_folders: { tenant_id: tenant_id })
       .first
   rescue StandardError => e
     # Non-fatal: log and continue without FK
-    Rails.logger.debug "[WarehouseDocument] Could not set base_folder_document_type: #{e.message}"
+    Rails.logger.debug "[WarehouseDocument] Could not set warehouse_folder_document_type: #{e.message}"
     nil
   end
 
-  # NOTE (Feb 2026 FRC Fix): Removed compute_folder_from_template method
-  # Folder paths are now computed at runtime by computed_folder_path
+  # ========================================
+  # Materialized Path Computation (Feb 2026)
+  # ========================================
 
-  # Map source_type to warehouse template key
-  def source_type_to_warehouse_type
-    case source_type
-    when "task" then "task_attachments"
-    when "email" then "email"
-    when "email_attachment" then "email_attachments"
-    when "corporate" then "corporate"
-    when "job" then "job"
-    when "contact" then "contact"
-    when "xero" then "bank_statement"
-    when "case" then "case"
-    when "notebook" then "notebook"
-    else source_type
-    end
+  # Check if folder_path needs (re)computation
+  def needs_path_recomputation?
+    new_record? ||
+      folder_path.blank? ||
+      source_type_changed? ||
+      documentable_type_changed? ||
+      documentable_id_changed? ||
+      linkable_type_changed? ||
+      linkable_id_changed?
+  end
+
+  # Compute and store the materialized folder path using WarehousePathComputer
+  def materialize_folder_path
+    result = WarehousePathComputer.new.compute(self)
+    self.folder_path = result[:folder_path]
+    self.warehouse_folder_id = result[:warehouse_folder_id]
+    self.path_template_version = result[:path_template_version]
+  rescue StandardError => e
+    # Non-fatal: log and continue without materialized path
+    # computed_folder_path still works as runtime fallback
+    Rails.logger.warn "[WarehouseDocument] materialize_folder_path failed for #{id}: #{e.message}"
+  end
+
+  # Invalidate folder counts for affected paths
+  def invalidate_folder_counts
+    return unless tenant_id.present?
+    return unless saved_change_to_folder_path? || destroyed?
+
+    paths_to_invalidate = []
+
+    # Invalidate old path (if changed or destroyed)
+    old_path = destroyed? ? folder_path : saved_changes.dig("folder_path", 0)
+    paths_to_invalidate << old_path if old_path.present?
+
+    # Invalidate new path (if created or changed)
+    paths_to_invalidate << folder_path if folder_path.present? && !destroyed?
+
+    InvalidateFolderCountsJob.perform_later(tenant_id, paths_to_invalidate.compact.uniq) if paths_to_invalidate.any?
+  rescue StandardError => e
+    Rails.logger.debug "[WarehouseDocument] invalidate_folder_counts failed: #{e.message}"
   end
 
   # Extract token values for template expansion
+  # SSoT (Feb 2026): Delegates to WarehousePathComputer which uses
+  # linkable-first token extraction (FK-driven, not string mapping)
   def extract_folder_tokens
-    tokens = {}
-
-    # Task context - handle both SmTask and SmTaskAttachment
-    if source_type == "task" && documentable.present?
-      if documentable.is_a?(SmTask)
-        tokens[:TaskId] = documentable.id
-      elsif documentable.respond_to?(:sm_task) && documentable.sm_task
-        # SmTaskAttachment - get the task via association
-        tokens[:TaskId] = documentable.sm_task.id
-      end
-    end
-
-    # Job context
-    if documentable.respond_to?(:job) && documentable.job
-      tokens[:JobCode] = documentable.job.job_code
-    elsif documentable.respond_to?(:job_code)
-      tokens[:JobCode] = documentable.job_code
-    end
-
-    # Contact context
-    if documentable.respond_to?(:contact) && documentable.contact
-      tokens[:ContactName] = documentable.contact.display_name.presence || "Contact-#{documentable.contact.id}"
-    end
-
-    # Corporate company context
-    if documentable.respond_to?(:corporate) && documentable.corporate
-      cc = documentable.corporate
-      tokens[:CompanyCode] = cc.company_code
-      tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
-    end
-
-    # Case context
-    if documentable.respond_to?(:case_number)
-      tokens[:CaseId] = documentable.case_number
-    end
-
-    # Asset context (for asset documents: expenses, service, readings)
-    # SSoT: Assets belong to Corporate (company), so we need both asset + corporate tokens
-    if documentable.is_a?(Asset)
-      tokens[:AssetName] = documentable.display_name.presence || documentable.name.presence || "Asset-#{documentable.id}"
-      tokens[:AssetNumber] = documentable.asset_number if documentable.asset_number.present?
-      # Also get corporate context from the asset's company
-      if documentable.corporate
-        cc = documentable.corporate
-        tokens[:CompanyCode] = cc.company_code
-        tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
-      end
-    elsif documentable.respond_to?(:asset) && documentable.asset
-      # For child records like AssetExpense, AssetServiceHistory, etc.
-      asset = documentable.asset
-      tokens[:AssetName] = asset.display_name.presence || asset.name.presence || "Asset-#{asset.id}"
-      tokens[:AssetNumber] = asset.asset_number if asset.asset_number.present?
-      # Also get corporate context from the asset's company
-      if asset.corporate
-        cc = asset.corporate
-        tokens[:CompanyCode] ||= cc.company_code
-        tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
-      end
-    end
-
-    # Email context
-    if source_type.in?(%w[email email_attachment])
-      tokens[:Mailbox] = meta("mailbox") || "Unknown"
-      received_at = email_received_at || created_at || Time.current
-      tokens[:Year] = received_at.year.to_s
-      tokens[:Month] = received_at.strftime("%m")
-    end
-
-    # Date tokens (fallback)
-    date = created_at || Time.current
-    tokens[:Year] ||= date.year.to_s
-    tokens[:Month] ||= date.strftime("%m")
-
-    tokens
+    WarehousePathComputer.new.send(:extract_tokens, self)
+  rescue StandardError => e
+    Rails.logger.debug "[WarehouseDocument] extract_folder_tokens failed for #{id}: #{e.message}"
+    {}
   end
 
   # Compute email legacy path if not stored
@@ -605,21 +532,6 @@ class WarehouseDocument < ApplicationRecord
     month = format("%02d", email.received_at&.month || 1)
     safe_filename = att.filename.gsub(/[<>:"|?*\\\/]/, "_")
     "#{emails_folder}/Attachments/#{year}/#{month}/#{att.id}_#{safe_filename}"
-  end
-
-  # Compute job document legacy path if not stored
-  # SSoT: Uses WarehouseProvider for base folder (Jan 2026)
-  def compute_job_document_legacy_path(doc)
-    return nil unless doc.id.present?
-
-    job = doc.job
-    return nil unless job
-
-    jobs_folder = WarehouseProvider.instance&.path_for(:jobs) || "Jobs"
-    doc_type = doc.document_type&.name || "Documents"
-    filename = doc.filename.presence || "#{doc.id}"
-    safe_filename = filename.gsub(/[<>:"|?*\\\/]/, "_")
-    "#{jobs_folder}/#{job.job_code}/#{doc_type}/#{safe_filename}"
   end
 
   # Full sanitization for 100% accurate filenames

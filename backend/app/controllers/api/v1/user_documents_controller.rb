@@ -109,7 +109,7 @@ module Api
             source_type: "user",
             ui_name: document.file_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
             original_filename: document.file_name,
-            folder: document.virtual_folder_path,
+            folder_path: document.virtual_folder_path,
             content_type: document.content_type,
             file_size: document.file_size,
             storage_blob: blob

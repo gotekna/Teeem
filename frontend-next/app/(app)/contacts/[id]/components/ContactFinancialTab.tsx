@@ -126,6 +126,12 @@ export function ContactFinancialTab({
 
   return (
     <div className="space-y-4">
+      {/* Info: Financial tab structure explanation */}
+      <div className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+        Each tab represents a Xero organisation linked to this contact. Invoices, bills and documents are grouped per organisation.
+        Document storage: <span className="font-mono">Contacts/{'{ContactName}'}/Financial/{'{Xero Org}'}/Bills</span>
+      </div>
+
       {/* Level 1: Xero Connection Tabs */}
       <Tabs
         value={`connection-${activeConnectionIndex}`}

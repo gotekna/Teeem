@@ -23,6 +23,8 @@ class XeroChartOfAccount < ApplicationRecord
 
   # Get the effective COA for a company (tenant-specific or global)
   # With acts_as_tenant, this returns tenant-scoped accounts automatically
+  include ConfigSyncable
+  self.sync_key_source = :account_code
   def self.for_company(company)
     tenant_accounts = active
     return tenant_accounts if tenant_accounts.any?

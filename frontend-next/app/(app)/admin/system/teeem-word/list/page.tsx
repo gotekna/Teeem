@@ -71,7 +71,7 @@ export default function DocumentListPage() {
 
   // Open document
   const handleOpen = (id: number) => {
-    router.push(`/admin/system/teeem-word?id=${id}`);
+    router.push(`/admin/system/teeem-word/${id}`);
   };
 
   // Delete document

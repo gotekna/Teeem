@@ -22,12 +22,11 @@ Commits ALL pending changes and deploys through the entire pipeline: staging →
                          PARALLEL!
 ```
 
-## Optimizations (Jan 2026)
+## Optimizations (Feb 2026)
 
 | Optimization | Savings |
 |--------------|---------|
-| Single temp directory (reused for all 3 deploys) | ~2s |
-| Parallel beta+production deploys | ~60-90s |
+| Pipeline promotion (build once on staging, promote slug to beta+prod) | ~4-5 min |
 | Smart migration check (only if db/migrate changed) | ~10-30s |
 | Vercel branch filtering (each project builds only its branch) | ~9 duplicate builds eliminated |
 | Combined post-deploy verification (single dyno boot) | ~30s |
@@ -148,7 +147,7 @@ git checkout "$CURRENT_BRANCH"
 echo "✅ Frontend branches merged"
 ```
 
-### Step 7 - Deploy Backend (OPTIMIZED - Single Directory, Parallel Deploys)
+### Step 7 - Deploy Backend (Pipeline Promotion)
 
 **Check if backend files changed in recent commits (last 10):**
 ```bash
@@ -156,10 +155,10 @@ echo "✅ Frontend branches merged"
 git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip"
 ```
 
-**If backend changed, use optimized deploy:**
+**If backend changed, build on staging then promote to beta and production:**
 
 ```bash
-echo "📦 Starting optimized backend deploy..."
+echo "📦 Starting backend deploy with pipeline promotion..."
 
 cd /Users/robertharder/GitHub/teeem
 
@@ -167,62 +166,49 @@ cd /Users/robertharder/GitHub/teeem
 sync
 sleep 1
 
-# Create SINGLE temp directory (reused for all 3 environments)
+# Build and push to Staging (this is the ONLY slug build)
 DEPLOY_DIR=$(mktemp -d)
-# FIX (Feb 2026): Use rsync to copy ALL files including hidden (.slugignore)
 rsync -a --exclude='.git' backend/ "$DEPLOY_DIR/"
 
 cd "$DEPLOY_DIR"
 git init
 git add -A
 git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
-
-# Add all remotes upfront
 git remote add staging https://git.heroku.com/teeem-staging.git
-git remote add beta https://git.heroku.com/teeem-beta.git
-git remote add production https://git.heroku.com/teeem-production.git
 
-# STEP 1: Deploy to Staging first (safety check)
-echo "📦 Deploying → Staging..."
+echo "📦 Building slug on Staging..."
 git push staging HEAD:main --force
 STAGING_EXIT=$?
 
-if [ $STAGING_EXIT -ne 0 ]; then
-  echo "❌ Staging deploy failed - aborting pipeline"
-  cd /Users/robertharder/GitHub/teeem
-  rm -rf "$DEPLOY_DIR"
-  exit 1
-fi
-echo "✅ Staging backend deployed"
-
-# STEP 2: Deploy to Beta AND Production in PARALLEL
-echo "📦 Deploying → Beta + Production (parallel)..."
-git push beta HEAD:main --force &
-BETA_PID=$!
-git push production HEAD:main --force &
-PROD_PID=$!
-
-# Wait for both to complete
-wait $BETA_PID
-BETA_EXIT=$?
-wait $PROD_PID
-PROD_EXIT=$?
-
-# Cleanup
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
-# Report results
+if [ $STAGING_EXIT -ne 0 ]; then
+  echo "❌ Staging deploy failed - aborting pipeline"
+  exit 1
+fi
+echo "✅ Staging backend deployed (slug built)"
+
+# Promote compiled slug to Beta (no rebuild - instant copy)
+echo "📦 Promoting Staging → Beta..."
+heroku pipelines:promote --app teeem-staging --to teeem-beta
+BETA_EXIT=$?
+
 if [ $BETA_EXIT -eq 0 ]; then
-  echo "✅ Beta backend deployed"
+  echo "✅ Beta backend promoted"
 else
-  echo "❌ Beta deploy failed (exit: $BETA_EXIT)"
+  echo "❌ Beta promotion failed (exit: $BETA_EXIT)"
 fi
 
+# Promote compiled slug to Production (no rebuild - instant copy)
+echo "📦 Promoting Staging → Production..."
+heroku pipelines:promote --app teeem-staging --to teeem-production
+PROD_EXIT=$?
+
 if [ $PROD_EXIT -eq 0 ]; then
-  echo "✅ Production backend deployed"
+  echo "✅ Production backend promoted"
 else
-  echo "❌ Production deploy failed (exit: $PROD_EXIT)"
+  echo "❌ Production promotion failed (exit: $PROD_EXIT)"
 fi
 
 echo "✅ All backend deploys complete"
@@ -302,10 +288,10 @@ Frontend (Vercel - auto-deploy on branch merge):
   ✅ Beta: Staging → Beta merged
   ✅ Production: Beta → Live merged
 
-Backend (Heroku - optimized parallel deploy):
-  ✅ Staging: deployed (safety check first)
-  ✅ Beta: deployed (parallel)
-  ✅ Production: v[XXX] deployed (parallel)
+Backend (Heroku - pipeline promotion):
+  ✅ Staging: deployed (slug built)
+  ✅ Beta: promoted (slug copied, no rebuild)
+  ✅ Production: v[XXX] promoted (slug copied, no rebuild)
 ----------------------------------------
 Post-Deploy Verification:
   [verification results]
@@ -326,7 +312,7 @@ If any step fails:
 - Commits ALL changes from ALL chat sessions
 - Deploys BOTH frontend AND backend to ALL THREE environments
 - Frontend: Vercel auto-deploys when branches are merged (Staging → Beta → Live)
-- Backend: Single temp directory, staging first, then beta+production in parallel
+- Backend: Build slug on staging, promote to beta+production via Heroku pipeline
 - Migration verification only runs if db/migrate files changed
 - Post-deploy verification runs for Production only
 - Use `/p` if you only want to commit THIS chat's changes

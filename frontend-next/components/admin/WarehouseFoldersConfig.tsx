@@ -10,7 +10,6 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -61,7 +60,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
-import { getIcon } from "@/lib/icon-map";
 import { IconPicker } from "@/components/ui/icon-picker";
 import {
   SortableList,
@@ -77,7 +75,6 @@ import {
   EyeOff,
   Plus,
   Trash2,
-  Lock,
   FolderOpen,
   FileText,
   Settings2,
@@ -91,7 +88,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 // useUrlState removed - doesn't work reliably with catch-all routes
-import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+// SharePointFolderBrowser removed - flat blob storage, no physical folder renames needed
 import { Spinner } from "@/components/ui/spinner";
 import type {
   WarehouseFolder,
@@ -103,6 +100,8 @@ import type {
   ReorderTabParams,
 } from "@/lib/types/warehouse-folders";
 import { SCOPE_LABELS, GROUP_LABELS } from "@/lib/types/warehouse-folders";
+import { TAB_TYPE_CONFIG, TAB_TYPE_VALUES, deriveTabType, type TabType } from "@/lib/constants/tab-types";
+import { TabTypeBadge, TabTypeBadgeCompact } from "@/components/ui/tab-type-badge";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -246,6 +245,7 @@ interface WarehouseFoldersConfigProps {
   title?: string;                   // Override default title
   description?: string;             // Override default description
   compact?: boolean;                // Hide title/description for embedded use
+  readOnly?: boolean;               // Hide add/edit/delete controls (managed via Warehouse Types)
 }
 
 export function WarehouseFoldersConfig({
@@ -257,6 +257,7 @@ export function WarehouseFoldersConfig({
   title,
   description,
   compact = false,
+  readOnly = false,
 }: WarehouseFoldersConfigProps) {
   const {
     tabs,
@@ -622,16 +623,6 @@ export function WarehouseFoldersConfig({
     saveTemplates, showSharePointPaths
   ]);
 
-  // SSoT: Track original display_name to detect changes for folder rename prompt
-  const [originalDisplayName, setOriginalDisplayName] = React.useState<string | null>(null);
-
-  // SSoT: Folder rename confirmation dialog state
-  const [folderRenameDialog, setFolderRenameDialog] = React.useState<{
-    open: boolean;
-    oldName: string;
-    newName: string;
-    tabId: number;
-  } | null>(null);
 
   // All document types for linking (SSoT)
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; display_name?: string }>>([]);
@@ -715,6 +706,26 @@ export function WarehouseFoldersConfig({
   }, [tabs]);
 
   // Items start collapsed by default - user can expand as needed
+
+  // Count breakdown: roots, children (depth 1), grandchildren (depth 2+)
+  const countBreakdown = React.useCallback((rootTabs: WarehouseFolder[]): { roots: number; children: number; grandchildren: number; total: number } => {
+    let children = 0;
+    let grandchildren = 0;
+    const countDeep = (tabs: WarehouseFolder[], depth: number) => {
+      for (const tab of tabs) {
+        if (tab.children?.length) {
+          for (const child of tab.children) {
+            if (depth === 0) children++;
+            else grandchildren++;
+            countDeep([child], depth + 1);
+          }
+        }
+      }
+    };
+    countDeep(rootTabs, 0);
+    const roots = rootTabs.length;
+    return { roots, children, grandchildren, total: roots + children + grandchildren };
+  }, []);
 
   // Helper to collect all descendant tab_keys recursively
   const collectDescendantKeys = React.useCallback((tab: WarehouseFolder): string[] => {
@@ -879,14 +890,13 @@ export function WarehouseFoldersConfig({
       tab_key: "",
       display_name: "",
       description: "",
+      tab_type: 'document' as TabType,  // SSoT: Default tab type
       tab_group: group || 'documents',  // Default to documents (most common use case)
       entity_filters: [],
       enabled: true,
-      warehouse_enabled: false,
+      warehouse_enabled: true,
       folder_path: "",
       warehouse_type_override: 'corporate',  // SSoT: Default to corporate path
-      is_photo_category: false,  // SSoT: Explicit photo category flag
-      is_cad_category: false,  // SSoT: Explicit CAD/Revit category flag
       display_mode: 'both',  // SSoT: Default display mode
       hidden_by_default: false,  // SSoT: Default visibility
     });
@@ -896,16 +906,19 @@ export function WarehouseFoldersConfig({
   // Open edit dialog - always opens the edit dialog for tab settings
   // (Special config sheets are accessed via dedicated buttons, not the edit action)
   const openEditDialog = (tab: WarehouseFolder) => {
-    // Note: Both {{TabName}} (parent) and {{SubTabName}} (current) are valid for subtabs
-    const folderPath = tab.folder_path || "";
-
-    // SSoT: Store original display_name for folder rename detection
-    setOriginalDisplayName(tab.display_name);
+    // FRC (Feb 2026): Use folder_path_suffix (extra custom path), NOT folder_path or folder_segment
+    // folder_path = full_folder_path from backend = "Contacts/{{ContactName}}/Financial/Bills" (read-only)
+    // folder_segment = tab's own folder name, auto-synced from display_name (read-only)
+    // folder_path_suffix = extra custom path AFTER the segment (editable, e.g., "{{Year}}/{{Category}}")
+    // Using folder_path caused corruption. Using folder_segment caused "Bills/Bills" (segment + suffix both set).
+    // folder_path_suffix is the ONLY field the user should edit - it's mapped back to folder_path_suffix on save.
+    const folderPath = tab.folder_path_suffix || "";
 
     setFormData({
       display_name: tab.display_name,
       display_code: tab.display_code || "",
       description: tab.description || "",
+      tab_type: deriveTabType(tab),  // SSoT: THE ONE field for folder behavior
       tab_group: tab.tab_group || undefined,
       parent_id: tab.parent_id || undefined,
       entity_filters: tab.entity_filters,
@@ -917,33 +930,70 @@ export function WarehouseFoldersConfig({
       warehouse_type_override: tab.warehouse_type_override || 'corporate',  // SSoT: Path type for contacts
       // SSoT: Include linked document type IDs
       document_type_ids: tab.document_types?.map((dt: any) => dt.id) || [],
-      is_photo_category: tab.is_photo_category || false,  // SSoT: Explicit photo category flag
-      is_cad_category: tab.is_cad_category || false,  // SSoT: Explicit CAD/Revit category flag
       display_mode: tab.display_mode || 'both',  // SSoT: Display mode
       hidden_by_default: tab.hidden_by_default || false,  // SSoT: Hidden by default
-      is_system_tab: tab.is_system_tab || false,  // SSoT: System lock
+      is_system: tab.is_system || false,  // SSoT: System lock
     });
     // setEditingTab updates URL with tabId and action=edit
     setEditingTab(tab);
   };
 
-  // Get available parent tabs (root-level tabs that can be parents)
-  // SSoT: Filter out parents that already have a child with the same tab_key (prevents duplicate key conflicts)
+  // Get available parent tabs (any tab that can be a parent, including nested tabs)
+  // SSoT: Filter out self, descendants (circular ref), and tabs with duplicate tab_key children
   const availableParents = React.useMemo(() => {
     if (!editingTab) return [];
 
-    return tabs.filter((t) => {
-      // Must be a root tab (no parent)
-      if (t.parent_id) return false;
+    // Flatten the tree: tabs only contains root-level items, children are nested
+    const flattenTabs = (tabList: WarehouseFolder[]): WarehouseFolder[] => {
+      const result: WarehouseFolder[] = [];
+      const walk = (items: WarehouseFolder[]) => {
+        items.forEach(t => {
+          result.push(t);
+          if (t.children?.length) walk(t.children);
+        });
+      };
+      walk(tabList);
+      return result;
+    };
+    const allTabs = flattenTabs(tabs);
+
+    // Collect all descendant IDs of the editing tab to prevent circular references
+    const getDescendantIds = (tab: WarehouseFolder): Set<number> => {
+      const ids = new Set<number>();
+      (tab.children || []).forEach(child => {
+        ids.add(child.id);
+        getDescendantIds(child).forEach(id => ids.add(id));
+      });
+      return ids;
+    };
+    const descendantIds = getDescendantIds(editingTab);
+
+    return allTabs.filter((t) => {
       // Can't be the tab we're editing
       if (t.id === editingTab.id) return false;
+      // Can't be a descendant of the editing tab (would create circular reference)
+      if (descendantIds.has(t.id)) return false;
       // Can't have a child with the same tab_key (would cause duplicate key conflict)
-      const hasChildWithSameKey = t.children?.some(child => child.tab_key === editingTab.tab_key);
+      // Exclude the tab being edited from this check (it's already a child of this parent)
+      const hasChildWithSameKey = t.children?.some(child => child.tab_key === editingTab.tab_key && child.id !== editingTab.id);
       if (hasChildWithSameKey) return false;
 
       return true;
     });
   }, [tabs, editingTab]);
+
+  // Lookup map for all tabs (including children) - used for parent label display
+  const allTabsById = React.useMemo(() => {
+    const map = new Map<number, WarehouseFolder>();
+    const walk = (items: WarehouseFolder[]) => {
+      items.forEach(t => {
+        map.set(t.id, t);
+        if (t.children?.length) walk(t.children);
+      });
+    };
+    walk(tabs);
+    return map;
+  }, [tabs]);
 
   // SSoT: Check if moving to root level would conflict with existing root tab
   const canMoveToRoot = React.useMemo(() => {
@@ -960,16 +1010,12 @@ export function WarehouseFoldersConfig({
     setSaving(true);
     try {
       if (editingTab) {
-        // SSoT: Detect display_name change for folder rename prompt
-        const displayNameChanged = originalDisplayName && formData.display_name !== originalDisplayName;
-        const hasWarehouseEnabled = editingTab.warehouse_enabled || formData.warehouse_enabled;
-
         // Update existing
         const updateParams: WarehouseFolderUpdateParams = {
           display_name: formData.display_name,
           display_code: formData.display_code,
           description: formData.description,
-          tab_group: formData.tab_group,
+          tab_type: formData.tab_type,  // SSoT: THE ONE field for folder behavior (backend auto-derives tab_group)
           // Use null (not undefined) so JSON serialization includes it
           parent_id: formData.parent_id ?? null,
           entity_filters: formData.entity_filters,
@@ -981,51 +1027,34 @@ export function WarehouseFoldersConfig({
           warehouse_type_override: formData.warehouse_type_override,  // SSoT: Path type for contacts
           // SSoT: Include linked document type IDs
           document_type_ids: formData.document_type_ids,
-          is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
-          is_cad_category: formData.is_cad_category,  // SSoT: Explicit CAD/Revit category flag
           display_mode: formData.display_mode,  // SSoT: Display mode
           hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
-          is_system_tab: formData.is_system_tab,  // SSoT: System lock
+          is_system: formData.is_system,  // SSoT: System lock
         };
         await updateTab(editingTab.id, updateParams);
         // Refetch used icons after update (icon may have changed)
         refetchUsedIcons();
-
-        // SSoT: Show folder rename confirmation if display_name changed and has SharePoint folder
-        if (displayNameChanged && hasWarehouseEnabled) {
-          setFolderRenameDialog({
-            open: true,
-            oldName: originalDisplayName,
-            newName: formData.display_name || "",
-            tabId: editingTab.id,
-          });
-          toast.success("Tab updated - Storage folder rename queued");
-        } else {
-          toast.success("Tab updated");
-        }
+        toast.success("Tab updated");
         setDialogOpen(false);
-        setOriginalDisplayName(null);
         return;
       } else {
         // Create new
         const createParams: WarehouseFolderCreateParams = {
           scope,
           tab_key: formData.tab_key || formData.display_name?.toLowerCase().replace(/\s+/g, "-") || "",
+          tab_type: formData.tab_type,  // SSoT: THE ONE field for folder behavior (backend auto-derives tab_group)
           display_name: formData.display_name || "",
           display_code: formData.display_code,
           description: formData.description,
-          tab_group: formData.tab_group,
           entity_filters: formData.entity_filters,
           enabled: formData.enabled ?? true,
           icon_name: formData.icon_name,
           warehouse_enabled: formData.warehouse_enabled,
           folder_path: formData.folder_path,
           warehouse_type_override: formData.warehouse_type_override,  // SSoT: Path type for contacts
-          is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
-          is_cad_category: formData.is_cad_category,  // SSoT: Explicit CAD/Revit category flag
           display_mode: formData.display_mode,  // SSoT: Display mode
           hidden_by_default: formData.hidden_by_default,  // SSoT: Hidden by default
-          is_system_tab: formData.is_system_tab,  // SSoT: System lock
+          is_system: formData.is_system,  // SSoT: System lock
         };
         await createTab(createParams);
         // Refetch used icons after create (new icon added)
@@ -1260,8 +1289,6 @@ export function WarehouseFoldersConfig({
 
   // Render a single tab item
   const renderTabItem = (tab: WarehouseFolder, index: number, isChild = false, depth = 0) => {
-    // SSoT: Use effective_icon_name for inherited icons from parent
-    const IconComponent = getIcon(tab.effective_icon_name || tab.icon_name || "file");
     const hasChildren = tab.children && tab.children.length > 0;
     const isExpanded = expandedItems.has(tab.tab_key);
 
@@ -1311,18 +1338,16 @@ export function WarehouseFoldersConfig({
             <div className="w-6 shrink-0" />
           )}
 
-          {/* Icon */}
-          <div className="h-6 w-6 rounded bg-muted flex items-center justify-center shrink-0">
-            <IconComponent className="h-3.5 w-3.5" />
-          </div>
+          {/* Tab type badge */}
+          <TabTypeBadgeCompact tabType={deriveTabType(tab)} isSystem={tab.is_system} />
 
           {/* Name and badges */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span
-                className="font-medium cursor-pointer hover:text-primary hover:underline"
-                onClick={() => openEditDialog(tab)}
-                title="Click to edit"
+                className={cn("font-medium", !readOnly && "cursor-pointer hover:text-primary hover:underline")}
+                onClick={readOnly ? undefined : () => openEditDialog(tab)}
+                title={readOnly ? undefined : "Click to edit"}
               >
                 {tab.display_name}
               </span>
@@ -1334,21 +1359,6 @@ export function WarehouseFoldersConfig({
               <Badge variant="outline" className="text-xs">
                 {tab.tab_key}
               </Badge>
-              {tab.is_system_tab && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="secondary" className="text-xs gap-1">
-                        <Lock className="h-3 w-3" />
-                        System
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>System tabs cannot be deleted, only disabled</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
               {/* SSoT: Show folder path badge if tab has folder OR has children (children inherit parent path) */}
               {(tab.warehouse_enabled || hasChildren) && (
                 <TooltipProvider>
@@ -1570,24 +1580,26 @@ export function WarehouseFoldersConfig({
               </>
             )}
 
-            {/* Edit button */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => openEditDialog(tab)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Edit tab</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            {/* Edit button - hidden in readOnly mode (managed via Warehouse Types) */}
+            {!readOnly && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => openEditDialog(tab)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Edit tab</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
 
             {/* Visibility toggle */}
             <TooltipProvider>
@@ -1613,8 +1625,8 @@ export function WarehouseFoldersConfig({
               </Tooltip>
             </TooltipProvider>
 
-            {/* Delete button (only for non-system tabs with no documents) */}
-            {!tab.is_system_tab && (
+            {/* Delete button (only for non-system tabs with no documents) - hidden in readOnly mode */}
+            {!readOnly && !tab.is_system && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1655,18 +1667,30 @@ export function WarehouseFoldersConfig({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CardTitle className="text-base">{GROUP_LABELS[group]}</CardTitle>
-              <Badge variant="secondary" className="text-xs">
-                {tabsInGroup.length}
-              </Badge>
+              {(() => {
+                const b = countBreakdown(tabsInGroup);
+                return (
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Badge variant="secondary" className="text-xs">{b.total}</Badge>
+                    {(b.children > 0 || b.grandchildren > 0) && (
+                      <span className="opacity-70">
+                        {b.roots}{b.children > 0 && ` + ${b.children}`}{b.grandchildren > 0 && ` + ${b.grandchildren}`}
+                      </span>
+                    )}
+                  </span>
+                );
+              })()}
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => openCreateDialog(group)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Tab
-            </Button>
+            {!readOnly && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openCreateDialog(group)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Tab
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -1709,7 +1733,8 @@ export function WarehouseFoldersConfig({
   }
 
   // Action buttons - rendered in Card header for compact mode, or standalone for non-compact
-  const actionButtons = (
+  // Hidden in readOnly mode (folder management done via Warehouse Types)
+  const actionButtons = readOnly ? null : (
     <div className="flex items-center gap-2">
       {scope === "corporate" && (
         <Button
@@ -1822,9 +1847,19 @@ export function WarehouseFoldersConfig({
               .map((group) => (
                 <TabsTrigger key={group} value={group} className="gap-2">
                   {GROUP_LABELS[group]}
-                  <Badge variant="secondary" className="text-xs">
-                    {groupedTabs[group]?.length || 0}
-                  </Badge>
+                  {(() => {
+                    const b = countBreakdown(groupedTabs[group] || []);
+                    return (
+                      <span className="flex items-center gap-1 text-xs">
+                        <Badge variant="secondary" className="text-xs">{b.total}</Badge>
+                        {(b.children > 0 || b.grandchildren > 0) && (
+                          <span className="text-[10px] opacity-60">
+                            {b.roots}{b.children > 0 && `+${b.children}`}{b.grandchildren > 0 && `+${b.grandchildren}`}
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })()}
                 </TabsTrigger>
               ))}
           </TabsList>
@@ -1843,7 +1878,17 @@ export function WarehouseFoldersConfig({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CardTitle>All Tabs</CardTitle>
-                <Badge variant="secondary">{flatTabs.length}</Badge>
+                {(() => {
+                  const b = countBreakdown(flatTabs);
+                  return (
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Badge variant="secondary">{b.total}</Badge>
+                      <span className="opacity-70">
+                        {b.roots} root{b.children > 0 && <> + {b.children} child</>}{b.grandchildren > 0 && <> + {b.grandchildren} grandchild</>}
+                      </span>
+                    </span>
+                  );
+                })()}
               </div>
               {compact && actionButtons}
             </div>
@@ -2185,6 +2230,10 @@ export function WarehouseFoldersConfig({
               <h2 className="text-lg font-semibold" aria-hidden="true">
                 {editingTab ? `Edit: ${editingTab.display_name}` : "Create New Tab"}
               </h2>
+              {/* SSoT: Tab type badge */}
+              {editingTab && (
+                <TabTypeBadge tabType={formData.tab_type || deriveTabType(editingTab)} isSystem={editingTab.is_system} />
+              )}
               {/* SSoT: Show subtab indicator when editing a child tab */}
               {(formData.parent_id || editingTab?.parent_id) && (() => {
                 const parentId = formData.parent_id || editingTab?.parent_id;
@@ -2273,35 +2322,6 @@ export function WarehouseFoldersConfig({
                 </div>
               )}
 
-              {/* Tab Group - SSoT: Only 2 groups (Jan 2026 simplification)
-                  - documents: User uploads files, Document Types enabled
-                  - data: System-generated content, no Document Types */}
-              <div className="space-y-2">
-                <Label htmlFor="tab_group">Tab Group</Label>
-                <Select
-                  value={formData.tab_group === 'documents' ? 'documents' : 'data'}
-                  onValueChange={(value: TabGroup) =>
-                    setFormData((prev) => ({ ...prev, tab_group: value }))
-                  }
-                  disabled={editingTab?.is_system_tab}
-                >
-                  <SelectTrigger className={editingTab?.is_system_tab ? "opacity-60" : ""}>
-                    <SelectValue placeholder="Select tab group" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="documents">Documents (user uploads)</SelectItem>
-                    <SelectItem value="data">Data (system-generated)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {editingTab?.is_system_tab
-                    ? "System tab - type cannot be changed"
-                    : formData.tab_group === 'documents'
-                      ? "Users can upload files here. Document Types can be linked."
-                      : "System-generated content. No document uploads allowed."}
-                </p>
-              </div>
-
               {/* Description */}
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
@@ -2382,11 +2402,18 @@ export function WarehouseFoldersConfig({
                       <SelectItem value="none" disabled={!canMoveToRoot}>
                         No parent (root level){!canMoveToRoot && " - tab key already exists at root"}
                       </SelectItem>
-                      {availableParents.map((parent) => (
-                        <SelectItem key={parent.id} value={parent.id.toString()}>
-                          {parent.display_name}
-                        </SelectItem>
-                      ))}
+                      {availableParents.map((parent) => {
+                        // Show hierarchy for nested tabs (e.g., "Financial > XERO Organisational Level")
+                        const parentOfParent = parent.parent_id ? allTabsById.get(parent.parent_id) : null;
+                        const label = parentOfParent
+                          ? `${parentOfParent.display_name} > ${parent.display_name}`
+                          : parent.display_name;
+                        return (
+                          <SelectItem key={parent.id} value={parent.id.toString()}>
+                            {label}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
@@ -2421,42 +2448,39 @@ export function WarehouseFoldersConfig({
               )}
 
 
-              {/* Photo Category checkbox - SSoT: Explicit flag for photo gallery view */}
-              <div className="flex items-center space-x-3 pt-4 mt-4 border-t">
-                <Checkbox
-                  id="is_photo_category_basic"
-                  checked={formData.is_photo_category || false}
-                  onCheckedChange={(checked) =>
-                    setFormData((prev) => ({ ...prev, is_photo_category: checked === true }))
-                  }
-                />
-                <div>
-                  <Label htmlFor="is_photo_category_basic" className="text-sm cursor-pointer font-medium">
-                    Photo Gallery View
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Show photos in grid instead of file table
-                  </p>
+              {/* SSoT: Tab Type selector - THE ONE field for folder behavior */}
+              <div className="space-y-2 pt-4 mt-4 border-t">
+                <Label>Tab Type</Label>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {TAB_TYPE_VALUES.map((type) => {
+                    const config = TAB_TYPE_CONFIG[type];
+                    const isSelected = formData.tab_type === type;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, tab_type: type as TabType }))}
+                        disabled={editingTab?.is_system && type !== formData.tab_type}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors",
+                          isSelected
+                            ? `${config.color} ${config.darkColor} ${config.textColor} border-current`
+                            : "border-border hover:bg-muted/50",
+                          editingTab?.is_system && type !== formData.tab_type && "opacity-40 cursor-not-allowed"
+                        )}
+                      >
+                        <TabTypeBadge tabType={type} variant="icon" showTooltip={false} />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium">{config.label}</span>
+                          <p className="text-xs text-muted-foreground">{config.description}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
-
-              {/* CAD Category checkbox - SSoT: Explicit flag for Revit/DWG file viewer */}
-              <div className="flex items-center space-x-3 pt-4 mt-4 border-t">
-                <Checkbox
-                  id="is_cad_category_basic"
-                  checked={formData.is_cad_category || false}
-                  onCheckedChange={(checked) =>
-                    setFormData((prev) => ({ ...prev, is_cad_category: checked === true }))
-                  }
-                />
-                <div>
-                  <Label htmlFor="is_cad_category_basic" className="text-sm cursor-pointer font-medium">
-                    CAD Files View
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Show Revit, DWG, and Datasmith files with upload
-                  </p>
-                </div>
+                {editingTab?.is_system && (
+                  <p className="text-xs text-muted-foreground">System tab - type cannot be changed</p>
+                )}
               </div>
             </div>
 
@@ -2464,172 +2488,146 @@ export function WarehouseFoldersConfig({
             <div className="space-y-4 overflow-y-auto">
               <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">Storage Configuration</h3>
 
-            {/* Storage Folder Path */}
+            {/* Storage Folder Path - SSoT (Feb 2026) */}
+            {/* Shows two badges: Base Path (from warehouse_types) and Full Path (computed).
+                Suffix editor only shown when suffix exists or user clicks to add one. */}
             {showSharePointPaths && (
               <div className="space-y-3">
-                {/* Base path from WarehouseProvider - SSoT for scope folders */}
-                {/* SSoT: Sub-tabs inherit base path from parent - not editable */}
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">
-                    Base Path
-                    {(formData.parent_id || editingTab?.parent_id) && (
-                      <span className="ml-1 text-blue-600 dark:text-blue-400">(inherited from parent)</span>
-                    )}
-                  </Label>
-                  {(formData.parent_id || editingTab?.parent_id) ? (
-                    // Sub-tabs: inherit from parent - read-only display
-                    <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
-                      <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                        {editingTab?.warehouse_base_path || getBasePath(scope)}
-                      </span>
-                      <span className="text-muted-foreground">/</span>
-                    </div>
-                  ) : scope === "contact" ? (
-                    // Root contact tabs: can choose between /Contacts/ or /Corporate/People/
-                    <div className="flex items-center gap-1">
-                      <Select
-                        value={formData.warehouse_type_override === 'corporate' ? 'people' : 'contact'}
-                        onValueChange={(value) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            warehouse_type_override: value === 'people' ? 'corporate' : 'contacts',
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="w-full font-mono text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="contact">
-                            <span className="font-mono">/{getBasePath("contact")}/</span>
-                            <span className="text-muted-foreground ml-2">- Contact documents</span>
-                          </SelectItem>
-                          <SelectItem value="people">
-                            <span className="font-mono">/{getBasePath("people")}/</span>
-                            <span className="text-muted-foreground ml-2">- Corporate people</span>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : (
-                    // Other scopes: read-only display
-                    <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
-                      <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                        {editingTab?.warehouse_base_path || getBasePath(scope)}
-                      </span>
-                      <span className="text-muted-foreground">/</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Base Folder Path (read-only from base_folders table) */}
-                {editingTab?.base_folder_path_template && (
-                  <div className="space-y-1">
-                    <Label className="text-xs">Base Folder Path</Label>
-                    <div className="p-2 border rounded bg-muted/30 font-mono text-xs text-muted-foreground">
-                      {editingTab.base_folder_path_template}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Inherited from base folder configuration
-                    </p>
-                  </div>
-                )}
-
-                {/* Editable folder path */}
-                {/* SSoT: Show inherited base path as greyed-out prefix, then editable tab folder */}
-                <PlaceholderBuilder
-                  label="Full Warehouse Folder Path"
-                  value={formData.folder_path ?? ""}
-                  onChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      folder_path: value,
-                    }))
-                  }
-                  scope="storage"
-                  // SSoT: Show inherited base path as greyed prefix
-                  // For ROOT tabs: show just root_path (tab's warehouse_folder IS the full template)
-                  // For CHILD tabs: show parent's path from warehouse_base_path
-                  prefixValue={(() => {
-                    const isRootTab = !editingTab?.parent_id && !formData.parent_id;
-                    if (isRootTab) {
-                      // ROOT tab: prefix is just the storage root path (no duplication)
-                      return storageConfig?.root_path || "";
-                    }
-                    // CHILD tab: use parent's base path
-                    if (scope === "contact") {
-                      return formData.warehouse_type_override === 'corporate'
-                        ? getBasePath("people")
-                        : getBasePath("contact");
-                    }
-                    return editingTab?.warehouse_base_path || getBasePath(scope);
-                  })()}
-                  separator="/"
-                  // SSoT: Filter placeholders based on tab hierarchy
-                  // - Root tabs: show {{TabName}} only (no subtab)
-                  // - Subtabs: show BOTH {{TabName}} (parent) and {{SubTabName}} (current)
-                  placeholders={STORAGE_PLACEHOLDERS.filter((p) => {
-                    const isSubtab = !!(formData.parent_id || editingTab?.parent_id);
-                    if (isSubtab) {
-                      // Subtabs: show BOTH TabName (parent) and SubTabName (current)
-                      return true;
-                    } else {
-                      // Root tabs: show TabName only, hide SubTabName
-                      return p.code !== "{{SubTabName}}";
-                    }
-                  })}
-                  showPreview={false}
-                  placeholder="Enter folder name or click tokens..."
-                />
-
-                {/* Full path preview - uses ACTUAL tab names, not generic examples */}
+                {/* Computed path section */}
                 {(() => {
-                  // SSoT: Get base path for preview
-                  // For ROOT tabs: use just root_path (tab's warehouse_folder IS the full template)
-                  // For CHILD tabs: use parent's path from warehouse_base_path
-                  const isRootTab = !editingTab?.parent_id && !formData.parent_id;
-                  const basePath = isRootTab
-                    ? (storageConfig?.root_path || "")
-                    : (scope === "contact"
-                        ? (formData.warehouse_type_override === 'corporate'
-                            ? getBasePath("people")
-                            : getBasePath("contact"))
-                        : (editingTab?.warehouse_base_path || getBasePath(scope)));
-
-                  // Get actual tab names for preview
+                  // Build ancestor chain: walk up parent tree to collect folder segments
                   const parentId = formData.parent_id || editingTab?.parent_id;
-                  // Recursive search to find parent tab (might be nested)
                   const findTabById = (tabList: WarehouseFolder[], id: number): WarehouseFolder | null => {
-                    for (const tab of tabList) {
-                      if (tab.id === id) return tab;
-                      if (tab.children?.length) {
-                        const found = findTabById(tab.children, id);
+                    for (const t of tabList) {
+                      if (t.id === id) return t;
+                      if (t.children?.length) {
+                        const found = findTabById(t.children, id);
                         if (found) return found;
                       }
                     }
                     return null;
                   };
+
+                  // Collect ancestor segments from root to immediate parent
+                  const ancestorSegments: string[] = [];
+                  let currentParentId = parentId;
+                  while (currentParentId) {
+                    const ancestorTab = findTabById(tabs, currentParentId);
+                    if (!ancestorTab) break;
+                    ancestorSegments.unshift(ancestorTab.folder_segment || ancestorTab.display_name);
+                    currentParentId = ancestorTab.parent_id;
+                  }
+
+                  // Current tab's own segment (from display_name, matching backend sync_display_name_and_folder_segment)
+                  const currentTabSegment = formData.display_name || editingTab?.display_name || "";
                   const parentTab = parentId ? findTabById(tabs, parentId) : null;
-                  const currentTabName = formData.display_name || editingTab?.display_name || "";
                   const parentTabName = parentTab?.display_name || "";
 
-                  // Resolve with ACTUAL values, not generic examples
-                  let folderPath = formData.folder_path || currentTabName;
-                  folderPath = folderPath
-                    .replace(/\{\{SubTabName\}\}/g, currentTabName)
-                    .replace(/\{\{TabName\}\}/g, parentTabName || currentTabName)
-                    .replace(/\{\{JobCode\}\}/g, "077")
-                    .replace(/\{\{Category\}\}/g, currentTabName)
-                    .replace(/\{\{CompanyGroup\}\}/g, "Teeem Group")
-                    .replace(/\{\{CompanyCode\}\}/g, "TH")
-                    .replace(/\{\{ContactName\}\}/g, "Robert Harder");
+                  // Full prefix: basePath + ancestors + current tab segment
+                  const basePath = getBasePath(scope);
+                  const allSegments = [...ancestorSegments, currentTabSegment].filter(Boolean);
+                  const fullPrefix = allSegments.length > 0
+                    ? `${basePath}/${allSegments.join("/")}`
+                    : basePath;
 
-                  const fullPath = `${basePath}/${folderPath}`;
+                  // Resolve suffix with actual values for preview
+                  let resolvedSuffix = formData.folder_path || "";
+                  if (resolvedSuffix) {
+                    resolvedSuffix = resolvedSuffix
+                      .replace(/\{\{SubTabName\}\}/g, currentTabSegment)
+                      .replace(/\{\{TabName\}\}/g, parentTabName || currentTabSegment)
+                      .replace(/\{\{JobCode\}\}/g, "077")
+                      .replace(/\{\{Category\}\}/g, currentTabSegment)
+                      .replace(/\{\{CompanyGroup\}\}/g, "Teeem Group")
+                      .replace(/\{\{CompanyCode\}\}/g, "TH")
+                      .replace(/\{\{ContactName\}\}/g, "Robert Harder");
+                  }
+
+                  const fullPath = resolvedSuffix
+                    ? `${fullPrefix}/${resolvedSuffix}`
+                    : fullPrefix;
+
+                  const hasSuffix = !!(formData.folder_path);
+
                   return (
-                    <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
-                      <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
-                      <span className="text-green-700 dark:text-green-300">{fullPath}</span>
-                    </div>
+                    <>
+                      {/* Base Path badge - from warehouse_types (SSoT) */}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Base Path</Label>
+                        {scope === "contact" && !parentId && formData.tab_type !== 'system' ? (
+                          // Root contact DOCUMENT tabs: can choose between /Contacts/ or /Corporate/People/
+                          <Select
+                            value={formData.warehouse_type_override === 'corporate' ? 'people' : 'contact'}
+                            onValueChange={(value) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                warehouse_type_override: value === 'people' ? 'corporate' : 'contacts',
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="w-full font-mono text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="contact">
+                                <span className="font-mono">/{getBasePath("contact")}/</span>
+                                <span className="text-muted-foreground ml-2">- Contact documents</span>
+                              </SelectItem>
+                              <SelectItem value="people">
+                                <span className="font-mono">/{getBasePath("people")}/</span>
+                                <span className="text-muted-foreground ml-2">- Corporate people</span>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="font-mono text-xs px-2 py-1.5 rounded border bg-muted text-foreground dark:bg-slate-800 dark:text-slate-300">
+                            {basePath}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Full Path badge - computed from tree structure */}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Full Path</Label>
+                        <div className="text-xs bg-green-100 dark:bg-green-950/50 border border-green-300 dark:border-green-700 rounded px-2 py-1.5 font-mono" title={fullPath}>
+                          <span className="text-green-800 dark:text-green-200">{fullPath}</span>
+                        </div>
+                      </div>
+
+                      {/* Suffix editor - hidden unless suffix exists or user clicks to show */}
+                      {hasSuffix ? (
+                        <div className="space-y-1">
+                          <PlaceholderBuilder
+                            label="Custom Path Suffix"
+                            value={formData.folder_path ?? ""}
+                            onChange={(value) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                folder_path: value,
+                              }))
+                            }
+                            scope="storage"
+                            prefixValue=""
+                            separator="/"
+                            placeholders={STORAGE_PLACEHOLDERS.filter((p) => {
+                              const isSubtab = !!(formData.parent_id || editingTab?.parent_id);
+                              if (isSubtab) return true;
+                              return p.code !== "{{SubTabName}}";
+                            })}
+                            showPreview={false}
+                            placeholder="Extra path tokens..."
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          onClick={() => setFormData((prev) => ({ ...prev, folder_path: " " }))}
+                        >
+                          + Add custom path suffix
+                        </button>
+                      )}
+                    </>
                   );
                 })()}
               </div>
@@ -2642,7 +2640,7 @@ export function WarehouseFoldersConfig({
               <h3 className="text-sm font-medium text-muted-foreground border-b pb-2 sticky top-0 bg-background">Document Types</h3>
 
               {/* Document Types (SSoT: Link document types to this tab) */}
-              {(editingTab?.tab_group === 'documents' || formData.tab_group === 'documents') ? (
+              {(formData.tab_type !== 'system') ? (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Linked Types</Label>
@@ -2756,45 +2754,6 @@ export function WarehouseFoldersConfig({
         </DialogContent>
       </Dialog>
 
-      {/* SSoT: Folder Rename Notification Dialog */}
-      <Dialog
-        open={folderRenameDialog?.open || false}
-        onOpenChange={(open) => !open && setFolderRenameDialog(null)}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>SharePoint Folder Rename Queued</DialogTitle>
-            <DialogDescription className="space-y-3 pt-2">
-              <p>
-                The tab name was changed from{" "}
-                <span className="font-semibold text-foreground">
-                  &quot;{folderRenameDialog?.oldName}&quot;
-                </span>{" "}
-                to{" "}
-                <span className="font-semibold text-foreground">
-                  &quot;{folderRenameDialog?.newName}&quot;
-                </span>.
-              </p>
-              <p className="text-sm">
-                A background job has been queued to rename the corresponding SharePoint folder.
-                This will update the folder name across all linked entities.
-              </p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded px-3 py-2">
-                <FolderOpen className="h-4 w-4" />
-                <span>Folder rename typically completes within a few seconds.</span>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="default"
-              onClick={() => setFolderRenameDialog(null)}
-            >
-              Got it
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Saving indicator */}
       {saving && (

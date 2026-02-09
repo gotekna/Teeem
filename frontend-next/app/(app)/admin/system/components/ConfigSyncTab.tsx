@@ -29,7 +29,13 @@ import {
   FileText,
   Users,
   Calendar,
-  Settings
+  Settings,
+  Calculator,
+  DollarSign,
+  Warehouse,
+  ShieldCheck,
+  Mail,
+  Map
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -64,6 +70,12 @@ const GROUP_ICONS: Record<string, React.ReactNode> = {
   contacts: <Users className="h-4 w-4" />,
   schedule: <Calendar className="h-4 w-4" />,
   operations: <Settings className="h-4 w-4" />,
+  estimating: <Calculator className="h-4 w-4" />,
+  finance: <DollarSign className="h-4 w-4" />,
+  warehouse: <Warehouse className="h-4 w-4" />,
+  whs: <ShieldCheck className="h-4 w-4" />,
+  email: <Mail className="h-4 w-4" />,
+  plans: <Map className="h-4 w-4" />,
 };
 
 interface TenantInfo {

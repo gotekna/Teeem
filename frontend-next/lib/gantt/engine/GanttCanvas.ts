@@ -2492,6 +2492,17 @@ export class GanttCanvas {
   destroy(): void {
     this.stopRenderLoop();
     this.removeEventListeners();
+
+    // Clean up touch timers
+    this.cancelLongPress();
+    this.stopMomentumScroll();
+
+    // Clean up screen reader element
+    if (this.screenReaderElement) {
+      this.screenReaderElement.remove();
+      this.screenReaderElement = null;
+    }
+
     this.canvas.remove();
 
     // Clean up managers (Day 2-3 Refactor)
@@ -2941,6 +2952,27 @@ export class GanttCanvas {
     this.canvas.removeEventListener('keydown', this.handleKeyDown);
     this.canvas.removeEventListener('contextmenu', this.handleContextMenu);
     window.removeEventListener('resize', this.handleResize);
+
+    // Remove touch listeners (stored bound refs prevent leak)
+    if (this._boundTouchStart) {
+      this.canvas.removeEventListener('touchstart', this._boundTouchStart);
+      this.canvas.removeEventListener('touchmove', this._boundTouchMove!);
+      this.canvas.removeEventListener('touchend', this._boundTouchEnd!);
+      this.canvas.removeEventListener('touchcancel', this._boundTouchCancel!);
+    }
+
+    // Remove orientation listeners
+    if (this._boundOrientationChange) {
+      window.removeEventListener('orientationchange', this._boundOrientationChange);
+    }
+    if (this._boundOrientationResize) {
+      window.removeEventListener('resize', this._boundOrientationResize);
+    }
+
+    // Remove virtual keyboard listener
+    if (this._boundVirtualKeyboardResize && window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', this._boundVirtualKeyboardResize);
+    }
   }
 
   private handleMouseDown = (e: MouseEvent): void => {
@@ -5899,14 +5931,25 @@ export class GanttCanvas {
   private touchLongPressTimer: ReturnType<typeof setTimeout> | null = null;
   private touchMomentumAnimationId: number | null = null;
 
+  // Stored bound references for touch event cleanup (prevents memory leak)
+  private _boundTouchStart: ((e: TouchEvent) => void) | null = null;
+  private _boundTouchMove: ((e: TouchEvent) => void) | null = null;
+  private _boundTouchEnd: ((e: TouchEvent) => void) | null = null;
+  private _boundTouchCancel: ((e: TouchEvent) => void) | null = null;
+
   /**
    * Initialize touch event listeners
    */
   initializeTouchEvents(): void {
-    this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
-    this.canvas.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
-    this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
-    this.canvas.addEventListener('touchcancel', this.handleTouchCancel.bind(this), { passive: false });
+    this._boundTouchStart = this.handleTouchStart.bind(this);
+    this._boundTouchMove = this.handleTouchMove.bind(this);
+    this._boundTouchEnd = this.handleTouchEnd.bind(this);
+    this._boundTouchCancel = this.handleTouchCancel.bind(this);
+
+    this.canvas.addEventListener('touchstart', this._boundTouchStart, { passive: false });
+    this.canvas.addEventListener('touchmove', this._boundTouchMove, { passive: false });
+    this.canvas.addEventListener('touchend', this._boundTouchEnd, { passive: false });
+    this.canvas.addEventListener('touchcancel', this._boundTouchCancel, { passive: false });
   }
 
   /**
@@ -11354,11 +11397,16 @@ export class GanttCanvas {
   // =========================================================================
   private currentOrientation: 'portrait' | 'landscape' = 'landscape';
   private orientationCallbacks: ((o: 'portrait' | 'landscape') => void)[] = [];
+  // Stored bound references for orientation cleanup (prevents memory leak)
+  private _boundOrientationChange: (() => void) | null = null;
+  private _boundOrientationResize: (() => void) | null = null;
 
   initializeOrientationDetection(): void {
     this.detectOrientation();
-    window.addEventListener('orientationchange', () => setTimeout(() => this.detectOrientation(), 100));
-    window.addEventListener('resize', () => this.detectOrientation());
+    this._boundOrientationChange = () => setTimeout(() => this.detectOrientation(), 100);
+    this._boundOrientationResize = () => this.detectOrientation();
+    window.addEventListener('orientationchange', this._boundOrientationChange);
+    window.addEventListener('resize', this._boundOrientationResize);
   }
 
   private detectOrientation(): void {
@@ -11405,10 +11453,13 @@ export class GanttCanvas {
   // =========================================================================
   private virtualKeyboardHeight: number = 0;
   private virtualKeyboardVisible: boolean = false;
+  // Stored bound reference for virtual keyboard cleanup (prevents memory leak)
+  private _boundVirtualKeyboardResize: (() => void) | null = null;
 
   initializeVirtualKeyboardDetection(): void {
     if ('visualViewport' in window && window.visualViewport) {
-      window.visualViewport.addEventListener('resize', () => this.handleVirtualKeyboardChange());
+      this._boundVirtualKeyboardResize = () => this.handleVirtualKeyboardChange();
+      window.visualViewport.addEventListener('resize', this._boundVirtualKeyboardResize);
     }
   }
 

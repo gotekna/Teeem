@@ -35,11 +35,15 @@ module Api
         per_page = (params[:per_page] || 50).to_i.clamp(1, 200)
 
         total_count = invoices.count
-        invoices = invoices.order(invoice_date: :desc).offset((page - 1) * per_page).limit(per_page)
+        invoices = invoices.order(invoice_date: :desc).offset((page - 1) * per_page).limit(per_page).to_a
+
+        # Batch-load SyncConfigurations to avoid N+1
+        tenant_ids = invoices.map(&:tenant_id).compact.uniq
+        config_lookup = SyncConfiguration.where(xero_tenant_id: tenant_ids).index_by(&:xero_tenant_id)
 
         render json: {
           success: true,
-          data: invoices.map { |inv| serialize_invoice(inv) },
+          data: invoices.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
           meta: {
             total_count: total_count,
             page: page,
@@ -52,11 +56,11 @@ module Api
       # GET /api/v1/external_invoices/:id
       # Note: corporate_company_documents DROPPED (Jan 2026) - migrated to warehouse_documents
       def show
-        invoice = ExternalInvoice.find(params[:id])
+        invoice = ExternalInvoice.includes(:warehouse_documents).find(params[:id])
 
-        # Check if PDF is available (SSoT: now via warehouse_documents)
+        # Check if PDF is available (includes child attachments for bills)
+        has_pdf = invoice_has_pdf?(invoice)
         pdf_doc = invoice.warehouse_documents.find_by("metadata->>'document_type' = ?", document_type_for(invoice.invoice_type))
-        has_pdf = pdf_doc&.storage_blob.present?
 
         render json: {
           success: true,
@@ -73,11 +77,11 @@ module Api
       # Find invoice by Xero ID (external_id) - for invoice detail modal
       # Note: corporate_company_documents DROPPED (Jan 2026) - migrated to warehouse_documents
       def by_external_id
-        invoice = ExternalInvoice.find_by!(external_id: params[:external_id])
+        invoice = ExternalInvoice.includes(:warehouse_documents).find_by!(external_id: params[:external_id])
 
-        # Check if PDF is available (SSoT: now via warehouse_documents)
+        # Check if PDF is available (includes child attachments for bills)
+        has_pdf = invoice_has_pdf?(invoice)
         pdf_doc = invoice.warehouse_documents.find_by("metadata->>'document_type' = ?", document_type_for(invoice.invoice_type))
-        has_pdf = pdf_doc&.storage_blob.present?
 
         render json: {
           success: true,
@@ -125,13 +129,17 @@ module Api
           end
         end
 
+        # Batch-load SyncConfigurations to avoid N+1 in serialize_invoice
+        tenant_ids = invoices.map(&:tenant_id).compact.uniq
+        config_lookup = SyncConfiguration.where(xero_tenant_id: tenant_ids).index_by(&:xero_tenant_id)
+
         render json: {
           success: true,
           data: {
-            invoices: sales_invoices.map { |inv| serialize_invoice(inv) },
-            bills: bills.map { |inv| serialize_invoice(inv) },
-            credit_notes: credit_notes.map { |inv| serialize_invoice(inv) },
-            quotes: quotes.map { |inv| serialize_invoice(inv) },
+            invoices: sales_invoices.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            bills: bills.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            credit_notes: credit_notes.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            quotes: quotes.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
             total_invoices: sales_invoices.count,
             total_bills: bills.count,
             total_credit_notes: credit_notes.count,
@@ -217,15 +225,20 @@ module Api
         # Get last sync time - SSoT: use this contact's most recent sync, not global
         contact_last_sync = invoices.maximum(:last_synced_at)
 
-        # Group invoices by tenant_id for tabbed display
-        grouped_by_tenant = invoices.group_by(&:tenant_id)
+        # Group invoices by xero_org_id (Xero UUID) for tabbed display
+        # Frontend matches by xero_tenant_id (UUID), not TEEEM tenant_id (integer)
+        grouped_by_tenant = invoices.group_by(&:xero_org_id)
+
+        # Batch-load all SyncConfigurations for this contact's invoices (avoids N+1)
+        xero_org_ids = grouped_by_tenant.keys.compact
+        config_lookup = SyncConfiguration.where(xero_tenant_id: xero_org_ids).index_by(&:xero_tenant_id)
 
         # Build tenant info lookup
         tenant_info = {}
-        grouped_by_tenant.keys.compact.each do |tenant_id|
-          config = SyncConfiguration.find_by(xero_tenant_id: tenant_id)
-          tenant_info[tenant_id] = {
-            tenant_id: tenant_id,
+        xero_org_ids.each do |xero_org_id|
+          config = config_lookup[xero_org_id]
+          tenant_info[xero_org_id] = {
+            tenant_id: xero_org_id,
             tenant_name: config&.xero_tenant_name || "Unknown Xero Company",
             badge_color: config&.badge_color || "blue"
           }
@@ -233,20 +246,20 @@ module Api
 
         # Build by_tenant response
         by_tenant = {}
-        grouped_by_tenant.each do |tenant_id, tenant_invoices|
-          next unless tenant_id
+        grouped_by_tenant.each do |xero_org_id, tenant_invoices|
+          next unless xero_org_id
 
           tenant_sales = tenant_invoices.select(&:sales_invoice?)
           tenant_bills = tenant_invoices.select(&:bill?)
           tenant_credit_notes = tenant_invoices.select(&:credit_note?)
           tenant_quotes = tenant_invoices.select(&:quote?)
 
-          by_tenant[tenant_id] = {
-            tenant_info: tenant_info[tenant_id],
-            invoices: tenant_sales.map { |inv| serialize_invoice(inv) },
-            bills: tenant_bills.map { |inv| serialize_invoice(inv) },
-            credit_notes: tenant_credit_notes.map { |inv| serialize_invoice(inv) },
-            quotes: tenant_quotes.map { |inv| serialize_invoice(inv) },
+          by_tenant[xero_org_id] = {
+            tenant_info: tenant_info[xero_org_id],
+            invoices: tenant_sales.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            bills: tenant_bills.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            credit_notes: tenant_credit_notes.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            quotes: tenant_quotes.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
             total_invoices: tenant_sales.count,
             total_bills: tenant_bills.count,
             total_credit_notes: tenant_credit_notes.count,
@@ -260,10 +273,10 @@ module Api
             # Grouped by tenant (new - for tabbed display)
             by_tenant: by_tenant,
             # Flat lists (backwards compatible)
-            invoices: sales_invoices.map { |inv| serialize_invoice(inv) },
-            bills: bills.map { |inv| serialize_invoice(inv) },
-            credit_notes: credit_notes.map { |inv| serialize_invoice(inv) },
-            quotes: quotes.map { |inv| serialize_invoice(inv) },
+            invoices: sales_invoices.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            bills: bills.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            credit_notes: credit_notes.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
+            quotes: quotes.map { |inv| serialize_invoice(inv, config_lookup: config_lookup) },
             total_invoices: sales_invoices.count,
             total_bills: bills.count,
             total_credit_notes: credit_notes.count,
@@ -463,6 +476,18 @@ module Api
         # SSoT: Find PDF via warehouse_documents (document_type stored in metadata)
         existing_pdf = invoice.warehouse_documents.find_by("metadata->>'document_type' = ?", document_type_for(invoice.invoice_type))
 
+        # For bills: primary doc has storage_blob nil (no auto-generated PDF).
+        # Check child attachments linked via parent_document_id.
+        if existing_pdf && !existing_pdf.storage_blob.present?
+          child_with_blob = WarehouseDocument.where(parent_document_id: existing_pdf.id)
+                                             .where.not(storage_blob_id: nil)
+                                             .first
+          existing_pdf = child_with_blob if child_with_blob
+        end
+
+        # Also check any warehouse_document for this invoice that has a blob
+        existing_pdf ||= invoice.warehouse_documents.where.not(storage_blob_id: nil).first
+
         if existing_pdf&.storage_blob.present?
           # Use fetch_from_storage which handles paths correctly for any provider
           content = fetch_from_storage(existing_pdf)
@@ -569,7 +594,7 @@ module Api
             title: doc.ui_name,
             file_name: doc.original_filename,
             document_type: doc.metadata&.dig("document_type"),
-            folder: doc.folder,
+            folder: doc.folder_path,
             file_size: doc.file_size,
             mime_type: doc.content_type,
             has_file: doc.storage_blob.present?,
@@ -594,6 +619,22 @@ module Api
 
       private
 
+      # Check if an invoice has a PDF available (direct or via child attachments)
+      # Bills have primary warehouse_documents with storage_blob nil; their actual
+      # file attachments are child WarehouseDocuments linked via parent_document_id.
+      def invoice_has_pdf?(invoice)
+        docs = invoice.warehouse_documents.to_a
+        return true if docs.any? { |wd| wd.storage_blob_id.present? }
+
+        # Check child documents (bill attachments linked via parent_document_id)
+        doc_ids = docs.map(&:id)
+        return false if doc_ids.empty?
+
+        WarehouseDocument.where(parent_document_id: doc_ids)
+                         .where.not(storage_blob_id: nil)
+                         .exists?
+      end
+
       # SSoT: Maps invoice_type to document_type - MUST match XeroAttachmentSyncService.document_type_for_invoice
       def document_type_for(invoice_type)
         case invoice_type
@@ -605,11 +646,15 @@ module Api
         end
       end
 
-      def serialize_invoice(invoice, include_details: false)
-        # Look up tenant name from SyncConfiguration
+      def serialize_invoice(invoice, include_details: false, config_lookup: nil)
+        # Look up tenant name from SyncConfiguration (use pre-loaded hash if available)
         tenant_name = nil
         if invoice.tenant_id.present?
-          config = SyncConfiguration.find_by(xero_tenant_id: invoice.tenant_id)
+          config = if config_lookup
+            config_lookup[invoice.tenant_id]
+          else
+            SyncConfiguration.find_by(xero_tenant_id: invoice.tenant_id)
+          end
           tenant_name = config&.xero_tenant_name
         end
 
@@ -645,7 +690,8 @@ module Api
           xero_type: invoice.xero_type,
           xero_status: invoice.xero_status,
           # PDF sync status - true if a WarehouseDocument with storage_blob exists
-          has_pdf: invoice.warehouse_documents.any? { |wd| wd.storage_blob_id.present? }
+          # (includes child attachments for bills via parent_document_id)
+          has_pdf: invoice_has_pdf?(invoice)
         }
 
         if include_details

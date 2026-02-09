@@ -96,7 +96,7 @@ export function JobSpreadsheetsSection({ jobId, jobName }: JobSpreadsheetsSectio
             {spreadsheets.map((spreadsheet) => (
               <Link
                 key={spreadsheet.id}
-                href={`/admin/system/teeem-xl?id=${spreadsheet.id}`}
+                href={`/admin/system/teeem-xl/${spreadsheet.id}`}
                 className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors group"
               >
                 <div className="flex items-center gap-3">

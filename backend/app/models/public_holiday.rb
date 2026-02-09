@@ -1,6 +1,8 @@
 class PublicHoliday < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = [:name, :date]
 
   validates :name, presence: true
   validates :date, presence: true, uniqueness: { scope: [:tenant_id, :region] }

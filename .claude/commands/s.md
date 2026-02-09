@@ -11,8 +11,9 @@ Commits only THIS chat session's changes and deploys to staging environment.
 
 ## STAGING DEPLOY
 
-- Backend: Heroku (`teeem-staging`) - manual deploy via FAST orphan method
+- Backend: Heroku (`teeem-staging`) - manual deploy via FAST orphan method (builds the slug)
 - Frontend: Auto-deploys from GitHub push (no version tracking)
+- NOTE: `/b`, `/p` commands promote this staging slug to beta/production (no rebuild)
 
 ## Vercel Branch Filtering (Jan 2026)
 
@@ -211,14 +212,10 @@ If any step fails:
 
 ### Release Command Failures (Expected)
 
-The Heroku release command (`deploy:prepare` + `increment_version`) may fail with:
-```
-release command failed: too many connections for role
-```
+The Heroku release command runs `deploy:prepare` (migrations only) + `increment_version`.
+It may fail with `too many connections for role` - **this is OK**, the code still deploys.
 
-**This is OK!** The code still deploys successfully.
-
-**If you need migrations to run:**
+**If you need migrations to run manually:**
 ```bash
 heroku run rails db:migrate --app teeem-staging
 ```

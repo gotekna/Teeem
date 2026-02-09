@@ -171,7 +171,7 @@ class SmTaskAttachment < ApplicationRecord
 
     # FRC (Feb 2026): Prevent duplicate WarehouseDocuments for same blob+folder
     # Same file can appear in multiple folders, but NOT multiple times in same folder
-    existing = WarehouseDocument.find_by(storage_blob_id: blob.id, folder: folder)
+    existing = WarehouseDocument.find_by(storage_blob_id: blob.id, folder_path: folder)
     if existing
       Rails.logger.debug("[SmTaskAttachment] ##{id}: Skipping duplicate - WD #{existing.id} already exists for blob #{blob.id} in #{folder}")
       return
@@ -182,7 +182,6 @@ class SmTaskAttachment < ApplicationRecord
     create_warehouse_document!(
       tenant_id: sm_task.tenant_id,
       source_type: "task",
-      folder: folder,
       display_name: name,
       original_filename: filename,
       storage_blob: blob,
@@ -287,11 +286,19 @@ class SmTaskAttachment < ApplicationRecord
     # FRC: "Response" = category="response" OR has action_item_id (linked to question)
     folder_type = is_response_attachment? ? :task_responses : :task_attachments
 
-    # Use config template - resolves {{TaskId}} and {{TaskName}}
-    folder = config.resolve_virtual_path(folder_type, {
+    # Use config template - resolves {{JobName}}, {{TaskId}}, and {{TaskName}}
+    # Template: Task/{{JobName}}/{{TaskId}}{{TaskName}}/Task Attachments
+    # FRC (Feb 2026): Must include JobName - tasks belong_to :job (optional)
+    # If no job, omit JobName token - resolve_virtual_path strips it, skipping that folder level
+    job = task.job
+    tokens = {
+      JobName: job&.display_name.presence || job&.job_code.presence || "Unassigned Job",
+      JobCode: job&.job_code.presence || "No-Job",
       TaskId: task.id,
-      TaskName: task.name&.parameterize || "task-#{task.id}"
-    })
+      TaskName: task.name&.parameterize || "task-#{task.id}",
+      TaskStatus: task.status&.titleize || "Unknown"
+    }
+    folder = config.resolve_virtual_path(folder_type, tokens)
 
     if folder.blank?
       Rails.logger.warn("[SmTaskAttachment] ##{id}: resolve_virtual_path returned blank for #{folder_type}")

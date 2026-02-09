@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { copyToClipboard } from "@/utils/formatters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -216,7 +216,9 @@ export default function TeeemXLPage() {
   const resizeStartWidth = React.useRef<number>(0);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const spreadsheetId = searchParams.get("id");
+  const params = useParams();
+  // Path-based ID (preferred) or query param fallback for backwards compat
+  const spreadsheetId = (params.id as string) || searchParams.get("id");
   const { setMode } = useLayoutMode();
 
   // Enable fullscreen mode (hide sidebar/breadcrumbs)
@@ -386,7 +388,7 @@ export default function TeeemXLPage() {
               },
             ]);
             setHistoryIndex(0);
-            router.replace(`/admin/system/teeem-xl?id=${response.data.id}`);
+            router.replace(`/admin/system/teeem-xl/${response.data.id}`);
           }
         }
       } catch (error) {

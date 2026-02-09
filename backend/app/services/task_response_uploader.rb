@@ -129,7 +129,6 @@ class TaskResponseUploader
       documentable: documentable,
       storage_blob: blob,
       source_type: "task",
-      folder: folder_name,
       ui_name: resolved_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: upload_result[:filename],
       tenant_id: @tenant.id,
@@ -195,17 +194,17 @@ class TaskResponseUploader
     provider.create_folder(folder_path, create_parents: true)
   end
 
-  # SSoT (Feb 2026): Resolve display_name from BaseFolder template using SendNameResolver
-  # BaseFolder.display_name can contain tokens like {{OriginalFileName}}, {{TaskName}}, {{Subject}}, etc.
-  # Falls back to original filename if no template or BaseFolder not found
+  # SSoT (Feb 2026): Resolve display_name from WarehouseFolder template using SendNameResolver
+  # WarehouseFolder.display_name can contain tokens like {{OriginalFileName}}, {{TaskName}}, {{Subject}}, etc.
+  # Falls back to original filename if no template or WarehouseFolder not found
   def resolve_display_name(original_filename)
-    # Find the BaseFolder for this storage scope (task_responses or task_attachments)
+    # Find the WarehouseFolder for this storage scope (task_responses or task_attachments)
     # The folder_name method returns "Responses" or "Attachments"
-    base_folder = BaseFolder.for_warehouse_type(storage_scope.to_s).find_by(
+    base_folder = WarehouseFolder.for_warehouse_type(storage_scope.to_s).find_by(
       display_name: folder_name
     )
 
-    # Fall back to original filename if no BaseFolder or no template
+    # Fall back to original filename if no WarehouseFolder or no template
     return original_filename unless base_folder&.display_name.present?
 
     template = base_folder.display_name

@@ -38,6 +38,7 @@ class DocsortItem < ApplicationRecord
   # Standalone takeoff associations (Feb 2026)
   has_many :unreal_measurements, dependent: :destroy
   has_many :page_scales, dependent: :destroy
+  has_many :takeoff_layers, dependent: :destroy
 
   # Constants
   SOURCES = %w[upload email api forward].freeze

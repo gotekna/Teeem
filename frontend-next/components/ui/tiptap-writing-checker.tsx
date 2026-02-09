@@ -327,6 +327,7 @@ export const WritingChecker = Extension.create({
       currentHoveredIssue: null as WritingIssue | null,
       isTooltipOpen: false,
       documentPointerHandler: null as ((e: PointerEvent | MouseEvent) => void) | null,
+      hoverMouseleaveHandler: null as (() => void) | null,
     };
   },
 
@@ -338,6 +339,11 @@ export const WritingChecker = Extension.create({
     const cleanupHover = () => {
       if (extension.storage.hoverRoot) {
         extension.storage.hoverRoot.unmount();
+        // Remove mouseleave listener before removing container to prevent leak
+        if (extension.storage.hoverContainer && extension.storage.hoverMouseleaveHandler) {
+          extension.storage.hoverContainer.removeEventListener("mouseleave", extension.storage.hoverMouseleaveHandler);
+          extension.storage.hoverMouseleaveHandler = null;
+        }
         extension.storage.hoverContainer?.remove();
         extension.storage.hoverRoot = null;
         extension.storage.hoverContainer = null;
@@ -509,14 +515,16 @@ export const WritingChecker = Extension.create({
                   extension.storage.hoverRoot = createRoot(hoverContainer);
 
                   // Track when mouse leaves the hover container
-                  hoverContainer.addEventListener("mouseleave", () => {
+                  const mouseleaveHandler = () => {
                     // Small delay before cleanup in case user is moving back
                     setTimeout(() => {
                       if (!hoverContainer.matches(":hover")) {
                         cleanupHover();
                       }
                     }, 150);
-                  });
+                  };
+                  hoverContainer.addEventListener("mouseleave", mouseleaveHandler);
+                  extension.storage.hoverMouseleaveHandler = mouseleaveHandler;
 
                   const handleFix = () => {
                     console.log('[WritingChecker] Tooltip handleFix called');

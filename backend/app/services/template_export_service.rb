@@ -209,9 +209,9 @@ class TemplateExportService
     end
   end
 
-  # SSoT (Feb 2026): Export from base_folders (was warehouse_folders)
+  # SSoT (Feb 2026): Export from warehouse_folders
   def export_warehouse_folders
-    @tenant.base_folders.includes(:warehouse_type).order(:order_position).map do |record|
+    @tenant.warehouse_folders.includes(:warehouse_type).order(:order_position).map do |record|
       {
         entity_type: record.warehouse_type_code,
         name: record.display_name || record.name,

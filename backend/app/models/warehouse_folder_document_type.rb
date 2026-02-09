@@ -1,34 +1,36 @@
 # frozen_string_literal: true
 
-# BaseFolderDocumentType - SSoT for folder-to-document-type associations
+# WarehouseFolderDocumentType - SSoT for folder-to-document-type associations
 #
 # ╔═══════════════════════════════════════════════════════════════════════════════╗
 # ║  SSoT: THE ONE source for document type templates per folder                   ║
 # ║                                                                                ║
-# ║  This replaces WarehouseFolderDocumentType (Feb 2026)                          ║
-# ║                                                                                ║
 # ║  Template Resolution Chain:                                                    ║
-# ║  1. base_folder_document_types.ui_name_template (folder-specific)              ║
+# ║  1. warehouse_folder_document_types.ui_name_template (folder-specific)         ║
 # ║  2. document_types.ui_name (document type default)                             ║
-# ║  3. base_folders.ui_name_template (folder-level fallback)                      ║
+# ║  3. warehouse_folders.ui_name_template (folder-level fallback)                 ║
 # ║                                                                                ║
 # ║  Same chain for download_name_template.                                        ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 #
-class BaseFolderDocumentType < ApplicationRecord
-  belongs_to :base_folder
+class WarehouseFolderDocumentType < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = [:warehouse_folder_id, :document_type_id]
+
+  belongs_to :warehouse_folder
   belongs_to :document_type
 
-  # SSoT (Feb 2026): Link to WarehouseDocuments that use this template config
+  # SSoT: Link to WarehouseDocuments that use this template config
   # Enables bulk updates when templates change
   has_many :warehouse_documents, dependent: :nullify
 
   # Callbacks
-  # SSoT (Feb 2026): Sync warehouse_document.ui_name when templates change
+  # SSoT: Sync warehouse_document.ui_name when templates change
   after_update :schedule_warehouse_document_sync, if: :template_changed?
 
   # Validations
-  validates :base_folder_id, uniqueness: { scope: :document_type_id }
+  validates :warehouse_folder_id, uniqueness: { scope: [:tenant_id, :document_type_id] }
 
   # ════════════════════════════════════════════════════════════════════════════════
   # SSoT: Template Resolution Methods
@@ -41,7 +43,7 @@ class BaseFolderDocumentType < ApplicationRecord
   def effective_ui_name_template
     ui_name_template.presence ||
       document_type&.ui_name.presence ||
-      base_folder&.ui_name_template.presence
+      warehouse_folder&.ui_name_template.presence
   end
 
   # Get the effective download name template for this folder+doc type combination
@@ -50,7 +52,7 @@ class BaseFolderDocumentType < ApplicationRecord
   def effective_download_name_template
     download_name_template.presence ||
       document_type&.download_name.presence ||
-      base_folder&.download_name_template.presence
+      warehouse_folder&.download_name_template.presence
   end
 
   # Check if this link has folder-specific template overrides
@@ -63,7 +65,7 @@ class BaseFolderDocumentType < ApplicationRecord
   def as_json(options = {})
     {
       id: id,
-      base_folder_id: base_folder_id,
+      warehouse_folder_id: warehouse_folder_id,
       document_type_id: document_type_id,
       is_primary: is_primary,
       # Template fields
@@ -75,7 +77,7 @@ class BaseFolderDocumentType < ApplicationRecord
       has_template_overrides: has_template_overrides?,
       # Related object data
       document_type_name: document_type&.name,
-      folder_name: base_folder&.display_name || base_folder&.name
+      folder_name: warehouse_folder&.display_name || warehouse_folder&.name
     }
   end
 

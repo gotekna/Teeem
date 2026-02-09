@@ -198,7 +198,6 @@ class ChatMessage < ApplicationRecord
     create_warehouse_document!(
       tenant_id: tenant.id,
       source_type: "warehouse",
-      folder: virtual_folder_path,
       display_name: display_name_for_warehouse,
       original_filename: storage_blob.original_filename,
       storage_blob: storage_blob,

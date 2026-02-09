@@ -41,10 +41,11 @@ const DEFAULT_DOCUMENTS_BASE_PATH = "/settings/company/documents";
 
 interface DocumentsTabProps {
   subTab?: string;
+  deepTab?: string;
   basePath?: string;
 }
 
-export function DocumentsTab({ subTab, basePath = DEFAULT_DOCUMENTS_BASE_PATH }: DocumentsTabProps) {
+export function DocumentsTab({ subTab, deepTab, basePath = DEFAULT_DOCUMENTS_BASE_PATH }: DocumentsTabProps) {
   const router = useRouter();
 
   // Default to "types" sub-tab
@@ -74,7 +75,7 @@ export function DocumentsTab({ subTab, basePath = DEFAULT_DOCUMENTS_BASE_PATH }:
             <DocumentTypesTab basePath={`${basePath}/types`} />
           </TabsContent>
           <TabsContent value="document-templates">
-            <DocumentTemplatesContent basePath={`${basePath}/document-templates`} />
+            <DocumentTemplatesContent basePath={`${basePath}/document-templates`} subTab={activeSubTab === "document-templates" ? deepTab : undefined} />
           </TabsContent>
           <TabsContent value="bank-statements">
             <BankStatementTemplatesTab />

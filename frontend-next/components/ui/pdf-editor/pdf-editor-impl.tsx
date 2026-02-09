@@ -21,6 +21,7 @@ import { EditorToolbar } from "./toolbar";
 import { AnnotationCanvas } from "./annotation-canvas";
 import type { AnnotationTool, PDFEditorProps } from "./types";
 import { cn } from "@/lib/utils";
+import { PdfChrome, PdfFrame } from "@/components/ui/pdf-chrome";
 import { FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -271,28 +272,29 @@ export function PDFEditorImpl({
         </div>
 
         {/* Canvas area */}
-        <div className="flex-1 overflow-auto bg-muted/50 flex items-center justify-center p-4">
+        <PdfChrome className="bg-muted/50 flex items-center justify-center p-4">
           {selectedPage ? (
-            <AnnotationCanvas
-              pageImage={selectedPage.thumbnail}
-              width={selectedPage.width} // Use actual rendered dimensions (now at 1.5x * dpr)
-              height={selectedPage.height}
-              zoom={zoom}
-              currentTool={currentTool}
-              strokeColor={strokeColor}
-              strokeWidth={strokeWidth}
-              annotations={selectedPage.annotations}
-              onAnnotationsChange={handleAnnotationsChange}
-              onHistoryChange={handleHistoryChange}
-              className="shadow-lg"
-            />
+            <PdfFrame className="shadow-lg">
+              <AnnotationCanvas
+                pageImage={selectedPage.thumbnail}
+                width={selectedPage.width} // Use actual rendered dimensions (now at 1.5x * dpr)
+                height={selectedPage.height}
+                zoom={zoom}
+                currentTool={currentTool}
+                strokeColor={strokeColor}
+                strokeWidth={strokeWidth}
+                annotations={selectedPage.annotations}
+                onAnnotationsChange={handleAnnotationsChange}
+                onHistoryChange={handleHistoryChange}
+              />
+            </PdfFrame>
           ) : (
             <div className="text-center text-muted-foreground">
               <FileText className="h-16 w-16 mx-auto mb-4" />
               <p>Select a page to edit</p>
             </div>
           )}
-        </div>
+        </PdfChrome>
       </div>
 
       {/* Delete confirmation dialog */}

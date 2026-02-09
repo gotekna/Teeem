@@ -64,13 +64,11 @@ class WeatherApiClient
   end
 
   def make_request(uri)
-    http = Net::HTTP.new(uri.host, uri.port)
-    http.use_ssl = true
-    http.read_timeout = 10
-    http.open_timeout = 10
-
     request = Net::HTTP::Get.new(uri)
-    response = http.request(request)
+
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 10) do |http|
+      http.request(request)
+    end
 
     unless response.is_a?(Net::HTTPSuccess)
       raise ApiError, "HTTP #{response.code}: #{response.body}"

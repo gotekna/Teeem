@@ -69,7 +69,7 @@ export default function SpreadsheetListPage() {
 
   // Open spreadsheet
   const handleOpen = (id: number) => {
-    router.push(`/admin/system/teeem-xl?id=${id}`);
+    router.push(`/admin/system/teeem-xl/${id}`);
   };
 
   // Delete spreadsheet

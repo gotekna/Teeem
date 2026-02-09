@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback } from "react";
-import { useRouter } from "next/navigation";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { BackButton } from "@/components/ui/back-button";
 import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
 import type { ViewData } from "@/lib/server/foundation-api";
+import { usePOInvoiceModal } from "@/hooks/use-po-invoice-modal";
 
 interface PurchaseOrdersPageClientProps {
   // SSR data from server component
@@ -32,16 +32,16 @@ export default function PurchaseOrdersPageClient({
   initialView,
   initialViews,
 }: PurchaseOrdersPageClientProps) {
-  const router = useRouter();
+  const { open: openPOInvoice } = usePOInvoiceModal();
 
-  // Navigation handler - navigate to PO detail page
+  // Row click opens PO vs Invoice side-by-side modal
   const handleRowClick = useCallback((row: TableRow) => {
     const poNumber = row.purchase_order_number as string | undefined;
     const slug = poNumber?.replace('PO-', '') || row.id;
     if (slug) {
-      router.push(`/purchase_orders/${slug}`);
+      openPOInvoice(slug, poNumber);
     }
-  }, [router]);
+  }, [openPOInvoice]);
 
   return (
     <TablePage>

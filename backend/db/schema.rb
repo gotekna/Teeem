@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -131,7 +131,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "ai_model", default: "sonnet"
     t.boolean "ai_always", default: false
     t.boolean "active", default: true
-    t.jsonb "extra_config", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["service_type"], name: "index_ai_service_configs_on_service_type", unique: true
@@ -400,7 +399,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.date "effective_from", null: false
     t.date "effective_until"
     t.boolean "is_division_43", default: false
-    t.string "division_43_category"
     t.decimal "division_43_rate", precision: 5, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -629,70 +627,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["xero_transaction_id"], name: "index_bank_transactions_on_xero_transaction_id", unique: true
   end
 
-  create_table "base_folder_document_types", force: :cascade do |t|
-    t.bigint "base_folder_id", null: false
-    t.bigint "document_type_id", null: false
-    t.boolean "is_primary", default: false
-    t.string "ui_name_template"
-    t.string "download_name_template"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["base_folder_id", "document_type_id"], name: "idx_bfdt_unique", unique: true
-    t.index ["base_folder_id"], name: "index_base_folder_document_types_on_base_folder_id"
-    t.index ["document_type_id", "is_primary"], name: "idx_bfdt_primary"
-    t.index ["document_type_id"], name: "index_base_folder_document_types_on_document_type_id"
-    t.index ["download_name_template"], name: "idx_bfdt_download_name_template", where: "(download_name_template IS NOT NULL)"
-    t.index ["ui_name_template"], name: "idx_bfdt_ui_name_template", where: "(ui_name_template IS NOT NULL)"
-  end
-
-  create_table "base_folders", force: :cascade do |t|
-    t.bigint "warehouse_type_id", null: false
-    t.string "name", null: false
-    t.string "folder_segment"
-    t.boolean "is_system", default: false, null: false
-    t.boolean "enabled", default: true, null: false
-    t.integer "order_position", default: 0, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "parent_id"
-    t.bigint "tenant_id"
-    t.string "folder_path_suffix"
-    t.string "tab_key"
-    t.string "display_name"
-    t.string "display_code", limit: 3
-    t.text "description"
-    t.string "tab_group", default: "documents"
-    t.string "icon_name"
-    t.string "display_mode", default: "both"
-    t.boolean "hidden_by_default", default: false
-    t.string "component_name"
-    t.boolean "warehouse_enabled", default: true
-    t.boolean "is_photo_category", default: false
-    t.boolean "is_cad_category", default: false
-    t.string "visibility_rule"
-    t.string "xero_scope"
-    t.string "entity_filters", default: [], array: true
-    t.string "warehouse_type_override"
-    t.string "ui_name_template"
-    t.string "download_name_template"
-    t.bigint "job_id"
-    t.boolean "uses_custom_path", default: false
-    t.boolean "is_system_tab", default: false
-    t.index ["enabled"], name: "index_base_folders_on_enabled"
-    t.index ["entity_filters"], name: "index_base_folders_on_entity_filters", using: :gin
-    t.index ["job_id"], name: "index_base_folders_on_job_id"
-    t.index ["order_position"], name: "index_base_folders_on_order_position"
-    t.index ["parent_id"], name: "index_base_folders_on_parent_id"
-    t.index ["tab_group"], name: "index_base_folders_on_tab_group"
-    t.index ["tab_key"], name: "index_base_folders_on_tab_key"
-    t.index ["tenant_id", "warehouse_type_id", "name"], name: "idx_bf_tenant_type_name", unique: true, where: "(tenant_id IS NOT NULL)"
-    t.index ["tenant_id"], name: "idx_bf_tenant"
-    t.index ["tenant_id"], name: "index_base_folders_on_tenant_id"
-    t.index ["warehouse_enabled"], name: "index_base_folders_on_warehouse_enabled"
-    t.index ["warehouse_type_id", "name"], name: "idx_base_folders_unique_name", unique: true
-    t.index ["warehouse_type_id"], name: "index_base_folders_on_warehouse_type_id"
-  end
-
   create_table "basiq_credentials", force: :cascade do |t|
     t.string "owner_type", null: false
     t.bigint "owner_id", null: false
@@ -813,14 +747,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "aba_generated_at"
     t.string "aba_sequence_number"
     t.string "processing_description"
-    t.string "self_balancing_reference"
     t.bigint "created_by_id"
     t.bigint "approved_by_id"
     t.datetime "approved_at"
     t.bigint "bpmn_process_instance_id"
     t.datetime "submitted_to_bank_at"
     t.datetime "completed_at"
-    t.text "bank_response"
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -846,9 +778,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "payee_bsb"
     t.string "payee_account_number"
     t.string "payment_reference", limit: 18
-    t.string "remittance_email"
-    t.boolean "send_remittance", default: true
-    t.datetime "remittance_sent_at"
     t.string "xero_payment_id"
     t.datetime "synced_to_xero_at"
     t.string "sync_error"
@@ -1260,8 +1189,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.text "payment_instructions"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["is_default"], name: "index_claim_invoice_templates_on_is_default", where: "(is_default = true)"
     t.index ["style_key"], name: "index_claim_invoice_templates_on_style_key"
+    t.index ["tenant_id", "sync_key"], name: "idx_claim_invoice_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_claim_invoice_templates_on_tenant_id"
   end
 
   create_table "cloudflare_credentials", force: :cascade do |t|
@@ -1288,7 +1221,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["job_type_id"], name: "index_colour_selection_templates_on_job_type_id"
+    t.index ["tenant_id", "sync_key"], name: "idx_colour_selection_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_colour_selection_templates_on_tenant_id"
   end
 
   create_table "column_type_definitions", force: :cascade do |t|
@@ -1359,7 +1296,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.integer "override_min_length"
     t.decimal "override_min_value", precision: 15, scale: 2
     t.decimal "override_max_value", precision: 15, scale: 2
-    t.text "override_validation_message"
     t.integer "type_version_applied", default: 0
     t.datetime "last_compliance_check"
     t.string "lookup_foundation_slug"
@@ -1386,7 +1322,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.bigint "approver_id"
     t.string "approver_role"
     t.bigint "approver_group_id"
-    t.integer "escalation_hours"
     t.bigint "escalation_to_user_id"
     t.bigint "bpmn_process_id"
     t.jsonb "config", default: {}
@@ -1677,7 +1612,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["position"], name: "index_contact_types_on_position"
+    t.index ["tenant_id", "sync_key"], name: "idx_contact_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_contact_types_on_tenant_id"
   end
 
@@ -1778,6 +1715,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.boolean "is_user_cached", default: false, null: false
     t.boolean "is_corporate_managed", default: false, null: false
     t.bigint "parent_company_contact_id"
+    t.string "sync_key"
     t.index "lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -1807,6 +1745,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["searchable"], name: "idx_contacts_searchable_gin", using: :gin
     t.index ["stripe_customer_id"], name: "index_contacts_on_stripe_customer_id", unique: true, where: "(stripe_customer_id IS NOT NULL)"
     t.index ["support_contact_id"], name: "index_contacts_on_support_contact_id"
+    t.index ["tenant_id", "sync_key"], name: "idx_contacts_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_contacts_on_tenant_id"
     t.index ["upline_contact_id"], name: "index_contacts_on_upline_contact_id"
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
@@ -2096,10 +2035,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["active"], name: "index_cost_centres_on_active"
     t.index ["centre_type"], name: "index_cost_centres_on_centre_type"
-    t.index ["code"], name: "index_cost_centres_on_code", unique: true
     t.index ["parent_id"], name: "index_cost_centres_on_parent_id"
+    t.index ["tenant_id", "code"], name: "index_cost_centres_on_tenant_id_and_code", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_cost_centres_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_cost_centres_on_tenant_id"
   end
 
   create_table "custom_pricings", force: :cascade do |t|
@@ -2301,21 +2244,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["warehouse_document_id"], name: "index_docsort_items_on_warehouse_document_id"
   end
 
-  create_table "document_activities", force: :cascade do |t|
-    t.bigint "company_document_id", null: false
-    t.bigint "user_id"
-    t.string "action", null: false
-    t.jsonb "old_values", default: {}
-    t.jsonb "new_values", default: {}
-    t.text "notes"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["action"], name: "index_document_activities_on_action"
-    t.index ["company_document_id"], name: "index_document_activities_on_company_document_id"
-    t.index ["created_at"], name: "index_document_activities_on_created_at"
-    t.index ["user_id"], name: "index_document_activities_on_user_id"
-  end
-
   create_table "document_duplicate_reviews", force: :cascade do |t|
     t.bigint "case_id", null: false
     t.bigint "existing_document_id", null: false
@@ -2379,9 +2307,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.boolean "is_legal_format", default: false, null: false
     t.string "legal_source"
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["category", "sort_order"], name: "index_document_templates_on_category_and_sort_order"
     t.index ["is_legal_format"], name: "index_document_templates_on_is_legal_format"
     t.index ["template_type"], name: "index_document_templates_on_template_type"
+    t.index ["tenant_id", "sync_key"], name: "idx_document_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_document_templates_on_tenant_id"
   end
 
@@ -2410,6 +2340,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.jsonb "signature_field_config", default: []
     t.bigint "tenant_id"
     t.bigint "warehouse_type_id"
+    t.string "sync_key"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["file_extensions"], name: "index_document_types_on_file_extensions", using: :gin
@@ -2417,33 +2348,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["folder"], name: "index_document_types_on_folder"
     t.index ["scope"], name: "index_document_types_on_scope"
     t.index ["supports_versioning"], name: "index_document_types_on_supports_versioning"
+    t.index ["tenant_id", "sync_key"], name: "idx_document_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_document_types_on_tenant_id"
     t.index ["warehouse_type_id"], name: "index_document_types_on_warehouse_type_id"
-  end
-
-  create_table "document_verification_feedbacks", force: :cascade do |t|
-    t.bigint "company_document_id", null: false
-    t.bigint "user_id", null: false
-    t.string "ai_suggested_name"
-    t.string "ai_suggested_folder"
-    t.string "ai_suggested_type"
-    t.string "ai_suggested_fy"
-    t.integer "ai_confidence"
-    t.string "user_final_name"
-    t.string "user_final_folder"
-    t.string "user_final_type"
-    t.string "user_final_fy"
-    t.string "action", null: false
-    t.text "rejection_reason"
-    t.text "document_text_snippet"
-    t.string "company_code"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["action"], name: "index_document_verification_feedbacks_on_action"
-    t.index ["company_code", "action"], name: "idx_on_company_code_action_af023a5fcb"
-    t.index ["company_code"], name: "index_document_verification_feedbacks_on_company_code"
-    t.index ["company_document_id"], name: "index_document_verification_feedbacks_on_company_document_id"
-    t.index ["user_id"], name: "index_document_verification_feedbacks_on_user_id"
   end
 
   create_table "documentation_categories", force: :cascade do |t|
@@ -2467,7 +2374,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "signed_document_hash", null: false
     t.text "signature_chain"
     t.jsonb "signers_summary", default: []
-    t.string "certificate_storage_file_id"
     t.string "verification_token"
     t.datetime "generated_at"
     t.datetime "created_at", null: false
@@ -2581,7 +2487,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "ip_address"
     t.string "user_agent"
     t.string "signing_device"
-    t.string "browser_fingerprint"
     t.bigint "contact_id"
     t.text "decline_reason"
     t.datetime "created_at", null: false
@@ -2600,7 +2505,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "target_address", null: false
     t.string "alias_type", default: "alias"
     t.boolean "is_active", default: true
-    t.string "polaris_alias_id"
     t.datetime "provisioned_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -2919,7 +2823,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.decimal "wholesale_cost", precision: 10, scale: 2
     t.string "stripe_subscription_id"
     t.string "stripe_customer_id"
-    t.string "stripe_payment_method_id"
     t.date "next_billing_date"
     t.date "current_period_start"
     t.date "current_period_end"
@@ -2946,11 +2849,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "status", default: "pending"
     t.datetime "last_sync_at"
     t.datetime "sync_started_at"
-    t.datetime "oldest_email_synced"
     t.integer "total_emails_synced", default: 0
     t.integer "emails_synced_this_run", default: 0
     t.text "last_error"
-    t.string "sync_cursor"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
@@ -2969,10 +2870,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.integer "position", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["is_shared"], name: "index_email_templates_on_is_shared", where: "(is_shared = true)"
+    t.index ["tenant_id", "sync_key"], name: "idx_email_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id", "user_id", "name"], name: "index_email_templates_on_tenant_user_name", unique: true
+    t.index ["tenant_id"], name: "index_email_templates_on_tenant_id"
     t.index ["user_id", "category"], name: "index_email_templates_on_user_id_and_category"
     t.index ["user_id", "is_favorite"], name: "index_email_templates_on_user_id_and_is_favorite", where: "(is_favorite = true)"
-    t.index ["user_id", "name"], name: "index_email_templates_on_user_id_and_name", unique: true
     t.index ["user_id"], name: "index_email_templates_on_user_id"
   end
 
@@ -3099,16 +3004,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "sync_error"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "source_of_truth", default: "xero"
     t.boolean "sync_to_xero", default: false, null: false
     t.datetime "synced_to_xero_at"
     t.datetime "xero_updated_at"
     t.datetime "local_updated_at"
     t.boolean "sync_conflict", default: false, null: false
     t.string "payment_link_token"
-    t.boolean "payment_portal_enabled", default: true
-    t.datetime "last_payment_reminder_at"
-    t.integer "payment_reminder_count", default: 0
     t.string "xero_org_id"
     t.index ["contact_id"], name: "index_external_invoices_on_contact_id"
     t.index ["created_in_teeem"], name: "index_external_invoices_on_created_in_teeem"
@@ -3268,11 +3169,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.bigint "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["created_by_id"], name: "index_folder_templates_on_created_by_id"
     t.index ["is_active"], name: "index_folder_templates_on_is_active"
     t.index ["is_system_default"], name: "index_folder_templates_on_is_system_default"
     t.index ["name"], name: "index_folder_templates_on_name"
     t.index ["template_type"], name: "index_folder_templates_on_template_type"
+    t.index ["tenant_id", "sync_key"], name: "idx_folder_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_folder_templates_on_tenant_id"
   end
 
   create_table "foundation_trading_names", force: :cascade do |t|
@@ -3351,7 +3256,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "detected_at", null: false
     t.datetime "resolved_at"
     t.integer "duration_seconds"
-    t.boolean "notification_sent", default: false
     t.boolean "acknowledged", default: false
     t.bigint "acknowledged_by_id"
     t.datetime "acknowledged_at"
@@ -4344,8 +4248,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.decimal "total_cost", precision: 15, scale: 2
     t.string "cost_code"
     t.text "notes"
-    t.decimal "start_meter"
-    t.decimal "end_meter"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["equipment_id", "usage_date"], name: "idx_equipment_usage_date"
@@ -4432,7 +4334,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   create_table "gl_invoice_lines", force: :cascade do |t|
     t.bigint "gl_invoice_id", null: false
     t.bigint "gl_account_id"
-    t.string "external_line_id"
     t.integer "line_number", default: 1
     t.string "item_code"
     t.text "description"
@@ -4491,7 +4392,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.boolean "created_in_teeem", default: false
     t.datetime "teeem_updated_at"
     t.string "sync_error"
-    t.jsonb "sync_metadata", default: {}
     t.text "description"
     t.text "notes"
     t.boolean "has_attachments", default: false
@@ -4502,7 +4402,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.integer "recurring_sequence"
     t.string "payment_url"
     t.string "payment_token"
-    t.datetime "payment_token_expires_at"
     t.bigint "department_id"
     t.index ["approved_by_id"], name: "index_gl_invoices_on_approved_by_id"
     t.index ["company_id", "invoice_date"], name: "idx_gl_inv_company_date"
@@ -5194,7 +5093,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.text "error_message"
     t.jsonb "summary_stats", default: {}
     t.string "export_format"
-    t.string "export_file_id"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -5472,7 +5370,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.decimal "gst_paid", precision: 15, scale: 2, default: "0.0"
     t.decimal "tax_withheld", precision: 15, scale: 2, default: "0.0"
     t.boolean "no_abn_quoted", default: false
-    t.boolean "abn_withheld", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["contact_id"], name: "index_gl_tpar_payees_on_contact_id"
@@ -5643,15 +5540,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["user_id"], name: "index_grok_plans_on_user_id"
   end
 
-  create_table "health_check_caches", force: :cascade do |t|
-    t.integer "foundation_id"
-    t.string "check_type"
-    t.jsonb "results"
-    t.datetime "last_run_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
   create_table "health_kudos_events", force: :cascade do |t|
     t.string "actor_type", default: "user", null: false
     t.bigint "user_id"
@@ -5801,12 +5689,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
 
   create_table "insurance_policies", force: :cascade do |t|
     t.bigint "company_id", null: false
-    t.string "cover_type"
-    t.string "insured_party"
     t.date "start_date"
     t.date "renewal_date"
     t.decimal "annual_premium"
-    t.decimal "monthly_premium"
     t.string "broker"
     t.text "notes"
     t.datetime "created_at", null: false
@@ -5859,8 +5744,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "bank_account_name"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["is_active"], name: "index_invoice_templates_on_is_active"
     t.index ["is_default"], name: "index_invoice_templates_on_is_default"
+    t.index ["tenant_id", "sync_key"], name: "idx_invoice_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_invoice_templates_on_tenant_id"
   end
 
   create_table "job_activities", force: :cascade do |t|
@@ -6061,7 +5950,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "last_modified_by"
     t.string "sync_status", default: "synced"
     t.datetime "last_synced_at"
-    t.jsonb "cad_metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "ai_suggested_type_id"
@@ -6132,20 +6020,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["sync_status"], name: "index_job_documents_on_sync_status"
     t.index ["version_id"], name: "index_job_documents_on_version_id"
     t.index ["version_status"], name: "index_job_documents_on_version_status"
-  end
-
-  create_table "job_people", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.bigint "contact_id", null: false
-    t.string "role"
-    t.text "notes"
-    t.boolean "is_primary", default: false, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["contact_id"], name: "index_job_people_on_contact_id"
-    t.index ["job_id", "contact_id"], name: "index_job_people_on_job_id_and_contact_id", unique: true
-    t.index ["job_id", "is_primary"], name: "index_job_people_on_job_id_and_is_primary"
-    t.index ["job_id"], name: "index_job_people_on_job_id"
   end
 
   create_table "job_plan_revisions", force: :cascade do |t|
@@ -6266,9 +6140,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "updated_at", null: false
     t.integer "job_status_id"
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["is_active"], name: "index_job_stages_on_is_active"
     t.index ["job_status_id"], name: "index_job_stages_on_job_status_id"
     t.index ["position"], name: "index_job_stages_on_position"
+    t.index ["tenant_id", "sync_key"], name: "idx_job_stages_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_job_stages_on_tenant_id"
   end
 
@@ -6281,11 +6157,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["job_stage_id"], name: "index_job_status_stages_on_job_stage_id"
     t.index ["job_status_id"], name: "index_job_status_stages_on_job_status_id"
     t.index ["job_type_id", "job_status_id", "job_stage_id"], name: "index_job_status_stages_on_type_status_stage", unique: true
     t.index ["job_type_id"], name: "index_job_status_stages_on_job_type_id"
     t.index ["position"], name: "index_job_status_stages_on_position"
+    t.index ["tenant_id", "sync_key"], name: "idx_job_status_stages_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_job_status_stages_on_tenant_id"
   end
 
@@ -6297,8 +6175,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["is_active"], name: "index_job_statuses_on_is_active"
     t.index ["position"], name: "index_job_statuses_on_position"
+    t.index ["tenant_id", "sync_key"], name: "idx_job_statuses_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_job_statuses_on_tenant_id"
   end
 
@@ -6310,10 +6190,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "tenant_id"
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["is_active"], name: "index_job_tabs_on_is_active"
     t.index ["position"], name: "index_job_tabs_on_position"
-    t.index ["slug"], name: "index_job_tabs_on_slug", unique: true
+    t.index ["tenant_id", "slug"], name: "index_job_tabs_on_tenant_id_and_slug", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_job_tabs_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_job_tabs_on_tenant_id"
   end
 
@@ -6324,10 +6206,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["job_status_id"], name: "index_job_type_statuses_on_job_status_id"
     t.index ["job_type_id", "job_status_id"], name: "index_job_type_statuses_on_job_type_id_and_job_status_id", unique: true
     t.index ["job_type_id"], name: "index_job_type_statuses_on_job_type_id"
     t.index ["position"], name: "index_job_type_statuses_on_position"
+    t.index ["tenant_id", "sync_key"], name: "idx_job_type_statuses_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_job_type_statuses_on_tenant_id"
   end
 
@@ -6342,9 +6226,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.text "description"
     t.bigint "sm_schedule_master_template_id"
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["is_active"], name: "index_job_types_on_is_active"
     t.index ["position"], name: "index_job_types_on_position"
     t.index ["sm_schedule_master_template_id"], name: "idx_job_types_template"
+    t.index ["tenant_id", "sync_key"], name: "idx_job_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_job_types_on_tenant_id"
   end
 
@@ -6693,9 +6579,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["category"], name: "index_meeting_types_on_category"
     t.index ["is_active"], name: "index_meeting_types_on_is_active"
     t.index ["name"], name: "index_meeting_types_on_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_meeting_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_meeting_types_on_tenant_id"
   end
 
@@ -6984,24 +6872,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["tenant_id"], name: "index_organizations_on_tenant_id"
   end
 
-  create_table "page_help_contents", force: :cascade do |t|
-    t.string "route_pattern", null: false
-    t.string "title", null: false
-    t.text "description"
-    t.text "quick_tips"
-    t.text "common_tasks"
-    t.text "related_pages"
-    t.integer "chapter_number"
-    t.string "video_url"
-    t.boolean "is_active", default: true, null: false
-    t.bigint "last_updated_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_page_help_contents_on_is_active"
-    t.index ["last_updated_by_id"], name: "index_page_help_contents_on_last_updated_by_id"
-    t.index ["route_pattern"], name: "index_page_help_contents_on_route_pattern", unique: true
-  end
-
   create_table "page_scales", force: :cascade do |t|
     t.bigint "tenant_id", null: false
     t.bigint "job_plan_id"
@@ -7164,9 +7034,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "document_type", null: false
     t.date "document_date"
     t.date "expiry_date"
-    t.string "document_number"
-    t.string "issuing_authority"
-    t.string "issuing_country"
     t.string "file_name"
     t.integer "file_size"
     t.string "mime_type"
@@ -7176,7 +7043,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.bigint "document_type_id"
     t.string "content_hash"
     t.string "external_id"
-    t.bigint "legacy_corporate_document_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "storage_provider"
@@ -7196,7 +7062,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["document_type_id"], name: "index_people_documents_on_document_type_id"
     t.index ["expiry_date"], name: "index_people_documents_on_expiry_date"
     t.index ["external_id"], name: "index_people_documents_on_external_id"
-    t.index ["legacy_corporate_document_id"], name: "index_people_documents_on_legacy_corporate_document_id"
     t.index ["migration_status"], name: "index_people_documents_on_migration_status"
     t.index ["storage_blob_id"], name: "index_people_documents_on_storage_blob_id"
     t.index ["storage_provider", "migration_status"], name: "idx_people_docs_provider_migration"
@@ -7344,8 +7209,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["code"], name: "index_plan_categories_on_code", unique: true
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["sequence_order"], name: "index_plan_categories_on_sequence_order"
+    t.index ["tenant_id", "code"], name: "index_plan_categories_on_tenant_id_and_code", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_plan_categories_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_plan_categories_on_tenant_id"
   end
 
   create_table "plan_category_plan_types", force: :cascade do |t|
@@ -7403,7 +7272,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.bigint "identified_plan_type_id"
     t.bigint "identified_plan_category_id"
     t.text "ocr_raw_text"
-    t.jsonb "ocr_structured_fields", default: {}
     t.integer "ocr_confidence"
     t.integer "pattern_match_plan_type_id"
     t.integer "pattern_match_confidence"
@@ -7463,9 +7331,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "updated_at", null: false
     t.string "short_name_template", default: "{Code}-{Name}"
     t.string "long_name_template", default: "{JobCode}-{Code}-{Name}-Rev{Rev}"
-    t.index ["code"], name: "index_plan_types_on_code", unique: true
-    t.index ["name"], name: "index_plan_types_on_name", unique: true
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["sequence_order"], name: "index_plan_types_on_sequence_order"
+    t.index ["tenant_id", "code"], name: "index_plan_types_on_tenant_id_and_code", unique: true
+    t.index ["tenant_id", "name"], name: "index_plan_types_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_plan_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_plan_types_on_tenant_id"
   end
 
   create_table "plan_uploads", force: :cascade do |t|
@@ -7498,7 +7370,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   create_table "polaris_credentials", force: :cascade do |t|
     t.text "api_key"
     t.text "api_secret"
-    t.string "reseller_id"
     t.string "status", default: "pending", null: false
     t.boolean "is_active", default: true, null: false
     t.text "error_message"
@@ -7559,11 +7430,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.date "date_effective"
     t.string "user_name"
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["changed_by_user_id"], name: "index_price_histories_on_changed_by_user_id"
     t.index ["created_at"], name: "index_price_histories_on_created_at"
     t.index ["pricebook_item_id", "supplier_id", "new_price", "created_at"], name: "index_price_histories_on_unique_combination", unique: true
     t.index ["pricebook_item_id"], name: "index_price_histories_on_pricebook_item_id"
     t.index ["supplier_id"], name: "index_price_histories_on_supplier_id"
+    t.index ["tenant_id", "sync_key"], name: "idx_price_histories_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_price_histories_on_tenant_id"
   end
 
@@ -7577,8 +7450,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["is_active"], name: "index_pricebook_categories_on_is_active"
     t.index ["position"], name: "index_pricebook_categories_on_position"
+    t.index ["tenant_id", "sync_key"], name: "idx_pricebook_categories_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_pricebook_categories_on_tenant_id"
   end
 
@@ -7620,6 +7495,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.integer "lead_time_days"
     t.integer "call_time_days"
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
     t.index ["category"], name: "index_pricebooks_on_category"
     t.index ["category_id"], name: "index_pricebooks_on_category_id"
@@ -7634,6 +7510,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["searchable_text"], name: "idx_pricebook_search", using: :gin
     t.index ["spec_file_id"], name: "index_pricebooks_on_spec_file_id"
     t.index ["supplier_id"], name: "index_pricebooks_on_supplier_id"
+    t.index ["tenant_id", "sync_key"], name: "idx_pricebooks_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_pricebooks_on_tenant_id"
   end
 
@@ -7698,6 +7575,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.string "sync_key"
+    t.index ["tenant_id", "sync_key"], name: "idx_public_holidays_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_public_holidays_on_tenant_id"
   end
 
@@ -7844,9 +7723,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.text "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["category"], name: "index_quantity_variables_on_category"
     t.index ["position"], name: "index_quantity_variables_on_position"
-    t.index ["variable_name"], name: "index_quantity_variables_on_variable_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_quantity_variables_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id", "variable_name"], name: "index_quantity_variables_on_tenant_id_and_variable_name", unique: true
+    t.index ["tenant_id"], name: "index_quantity_variables_on_tenant_id"
   end
 
   create_table "quote_request_contacts", force: :cascade do |t|
@@ -7964,9 +7847,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["code"], name: "index_recipe_categories_on_code", unique: true
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["parent_id", "position"], name: "index_recipe_categories_on_parent_id_and_position"
     t.index ["parent_id"], name: "index_recipe_categories_on_parent_id"
+    t.index ["tenant_id", "code"], name: "index_recipe_categories_on_tenant_id_and_code", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_recipe_categories_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_recipe_categories_on_tenant_id"
   end
 
   create_table "recipe_items", force: :cascade do |t|
@@ -8021,12 +7908,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["code"], name: "index_recipes_on_code", unique: true
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["default_supplier_id"], name: "index_recipes_on_default_supplier_id"
     t.index ["recipe_category_id", "name"], name: "index_recipes_on_recipe_category_id_and_name"
     t.index ["recipe_category_id"], name: "index_recipes_on_recipe_category_id"
     t.index ["recipe_type"], name: "index_recipes_on_recipe_type"
     t.index ["status"], name: "index_recipes_on_status"
+    t.index ["tenant_id", "code"], name: "index_recipes_on_tenant_id_and_code", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_recipes_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_recipes_on_tenant_id"
   end
 
   create_table "reconciliation_reports", force: :cascade do |t|
@@ -8375,9 +8266,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["is_active"], name: "index_sm_hold_reasons_on_is_active"
-    t.index ["name"], name: "index_sm_hold_reasons_on_name", unique: true
     t.index ["sequence_order"], name: "index_sm_hold_reasons_on_sequence_order"
+    t.index ["tenant_id", "name"], name: "index_sm_hold_reasons_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_sm_hold_reasons_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_sm_hold_reasons_on_tenant_id"
   end
 
   create_table "sm_recurring_task_definitions", force: :cascade do |t|
@@ -8454,11 +8349,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.decimal "availability_hours_per_day", precision: 4, scale: 2, default: "8.0"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["asset_id"], name: "index_sm_resources_on_asset_id"
-    t.index ["code"], name: "index_sm_resources_on_code", unique: true, where: "(code IS NOT NULL)"
     t.index ["contact_id"], name: "index_sm_resources_on_contact_id"
     t.index ["is_active"], name: "index_sm_resources_on_is_active"
     t.index ["resource_type"], name: "index_sm_resources_on_resource_type"
+    t.index ["tenant_id", "code"], name: "index_sm_resources_on_tenant_id_and_code", unique: true, where: "(code IS NOT NULL)"
+    t.index ["tenant_id", "sync_key"], name: "idx_sm_resources_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_sm_resources_on_tenant_id"
     t.index ["user_id"], name: "index_sm_resources_on_user_id"
   end
 
@@ -8492,9 +8391,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "assigned_role"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["document_type_id"], name: "index_sm_schedule_master_document_types_on_document_type_id"
-    t.index ["sm_schedule_master_id", "document_type_id"], name: "idx_sm_master_doc_type_unique", unique: true
     t.index ["sm_schedule_master_id"], name: "idx_on_sm_schedule_master_id_ece8c53030"
+    t.index ["tenant_id", "sm_schedule_master_id", "document_type_id"], name: "idx_sm_master_doc_type_tenant_unique", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_sm_schedule_master_document_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_sm_schedule_master_document_types_on_tenant_id"
   end
 
   create_table "sm_schedule_master_related_pos", force: :cascade do |t|
@@ -8519,10 +8422,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "updated_at", null: false
     t.bigint "copied_from_id"
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["copied_from_id"], name: "idx_sm_templates_copied_from"
     t.index ["created_by_id"], name: "index_sm_schedule_master_templates_on_created_by_id"
     t.index ["is_active"], name: "index_sm_schedule_master_templates_on_is_active"
     t.index ["is_default"], name: "index_sm_schedule_master_templates_on_is_default"
+    t.index ["tenant_id", "sync_key"], name: "idx_sm_schedule_master_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_sm_schedule_master_templates_on_tenant_id"
     t.index ["updated_by_id"], name: "index_sm_schedule_master_templates_on_updated_by_id"
   end
@@ -8599,6 +8504,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "dependency_broken_at"
     t.bigint "dependency_broken_by_id"
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
@@ -8620,6 +8526,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["started"], name: "index_sm_schedule_masters_on_started", where: "(started = true)"
     t.index ["supplier_confirm"], name: "index_sm_schedule_masters_on_supplier_confirm", where: "(supplier_confirm = true)"
     t.index ["task_number"], name: "index_sm_schedule_masters_on_task_number"
+    t.index ["tenant_id", "sync_key"], name: "idx_sm_schedule_masters_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_sm_schedule_masters_on_tenant_id"
     t.index ["trade"], name: "index_sm_schedule_masters_on_trade"
     t.index ["updated_by_id"], name: "index_sm_schedule_masters_on_updated_by_id"
@@ -8662,6 +8569,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }
     t.integer "created_by"
     t.integer "updated_by"
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
+    t.index ["tenant_id", "sync_key"], name: "idx_sm_stages_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_sm_stages_on_tenant_id"
   end
 
   create_table "sm_task_attachments", force: :cascade do |t|
@@ -8739,17 +8650,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "updated_at", null: false
     t.boolean "is_checkin_photo", default: false
     t.boolean "is_checkout_photo", default: false
-    t.jsonb "face_verification_result"
-    t.decimal "face_match_confidence", precision: 5, scale: 2
     t.boolean "face_verified", default: false
-    t.decimal "site_visibility_score", precision: 5, scale: 2
-    t.boolean "site_visible"
     t.jsonb "ai_analysis"
-    t.string "weather_detected", limit: 30
     t.string "lighting_conditions", limit: 30
     t.decimal "exif_latitude", precision: 10, scale: 7
     t.decimal "exif_longitude", precision: 10, scale: 7
-    t.datetime "exif_timestamp"
     t.bigint "document_type_id"
     t.string "storage_path"
     t.string "storage_item_id"
@@ -8967,6 +8872,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.integer "created_by"
     t.integer "updated_by"
     t.bigint "tenant_id"
+    t.string "sync_key"
+    t.index ["tenant_id", "sync_key"], name: "idx_sm_trades_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_sm_trades_on_tenant_id"
   end
 
@@ -9168,7 +9075,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["job_type_id"], name: "index_specification_templates_on_job_type_id"
+    t.index ["tenant_id", "sync_key"], name: "idx_specification_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_specification_templates_on_tenant_id"
   end
 
   create_table "storage_blobs", force: :cascade do |t|
@@ -9194,8 +9105,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
 
   create_table "stripe_configurations", force: :cascade do |t|
     t.boolean "enabled", default: false, null: false
-    t.string "stripe_account_id"
-    t.string "webhook_endpoint_id"
     t.string "webhook_secret_encrypted"
     t.decimal "surcharge_percentage", precision: 5, scale: 2, default: "0.0"
     t.decimal "minimum_payment", precision: 15, scale: 2, default: "0.0"
@@ -9204,7 +9113,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
-    t.index ["stripe_account_id"], name: "index_stripe_configurations_on_stripe_account_id", unique: true, where: "(stripe_account_id IS NOT NULL)"
     t.index ["tenant_id"], name: "index_stripe_configurations_on_tenant_id"
   end
 
@@ -9307,9 +9215,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "response_type", default: "checkbox"
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["category"], name: "index_supervisor_checklist_templates_on_category"
-    t.index ["name"], name: "index_supervisor_checklist_templates_on_name", unique: true
     t.index ["sequence_order"], name: "index_supervisor_checklist_templates_on_sequence_order"
+    t.index ["tenant_id", "name"], name: "index_supervisor_checklist_templates_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_supervisor_checklist_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_supervisor_checklist_templates_on_tenant_id"
   end
 
   create_table "sync_configurations", force: :cascade do |t|
@@ -9453,8 +9365,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.jsonb "internet_headers", default: {}
     t.jsonb "email_classification", default: {}
     t.string "user_classification"
-    t.datetime "user_classification_at"
-    t.bigint "user_classification_by_id"
     t.bigint "ssot_owner_id"
     t.string "body_preview", limit: 500
     t.text "ai_summary"
@@ -9536,18 +9446,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["table_name"], name: "index_table_health_checks_on_table_name"
   end
 
-  create_table "table_protections", force: :cascade do |t|
-    t.string "table_name", null: false
-    t.boolean "is_protected", default: true, null: false
-    t.text "description"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
-  end
-
   create_table "takeoff_layers", force: :cascade do |t|
     t.bigint "tenant_id", null: false
-    t.bigint "job_id", null: false
+    t.bigint "job_id"
     t.string "name", null: false
     t.string "color", default: "#3B82F6", null: false
     t.integer "display_order", default: 0, null: false
@@ -9555,10 +9456,58 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.boolean "locked", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "docsort_item_id"
+    t.index ["docsort_item_id", "display_order"], name: "index_takeoff_layers_on_docsort_item_id_and_order"
+    t.index ["docsort_item_id", "name"], name: "index_takeoff_layers_on_docsort_item_id_and_name", unique: true, where: "(docsort_item_id IS NOT NULL)"
+    t.index ["docsort_item_id"], name: "index_takeoff_layers_on_docsort_item_id"
     t.index ["job_id", "display_order"], name: "index_takeoff_layers_on_job_id_and_display_order"
     t.index ["job_id", "name"], name: "index_takeoff_layers_on_job_id_and_name", unique: true
     t.index ["job_id"], name: "index_takeoff_layers_on_job_id"
     t.index ["tenant_id"], name: "index_takeoff_layers_on_tenant_id"
+  end
+
+  create_table "takeoff_room_instances", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "takeoff_template_id", null: false
+    t.bigint "job_id"
+    t.bigint "job_plan_id"
+    t.bigint "docsort_item_id"
+    t.string "name", null: false
+    t.string "status", default: "in_progress", null: false
+    t.integer "display_order", default: 0
+    t.text "notes"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_takeoff_room_instances_on_created_by_id"
+    t.index ["docsort_item_id", "display_order"], name: "idx_on_docsort_item_id_display_order_cc0fc8fdd0"
+    t.index ["docsort_item_id", "name"], name: "index_takeoff_room_instances_on_docsort_item_id_and_name"
+    t.index ["docsort_item_id"], name: "index_takeoff_room_instances_on_docsort_item_id"
+    t.index ["job_id"], name: "index_takeoff_room_instances_on_job_id"
+    t.index ["job_plan_id", "display_order"], name: "index_takeoff_room_instances_on_job_plan_id_and_display_order"
+    t.index ["job_plan_id", "name"], name: "index_takeoff_room_instances_on_job_plan_id_and_name"
+    t.index ["job_plan_id"], name: "index_takeoff_room_instances_on_job_plan_id"
+    t.index ["takeoff_template_id"], name: "index_takeoff_room_instances_on_takeoff_template_id"
+    t.index ["tenant_id"], name: "index_takeoff_room_instances_on_tenant_id"
+  end
+
+  create_table "takeoff_room_slots", force: :cascade do |t|
+    t.bigint "takeoff_room_instance_id", null: false
+    t.integer "step_index", null: false
+    t.string "label", null: false
+    t.string "measurement_type", null: false
+    t.string "color"
+    t.string "prompt"
+    t.bigint "pricebook_item_id"
+    t.bigint "measurement_id"
+    t.decimal "quantity", precision: 15, scale: 4, default: "0.0"
+    t.boolean "is_filled", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["measurement_id"], name: "index_takeoff_room_slots_on_measurement_id"
+    t.index ["pricebook_item_id"], name: "index_takeoff_room_slots_on_pricebook_item_id"
+    t.index ["takeoff_room_instance_id", "step_index"], name: "idx_room_slots_instance_step", unique: true
+    t.index ["takeoff_room_instance_id"], name: "index_takeoff_room_slots_on_takeoff_room_instance_id"
   end
 
   create_table "takeoff_templates", force: :cascade do |t|
@@ -9573,10 +9522,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.integer "usage_count", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "sync_key"
     t.index ["created_by_id"], name: "index_takeoff_templates_on_created_by_id"
     t.index ["tenant_id", "category"], name: "index_takeoff_templates_on_tenant_id_and_category"
     t.index ["tenant_id", "is_active"], name: "index_takeoff_templates_on_tenant_id_and_is_active"
     t.index ["tenant_id", "name"], name: "index_takeoff_templates_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_takeoff_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_takeoff_templates_on_tenant_id"
   end
 
@@ -9788,7 +9739,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "email"
     t.string "website"
     t.string "billing_email"
-    t.text "billing_address"
     t.string "stripe_customer_id"
     t.bigint "default_job_type_id"
     t.bigint "default_job_status_id"
@@ -9987,6 +9937,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.string "display_label"
     t.string "color"
     t.bigint "docsort_item_id"
+    t.bigint "takeoff_room_slot_id"
     t.index ["category"], name: "index_unreal_measurements_on_category"
     t.index ["docsort_item_id"], name: "index_unreal_measurements_on_docsort_item_id"
     t.index ["is_deduction"], name: "index_unreal_measurements_on_is_deduction"
@@ -10003,6 +9954,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["source"], name: "index_unreal_measurements_on_source"
     t.index ["synced_to_po_id"], name: "index_unreal_measurements_on_synced_to_po_id"
     t.index ["takeoff_layer_id"], name: "index_unreal_measurements_on_takeoff_layer_id"
+    t.index ["takeoff_room_slot_id"], name: "index_unreal_measurements_on_takeoff_room_slot_id"
   end
 
   create_table "unreal_variables", force: :cascade do |t|
@@ -10075,21 +10027,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_user_groups_on_name", unique: true
-  end
-
-  create_table "user_job_tab_configs", force: :cascade do |t|
-    t.bigint "user_id", null: false
-    t.bigint "job_tab_id", null: false
-    t.integer "position", default: 0, null: false
-    t.integer "parent_job_tab_id"
-    t.boolean "is_hidden", default: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["job_tab_id"], name: "index_user_job_tab_configs_on_job_tab_id"
-    t.index ["user_id", "job_tab_id"], name: "idx_user_job_tab_config_unique", unique: true
-    t.index ["user_id", "parent_job_tab_id"], name: "index_user_job_tab_configs_on_user_id_and_parent_job_tab_id"
-    t.index ["user_id", "position"], name: "index_user_job_tab_configs_on_user_id_and_position"
-    t.index ["user_id"], name: "index_user_job_tab_configs_on_user_id"
   end
 
   create_table "user_navigation_configs", force: :cascade do |t|
@@ -10200,7 +10137,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.bigint "storage_blob_id"
     t.string "ui_name", null: false
     t.string "download_name"
-    t.string "folder"
     t.string "source_type", null: false
     t.string "original_filename"
     t.bigint "file_size"
@@ -10215,23 +10151,108 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.uuid "version_group_id"
     t.integer "version_number", default: 1
     t.boolean "is_latest_version", default: true
-    t.bigint "base_folder_document_type_id"
-    t.index ["base_folder_document_type_id"], name: "index_warehouse_documents_on_base_folder_document_type_id"
+    t.bigint "warehouse_folder_document_type_id"
+    t.string "folder_path"
+    t.bigint "warehouse_folder_id"
+    t.integer "path_template_version", default: 0
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
-    t.index ["folder"], name: "index_warehouse_documents_on_folder"
+    t.index ["linkable_type", "linkable_id", "folder_path"], name: "idx_wd_linkable_folder_path"
     t.index ["linkable_type", "linkable_id"], name: "idx_warehouse_docs_linkable"
     t.index ["metadata"], name: "idx_warehouse_docs_metadata", using: :gin
     t.index ["parent_document_id", "source_type"], name: "idx_warehouse_docs_parent_source", where: "(parent_document_id IS NOT NULL)"
     t.index ["parent_document_id"], name: "idx_warehouse_docs_parent"
-    t.index ["source_type", "folder"], name: "idx_warehouse_docs_scope_folder"
     t.index ["source_type"], name: "index_warehouse_documents_on_source_type"
     t.index ["storage_blob_id", "source_type"], name: "idx_warehouse_docs_blob_source"
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
-    t.index ["tenant_id", "source_type", "folder"], name: "idx_warehouse_docs_tenant_scope_folder"
+    t.index ["tenant_id", "folder_path"], name: "idx_wd_tenant_folder_path"
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
     t.index ["ui_name"], name: "index_warehouse_documents_on_ui_name"
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
+    t.index ["warehouse_folder_document_type_id"], name: "index_warehouse_documents_on_warehouse_folder_document_type_id"
+    t.index ["warehouse_folder_id"], name: "idx_wd_warehouse_folder"
+  end
+
+  create_table "warehouse_folder_counts", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "folder_path_prefix", null: false
+    t.integer "depth", null: false
+    t.integer "document_count", default: 0
+    t.datetime "stale_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "depth", "folder_path_prefix"], name: "idx_wfc_tenant_depth_path", unique: true
+    t.index ["tenant_id", "stale_at"], name: "idx_wfc_tenant_stale", where: "(stale_at IS NOT NULL)"
+  end
+
+  create_table "warehouse_folder_document_types", force: :cascade do |t|
+    t.bigint "warehouse_folder_id", null: false
+    t.bigint "document_type_id", null: false
+    t.boolean "is_primary", default: false
+    t.string "ui_name_template"
+    t.string "download_name_template"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
+    t.index ["document_type_id", "is_primary"], name: "idx_wfdt_primary"
+    t.index ["document_type_id"], name: "index_warehouse_folder_document_types_on_document_type_id"
+    t.index ["download_name_template"], name: "idx_wfdt_download_name_template", where: "(download_name_template IS NOT NULL)"
+    t.index ["tenant_id", "sync_key"], name: "idx_warehouse_folder_document_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id", "warehouse_folder_id", "document_type_id"], name: "idx_wfdt_tenant_unique", unique: true
+    t.index ["tenant_id"], name: "index_warehouse_folder_document_types_on_tenant_id"
+    t.index ["ui_name_template"], name: "idx_wfdt_ui_name_template", where: "(ui_name_template IS NOT NULL)"
+    t.index ["warehouse_folder_id"], name: "index_warehouse_folder_document_types_on_warehouse_folder_id"
+  end
+
+  create_table "warehouse_folders", force: :cascade do |t|
+    t.bigint "warehouse_type_id", null: false
+    t.string "name", null: false
+    t.string "folder_segment"
+    t.boolean "is_system", default: false, null: false
+    t.boolean "enabled", default: true, null: false
+    t.integer "order_position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "parent_id"
+    t.bigint "tenant_id"
+    t.string "folder_path_suffix"
+    t.string "tab_key"
+    t.string "display_name"
+    t.string "display_code", limit: 3
+    t.text "description"
+    t.string "tab_group", default: "documents"
+    t.string "icon_name"
+    t.string "display_mode", default: "both"
+    t.boolean "hidden_by_default", default: false
+    t.string "component_name"
+    t.boolean "warehouse_enabled", default: true
+    t.boolean "is_photo_category", default: false
+    t.boolean "is_cad_category", default: false
+    t.string "visibility_rule"
+    t.string "xero_scope"
+    t.string "entity_filters", default: [], array: true
+    t.string "warehouse_type_override"
+    t.string "ui_name_template"
+    t.string "download_name_template"
+    t.boolean "uses_custom_path", default: false
+    t.boolean "is_mailbox", default: false, null: false
+    t.string "tab_type", default: "document", null: false
+    t.integer "template_version", default: 1, null: false
+    t.string "sync_key"
+    t.index "tenant_id, warehouse_type_id, COALESCE(parent_id, (0)::bigint), name", name: "idx_warehouse_folders_unique_name", unique: true
+    t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
+    t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
+    t.index ["order_position"], name: "index_warehouse_folders_on_order_position"
+    t.index ["parent_id"], name: "index_warehouse_folders_on_parent_id"
+    t.index ["tab_group"], name: "index_warehouse_folders_on_tab_group"
+    t.index ["tab_key"], name: "index_warehouse_folders_on_tab_key"
+    t.index ["tab_type"], name: "index_warehouse_folders_on_tab_type"
+    t.index ["tenant_id", "sync_key"], name: "idx_warehouse_folders_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "idx_wf_tenant"
+    t.index ["tenant_id"], name: "index_warehouse_folders_on_tenant_id"
+    t.index ["warehouse_enabled"], name: "index_warehouse_folders_on_warehouse_enabled"
+    t.index ["warehouse_type_id"], name: "index_warehouse_folders_on_warehouse_type_id"
   end
 
   create_table "warehouse_providers", force: :cascade do |t|
@@ -10265,10 +10286,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "updated_at", null: false
     t.string "folder_path_template"
     t.bigint "tenant_id"
+    t.string "source_model"
+    t.jsonb "token_config", default: {}, null: false
+    t.jsonb "records_config", default: {}, null: false
+    t.string "sync_key"
     t.index ["code"], name: "index_warehouse_types_on_code", unique: true
     t.index ["enabled"], name: "index_warehouse_types_on_enabled"
     t.index ["order_position"], name: "index_warehouse_types_on_order_position"
     t.index ["tenant_id", "code"], name: "idx_warehouse_types_tenant_code", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_warehouse_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_warehouse_types_on_tenant_id"
   end
 
@@ -10373,9 +10399,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["active"], name: "index_whs_induction_templates_on_active"
     t.index ["induction_type"], name: "index_whs_induction_templates_on_induction_type"
     t.index ["name"], name: "index_whs_induction_templates_on_name"
+    t.index ["tenant_id", "sync_key"], name: "idx_whs_induction_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_whs_induction_templates_on_tenant_id"
   end
 
   create_table "whs_inductions", force: :cascade do |t|
@@ -10439,9 +10469,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
+    t.string "sync_key"
     t.index ["active"], name: "index_whs_inspection_templates_on_active"
     t.index ["inspection_type"], name: "index_whs_inspection_templates_on_inspection_type"
     t.index ["name"], name: "index_whs_inspection_templates_on_name"
+    t.index ["tenant_id", "sync_key"], name: "idx_whs_inspection_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_whs_inspection_templates_on_tenant_id"
   end
 
   create_table "whs_inspections", force: :cascade do |t|
@@ -10708,9 +10742,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.string "sync_key"
     t.index ["account_code"], name: "index_xero_chart_of_accounts_on_account_code"
     t.index ["account_type"], name: "index_xero_chart_of_accounts_on_account_type"
     t.index ["active"], name: "index_xero_chart_of_accounts_on_active"
+    t.index ["tenant_id", "sync_key"], name: "idx_xero_chart_of_accounts_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_xero_chart_of_accounts_on_tenant_id"
   end
 
@@ -10770,25 +10806,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
     t.index ["contact_id"], name: "index_xero_duplicate_items_on_contact_id"
     t.index ["duplicate_group_id", "contact_id"], name: "idx_on_duplicate_group_id_contact_id_22d95f474a", unique: true
     t.index ["duplicate_group_id"], name: "index_xero_duplicate_items_on_duplicate_group_id"
-  end
-
-  create_table "xero_feature_tabs", force: :cascade do |t|
-    t.string "tab_key", null: false
-    t.string "display_name", null: false
-    t.string "tab_group", default: "data"
-    t.integer "order_position", default: 0
-    t.boolean "enabled", default: true
-    t.string "component_name"
-    t.string "icon_name"
-    t.text "description"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "group_member", default: false, null: false
-    t.string "parent_key"
-    t.boolean "visible", default: true, null: false
-    t.index ["enabled"], name: "index_xero_feature_tabs_on_enabled"
-    t.index ["order_position"], name: "index_xero_feature_tabs_on_order_position"
-    t.index ["tab_key"], name: "index_xero_feature_tabs_on_tab_key", unique: true
   end
 
   create_table "xero_health_events", force: :cascade do |t|
@@ -10915,12 +10932,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "bank_transactions", "bank_accounts"
   add_foreign_key "bank_transactions", "corporates", column: "company_id"
   add_foreign_key "bank_transactions", "tenants"
-  add_foreign_key "base_folder_document_types", "base_folders"
-  add_foreign_key "base_folder_document_types", "document_types"
-  add_foreign_key "base_folders", "base_folders", column: "parent_id"
-  add_foreign_key "base_folders", "jobs"
-  add_foreign_key "base_folders", "tenants"
-  add_foreign_key "base_folders", "warehouse_types"
   add_foreign_key "batch_operations", "jobs"
   add_foreign_key "batch_operations", "users"
   add_foreign_key "bill_inboxes", "bpmn_process_instances"
@@ -10978,8 +10989,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "chat_messages", "projects"
   add_foreign_key "chat_messages", "storage_blobs"
   add_foreign_key "chat_messages", "users"
+  add_foreign_key "claim_invoice_templates", "tenants", on_delete: :cascade
   add_foreign_key "cloudflare_credentials", "tenants", on_delete: :cascade
   add_foreign_key "colour_selection_templates", "job_types"
+  add_foreign_key "colour_selection_templates", "tenants", on_delete: :cascade
   add_foreign_key "columns", "column_type_definitions"
   add_foreign_key "columns", "foundations"
   add_foreign_key "company_approval_rules", "bpmn_processes"
@@ -11040,6 +11053,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "corporates", "corporates", column: "parent_company_id"
   add_foreign_key "corporates", "tenants"
   add_foreign_key "cost_centres", "cost_centres", column: "parent_id", on_delete: :nullify
+  add_foreign_key "cost_centres", "tenants", on_delete: :cascade
   add_foreign_key "custom_pricings", "contacts"
   add_foreign_key "desktop_clients", "tenants", on_delete: :cascade
   add_foreign_key "desktop_clients", "users"
@@ -11056,7 +11070,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "docsort_items", "users", column: "overridden_by_id"
   add_foreign_key "docsort_items", "users", column: "uploaded_by_id"
   add_foreign_key "docsort_items", "warehouse_documents"
-  add_foreign_key "document_activities", "users"
   add_foreign_key "document_duplicate_reviews", "cases"
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
   add_foreign_key "document_tasks", "jobs"
@@ -11064,7 +11077,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "document_templates", "tenants"
   add_foreign_key "document_types", "tenants"
   add_foreign_key "document_types", "warehouse_types"
-  add_foreign_key "document_verification_feedbacks", "users"
   add_foreign_key "e_signature_certificates", "e_signature_requests"
   add_foreign_key "e_signature_events", "e_signature_requests"
   add_foreign_key "e_signature_events", "e_signature_signers"
@@ -11103,6 +11115,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "email_subscription_invoices", "gl_invoices"
   add_foreign_key "email_subscriptions", "contacts"
   add_foreign_key "email_subscriptions", "tenants", on_delete: :cascade
+  add_foreign_key "email_templates", "tenants", on_delete: :cascade
   add_foreign_key "email_templates", "users"
   add_foreign_key "email_user_states", "synced_emails", column: "email_warehouse_id"
   add_foreign_key "email_user_states", "users"
@@ -11121,6 +11134,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "financial_transactions", "users"
   add_foreign_key "folder_template_items", "folder_template_items", column: "parent_id"
   add_foreign_key "folder_template_items", "folder_templates"
+  add_foreign_key "folder_templates", "tenants", on_delete: :cascade
   add_foreign_key "folder_templates", "users", column: "created_by_id"
   add_foreign_key "geofence_events", "jobs"
   add_foreign_key "geofence_events", "site_presence_sessions"
@@ -11406,6 +11420,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "insurance_policies", "corporates", column: "company_id"
   add_foreign_key "intercompany_balances", "corporates", column: "company_id"
   add_foreign_key "intercompany_balances", "corporates", column: "related_company_id"
+  add_foreign_key "invoice_templates", "tenants", on_delete: :cascade
   add_foreign_key "job_activities", "jobs"
   add_foreign_key "job_activities", "users"
   add_foreign_key "job_address_searches", "jobs"
@@ -11431,8 +11446,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "job_documents", "storage_blobs"
   add_foreign_key "job_documents", "users", column: "rename_approved_by_id", on_delete: :nullify
   add_foreign_key "job_documents", "users", column: "signed_by_id"
-  add_foreign_key "job_people", "contacts"
-  add_foreign_key "job_people", "jobs"
   add_foreign_key "job_plan_revisions", "job_plans"
   add_foreign_key "job_plan_revisions", "users", column: "issued_by_id"
   add_foreign_key "job_plan_tabs", "job_plan_tabs", column: "parent_id"
@@ -11526,7 +11539,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "notifications", "users"
   add_foreign_key "organizations", "corporates", column: "company_id"
   add_foreign_key "organizations", "tenants"
-  add_foreign_key "page_help_contents", "users", column: "last_updated_by_id"
   add_foreign_key "page_scales", "docsort_items"
   add_foreign_key "page_scales", "job_plan_revisions"
   add_foreign_key "page_scales", "job_plans"
@@ -11552,6 +11564,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "performance_slo_snapshots", "performance_slos"
   add_foreign_key "performance_slow_queries", "users"
   add_foreign_key "performance_vitals", "users"
+  add_foreign_key "plan_categories", "tenants", on_delete: :cascade
   add_foreign_key "plan_category_plan_types", "plan_categories"
   add_foreign_key "plan_category_plan_types", "plan_types"
   add_foreign_key "plan_folder_scans", "job_plans"
@@ -11563,6 +11576,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "plan_identifications", "plan_types", column: "identified_plan_type_id"
   add_foreign_key "plan_identifications", "users", column: "reviewed_by_id"
   add_foreign_key "plan_reextractions", "jobs"
+  add_foreign_key "plan_types", "tenants", on_delete: :cascade
   add_foreign_key "plan_uploads", "job_plan_tabs"
   add_foreign_key "plan_uploads", "jobs"
   add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
@@ -11594,6 +11608,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "purchase_orders", "tenants"
   add_foreign_key "purchase_orders", "users", column: "budget_locked_by_id"
   add_foreign_key "purchase_orders", "users", column: "budget_unlocked_by_id"
+  add_foreign_key "quantity_variables", "tenants", on_delete: :cascade
   add_foreign_key "quote_request_contacts", "contacts"
   add_foreign_key "quote_request_contacts", "quote_requests"
   add_foreign_key "quote_requests", "jobs"
@@ -11610,12 +11625,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "rain_logs", "jobs"
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
   add_foreign_key "recipe_categories", "recipe_categories", column: "parent_id"
+  add_foreign_key "recipe_categories", "tenants", on_delete: :cascade
   add_foreign_key "recipe_items", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "recipe_items", "recipes"
   add_foreign_key "recipe_versions", "recipes"
   add_foreign_key "recipe_versions", "users", column: "created_by_id"
   add_foreign_key "recipes", "contacts", column: "default_supplier_id"
   add_foreign_key "recipes", "recipe_categories"
+  add_foreign_key "recipes", "tenants", on_delete: :cascade
   add_foreign_key "reconciliation_reports", "tenants"
   add_foreign_key "referral_commissions", "contacts", column: "customer_contact_id"
   add_foreign_key "referral_commissions", "contacts", column: "referrer_contact_id"
@@ -11661,6 +11678,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "sm_hold_logs", "sm_tasks", column: "hold_task_id", on_delete: :cascade
   add_foreign_key "sm_hold_logs", "users", column: "hold_released_by_id", on_delete: :nullify
   add_foreign_key "sm_hold_logs", "users", column: "hold_started_by_id", on_delete: :nullify
+  add_foreign_key "sm_hold_reasons", "tenants", on_delete: :cascade
   add_foreign_key "sm_recurring_task_definitions", "jobs"
   add_foreign_key "sm_recurring_task_definitions", "users", column: "assigned_user_id"
   add_foreign_key "sm_recurring_task_definitions", "users", column: "created_by_id"
@@ -11668,11 +11686,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "sm_resource_allocations", "sm_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "sm_resource_allocations", "sm_tasks", column: "task_id", on_delete: :cascade
   add_foreign_key "sm_resources", "contacts", on_delete: :nullify
+  add_foreign_key "sm_resources", "tenants", on_delete: :cascade
   add_foreign_key "sm_resources", "users", on_delete: :nullify
   add_foreign_key "sm_rollover_logs", "jobs", on_delete: :cascade
   add_foreign_key "sm_rollover_logs", "sm_tasks", column: "task_id", on_delete: :cascade
   add_foreign_key "sm_schedule_master_document_types", "document_types"
   add_foreign_key "sm_schedule_master_document_types", "sm_schedule_masters"
+  add_foreign_key "sm_schedule_master_document_types", "tenants", on_delete: :cascade
   add_foreign_key "sm_schedule_master_related_pos", "sm_schedule_masters"
   add_foreign_key "sm_schedule_master_related_pos", "sm_schedule_masters", column: "related_sm_schedule_master_id"
   add_foreign_key "sm_schedule_master_templates", "sm_schedule_master_templates", column: "copied_from_id"
@@ -11692,6 +11712,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "parent_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "spawned_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
+  add_foreign_key "sm_stages", "tenants", on_delete: :cascade
   add_foreign_key "sm_task_attachments", "sm_tasks", on_delete: :cascade
   add_foreign_key "sm_task_attachments", "task_action_items", column: "action_item_id"
   add_foreign_key "sm_task_attachments", "users", column: "added_by_id", on_delete: :nullify
@@ -11744,6 +11765,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "specification_templates", "job_types"
+  add_foreign_key "specification_templates", "tenants", on_delete: :cascade
   add_foreign_key "storage_blobs", "tenants"
   add_foreign_key "stripe_configurations", "tenants", on_delete: :cascade
   add_foreign_key "stripe_payments", "contacts"
@@ -11754,6 +11776,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "subcontractor_invoices", "accounting_integrations"
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
+  add_foreign_key "supervisor_checklist_templates", "tenants", on_delete: :cascade
   add_foreign_key "sync_exclusion_rules", "tenants", on_delete: :cascade
   add_foreign_key "sync_exclusion_rules", "users"
   add_foreign_key "sync_file_states", "desktop_clients"
@@ -11765,8 +11788,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "synced_emails", "email_mailboxes"
   add_foreign_key "synced_emails", "tenants"
   add_foreign_key "table_health_checks", "foundations"
+  add_foreign_key "takeoff_layers", "docsort_items"
   add_foreign_key "takeoff_layers", "jobs"
   add_foreign_key "takeoff_layers", "tenants"
+  add_foreign_key "takeoff_room_instances", "docsort_items"
+  add_foreign_key "takeoff_room_instances", "job_plans"
+  add_foreign_key "takeoff_room_instances", "jobs"
+  add_foreign_key "takeoff_room_instances", "takeoff_templates"
+  add_foreign_key "takeoff_room_instances", "tenants"
+  add_foreign_key "takeoff_room_instances", "users", column: "created_by_id"
+  add_foreign_key "takeoff_room_slots", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "takeoff_room_slots", "takeoff_room_instances"
+  add_foreign_key "takeoff_room_slots", "unreal_measurements", column: "measurement_id"
   add_foreign_key "takeoff_templates", "tenants"
   add_foreign_key "takeoff_templates", "users", column: "created_by_id"
   add_foreign_key "task_action_items", "sm_tasks"
@@ -11815,6 +11848,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "unreal_measurements", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "unreal_measurements", "purchase_orders", column: "synced_to_po_id"
   add_foreign_key "unreal_measurements", "takeoff_layers"
+  add_foreign_key "unreal_measurements", "takeoff_room_slots"
   add_foreign_key "unreal_measurements", "unreal_measurements", column: "parent_measurement_id"
   add_foreign_key "user_absences", "users"
   add_foreign_key "user_absences", "users", column: "approved_by_id"
@@ -11822,9 +11856,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "user_documents", "document_types"
   add_foreign_key "user_documents", "storage_blobs"
   add_foreign_key "user_documents", "users"
-  add_foreign_key "user_job_tab_configs", "job_tabs"
-  add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
-  add_foreign_key "user_job_tab_configs", "users"
   add_foreign_key "user_navigation_configs", "navigation_items", name: "user_navigation_configs_navigation_item_id_fkey"
   add_foreign_key "user_navigation_configs", "users", name: "user_navigation_configs_user_id_fkey"
   add_foreign_key "user_permissions", "permissions"
@@ -11838,9 +11869,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "users", "tenants"
   add_foreign_key "users", "user_groups"
   add_foreign_key "vip_senders", "users"
-  add_foreign_key "warehouse_documents", "base_folder_document_types"
   add_foreign_key "warehouse_documents", "storage_blobs"
   add_foreign_key "warehouse_documents", "warehouse_documents", column: "parent_document_id", on_delete: :nullify, validate: false
+  add_foreign_key "warehouse_documents", "warehouse_folder_document_types"
+  add_foreign_key "warehouse_documents", "warehouse_folders", on_delete: :nullify, validate: false
+  add_foreign_key "warehouse_folder_counts", "tenants", on_delete: :cascade, validate: false
+  add_foreign_key "warehouse_folder_document_types", "document_types"
+  add_foreign_key "warehouse_folder_document_types", "tenants", on_delete: :cascade
+  add_foreign_key "warehouse_folder_document_types", "warehouse_folders"
+  add_foreign_key "warehouse_folders", "tenants"
+  add_foreign_key "warehouse_folders", "warehouse_folders", column: "parent_id"
+  add_foreign_key "warehouse_folders", "warehouse_types"
   add_foreign_key "warehouse_providers", "tenants"
   add_foreign_key "warehouse_types", "tenants"
   add_foreign_key "whs_action_items", "sm_tasks"
@@ -11850,10 +11889,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_06_161701) do
   add_foreign_key "whs_incidents", "sm_tasks"
   add_foreign_key "whs_incidents", "users", column: "investigated_by_user_id"
   add_foreign_key "whs_incidents", "users", column: "reported_by_user_id"
+  add_foreign_key "whs_induction_templates", "tenants", on_delete: :cascade
   add_foreign_key "whs_inductions", "jobs"
   add_foreign_key "whs_inductions", "users"
   add_foreign_key "whs_inductions", "users", column: "conducted_by_user_id"
   add_foreign_key "whs_inspection_items", "whs_inspections"
+  add_foreign_key "whs_inspection_templates", "tenants", on_delete: :cascade
   add_foreign_key "whs_inspections", "jobs"
   add_foreign_key "whs_inspections", "meetings"
   add_foreign_key "whs_inspections", "users", column: "created_by_id"

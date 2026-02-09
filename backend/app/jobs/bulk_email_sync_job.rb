@@ -248,7 +248,6 @@ class BulkEmailSyncJob < ApplicationJob
           doc.documentable = email
           doc.ui_name = filename
           doc.original_filename = filename
-          doc.folder = 'Emails/Attachments'
           doc.tenant_id = email.tenant_id
           doc.content_type = content_type || existing_blob.content_type
           doc.file_size = file_size || existing_blob.file_size
@@ -270,7 +269,6 @@ class BulkEmailSyncJob < ApplicationJob
           storage_blob_id: blob.id,
           ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
           original_filename: filename,
-          folder: 'Emails/Attachments',
           source_type: 'email_attachment',
           tenant_id: email.tenant_id,
           content_type: content_type || blob.content_type,
@@ -432,9 +430,9 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "=" * 60
   end
 
-  # SSoT (Feb 2026): Get email storage path from BaseFolder (system-managed)
+  # SSoT (Feb 2026): Get email storage path from WarehouseFolder (system-managed)
   # Resolves templates like: "{{UserName}}/{{Year}}/{{Date}}" or "{{Mailbox}}/{{Year}}/{{Month}}"
-  # Falls back to hardcoded path if BaseFolder doesn't exist
+  # Falls back to hardcoded path if WarehouseFolder doesn't exist
   #
   # Available placeholders:
   #   {{OrgName}}  - Organization name (sanitized)
@@ -444,7 +442,7 @@ class BulkEmailSyncJob < ApplicationJob
   #   {{Mailbox}}  - Email mailbox address (e.g., "robert@tekna.com.au")
   #   {{UserName}} - User's display name from mailbox (e.g., "Robert Harder")
   def email_storage_path(org_name:, year:, month:, mailbox: nil, date: nil)
-    email_tab = BaseFolder.for_warehouse_type("email").find_by(tab_key: "email-storage")
+    email_tab = WarehouseFolder.for_warehouse_type("email").find_by(tab_key: "email-storage")
 
     if email_tab&.full_folder_path.present?
       # Derive user name from mailbox email
@@ -463,7 +461,7 @@ class BulkEmailSyncJob < ApplicationJob
         .gsub("{{Mailbox}}", SharePoint::FilenameSanitizer.sanitize_path_segment(mailbox.to_s))
         .gsub("{{UserName}}", SharePoint::FilenameSanitizer.sanitize_path_segment(user_name))
     else
-      # Fallback if BaseFolder doesn't exist - use WarehouseProvider SSoT
+      # Fallback if WarehouseFolder doesn't exist - use WarehouseProvider SSoT
       base_path = WarehouseProvider.instance.path_for(:email)
       "#{base_path}/#{org_name}/#{year}/#{month}"
     end

@@ -1,72 +1,42 @@
 # Deployment tasks for TEEEM
-# These tasks run automatically during Heroku releases
+# Runs automatically during Heroku release phase
+# Procfile: release: bundle exec rails deploy:release
+#
+# deploy:release runs all release steps in a SINGLE Rails boot to minimize
+# DB connections during deploy (FRC: 3 envs share 40-connection limit).
+#
+# Previously the Procfile chained 3 separate `rails` commands, each booting
+# Rails and opening its own connection pools. During pipeline promotions this
+# caused PG::ConnectionBad (too many connections for role).
 
 namespace :deploy do
-  desc "Run all deployment tasks (auto-sync, migrations, etc.)"
+  desc "Run pending migrations (standalone - use deploy:release instead)"
   task prepare: :environment do
-    puts "\n" + ("=" * 80)
-    puts "🚀 TEEEM Deployment Preparation"
-    puts ("=" * 80)
+    run_migrations
+  end
 
-    # 1. Run pending migrations
-    begin
-      # Rails 8 compatible: Use MigrationContext.needs_migration?
-      migration_context = ActiveRecord::MigrationContext.new(ActiveRecord::Migrator.migrations_paths)
-      if migration_context.needs_migration?
-        puts "\n📦 Running pending migrations..."
-        Rake::Task["db:migrate"].invoke
-      else
-        puts "\n✅ No pending migrations"
-      end
-    rescue => e
-      puts "\n⚠️  Migration check failed: #{e.message}"
-      puts "   Attempting to run migrations anyway..."
+  desc "Combined release task - single Rails boot (SSoT for Heroku release phase)"
+  task release: :environment do
+    # 1. Migrations
+    run_migrations
+
+    # 2. Version increment
+    Rake::Task["release:increment_version"].invoke
+
+    # 3. Queue setup
+    Rake::Task["queue:setup"].invoke
+
+    puts "Release complete"
+  end
+
+  def run_migrations
+    migration_context = ActiveRecord::MigrationContext.new(ActiveRecord::Migrator.migrations_paths)
+    if migration_context.needs_migration?
+      puts "Running pending migrations..."
       Rake::Task["db:migrate"].invoke
+      puts "Migrations complete"
+    else
+      puts "No pending migrations"
     end
-
-    # 2. Auto-sync Foundation metadata
-    puts "\n🔄 Syncing Foundation metadata..."
-    begin
-      Rake::Task["foundation:health_check_auto_fix"].invoke
-      puts "✅ Foundation sync complete"
-    rescue => e
-      puts "⚠️  Foundation sync warning: #{e.message}"
-      puts "   (Deployment will continue, but run 'rails foundation:sync' manually)"
-    end
-
-    # 3. Ensure required warehouse_folders exist
-    # SSoT: Auto-seed missing warehouse_folder entries on every deploy
-    # This prevents "missing folder" issues when new warehouse_types are added
-    puts "\n📁 Checking warehouse folders..."
-    begin
-      Rake::Task["warehouse:ensure_folders"].invoke
-      puts "✅ Warehouse folders verified"
-    rescue => e
-      puts "⚠️  Warehouse folder check warning: #{e.message}"
-    end
-
-    # 4. Sync recurring jobs from config/recurring.yml (SolidQueue)
-    if defined?(SolidQueue)
-      puts "\n♻️  Syncing recurring jobs from config/recurring.yml..."
-      begin
-        config_path = Rails.root.join("config/recurring.yml")
-        if File.exist?(config_path)
-          config = YAML.load_file(config_path)
-          SolidQueue::RecurringTask.create_or_update_all(config)
-          puts "✅ Synced #{config.keys.count} recurring jobs"
-        else
-          puts "⚠️  config/recurring.yml not found"
-        end
-      rescue => e
-        puts "⚠️  Could not sync recurring jobs: #{e.message}"
-      end
-    end
-
-    puts "\n" + ("=" * 80)
-    puts "✅ Deployment preparation complete!"
-    puts ("=" * 80)
   end
 end
-
-# Hook into Heroku release phase
-# Add to Procfile: release: bundle exec rails deploy:prepare

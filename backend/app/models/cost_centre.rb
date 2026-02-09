@@ -15,6 +15,10 @@
 # - Employee/subcontractor assignment to primary cost centre
 #
 class CostCentre < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = :code
+
   # Centre types
   CENTRE_TYPES = %w[department project division region other].freeze
 
@@ -29,7 +33,7 @@ class CostCentre < ApplicationRecord
   has_many :jobs, dependent: :nullify
 
   # Validations
-  validates :code, presence: true, uniqueness: true, length: { maximum: 20 }
+  validates :code, presence: true, uniqueness: { scope: :tenant_id }, length: { maximum: 20 }
   validates :name, presence: true, length: { maximum: 100 }
   validates :centre_type, inclusion: { in: CENTRE_TYPES }, allow_nil: true
   validates :overhead_allocation_percent,

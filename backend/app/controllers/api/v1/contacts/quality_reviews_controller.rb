@@ -193,7 +193,7 @@ module Api
               display_name: review.contact.display_name,
               email: review.contact.email,
               entity_type: review.contact.entity_type,
-              tax_number: review.contact.tax_number
+              abn: review.contact.abn
             },
             suggested_company: review.suggested_company ? {
               id: review.suggested_company.id,

@@ -496,6 +496,18 @@ const TIER_1_COMPONENTS: StandardComponent[] = [
     usageCount: 0,
   },
   {
+    id: "use-pdf-pan-zoom",
+    name: "usePdfPanZoom",
+    displayName: "PDF Pan & Zoom Hook",
+    category: "hooks",
+    tier: 1,
+    status: "standard",
+    importPath: "@/hooks/usePdfPanZoom",
+    description: "SSoT hook for PDF pan/zoom interaction: fit-to-view, ResizeObserver auto-fit, Ctrl+scroll wheel zoom toward cursor, space+drag pan, middle-click pan, pan tool mode.",
+    whenToUse: "Any PDF viewer that needs zoom, pan, and fit-to-view. Used by takeoff pages; future: PDFEditor, DocumentViewer.",
+    usageCount: 2,
+  },
+  {
     id: "confirmation-dialog",
     name: "ConfirmationDialog",
     displayName: "Confirmation Dialog",
@@ -765,6 +777,18 @@ const TIER_3_COMPONENTS: StandardComponent[] = [
 // =============================================================================
 
 const TIER_4_COMPONENTS: StandardComponent[] = [
+  {
+    id: "pdf-chrome",
+    name: "PdfChrome",
+    displayName: "PDF Chrome",
+    category: "document",
+    tier: 4,
+    status: "standard",
+    importPath: "@/components/ui/pdf-chrome",
+    description: "Visual framing for PDF content. PdfChrome provides the muted background 'desk', PdfFrame provides border/shadow around the PDF itself.",
+    whenToUse: "Any context displaying a PDF - takeoff, editor, invoice viewer, document viewer. Ensures consistent visual framing.",
+    usageCount: 6,
+  },
   {
     id: "document-viewer",
     name: "DocumentViewer",

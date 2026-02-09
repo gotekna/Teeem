@@ -1,6 +1,8 @@
 class PriceHistory < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = [:pricebook_item_id, :supplier_id]
 
   # Associations
   # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'

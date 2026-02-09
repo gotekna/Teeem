@@ -1,4 +1,7 @@
 class WHSInspectionTemplate < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+
   # Associations
   # Prevent deletion if inspections exist using this template (data integrity)
   has_many :whs_inspections, dependent: :restrict_with_error

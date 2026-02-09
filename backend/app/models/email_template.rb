@@ -5,11 +5,15 @@
 # Supports both personal and shared (team) templates.
 #
 class EmailTemplate < ApplicationRecord
+  acts_as_tenant :tenant
+  include ConfigSyncable
+  self.sync_key_source = [:name, :category]
+
   belongs_to :user
 
   # Validations
   validates :name, presence: true
-  validates :name, uniqueness: { scope: :user_id, case_sensitive: false }
+  validates :name, uniqueness: { scope: [:tenant_id, :user_id], case_sensitive: false }
   validates :category, inclusion: { in: %w[quick_reply formal follow_up meeting quote invoice other] }, allow_blank: true
 
   # Scopes

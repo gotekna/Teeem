@@ -1,6 +1,7 @@
 class PricebookCategory < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
+  include ConfigSyncable
 
   # Associations
   has_many :pricebook_items, foreign_key: :category_id, dependent: :nullify

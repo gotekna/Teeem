@@ -1,6 +1,7 @@
 module Api
   module V1
     class FinancialReportsController < ApplicationController
+      before_action :check_accounting_configured
       before_action :set_company, only: [ :balance_sheet, :profit_loss, :job_profitability ]
 
       # GET /api/v1/financial_reports/balance_sheet
@@ -124,6 +125,19 @@ module Api
       end
 
       private
+
+      # FRC (Feb 2026): Keepr gem was never installed (commented out in Gemfile).
+      # All financial reporting depends on Keepr::Account which doesn't exist.
+      # This check prevents NameError crashes across all endpoints.
+      def check_accounting_configured
+        unless defined?(Keepr)
+          render json: {
+            success: false,
+            error: "Financial reporting is not configured. The accounting integration (Keepr) has not been set up.",
+            configured: false
+          }, status: :service_unavailable
+        end
+      end
 
       def set_company
         @company = if params[:company_id]

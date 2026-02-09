@@ -79,7 +79,7 @@ function getIconComponent(iconName?: string): React.ElementType | null {
  * Height of the breadcrumb bar in pixels
  * Used for layout calculations when pinned
  */
-export const BREADCRUMB_BAR_HEIGHT = 36;
+export const BREADCRUMB_BAR_HEIGHT = 41;
 
 interface BreadcrumbTrailProps {
   /** Distance from top of viewport (default: 48px for HeaderBar) */
@@ -149,7 +149,7 @@ export function BreadcrumbTrail({ topOffset = 48 }: BreadcrumbTrailProps) {
                     )}
                   >
                     {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
-                    <span className="truncate max-w-[180px]">
+                    <span className={cn("truncate", isLast ? "max-w-[400px]" : "max-w-[180px]")}>
                       {item.displayName}
                     </span>
                   </button>

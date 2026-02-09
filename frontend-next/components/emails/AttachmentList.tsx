@@ -177,7 +177,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
 
         if (response?.success && response.data?.id) {
           // Open TeeemXL with the imported spreadsheet
-          window.open(`/admin/system/teeem-xl?id=${response.data.id}`, "_blank");
+          window.open(`/admin/system/teeem-xl/${response.data.id}`, "_blank");
         } else {
           console.error("Failed to import spreadsheet:", response?.error);
           // Fallback to blob preview
@@ -218,7 +218,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
             }));
 
             // Open TeeemWord - it will detect the import data and auto-import
-            window.open(`/admin/system/teeem-word?id=${docResponse.data.id}&import=true`, "_blank");
+            window.open(`/admin/system/teeem-word/${docResponse.data.id}?import=true`, "_blank");
           } else {
             // Fallback to blob preview
             const url = window.URL.createObjectURL(blob);
@@ -266,7 +266,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
         if (response?.success && response.data?.id) {
           // Open TeeemXL with the imported spreadsheet in popup
           window.open(
-            `/admin/system/teeem-xl?id=${response.data.id}`,
+            `/admin/system/teeem-xl/${response.data.id}`,
             "preview",
             "width=1200,height=800,menubar=no,toolbar=no,location=no,status=no"
           );
@@ -311,7 +311,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
 
             // Open TeeemWord in popup - it will detect the import data and auto-import
             window.open(
-              `/admin/system/teeem-word?id=${docResponse.data.id}&import=true`,
+              `/admin/system/teeem-word/${docResponse.data.id}?import=true`,
               "preview",
               "width=1200,height=800,menubar=no,toolbar=no,location=no,status=no"
             );

@@ -33,16 +33,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Plus, Pencil, Trash2, Lock, FolderOpen, Search, ArrowUpDown, ArrowUp, ArrowDown, Mail, Zap, ChevronRight, ChevronDown } from "lucide-react";
+import { TabTypeBadge } from "@/components/ui/tab-type-badge";
+import { deriveTabType } from "@/lib/constants/tab-types";
 import { toast } from "sonner";
 
 type SortField = "warehouse_type_name" | "name" | "folder_path_template" | "warehouse_folders_count" | "enabled";
 type SortDirection = "asc" | "desc";
 
 /**
- * BaseFoldersTab - Manage base folders for warehouse types
+ * WarehouseFoldersTab - Manage warehouse folders for warehouse types
  *
- * SSoT: Database-driven base folders (Feb 2026)
- * Each WarehouseType has one or more BaseFolders with path templates
+ * SSoT: Database-driven warehouse folders (Feb 2026)
+ * Each WarehouseType has one or more WarehouseFolders with path templates
  */
 
 interface WarehouseType {
@@ -51,7 +53,7 @@ interface WarehouseType {
   display_name: string;
 }
 
-interface BaseFolder {
+interface WarehouseFolder {
   id: number;
   warehouse_type_id: number;
   warehouse_type_code: string;
@@ -63,20 +65,27 @@ interface BaseFolder {
   folder_path_template?: string;
   full_path_template?: string;
   path_preview?: string;
-  is_system: boolean;
+  is_system: boolean;  // SSoT: System-generated (can't delete)
+  tab_type?: string;  // SSoT: THE ONE field for folder behavior
+  is_mailbox?: boolean;     // SSoT: Mailbox tab
   enabled: boolean;
   order_position: number;
   warehouse_folders_count: number;
   can_delete: boolean;
   is_dynamic?: boolean;
-  dynamic_type?: string;
+  dynamic_type?: 'mailbox' | string;
   created_at: string;
   updated_at: string;
 }
 
-interface BaseFoldersResponse {
+interface WarehouseFoldersResponse {
   success: boolean;
-  data: BaseFolder[];
+  data: {
+    warehouse_type: string | null;
+    scope: string | null;
+    tabs: WarehouseFolder[];
+    groups: string[];
+  };
 }
 
 interface WarehouseTypesOptionsResponse {
@@ -103,15 +112,15 @@ const defaultFormData: FormData = {
 };
 
 // Tree node for hierarchical display
-interface TreeNode extends BaseFolder {
+interface TreeNode extends WarehouseFolder {
   children: TreeNode[];
   depth: number;
 }
 
-export function BaseFoldersTab() {
+export function WarehouseFoldersTab() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
-  const [editingFolder, setEditingFolder] = React.useState<BaseFolder | null>(null);
+  const [editingFolder, setEditingFolder] = React.useState<WarehouseFolder | null>(null);
   const [formData, setFormData] = React.useState<FormData>(defaultFormData);
   const [filterWarehouseType, setFilterWarehouseType] = React.useState<string>("all");
   const [showDisabled, setShowDisabled] = React.useState(false);
@@ -144,11 +153,11 @@ export function BaseFoldersTab() {
     },
   });
 
-  // Fetch base folders
+  // Fetch warehouse folders
   const { data, isLoading, error } = useQuery({
-    queryKey: ["base-folders", filterWarehouseType, showDisabled],
+    queryKey: ["warehouse-folders", filterWarehouseType, showDisabled],
     queryFn: async () => {
-      let url = "/api/v1/base_folders";
+      let url = "/api/v1/warehouse_folders";
       const params = new URLSearchParams();
 
       if (filterWarehouseType !== "all") {
@@ -162,7 +171,7 @@ export function BaseFoldersTab() {
         url += `?${params.toString()}`;
       }
 
-      const response = await api.get<BaseFoldersResponse>(url);
+      const response = await api.get<WarehouseFoldersResponse>(url);
       return response;
     },
   });
@@ -170,14 +179,14 @@ export function BaseFoldersTab() {
   // Create mutation
   const createMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      return api.post<{ success: boolean; data: BaseFolder }>("/api/v1/base_folders", {
-        base_folder: data,
+      return api.post<{ success: boolean; data: WarehouseFolder }>("/api/v1/warehouse_folders", {
+        warehouse_folder: data,
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["base-folders"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-folders"] });
       queryClient.invalidateQueries({ queryKey: ["warehouse-types"] });
-      toast.success("Base folder created successfully");
+      toast.success("Warehouse folder created successfully");
       closeDialog();
     },
     onError: (error: Error) => {
@@ -188,14 +197,14 @@ export function BaseFoldersTab() {
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: FormData }) => {
-      return api.patch<{ success: boolean; data: BaseFolder }>(`/api/v1/base_folders/${id}`, {
-        base_folder: data,
+      return api.patch<{ success: boolean; data: WarehouseFolder }>(`/api/v1/warehouse_folders/${id}`, {
+        warehouse_folder: data,
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["base-folders"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-folders"] });
       queryClient.invalidateQueries({ queryKey: ["warehouse-types"] });
-      toast.success("Base folder updated successfully");
+      toast.success("Warehouse folder updated successfully");
       closeDialog();
     },
     onError: (error: Error) => {
@@ -206,12 +215,12 @@ export function BaseFoldersTab() {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      return api.delete<{ success: boolean }>(`/api/v1/base_folders/${id}`);
+      return api.delete<{ success: boolean }>(`/api/v1/warehouse_folders/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["base-folders"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-folders"] });
       queryClient.invalidateQueries({ queryKey: ["warehouse-types"] });
-      toast.success("Base folder deleted successfully");
+      toast.success("Warehouse folder deleted successfully");
     },
     onError: (error: Error) => {
       toast.error(`Failed to delete: ${error.message}`);
@@ -224,7 +233,7 @@ export function BaseFoldersTab() {
     setIsDialogOpen(true);
   };
 
-  const openEditDialog = (folder: BaseFolder) => {
+  const openEditDialog = (folder: WarehouseFolder) => {
     setEditingFolder(folder);
     // SSoT (Feb 2026): name IS the folder path - one field serves both purposes
     setFormData({
@@ -265,12 +274,12 @@ export function BaseFoldersTab() {
     }
   };
 
-  const handleDelete = (folder: BaseFolder) => {
+  const handleDelete = (folder: WarehouseFolder) => {
     if (!folder.can_delete) {
-      toast.error("This base folder cannot be deleted");
+      toast.error("This warehouse folder cannot be deleted");
       return;
     }
-    if (confirm(`Delete base folder "${folder.name}"?`)) {
+    if (confirm(`Delete warehouse folder "${folder.name}"?`)) {
       deleteMutation.mutate(folder.id);
     }
   };
@@ -293,11 +302,31 @@ export function BaseFoldersTab() {
       : <ArrowDown className="h-4 w-4 ml-1" />;
   };
 
-  // Filter and sort base folders
+  // Filter and sort warehouse folders
   // SSoT: All hooks MUST be called before any early returns (React Rules of Hooks)
-  const rawFolders = data?.data || [];
+  // API returns { success, data: { tabs: [...], ... } } - access data.tabs
+  // Backend returns NESTED structure (children inside parents), so we flatten it
+  const flattenNestedFolders = (folders: WarehouseFolder[]): WarehouseFolder[] => {
+    const result: WarehouseFolder[] = [];
+    const flatten = (items: WarehouseFolder[]) => {
+      items.forEach(item => {
+        // Add the item without its children (we use parent_id for tree building)
+        const { children, ...itemWithoutChildren } = item as WarehouseFolder & { children?: WarehouseFolder[] };
+        result.push(itemWithoutChildren as WarehouseFolder);
+        // Recursively flatten children
+        if (children && Array.isArray(children) && children.length > 0) {
+          flatten(children);
+        }
+      });
+    };
+    flatten(folders);
+    return result;
+  };
 
-  const baseFolders = React.useMemo(() => {
+  const nestedTabs = Array.isArray(data?.data?.tabs) ? data.data.tabs : [];
+  const rawFolders = flattenNestedFolders(nestedTabs);
+
+  const warehouseFolders = React.useMemo(() => {
     let filtered = rawFolders;
 
     // Filter by search query
@@ -341,11 +370,11 @@ export function BaseFoldersTab() {
   // Get all unique type names for collapse all functionality
   const allTypeNames = React.useMemo(() => {
     const types = new Set<string>();
-    baseFolders.forEach(f => {
+    warehouseFolders.forEach(f => {
       types.add(f.warehouse_type_name || f.warehouse_type_code || "Unassigned");
     });
     return types;
-  }, [baseFolders]);
+  }, [warehouseFolders]);
 
   // Collapse all types by default when data first loads
   React.useEffect(() => {
@@ -369,7 +398,7 @@ export function BaseFoldersTab() {
 
   // Build tree structure from flat folder list
   // Groups by warehouse type, then builds parent-child hierarchy within each type
-  const buildTree = React.useCallback((folders: BaseFolder[]): Map<string, TreeNode[]> => {
+  const buildTree = React.useCallback((folders: WarehouseFolder[]): Map<string, TreeNode[]> => {
     const byType = new Map<string, TreeNode[]>();
 
     // Group folders by warehouse type
@@ -378,7 +407,7 @@ export function BaseFoldersTab() {
       if (!acc[type]) acc[type] = [];
       acc[type].push(folder);
       return acc;
-    }, {} as Record<string, BaseFolder[]>);
+    }, {} as Record<string, WarehouseFolder[]>);
 
     // For each type, build tree
     Object.entries(grouped).forEach(([typeName, typeFolders]) => {
@@ -423,7 +452,7 @@ export function BaseFoldersTab() {
     return byType;
   }, []);
 
-  const folderTree = React.useMemo(() => buildTree(baseFolders), [baseFolders, buildTree]);
+  const folderTree = React.useMemo(() => buildTree(warehouseFolders), [warehouseFolders, buildTree]);
 
   // Flatten tree for rendering with proper indentation info
   const flattenTree = (nodes: TreeNode[], isLast: boolean[] = []): Array<{ node: TreeNode; isLast: boolean[] }> => {
@@ -449,20 +478,20 @@ export function BaseFoldersTab() {
 
     while (currentId && !visited.has(currentId)) {
       visited.add(currentId);
-      const folder = baseFolders.find(f => f.id === currentId);
+      const folder = warehouseFolders.find(f => f.id === currentId);
       if (!folder) break;
       pathParts.unshift(folder.name);
       currentId = folder.parent_id;
     }
 
     return pathParts.join('/');
-  }, [baseFolders]);
+  }, [warehouseFolders]);
 
   // Get available parent options for a folder (same type, exclude self and descendants)
   const getParentOptions = React.useCallback((warehouseTypeId: number | null, currentFolderId: number | null) => {
     if (!warehouseTypeId) return [];
 
-    const sametype = baseFolders.filter(f => f.warehouse_type_id === warehouseTypeId);
+    const sametype = warehouseFolders.filter(f => f.warehouse_type_id === warehouseTypeId);
 
     // Get all descendant IDs to exclude (can't set a descendant as parent)
     const getDescendantIds = (folderId: number): Set<number> => {
@@ -482,7 +511,7 @@ export function BaseFoldersTab() {
     }
 
     return sametype.filter(f => !excludeIds.has(f.id));
-  }, [baseFolders]);
+  }, [warehouseFolders]);
 
   // Track collapsed folder nodes (for tree expand/collapse)
   const toggleFolderCollapse = (folderId: number) => {
@@ -510,7 +539,7 @@ export function BaseFoldersTab() {
   if (error) {
     return (
       <div className="text-destructive p-4">
-        Failed to load base folders: {error.message}
+        Failed to load warehouse folders: {error.message}
       </div>
     );
   }
@@ -520,9 +549,9 @@ export function BaseFoldersTab() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Base Folders</h2>
+          <h2 className="text-lg font-semibold">Warehouse Folders</h2>
           <p className="text-sm text-muted-foreground">
-            Configure base folder paths and templates for each warehouse type
+            Configure warehouse folder paths and templates for each warehouse type
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -573,7 +602,7 @@ export function BaseFoldersTab() {
       {/* Summary */}
       <div className="flex gap-4 text-sm text-muted-foreground">
         <span>Total: {rawFolders.length}</span>
-        {searchQuery && <span>Showing: {baseFolders.length}</span>}
+        {searchQuery && <span>Showing: {warehouseFolders.length}</span>}
         <span>Enabled: {rawFolders.filter(f => f.enabled).length}</span>
         <span>System: {rawFolders.filter(f => f.is_system).length}</span>
       </div>
@@ -622,7 +651,7 @@ export function BaseFoldersTab() {
                 onClick={() => handleSort("warehouse_folders_count")}
               >
                 <div className="flex items-center">
-                  Folders
+                  Child Folders
                   {getSortIcon("warehouse_folders_count")}
                 </div>
               </TableHead>
@@ -796,10 +825,10 @@ export function BaseFoldersTab() {
               );
               });
             })()}
-            {baseFolders.length === 0 && (
+            {warehouseFolders.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  {searchQuery ? `No folders matching "${searchQuery}"` : "No base folders found"}
+                  {searchQuery ? `No folders matching "${searchQuery}"` : "No warehouse folders found"}
                 </TableCell>
               </TableRow>
             )}
@@ -811,9 +840,15 @@ export function BaseFoldersTab() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {editingFolder ? "Edit Base Folder" : "Create Base Folder"}
-            </DialogTitle>
+            <div className="flex items-center gap-2">
+              <DialogTitle>
+                {editingFolder ? "Edit Warehouse Folder" : "Create Warehouse Folder"}
+              </DialogTitle>
+              {/* SSoT: Tab type badge */}
+              {editingFolder && (
+                <TabTypeBadge tabType={deriveTabType(editingFolder)} isSystem={editingFolder.is_system} />
+              )}
+            </div>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4 py-4">
@@ -826,7 +861,7 @@ export function BaseFoldersTab() {
                     // Clear parent when warehouse type changes (parent must be same type)
                     setFormData({ ...formData, warehouse_type_id: selectedId, parent_id: null });
                   }}
-                  disabled={editingFolder?.is_system}
+                  disabled={false}
                 >
                   <SelectTrigger id="warehouse_type_id">
                     <SelectValue placeholder="Select warehouse type" />
@@ -932,7 +967,7 @@ export function BaseFoldersTab() {
                   type="button"
                   variant="destructive"
                   onClick={() => {
-                    if (confirm(`Delete base folder "${editingFolder.name}"?`)) {
+                    if (confirm(`Delete warehouse folder "${editingFolder.name}"?`)) {
                       deleteMutation.mutate(editingFolder.id);
                       closeDialog();
                     }

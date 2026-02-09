@@ -94,7 +94,7 @@ namespace :warehouse do
     puts "Total documents: #{total}"
 
     start_time = Time.current
-    tree = { base_folders: Hash.new(0), paths: {} }
+    tree = { root_folders: Hash.new(0), paths: {} }
     processed = 0
 
     WarehouseDocument.includes(:documentable).find_each(batch_size: 1000) do |doc|
@@ -104,7 +104,7 @@ namespace :warehouse do
       tree[:paths][doc.id] = computed_path
 
       root = computed_path.split("/").first
-      tree[:base_folders][root] += 1
+      tree[:root_folders][root] += 1
 
       processed += 1
       if processed % 10000 == 0
@@ -115,17 +115,15 @@ namespace :warehouse do
       end
     end
 
-    # Convert to regular hash for caching
-    tree[:base_folders] = tree[:base_folders].to_h
+    tree[:root_folders] = tree[:root_folders].to_h
 
-    # Cache for 1 hour
     Rails.cache.write("warehouse_folder_tree_v2", tree, expires_in: 1.hour)
 
     elapsed = (Time.current - start_time).round
     puts ""
     puts "Done in #{elapsed} seconds!"
-    puts "Base folders:"
-    tree[:base_folders].each do |name, count|
+    puts "Root folders:"
+    tree[:root_folders].each do |name, count|
       puts "  #{name}: #{count} documents"
     end
   end
@@ -471,122 +469,35 @@ namespace :warehouse do
 
   # ============================================================================
   # WAREHOUSE FOLDER AUTO-SEEDING
-  # Ensures all required warehouse_folder entries exist (runs on every deploy)
+  # SSoT: Reads from warehouse_types table (not hardcoded)
+  # Creates a root-level WarehouseFolder for any WarehouseType that lacks one
   # ============================================================================
 
-  desc "Ensure all required warehouse_folder entries exist (runs on every deploy)"
+  desc "Ensure each enabled WarehouseType has at least one root WarehouseFolder"
   task ensure_folders: :environment do
-    puts "Checking required warehouse_folder entries..."
-
-    # SSoT: Define all required root-level warehouse_folders
-    # These are the folders that appear in File Warehouse root level
-    required_folders = [
-      # Tasks folder
-      {
-        warehouse_type: 'task',
-        tab_key: 'task',
-        display_name: 'Tasks',
-        tab_group: 'system',
-        folder_path: 'Tasks/{{TaskId}}/{{TaskName}}',
-        base_folder: 'Tasks'
-      },
-      {
-        warehouse_type: 'task_attachments',
-        tab_key: 'task-attachments',
-        display_name: 'Task Attachments',
-        tab_group: 'system',
-        folder_path: 'Tasks/{{TaskId}}/{{TaskName}}/Attachments',
-        base_folder: 'Tasks'
-      },
-      {
-        warehouse_type: 'task_responses',
-        tab_key: 'responses',
-        display_name: 'Task Responses',
-        tab_group: 'system',
-        folder_path: 'Tasks/{{TaskId}}/{{TaskName}}/Responses',
-        base_folder: 'Tasks'
-      },
-
-      # Teeem Docs folder (user documents)
-      {
-        warehouse_type: 'user',
-        tab_key: 'user',
-        display_name: 'Teeem Docs',
-        tab_group: 'system',
-        folder_path: 'Teeem Docs/{{UserName}}/{{Year}}',
-        base_folder: 'Teeem Docs'
-      },
-
-      # Cases folder
-      {
-        warehouse_type: 'case',
-        tab_key: 'case',
-        display_name: 'Cases',
-        tab_group: 'system',
-        folder_path: 'Cases/{{CaseId}}',
-        base_folder: 'Cases'
-      },
-
-      # Asset document subfolders (under Corporate)
-      {
-        warehouse_type: 'asset',
-        tab_key: 'overview',
-        display_name: 'Asset',
-        tab_group: 'documents',
-        folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}',
-        base_folder: 'Corporate'
-      },
-      {
-        warehouse_type: 'asset_expenses',
-        tab_key: 'expenses',
-        display_name: 'Asset Expenses',
-        tab_group: 'documents',
-        folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Expenses',
-        base_folder: 'Corporate'
-      },
-      {
-        warehouse_type: 'asset_service',
-        tab_key: 'service',
-        display_name: 'Asset Service',
-        tab_group: 'documents',
-        folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Service',
-        base_folder: 'Corporate'
-      },
-      {
-        warehouse_type: 'asset_readings',
-        tab_key: 'readings',
-        display_name: 'Asset Readings',
-        tab_group: 'documents',
-        folder_path: 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Readings',
-        base_folder: 'Corporate'
-      }
-    ]
-
     created_count = 0
     skipped_count = 0
 
-    required_folders.each do |attrs|
-      if WarehouseFolder.exists?(warehouse_type: attrs[:warehouse_type])
+    WarehouseType.enabled.find_each do |wt|
+      if wt.warehouse_folders.exists?
         skipped_count += 1
       else
         WarehouseFolder.create!(
-          warehouse_type: attrs[:warehouse_type],
-          tab_key: attrs[:tab_key],
-          display_name: attrs[:display_name],
-          tab_group: attrs[:tab_group],
+          warehouse_type: wt,
+          name: wt.display_name,
+          display_name: wt.display_name,
+          folder_segment: wt.display_name,
           order_position: 0,
           enabled: true,
-          is_system_tab: true,
-          warehouse_enabled: true,
-          folder_path: attrs[:warehouse_folder],
-          base_folder: attrs[:base_folder]
+          is_system: wt.is_system,
+          warehouse_enabled: true
         )
-        puts "  ✅ Created #{attrs[:warehouse_type]} (#{attrs[:display_name]})"
+        puts "  Created root folder for #{wt.code} (#{wt.display_name})"
         created_count += 1
       end
     end
 
-    puts "Warehouse folders: #{created_count} created, #{skipped_count} already existed"
+    puts "Warehouse folders: #{created_count} created, #{skipped_count} already exist"
   end
 
   desc "List all warehouse_folder entries with their paths"
@@ -594,11 +505,11 @@ namespace :warehouse do
     puts "\nWarehouse Folders:"
     puts "-" * 100
 
-    WarehouseFolder.where.not(base_folder: [nil, ''])
-                   .order(:base_folder, :warehouse_type)
+    WarehouseFolder.enabled.ordered
+                   .includes(:warehouse_type)
                    .each do |wf|
-      status = wf.warehouse_enabled ? "✅" : "❌"
-      puts "#{status} #{wf.warehouse_type.ljust(20)} | #{wf.base_folder.ljust(12)} | #{wf.folder_path}"
+      type_code = wf.warehouse_type&.code || "unknown"
+      puts "#{type_code.ljust(20)} | #{wf.full_folder_path}"
     end
   end
 end

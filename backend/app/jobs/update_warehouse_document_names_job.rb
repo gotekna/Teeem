@@ -2,7 +2,7 @@
 
 # UpdateWarehouseDocumentNamesJob - Sync ui_name when templates change
 #
-# SSoT (Feb 2026): When a BaseFolderDocumentType's template changes,
+# SSoT (Feb 2026): When a WarehouseFolderDocumentType's template changes,
 # this job updates the ui_name for all linked WarehouseDocuments.
 #
 # This ensures the File Warehouse UI stays consistent with current templates.
@@ -10,24 +10,24 @@
 # doesn't need updating.
 #
 # Usage:
-#   UpdateWarehouseDocumentNamesJob.perform_later(base_folder_document_type_id)
+#   UpdateWarehouseDocumentNamesJob.perform_later(warehouse_folder_document_type_id)
 #
 class UpdateWarehouseDocumentNamesJob < ApplicationJob
   queue_as :default
 
-  # Don't retry if the BFDT was deleted
+  # Don't retry if the WFDT was deleted
   discard_on ActiveRecord::RecordNotFound
 
-  def perform(bfdt_id)
-    bfdt = BaseFolderDocumentType.find(bfdt_id)
-    template = bfdt.effective_ui_name_template
+  def perform(wfdt_id)
+    wfdt = WarehouseFolderDocumentType.find(wfdt_id)
+    template = wfdt.effective_ui_name_template
 
     return if template.blank?
 
     updated_count = 0
     error_count = 0
 
-    bfdt.warehouse_documents.find_each(batch_size: 100) do |wd|
+    wfdt.warehouse_documents.find_each(batch_size: 100) do |wd|
       begin
         # Build context for template expansion
         context = build_context(wd)
@@ -46,7 +46,7 @@ class UpdateWarehouseDocumentNamesJob < ApplicationJob
       end
     end
 
-    Rails.logger.info "[UpdateWarehouseDocumentNamesJob] BFDT##{bfdt_id}: updated #{updated_count}, errors #{error_count}"
+    Rails.logger.info "[UpdateWarehouseDocumentNamesJob] WFDT##{wfdt_id}: updated #{updated_count}, errors #{error_count}"
   end
 
   private

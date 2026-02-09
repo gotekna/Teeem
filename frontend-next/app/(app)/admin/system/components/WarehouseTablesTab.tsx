@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WarehouseTypesTab } from "./WarehouseTypesTab";
-import { BaseFoldersTab } from "./BaseFoldersTab";
+import { WarehouseFoldersTab } from "./WarehouseFoldersTab";
 import { Database, FolderOpen } from "lucide-react";
 
 /**
@@ -12,15 +13,30 @@ import { Database, FolderOpen } from "lucide-react";
  * SSoT: Database-driven warehouse configuration (Feb 2026)
  * Contains sub-tabs for:
  * - Warehouse Types: The types of warehouse storage (job, contact, email, etc.)
- * - Base Folders: The folder configurations for each warehouse type
+ * - Warehouse Folders: The folder configurations for each warehouse type
+ *
+ * URL State: Path-based via basePath prop (e.g., .../warehouse_tables/warehouse_types)
  */
 
-export function WarehouseTablesTab() {
-  const [activeTab, setActiveTab] = React.useState("warehouse_types");
+interface WarehouseTablesTabProps {
+  activeSubTab?: string;
+  basePath?: string;
+}
+
+export function WarehouseTablesTab({ activeSubTab = "warehouse_types", basePath }: WarehouseTablesTabProps) {
+  const router = useRouter();
+
+  const activeTab = activeSubTab;
+
+  const handleTabChange = (newTab: string) => {
+    if (basePath) {
+      router.push(`${basePath}/${newTab}`, { scroll: false });
+    }
+  };
 
   return (
     <div className="space-y-4">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="h-9 bg-muted/50">
           <TabsTrigger
             value="warehouse_types"
@@ -30,11 +46,11 @@ export function WarehouseTablesTab() {
             Warehouse Types
           </TabsTrigger>
           <TabsTrigger
-            value="base_folders"
+            value="warehouse_folders"
             className="h-7 px-3 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
           >
             <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
-            Base Folders
+            Warehouse Folders
           </TabsTrigger>
         </TabsList>
 
@@ -42,8 +58,8 @@ export function WarehouseTablesTab() {
           <WarehouseTypesTab />
         </TabsContent>
 
-        <TabsContent value="base_folders" className="mt-4">
-          <BaseFoldersTab />
+        <TabsContent value="warehouse_folders" className="mt-4">
+          <WarehouseFoldersTab />
         </TabsContent>
       </Tabs>
     </div>

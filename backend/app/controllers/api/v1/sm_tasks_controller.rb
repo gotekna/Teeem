@@ -121,14 +121,38 @@ module Api
           end
         end
 
+        # FRC (Feb 2026): Batch preload last_assigner to prevent N+1 queries.
+        # last_assigner queries task_activity_logs + user PER TASK (2 queries × 500 = 1000 N+1 queries).
+        # This batch loads all assignment_changed logs in 2 queries total.
+        task_ids = tasks_to_render.map(&:id)
+        if task_ids.any?
+          latest_assignment_logs = TaskActivityLog
+            .where(sm_task_id: task_ids, activity_type: "assignment_changed")
+            .order(Arel.sql("sm_task_id, created_at DESC"))
+            .select("DISTINCT ON (sm_task_id) sm_task_id, user_id")
+            .includes(:user)
+
+          @last_assigner_cache = latest_assignment_logs.each_with_object({}) do |log, hash|
+            hash[log.sm_task_id] = log.user
+          end
+        else
+          @last_assigner_cache = {}
+        end
+
+        # FRC (Feb 2026): Batch status counts in ONE query instead of 4 separate counts.
+        # Before: @tasks.count (re-runs full filtered query) + 3 unscoped counts = 4 queries
+        # After: Single GROUP BY query for all status counts
+        status_counts = SmTask.group(:status).count
+        active_statuses = %w[not_started in_progress]
+
         render json: {
           success: true,
           tasks: tasks_to_render.map { |task| task_to_json_with_job(task) },
           meta: {
-            total_count: @tasks.count,
-            active_count: SmTask.active.count,
+            total_count: tasks_to_render.length,
+            active_count: active_statuses.sum { |s| status_counts[s] || 0 },
             hold_count: SmTask.hold_tasks.where(status: "not_started").count,
-            completed_count: SmTask.status_completed.count
+            completed_count: status_counts["completed"] || 0
           }
         }
       end
@@ -1203,7 +1227,6 @@ module Api
           ui_name: file.original_filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
           storage_blob: blob,
           source_type: "task",
-          folder: folder_path,
           documentable: @task
         )
 
@@ -3389,8 +3412,10 @@ module Api
           created_by_id: task.created_by_id,
           created_by_name: task.created_by&.name,
           # Last assigner (who assigned this task to current assignee)
-          last_assigner_id: task.last_assigner&.id,
-          last_assigner_name: task.last_assigner&.name,
+          # FRC (Feb 2026): Use batch-preloaded cache when available (index action),
+          # fall back to per-task query (show/detail action)
+          last_assigner_id: (@last_assigner_cache ? @last_assigner_cache[task.id]&.id : task.last_assigner&.id),
+          last_assigner_name: (@last_assigner_cache ? @last_assigner_cache[task.id]&.name : task.last_assigner&.name),
           # Following status (for current user) - defensive nil check
           is_following: current_user ? task.followed_by?(current_user) : false,
           # Action items (checkable checklist items)

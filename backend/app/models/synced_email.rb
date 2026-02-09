@@ -951,7 +951,6 @@ class SyncedEmail < ApplicationRecord
         storage_blob_id: src_doc.storage_blob_id,
         ui_name: src_doc.ui_name,
         original_filename: src_doc.original_filename,
-        folder: 'Emails/Attachments',
         source_type: 'email_attachment',
         tenant_id: tenant_id,
         content_type: src_doc.content_type,
@@ -1027,7 +1026,6 @@ class SyncedEmail < ApplicationRecord
         storage_blob_id: blob.id,
         ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
         original_filename: filename,
-        folder: 'Emails/Attachments',
         source_type: 'email_attachment',
         tenant_id: tenant_id,
         content_type: content_type || blob.content_type,
@@ -1080,7 +1078,6 @@ class SyncedEmail < ApplicationRecord
 
     create_warehouse_document!(
       source_type: "email",
-      folder: virtual_folder_path,
       ui_name: subject.presence || "No Subject",  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: "#{id}.eml",
       storage_blob: blob,

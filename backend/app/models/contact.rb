@@ -4,6 +4,17 @@ class Contact < ApplicationRecord
 
   include SelfHealing  # Auto-fix formatting issues and earn System kudos
   include Searchable
+  include ConfigSyncable
+  self.sync_key_source = :display_name
+
+  # FRC (Feb 2026): Contacts page took 7 seconds due to N+1 queries in record_to_json.
+  # The default apply_eager_loading skips self-referential belongs_to (line 1390 records_controller),
+  # but record_to_json expands ALL _id columns via record.send(association_name) (line 1043).
+  # For 100 records × 4 self-refs = 400 individual SELECT queries.
+  # This whitelist includes the self-refs so they're batch-loaded in 4 queries total.
+  def self.safe_eager_load_associations
+    [:primary_company, :parent_company_contact, :support_contact, :upline_contact]
+  end
 
   # Searchable columns for full-text search (GIN index)
   # Note: email/mobile_phone columns removed - data now in contact_emails/contact_phones tables
@@ -551,6 +562,10 @@ class Contact < ApplicationRecord
   # SSoT: Auto-link unlinked Xero invoices when contact is created/updated
   # If invoice.contact_name matches contact.display_name exactly, link them
   after_commit :auto_link_unlinked_invoices, on: [:create, :update], if: :should_auto_link_invoices?
+
+  # Materialized Path: Recompute warehouse document paths when contact name changes
+  after_commit :queue_warehouse_path_recompute,
+    if: -> { saved_change_to_display_name? || saved_change_to_first_name? || saved_change_to_last_name? }
 
   # Phase 3: Prevent deletion of Contacts that have linked Users
   before_destroy :prevent_destruction_if_has_user
@@ -1569,6 +1584,11 @@ class Contact < ApplicationRecord
   end
 
   private
+
+  # Materialized Path: Queue recomputation of warehouse document paths
+  def queue_warehouse_path_recompute
+    RecomputeDocumentPathsJob.perform_later("Contact", id)
+  end
 
   # SSoT: Sync mobile_phone to linked user
   def sync_mobile_to_user

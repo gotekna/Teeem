@@ -21,8 +21,8 @@ interface OfflineMeasurement {
   layer_id: number | null;
   pricebook_item_id: number | null;
   pixel_value: number;
-  // Sync metadata
-  synced: boolean;
+  // Sync metadata (0/1 not boolean - booleans are not valid IndexedDB keys)
+  synced: number;
   server_id: number | null;  // Set after sync
   created_offline_at: string;
   plan_id?: string;
@@ -36,7 +36,7 @@ interface OfflinePageScale {
   calibration_line: { x1: number; y1: number; x2: number; y2: number };
   canvas_width: number;
   canvas_height: number;
-  synced: boolean;
+  synced: number;  // 0/1 not boolean - booleans are not valid IndexedDB keys
   server_id: number | null;
   plan_id?: string;
   docsort_item_id?: string;
@@ -62,7 +62,7 @@ interface SyncStatus {
 // =============================================================================
 
 const DB_NAME = "teeem_takeoff_offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2;  // v2: synced field uses 0/1 (numbers) instead of boolean (not valid IDB keys)
 
 const STORES = {
   measurements: "measurements",
@@ -80,23 +80,27 @@ function openDatabase(): Promise<IDBDatabase> {
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
 
-      // Measurements store
-      if (!db.objectStoreNames.contains(STORES.measurements)) {
-        const measurementStore = db.createObjectStore(STORES.measurements, { keyPath: "id" });
-        measurementStore.createIndex("synced", "synced", { unique: false });
-        measurementStore.createIndex("plan_id", "plan_id", { unique: false });
-        measurementStore.createIndex("docsort_item_id", "docsort_item_id", { unique: false });
+      // v2 upgrade: recreate stores to fix synced index (was boolean, now 0/1)
+      if (db.objectStoreNames.contains(STORES.measurements)) {
+        db.deleteObjectStore(STORES.measurements);
       }
+      if (db.objectStoreNames.contains(STORES.pageScales)) {
+        db.deleteObjectStore(STORES.pageScales);
+      }
+
+      // Measurements store
+      const measurementStore = db.createObjectStore(STORES.measurements, { keyPath: "id" });
+      measurementStore.createIndex("synced", "synced", { unique: false });
+      measurementStore.createIndex("plan_id", "plan_id", { unique: false });
+      measurementStore.createIndex("docsort_item_id", "docsort_item_id", { unique: false });
 
       // Page scales store
-      if (!db.objectStoreNames.contains(STORES.pageScales)) {
-        const scaleStore = db.createObjectStore(STORES.pageScales, { keyPath: "id" });
-        scaleStore.createIndex("synced", "synced", { unique: false });
-        scaleStore.createIndex("plan_id", "plan_id", { unique: false });
-        scaleStore.createIndex("docsort_item_id", "docsort_item_id", { unique: false });
-      }
+      const scaleStore = db.createObjectStore(STORES.pageScales, { keyPath: "id" });
+      scaleStore.createIndex("synced", "synced", { unique: false });
+      scaleStore.createIndex("plan_id", "plan_id", { unique: false });
+      scaleStore.createIndex("docsort_item_id", "docsort_item_id", { unique: false });
 
-      // PDF cache store
+      // PDF cache store (no change needed, keep existing)
       if (!db.objectStoreNames.contains(STORES.pdfCache)) {
         db.createObjectStore(STORES.pdfCache, { keyPath: "id" });
       }
@@ -182,7 +186,7 @@ export function useOfflineStorage(options: UseOfflineStorageOptions = {}) {
       const offlineMeasurement: OfflineMeasurement = {
         ...measurement,
         id: generateId(),
-        synced: false,
+        synced: 0,  // 0/1 not boolean - booleans are not valid IndexedDB keys
         server_id: null,
         created_offline_at: new Date().toISOString(),
         plan_id: planId,
@@ -234,7 +238,7 @@ export function useOfflineStorage(options: UseOfflineStorageOptions = {}) {
       request.onsuccess = () => {
         const measurement = request.result as OfflineMeasurement;
         if (measurement) {
-          measurement.synced = true;
+          measurement.synced = 1;  // 0/1 not boolean - booleans are not valid IndexedDB keys
           measurement.server_id = serverId;
           store.put(measurement);
           updateSyncStatus();
@@ -274,7 +278,7 @@ export function useOfflineStorage(options: UseOfflineStorageOptions = {}) {
       const offlineScale: OfflinePageScale = {
         ...scale,
         id: generateId(),
-        synced: false,
+        synced: 0,  // 0/1 not boolean - booleans are not valid IndexedDB keys
         server_id: null,
         plan_id: planId,
         docsort_item_id: docsortItemId,
@@ -378,8 +382,8 @@ export function useOfflineStorage(options: UseOfflineStorageOptions = {}) {
     const measurementIndex = measurementStore.index("synced");
     const scaleIndex = scaleStore.index("synced");
 
-    const pendingMeasurementsRequest = measurementIndex.count(IDBKeyRange.only(false));
-    const pendingScalesRequest = scaleIndex.count(IDBKeyRange.only(false));
+    const pendingMeasurementsRequest = measurementIndex.count(IDBKeyRange.only(0));
+    const pendingScalesRequest = scaleIndex.count(IDBKeyRange.only(0));
 
     pendingMeasurementsRequest.onsuccess = () => {
       setSyncStatus((prev) => ({
@@ -404,13 +408,13 @@ export function useOfflineStorage(options: UseOfflineStorageOptions = {}) {
     const scaleStore = await getStore(db, STORES.pageScales);
 
     const measurements = await new Promise<OfflineMeasurement[]>((resolve, reject) => {
-      const request = measurementStore.index("synced").getAll(IDBKeyRange.only(false));
+      const request = measurementStore.index("synced").getAll(IDBKeyRange.only(0));
       request.onsuccess = () => resolve(request.result || []);
       request.onerror = () => reject(request.error);
     });
 
     const scales = await new Promise<OfflinePageScale[]>((resolve, reject) => {
-      const request = scaleStore.index("synced").getAll(IDBKeyRange.only(false));
+      const request = scaleStore.index("synced").getAll(IDBKeyRange.only(0));
       request.onsuccess = () => resolve(request.result || []);
       request.onerror = () => reject(request.error);
     });

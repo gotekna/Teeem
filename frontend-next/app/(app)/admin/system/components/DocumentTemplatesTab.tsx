@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +69,8 @@ interface TemplateGroup {
 interface DocumentTemplatesContentProps {
   /** Base path for navigation (e.g., "/settings/company/documents/document-templates") */
   basePath?: string;
+  /** Active sub-tab from path segment (ssot, preview, legacy) */
+  subTab?: string;
 }
 
 const DEFAULT_BASE_PATH = "/settings/company/documents/document-templates";
@@ -80,16 +82,14 @@ const DEFAULT_BASE_PATH = "/settings/company/documents/document-templates";
  * Note: This was refactored in Jan 2026 to remove inner tabs.
  * Bank Statements and Invoice Templates are now separate tabs in the parent DocumentsTab.
  */
-export function DocumentTemplatesContent({ basePath = DEFAULT_BASE_PATH }: DocumentTemplatesContentProps) {
-  const searchParams = useSearchParams();
+export function DocumentTemplatesContent({ basePath = DEFAULT_BASE_PATH, subTab }: DocumentTemplatesContentProps) {
   const router = useRouter();
-  const subtabFromUrl = searchParams.get("subtab");
-  const activeTab = subtabFromUrl || "ssot";
+  const activeTab = subTab || "ssot";
 
   const handleTabChange = useCallback((tabId: string) => {
     const url = tabId === "ssot"
       ? basePath
-      : `${basePath}?subtab=${tabId}`;
+      : `${basePath}/${tabId}`;
     router.push(url, { scroll: false });
   }, [router, basePath]);
 

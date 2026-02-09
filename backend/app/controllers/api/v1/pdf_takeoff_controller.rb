@@ -10,10 +10,9 @@ module Api
     # Key differentiator: Pricebook → PO integration (measure → price → PO in one click)
     #
     class PdfTakeoffController < ApplicationController
-      before_action :authenticate_user!
       before_action :set_job_plan, only: [:show, :calibrate, :measurements, :create_measurement, :generate_po, :detect_scale, :detect_elements]
-      before_action :set_docsort_item, only: [:show_docsort, :calibrate_docsort, :measurements_docsort, :create_measurement_docsort, :detect_scale_docsort, :detect_elements_docsort]
-      before_action :set_job, only: [:layers, :create_layer, :update_layer, :delete_layer]
+      before_action :set_docsort_item, only: [:show_docsort, :calibrate_docsort, :measurements_docsort, :create_measurement_docsort, :detect_scale_docsort, :detect_elements_docsort, :layers_docsort, :create_layer_docsort]
+      before_action :set_job, only: [:layers, :create_layer]
 
       # GET /api/v1/pdf_takeoff/plans/:job_plan_id
       # Get plan details with page scales for takeoff
@@ -93,6 +92,23 @@ module Api
         else
           render json: { success: false, errors: page_scale.errors.full_messages }, status: :unprocessable_entity
         end
+      end
+
+      # DELETE /api/v1/pdf_takeoff/plans/:job_plan_id/calibrate
+      def clear_calibration
+        page_number = params[:page_number]&.to_i || 1
+        page_scale = PageScale.find_by(job_plan: @job_plan, page_number: page_number)
+        if page_scale
+          page_scale.update!(
+            scale_factor: nil,
+            reference_length_mm: nil,
+            reference_length_px: nil,
+            calibration_line: nil,
+            calibrated_by: nil,
+            calibrated_at: nil
+          )
+        end
+        render json: { success: true }
       end
 
       # POST /api/v1/pdf_takeoff/plans/:job_plan_id/detect_scale
@@ -177,14 +193,21 @@ module Api
         measurement.session_id ||= SecureRandom.uuid
 
         # Get page scale for conversion if needed
-        if params[:page_number].present? && params[:pixel_value].present?
-          page_scale = PageScale.find_by(job_plan: @job_plan, page_number: params[:page_number])
-          if page_scale&.calibrated?
-            measurement.value = convert_measurement(
-              params[:pixel_value].to_f,
-              params[:measurement_type],
-              page_scale
-            )
+        # pixel_value and page_number come nested inside the measurement hash
+        m_params = params[:measurement] || {}
+        if m_params[:page_number].present? && m_params[:pixel_value].present?
+          if m_params[:measurement_type] == "count"
+            # Count doesn't need calibration — value is always the raw count
+            measurement.value = m_params[:pixel_value].to_f
+          else
+            page_scale = PageScale.find_by(job_plan: @job_plan, page_number: m_params[:page_number])
+            if page_scale&.calibrated?
+              measurement.value = convert_measurement(
+                m_params[:pixel_value].to_f,
+                m_params[:measurement_type],
+                page_scale
+              )
+            end
           end
         end
 
@@ -253,6 +276,170 @@ module Api
         update_params[:notes] = params[:notes] if params.key?(:notes)
 
         if measurement.update(update_params)
+          render json: {
+            success: true,
+            data: measurement_json(measurement.reload)
+          }
+        else
+          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/pdf_takeoff/measurements/:id/count_point
+      # Add a point to an existing count measurement (accumulate clicks)
+      def add_count_point
+        measurement = UnrealMeasurement.find(params[:id])
+
+        # Verify access
+        if measurement.job.present?
+          unless measurement.job.accessible_by?(current_user)
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        elsif measurement.docsort_item.present?
+          unless measurement.docsort_item.tenant_id == current_tenant.id
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        end
+
+        unless measurement.measurement_type == "count"
+          return render json: { success: false, error: "Not a count measurement" }, status: :unprocessable_entity
+        end
+
+        # Append the new point to geometry_data.points
+        geo = measurement.geometry_data || {}
+        points = geo["points"] || []
+        points << { "x" => params[:point][:x].to_f, "y" => params[:point][:y].to_f }
+        geo["points"] = points
+        measurement.geometry_data = geo
+
+        # Increment count value
+        measurement.value = points.length
+
+        if measurement.save
+          render json: {
+            success: true,
+            data: measurement_json(measurement.reload)
+          }
+        else
+          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # DELETE /api/v1/pdf_takeoff/measurements/:id/remove_point
+      # Remove a single point from a count measurement (or delete measurement if last point)
+      def remove_point
+        measurement = UnrealMeasurement.find(params[:id])
+
+        # Verify access
+        if measurement.job.present?
+          unless measurement.job.accessible_by?(current_user)
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        elsif measurement.docsort_item.present?
+          unless measurement.docsort_item.tenant_id == current_tenant.id
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        end
+
+        unless measurement.measurement_type == "count"
+          return render json: { success: false, error: "Only count measurements support point removal" }, status: :unprocessable_entity
+        end
+
+        point_index = params[:point_index].to_i
+        geo = measurement.geometry_data || {}
+        points = geo["points"] || []
+
+        unless point_index >= 0 && point_index < points.length
+          return render json: { success: false, error: "Invalid point index" }, status: :unprocessable_entity
+        end
+
+        # If this is the last point, delete the entire measurement
+        if points.length <= 1
+          measurement.destroy
+          return render json: { success: true, data: { deleted: true } }
+        end
+
+        # Remove the point and update count
+        points.delete_at(point_index)
+        geo["points"] = points
+        measurement.geometry_data = geo
+        measurement.value = points.length
+
+        if measurement.save
+          render json: {
+            success: true,
+            data: measurement_json(measurement.reload)
+          }
+        else
+          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # PATCH /api/v1/pdf_takeoff/measurements/:id/move_point
+      # Move a specific point in a measurement's geometry_data
+      def move_point
+        measurement = UnrealMeasurement.find(params[:id])
+
+        # Verify access
+        if measurement.job.present?
+          unless measurement.job.accessible_by?(current_user)
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        elsif measurement.docsort_item.present?
+          unless measurement.docsort_item.tenant_id == current_tenant.id
+            return render json: { success: false, error: "Access denied" }, status: :forbidden
+          end
+        end
+
+        point_index = params[:point_index].to_i
+        geo = measurement.geometry_data || {}
+        points = geo["points"] || []
+
+        unless point_index >= 0 && point_index < points.length
+          return render json: { success: false, error: "Invalid point index" }, status: :unprocessable_entity
+        end
+
+        points[point_index] = { "x" => params[:x].to_f, "y" => params[:y].to_f }
+        geo["points"] = points
+        measurement.geometry_data = geo
+
+        # Recalculate value for area/length measurements after vertex move
+        if measurement.measurement_type.in?(%w[area length perimeter]) && points.length >= 2
+          page_scale = if measurement.job_plan.present?
+                         PageScale.find_by(job_plan: measurement.job_plan, page_number: measurement.page_number)
+                       elsif measurement.docsort_item.present?
+                         PageScale.find_by(docsort_item: measurement.docsort_item, page_number: measurement.page_number)
+                       end
+          pixel_value = case geo["type"]
+                        when "polygon"
+                          # Shoelace formula for polygon area
+                          n = points.length
+                          area = 0.0
+                          n.times do |i|
+                            j = (i + 1) % n
+                            area += points[i]["x"].to_f * points[j]["y"].to_f
+                            area -= points[j]["x"].to_f * points[i]["y"].to_f
+                          end
+                          (area / 2.0).abs
+                        when "polyline"
+                          # Sum of segment lengths
+                          total = 0.0
+                          (1...points.length).each do |i|
+                            dx = points[i]["x"].to_f - points[i - 1]["x"].to_f
+                            dy = points[i]["y"].to_f - points[i - 1]["y"].to_f
+                            total += Math.sqrt(dx * dx + dy * dy)
+                          end
+                          total
+                        else
+                          nil
+                        end
+
+          if pixel_value && page_scale
+            measurement.value = convert_measurement(pixel_value, measurement.measurement_type, page_scale)
+          end
+        end
+
+        if measurement.save
           render json: {
             success: true,
             data: measurement_json(measurement.reload)
@@ -367,6 +554,17 @@ module Api
           }
         end
 
+        # Get download URL with graceful error handling for storage provider issues
+        download_url = begin
+          @docsort_item.download_url
+        rescue StandardError => e
+          Rails.logger.error "[PdfTakeoff] Failed to get download_url for DocsortItem #{@docsort_item.id}: #{e.message}"
+          nil
+        end
+
+        # Note: download_url may be nil if storage provider is disconnected
+        # Frontend handles this gracefully (shows PDF loading area without content)
+
         render json: {
           success: true,
           data: {
@@ -376,7 +574,7 @@ module Api
               document_type: @docsort_item.document_type,
               original_filename: @docsort_item.original_filename
             },
-            download_url: @docsort_item.download_url,
+            download_url: download_url,
             page_scales: page_scales
           }
         }
@@ -420,6 +618,23 @@ module Api
         else
           render json: { success: false, errors: page_scale.errors.full_messages }, status: :unprocessable_entity
         end
+      end
+
+      # DELETE /api/v1/pdf_takeoff/docsort/:docsort_item_id/calibrate
+      def clear_calibration_docsort
+        page_number = params[:page_number]&.to_i || 1
+        page_scale = PageScale.find_by(docsort_item: @docsort_item, page_number: page_number)
+        if page_scale
+          page_scale.update!(
+            scale_factor: nil,
+            reference_length_mm: nil,
+            reference_length_px: nil,
+            calibration_line: nil,
+            calibrated_by: nil,
+            calibrated_at: nil
+          )
+        end
+        render json: { success: true }
       end
 
       # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/detect_scale
@@ -476,6 +691,13 @@ module Api
       # GET /api/v1/pdf_takeoff/docsort/:docsort_item_id/measurements
       # Get measurements for a docsort item
       def measurements_docsort
+        # Auto-assign unassigned measurements to default layer
+        unassigned = @docsort_item.unreal_measurements.from_pdf_takeoff.where(takeoff_layer_id: nil)
+        if unassigned.any?
+          default_layer = TakeoffLayer.default_layer_for_docsort(@docsort_item)
+          unassigned.update_all(takeoff_layer_id: default_layer.id)
+        end
+
         scope = @docsort_item.unreal_measurements.from_pdf_takeoff
 
         scope = scope.for_page(params[:page_number].to_i) if params[:page_number].present?
@@ -503,15 +725,28 @@ module Api
         measurement.session_id ||= SecureRandom.uuid
 
         # Get page scale for conversion if needed
-        if params[:page_number].present? && params[:pixel_value].present?
-          page_scale = PageScale.find_by(docsort_item: @docsort_item, page_number: params[:page_number])
-          if page_scale&.calibrated?
-            measurement.value = convert_measurement(
-              params[:pixel_value].to_f,
-              params[:measurement_type],
-              page_scale
-            )
+        # pixel_value and page_number come nested inside the measurement hash
+        m_params = params[:measurement] || {}
+        if m_params[:page_number].present? && m_params[:pixel_value].present?
+          if m_params[:measurement_type] == "count"
+            # Count doesn't need calibration — value is always the raw count
+            measurement.value = m_params[:pixel_value].to_f
+          else
+            page_scale = PageScale.find_by(docsort_item: @docsort_item, page_number: m_params[:page_number])
+            if page_scale&.calibrated?
+              measurement.value = convert_measurement(
+                m_params[:pixel_value].to_f,
+                m_params[:measurement_type],
+                page_scale
+              )
+            end
           end
+        end
+
+        # Auto-assign to default layer if none specified
+        if measurement.takeoff_layer_id.blank?
+          default_layer = TakeoffLayer.default_layer_for_docsort(@docsort_item)
+          measurement.takeoff_layer_id = default_layer.id
         end
 
         # Set display label for counts
@@ -601,14 +836,78 @@ module Api
       def delete_layer
         layer = TakeoffLayer.find(params[:id])
 
-        # Move measurements to General layer before deleting
+        # Move measurements to default layer before deleting
         if layer.measurements.any?
-          general = TakeoffLayer.general_layer_for(layer.job)
-          layer.measurements.update_all(takeoff_layer_id: general.id)
+          default_layer = if layer.job
+            TakeoffLayer.default_layer_for(layer.job)
+          else
+            TakeoffLayer.default_layer_for_docsort(layer.docsort_item)
+          end
+          layer.measurements.update_all(takeoff_layer_id: default_layer.id)
         end
 
         layer.destroy
         render json: { success: true }
+      end
+
+      # =============================================================================
+      # DocSort Layer Management
+      # =============================================================================
+
+      # GET /api/v1/pdf_takeoff/docsort/:docsort_item_id/layers
+      def layers_docsort
+        layers = @docsort_item.takeoff_layers.ordered.map do |layer|
+          {
+            id: layer.id,
+            name: layer.name,
+            color: layer.color,
+            display_order: layer.display_order,
+            visible: layer.visible,
+            locked: layer.locked,
+            measurement_count: layer.measurement_count
+          }
+        end
+
+        # Create default layers if none exist
+        if layers.empty?
+          TakeoffLayer.create_defaults_for_docsort(@docsort_item)
+          layers = @docsort_item.takeoff_layers.reload.ordered.map do |layer|
+            {
+              id: layer.id,
+              name: layer.name,
+              color: layer.color,
+              display_order: layer.display_order,
+              visible: layer.visible,
+              locked: layer.locked,
+              measurement_count: layer.measurement_count
+            }
+          end
+        end
+
+        render json: { success: true, data: { layers: layers } }
+      end
+
+      # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/layers
+      def create_layer_docsort
+        layer = @docsort_item.takeoff_layers.build(layer_params)
+        layer.tenant = current_tenant
+
+        if layer.save
+          render json: {
+            success: true,
+            data: {
+              id: layer.id,
+              name: layer.name,
+              color: layer.color,
+              display_order: layer.display_order,
+              visible: layer.visible,
+              locked: layer.locked,
+              measurement_count: 0
+            }
+          }, status: :created
+        else
+          render json: { success: false, errors: layer.errors.full_messages }, status: :unprocessable_entity
+        end
       end
 
       private

@@ -4,20 +4,20 @@
 #
 # SSoT Architecture (Feb 2026):
 # ┌─────────────────────────────────────────────────────────────────┐
-# │ BaseFolder (SSoT for folder structure)                          │
+# │ WarehouseFolder (SSoT for folder structure)                          │
 # │ ├── warehouse_type: "contact"                                   │
 # │ ├── full_folder_path: "{{ContactName}}/Bills"                   │
 # │     ↓ links via                                                 │
-# │ BaseFolderDocumentType (join table, is_primary: true)           │
+# │ WarehouseFolderDocumentType (join table, is_primary: true)           │
 # │     ↓ to                                                        │
 # │ DocumentType (classification)                                   │
 # │ ├── name: "Xero Bill"                                           │
-# │ ├── derived_scope: computed from BaseFolder.warehouse_type      │
+# │ ├── derived_scope: computed from WarehouseFolder.warehouse_type      │
 # │     ↓ used by                                                   │
 # │ WarehouseDocument (universal metadata)                          │
 # │ ├── documentable: ExternalInvoice                               │
 # │ ├── storage_blob_id: → StorageBlob                              │
-# │ ├── folder: computed from BaseFolder template                   │
+# │ ├── folder: computed from WarehouseFolder template                   │
 # │ ├── source_type: "xero"                                         │
 # │     ↓ links to                                                  │
 # │ StorageBlob (flat storage, deduplication)                       │
@@ -26,7 +26,7 @@
 # └─────────────────────────────────────────────────────────────────┘
 #
 # Physical Storage: s3://bucket/Blobs/{hash_prefix}/{hash}.pdf
-# Virtual Folders: Computed from BaseFolder.display_name, stored in warehouse_documents.folder
+# Virtual Folders: Computed from WarehouseFolder.display_name, stored in warehouse_documents.folder
 #
 class XeroAttachmentSyncService
   include DocumentProviderAware
@@ -136,7 +136,7 @@ class XeroAttachmentSyncService
       return
     end
 
-    # SSoT (Feb 2026): Get folder path from BaseFolder (no hardcoding)
+    # SSoT (Feb 2026): Get folder path from WarehouseFolder (no hardcoding)
     folder = compute_folder_from_document_type(document_type)
 
     # ========================================
@@ -176,7 +176,6 @@ class XeroAttachmentSyncService
       source_type: "xero",
       ui_name: build_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: filename,
-      folder: folder,
       tenant_id: @tenant.id,
       content_type: "application/pdf",
       file_size: pdf_content.bytesize,
@@ -215,7 +214,6 @@ class XeroAttachmentSyncService
       source_type: "xero",
       ui_name: build_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: nil,
-      folder: folder,
       tenant_id: @tenant.id,
       content_type: nil,
       file_size: 0,
@@ -333,7 +331,6 @@ class XeroAttachmentSyncService
       source_type: "xero",
       ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
       original_filename: filename,
-      folder: folder,
       tenant_id: @tenant.id,
       content_type: mime_type,
       file_size: content.bytesize,
@@ -384,22 +381,21 @@ class XeroAttachmentSyncService
   end
 
   # ========================================
-  # SSoT (Feb 2026): Folder Computation from BaseFolder
+  # SSoT (Feb 2026): Folder Computation from WarehouseFolder
   # ========================================
 
-  # Compute folder path from DocumentType's primary BaseFolder
-  # SSoT: Uses full_folder_path method (Feb 2026 consolidation)
+  # Compute folder path for Xero documents
+  # Path structure: Contacts/{{ContactName}}/Financial/{{XeroOrgName}}/Bills
+  # Falls back to: Contacts/{{ContactName}}/Financial/Bills (if no Xero org)
   def compute_folder_from_document_type(document_type)
-    wf = document_type.primary_warehouse_folder
-    return nil unless wf
+    contact_name = contact_folder_name
+    xero_org = @xero_tenant_name.presence
+    doc_folder = document_type.folder.presence || document_type.primary_tab.presence || "Documents"
 
-    # SSoT (Feb 2026): full_folder_path returns complete path template
-    # e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Invoices & Credit Notes"
-    template = wf.full_folder_path
-    return nil unless template.present?
-
-    # Expand template with context from invoice/contact
-    expand_folder_template(template)
+    parts = ["Contacts", contact_name, "Financial"]
+    parts << xero_org if xero_org
+    parts << doc_folder
+    parts.compact.join("/")
   end
 
   # Expand folder template with invoice/contact context
@@ -415,6 +411,7 @@ class XeroAttachmentSyncService
       "CompanyGroup" => company&.company_group&.name.presence || "Default",
       "CompanyCode" => company&.company_code.presence || "Unknown",
       "CompanyName" => company&.name,
+      "XeroConnectionName" => @xero_tenant_name,
       "Year" => (external_invoice.invoice_date || Date.current).year,
       "Month" => format("%02d", (external_invoice.invoice_date || Date.current).month)
     }
@@ -492,6 +489,7 @@ class XeroAttachmentSyncService
       "organization_id" => @organization&.id,
       "organization_name" => @organization&.name,
       "contact_id" => external_invoice.contact_id,
+      "job_id" => external_invoice.job_id,
       "document_type_id" => document_type&.id,
       "document_type_name" => document_type&.name,
       "synced_at" => Time.current.iso8601,
@@ -513,6 +511,7 @@ class XeroAttachmentSyncService
       "attachment_id" => attachment_id,
       "original_filename" => filename,
       "contact_id" => external_invoice.contact_id,
+      "job_id" => external_invoice.job_id,
       "document_type_id" => document_type&.id,
       "document_type_name" => document_type&.name,
       "synced_at" => Time.current.iso8601,
@@ -566,7 +565,6 @@ class XeroAttachmentSyncService
     doc.assign_attributes(
       documentable: external_invoice,
       source_type: "xero",
-      folder: folder,
       linkable: external_invoice.contact,
       metadata: (doc.metadata || {}).merge(
         "xero_id" => external_invoice.external_id,

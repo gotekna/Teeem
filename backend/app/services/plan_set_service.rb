@@ -37,7 +37,7 @@ class PlanSetService
     raise ProcessingError, "Job has no storage folder" unless @construction.storage_folder_path.present?
 
     # SSoT: Get plans folder name from WarehouseFolder
-    plans_folder_name = BaseFolder.folder_name_for("job", "plans", "04 Plans")
+    plans_folder_name = WarehouseFolder.folder_name_for("job", "plans", "04 Plans")
     plans_folder_path = "#{@construction.storage_folder_path}/#{plans_folder_name}"
 
     # Check plans folder exists
@@ -221,7 +221,7 @@ class PlanSetService
     raise ProcessingError, "Job has no storage folder. Please create folder structure first." unless @construction.storage_folder_path.present?
 
     # SSoT: Get plans folder name from WarehouseFolder
-    plans_folder_name = BaseFolder.folder_name_for("job", "plans", "04 Plans")
+    plans_folder_name = WarehouseFolder.folder_name_for("job", "plans", "04 Plans")
     plans_folder_path = "#{@construction.storage_folder_path}/#{plans_folder_name}"
 
     # Ensure folder exists

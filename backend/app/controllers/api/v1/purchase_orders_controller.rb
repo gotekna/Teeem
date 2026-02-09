@@ -1,7 +1,7 @@
 module Api
   module V1
     class PurchaseOrdersController < ApplicationController
-      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf, :schedule_sync_preview, :schedule_sync, :lock_budget, :unlock_budget, :save_pdf, :send_email ]
+      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf, :schedule_sync_preview, :schedule_sync, :lock_budget, :unlock_budget, :save_pdf, :send_email, :bills ]
 
       # GET /api/v1/purchase_orders
       # Params: construction_id, supplier_id, status, search, sort_by, sort_direction, page, per_page
@@ -123,6 +123,44 @@ module Api
           **po_json,
           sm_tasks: sm_tasks_json,  # SSoT: Backwards-compatible array format for frontend
           company_setting: company_setting.as_json
+        }
+      end
+
+      # GET /api/v1/purchase_orders/:id/bills
+      # Returns matched BillInbox records for this PO (for side-by-side modal)
+      def bills
+        bills = BillInbox.includes(:corporate, :detected_company, :supplier, :approved_by, :bill_payments)
+                         .where(matched_purchase_order_id: @purchase_order.id)
+                         .order(created_at: :desc)
+
+        render json: {
+          bills: bills.map do |bill|
+            xero_tenant_name = bill.corporate&.corporate_xero_connection&.xero_tenant_name
+
+            bill.as_json(
+              include: {
+                corporate: {},
+                detected_company: {},
+                supplier: {},
+                matched_purchase_order: {
+                  include: { supplier: {} }
+                },
+                approved_by: {},
+                bill_payments: {
+                  include: { bill_payment_batch: {} }
+                }
+              },
+              methods: [ :remaining_balance, :variance_percent, :status_color, :has_invoice_file?, :invoice_file_content_type, :invoice_file_filename ]
+            ).merge(
+              ai_extraction_result: bill.ai_extraction_result,
+              ocr_extraction_result: bill.ocr_extraction_result,
+              comparison_data: bill.comparison_data,
+              contact_comparison_data: bill.contact_comparison_data,
+              extracted_at: bill.extracted_at,
+              xero_tenant_name: xero_tenant_name
+            )
+          end,
+          total_count: bills.size
         }
       end
 

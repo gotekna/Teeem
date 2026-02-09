@@ -54,6 +54,7 @@ import { XeroTabRenderer } from "@/components/xero/XeroTabRenderer";
 // ActivityTab is used for main "activity-main" tab (not overview sub-tab)
 import { ActivityTab } from "@/components/tabs";
 import { Spinner } from "@/components/ui/spinner";
+import { WarehouseTree } from "@/components/warehouse/WarehouseTree";
 // Shared types for corporate entities (SSoT for Company type)
 import type { Corporate } from "@/lib/types/corporate";
 
@@ -509,6 +510,24 @@ export default function CompanyDetailPage() {
               </button>
             );
           })}
+          {/* Warehouse tab - only shows if warehouse tab exists in API */}
+          {entityTabs.some(t => t.tab_key === 'warehouse' && t.enabled) && (() => {
+            const WarehouseIcon = getIcon('Warehouse');
+            return (
+              <button
+                onClick={() => handleTabChange("warehouse")}
+                className={cn(
+                  "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+                  activeTab === "warehouse"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                )}
+              >
+                <WarehouseIcon className="h-4 w-4 mr-2" />
+                Warehouse
+              </button>
+            );
+          })()}
         </div>
         </div>
       </div>
@@ -561,8 +580,20 @@ export default function CompanyDetailPage() {
             </div>
           )}
 
+          {/* Warehouse Tab - Scoped warehouse sub-tree for this company */}
+          {activeTab === "warehouse" && (
+            <WarehouseTree
+              mode={{
+                type: "scoped",
+                linkableType: "CorporateCompany",
+                linkableId: Number(companyId),
+                warehouseTypeCode: "corporate",
+              }}
+            />
+          )}
+
           {/* Document Category Tabs */}
-          {computedDocumentTabs.find(t => t.id === activeTab)?.name && activeTab !== "activity-main" && activeTab !== "documents-main" && activeTab !== "data-main" && activeTab !== "xero" && (
+          {computedDocumentTabs.find(t => t.id === activeTab)?.name && activeTab !== "activity-main" && activeTab !== "documents-main" && activeTab !== "data-main" && activeTab !== "xero" && activeTab !== "warehouse" && (
             <>
               <CompanyDocumentsTab
                 companyId={companyId}

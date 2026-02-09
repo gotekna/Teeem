@@ -72,7 +72,7 @@ export default function PresentationListPage() {
 
   // Open presentation
   const handleOpen = (id: number) => {
-    router.push(`/admin/system/teeem-powerpoint?id=${id}`);
+    router.push(`/admin/system/teeem-powerpoint/${id}`);
   };
 
   // Delete presentation

@@ -176,6 +176,7 @@ corporate_financial_reports_monthly:
 recurring_invoice_generation:
   class: RecurringInvoiceGenerationJob
   queue: default
+  schedule: at 6am every day
 
 # ============================================
 # SCHEDULED INVOICES (T.A.S.)

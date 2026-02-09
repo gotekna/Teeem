@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Save } from "lucide-react";
+import { TabTypeBadge } from "@/components/ui/tab-type-badge";
+import { deriveTabType } from "@/lib/constants/tab-types";
 import {
   Select,
   SelectContent,
@@ -36,6 +38,9 @@ export interface WarehouseFolderEditData {
   parent_id?: number | null;
   base_folder_id?: number;
   warehouse_type?: string;  // Used to determine which tokens to show
+  is_system?: boolean;  // SSoT: System tab (functional/code-driven)
+  is_mailbox?: boolean;     // SSoT: Mailbox tab
+  dynamic_type?: 'mailbox' | null;  // SSoT: Dynamic folder type
 }
 
 export interface ParentTabOption {
@@ -73,6 +78,13 @@ export function WarehouseFolderEditor({
   // SSoT: folder_path must include base path prefix for correct save
   React.useEffect(() => {
     if (folder) {
+      // DEBUG: Log folder type data
+      console.log('[WarehouseFolderEditor] folder:', {
+        display_name: folder.display_name,
+        is_mailbox: folder.is_mailbox,
+        is_system: folder.is_system,
+        dynamic_type: folder.dynamic_type
+      });
       // Combine base path + suffix for full folder_path
       const basePath = folder.base_folder_path_template || '';
       const suffix = folder.folder_path || '';
@@ -163,7 +175,13 @@ export function WarehouseFolderEditor({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Warehouse Folder</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle>Edit Warehouse Folder</DialogTitle>
+            {/* SSoT: Tab type badge */}
+            {folder && (
+              <TabTypeBadge tabType={deriveTabType(folder)} isSystem={folder.is_system} />
+            )}
+          </div>
           <DialogDescription>
             {folder?.display_name} - Configure folder path and name templates
           </DialogDescription>

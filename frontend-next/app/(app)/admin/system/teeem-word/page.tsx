@@ -4,7 +4,7 @@
 import "@/lib/tiptap-utils";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -136,7 +136,9 @@ function ToolbarSeparator() {
 export default function TeeemWordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const documentId = searchParams.get("id");
+  const params = useParams();
+  // Path-based ID (preferred) or query param fallback for backwards compat
+  const documentId = (params.id as string) || searchParams.get("id");
   const { setMode } = useLayoutMode();
   const { toast } = useToast();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -268,7 +270,7 @@ export default function TeeemWordPage() {
           if (response?.success && response.data) {
             setDocument(response.data);
             setName(response.data.name);
-            router.replace(`/admin/system/teeem-word?id=${response.data.id}`);
+            router.replace(`/admin/system/teeem-word/${response.data.id}`);
           }
         }
       } catch (error) {
@@ -335,7 +337,7 @@ export default function TeeemWordPage() {
         setImporting(false);
         sessionStorage.removeItem("teeem_word_import");
         // Remove the import param from URL
-        router.replace(`/admin/system/teeem-word?id=${document.id}`);
+        router.replace(`/admin/system/teeem-word/${document.id}`);
       });
     } catch (error) {
       console.error("Failed to parse import data:", error);
