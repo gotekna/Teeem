@@ -70,6 +70,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { JobSpreadsheetsSection } from "@/components/jobs/JobSpreadsheetsSection";
 import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
+import type { DocumentItem } from "@/components/warehouse/types";
 
 // =============================================================================
 // LAZY LOADED TAB COMPONENTS - Performance optimization
@@ -170,7 +171,7 @@ function JobWarehouseTab(_props: any) {
   const clickTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const mailboxTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleFileClick = React.useCallback((doc: { fileUrl?: string }) => {
+  const handleFileClick = React.useCallback((doc: DocumentItem) => {
     if (clickTimer.current) clearTimeout(clickTimer.current);
     clickTimer.current = setTimeout(() => {
       if (doc.fileUrl) window.open(doc.fileUrl, "_blank");
@@ -178,7 +179,7 @@ function JobWarehouseTab(_props: any) {
     }, 200);
   }, []);
 
-  const handleFileDoubleClick = React.useCallback((doc: { fileUrl?: string }) => {
+  const handleFileDoubleClick = React.useCallback((doc: DocumentItem) => {
     if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null; }
     if (doc.fileUrl) window.open(doc.fileUrl, "_blank");
   }, []);
