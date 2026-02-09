@@ -88,7 +88,7 @@ export default function OperationsSettingsPage() {
           <TabsContent value="cost" className="absolute inset-0 overflow-auto">
             <CostTab />
           </TabsContent>
-          <TabsContent value="po-templates" className="absolute inset-0 overflow-auto">
+          <TabsContent value="po-templates" className="absolute inset-0 overflow-auto border-4 border-green-500 bg-green-50 dark:bg-green-950">
             <PoTemplatesTab />
           </TabsContent>
         </div>
