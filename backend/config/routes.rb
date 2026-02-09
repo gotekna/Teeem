@@ -3134,6 +3134,7 @@ Rails.application.routes.draw do
           get :tree_children  # Materialized path: lazy-load tree children
           get :scoped_tree          # FK-driven: folder counts for Job/Contact/Corporate tabs
           get :scoped_folder_files  # FK-driven: files + sub-folders for a specific folder
+          get :context_records      # Returns related record IDs across warehouse types for an entity
         end
         member do
           patch :update_warehouse_folders  # Batch update warehouse folder assignments

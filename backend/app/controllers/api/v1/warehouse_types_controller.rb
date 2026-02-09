@@ -257,6 +257,55 @@ module Api
         }
       end
 
+      # GET /api/v1/warehouse_types/context_records?entity_type=Job&entity_id=123
+      # Returns related record IDs across ALL warehouse types for a given entity.
+      # Used by the "context" warehouse tree mode on Job/Contact/Corporate pages
+      # to show records from related entities (e.g., a Job's contacts, tasks, cases).
+      #
+      # Response:
+      # {
+      #   success: true,
+      #   data: {
+      #     records: { "job" => [123], "contact" => [45, 67], "task" => [89, 90] },
+      #     record_data: {
+      #       "job" => [{ id: 123, name: "Smith Res", code: "J-001", tokenValues: {...} }],
+      #       "contact" => [{ id: 45, name: "John Smith", ... }, ...],
+      #       ...
+      #     }
+      #   }
+      # }
+      def context_records
+        entity_type = params[:entity_type]
+        entity_id = params[:entity_id].to_i
+
+        related = resolve_context_relations(entity_type, entity_id)
+
+        # For each warehouse type with related IDs, serialize the records
+        # using the warehouse type's config-driven serialization
+        record_data = {}
+        related.each do |wt_code, ids|
+          next if ids.empty?
+          wt = WarehouseType.find_by(code: wt_code)
+          next unless wt&.source_model.present?
+
+          model = wt.source_model.constantize
+          eager_loads = derive_eager_loads_for(wt)
+          scope = eager_loads.any? ? model.includes(*eager_loads) : model.all
+          records = scope.where(id: ids).to_a
+
+          @warehouse_type = wt  # Set for serialize_record_from_config
+          record_data[wt_code] = records.map { |r| serialize_record_from_config(r) }
+        end
+
+        render json: {
+          success: true,
+          data: {
+            records: related,
+            record_data: record_data
+          }
+        }
+      end
+
       # GET /api/v1/warehouse_types/:id
       def show
         render json: {
@@ -1024,6 +1073,114 @@ module Api
       def cascade_template_change(_old_template, _new_template)
         # No-op: paths are computed dynamically, no sync needed
         # Kept as placeholder for any future cascade logic
+      end
+
+      # ═══════════════════════════════════════════════════════════════════════════
+      # Context records helpers (Feb 2026)
+      # Resolves related record IDs across warehouse types for a given entity.
+      # Used by the contextual warehouse tree on entity pages.
+      # ═══════════════════════════════════════════════════════════════════════════
+
+      # Returns { warehouse_type_code => [record_ids] } for all related entities
+      def resolve_context_relations(entity_type, entity_id)
+        case entity_type
+        when "Job"
+          resolve_context_for_job(entity_id)
+        when "Contact"
+          resolve_context_for_contact(entity_id)
+        when "CorporateCompany"
+          resolve_context_for_corporate(entity_id)
+        else
+          {}
+        end
+      end
+
+      def resolve_context_for_job(job_id)
+        job = Job.find_by(id: job_id)
+        return {} unless job
+
+        result = { "job" => [job_id] }
+
+        # Contacts linked to this job
+        contact_ids = JobContact.where(job_id: job_id).pluck(:contact_id).compact.uniq
+        result["contact"] = contact_ids if contact_ids.any?
+
+        # Tasks on this job
+        task_ids = SmTask.where(job_id: job_id).pluck(:id)
+        result["task"] = task_ids if task_ids.any?
+
+        # Cases linked to this job
+        case_ids = CaseJob.where(job_id: job_id).pluck(:case_id).compact.uniq
+        result["case"] = case_ids if case_ids.any?
+
+        result
+      end
+
+      def resolve_context_for_contact(contact_id)
+        contact = Contact.find_by(id: contact_id)
+        return {} unless contact
+
+        result = { "contact" => [contact_id] }
+
+        # Jobs this contact is on
+        job_ids = JobContact.where(contact_id: contact_id).pluck(:job_id).compact.uniq
+        result["job"] = job_ids if job_ids.any?
+
+        # Tasks where this contact is supplier
+        task_ids = SmTask.where(supplier_id: contact_id).pluck(:id)
+        result["task"] = task_ids if task_ids.any?
+
+        # Cases linked to this contact
+        case_ids = CaseContact.where(contact_id: contact_id).pluck(:case_id).compact.uniq
+        result["case"] = case_ids if case_ids.any?
+
+        # Corporate record for this contact (if any)
+        corporate = Corporate.find_by(contact_id: contact_id)
+        result["corporate"] = [corporate.id] if corporate
+
+        result
+      end
+
+      def resolve_context_for_corporate(corporate_id)
+        corporate = Corporate.find_by(id: corporate_id)
+        return {} unless corporate
+
+        result = { "corporate" => [corporate_id] }
+
+        # The corporate's contact
+        contact_id = corporate.contact_id
+        result["contact"] = [contact_id] if contact_id
+
+        # Jobs via the contact
+        if contact_id
+          job_ids = JobContact.where(contact_id: contact_id).pluck(:job_id).compact.uniq
+          result["job"] = job_ids if job_ids.any?
+
+          # Cases via the contact
+          case_ids = CaseContact.where(contact_id: contact_id).pluck(:case_id).compact.uniq
+          result["case"] = case_ids if case_ids.any?
+        end
+
+        # Directors/shareholders are contacts too — include their jobs and cases
+        director_contact_ids = CorporateDirector.where(company_id: corporate_id).pluck(:contact_id).compact.uniq
+        if director_contact_ids.any?
+          result["contact"] = (result["contact"] || []).concat(director_contact_ids).uniq
+        end
+
+        result
+      end
+
+      # Derive .includes() for a specific warehouse type (used by context_records
+      # which iterates multiple types, unlike #records which uses @warehouse_type)
+      def derive_eager_loads_for(warehouse_type)
+        all_paths = (warehouse_type.token_config || {}).values
+        display = warehouse_type.records_config&.dig('display') || {}
+        all_paths += display.values.compact
+
+        all_paths
+          .select { |p| p.is_a?(String) && p.include?('.') }
+          .map { |p| p.split('.').first.to_sym }
+          .uniq
       end
 
       # Helper to resolve template tokens to example values for preview display

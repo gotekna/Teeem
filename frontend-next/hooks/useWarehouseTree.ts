@@ -100,6 +100,11 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
   const [scopedFolderCounts, setScopedFolderCounts] = useState<Record<string, number>>({});
   const [scopedCountsLoaded, setScopedCountsLoaded] = useState(false);
 
+  // Context mode: which warehouse types have related records and their IDs
+  const [contextRecordIds, setContextRecordIds] = useState<Record<string, number[]>>({});
+  const [contextRecordsLoaded, setContextRecordsLoaded] = useState(false);
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
   // ─── Fetch storage config ──────────────────────────────────────
   useEffect(() => {
     const fetchStorageConfig = async () => {
@@ -181,6 +186,49 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
     fetchScopedCounts();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode.type === "scoped" ? mode.linkableId : null]);
+
+  // ─── Context mode: fetch related records across all warehouse types ──
+  // Calls context_records endpoint to get related record IDs, then pre-populates
+  // warehouseRecords with the serialized record data for each type.
+  useEffect(() => {
+    if (mode.type !== "context") return;
+    const fetchContextRecords = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: {
+            records: Record<string, number[]>;
+            record_data: Record<string, RecordNode[]>;
+          };
+        }>("/api/v1/warehouse_types/context_records", {
+          params: { entity_type: mode.entityType, entity_id: mode.entityId }
+        });
+        if (response?.success && response.data) {
+          setContextRecordIds(response.data.records);
+
+          // Pre-populate warehouseRecords so the tree can render records immediately
+          const preloaded: Record<string, {
+            records: RecordNode[];
+            groupingTokens?: string[];
+            pagination: RecordsPagination;
+          }> = {};
+          for (const [wtCode, records] of Object.entries(response.data.record_data)) {
+            preloaded[wtCode] = {
+              records,
+              pagination: { total: records.length, limit: records.length, offset: 0, has_more: false }
+            };
+          }
+          setWarehouseRecords(prev => ({ ...prev, ...preloaded }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch context records:", err);
+      } finally {
+        setContextRecordsLoaded(true);
+      }
+    };
+    fetchContextRecords();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode.type === "context" ? `${mode.entityType}-${mode.entityId}` : null, refreshCounter]);
 
   // ─── Fetch warehouse types tree ────────────────────────────────
   const fetchWarehouseTypesTree = useCallback(async () => {
@@ -970,26 +1018,43 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       const rootWarehouseFolders = findChildWarehouseFolders(null);
       const allNodes = rootWarehouseFolders.map(wf => convertWarehouseFolderForScoped(wf));
 
-      // Filter out empty folders when scoped counts are loaded
-      // getFolderDocCount checks both exact and nested paths (e.g., "Plans" and "Plans/Sub")
-      if (scopedCountsLoaded) {
-        const filtered = allNodes.filter(node => getFolderDocCount(node.name) > 0);
-        // Safety: don't hide all folders if documents exist in NAMED folders that
-        // somehow didn't match any configured folder. Root-level docs (key "") are
-        // genuinely not in any sub-folder — don't let them trigger showing ALL folders.
-        const docsInNamedFolders = Object.entries(scopedFolderCounts)
-          .filter(([key]) => key !== "")
-          .reduce((sum, [, c]) => sum + c, 0);
-        if (filtered.length === 0 && docsInNamedFolders > 0) return allNodes;
-        return filtered;
+      // Show ALL configured folders regardless of document count.
+      // Users expect to see the full folder structure for the job so they
+      // can upload/organise files into any folder, not just ones that
+      // already contain documents.
+      return allNodes;
+    }
+
+    // ── Context mode: show all warehouse types but only related records ──
+    if (mode.type === "context") {
+      if (!contextRecordsLoaded) {
+        return [{
+          id: "loading-context",
+          name: "Loading related records...",
+          type: "loading" as const,
+        }];
       }
 
-      return allNodes;
+      // Filter to warehouse types that have related records
+      const contextTypes = warehouseTypesTree.filter(wt => {
+        const ids = contextRecordIds[wt.code];
+        return ids && ids.length > 0;
+      });
+
+      if (contextTypes.length === 0) {
+        return [{
+          id: "no-context-records",
+          name: "No related records found",
+          type: "loading" as const,
+        }];
+      }
+
+      return contextTypes.map(convertWarehouseTypeToTreeNode);
     }
 
     // ── Full mode: convert all warehouse types ──
     return warehouseTypesTree.map(convertWarehouseTypeToTreeNode);
-  }, [warehouseTypesTree, warehouseTreeLoading, s3Folders, warehouseRecords, loadingRecords, mode, scopedTokenValues, scopedFolderCounts, scopedCountsLoaded]);
+  }, [warehouseTypesTree, warehouseTreeLoading, s3Folders, warehouseRecords, loadingRecords, mode, scopedTokenValues, scopedFolderCounts, scopedCountsLoaded, contextRecordIds, contextRecordsLoaded]);
 
   // ─── Collapse all folders ─────────────────────────────────────
   const collapseAll = useCallback(() => {
@@ -1000,6 +1065,9 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
   const refresh = useCallback(() => {
     setS3Folders({});
     setWarehouseRecords({});
+    setContextRecordsLoaded(false);
+    setContextRecordIds({});
+    setRefreshCounter(c => c + 1);
     fetchWarehouseTypesTree();
   }, [fetchWarehouseTypesTree]);
 
