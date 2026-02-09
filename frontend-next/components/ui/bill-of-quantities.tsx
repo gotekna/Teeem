@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Save, Undo2, Search, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, Check, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -50,6 +51,7 @@ export interface BOQLineItem {
 export interface BOQGroup {
   id: number | string;
   name: string;
+  supplierId?: number | null;
   supplierName?: string | null;
   taskName?: string | null;
   tradeName?: string | null;
@@ -68,6 +70,8 @@ export interface BOQNewLine {
   quantity: number;
   unitPrice: number;
   gstCode: string;
+  pricebookItemId?: number | null;
+  pricebookItemCode?: string | null;
 }
 
 export interface BOQSavePayload {
@@ -307,6 +311,33 @@ export function BillOfQuantities({
   const handleRemoveNewLine = useCallback((tempId: string) => {
     setNewLines((prev) => prev.filter((nl) => nl.tempId !== tempId));
   }, []);
+
+  // Batch update a new line when a pricebook item is selected
+  const handleNewLinePricebookSelect = useCallback(
+    (tempId: string, item: {
+      description: string;
+      unitPrice: number;
+      gstCode: string;
+      pricebookItemId: number;
+      pricebookItemCode: string;
+    }) => {
+      setNewLines((prev) =>
+        prev.map((nl) =>
+          nl.tempId === tempId
+            ? {
+                ...nl,
+                description: item.description,
+                unitPrice: item.unitPrice,
+                gstCode: item.gstCode,
+                pricebookItemId: item.pricebookItemId,
+                pricebookItemCode: item.pricebookItemCode,
+              }
+            : nl
+        )
+      );
+    },
+    []
+  );
 
   // Save all changes
   const handleSave = useCallback(async () => {
@@ -762,6 +793,7 @@ export function BillOfQuantities({
                         onQtyChange={handleQtyChange}
                         onAddLine={handleAddLine}
                         onNewLineChange={handleNewLineChange}
+                        onNewLinePricebookSelect={handleNewLinePricebookSelect}
                         onRemoveNewLine={handleRemoveNewLine}
                       />
                     ))}
@@ -782,6 +814,7 @@ export function BillOfQuantities({
                   onQtyChange={handleQtyChange}
                   onAddLine={handleAddLine}
                   onNewLineChange={handleNewLineChange}
+                  onNewLinePricebookSelect={handleNewLinePricebookSelect}
                   onRemoveNewLine={handleRemoveNewLine}
                 />
               ))
@@ -804,6 +837,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   onQtyChange,
   onAddLine,
   onNewLineChange,
+  onNewLinePricebookSelect,
   onRemoveNewLine,
 }: {
   group: BOQGroup;
@@ -820,6 +854,13 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   ) => void;
   onAddLine: (groupId: number | string) => void;
   onNewLineChange: (tempId: string, field: keyof BOQNewLine, value: string | number) => void;
+  onNewLinePricebookSelect: (tempId: string, item: {
+    description: string;
+    unitPrice: number;
+    gstCode: string;
+    pricebookItemId: number;
+    pricebookItemCode: string;
+  }) => void;
   onRemoveNewLine: (tempId: string) => void;
 }) {
   // Total rows that share the PO name/supplier cells (existing + new lines)
@@ -930,14 +971,15 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
         <TableRow key={nl.tempId} className="!bg-green-50 dark:!bg-green-950/30">
           {/* PO/Supplier cells already covered by rowSpan */}
           <TableCell className="py-1">
-            <Input
+            <PricebookLineSearch
               value={nl.description}
-              onChange={(e) =>
-                onNewLineChange(nl.tempId, "description", e.target.value)
+              supplierId={group.supplierId}
+              onChange={(val) =>
+                onNewLineChange(nl.tempId, "description", val)
               }
-              placeholder="Line item description..."
-              className="h-7 text-sm"
-              autoFocus
+              onSelect={(item) =>
+                onNewLinePricebookSelect(nl.tempId, item)
+              }
             />
           </TableCell>
           <TableCell className="py-1">
@@ -1103,6 +1145,214 @@ function SortableHead({
         )}
       </button>
     </TableHead>
+  );
+}
+
+// Pricebook item search result from API
+interface PricebookSearchResult {
+  id: number;
+  item_code: string;
+  item_name: string;
+  current_price: number | null;
+  gst_code?: string | null;
+  default_supplier_id?: number | null;
+  default_supplier?: {
+    id: number;
+    display_name?: string;
+    name?: string;
+  } | null;
+}
+
+// Inline pricebook search for new line items
+// Shows autocomplete dropdown of pricebook items filtered by supplier
+function PricebookLineSearch({
+  value,
+  supplierId,
+  onSelect,
+  onChange,
+}: {
+  value: string;
+  supplierId?: number | null;
+  onSelect: (item: {
+    description: string;
+    unitPrice: number;
+    gstCode: string;
+    pricebookItemId: number;
+    pricebookItemCode: string;
+  }) => void;
+  onChange: (value: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [results, setResults] = useState<PricebookSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showAll, setShowAll] = useState(!supplierId);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const searchPricebook = useCallback(
+    async (query: string, allSuppliers: boolean) => {
+      try {
+        setLoading(true);
+        const params = new URLSearchParams({
+          per_page: "20",
+          include_risk: "false",
+        });
+        if (query.trim()) params.set("search", query);
+        if (supplierId && !allSuppliers) {
+          params.set("supplier_id", String(supplierId));
+        }
+
+        const response = await api.get<{ items?: PricebookSearchResult[] }>(
+          `/api/v1/pricebook?${params.toString()}`
+        );
+        const items = response?.items || [];
+        setResults(items);
+        setIsOpen(true);
+      } catch (err) {
+        console.error("[PricebookLineSearch] Search failed:", err);
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [supplierId]
+  );
+
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      onChange(val);
+
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = setTimeout(() => {
+        searchPricebook(val, showAll);
+      }, 300);
+    },
+    [onChange, searchPricebook, showAll]
+  );
+
+  const handleFocus = useCallback(() => {
+    searchPricebook(value, showAll);
+  }, [searchPricebook, value, showAll]);
+
+  const handleSelectItem = useCallback(
+    (item: PricebookSearchResult) => {
+      onSelect({
+        description: item.item_name,
+        unitPrice: item.current_price || 0,
+        gstCode: item.gst_code || "GST",
+        pricebookItemId: item.id,
+        pricebookItemCode: item.item_code,
+      });
+      setIsOpen(false);
+    },
+    [onSelect]
+  );
+
+  const toggleShowAll = useCallback(() => {
+    const newVal = !showAll;
+    setShowAll(newVal);
+    searchPricebook(value, newVal);
+  }, [showAll, value, searchPricebook]);
+
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // Cleanup timeout
+  React.useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="flex gap-1">
+        <Input
+          ref={inputRef}
+          value={value}
+          onChange={handleInputChange}
+          onFocus={handleFocus}
+          placeholder="Search pricebook or type description..."
+          className="h-7 text-sm"
+          autoFocus
+        />
+        {supplierId && (
+          <button
+            type="button"
+            onClick={toggleShowAll}
+            className={cn(
+              "shrink-0 text-[10px] px-1.5 h-7 rounded border transition-colors whitespace-nowrap",
+              showAll
+                ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400"
+                : "bg-muted border-input text-muted-foreground hover:text-foreground"
+            )}
+            title={
+              showAll
+                ? "Showing all suppliers - click to show only this supplier"
+                : "Showing this supplier only - click to show all"
+            }
+          >
+            {showAll ? "All" : "Supplier"}
+          </button>
+        )}
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 mt-1 left-0 right-0 bg-popover border rounded-md shadow-lg max-h-[240px] overflow-auto">
+          {loading ? (
+            <div className="flex items-center justify-center p-3">
+              <Spinner size={14} />
+              <span className="ml-2 text-xs text-muted-foreground">
+                Searching pricebook...
+              </span>
+            </div>
+          ) : results.length === 0 ? (
+            <div className="p-3 text-xs text-muted-foreground text-center">
+              No pricebook items found
+            </div>
+          ) : (
+            results.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleSelectItem(item)}
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors border-b last:border-b-0 flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-mono text-muted-foreground shrink-0">
+                    {item.item_code}
+                  </span>
+                  <span className="truncate">{item.item_name}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {item.current_price != null && (
+                    <span className="font-mono text-green-600 dark:text-green-400">
+                      ${item.current_price.toFixed(2)}
+                    </span>
+                  )}
+                  {item.default_supplier && (
+                    <span className="text-muted-foreground text-[10px] max-w-[100px] truncate">
+                      {item.default_supplier.display_name ||
+                        item.default_supplier.name}
+                    </span>
+                  )}
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
