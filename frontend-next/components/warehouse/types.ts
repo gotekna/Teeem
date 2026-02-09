@@ -160,6 +160,11 @@ export type WarehouseTreeMode =
       linkableId: number;
       warehouseTypeCode: string;
       recordTokenValues?: Record<string, string | null>;
+    }
+  | {
+      type: "context";
+      entityType: "Job" | "Contact" | "CorporateCompany";
+      entityId: number;
     };
 
 // ─────────────────────────────────────────────────────────────

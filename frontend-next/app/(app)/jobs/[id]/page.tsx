@@ -163,10 +163,11 @@ const WarehouseTreeBase = dynamic(() => import("@/components/warehouse/Warehouse
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-// Wrapper: Job warehouse tab shows the full warehouse tree (same as /warehouse page)
-// Wires up file click handlers: single-click opens in new tab, double-click also opens in new tab
+// Wrapper: Job warehouse tab - contextual view showing ALL related records
+// Shows Job folders for THIS job + Contact folders for contacts on this job +
+// Task folders for tasks on this job, etc.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function JobWarehouseTab(_props: any) {
+function JobWarehouseTab(props: any) {
   const warehouseRouter = useRouter();
   const clickTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const mailboxTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -199,7 +200,11 @@ function JobWarehouseTab(_props: any) {
 
   return (
     <WarehouseTreeBase
-      mode={{ type: "full" }}
+      mode={{
+        type: "context",
+        entityType: "Job",
+        entityId: props.jobId,
+      }}
       onFileClick={handleFileClick}
       onFileDoubleClick={handleFileDoubleClick}
       onMailboxClick={handleMailboxClick}

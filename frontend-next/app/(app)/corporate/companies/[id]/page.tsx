@@ -580,14 +580,13 @@ export default function CompanyDetailPage() {
             </div>
           )}
 
-          {/* Warehouse Tab - Scoped warehouse sub-tree for this company */}
+          {/* Warehouse Tab - Contextual view showing all related records */}
           {activeTab === "warehouse" && (
             <WarehouseTree
               mode={{
-                type: "scoped",
-                linkableType: "CorporateCompany",
-                linkableId: Number(companyId),
-                warehouseTypeCode: "corporate",
+                type: "context",
+                entityType: "CorporateCompany",
+                entityId: Number(companyId),
               }}
             />
           )}
