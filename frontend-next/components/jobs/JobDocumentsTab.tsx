@@ -1594,7 +1594,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                     )}
                   </CardTitle>
                   {/* Add Photo and Select buttons - show for photo categories (SSoT: uses tab_type='photo') */}
-                  {isPhotoCategory(activeCategory) && orgStatus.connected && (
+                  {/* Photos upload via StorageBlob (not document provider), so don't gate on orgStatus.connected */}
+                  {isPhotoCategory(activeCategory) && (
                     <div className="flex items-center gap-2">
                       {/* Select button - toggle multi-select mode */}
                       {categoryPhotoItems.length > 0 && (
