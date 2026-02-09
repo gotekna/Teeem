@@ -184,6 +184,18 @@ module Api
         end
       end
 
+      # SSoT: Stage ordering from Job Stages (user-configured position)
+      # Maps stage_name => position, used to sort BOQ cascade sections
+      def stage_order_map
+        @stage_order_map ||= begin
+          job_stage_positions = JobStage.pluck(:name, :position).to_h
+          # Map sm_stage_id => job_stage position (matched by name)
+          stages_map.each_with_object({}) do |(stage_id, stage_name), h|
+            h[stage_id] = job_stage_positions[stage_name] || 999
+          end
+        end
+      end
+
       def pack_params
         params.require(:po_template_pack).permit(
           :name, :description, :is_active, :position,
@@ -223,6 +235,7 @@ module Api
           smScheduleMasterName: sm&.name,
           tradeName: sm&.trade.present? ? trades_map[sm.trade.to_i] : nil,
           stageName: sm&.stage.present? ? stages_map[sm.stage.to_i] : nil,
+          stagePosition: sm&.stage.present? ? stage_order_map[sm.stage.to_i] : nil,
           supplierId: item.supplier_id,
           supplierName: item.supplier&.display_name,
           supplierSyncKey: item.supplier_sync_key,

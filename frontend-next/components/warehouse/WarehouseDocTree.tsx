@@ -48,7 +48,8 @@ function deriveSourceFromPath(folderPath: string): DocumentItem["source"] {
 }
 
 function fileToDocumentItem(file: S3FileEntry, folderPath: string): DocumentItem {
-  const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff?)$/i.test(file.name);
+  const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff?)$/i.test(file.name) ||
+    (file.content_type || "").startsWith("image/");
   return {
     id: file.warehouse_document_id || file.id || 0,
     source: deriveSourceFromPath(folderPath),
@@ -230,7 +231,8 @@ export function WarehouseDocTree({
     const isSelected =
       selectedDocument?.id === doc.id &&
       selectedDocument?.storagePath === doc.storagePath;
-    const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff?)$/i.test(file.name);
+    const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff?)$/i.test(file.name) ||
+      (file.content_type || "").startsWith("image/");
 
     return (
       <div
