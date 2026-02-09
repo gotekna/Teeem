@@ -125,17 +125,15 @@ class TaskResponseUploader
     documentable = task
     documentable = job if job.present?
 
-    WarehouseDocument.create!(
+    WarehouseDocumentCreator.create!(
+      filename: resolved_display_name,
+      source_type: "task",
       documentable: documentable,
       storage_blob: blob,
-      source_type: "task",
-      ui_name: resolved_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
-      original_filename: upload_result[:filename],
-      tenant_id: @tenant.id,
       metadata: {
-        task_id: task.id,
-        job_id: job&.id,
-        upload_category: @category
+        "task_id" => task.id,
+        "job_id" => job&.id,
+        "upload_category" => @category
       }
     )
   end

@@ -1220,13 +1220,11 @@ module Api
         )
         blob.increment_reference!
 
-        # SSoT (Jan 2026): Create WarehouseDocument record for the uploaded file
-        # Folder path comes from WarehouseProvider template (warehouse_folders['task_attachments'])
-        folder_path = WarehouseProvider.instance.resolve_virtual_path(:task_attachments, { TaskId: @task.id })
-        doc = WarehouseDocument.create!(
-          ui_name: file.original_filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
-          storage_blob: blob,
+        # SSoT: WarehouseDocumentCreator handles metadata + callbacks
+        doc = WarehouseDocumentCreator.create!(
+          filename: file.original_filename,
           source_type: "task",
+          storage_blob: blob,
           documentable: @task
         )
 
@@ -1328,14 +1326,11 @@ module Api
           # Delete the temp file (StorageBlob now has it in Blobs/ folder)
           provider.delete_file(key) rescue nil
 
-          # SSoT (Jan 2026): Create WarehouseDocument record
-          # Folder path comes from WarehouseProvider template (warehouse_folders['task_attachments'])
-          folder_path = WarehouseProvider.instance.resolve_virtual_path(:task_attachments, { TaskId: @task.id })
-          doc = WarehouseDocument.create!(
-            ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
-            storage_blob: blob,
+          # SSoT: WarehouseDocumentCreator handles metadata + callbacks
+          doc = WarehouseDocumentCreator.create!(
+            filename: filename,
             source_type: "task",
-            folder: folder_path,
+            storage_blob: blob,
             documentable: @task
           )
 

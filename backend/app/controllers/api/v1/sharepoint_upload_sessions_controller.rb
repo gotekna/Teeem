@@ -168,6 +168,7 @@ module Api
       #   - folder_path: (optional) Folder path for indexing
       #   - web_url: (optional) SharePoint web URL
       #   - sharepoint_item_id: (required for indexing) SharePoint item ID
+      #   - warehouse_folder_id: (optional) WarehouseFolder ID for document type + templates
       def complete
         job = Job.find(params[:job_id]) if params[:job_id].present?
 
@@ -182,32 +183,25 @@ module Api
           Rails.logger.info "[SharePointUploadSession] Logged activity for #{params[:filename]} on job #{job.id}"
         end
 
-        # SSoT: Create/update WarehouseDocument directly
+        # SSoT: Create/update WarehouseDocument via standard service
         if job && params[:sharepoint_item_id].present?
-          # Detect document type from extension
-          extension = File.extname(params[:filename].to_s).delete(".").downcase
-          doc_type = DocumentType.find_by_extension(extension) if extension.present?
-
-          # Find existing by SharePoint item ID in metadata, or create new
-          warehouse_doc = WarehouseDocument.find_by(
-            "source_type = ? AND linkable_type = ? AND linkable_id = ? AND metadata->>'sharepoint_item_id' = ?",
-            "job", "Job", job.id, params[:sharepoint_item_id]
-          ) || WarehouseDocument.new(source_type: "job", linkable: job)
-
-          warehouse_doc.update!(
-            ui_name: params[:filename],  # SSoT: display_name renamed to ui_name (Feb 2026)
-            original_filename: params[:filename],
+          warehouse_doc = WarehouseDocumentCreator.find_or_create!(
+            find_by: {
+              source_type: "job",
+              linkable: job,
+              metadata_match: { "sharepoint_item_id" => params[:sharepoint_item_id] }
+            },
+            filename: params[:filename],
+            source_type: "job",
+            linkable: job,
             file_size: params[:file_size].to_i,
-            metadata: (warehouse_doc.metadata || {}).merge(
-              "job_code" => job.job_code,
-              "document_type_id" => doc_type&.id,
-              "document_type" => doc_type&.name,
+            warehouse_folder_id: params[:warehouse_folder_id],
+            metadata: {
               "sharepoint_item_id" => params[:sharepoint_item_id],
               "web_url" => params[:web_url],
-              "source" => "sharepoint_upload",
-              "last_modified_by" => current_user&.name,
-              "synced_at" => Time.current.iso8601
-            )
+              "source" => "sharepoint_upload"
+            },
+            user: current_user
           )
 
           Rails.logger.info "[SharePointUploadSession] Indexed WarehouseDocument #{warehouse_doc.id} for #{params[:filename]}"

@@ -364,17 +364,12 @@ class DocsortRoutingService
   def attach_to_purchase_order(po)
     return unless @item.storage_blob.present?
 
-    # Create WarehouseDocument linked to PO
-    WarehouseDocument.create!(
-      tenant: @item.tenant,
+    WarehouseDocumentCreator.create!(
+      filename: @item.original_filename || "PO #{po.po_number} Document",
+      source_type: "job",
       documentable: po,
       storage_blob: @item.storage_blob,
-      source_type: 'job',
-      ui_name: @item.original_filename || "PO #{po.po_number} Document",
-      original_filename: @item.original_filename,
-      metadata: {
-        docsort_item_id: @item.id
-      }
+      metadata: { "docsort_item_id" => @item.id }
     )
 
     @item.storage_blob.increment!(:reference_count)
@@ -382,19 +377,16 @@ class DocsortRoutingService
 
   # Create WarehouseDocument for job filing
   def create_warehouse_document_for_job(job, doc_type)
-    warehouse_doc = WarehouseDocument.create!(
-      tenant: @item.tenant,
+    warehouse_doc = WarehouseDocumentCreator.create!(
+      filename: @item.original_filename || @item.display_name,
+      source_type: "job",
       linkable: job,
       storage_blob: @item.storage_blob,
-      source_type: 'job',
-      ui_name: @item.original_filename || @item.display_name,
-      original_filename: @item.original_filename,
-      content_type: @item.content_type,
       file_size: @item.file_size,
+      content_type: @item.content_type,
       metadata: {
-        docsort_item_id: @item.id,
-        document_type: doc_type&.name,
-        job_code: job.job_code
+        "docsort_item_id" => @item.id,
+        "document_type" => doc_type&.name
       }
     )
 

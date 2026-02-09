@@ -75,41 +75,20 @@ module Api
 
           Rails.logger.info "[JobPhotos] Successfully uploaded #{filename} to #{target_folder_path}"
 
-          # SSoT (Feb 2026): Create StorageBlob + WarehouseDocument for tracking
-          # Points to actual storage path (not Blobs/ dedup path) since file is already uploaded
+          # SSoT: Create StorageBlob + WarehouseDocument via standard service
           begin
-            storage_path = "#{target_folder_path}/#{filename}".sub(%r{^/+}, "")
-            content_hash = Digest::SHA256.hexdigest(file_content)
-
-            blob = StorageBlob.find_by(content_hash: content_hash)
-            unless blob
-              blob = StorageBlob.create!(
-                storage_path: storage_path,
-                content_hash: content_hash,
-                content_type: content_type,
-                file_size: file_content.bytesize,
-                original_filename: filename,
-                reference_count: 0,
-                verified_at: Time.current
-              )
-            end
-            blob.increment_reference!
-
-            doc = WarehouseDocument.create!(
-              ui_name: filename,
-              original_filename: filename,
+            doc = WarehouseDocumentCreator.create_with_content!(
+              content: file_content,
+              filename: filename,
+              content_type: content_type,
               source_type: "job",
-              storage_blob: blob,
               linkable: job,
-              file_size: file_content.bytesize,
-              content_type: content_type
+              warehouse_folder_id: params[:warehouse_folder_id],
+              metadata: { "source" => "s3_upload" },
+              user: current_user
             )
 
-            # Set folder_path directly - bypass materialize_folder_path callback
-            # which computes root job path, not the photo subfolder path
-            doc.update_column(:folder_path, folder_path)
-
-            Rails.logger.info "[JobPhotos] Created WarehouseDocument #{doc.id} + StorageBlob #{blob.id} for #{filename}"
+            Rails.logger.info "[JobPhotos] Created WarehouseDocument #{doc.id} for #{filename}"
           rescue StandardError => e
             # Non-fatal: photo is uploaded to storage, just missing DB tracking
             Rails.logger.error "[JobPhotos] Failed to create WarehouseDocument: #{e.message}"

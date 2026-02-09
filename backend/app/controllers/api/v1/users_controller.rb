@@ -111,15 +111,14 @@ class Api::V1::UsersController < ApplicationController
         if @user.contact.present?
           blob = StorageBlob.find_by(id: @user.photo_blob_id)
           pep_type = DocumentType.find_by(abbreviation: 'PEP')
-          WarehouseDocument.create!(
+          # SSoT: WarehouseDocumentCreator handles metadata + callbacks
+          WarehouseDocumentCreator.create!(
+            filename: photo_file.original_filename,
+            source_type: "people",
             linkable: @user.contact,
-            source_type: 'people',
-            ui_name: "Employee Photo",
             storage_blob: blob,
-            original_filename: photo_file.original_filename,
             content_type: photo_file.content_type,
             file_size: content.bytesize,
-            tenant_id: current_tenant.id,
             metadata: pep_type ? { "document_type_id" => pep_type.id } : {}
           )
         end
