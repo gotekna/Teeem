@@ -86,13 +86,13 @@ export function WarehouseDocTree({
 
     setLoadingPaths((prev) => new Set(prev).add(path));
     try {
-      const res = await api.get<{ success: boolean; data: FolderData }>(
+      const res = await api.get<{ success: boolean; folders: S3FolderEntry[]; files: S3FileEntry[] }>(
         `/api/v1/documents/browse_folders?path=${encodeURIComponent(path)}`
       );
-      if (res?.data) {
+      if (res?.success) {
         setFolderCache((prev) => {
           const next = new Map(prev);
-          next.set(path, res.data);
+          next.set(path, { folders: res.folders || [], files: res.files || [] });
           return next;
         });
       }
