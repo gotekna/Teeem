@@ -269,7 +269,30 @@ export function PoTemplatesTab() {
           quantity: nl.quantity,
           unit_price: nl.unitPrice,
           gst_code: nl.gstCode,
+          pricebook_item_id: nl.pricebookItemId || null,
         });
+      }
+
+      // 3. For new lines with pricebook items from different suppliers,
+      // add a price history entry for the group's supplier with the default price
+      const priceHistoryPromises: Promise<unknown>[] = [];
+      for (const nl of newLineItems) {
+        if (!nl.pricebookItemId) continue;
+        const groupId = typeof nl.groupId === "string" ? parseInt(nl.groupId, 10) : nl.groupId;
+        const group = pack.items.find((item) => item.id === groupId);
+        if (!group?.supplierId) continue;
+
+        // If the pricebook item was selected from pricebook, add the group's supplier
+        // as a price source for this item (copies the current default price)
+        priceHistoryPromises.push(
+          api.post(`/api/v1/pricebook/${nl.pricebookItemId}/add_price`, {
+            price: nl.unitPrice,
+            supplier_id: group.supplierId,
+          }).catch((err: unknown) => {
+            // Non-critical: log but don't fail the save
+            console.warn("[PoTemplatesTab] Failed to add supplier price history:", err);
+          })
+        );
       }
 
       const patchPayload = {
@@ -284,7 +307,11 @@ export function PoTemplatesTab() {
       const totalChanges = quantityChanges.size + newLineItems.length;
 
       try {
-        await api.patch(`/api/v1/po_template_packs/${selectedPackId}`, patchPayload);
+        // Save BOQ changes and add supplier price histories in parallel
+        await Promise.all([
+          api.patch(`/api/v1/po_template_packs/${selectedPackId}`, patchPayload),
+          ...priceHistoryPromises,
+        ]);
         toast.success(
           `Saved ${totalChanges} change${totalChanges !== 1 ? "s" : ""}`
         );
@@ -308,6 +335,7 @@ export function PoTemplatesTab() {
       .map((item) => ({
         id: item.id,
         name: item.name,
+        supplierId: item.supplierId,
         supplierName: item.supplierName || item.supplierSyncKey,
         taskName: item.smScheduleMasterName,
         tradeName: item.tradeName,

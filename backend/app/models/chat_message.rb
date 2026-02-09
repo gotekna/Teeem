@@ -158,6 +158,13 @@ class ChatMessage < ApplicationRecord
     nil
   end
 
+  # SSoT: Folder path for File Warehouse Doc Tree
+  # Produces: "Warehousing/Chat/General/{Year}/{Month}"
+  def warehouse_folder_path
+    date = created_at || Time.current
+    "Warehousing/Chat/General/#{date.strftime('%Y/%m')}"
+  end
+
   private
 
   # Resolve tenant for WarehouseProvider access
