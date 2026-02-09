@@ -203,11 +203,11 @@ function PhotoThumbnail({
         </div>
       )}
 
-      {/* Error state */}
+      {/* Error state - thumbnail preview failed to load (NOT an upload failure) */}
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground">
           <ImageIcon className="h-8 w-8 mb-1" />
-          <span className="text-xs">Failed</span>
+          <span className="text-xs">No preview</span>
         </div>
       )}
 

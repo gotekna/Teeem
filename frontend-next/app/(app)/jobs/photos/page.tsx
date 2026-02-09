@@ -67,7 +67,7 @@ function PhotoThumbnailWithFallback({
       >
         {error ? (
           <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground text-xs">
-            Failed
+            No preview
           </div>
         ) : (
           <img

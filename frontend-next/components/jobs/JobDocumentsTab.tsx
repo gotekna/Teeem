@@ -732,10 +732,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       if (result.success) {
         // Refresh file list in background to get real SharePoint URLs
         // Wait for SharePoint to index the file (3s is usually enough)
+        // NOTE: Don't revoke blobUrl here - optimistic items may still need it
+        // if storage hasn't indexed the file yet. Blob URLs are cleaned up
+        // automatically on page navigation.
         setTimeout(() => {
-          loadAllFiles().then(() => {
-            URL.revokeObjectURL(blobUrl);
-          });
+          loadAllFiles();
         }, 3000);
         return true;
       } else {

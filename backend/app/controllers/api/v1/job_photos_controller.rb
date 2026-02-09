@@ -25,11 +25,18 @@ module Api
         uploaded_file = params[:file]
         folder_path = params[:folder_path] || "06 Photo"
 
-        # SSoT (Feb 2026): Strip {{JobCode}} placeholder if present
-        # The folder_path comes from WarehouseFolder.full_folder_path which may contain {{JobCode}}
-        # Since we're already navigating inside the job folder, strip the {{JobCode}} prefix entirely
-        # e.g., "{{JobCode}}/Site Photo" becomes "Site Photo"
-        folder_path = folder_path.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")
+        # FRC (Feb 2026): folder_path from WarehouseFolder is full_folder_path which includes
+        # the warehouse_type template prefix (e.g., "Jobs/{{JobCode}}/Photo/Site").
+        # Since build_job_folder_path already resolves the job's root folder, we need just the
+        # relative path WITHIN the job folder (e.g., "Photo/Site").
+        if folder_path.match?(/\{\{/)
+          # New-style path from WarehouseFolder - strip warehouse_type template prefix
+          warehouse_type = WarehouseType.find_by(code: "job")
+          prefix_segment_count = warehouse_type&.folder_path_template&.split('/')&.length || 0
+          segments = folder_path.split('/')
+          folder_path = segments.drop(prefix_segment_count).join('/')
+        end
+        folder_path = folder_path.gsub(/^\/+/, "")
 
         # Use provided filename or fallback to original
         filename = params[:filename].presence || uploaded_file&.original_filename
