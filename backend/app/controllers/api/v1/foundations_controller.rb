@@ -102,14 +102,13 @@ module Api
 
         # Try to get cached results first (unless forcing refresh)
         unless force_refresh
-          cached = HealthCheckCache.for_foundation(@foundation.id).first
-          if cached&.fresh?
-            Rails.logger.info "[Health] Serving cached results for foundation #{@foundation.id} (age: #{cached.age_in_hours}h)"
-            return render json: cached.results.merge(
+          cached = Rails.cache.read("health_check:foundation:#{@foundation.id}")
+          if cached.is_a?(Hash)
+            Rails.logger.info "[Health] Serving cached results for foundation #{@foundation.id}"
+            return render json: cached.merge(
               foundation_id: @foundation.id,
               table_name: @foundation.name,
-              cached: true,
-              cached_at: cached.last_run_at.iso8601
+              cached: true
             )
           end
         end
@@ -146,8 +145,8 @@ module Api
           end
         end
 
-        # Cache the fresh results
-        HealthCheckCache.cache_foundation_health(@foundation.id, result) if result.present?
+        # Cache the fresh results (24 hour expiry)
+        Rails.cache.write("health_check:foundation:#{@foundation.id}", result, expires_in: 24.hours) if result.present?
 
         render json: result.merge(
           foundation_id: @foundation.id,
@@ -177,7 +176,7 @@ module Api
           render json: { success: false, error: result[:error] }, status: :unprocessable_entity
         else
           # Clear cache after fix
-          HealthCheckCache.where(foundation_id: @foundation.id).destroy_all
+          Rails.cache.delete("health_check:foundation:#{@foundation.id}")
 
           render json: {
             success: true,
