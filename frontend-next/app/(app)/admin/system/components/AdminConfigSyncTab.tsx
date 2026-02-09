@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/table";
 import { RefreshCw, Upload, Building2, Check, AlertCircle, ChevronDown, ChevronUp, Eye, Star, CircleDot, X } from "lucide-react";
 import { api } from "@/lib/api";
-import { API_TIMEOUT_HEAVY_SYNC } from "@/lib/constants/timeout-constants";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -91,6 +90,7 @@ export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [compareLoading, setCompareLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
   const [importResult, setImportResult] = useState<{
     imported: number;
     skipped: number;
@@ -338,47 +338,71 @@ export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps
     setSelectedRecords(new Set());
   }, []);
 
-  // Handle import
+  // Handle import - batched to avoid Heroku 30s request timeout
+  const IMPORT_BATCH_SIZE = 500;
+
   const handleImport = async () => {
     if (selectedRecords.size === 0 || !selectedTenant || !selectedTable) return;
 
     try {
       setImporting(true);
       setError(null);
+      setImportResult(null);
 
-      const response = await api.post<{
-        success: boolean;
-        imported?: ConfigRecord[];
-        skipped?: Array<{ name: string; reason: string }>;
-        errors?: string[];
-        error?: string;
-        deleted_count?: number;
-      }>("/api/v1/admin/config_sync/import", {
-        source_tenant_id: parseInt(selectedTenant),
-        table: selectedTable,
-        record_ids: Array.from(selectedRecords),
-        replace_existing_prices: selectedTable === "price_histories" && replaceExistingPrices,
-      }, { timeout: API_TIMEOUT_HEAVY_SYNC });
+      const allIds = Array.from(selectedRecords);
+      const total = allIds.length;
+      let totalImported = 0;
+      let totalSkipped = 0;
+      let totalDeleted = 0;
 
-      if (response?.success) {
-        setImportResult({
-          imported: response.imported?.length || 0,
-          skipped: response.skipped?.length || 0,
-          deleted: response.deleted_count,
+      setImportProgress({ done: 0, total });
+
+      // Split into batches
+      for (let i = 0; i < allIds.length; i += IMPORT_BATCH_SIZE) {
+        const batchIds = allIds.slice(i, i + IMPORT_BATCH_SIZE);
+
+        const response = await api.post<{
+          success: boolean;
+          imported?: ConfigRecord[];
+          skipped?: Array<{ name: string; reason: string }>;
+          errors?: string[];
+          error?: string;
+          deleted_count?: number;
+        }>("/api/v1/admin/config_sync/import", {
+          source_tenant_id: parseInt(selectedTenant),
+          table: selectedTable,
+          record_ids: batchIds,
+          // Only delete existing prices on the first batch
+          replace_existing_prices: selectedTable === "price_histories" && replaceExistingPrices && i === 0,
         });
-        setSelectedRecords(new Set());
-        // Refresh records
-        await fetchRecords();
-        // Notify parent to refresh overview counts
-        onImportComplete?.();
-      } else {
-        setError(response?.error || "Import failed");
+
+        if (response?.success) {
+          totalImported += response.imported?.length || 0;
+          totalSkipped += response.skipped?.length || 0;
+          totalDeleted += response.deleted_count || 0;
+          setImportProgress({ done: Math.min(i + IMPORT_BATCH_SIZE, total), total });
+        } else {
+          setError(response?.error || `Import failed at batch ${Math.floor(i / IMPORT_BATCH_SIZE) + 1}`);
+          break;
+        }
       }
+
+      setImportResult({
+        imported: totalImported,
+        skipped: totalSkipped,
+        deleted: totalDeleted,
+      });
+      setSelectedRecords(new Set());
+      // Refresh records
+      await fetchRecords();
+      // Notify parent to refresh overview counts
+      onImportComplete?.();
     } catch (err) {
       console.error("Import failed:", err);
       setError("Import failed. Please try again.");
     } finally {
       setImporting(false);
+      setImportProgress(null);
     }
   };
 
@@ -710,7 +734,9 @@ export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps
                       {importing ? (
                         <>
                           <Spinner className="h-4 w-4 mr-2" />
-                          Importing...
+                          {importProgress
+                            ? `Importing ${importProgress.done.toLocaleString()} / ${importProgress.total.toLocaleString()}...`
+                            : "Importing..."}
                         </>
                       ) : (
                         <>

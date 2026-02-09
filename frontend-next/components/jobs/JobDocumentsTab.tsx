@@ -310,9 +310,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
   // Check if a file is an image
   const isImageFile = (item: LegacyItem): boolean => {
-    const name = item.name?.toLowerCase() || "";
     const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".heic", ".heif"];
-    return imageExtensions.some((ext) => name.endsWith(ext));
+    // Check both display name and original filename (ui_name may not have extension)
+    const name = item.name?.toLowerCase() || "";
+    const originalName = item.original_name?.toLowerCase() || "";
+    return imageExtensions.some((ext) => name.endsWith(ext) || originalName.endsWith(ext));
   };
 
   // Get document URL - handles both SharePoint and S3 storage providers
@@ -2696,7 +2698,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       } else {
         // File node
         const file = node.file!;
-        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name) || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.original_name || "");
 
         return (
           <div
