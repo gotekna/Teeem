@@ -313,7 +313,7 @@ class PlanSetUploadJob < ApplicationJob
   end
 
   def sanitize_filename(filename)
-    SharePoint::FilenameSanitizer.sanitize(filename)
+    Warehouse::FilenameSanitizer.sanitize(filename)
   end
 
   def create_job_plan!(display_name, storage_result, file_size)

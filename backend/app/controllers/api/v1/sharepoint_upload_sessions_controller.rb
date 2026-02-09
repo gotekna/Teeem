@@ -120,7 +120,7 @@ module Api
           end
 
           # Sanitize filename for SharePoint
-          safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
+          safe_filename = Warehouse::FilenameSanitizer.sanitize(filename)
 
           # Create upload session - returns pre-authenticated URL
           # The uploadUrl contains an embedded token - browsers can PUT directly to it

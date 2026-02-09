@@ -106,8 +106,7 @@ class DocumentRelocateService
   # Sanitize filename for storage - remove illegal characters
   # SSoT: Use centralized filename sanitization
   def sanitize_storage_filename(filename)
-    return filename unless defined?(SharePoint::FilenameSanitizer)
-    SharePoint::FilenameSanitizer.sanitize(filename)
+    Warehouse::FilenameSanitizer.sanitize(filename)
   end
 
   # Build target folder path for company/folder combination

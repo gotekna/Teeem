@@ -1427,7 +1427,7 @@ class Contact < ApplicationRecord
   # @example Template "{{ContactId}} - {{ContactName}}" => "123 - ABC Supplies"
   def self.generate_folder_name(contact_id:, display_name:)
     template = WarehouseProvider.instance&.path_for(:contact) || "{{ContactId}} - {{ContactName}}"
-    sanitized_name = SharePoint::FilenameSanitizer.sanitize_path_segment(display_name || "Unknown")
+    sanitized_name = Warehouse::FilenameSanitizer.sanitize_path_segment(display_name || "Unknown")
 
     result = template.dup
     result.gsub!("{{ContactId}}", contact_id.to_s)

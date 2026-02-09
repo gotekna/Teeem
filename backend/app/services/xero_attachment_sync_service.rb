@@ -487,7 +487,7 @@ class XeroAttachmentSyncService
 
     # Use display_name directly (NOT document_folder_name which includes "Contacts/" prefix)
     # compute_folder_from_document_type already adds the "Contacts" root segment
-    SharePoint::FilenameSanitizer.sanitize_path_segment(contact.display_name || contact.name || "Unknown")
+    Warehouse::FilenameSanitizer.sanitize_path_segment(contact.display_name || contact.name || "Unknown")
   end
 
   def find_matching_purchase_order

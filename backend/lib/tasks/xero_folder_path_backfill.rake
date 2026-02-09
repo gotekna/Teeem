@@ -40,9 +40,10 @@ namespace :xero do
     Tenant.find_each do |tenant|
       ActsAsTenant.with_tenant(tenant) do
         docs = WarehouseDocument.where(
-          documentable_type: "ExternalInvoice",
           source_type: "xero",
           tenant_id: tenant.id
+        ).where(
+          documentable_type: ["ExternalInvoice", nil]
         ).includes(:linkable, documentable: :contact)
 
         tenant_count = docs.count
@@ -65,7 +66,7 @@ namespace :xero do
 
           # Use display_name directly (NOT document_folder_name which includes "Contacts/" prefix)
           # The "Contacts" root segment is already added in the parts array below
-          contact_name = SharePoint::FilenameSanitizer.sanitize_path_segment(
+          contact_name = Warehouse::FilenameSanitizer.sanitize_path_segment(
             contact.display_name || "Unknown"
           )
 
