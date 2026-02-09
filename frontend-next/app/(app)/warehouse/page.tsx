@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,7 @@ import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { VIEW_CHANGE_EVENT } from "@/lib/breadcrumb-atoms";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import { MailboxDrawer } from "@/components/documents/MailboxDrawer";
 import { formatFileSize } from "@/utils/formatters";
@@ -84,6 +85,20 @@ interface AllDocumentsResponse {
 
 
 type ViewMode = "tree" | "list" | "gallery" | "warehouse-tree";
+
+// URL slug ↔ ViewMode mapping for deep-linkable warehouse views
+const VIEW_SLUG_TO_MODE: Record<string, ViewMode> = {
+  tree: "tree",
+  "doc-tree": "warehouse-tree",
+  list: "list",
+  gallery: "gallery",
+};
+const VIEW_MODE_TO_SLUG: Record<ViewMode, string> = {
+  tree: "tree",
+  "warehouse-tree": "doc-tree",
+  list: "list",
+  gallery: "gallery",
+};
 
 
 // Sync settings types
@@ -135,7 +150,10 @@ interface SyncSubscription {
 export default function AllDocumentsPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const [viewMode, setViewMode] = useState<ViewMode>("tree");
+  const params = useParams();
+  const tabSegments = (params?.tab as string[] | undefined) || [];
+  const initialViewMode = tabSegments[0] ? (VIEW_SLUG_TO_MODE[tabSegments[0]] || "tree") : "tree";
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
   const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -229,10 +247,23 @@ export default function AllDocumentsPage() {
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const dragCounterRef = useRef(0);
 
+  // Sync viewMode and previewDocument to URL for deep linking
+  // Uses replaceState (no React navigation) to avoid re-renders
+  const isInitialUrlSync = useRef(true);
+  useEffect(() => {
+    const slug = VIEW_MODE_TO_SLUG[viewMode] || "tree";
+    const docPart = previewDocument?.id ? `/${previewDocument.id}` : "";
+    const newPath = `/warehouse/${slug}${docPart}`;
 
-
-
-
+    if (window.location.pathname !== newPath) {
+      window.history.replaceState(null, "", newPath);
+      // Skip breadcrumb event on initial mount to avoid flash
+      if (!isInitialUrlSync.current) {
+        window.dispatchEvent(new Event(VIEW_CHANGE_EVENT));
+      }
+    }
+    isInitialUrlSync.current = false;
+  }, [viewMode, previewDocument]);
 
   // Fetch all documents
   const fetchDocuments = useCallback(async () => {
