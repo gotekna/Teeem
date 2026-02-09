@@ -46,7 +46,8 @@ Rails.application.routes.draw do
       get "documents/authorize", to: "document_storage#authorize"
       get "documents/callback", to: "document_storage#callback"
       delete "documents/disconnect", to: "document_storage#disconnect"
-      get "documents/browse_folders", to: "document_storage#browse_folders"
+      # browse_folders is handled by documents#browse_folders (Phase 3 virtual folders, line ~466)
+      # Removed duplicate route that pointed to document_storage#browse_folders (SharePoint-only)
       post "documents/create_root_folder", to: "document_storage#create_root_folder"
       get "documents/validate_folder", to: "document_storage#validate_folder"
       patch "documents/change_root_folder", to: "document_storage#change_root_folder"
