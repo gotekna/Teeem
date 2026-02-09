@@ -818,6 +818,18 @@ Rails.application.routes.draw do
         post ":token/fields/:field_id/complete", to: "signing_ceremony#complete_field"
       end
 
+      # PO Template Packs - template collections for stamping POs onto jobs
+      resources :po_template_packs do
+        collection do
+          post :create_from_job
+        end
+        member do
+          post :apply
+          get :preview
+          post :duplicate
+        end
+      end
+
       # Purchase Orders management
       resources :purchase_orders do
         collection do

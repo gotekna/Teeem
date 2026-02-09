@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_09_200004) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_09_300001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7245,6 +7245,58 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200004) do
     t.index ["uploaded_by_id"], name: "index_plan_uploads_on_uploaded_by_id"
   end
 
+  create_table "po_template_items", force: :cascade do |t|
+    t.bigint "po_template_pack_id", null: false
+    t.string "name", null: false
+    t.bigint "sm_schedule_master_id"
+    t.bigint "supplier_id"
+    t.string "supplier_sync_key"
+    t.integer "position", default: 0, null: false
+    t.decimal "budget", precision: 15, scale: 2
+    t.text "notes"
+    t.string "status_on_create", default: "draft"
+    t.bigint "tenant_id"
+    t.string "sync_key"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["po_template_pack_id"], name: "index_po_template_items_on_po_template_pack_id"
+    t.index ["sm_schedule_master_id"], name: "index_po_template_items_on_sm_schedule_master_id"
+    t.index ["supplier_id"], name: "index_po_template_items_on_supplier_id"
+    t.index ["tenant_id", "sync_key"], name: "index_po_template_items_on_tenant_id_and_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_po_template_items_on_tenant_id"
+  end
+
+  create_table "po_template_line_items", force: :cascade do |t|
+    t.bigint "po_template_item_id", null: false
+    t.bigint "pricebook_item_id"
+    t.string "pricebook_item_code"
+    t.text "description", null: false
+    t.decimal "quantity", precision: 15, scale: 3, default: "1.0", null: false
+    t.decimal "unit_price", precision: 15, scale: 2, default: "0.0", null: false
+    t.string "gst_code", default: "GST"
+    t.integer "line_number", default: 1, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["po_template_item_id"], name: "index_po_template_line_items_on_po_template_item_id"
+    t.index ["pricebook_item_id"], name: "index_po_template_line_items_on_pricebook_item_id"
+  end
+
+  create_table "po_template_packs", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.boolean "is_active", default: true, null: false
+    t.integer "position", default: 0
+    t.bigint "tenant_id"
+    t.string "sync_key"
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "name"], name: "index_po_template_packs_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "index_po_template_packs_on_tenant_id_and_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_po_template_packs_on_tenant_id"
+  end
+
   create_table "polaris_credentials", force: :cascade do |t|
     t.text "api_key"
     t.text "api_secret"
@@ -11445,6 +11497,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200004) do
   add_foreign_key "plan_uploads", "job_plan_tabs"
   add_foreign_key "plan_uploads", "jobs"
   add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
+  add_foreign_key "po_template_items", "po_template_packs"
+  add_foreign_key "po_template_line_items", "po_template_items"
   add_foreign_key "polaris_credentials", "tenants", on_delete: :cascade
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"
