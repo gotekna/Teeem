@@ -209,6 +209,8 @@ class WarehousePathComputer
     when "case" then "case"
     when "notebook" then "notebook"
     when "user" then "user"
+    when "warehouse", "template" then "warehouse"
+    when "esignature" then "e_signing"
     else "unassigned"
     end
   end
