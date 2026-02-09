@@ -664,7 +664,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // ULTRA MASTERPIECE: Direct browser-to-SharePoint upload (50% faster)
   // Returns true on success, false on failure
   const handlePhotoUpload = async (file: File): Promise<boolean> => {
-    if (!file || !orgStatus.connected) return false;
+    if (!file) return false;
 
     setUploadingPhoto(true);
     setShowPhotoOptions(false);
@@ -1479,7 +1479,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     // Load files for: All Files tab, Document Tasks view (any category)
     const needsFiles = viewMode === "allfiles" || viewMode === "tasks" || viewMode === "treeview";
 
-    if (orgStatus.connected && needsFiles) {
+    if (!orgStatus.loading && needsFiles) {
       // Prevent duplicate requests if one is already in flight
       if (loadAllFilesInFlightRef.current) {
         return;
@@ -1489,7 +1489,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         loadAllFilesInFlightRef.current = false;
       });
     }
-  }, [viewMode, orgStatus.connected, selectedCategoryKey, selectedSubCategoryKey, cascadeMode]);
+  }, [viewMode, orgStatus.loading, selectedCategoryKey, selectedSubCategoryKey, cascadeMode]);
 
   const getStatusBadge = (task: DocumentTask) => {
     if (task.is_validated) {
@@ -1818,26 +1818,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       );
     }
 
-    if (!orgStatus.connected) {
-      return (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Cloud className="h-16 w-16 text-muted-foreground mx-auto" />
-            <h3 className="mt-4 text-lg font-semibold">SharePoint Not Connected</h3>
-            <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-              Your organization hasn't connected SharePoint yet. An admin needs to connect Microsoft 365 in Settings first.
-            </p>
-            <Button asChild className="mt-6">
-              <Link href="/settings/integrations/microsoft">
-                <Settings className="h-4 w-4 mr-2" />
-                Go to Settings
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      );
-    }
-
     if (!jobFolderStatus.exists) {
       return (
         <Card>
@@ -2062,26 +2042,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         <div className="flex items-center justify-center py-12">
           <Spinner size={32} className="text-muted-foreground" />
         </div>
-      );
-    }
-
-    if (!orgStatus.connected) {
-      return (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Cloud className="h-16 w-16 text-muted-foreground mx-auto" />
-            <h3 className="mt-4 text-lg font-semibold">SharePoint Not Connected</h3>
-            <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-              Your organization hasn't connected SharePoint yet. An admin needs to connect Microsoft 365 in Settings first.
-            </p>
-            <Button asChild className="mt-6">
-              <Link href="/settings/integrations/microsoft">
-                <Settings className="h-4 w-4 mr-2" />
-                Go to Settings
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
       );
     }
 
