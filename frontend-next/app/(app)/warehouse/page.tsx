@@ -1317,7 +1317,7 @@ export default function AllDocumentsPage() {
             {/* Preview Content */}
             <div className="flex-1 min-h-0 overflow-auto">
               {previewDocument.fileUrl ? (
-                previewDocument.isImage ? (
+                (previewDocument.isImage || previewDocument.mimeType?.startsWith("image/")) ? (
                   // Image preview
                   <div className="h-full w-full flex items-center justify-center p-4">
                     <img

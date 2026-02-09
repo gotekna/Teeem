@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Save, Undo2, Search, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, Check, ChevronsUpDown } from "lucide-react";
+import { Save, Undo2, Search, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, Check, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -54,6 +54,7 @@ export interface BOQGroup {
   taskName?: string | null;
   tradeName?: string | null;
   stageName?: string | null;
+  stagePosition?: number | null;
   items: BOQLineItem[];
 }
 
@@ -103,14 +104,14 @@ function changeKey(groupId: number | string, lineId: number | string): string {
 
 // Subtle alternating group colors (light / dark)
 const GROUP_COLORS = [
-  { bg: "bg-slate-50/60 dark:bg-slate-800/20", side: "bg-slate-100/80 dark:bg-slate-800/30" },
-  { bg: "bg-sky-50/60 dark:bg-sky-900/20", side: "bg-sky-100/80 dark:bg-sky-900/30" },
-  { bg: "bg-amber-50/50 dark:bg-amber-900/15", side: "bg-amber-100/70 dark:bg-amber-900/25" },
-  { bg: "bg-emerald-50/50 dark:bg-emerald-900/15", side: "bg-emerald-100/70 dark:bg-emerald-900/25" },
-  { bg: "bg-rose-50/50 dark:bg-rose-900/15", side: "bg-rose-100/70 dark:bg-rose-900/25" },
-  { bg: "bg-violet-50/50 dark:bg-violet-900/15", side: "bg-violet-100/70 dark:bg-violet-900/25" },
-  { bg: "bg-cyan-50/50 dark:bg-cyan-900/15", side: "bg-cyan-100/70 dark:bg-cyan-900/25" },
-  { bg: "bg-orange-50/50 dark:bg-orange-900/15", side: "bg-orange-100/70 dark:bg-orange-900/25" },
+  { bg: "bg-slate-50/60 dark:bg-slate-800/20" },
+  { bg: "bg-sky-50/60 dark:bg-sky-900/20" },
+  { bg: "bg-amber-50/50 dark:bg-amber-900/15" },
+  { bg: "bg-emerald-50/50 dark:bg-emerald-900/15" },
+  { bg: "bg-rose-50/50 dark:bg-rose-900/15" },
+  { bg: "bg-violet-50/50 dark:bg-violet-900/15" },
+  { bg: "bg-cyan-50/50 dark:bg-cyan-900/15" },
+  { bg: "bg-orange-50/50 dark:bg-orange-900/15" },
 ];
 
 let tempIdCounter = 0;
@@ -139,9 +140,18 @@ export function BillOfQuantities({
   const [searchTerm, setSearchTerm] = useState("");
   // PO/Task is always the primary grouping; optionally sort groups by a secondary dimension
   const [groupSortBy, setGroupSortBy] = useState<GroupSortBy | null>(null);
+  // Expanded cascade sections (by label) - empty = all collapsed by default
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const canEdit = !readOnly && !!onSave;
   const hasChanges = changes.size > 0 || newLines.length > 0;
+
+  // Stable color assignment: each group keeps its original color regardless of sort/filter
+  const groupColorIndex = useMemo(() => {
+    const map = new Map<number | string, number>();
+    groups.forEach((g, i) => map.set(g.id, i));
+    return map;
+  }, [groups]);
   const changeCount = changes.size + newLines.length;
 
   // Extract unique values for multi-select filters
@@ -210,20 +220,31 @@ export function BillOfQuantities({
   // Toggle secondary group sort (click again to deselect)
   const handleSortToggle = useCallback((dim: GroupSortBy) => {
     setGroupSortBy((prev) => (prev === dim ? null : dim));
+    setExpandedSections(new Set()); // Reset to all-collapsed when switching dimension
+  }, []);
+
+  const toggleSection = useCallback((label: string) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
   }, []);
 
   // Sort PO groups by selected dimension (groups always stay as POs)
   const displayGroups = useMemo(() => {
     if (!groupSortBy) return groups;
     return [...groups].sort((a, b) => {
-      const aVal =
-        groupSortBy === "supplier" ? (a.supplierName || "")
-          : groupSortBy === "stage" ? (a.stageName || "")
-            : (a.tradeName || "");
-      const bVal =
-        groupSortBy === "supplier" ? (b.supplierName || "")
-          : groupSortBy === "stage" ? (b.stageName || "")
-            : (b.tradeName || "");
+      // Stage: sort by schedule master sequence order
+      if (groupSortBy === "stage") {
+        const aPos = a.stagePosition ?? Infinity;
+        const bPos = b.stagePosition ?? Infinity;
+        if (aPos !== bPos) return aPos - bPos;
+        return (a.stageName || "").localeCompare(b.stageName || "");
+      }
+      const aVal = groupSortBy === "supplier" ? (a.supplierName || "") : (a.tradeName || "");
+      const bVal = groupSortBy === "supplier" ? (b.supplierName || "") : (b.tradeName || "");
       return aVal.localeCompare(bVal);
     });
   }, [groups, groupSortBy]);
@@ -428,22 +449,32 @@ export function BillOfQuantities({
   // Cascade sections: group POs under Stage/Supplier/Trade headers
   const cascadeSections = useMemo(() => {
     if (!groupSortBy) return null;
-    const buckets = new Map<string, { groups: BOQGroup[]; total: number }>();
+    const buckets = new Map<string, { groups: BOQGroup[]; total: number; sortOrder: number }>();
     for (const group of filteredGroups) {
       const key =
         groupSortBy === "supplier" ? (group.supplierName || "No Supplier")
           : groupSortBy === "stage" ? (group.stageName || "No Stage")
             : (group.tradeName || "No Trade");
-      if (!buckets.has(key)) buckets.set(key, { groups: [], total: 0 });
+      if (!buckets.has(key)) buckets.set(key, { groups: [], total: 0, sortOrder: Infinity });
       const bucket = buckets.get(key)!;
       bucket.groups.push(group);
+      // For stages, use stagePosition (min sequence_order from schedule master)
+      if (groupSortBy === "stage" && group.stagePosition != null) {
+        bucket.sortOrder = Math.min(bucket.sortOrder, group.stagePosition);
+      }
       for (const item of group.items) {
         bucket.total += getQty(group.id, item) * item.unitPrice;
       }
     }
     return [...buckets.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([label, data]) => ({ label, ...data }));
+      .sort((a, b) => {
+        // Stage: sort by schedule master sequence order; others: alphabetical
+        if (groupSortBy === "stage") {
+          return a[1].sortOrder - b[1].sortOrder;
+        }
+        return a[0].localeCompare(b[0]);
+      })
+      .map(([label, { groups: g, total }]) => ({ label, groups: g, total }));
   }, [filteredGroups, groupSortBy, getQty]);
 
   // Totals (includes new lines)
@@ -529,6 +560,28 @@ export function BillOfQuantities({
                 );
               })}
             </div>
+            {/* Expand/Collapse all cascade sections */}
+            {cascadeSections && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                title={expandedSections.size === cascadeSections.length ? "Collapse all" : "Expand all"}
+                onClick={() => {
+                  if (expandedSections.size === cascadeSections.length) {
+                    setExpandedSections(new Set());
+                  } else {
+                    setExpandedSections(new Set(cascadeSections.map((s) => s.label)));
+                  }
+                }}
+              >
+                {expandedSections.size === cascadeSections.length ? (
+                  <ChevronsDownUp className="h-4 w-4" />
+                ) : (
+                  <ChevronsUpDown className="h-4 w-4" />
+                )}
+              </Button>
+            )}
           </div>
           {/* Multi-select dimension filters */}
           {hasStages && (
@@ -671,17 +724,37 @@ export function BillOfQuantities({
           </TableHeader>
           <TableBody>
             {cascadeSections ? (
-              // Cascade view: section headers + PO groups within each
-              (() => {
-                let runningIndex = 0;
-                return cascadeSections.map((section) => {
-                  const sectionRows = section.groups.map((group) => {
-                    const idx = runningIndex++;
-                    return (
+              // Cascade view: collapsible section headers + PO groups within each
+              cascadeSections.map((section) => {
+                const isExpanded = expandedSections.has(section.label);
+                return (
+                  <React.Fragment key={section.label}>
+                    <TableRow
+                      className="bg-muted border-y-2 border-primary/20 cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                      onClick={() => toggleSection(section.label)}
+                    >
+                      <TableCell colSpan={6} className="py-2 px-4 font-semibold text-sm">
+                        <span className="inline-flex items-center gap-1.5">
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 shrink-0" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 shrink-0" />
+                          )}
+                          {section.label}
+                        </span>
+                        <Badge variant="secondary" className="ml-2 text-xs font-normal">
+                          {section.groups.length} PO{section.groups.length !== 1 ? "s" : ""}
+                        </Badge>
+                      </TableCell>
+                      <TableCell colSpan={2} className="py-2 px-4 text-right text-sm font-mono font-semibold">
+                        {formatCurrency(section.total)}
+                      </TableCell>
+                    </TableRow>
+                    {isExpanded && section.groups.map((group) => (
                       <BOQGroupRows
                         key={group.id}
                         group={group}
-                        groupIndex={idx}
+                        groupIndex={groupColorIndex.get(group.id) ?? 0}
                         canEdit={canEdit}
                         changes={changes}
                         newLines={getNewLinesForGroup(group.id)}
@@ -691,33 +764,17 @@ export function BillOfQuantities({
                         onNewLineChange={handleNewLineChange}
                         onRemoveNewLine={handleRemoveNewLine}
                       />
-                    );
-                  });
-                  return (
-                    <React.Fragment key={section.label}>
-                      <TableRow className="bg-muted border-y-2 border-primary/20">
-                        <TableCell colSpan={6} className="py-2 px-4 font-semibold text-sm">
-                          {section.label}
-                          <Badge variant="secondary" className="ml-2 text-xs font-normal">
-                            {section.groups.length} PO{section.groups.length !== 1 ? "s" : ""}
-                          </Badge>
-                        </TableCell>
-                        <TableCell colSpan={2} className="py-2 px-4 text-right text-sm font-mono font-semibold">
-                          {formatCurrency(section.total)}
-                        </TableCell>
-                      </TableRow>
-                      {sectionRows}
-                    </React.Fragment>
-                  );
-                });
-              })()
+                    ))}
+                  </React.Fragment>
+                );
+              })
             ) : (
               // Flat view: PO groups only
-              filteredGroups.map((group, groupIndex) => (
+              filteredGroups.map((group) => (
                 <BOQGroupRows
                   key={group.id}
                   group={group}
-                  groupIndex={groupIndex}
+                  groupIndex={groupColorIndex.get(group.id) ?? 0}
                   canEdit={canEdit}
                   changes={changes}
                   newLines={getNewLinesForGroup(group.id)}
@@ -802,7 +859,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
             {idx === 0 && (
               <TableCell
                 rowSpan={totalDataRows}
-                className={cn("align-top font-medium text-sm border-r", color.side)}
+                className={cn("align-top font-medium text-sm border-r", color.bg)}
               >
                 <div className="sticky top-10">
                   {group.name}
@@ -823,7 +880,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
             {idx === 0 && (
               <TableCell
                 rowSpan={totalDataRows}
-                className={cn("align-top text-sm text-muted-foreground border-r", color.side)}
+                className={cn("align-top text-sm text-muted-foreground border-r", color.bg)}
               >
                 <div className="sticky top-10">
                   {group.supplierName || (
@@ -949,7 +1006,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
 
       {/* Group total row with Add Line button */}
       <TableRow className={cn(color.bg, "border-b-2 border-border")}>
-        <TableCell colSpan={2} className={cn("border-r py-1", color.side)}>
+        <TableCell colSpan={2} className={cn("border-r py-1", color.bg)}>
           {canEdit && (
             <Button
               variant="ghost"
