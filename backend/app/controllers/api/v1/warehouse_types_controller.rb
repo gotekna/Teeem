@@ -122,80 +122,75 @@ module Api
       #   2. Documentable match (older docs that use documentable instead of linkable)
       #   3. Cross-linked via "Also show in" + FK chains (e.g., Xero bills linked to Contact
       #      but visible in Job warehouse because document type has secondary folder in Job)
+      # ⚠️ DO NOT SIMPLIFY - FK-driven folder counts (Feb 2026 rewrite)
+      # ════════════════════════════════════════════════════════════════════
+      # Why: The old code parsed folder_path strings, stripped common prefixes,
+      #      and tried to match remaining segments to configured folder names.
+      #      This broke when: single doc (prefix = full path), root-level docs
+      #      (no sub-folder segment), or folder_path missing folder name.
+      #
+      # The FIX: Use warehouse_folder_id FK (SSoT) to count docs per folder.
+      #   warehouse_document.warehouse_folder_id → warehouse_folder.name
+      #   No string parsing, no prefix stripping, no name matching.
+      #
+      # ❌ WRONG: group(:folder_path) → strip prefix → match folder names
+      # ✅ CORRECT: group(:warehouse_folder_id) → FK lookup → folder name
+      # ════════════════════════════════════════════════════════════════════
       def scoped_tree
         linkable_type = params[:linkable_type]
         linkable_id = params[:linkable_id]
 
+        # Direct linkable match
         docs = WarehouseDocument
           .where(tenant_id: current_tenant&.id)
           .where(linkable_type: linkable_type, linkable_id: linkable_id)
-          .where.not(folder_path: nil)
 
         # Also check documentable (some older docs use documentable instead of linkable)
         documentable_docs = WarehouseDocument
           .where(tenant_id: current_tenant&.id)
           .where(documentable_type: linkable_type, documentable_id: linkable_id)
-          .where.not(folder_path: nil)
 
         # Cross-linked documents via "Also show in" config + FK chains
         cross_docs = cross_linked_documents(linkable_type, linkable_id)
 
-        # Direct + documentable paths use their actual folder_path
-        direct_paths = (docs.pluck(:folder_path) + documentable_docs.pluck(:folder_path)).compact
+        # Combine all document IDs
+        direct_ids = (docs.pluck(:id) + documentable_docs.pluck(:id)).uniq
+        cross_ids = cross_docs.pluck(:id)
+        combined_ids = (direct_ids + cross_ids).uniq
 
-        # Cross-linked docs need their paths remapped to the secondary folder
-        # in the target warehouse type (e.g., Contact path → Job path)
-        cross_remapped = remap_cross_linked_paths(cross_docs, linkable_type)
-
-        all_paths = (direct_paths + cross_remapped.keys).compact.uniq
-
-        if all_paths.empty?
+        if combined_ids.empty?
           return render json: {
             success: true,
             data: { tree: {}, prefix: nil, documentCount: 0 }
           }
         end
 
-        # Find common prefix to strip (the record-specific part)
-        common_prefix = find_common_prefix(all_paths)
-        prefix_depth = common_prefix.present? ? common_prefix.count("/") + 2 : 1
+        # SSoT: Count docs per warehouse_folder_id (FK-driven, no string parsing)
+        folder_id_counts = WarehouseDocument.where(id: combined_ids)
+          .where.not(warehouse_folder_id: nil)
+          .group(:warehouse_folder_id)
+          .count
 
-        # Build sub-tree from remaining path segments
-        tree = {}
-        all_paths.each do |path|
-          remaining = common_prefix.present? ? path.sub("#{common_prefix}/", "") : path
-          segments = remaining.split("/")
-          segments.each_with_index do |segment, i|
-            key = segments[0..i].join("/")
-            tree[key] ||= { name: segment, depth: i, count: 0 }
-          end
-          # Count at the leaf
-          leaf_key = remaining
-          tree[leaf_key][:count] += 1 if tree[leaf_key]
+        # Map warehouse_folder_id → folder name (with parent path for nested folders)
+        folder_counts = {}
+        folder_id_counts.each do |wf_id, count|
+          wf = WarehouseFolder.find_by(id: wf_id)
+          next unless wf
+          # Build name path: for nested folders use "Parent/Child" so
+          # getFolderDocCount("Parent") matches via startsWith
+          name_path = build_folder_name_path(wf)
+          folder_counts[name_path] = (folder_counts[name_path] || 0) + count
         end
 
-        # Get folder-level counts for direct + documentable docs
-        direct_ids = (docs.pluck(:id) + documentable_docs.pluck(:id)).uniq
-        folder_counts = if direct_ids.any?
-          WarehouseDocument.where(id: direct_ids).group(:folder_path).count
-        else
-          {}
-        end
-
-        # Add cross-linked doc counts under their remapped paths
-        cross_remapped.each do |remapped_path, doc_ids|
-          folder_counts[remapped_path] = (folder_counts[remapped_path] || 0) + doc_ids.size
-        end
-
-        combined_ids = (direct_ids + cross_docs.pluck(:id)).uniq
+        # Count docs without a warehouse_folder_id (unsorted)
+        unsorted = WarehouseDocument.where(id: combined_ids, warehouse_folder_id: nil).count
+        folder_counts[""] = unsorted if unsorted > 0
 
         render json: {
           success: true,
           data: {
-            tree: folder_counts.transform_keys { |k|
-              common_prefix.present? ? k.sub("#{common_prefix}/", "") : k
-            },
-            prefix: common_prefix,
+            tree: folder_counts,
+            prefix: nil,
             documentCount: combined_ids.size
           }
         }
@@ -515,6 +510,20 @@ module Api
         path_parts.join('/')
       end
 
+      # Build the display name path for a warehouse folder.
+      # For root folders: just the display_name (e.g., "Photo Documents")
+      # For child folders: "Parent/Child" (e.g., "Finance/Bills")
+      # Uses display_name (what the UI shows) falling back to name.
+      def build_folder_name_path(warehouse_folder)
+        parts = []
+        current = warehouse_folder
+        while current
+          parts.unshift(current.display_name.presence || current.name)
+          current = current.parent
+        end
+        parts.join("/")
+      end
+
       def serialize_warehouse_type(warehouse_type)
         {
           id: warehouse_type.id,
@@ -633,10 +642,28 @@ module Api
           .count
       end
 
-      # Find the longest common prefix among a set of paths
+      # Find the longest common prefix among a set of paths.
+      # For scoped_tree, this strips the record-identity portion
+      # (e.g., "Job/J46 Smith St...") so remaining keys are folder names.
+      #
+      # ⚠️ DO NOT SIMPLIFY - Single-path edge case (Feb 2026)
+      # ════════════════════════════════════════════════════════
+      # With 2+ paths the common prefix naturally stops at the record identity
+      # because folder segments diverge. With 1 path, the "common prefix" is the
+      # entire path, which swallows the folder name into "". Fix: strip last
+      # segment for single paths — it's the actual folder, not record identity.
+      # ❌ WRONG: return paths.first (folder name becomes "")
+      # ✅ CORRECT: return all-but-last segment
+      # ════════════════════════════════════════════════════════
       def find_common_prefix(paths)
         return "" if paths.empty?
-        return paths.first if paths.size == 1
+
+        if paths.size == 1
+          segments = paths.first.split("/")
+          # Last segment is the folder name — don't include it in the prefix.
+          # If only 1-2 segments (root-level doc), return the full path as prefix.
+          return segments.length > 2 ? segments[0..-2].join("/") : paths.first
+        end
 
         # Split all paths into segments
         split_paths = paths.map { |p| p.split("/") }

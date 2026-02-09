@@ -47,6 +47,10 @@ class WarehouseDocument < ApplicationRecord
   # Falls back to computed_folder_path for documents without materialized path.
   before_save :materialize_folder_path, if: :needs_path_recomputation?
 
+  # Materialized Download Name (Feb 2026): Compute and store download_name on save
+  # Same pattern as folder_path materialization — avoids redundant runtime resolution.
+  before_save :materialize_download_name, if: :needs_download_name_recomputation?
+
   # Materialized Path: Invalidate folder counts when documents change folders
   after_commit :invalidate_folder_counts, on: [:create, :update, :destroy]
 
@@ -130,6 +134,10 @@ class WarehouseDocument < ApplicationRecord
   #   6. "document" (last resort)
   #
   def download_filename
+    # Use materialized value if present and not an unexpanded template
+    return download_name if download_name.present? && !download_name.include?("{")
+
+    # Fall back to runtime resolution
     SendNameResolver.new.resolve(self)
   end
 
@@ -465,6 +473,28 @@ class WarehouseDocument < ApplicationRecord
       documentable_id_changed? ||
       linkable_type_changed? ||
       linkable_id_changed?
+  end
+
+  # Check if download_name needs (re)computation
+  def needs_download_name_recomputation?
+    new_record? ||
+      download_name.blank? ||
+      ui_name_changed? ||
+      original_filename_changed? ||
+      warehouse_folder_document_type_id_changed? ||
+      source_type_changed? ||
+      metadata_changed?
+  end
+
+  # Compute and store the materialized download name using SendNameResolver
+  def materialize_download_name
+    # Clear existing to force fresh resolution from templates/fallbacks
+    # (SendNameResolver.resolve returns download_name immediately if already set)
+    self.download_name = nil
+    resolved = SendNameResolver.new.resolve(self)
+    self.download_name = resolved if resolved.present? && resolved != "document"
+  rescue StandardError => e
+    Rails.logger.warn "[WarehouseDocument] materialize_download_name failed for #{id}: #{e.message}"
   end
 
   # Compute and store the materialized folder path using WarehousePathComputer
