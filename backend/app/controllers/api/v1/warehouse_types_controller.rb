@@ -1183,26 +1183,28 @@ module Api
           .uniq
       end
 
-      # Helper to resolve template tokens to example values for preview display
+      # Helper to resolve template tokens to example values for preview display.
+      # SSoT: Reads token names from the template itself — no hardcoded list needed.
+      # Any {{TokenName}} in a template automatically gets a human-readable example.
+      # Unknown tokens get a CamelCase → "Camel Case" fallback.
       def resolve_template_tokens(template)
         return nil if template.blank?
 
-        preview = template.dup
-        preview.gsub!("{{JobCode}}", "J-001")
-        preview.gsub!("{{JobName}}", "Smith Residence")
-        preview.gsub!("{{ContactName}}", "John Smith")
-        preview.gsub!("{{CompanyCode}}", "ABC")
-        preview.gsub!("{{CompanyGroup}}", "ABC Group")
-        preview.gsub!("{{TaskId}}", "123")
-        preview.gsub!("{{TaskName}}", "Site Inspection")
-        preview.gsub!("{{CaseId}}", "456")
-        preview.gsub!("{{CaseName}}", "Insurance Claim")
-        preview.gsub!("{{UserName}}", "John Doe")
-        preview.gsub!("{{TabName}}", "Sales")
-        preview.gsub!("{{Year}}", Time.current.year.to_s)
-        preview.gsub!("{{Month}}", Time.current.strftime("%B"))
-        preview.gsub!("{{Mailbox}}", "inbox@example.com")
-        preview
+        examples = {
+          "JobCode" => "J-001", "JobName" => "Smith Residence",
+          "JobStatus" => "Active", "JobType" => "Renovation",
+          "ContactName" => "John Smith",
+          "CompanyCode" => "ABC", "CompanyName" => "ABC Pty Ltd", "CompanyGroup" => "ABC Group",
+          "TaskId" => "123", "TaskName" => "Site Inspection", "Status" => "Scheduled",
+          "CaseId" => "456", "CaseName" => "Insurance Claim",
+          "UserName" => "John Doe", "TabName" => "Sales",
+          "Year" => Time.current.year.to_s, "Month" => Time.current.strftime("%B"),
+          "Mailbox" => "inbox@example.com"
+        }
+
+        template.gsub(/\{\{(\w+)\}\}/) do
+          examples[$1] || $1.gsub(/([a-z])([A-Z])/, '\1 \2')
+        end
       end
     end
   end

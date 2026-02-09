@@ -82,9 +82,9 @@ export function WarehouseTree({
   const displayMode = externalDisplayMode ?? tree.treeDisplayMode;
   const setDisplayMode = onTreeDisplayModeChange ?? tree.setTreeDisplayMode;
 
-  // In scoped mode (Job/Contact/Corporate tabs), hide path templates since the user
+  // In scoped/context mode (Job/Contact/Corporate tabs), hide path templates since the user
   // already knows which record they're viewing - the full resolved path is redundant.
-  const effectiveShowPathTemplates = showPathTemplates && mode.type !== "scoped";
+  const effectiveShowPathTemplates = showPathTemplates && mode.type === "full";
 
   // Filter tree by search query (shallow filter on top-level names)
   const filteredTreeData = searchQuery.trim()
