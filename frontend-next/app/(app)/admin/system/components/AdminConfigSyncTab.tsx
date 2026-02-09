@@ -74,7 +74,11 @@ interface CompareRecord {
   tenants: Record<string, { id?: number; exists: boolean; updated_at?: string }>;
 }
 
-export function AdminConfigSyncTab() {
+interface AdminConfigSyncTabProps {
+  onImportComplete?: () => void;
+}
+
+export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps = {}) {
   const [tables, setTables] = useState<ConfigTable[]>([]);
   const [tenants, setTenants] = useState<TenantInfo[]>([]);
   const [masterTenant, setMasterTenant] = useState<TenantInfo | null>(null);
@@ -365,6 +369,8 @@ export function AdminConfigSyncTab() {
         setSelectedRecords(new Set());
         // Refresh records
         await fetchRecords();
+        // Notify parent to refresh overview counts
+        onImportComplete?.();
       } else {
         setError(response?.error || "Import failed");
       }

@@ -125,7 +125,11 @@ interface ComparisonRow {
 
 type SyncMode = "add_new" | "replace_existing" | "skip_existing";
 
-export function ConfigSyncTab() {
+interface ConfigSyncTabProps {
+  refreshKey?: number;
+}
+
+export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
   const [tables, setTables] = useState<ConfigTable[]>([]);
   const [tableCounts, setTableCounts] = useState<TableCounts>({});
   const [allTenantCounts, setAllTenantCounts] = useState<AllTenantCounts>({});
@@ -148,7 +152,7 @@ export function ConfigSyncTab() {
   const [applyPriceMarkup, setApplyPriceMarkup] = useState(false);
 
 
-  // Fetch available tables on mount
+  // Fetch available tables on mount and when refreshKey changes (e.g., after import)
   const fetchTables = useCallback(async () => {
     try {
       setLoading(true);
@@ -180,7 +184,7 @@ export function ConfigSyncTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     fetchTables();
