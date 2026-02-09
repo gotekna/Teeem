@@ -58,11 +58,55 @@ module Api
             get_or_create_folder_path(target_folder_path)
           end
 
+          # Read file content before upload (upload_to_provider consumes the stream)
+          file_content = uploaded_file.read
+          content_type = uploaded_file.content_type
+
           # Upload the file
           Rails.logger.info "[JobPhotos] Uploading file to #{target_folder_path}"
-          result = upload_to_provider(target_folder_path, uploaded_file.read, filename, content_type: uploaded_file.content_type)
+          result = upload_to_provider(target_folder_path, file_content, filename, content_type: content_type)
 
           Rails.logger.info "[JobPhotos] Successfully uploaded #{filename} to #{target_folder_path}"
+
+          # SSoT (Feb 2026): Create StorageBlob + WarehouseDocument for tracking
+          # Points to actual storage path (not Blobs/ dedup path) since file is already uploaded
+          begin
+            storage_path = "#{target_folder_path}/#{filename}".sub(%r{^/+}, "")
+            content_hash = Digest::SHA256.hexdigest(file_content)
+
+            blob = StorageBlob.find_by(content_hash: content_hash)
+            unless blob
+              blob = StorageBlob.create!(
+                storage_path: storage_path,
+                content_hash: content_hash,
+                content_type: content_type,
+                file_size: file_content.bytesize,
+                original_filename: filename,
+                reference_count: 0,
+                verified_at: Time.current
+              )
+            end
+            blob.increment_reference!
+
+            doc = WarehouseDocument.create!(
+              ui_name: filename,
+              original_filename: filename,
+              source_type: "job",
+              storage_blob: blob,
+              linkable: job,
+              file_size: file_content.bytesize,
+              content_type: content_type
+            )
+
+            # Set folder_path directly - bypass materialize_folder_path callback
+            # which computes root job path, not the photo subfolder path
+            doc.update_column(:folder_path, folder_path)
+
+            Rails.logger.info "[JobPhotos] Created WarehouseDocument #{doc.id} + StorageBlob #{blob.id} for #{filename}"
+          rescue StandardError => e
+            # Non-fatal: photo is uploaded to storage, just missing DB tracking
+            Rails.logger.error "[JobPhotos] Failed to create WarehouseDocument: #{e.message}"
+          end
 
           # SSoT: Use JobActivity for consistent activity logging across the job
           JobActivity.log_document_uploaded(

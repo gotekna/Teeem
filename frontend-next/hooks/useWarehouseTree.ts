@@ -908,7 +908,15 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       // Filter out empty folders when scoped counts are loaded
       // getFolderDocCount checks both exact and nested paths (e.g., "Plans" and "Plans/Sub")
       if (scopedCountsLoaded) {
-        return allNodes.filter(node => getFolderDocCount(node.name) > 0);
+        const filtered = allNodes.filter(node => getFolderDocCount(node.name) > 0);
+        // Safety: don't hide all folders if documents exist in NAMED folders that
+        // somehow didn't match any configured folder. Root-level docs (key "") are
+        // genuinely not in any sub-folder — don't let them trigger showing ALL folders.
+        const docsInNamedFolders = Object.entries(scopedFolderCounts)
+          .filter(([key]) => key !== "")
+          .reduce((sum, [, c]) => sum + c, 0);
+        if (filtered.length === 0 && docsInNamedFolders > 0) return allNodes;
+        return filtered;
       }
 
       return allNodes;

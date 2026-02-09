@@ -6,8 +6,7 @@
 # this job updates the ui_name for all linked WarehouseDocuments.
 #
 # This ensures the File Warehouse UI stays consistent with current templates.
-# The download_filename is computed at runtime (via SendNameResolver), so it
-# doesn't need updating.
+# Also materializes download_name (Feb 2026) since it's now stored on save.
 #
 # Usage:
 #   UpdateWarehouseDocumentNamesJob.perform_later(warehouse_folder_document_type_id)
@@ -27,17 +26,30 @@ class UpdateWarehouseDocumentNamesJob < ApplicationJob
     updated_count = 0
     error_count = 0
 
+    resolver = SendNameResolver.new
+
     wfdt.warehouse_documents.find_each(batch_size: 100) do |wd|
       begin
         # Build context for template expansion
         context = build_context(wd)
 
-        # Expand template
+        # Expand template for ui_name
         new_ui_name = expand_template(template, context)
 
-        # Only update if different
-        if new_ui_name.present? && new_ui_name != wd.ui_name
-          wd.update_column(:ui_name, new_ui_name)
+        # Re-resolve download_name from templates/fallbacks
+        # Clear download_name in-memory so SendNameResolver doesn't short-circuit
+        original_download_name = wd.download_name
+        wd.download_name = nil
+        new_download_name = resolver.resolve(wd)
+        new_download_name = nil if new_download_name == "document"
+
+        # Build update hash for changed columns
+        updates = {}
+        updates[:ui_name] = new_ui_name if new_ui_name.present? && new_ui_name != wd.ui_name
+        updates[:download_name] = new_download_name if new_download_name.present? && new_download_name != original_download_name
+
+        if updates.any?
+          wd.update_columns(updates)
           updated_count += 1
         end
       rescue StandardError => e
