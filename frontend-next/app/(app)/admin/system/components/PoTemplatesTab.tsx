@@ -342,7 +342,14 @@ export function PoTemplatesTab() {
     <div className="flex flex-col h-full">
       <Tabs
         value={subTab}
-        onValueChange={(v) => setSubTab(v as "templates" | "boq")}
+        onValueChange={(v) => {
+          const tab = v as "templates" | "boq";
+          setSubTab(tab);
+          // Auto-select first pack when switching to BOQ with nothing selected
+          if (tab === "boq" && !selectedPackId && packs.length > 0) {
+            setSelectedPackId(packs[0].id);
+          }
+        }}
         className="flex flex-col h-full"
       >
         <div className="flex items-center justify-between px-2 shrink-0">
