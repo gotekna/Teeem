@@ -1201,7 +1201,6 @@ module Api
       # Params:
       #   - file_id: Direct storage reference (S3 key or SharePoint item ID)
       #   - document_id: WarehouseDocument ID (will lookup storage_reference from the model)
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def presigned_url
         file_id = params[:file_id]
         document_id = params[:document_id]
@@ -1654,8 +1653,7 @@ module Api
 
       # GET /api/v1/documents/job_all_files
       # List ALL files from the job's OneDrive folder
-      # Uses Data Warehouse pattern: reads from JobDocument table for instant results
-      # Falls back to live API if no cached data, and triggers background sync
+      # Uses Data Warehouse pattern: reads from WarehouseDocument for instant results
       #
       # Params:
       #   refresh_thumbnails: "true" - Fetch fresh thumbnail URLs from SharePoint (cached ones expire)
@@ -1665,8 +1663,7 @@ module Api
         job = Job.find(params[:job_id])
 
         # SSoT (Feb 2026): WarehouseDocument is THE ONE source for job files.
-        # No legacy JobDocument fallback, no live API scan.
-        # Photos uploaded before this fix need backfill to appear.
+        # SSoT: WarehouseDocument is THE ONE source for job files.
         warehouse_docs = WarehouseDocument.for_job(job).includes(:storage_blob)
 
         # Filter by folder with optional cascade
@@ -1733,35 +1730,6 @@ module Api
         @cached_doc_types ||= DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil)).to_a
         suggestions = suggest_document_type_for_file(doc.file_name, doc.folder_path)
         suggestions || []
-      end
-
-      # POST /api/v1/documents/sync_job_documents
-      # Manually trigger sync of job documents to data warehouse
-      # Can sync a single job or all jobs with OneDrive folders
-      def sync_job_documents
-        job_id = params[:job_id]
-
-        if job_id.present?
-          # Sync single job
-          job = Job.find(job_id)
-          JobDocumentSyncJob.perform_later(job.id)
-          render json: {
-            success: true,
-            message: "Sync triggered for job #{job.id}: #{job.title}",
-            job_id: job.id
-          }
-        else
-          # Sync all jobs with SharePoint folders
-          JobDocumentSyncJob.perform_later
-          jobs_count = Job.where(storage_folder_status: "completed").count
-          render json: {
-            success: true,
-            message: "Sync triggered for #{jobs_count} jobs with SharePoint folders",
-            jobs_count: jobs_count
-          }
-        end
-      rescue ActiveRecord::RecordNotFound => e
-        render json: { error: "Job not found" }, status: :not_found
       end
 
       # POST /api/v1/documents/upload_signed_version
@@ -1912,124 +1880,6 @@ module Api
       # GET /api/v1/documents/legacy_files
       # List files from the legacy "Old House Data/00 Active" folder that match a job
       # Used for importing legacy job documents into the new job folder structure
-      # Supports folder navigation with optional folder_id parameter
-      def legacy_files
-        job = Job.find(params[:job_id])
-
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
-        end
-
-        begin
-          service = JobDocumentMigrationService.new
-          # Pass folder_id for subfolder navigation, recursive for all files
-          recursive = params[:recursive] == "true" || params[:recursive] == true
-          items = service.list_legacy_files_for_job(job, folder_id: params[:folder_id], recursive: recursive)
-
-          render json: {
-            success: true,
-            job_id: job.id,
-            job_title: job.title,
-            items: items,
-            count: items.length,
-            current_folder_id: params[:folder_id],
-            recursive: recursive,
-            source_folder: JobDocumentMigrationService::SOURCE_FOLDER_PATH
-          }
-
-        rescue StandardError => e
-          Rails.logger.error "[Legacy Files] Exception: #{e.message}"
-          Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to list legacy files: #{e.message}" }, status: :internal_server_error
-        end
-      end
-
-      # POST /api/v1/documents/import_legacy
-      # Import selected files from legacy location to a job's OneDrive folder
-      # Params:
-      #   - job_id: Target job ID
-      #   - file_ids: Array of OneDrive file IDs to import
-      def import_legacy
-        job = Job.find(params[:job_id])
-        file_ids = params[:file_ids] || []
-
-        if file_ids.empty?
-          return render json: { error: "No files selected for import" }, status: :bad_request
-        end
-
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
-        end
-
-        begin
-          # Queue the import as a background job to avoid HTTP timeouts
-          # Large imports can take several minutes
-          ImportLegacyFilesJob.perform_later(job.id, file_ids, current_user&.id)
-
-          render json: {
-            success: true,
-            message: "Import of #{file_ids.length} files has been queued. Files will appear in the job folder shortly.",
-            job_id: job.id,
-            queued: true,
-            file_count: file_ids.length
-          }
-
-        rescue StandardError => e
-          Rails.logger.error "[Import Legacy] Exception: #{e.message}"
-          Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to queue import: #{e.message}" }, status: :internal_server_error
-        end
-      end
-
-      # POST /api/v1/documents/analyze_job_documents
-      # Trigger AI analysis for a job's documents
-      # Analyzes unanalyzed documents and suggests document types and filenames
-      def analyze_job_documents
-        job_id = params[:job_id]
-        limit = params[:limit]&.to_i || 25
-
-        unless job_id.present?
-          return render json: { error: "job_id is required" }, status: :bad_request
-        end
-
-        job = Job.find(job_id)
-
-        # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
-        # Count documents needing analysis
-        unanalyzed_count = WarehouseDocument.where(source_type: "job", linkable: job)
-                                            .where("metadata->>'ai_analyzed_at' IS NULL")
-                                            .count
-
-        if unanalyzed_count == 0
-          return render json: {
-            success: true,
-            message: "All documents have already been analyzed",
-            job_id: job.id,
-            analyzed_count: 0,
-            total_unanalyzed: 0
-          }
-        end
-
-        # Queue the batch analysis job
-        BatchJobDocumentAnalysisJob.perform_later(job_id: job.id, limit: limit)
-
-        render json: {
-          success: true,
-          message: "AI analysis queued for #{[ limit, unanalyzed_count ].min} documents",
-          job_id: job.id,
-          queued_count: [ limit, unanalyzed_count ].min,
-          total_unanalyzed: unanalyzed_count
-        }
-      rescue ActiveRecord::RecordNotFound
-        render json: { error: "Job not found" }, status: :not_found
-      end
-
       # POST /api/v1/documents/bulk_categorize_job_documents
       # Bulk categorize documents for a job based on folder paths matching WarehouseFolders
       # Used for client onboarding to automatically assign document types
@@ -2075,7 +1925,7 @@ module Api
       #   - job_id: Optional - filter by job
       #   - status: 'pending' (default), 'approved', 'rejected', 'all'
       #   - min_confidence: Optional - only show docs above this confidence (0-100)
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      # SSoT: Uses WarehouseDocument
       def documents_needing_review
         scope = WarehouseDocument.where(source_type: "job")
                                  .includes(:storage_blob, :linkable)
@@ -2120,7 +1970,7 @@ module Api
       #   - action: 'approve' or 'reject'
       #   - custom_name: Optional - use this name instead of AI suggestion
       #   - custom_type_id: Optional - use this document type instead of AI suggestion
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      # SSoT: Uses WarehouseDocument
       def approve_document_rename
         document = WarehouseDocument.find(params[:document_id])
         action = params[:action]
@@ -2215,7 +2065,7 @@ module Api
       # Bulk approve multiple document renames
       # Params:
       #   - document_ids: Array of WarehouseDocument IDs to approve
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      # SSoT: Uses WarehouseDocument
       def bulk_approve_renames
         document_ids = params[:document_ids] || []
 
@@ -2281,41 +2131,6 @@ module Api
         }
       end
 
-      # POST /api/v1/documents/run_migration
-      # Run the bulk job document migration (dry_run by default)
-      # Admin only - migrates all documents from legacy folder to job folders
-      def run_migration
-        unless current_user&.admin?
-          return render json: { error: "Admin access required" }, status: :forbidden
-        end
-
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
-        end
-
-        dry_run = params[:dry_run] != "false" && params[:dry_run] != false
-        limit = params[:limit]&.to_i
-
-        begin
-          service = JobDocumentMigrationService.new
-          stats = service.run(dry_run: dry_run, limit: limit)
-
-          render json: {
-            success: true,
-            dry_run: dry_run,
-            stats: stats
-          }
-
-        rescue StandardError => e
-          Rails.logger.error "[Run Migration] Exception: #{e.message}"
-          Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Migration failed: #{e.message}" }, status: :internal_server_error
-        end
-      end
-
       # GET /api/v1/documents/job_document_download
       # Unified download endpoint for job documents - routes to correct provider
       #
@@ -2327,7 +2142,7 @@ module Api
       # Params:
       #   document_id: WarehouseDocument ID (required)
       #   preview: "true" for inline display, omit for attachment download
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      # SSoT: Uses WarehouseDocument
       def job_document_download
         document_id = params[:document_id]
         is_preview = params[:preview] == "true"
@@ -2396,7 +2211,7 @@ module Api
       #
       # Params:
       #   document_id: WarehouseDocument ID (required)
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      # SSoT: Uses WarehouseDocument
       def job_document_url
         document_id = params[:document_id]
 
@@ -2598,7 +2413,7 @@ module Api
       end
 
       # Download file from S3 by key (for photo gallery and direct file access)
-      # SSoT: Uses S3 key directly without requiring a JobDocument record
+      # SSoT: Uses S3 key directly for file access
       def download_from_s3_by_key(s3_key, is_preview)
         credential = S3CompatibleCredential.active.connected.first
 
@@ -2682,7 +2497,7 @@ module Api
           disposition: disposition
       end
 
-      # Download document content from S3 (for JobDocument records)
+      # Download document content from S3
       def download_from_s3(document, is_preview)
         # SSoT (Jan 2026): Use tenant for storage provider
         provider = DocumentProviders.for_tenant(current_tenant)
@@ -3045,8 +2860,7 @@ module Api
       end
 
       # Recursively list all files in a job folder
-      # Similar to JobDocumentMigrationService but for the job's own folder
-      # SSoT: Uses WarehouseProvider for drive_id (Jan 2026)
+      # SSoT: Uses WarehouseProvider for drive_id
       def list_all_job_files_recursive(client, credential, root_folder_id, max_depth: 5, max_time: 25)
         files = []
         folders_to_process = [ [ root_folder_id, 0, "" ] ] # [folder_id, depth, path]
@@ -3185,7 +2999,7 @@ module Api
       end
 
       # Format a document for the review UI
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      # SSoT: Uses WarehouseDocument
       def format_warehouse_document_for_review(doc)
         job = doc.linkable if doc.linkable_type == "Job"
         doc_type_id = doc.meta("document_type_id")

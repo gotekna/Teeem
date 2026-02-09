@@ -321,7 +321,7 @@ class WarehousePathComputer
         enrich_tokens_from_documentable(tokens, doc)
       end
     rescue NameError
-      # Deleted model class (e.g. JobDocument) - skip enrichment
+      # Deleted model class - skip enrichment
     end
 
     # 2b. Special case: ContactDocument table still exists with contact_id FK

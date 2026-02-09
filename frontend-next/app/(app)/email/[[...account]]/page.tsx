@@ -684,6 +684,15 @@ export default function EmailPage() {
   // Support both "account" and "mailbox" query params (mailbox used by Warehouse links)
   const rawAccountParam = pathSegments?.[0] || searchParams.get("account") || searchParams.get("mailbox");
   const accountParam = rawAccountParam ? decodeURIComponent(rawAccountParam) : undefined;
+
+  // DEBUG: Track URL param resolution
+  console.log('[Email Nav Debug] URL parsing:', {
+    pathSegments,
+    searchParamAccount: searchParams.get("account"),
+    rawAccountParam,
+    accountParam,
+    fullUrl: typeof window !== 'undefined' ? window.location.href : 'SSR',
+  });
   const emailIdParam = searchParams.get("id");
   // Standalone mode: check path segment first, then legacy query param
   const isStandalone = pathSegments?.includes("standalone") || searchParams.get("standalone") === "true";
@@ -1107,6 +1116,7 @@ export default function EmailPage() {
   const toURLParams = emailFilters.toURLParams;
 
   const fetchEmails = useCallback(async (page = 1, force = false, folderOverride?: string, append = false) => {
+    console.log('[Email Nav Debug] fetchEmails called:', { page, force, selectedAccount, selectedFolder, historicalMailbox, append });
     // Performance: Debounce rapid re-fetches (unless forced or appending for infinite scroll)
     const now = Date.now();
     if (!force && !append && now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
@@ -1353,10 +1363,16 @@ export default function EmailPage() {
 
       if (activeAccounts.length > 0) {
         if (accountParam) {
+          // DEBUG: Show what we're matching against
+          console.log('[Email Nav Debug] fetchAccounts matching:', {
+            accountParam,
+            availableAccounts: activeAccounts.map(a => ({ id: a.id, email: a.email_address, type: a.type })),
+          });
           // Find account matching URL param (by email address or ID for backwards compatibility)
           const accountToSelect = activeAccounts.find(a =>
             a.email_address === accountParam || String(a.id) === accountParam
           );
+          console.log('[Email Nav Debug] fetchAccounts match result:', accountToSelect ? { id: accountToSelect.id, email: accountToSelect.email_address } : 'NO MATCH');
           if (accountToSelect) {
             targetAccountId = String(accountToSelect.id);
             // Reset folder to Inbox when loading specific account from URL
@@ -1442,8 +1458,19 @@ export default function EmailPage() {
 
   // Handle URL account param changes (e.g., clicking different mailbox in nav or Warehouse links)
   useEffect(() => {
+    console.log('[Email Nav Debug] URL account effect:', {
+      accountParam,
+      accountsCount: accounts.length,
+      selectedAccount,
+      historicalMailbox,
+    });
     if (accountParam && accounts.length > 0) {
       const matchingAccount = accounts.find(a => a.email_address === accountParam || String(a.id) === accountParam);
+      console.log('[Email Nav Debug] URL account match:', {
+        accountParam,
+        matchingAccount: matchingAccount ? { id: matchingAccount.id, email: matchingAccount.email_address } : 'NO MATCH',
+        alreadySelected: matchingAccount ? String(matchingAccount.id) === selectedAccount : false,
+      });
       if (matchingAccount && String(matchingAccount.id) !== selectedAccount) {
         // Skip auto-fetch during account transition to prevent flashing
         skipNextAutoFetchRef.current = true;
@@ -2252,6 +2279,7 @@ To: ${email.to_emails?.join(", ") || ""}
                   </button>
                   <button
                     onClick={() => {
+                      console.log('[Email Nav Debug] In-page account click:', { id: account.id, email: account.email_address, type: account.type });
                       // Skip auto-fetch during account transition to prevent flashing
                       skipNextAutoFetchRef.current = true;
                       setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);

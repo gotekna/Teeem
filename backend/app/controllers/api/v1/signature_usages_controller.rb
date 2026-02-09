@@ -167,7 +167,6 @@ module Api
             name: usage.job.name,
             address: usage.job.street_address
           } : nil,
-          job_document_id: usage.job_document_id,
           created_at: usage.created_at
         }
       end

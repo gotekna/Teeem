@@ -7,7 +7,7 @@
 # - ContactDocument.file (16 records with attachments)
 # - User.signature (1 record)
 # - User.photo (1 record)
-# - JobDocument.file, PeopleDocument.file, UserDocument.file, etc. (0 records - code only)
+# - PeopleDocument.file, UserDocument.file, etc. (0 records - code only)
 #
 # Usage:
 #   rails storage:migrate_to_blob              # Run migration
@@ -226,7 +226,6 @@ namespace :storage do
     puts "-" * 40
 
     models_to_check = [
-      { model: "JobDocument", attachment: "file" },
       { model: "PeopleDocument", attachment: "file" },
       { model: "UserDocument", attachment: "file" },
       { model: "NotebookPageAttachment", attachment: "file" },

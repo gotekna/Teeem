@@ -230,7 +230,7 @@ module Api
         { success: true, document: { id: doc.id, file_name: doc.file_name, display_name: doc.ui_name } }
       end
 
-      # SSoT (Jan 2026): Uses WarehouseDocument directly (no legacy JobDocument)
+      # SSoT: Uses WarehouseDocument directly
       def create_job_document(key, filename, content_type, file_size, metadata, provider)
         job_id = metadata[:job_id] || metadata["job_id"]
         job = Job.find_by(id: job_id)

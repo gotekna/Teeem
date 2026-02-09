@@ -66,7 +66,6 @@ Rails.application.routes.draw do
       get "documents/search", to: "document_storage#search"
       get "documents/preview_private_folders", to: "document_storage#preview_private_folders"
       patch "documents/mark_as_preferred", to: "document_storage#mark_as_preferred"
-      get "documents/legacy_files", to: "document_storage#legacy_files"
       post "documents/migrate_job_folder", to: "document_storage#migrate_job_folder"
       get "documents/job_all_files", to: "document_storage#job_all_files"
       get "documents/job_document_download", to: "document_storage#job_document_download"
@@ -75,15 +74,11 @@ Rails.application.routes.draw do
       post "documents/copy_file", to: "document_storage#copy_file"
       post "documents/create_folder", to: "document_storage#create_folder"
       get "documents/documents_needing_review", to: "document_storage#documents_needing_review"
-      post "documents/sync_job_documents", to: "document_storage#sync_job_documents"
-      post "documents/import_legacy", to: "document_storage#import_legacy"
-      post "documents/analyze_job_documents", to: "document_storage#analyze_job_documents"
       post "documents/bulk_categorize_job_documents", to: "document_storage#bulk_categorize_job_documents"
       post "documents/approve_document_rename", to: "document_storage#approve_document_rename"
       post "documents/bulk_approve_renames", to: "document_storage#bulk_approve_renames"
       post "documents/create_private_folders", to: "document_storage#create_private_folders"
       post "documents/copy_files", to: "document_storage#copy_files"
-      post "documents/run_migration", to: "document_storage#run_migration"
       post "documents/upload_signed_version", to: "document_storage#upload_signed_version"
 
       # Viewer Context Storage (for document viewer with Q&A sidebar)
@@ -3137,7 +3132,8 @@ Rails.application.routes.draw do
           get :options  # For select dropdowns
           get :tree     # For File Warehouse page tree view
           get :tree_children  # Materialized path: lazy-load tree children
-          get :scoped_tree    # Materialized path: sub-tree for Job/Contact/Corporate tabs
+          get :scoped_tree          # FK-driven: folder counts for Job/Contact/Corporate tabs
+          get :scoped_folder_files  # FK-driven: files + sub-folders for a specific folder
         end
         member do
           patch :update_warehouse_folders  # Batch update warehouse folder assignments

@@ -464,6 +464,63 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
     }
   }, [s3Folders, loadingS3Folders]);
 
+  // ─── Fetch scoped folder files (FK-based, no S3 path matching) ──
+  // SSoT: Uses warehouse_folder_id FK instead of live_folder_tree path matching
+  const fetchScopedFolderFiles = useCallback(async (folderId: number, cacheKey: string) => {
+    if (s3Folders[cacheKey] || loadingS3Folders.has(cacheKey)) return;
+    if (mode.type !== "scoped") return;
+
+    setLoadingS3Folders(prev => new Set(prev).add(cacheKey));
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          folders: Array<{ name: string; count: number; folderId: number }>;
+          files: Array<{
+            id: number;
+            uiName: string;
+            sendName?: string;
+            type: string;
+            mimeType: string;
+            fileSize?: number;
+            createdAt?: string;
+            fileUrl?: string | null;
+            isImage?: boolean;
+          }>;
+          count: { folders: number; files: number; total: number };
+        };
+      }>(`/api/v1/warehouse_types/scoped_folder_files?linkable_type=${encodeURIComponent(mode.linkableType)}&linkable_id=${mode.linkableId}&folder_id=${folderId}`);
+
+      if (response?.success && response.data) {
+        const files = (response.data.files || []).map(f => ({
+          name: f.uiName || "Unknown",
+          path: `scoped/${folderId}/${f.uiName || "Unknown"}`,
+          size: f.fileSize || 0,
+          content_type: f.mimeType || "application/octet-stream",
+          url: f.fileUrl ?? undefined,
+          id: f.id,
+          warehouse_document_id: f.id,
+        }));
+        const folders = (response.data.folders || []).map(f => ({
+          name: f.name,
+          path: `scoped/${f.folderId}`,
+          count: f.count,
+          folderId: f.folderId,
+        }));
+        setS3Folders(prev => ({ ...prev, [cacheKey]: { folders, files } }));
+      }
+    } catch (err) {
+      console.error(`Failed to fetch scoped folder files for folder ${folderId}:`, err);
+      setS3Folders(prev => ({ ...prev, [cacheKey]: { folders: [], files: [] } }));
+    } finally {
+      setLoadingS3Folders(prev => {
+        const next = new Set(prev);
+        next.delete(cacheKey);
+        return next;
+      });
+    }
+  }, [s3Folders, loadingS3Folders, mode]);
+
   // ─── Fetch email drill-down ────────────────────────────────────
   const fetchEmailDrillDown = useCallback(async (folderType: string, path: string, scopeKey: string) => {
     if (s3Folders[scopeKey] || loadingS3Folders.has(scopeKey)) return;
@@ -560,6 +617,14 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         const drillPath = isVirtual ? "" : (folderPath || "");
         const cacheKey = isVirtual ? folderId : (folderPath || folderId);
         fetchEmailDrillDown(folderType, drillPath, cacheKey);
+      } else if (mode.type === "scoped" && folderId.includes("wf-")) {
+        // SSoT: Scoped mode uses warehouse_folder_id FK — no S3 path matching
+        const wfMatch = folderId.match(/wf-(\d+)/);
+        if (wfMatch) {
+          const warehouseFolderId = parseInt(wfMatch[1], 10);
+          const cacheKey = isVirtual ? folderId : (folderPath || folderId);
+          fetchScopedFolderFiles(warehouseFolderId, cacheKey);
+        }
       } else if (isVirtual && sourceType) {
         const folderName = folderPath || "";
         fetchVirtualFolderFiles(sourceType, folderName, folderId);
@@ -567,7 +632,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         fetchS3Folders(folderPath);
       }
     }
-  }, [expandedFolders, fetchS3Folders, fetchVirtualFolderFiles, fetchEmailDrillDown, fetchRecords, deriveEmailFolderType, router]);
+  }, [expandedFolders, fetchS3Folders, fetchScopedFolderFiles, fetchVirtualFolderFiles, fetchEmailDrillDown, fetchRecords, deriveEmailFolderType, mode, router]);
 
   // ─── Build tree data ───────────────────────────────────────────
   const treeData = useMemo((): TreeNode[] => {
