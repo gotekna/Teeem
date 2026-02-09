@@ -64,6 +64,7 @@ interface TemplateItem {
   smScheduleMasterName: string | null;
   tradeName: string | null;
   stageName: string | null;
+  stagePosition: number | null;
   supplierId: number | null;
   supplierName: string | null;
   supplierSyncKey: string | null;
@@ -311,6 +312,7 @@ export function PoTemplatesTab() {
         taskName: item.smScheduleMasterName,
         tradeName: item.tradeName,
         stageName: item.stageName,
+        stagePosition: item.stagePosition,
         items: (item.lineItems || []).map((li) => ({
           id: li.id,
           description: li.description,
