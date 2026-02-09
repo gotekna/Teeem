@@ -94,11 +94,7 @@ class CaseFolderService
   def build_folder_name
     # Format: CASE-20251205-001 - Robert Harder Bankrupt Estate
     # SSoT: Use centralized filename sanitization if available
-    sanitized_title = if defined?(SharePoint::FilenameSanitizer)
-      SharePoint::FilenameSanitizer.sanitize_path_segment(@case.title.to_s).truncate(50, omission: "")
-    else
-      @case.title.to_s.gsub(/[\/\\:*?"<>|]/, "_").truncate(50, omission: "")
-    end
+    sanitized_title = Warehouse::FilenameSanitizer.sanitize_path_segment(@case.title.to_s).truncate(50, omission: "")
     "#{@case.case_number} - #{sanitized_title}"
   end
 end

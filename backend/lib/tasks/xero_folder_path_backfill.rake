@@ -65,7 +65,7 @@ namespace :xero do
 
           # Use display_name directly (NOT document_folder_name which includes "Contacts/" prefix)
           # The "Contacts" root segment is already added in the parts array below
-          contact_name = SharePoint::FilenameSanitizer.sanitize_path_segment(
+          contact_name = Warehouse::FilenameSanitizer.sanitize_path_segment(
             contact.display_name || "Unknown"
           )
 
