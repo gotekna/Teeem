@@ -808,9 +808,7 @@ class MicrosoftAppGraphClient
     # Ensure folder exists first
     folder_id = ensure_folder_exists(site_id, drive_id, parent_folder_path)
 
-    # SSoT: Use centralized SharePoint filename sanitization
-    # See lib/sharepoint/filename_sanitizer.rb for rules
-    safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
+    safe_filename = Warehouse::FilenameSanitizer.sanitize(filename)
     encoded_filename = CGI.escape(safe_filename)
 
     # Upload via PUT request

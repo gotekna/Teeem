@@ -91,10 +91,6 @@ module StorageUploadable
 
   # Sanitize a path segment for storage
   def sanitize_storage_path(name)
-    if defined?(SharePoint::FilenameSanitizer)
-      SharePoint::FilenameSanitizer.sanitize_path_segment(name.to_s)
-    else
-      name.to_s.gsub(/[\\\\\/:"*?<>|]/, "_").strip
-    end
+    Warehouse::FilenameSanitizer.sanitize_path_segment(name.to_s)
   end
 end
