@@ -241,16 +241,14 @@ module Bpmn
         uploaded_files.each do |file|
           next unless file[:web_url]
 
-          WarehouseDocument.create!(
+          WarehouseDocumentCreator.create!(
+            filename: file[:name],
             source_type: "job",
-            ui_name: file[:name],  # SSoT: display_name renamed to ui_name (Feb 2026)
-            original_filename: file[:name],
             linkable: job,
             metadata: {
-              job_code: job.job_code,
-              source: "generated",
-              web_url: file[:web_url],
-              file_type: "generated"
+              "source" => "generated",
+              "web_url" => file[:web_url],
+              "file_type" => "generated"
             }
           )
         end

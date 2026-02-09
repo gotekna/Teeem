@@ -184,7 +184,7 @@ module Api
         end
       end
 
-      # SSoT: Uses WarehouseDocument directly
+      # SSoT: Uses WarehouseDocumentCreator standard service
       def create_corporate_document(key, filename, content_type, file_size, metadata, provider)
         # Get company from metadata or current user's default
         company_id = metadata[:company_id] || metadata["company_id"]
@@ -194,20 +194,19 @@ module Api
         # Move to permanent location with content-hash deduplication
         blob = find_or_create_blob(key, filename, content_type, file_size, provider)
 
-        doc = WarehouseDocument.create!(
+        doc = WarehouseDocumentCreator.create!(
+          filename: filename,
           source_type: "corporate",
-          ui_name: filename,
-          original_filename: filename,
-          content_type: content_type,
-          file_size: file_size,
-          storage_blob: blob,
           linkable: company,
+          storage_blob: blob,
+          file_size: file_size,
+          content_type: content_type,
+          warehouse_folder_id: metadata[:warehouse_folder_id] || metadata["warehouse_folder_id"],
           metadata: {
-            document_type: metadata[:document_type] || metadata["document_type"] || "other",
-            company_code: company.company_code,
-            source: "manual",
-            uploaded_by_id: current_user&.id
-          }
+            "document_type" => metadata[:document_type] || metadata["document_type"] || "other",
+            "source" => "manual"
+          },
+          user: current_user
         )
 
         { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name } }
@@ -230,7 +229,7 @@ module Api
         { success: true, document: { id: doc.id, file_name: doc.file_name, display_name: doc.ui_name } }
       end
 
-      # SSoT: Uses WarehouseDocument directly
+      # SSoT: Uses WarehouseDocumentCreator standard service
       def create_job_document(key, filename, content_type, file_size, metadata, provider)
         job_id = metadata[:job_id] || metadata["job_id"]
         job = Job.find_by(id: job_id)
@@ -238,20 +237,19 @@ module Api
 
         blob = find_or_create_blob(key, filename, content_type, file_size, provider)
 
-        doc = WarehouseDocument.create!(
+        doc = WarehouseDocumentCreator.create!(
+          filename: filename,
           source_type: "job",
-          ui_name: filename,
-          original_filename: filename,
-          content_type: content_type,
-          file_size: file_size,
-          storage_blob: blob,
           linkable: job,
+          storage_blob: blob,
+          file_size: file_size,
+          content_type: content_type,
+          warehouse_folder_id: metadata[:warehouse_folder_id] || metadata["warehouse_folder_id"],
           metadata: {
-            job_code: job.job_code,
-            document_type: metadata[:document_type] || metadata["document_type"],
-            storage_provider: "s3_compatible",
-            source: "manual"
-          }
+            "document_type" => metadata[:document_type] || metadata["document_type"],
+            "source" => "manual"
+          },
+          user: current_user
         )
 
         { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name } }

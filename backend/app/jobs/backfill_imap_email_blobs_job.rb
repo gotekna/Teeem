@@ -130,24 +130,21 @@ class BackfillImapEmailBlobsJob < ApplicationJob
       storage_email_file_id: blob.id.to_s
     )
 
-    # Create WarehouseDocument
-    doc = WarehouseDocument.find_or_create_by!(
-      documentable_type: "SyncedEmail",
-      documentable_id: email.id
-    ) do |d|
-      d.storage_blob = blob
-      d.source_type = "email"
-      d.ui_name = email.subject.presence || "No Subject"  # SSoT: display_name renamed to ui_name (Feb 2026)
-      d.original_filename = "#{email.id}.eml"
-      d.tenant_id = tenant.id
-      d.metadata = {
-        subject: email.subject,
-        from_email: email.from_email,
-        received_at: email.received_at&.iso8601,
-        mailbox: email.mailbox_owner_email
+    # Create WarehouseDocument via standard service
+    doc = WarehouseDocumentCreator.find_or_create!(
+      find_by: { source_type: "email", linkable: nil, metadata_match: {} },
+      filename: "#{email.id}.eml",
+      source_type: "email",
+      documentable: email,
+      storage_blob: blob,
+      metadata: {
+        "subject" => email.subject,
+        "from_email" => email.from_email,
+        "received_at" => email.received_at&.iso8601,
+        "mailbox" => email.mailbox_owner_email
       }
-    end
+    )
 
-    blob.increment!(:reference_count) if doc.previously_new_record?
+    blob.increment!(:reference_count)
   end
 end

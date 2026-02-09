@@ -563,14 +563,13 @@ module Api
         when "keep_both"
           # SSoT: Folder path comes from WarehouseProvider template (warehouse_folders['case'])
           # Use resolve_virtual_path for WarehouseDocument.folder_path (UI display)
-          folder_path = WarehouseProvider.instance.resolve_virtual_path(:case, { CaseId: @case.case_number })
-          new_doc = WarehouseDocument.create!(
-            ui_name: review.new_file_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
-            original_filename: review.new_file_name,
+          new_doc = WarehouseDocumentCreator.create!(
+            filename: review.new_file_name,
             source_type: "corporate",
-            content_type: Marcel::MimeType.for(name: review.new_file_name),
+            documentable: @case.corporate,
+            linkable: @case.corporate,
             file_size: review.new_file_size,
-            documentable: @case.corporate
+            content_type: Marcel::MimeType.for(name: review.new_file_name)
           )
           review.keep_both!(current_user, new_doc)
         else

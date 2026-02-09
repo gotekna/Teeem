@@ -309,46 +309,61 @@ class WarehousePathComputer
   end
 
   # ════════════════════════════════════════════════════════════════════
-  # Token Extraction (Linkable-First)
+  # Token Extraction — SSoT: warehouse_types.token_config
+  # ════════════════════════════════════════════════════════════════════
+  #
+  # ⚠️ DO NOT hardcode token extraction — read from DB (Feb 2026 rewrite)
+  # ════════════════════════════════════════════════════════════════════
+  # Why: The old code hardcoded ~170 lines of case/when to extract tokens
+  #      like JobCode, JobName. But the admin UI lets users put ANY token
+  #      in folder_path_template (e.g., {{JobStatus}}, {{JobType}}).
+  #      Hardcoded list fell out of sync → tokens silently stripped → wrong paths.
+  #
+  # The FIX: Read token_config from warehouse_types table.
+  #   token_config is a JSONB column: { "JobCode": "job_code", "JobStatus": "job_status.name" }
+  #   Each value is a dot-path resolved on the linkable record (same as warehouse_types_controller).
+  #
+  # ❌ WRONG: case doc.linkable_type when "Job" then tokens[:JobCode] = job.job_code
+  # ✅ CORRECT: token_config.each { |name, path| tokens[name] = resolve_dot_path(linkable, path) }
   # ════════════════════════════════════════════════════════════════════
 
   # Extract token values for template expansion.
-  # Linkable FK is the primary source (always reliable), with
-  # documentable as enrichment for extra context.
+  # Reads token definitions from warehouse_types.token_config (SSoT).
   #
   # @param doc [WarehouseDocument]
   # @return [Hash] Token name => value
   def extract_tokens(doc)
     tokens = {}
 
-    # 1. Tokens from LINKABLE (direct FK - always reliable)
-    extract_tokens_from_linkable(tokens, doc)
+    # 1. SSoT: Resolve tokens from warehouse_type.token_config using linkable
+    warehouse_type = find_warehouse_type_for_doc(doc)
+    if warehouse_type
+      token_config = warehouse_type.token_config || {}
+      record = doc.linkable || doc.documentable
 
-    # 2. Enrich from documentable (if available and class exists)
-    begin
-      if doc.documentable.present?
-        enrich_tokens_from_documentable(tokens, doc)
+      if record.present? && token_config.any?
+        token_config.each do |token_name, dot_path|
+          value = resolve_dot_path(record, dot_path)
+          tokens[token_name.to_sym] = value.to_s if value.present?
+        end
       end
-    rescue NameError
-      # Deleted model class - skip enrichment
     end
 
-    # 3. Document type from warehouse_folder_document_type FK
+    # 2. Document type from warehouse_folder_document_type FK
     if doc.warehouse_folder_document_type&.document_type
       dt = doc.warehouse_folder_document_type.document_type
       tokens[:DocTypeName] ||= dt.name
       tokens[:Folder] ||= dt.folder.presence || dt.name if dt.respond_to?(:folder)
     end
 
-    # 4. Date tokens (always available)
+    # 3. Date tokens (always available)
     date = doc.created_at || Time.current
     tokens[:Year] ||= date.year.to_s
     tokens[:Month] ||= date.strftime("%m")
 
-    # 5. Email-specific tokens from metadata
+    # 4. Email-specific tokens from metadata
     if doc.source_type.in?(%w[email email_attachment])
       tokens[:Mailbox] ||= doc.meta("mailbox") || "Unknown"
-      # Use received_at for email date tokens (more accurate than created_at)
       received_at = doc.email_received_at || doc.created_at || Time.current
       tokens[:Year] = received_at.year.to_s
       tokens[:Month] = received_at.strftime("%m")
@@ -357,124 +372,37 @@ class WarehousePathComputer
     tokens
   end
 
-  # Extract tokens from the linkable FK (Job, Contact, CorporateCompany, SmTask)
-  def extract_tokens_from_linkable(tokens, doc)
-    case doc.linkable_type
-    when "Job"
-      job = doc.linkable
-      if job
-        tokens[:JobCode] = job.job_code
-        tokens[:JobName] = job.name.presence || job.job_code
-      end
-    when "Contact"
-      contact = doc.linkable
-      if contact
-        tokens[:ContactName] = contact.display_name.presence || "Contact-#{contact.id}"
-        tokens[:ContactId] = contact.id
-      end
-    when "CorporateCompany"
-      cc = doc.linkable
-      if cc
-        tokens[:CompanyCode] = cc.company_code
-        tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
-        tokens[:CompanyName] = cc.name
-      end
-    when "SmTask"
-      task = doc.linkable
-      if task
-        tokens[:TaskId] = task.id
-        tokens[:TaskName] = task.name&.parameterize || "task-#{task.id}"
-        status_label = task.status&.titleize || "Unknown"
-        tokens[:TaskStatus] = status_label
-        tokens[:Status] = status_label
-        if task.respond_to?(:job) && task.job
-          tokens[:JobName] = task.job.name.presence || task.job.job_code
-          tokens[:JobCode] = task.job.job_code
-        else
-          tokens[:JobName] = "Unassigned Job"
-        end
-      end
+  # Find the WarehouseType for this document (for token_config lookup)
+  def find_warehouse_type_for_doc(doc)
+    # Try from WFDT FK first (most precise)
+    wt = doc.warehouse_folder_document_type&.warehouse_folder&.warehouse_type
+    return wt if wt
+
+    # Derive from linkable_type or source_type
+    wt_code = if doc.linkable_type.present?
+                linkable_type_to_warehouse_type_code(doc.linkable_type)
+              end
+    wt_code ||= source_type_to_warehouse_type_code(doc.source_type)
+
+    @warehouse_type_cache ||= {}
+    unless @warehouse_type_cache.key?(wt_code)
+      @warehouse_type_cache[wt_code] = WarehouseType.find_by(code: wt_code)
     end
+    @warehouse_type_cache[wt_code]
   end
 
-  # Enrich tokens from the documentable association (extra context)
-  # Uses ||= so linkable tokens take priority (they're more reliable)
-  def enrich_tokens_from_documentable(tokens, doc)
-    documentable = doc.documentable
+  # Resolve a dot-path on a record (e.g., "job_status.name" on a Job)
+  # Same logic as warehouse_types_controller#resolve_dot_path
+  def resolve_dot_path(record, path)
+    return nil if path.blank? || record.nil?
 
-    # Task context - handle SmTask, SmTaskAttachment, etc.
-    if doc.source_type == "task" && tokens[:TaskId].blank?
-      task = if documentable.is_a?(SmTask)
-               documentable
-             elsif documentable.respond_to?(:sm_task) && documentable.sm_task
-               documentable.sm_task
-             end
-
-      if task
-        tokens[:TaskId] ||= task.id
-        tokens[:TaskName] ||= task.name&.parameterize || "task-#{task.id}"
-        status_label = task.status&.titleize || "Unknown"
-        tokens[:TaskStatus] ||= status_label
-        tokens[:Status] ||= status_label
-        if task.respond_to?(:job) && task.job
-          tokens[:JobName] ||= task.job.name.presence || task.job.job_code
-          tokens[:JobCode] ||= task.job.job_code
-        else
-          tokens[:JobName] ||= "Unassigned Job"
-        end
-      end
+    path.to_s.split('.').reduce(record) do |obj, method|
+      return nil if obj.nil?
+      return nil unless obj.respond_to?(method)
+      obj.public_send(method)
     end
-
-    # Job context (||= to not overwrite tokens set by linkable)
-    if documentable.respond_to?(:job) && documentable.job
-      tokens[:JobCode] ||= documentable.job.job_code
-      tokens[:JobName] ||= documentable.job.name.presence
-    elsif documentable.respond_to?(:job_code)
-      tokens[:JobCode] ||= documentable.job_code
-    end
-
-    # Contact context
-    if documentable.respond_to?(:contact) && documentable.contact
-      tokens[:ContactName] ||= documentable.contact.display_name.presence || "Contact-#{documentable.contact.id}"
-    end
-
-    # Corporate company context
-    if documentable.respond_to?(:corporate) && documentable.corporate
-      cc = documentable.corporate
-      tokens[:CompanyCode] ||= cc.company_code
-      tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
-      tokens[:CompanyName] ||= cc.name
-    end
-
-    # User context
-    if doc.source_type == "user" && documentable.respond_to?(:user) && documentable.user
-      tokens[:UserName] ||= documentable.user.name.presence || "User-#{documentable.user.id}"
-    end
-
-    # Case context
-    if documentable.respond_to?(:case_number)
-      tokens[:CaseId] ||= documentable.case_number
-    end
-
-    # Asset context
-    if documentable.is_a?(Asset)
-      tokens[:AssetName] ||= documentable.display_name.presence || documentable.name.presence || "Asset-#{documentable.id}"
-      tokens[:AssetNumber] ||= documentable.asset_number if documentable.asset_number.present?
-      if documentable.corporate
-        cc = documentable.corporate
-        tokens[:CompanyCode] ||= cc.company_code
-        tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
-      end
-    elsif documentable.respond_to?(:asset) && documentable.asset
-      asset = documentable.asset
-      tokens[:AssetName] ||= asset.display_name.presence || asset.name.presence || "Asset-#{asset.id}"
-      tokens[:AssetNumber] ||= asset.asset_number if asset.asset_number.present?
-      if asset.corporate
-        cc = asset.corporate
-        tokens[:CompanyCode] ||= cc.company_code
-        tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
-      end
-    end
+  rescue StandardError
+    nil
   end
 
   # ════════════════════════════════════════════════════════════════════

@@ -1822,24 +1822,22 @@ module Api
             byte_size: uploaded_file["size"]
           )
 
-          # Create signed version as new WarehouseDocument with parent reference
+          # SSoT: WarehouseDocumentCreator handles metadata + callbacks
           version_number = (parent_doc.meta("version_number") || 1).to_i + 1
-          signed_version = WarehouseDocument.create!(
+          signed_version = WarehouseDocumentCreator.create!(
+            filename: signed_filename,
             source_type: parent_doc.source_type,
             linkable: job,
             storage_blob: blob,
-            ui_name: signed_filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
-            original_filename: signed_filename,
+            parent_document: parent_doc,
+            user: current_user,
             metadata: {
-              document_type_id: doc_type_id,
-              document_type: doc_type&.name,
-              version_status: "signed",
-              version_number: version_number,
-              parent_document_id: parent_doc.id,
-              signed_at: Time.current.iso8601,
-              signed_by_id: current_user&.id,
-              signed_by_name: current_user&.name,
-              storage_provider: "sharepoint"
+              "document_type_id" => doc_type_id,
+              "document_type" => doc_type&.name,
+              "version_status" => "signed",
+              "version_number" => version_number,
+              "signed_at" => Time.current.iso8601,
+              "storage_provider" => "sharepoint"
             }
           )
 

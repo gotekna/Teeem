@@ -670,29 +670,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     setShowPhotoOptions(false);
     setError(null);
 
-    // Get the folder path from the current category or initialCategory
+    // SSoT: Get folder path from WarehouseFolder (via selected category)
     const category = selectedSubCategory || selectedCategory;
-    let folderPath = category?.folder_path || "";
-
-    // If no folder path from category, derive from initialCategory
-    if (!folderPath && initialCategory) {
-      // Map tab names to folder paths
-      const folderMap: Record<string, string> = {
-        "site-photo": "06 Photo/01 SITE",
-        "client-photo": "06 Photo/02 Client",
-        "slab-photo": "06 Photo/02 SLAB",
-        "frame-photo": "06 Photo/03 FRAME",
-        "pc-photo": "06 Photo/06 Practical Completion",
-        "enclosed-photo": "06 Photo/04 ENCLOSED",
-        "fixing-photo": "06 Photo/05 FIXING",
-        "supervisor-photo": "06 Photo/07 Supervisor Photos",
-      };
-      folderPath = folderMap[initialCategory] || "06 Photo";
-    }
-
-    if (!folderPath) {
-      folderPath = "06 Photo";
-    }
+    const folderPath = category?.folder_path || "";
 
     // Generate a proper filename based on category and date/time
     const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";

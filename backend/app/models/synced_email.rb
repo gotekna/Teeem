@@ -945,20 +945,17 @@ class SyncedEmail < ApplicationRecord
     source_email.attachment_documents.each do |src_doc|
       next unless src_doc.storage_blob_id
 
-      # Create new WarehouseDocument linking to same blob
-      WarehouseDocument.create!(
+      # Create new WarehouseDocument linking to same blob via standard service
+      WarehouseDocumentCreator.create!(
+        filename: src_doc.ui_name,
+        source_type: "email_attachment",
         documentable: self,
-        storage_blob_id: src_doc.storage_blob_id,
-        ui_name: src_doc.ui_name,
-        original_filename: src_doc.original_filename,
-        source_type: 'email_attachment',
-        tenant_id: tenant_id,
-        content_type: src_doc.content_type,
+        storage_blob: src_doc.storage_blob,
         file_size: src_doc.file_size,
-        metadata: { 'synced_email_id' => id.to_s }
+        content_type: src_doc.content_type,
+        metadata: { "synced_email_id" => id.to_s }
       )
 
-      # Increment blob reference count
       src_doc.storage_blob&.increment!(:reference_count)
       Rails.logger.debug "[SyncedEmail] Linked attachment: #{src_doc.ui_name} → blob #{src_doc.storage_blob_id}"
     end
@@ -1020,17 +1017,15 @@ class SyncedEmail < ApplicationRecord
         content_type: content_type
       )
 
-      # Create WarehouseDocument linking to blob
-      WarehouseDocument.create!(
+      # Create WarehouseDocument via standard service
+      WarehouseDocumentCreator.create!(
+        filename: filename,
+        source_type: "email_attachment",
         documentable: self,
-        storage_blob_id: blob.id,
-        ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
-        original_filename: filename,
-        source_type: 'email_attachment',
-        tenant_id: tenant_id,
-        content_type: content_type || blob.content_type,
+        storage_blob: blob,
         file_size: byte_size.positive? ? byte_size : blob.file_size,
-        metadata: { 'synced_email_id' => id.to_s, 'content_id' => content_id }.compact
+        content_type: content_type || blob.content_type,
+        metadata: { "synced_email_id" => id.to_s, "content_id" => content_id }.compact
       )
 
       blob.increment!(:reference_count)

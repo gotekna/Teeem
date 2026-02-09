@@ -439,30 +439,28 @@ class EmailStorageUploadService
     # Skip if warehouse_document already exists (fast path)
     return if email.warehouse_document.present?
 
-    # SSoT: Use find_or_create_by! to handle race conditions
-    # Unique constraint is on (documentable_type, documentable_id)
+    # SSoT: Create WarehouseDocument via standard service
+    # Use find_or_create_by! for race condition handling (parallel email processing)
     doc = WarehouseDocument.find_or_create_by!(
       documentable_type: "SyncedEmail",
       documentable_id: email.id
     ) do |d|
       d.storage_blob = blob
       d.source_type = "email"
-      d.ui_name = email.subject.presence || "No Subject"  # SSoT: display_name renamed to ui_name (Feb 2026)
+      d.ui_name = email.subject.presence || "No Subject"
       d.original_filename = "#{email.id}.eml"
-      d.tenant_id = @tenant.id  # SSoT: Always set tenant for multi-tenant support
+      d.tenant_id = @tenant.id
       d.metadata = {
-        subject: email.subject,
-        from_email: email.from_email,
-        received_at: email.received_at&.iso8601,
-        mailbox: email.mailbox_owner_email
+        "subject" => email.subject,
+        "from_email" => email.from_email,
+        "received_at" => email.received_at&.iso8601,
+        "mailbox" => email.mailbox_owner_email
       }
     end
 
-    # Only increment reference count if we created a new document
-    # previously_new_record? returns true if this record was just created by find_or_create_by!
     if doc.previously_new_record?
       blob.increment!(:reference_count)
-      Rails.logger.debug "[EmailUpload] Created WarehouseDocument for email #{email.id} in folder: #{email.virtual_folder_path}"
+      Rails.logger.debug "[EmailUpload] Created WarehouseDocument for email #{email.id}"
     else
       Rails.logger.debug "[EmailUpload] WarehouseDocument already exists for email #{email.id}"
     end
