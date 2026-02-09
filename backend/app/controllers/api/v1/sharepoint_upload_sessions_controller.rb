@@ -85,8 +85,21 @@ module Api
           if folder_path.present? && job_id.present?
             job = Job.find(job_id)
 
-            # SSoT: Strip {{JobCode}} placeholder if present
-            clean_path = folder_path.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")
+            # FRC (Feb 2026): folder_path from WarehouseFolder is full_folder_path which includes
+            # the warehouse_type template prefix (e.g., "Jobs/{{JobCode}}/Photo/Site").
+            # Since find_job_folder already navigates to the job's root folder, we need just the
+            # relative path WITHIN the job folder (e.g., "Photo/Site").
+            if folder_path.match?(/\{\{/)
+              # New-style path from WarehouseFolder - strip warehouse_type template prefix
+              warehouse_type = WarehouseType.find_by(code: "job")
+              prefix_segment_count = warehouse_type&.folder_path_template&.split('/')&.length || 0
+              segments = folder_path.split('/')
+              clean_path = segments.drop(prefix_segment_count).join('/')
+            else
+              # Legacy hardcoded path (e.g., "06 Photo/01 SITE") - use as-is
+              clean_path = folder_path
+            end
+            clean_path = clean_path.gsub(/^\/+/, "")
 
             # Find or create job folder structure
             job_folder = client.find_job_folder(job)
