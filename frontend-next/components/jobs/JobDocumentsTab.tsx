@@ -723,6 +723,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         jobId,
         folderPath,
         filename: newFilename,
+        warehouseFolderId: category?.id,
         onProgress: (progress: UploadProgress) => {
           // Could add progress UI here in the future
           console.log(`[PhotoUpload] ${progress.status}: ${progress.percentage}%`);
