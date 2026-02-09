@@ -19,6 +19,23 @@ class OrgEmailSyncJob < ApplicationJob
   retry_on Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED, Faraday::TimeoutError,
            wait: :polynomially_longer, attempts: 2
 
+  # FRC (Feb 2026): Handle dead tokens BEFORE generic discard
+  # Root cause: discard_on StandardError was silently swallowing DeadTokenError,
+  # so emails stopped syncing for 5 days with no visible error. The UI showed "Connected"
+  # because nothing updated the credential status. Now we catch DeadTokenError specifically,
+  # mark the credential as dead, and log loudly so health monitors can detect it.
+  discard_on MicrosoftAppGraphClient::DeadTokenError do |job, error|
+    credential_id = job.arguments[1]&.fetch(:credential_id, nil)
+    if credential_id
+      credential = MicrosoftCredential.find_by(id: credential_id)
+      if credential
+        credential.mark_dead!(error.message)
+        Rails.logger.error "[OrgEmailSync] DEAD TOKEN - Marked credential #{credential.name || credential.id} as dead: #{error.message}"
+      end
+    end
+    Rails.logger.error "[OrgEmailSync] DEAD TOKEN - Email sync disabled until reconnection: #{error.message}"
+  end
+
   # Discard other errors - next scheduled run will try again
   discard_on StandardError
 

@@ -128,7 +128,7 @@ module Api
         if task_ids.any?
           latest_assignment_logs = TaskActivityLog
             .where(sm_task_id: task_ids, activity_type: "assignment_changed")
-            .order(created_at: :desc)
+            .order(Arel.sql("sm_task_id, created_at DESC"))
             .select("DISTINCT ON (sm_task_id) sm_task_id, user_id")
             .includes(:user)
 
