@@ -371,7 +371,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     site_id = params[:site_id]
     drive_id = params[:drive_id]
     item_id = params[:item_id]
-    storage_path_param = params[:sharepoint_path] || params[:storage_path]
+    storage_path_param = params[:storage_path]
 
     if [ site_id, drive_id, item_id ].any?(&:blank?)
       render json: {
@@ -431,10 +431,10 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       return
     end
 
-    unless @document_template.sharepoint_linked?
+    unless @document_template.storage_linked?
       render json: {
         success: false,
-        errors: [ "Template not linked to SharePoint file" ]
+        errors: [ "Template not linked to storage file" ]
       }, status: :unprocessable_entity
       return
     end
@@ -684,10 +684,8 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       output_naming_pattern: template.output_naming_pattern,
       is_active: template.is_active,
       sort_order: template.sort_order,
-      sharepoint_linked: template.storage_linked?,
+      storage_linked: template.storage_linked?,
       storage_path: template.storage_path,
-      # Legacy key for backwards compatibility
-      sharepoint_path: template.storage_path,
       # New unified template fields
       template_type: template.template_type,
       local_template_path: template.local_template_path,
@@ -704,10 +702,6 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       json[:storage_site_id] = template.storage_site_id
       json[:storage_drive_id] = template.storage_drive_id
       json[:storage_item_id] = template.storage_item_id
-      # Legacy keys for backwards compatibility
-      json[:sharepoint_site_id] = template.storage_site_id
-      json[:sharepoint_drive_id] = template.storage_drive_id
-      json[:sharepoint_item_id] = template.storage_item_id
     end
 
     json

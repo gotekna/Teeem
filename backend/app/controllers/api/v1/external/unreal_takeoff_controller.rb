@@ -56,8 +56,8 @@ module Api
               revision: revision&.revision,
               revision_date: revision&.revision_date,
               is_on_issue: revision&.is_on_issue,
-              sharepoint_file_id: revision&.storage_reference,  # Keep JSON key for backwards compat
-              sharepoint_web_url: revision&.storage_web_url,
+              storage_file_id: revision&.storage_reference,
+              storage_web_url: revision&.storage_web_url,
               file_name: revision&.file_name,
               file_size: revision&.file_size,
               thumbnail_base64: revision&.micro_thumbnail_base64,

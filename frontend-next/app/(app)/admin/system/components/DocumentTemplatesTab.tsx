@@ -53,7 +53,7 @@ interface LegacyTemplate {
   is_legal_format: boolean;
   legal_source: string | null;
   is_active: boolean;
-  sharepoint_linked: boolean;
+  storage_linked: boolean;
   local_template_path: string | null;
   is_legacy?: boolean;
   is_deprecated?: boolean;
@@ -394,7 +394,7 @@ export function DocumentTemplatesContent({ basePath = DEFAULT_BASE_PATH, subTab 
                         </div>
                       </div>
                       <Badge variant="outline" className="text-xs text-muted-foreground">
-                        {template.sharepoint_linked ? "Cloud Storage" : "Not Linked"}
+                        {template.storage_linked ? "Cloud Storage" : "Not Linked"}
                       </Badge>
                     </div>
                   ))}

@@ -117,7 +117,7 @@ class BulkEmailSyncJob < ApplicationJob
         "attachments_processed" => 0,
         "attachments_uploaded" => 0,
         "attachments_deduplicated" => 0,
-        "emails_uploaded_to_sharepoint" => 0,
+        "emails_uploaded_to_storage" => 0,
         "last_processed_email_id" => nil,
         "last_processed_attachment_email_id" => nil,
         "last_uploaded_email_id" => nil,
@@ -339,7 +339,7 @@ class BulkEmailSyncJob < ApplicationJob
       begin
         upload_email_to_storage(email, client)
         @progress["last_uploaded_email_id"] = email.id
-        @progress["emails_uploaded_to_sharepoint"] += 1
+        @progress["emails_uploaded_to_storage"] += 1
         processed += 1
 
         # Checkpoint periodically
@@ -356,7 +356,7 @@ class BulkEmailSyncJob < ApplicationJob
     end
 
     save_progress!
-    Rails.logger.info "[BulkSync] Phase 3 complete: #{@progress['emails_uploaded_to_sharepoint']} emails uploaded"
+    Rails.logger.info "[BulkSync] Phase 3 complete: #{@progress['emails_uploaded_to_storage']} emails uploaded"
   end
 
   def upload_email_to_storage(email, client)
@@ -419,7 +419,7 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "Attachments processed: #{@progress['attachments_processed']}"
     Rails.logger.info "  - Uploaded (new): #{@progress['attachments_uploaded']}"
     Rails.logger.info "  - Deduplicated: #{@progress['attachments_deduplicated']}"
-    Rails.logger.info "Emails uploaded to SharePoint: #{@progress['emails_uploaded_to_sharepoint']}"
+    Rails.logger.info "Emails uploaded to storage: #{@progress['emails_uploaded_to_storage']}"
     Rails.logger.info "Errors: #{@progress['errors'].count}"
     Rails.logger.info "=" * 60
   end

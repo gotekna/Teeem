@@ -67,7 +67,7 @@ module Api
             contact: {}, # Include contact with ABN verification fields
             company_group: {} # Include company group for display
           },
-          methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :sharepoint_folder_url, :has_consolidated_children? ]
+          methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :storage_folder_url, :has_consolidated_children? ]
           # Note: total_asset_value removed - depends on assets table
         )
 
@@ -621,10 +621,10 @@ module Api
           { connected: false }
         end
 
-        # SharePoint folder path
-        sharepoint_stats = {
-          folder_url: @company.sharepoint_folder_url,
-          has_folder: @company.sharepoint_folder_url.present?
+        # Storage folder path
+        storage_stats = {
+          folder_url: @company.storage_folder_url,
+          has_folder: @company.storage_folder_url.present?
         }
 
         render json: {
@@ -639,7 +639,7 @@ module Api
             document_types: doc_type_stats,
             onedrive: onedrive_stats,
             xero: xero_stats,
-            sharepoint: sharepoint_stats,
+            storage: storage_stats,
             file_extensions: {},
             last_updated: Time.current
           }
@@ -686,19 +686,19 @@ module Api
           action: nil
         }
 
-        # 3. SharePoint/OneDrive Connection
-        has_sharepoint = @company.sharepoint_folder_url.present?
+        # 3. Storage Connection
+        has_storage_folder = @company.storage_folder_url.present?
 
         checks << {
-          id: "sharepoint_connected",
-          name: "SharePoint Connected",
+          id: "storage_connected",
+          name: "Storage Connected",
           category: "integrations",
-          description: "Company folder linked to SharePoint",
-          value: has_sharepoint ? 1 : 0,
+          description: "Company folder linked to storage",
+          value: has_storage_folder ? 1 : 0,
           total: 1,
-          percentage: has_sharepoint ? 100 : 0,
-          status: has_sharepoint ? "pass" : "fail",
-          action: has_sharepoint ? nil : "Connect company to SharePoint folder",
+          percentage: has_storage_folder ? 100 : 0,
+          status: has_storage_folder ? "pass" : "fail",
+          action: has_storage_folder ? nil : "Connect company to storage folder",
           extra: { synced_documents: 0 }
         }
 

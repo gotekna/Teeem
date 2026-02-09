@@ -293,8 +293,8 @@ module Api
             } : nil,
             paid_at: request.paid_at,
             has_invoice: request.storage_reference.present?,
-            sharepoint_file_id: request.storage_reference,  # Keep JSON key for backwards compat
-            proof_photos_sharepoint_ids: request.proof_photos_storage_ids || []
+            storage_file_id: request.storage_reference,
+            proof_photos_storage_ids: request.proof_photo_blob_ids || []
           }
         end
 

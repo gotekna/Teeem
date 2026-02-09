@@ -813,8 +813,6 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
   },
 ];
 
-// Backwards compatibility alias
-export const SHAREPOINT_PLACEHOLDERS = STORAGE_PLACEHOLDERS;
 
 // =============================================================================
 // WAREHOUSE-TYPE-SPECIFIC PLACEHOLDERS (For base folder token filtering)

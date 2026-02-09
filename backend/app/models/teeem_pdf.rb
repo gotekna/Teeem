@@ -77,14 +77,14 @@ class TeeemPdf < ApplicationRecord
   end
 
   # SSoT: Folder path for File Warehouse Doc Tree
-  # Job-attached: "Jobs/{JobCode}/PDF", Standalone: "Warehousing/PDF/{UserName}/{Year}"
+  # Job-attached: "Jobs/{JobCode}/TeeemPDF", Standalone: "Warehousing/TeeemPDF/{UserName}/{Year}"
   def warehouse_folder_path
     if job.present?
-      "Jobs/#{job.job_code}/PDF"
+      "Jobs/#{job.job_code}/TeeemPDF"
     else
       user_name = user&.name || "Unknown"
       year = (created_at || Time.current).year
-      "Warehousing/PDF/#{user_name}/#{year}"
+      "Warehousing/TeeemPDF/#{user_name}/#{year}"
     end
   end
 

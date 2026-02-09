@@ -1,5 +1,5 @@
 # Revision history for job plans
-# Tracks each revision with SharePoint file links
+# Tracks each revision with storage file links
 #
 # MASTERPIECE: Counter cache callbacks
 # - Updates job_plans.revisions_count on create/destroy

@@ -27,9 +27,8 @@ interface CompanyDocument {
   financial_years?: number[] | string;
   source?: string;
   company?: { id: number; name: string; code: string };
-  // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
   storage_item_id?: string;
-  sharepoint_file_id?: string;
+  storage_file_id?: string;
   // Confidence scores (0-100)
   ocr_confidence?: number;
   ocr_method?: string; // 'text_extraction' | 'vision'

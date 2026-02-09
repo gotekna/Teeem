@@ -128,8 +128,6 @@ class Api::V1::ChatMessagesController < ApplicationController
       # SSoT: Use has_file? (storage_blob based) - ActiveStorage was removed (Jan 2026)
       if msg.has_file?
         json[:has_file] = true
-        # SSoT: Use storage_reference, keep key for backwards compat
-        json[:sharepoint_file_id] = msg.storage_reference
         json[:storage_reference] = msg.storage_reference
         json[:file_name] = msg.file_name
       end

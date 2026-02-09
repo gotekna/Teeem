@@ -46,10 +46,10 @@ namespace :warehouse_folders do
       374 => "Shared/Templates/Bank Statements",  # Bank Statements
       375 => "Shared/Templates/Contracts",        # Contracts
       376 => "Shared/Pricebook Photos", # Pricebook Photos
-      377 => "Shared/Excel",            # Excel Documents
-      378 => "Shared/Word",             # Word Documents
-      379 => "Shared/PowerPoint",       # PowerPoint Documents
-      380 => "Shared/PDF",              # PDF Documents
+      377 => "Shared/TeeemXL",           # TeeemXL Spreadsheets
+      378 => "Shared/TeeemWord",        # TeeemWord Documents
+      379 => "Shared/TeeemPowerPoint",  # TeeemPowerPoint Presentations
+      380 => "Shared/TeeemPDF",         # TeeemPDF Documents
       381 => "System/ActiveStorage",    # Active Storage
       167 => "Shared/Revit",            # Revit files
     }

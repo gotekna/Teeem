@@ -102,10 +102,10 @@ class PlanCombinerService
     revision = all_plans_record.current_revision
 
     if revision
-      # Update existing revision - support both SharePoint and S3/Wasabi results
+      # Update existing revision - support all storage providers
       revision.update!(
-        sharepoint_file_id: upload_result[:id],
-        sharepoint_web_url: upload_result[:web_url] || upload_result[:url],
+        storage_file_id: upload_result[:id],
+        storage_web_url: upload_result[:web_url] || upload_result[:url],
         storage_path: upload_result[:path],
         file_name: filename
       )
@@ -114,8 +114,8 @@ class PlanCombinerService
       revision = all_plans_record.revisions.create!(
         revision: "A",
         revision_date: Date.current,
-        sharepoint_file_id: upload_result[:id],
-        sharepoint_web_url: upload_result[:web_url] || upload_result[:url],
+        storage_file_id: upload_result[:id],
+        storage_web_url: upload_result[:web_url] || upload_result[:url],
         storage_path: upload_result[:path],
         file_name: filename
       )
