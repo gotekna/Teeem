@@ -143,7 +143,7 @@ class UpdateWarehouseDocumentNamesJob < ApplicationJob
     if wfdt&.document_type
       context[:doc_type_name] ||= wfdt.document_type.name
       context[:doc_type_code] ||= wfdt.document_type.abbreviation || wfdt.document_type.try(:code)
-      context[:category] ||= wfdt.document_type.category
+      context[:category] ||= wfdt.document_type.try(:category)
     end
 
     # Auto-numbering
