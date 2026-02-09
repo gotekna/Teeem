@@ -420,7 +420,7 @@ class SyncedEmail < ApplicationRecord
   # - {{ReceivedTime}} - time received HH-MM (e.g., 14-30)
   #
   # Used for:
-  # - Setting WarehouseDocument.folder for database-driven folder rendering
+  # - Setting WarehouseDocument.folder_path for database-driven folder rendering
   # - Instant reorganization (change mailbox_owner_email = instant move)
   #
   # Physical storage stays at Blobs/{hash}.eml (never moves)

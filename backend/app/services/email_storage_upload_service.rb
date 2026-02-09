@@ -5,7 +5,7 @@
 # Architecture (Jan 2026):
 #   - Content-addressed storage: Files stored at Blobs/{hash-prefix}/{hash}.eml
 #   - Deduplication: Same email content = same StorageBlob (saves space)
-#   - Virtual folders: WarehouseDocument.folder stores UI path (e.g., "inbox@tekna.com.au/2026/01")
+#   - Virtual folders: WarehouseDocument.folder_path stores UI path (e.g., "inbox@tekna.com.au/2026/01")
 #   - Files NEVER move in S3 - only virtual folder paths change in database
 #
 # Provider-agnostic: Uses WarehouseProvider to determine Wasabi/S3 vs SharePoint
@@ -332,7 +332,7 @@ class EmailStorageUploadService
 
     # SSoT: Use StorageBlob for content-addressed storage (Jan 2026 fix)
     # Files stored at Blobs/{hash-prefix}/{hash}.eml for deduplication
-    # Virtual folders in WarehouseDocument.folder enable UI organization
+    # Virtual folders in WarehouseDocument.folder_path enable UI organization
     blob = ActsAsTenant.with_tenant(@tenant) do
       StorageBlob.find_or_create_for_content!(
         mime_content,
@@ -354,7 +354,7 @@ class EmailStorageUploadService
     # SSoT: Create WarehouseDocument for virtual folder rendering (Phase 4)
     # This enables the File Warehouse to show emails in folder structure
     # Virtual folder path (e.g., "inbox@tekna.com.au/Email Body/2026/01")
-    # is stored in WarehouseDocument.folder - files never move in S3
+    # is stored in WarehouseDocument.folder_path - files never move in S3
     create_warehouse_document_for_email(email, blob)
 
     Rails.logger.info "[EmailUpload] Email #{email_id} - SUCCESS: #{blob.storage_path}"

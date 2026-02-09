@@ -372,7 +372,7 @@ class WarehouseProvider < ApplicationRecord
   end
 
   # SSoT: Resolve VIRTUAL folder path (without root_path prefix)
-  # Use this for WarehouseDocument.folder - the virtual path displayed in File Warehouse UI
+  # Use this for WarehouseDocument.folder_path - the virtual path displayed in File Warehouse UI
   # Use resolve_path() for actual storage operations that need the full path
   #
   # @param warehouse_type [String, Symbol] The warehouse type (task, job, email, etc.)
@@ -891,7 +891,7 @@ class WarehouseProvider < ApplicationRecord
 
   # SSoT: Check if warehouse type renders from database (virtual) vs S3 (physical)
   # Virtual warehouses:
-  # - Folder tree renders from WarehouseDocument.folder (database)
+  # - Folder tree renders from WarehouseDocument.folder_path (database)
   # - Reorganization is instant (bulk DB update)
   # - Physical storage stays at Blobs/{hash}.ext (never moves)
   #

@@ -473,7 +473,7 @@ Rails.application.routes.draw do
       # Queries WarehouseDocument table with filters: source_type, folder, search
       get "documents/warehouse", to: "documents#warehouse"
       # Phase 4: Virtual File Warehouse - Database-driven folder tree
-      # Returns folder tree from WarehouseDocument.folder instead of S3
+      # Returns folder tree from WarehouseDocument.folder_path instead of S3
       # Params: scope (email, task, etc.), path (optional filter)
       get "documents/virtual_tree", to: "documents#virtual_tree"
       # Phase 5: Universal Live Folder Tree - computed from DB relationships
