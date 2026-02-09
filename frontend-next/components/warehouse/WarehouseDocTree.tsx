@@ -80,14 +80,14 @@ export function WarehouseDocTree({
   const [folderCache, setFolderCache] = useState<Map<string, FolderData>>(new Map());
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
 
-  // Fetch folder contents from s3_folders endpoint
+  // Fetch folder contents from browse_folders endpoint
   const fetchFolder = useCallback(async (path: string) => {
     if (folderCache.has(path)) return;
 
     setLoadingPaths((prev) => new Set(prev).add(path));
     try {
       const res = await api.get<{ success: boolean; data: FolderData }>(
-        `/api/v1/documents/s3_folders?path=${encodeURIComponent(path)}`
+        `/api/v1/documents/browse_folders?path=${encodeURIComponent(path)}`
       );
       if (res?.data) {
         setFolderCache((prev) => {

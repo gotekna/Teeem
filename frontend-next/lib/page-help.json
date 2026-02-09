@@ -980,9 +980,15 @@
     },
     "/settings/operations": {
       "title": "Operations Settings",
-      "description": "Configure operational settings like schedule master and contact types.",
-      "tips": ["Schedule Master settings affect task scheduling", "Contact types help organize contacts", "Meeting types standardize meeting records"],
-      "tasks": ["Configure Schedule Master", "Manage contact types", "Set up meeting types", "Configure checklist templates"]
+      "description": "Configure operational settings like schedule master, contact types, and PO templates.",
+      "tips": ["Schedule Master settings affect task scheduling", "Contact types help organize contacts", "Meeting types standardize meeting records", "PO Templates let you stamp all POs onto a new job in one click"],
+      "tasks": ["Configure Schedule Master", "Manage contact types", "Set up meeting types", "Configure checklist templates", "Create PO template packs"]
+    },
+    "/settings/operations/po-templates": {
+      "title": "PO Template Packs",
+      "description": "Define template packs (e.g., Standard House, Townhouse) to stamp purchase orders onto new jobs in one click.",
+      "tips": ["Create packs from existing jobs using 'Create from Job'", "Each pack contains multiple PO definitions with line items", "Templates link to SM tasks and suppliers for automatic matching", "Duplicate a pack to create variations (e.g., 2-storey house)"],
+      "tasks": ["Create a template pack", "Create pack from existing job", "Edit pack items and line items", "Duplicate a pack", "Apply template to a job"]
     },
     "/settings/connections": {
       "title": "Connections",

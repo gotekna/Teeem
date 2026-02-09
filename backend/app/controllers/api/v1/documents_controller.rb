@@ -552,19 +552,18 @@ module Api
         end
       end
 
-      # GET /api/v1/documents/s3_folders
-      # SSoT: OneDrive-like folder browser - lists actual S3 folders and files
-      # This mirrors the exact Wasabi folder structure for the Documents page
-      # Used for desktop sync compatibility - must match actual storage structure
+      # GET /api/v1/documents/browse_folders
+      # SSoT: Virtual folder browser - builds tree from WarehouseDocument.folder_path
+      # All folders are virtual (computed from folder_path column via split_part GROUP BY)
       #
       # Params:
-      #   path: The S3 path to list (e.g., "Jobs", "Jobs/J49", "Corporate/Group A")
-      #         Empty/nil returns root folders from WarehouseProvider.SCOPE_FOLDERS
+      #   path: The folder path to list (e.g., "Jobs", "Jobs/J49", "Corporate/Group A")
+      #         Empty/nil returns root folders from WarehouseFolder config
       #
       # Returns:
-      #   folders: Array of { name, path } for subfolders
+      #   folders: Array of { name, path, count } for subfolders
       #   files: Array of { name, path, size, url, content_type } for files
-      def s3_folders
+      def browse_folders
         path = params[:path].to_s.strip
         path = path.gsub(%r{^/+|/+$}, "") # Remove leading/trailing slashes
 

@@ -410,7 +410,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
           folders: Array<{ name: string; path: string }>;
           files: Array<{ name: string; path: string; size: number; content_type: string; last_modified?: string; url?: string; id?: number; warehouse_document_id?: number }>;
           count: { folders: number; files: number; total: number };
-        }>(`/api/v1/documents/s3_folders?path=${encodeURIComponent(path)}`);
+        }>(`/api/v1/documents/browse_folders?path=${encodeURIComponent(path)}`);
 
         if (response?.success) {
           if (response.loading) {
