@@ -220,16 +220,24 @@ module Api
           nil
         end
 
-        files = file_docs.map do |wd|
+        files = file_docs.filter_map do |wd|
           blob = wd.storage_blob
+          # download_filename calls SendNameResolver which accesses documentable —
+          # some legacy records have stale polymorphic types (e.g. "JobDocument")
+          safe_filename = begin
+            wd.download_filename
+          rescue NameError => e
+            Rails.logger.debug "[WarehouseTypes] Stale documentable_type for doc #{wd.id}: #{e.message}"
+            wd.display_name.presence || wd.original_filename.presence || "document-#{wd.id}"
+          end
           download_url = if blob&.storage_path.present? && provider
-            provider.download_url(blob.storage_path, expires_in: 3600, filename: wd.download_filename) rescue nil
+            provider.download_url(blob.storage_path, expires_in: 3600, filename: safe_filename) rescue nil
           end
 
           {
             id: wd.id,
             uiName: wd.ui_name,
-            sendName: wd.download_filename,
+            sendName: safe_filename,
             type: wd.source_type || "document",
             mimeType: wd.content_type || blob&.content_type || "application/octet-stream",
             fileSize: wd.file_size || blob&.file_size || 0,

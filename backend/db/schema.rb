@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_09_200004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1416,40 +1416,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
     t.index ["contact_id", "company_group_id", "membership_type"], name: "idx_contact_group_membership_unique", unique: true
     t.index ["contact_id"], name: "index_contact_company_group_memberships_on_contact_id"
     t.index ["tenant_id"], name: "index_contact_company_group_memberships_on_tenant_id"
-  end
-
-  create_table "contact_documents", force: :cascade do |t|
-    t.bigint "contact_id", null: false
-    t.bigint "document_type_id"
-    t.bigint "uploaded_by_id"
-    t.string "file_name", null: false
-    t.string "file_extension", limit: 10
-    t.integer "file_size"
-    t.string "content_type"
-    t.string "folder"
-    t.string "storage_path"
-    t.string "storage_item_id"
-    t.string "storage_provider", limit: 20
-    t.string "storage_file_id"
-    t.string "web_url"
-    t.string "migration_status", limit: 20
-    t.text "migration_error"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "source", default: "manual"
-    t.string "external_id"
-    t.bigint "storage_blob_id"
-    t.index ["contact_id"], name: "index_contact_documents_on_contact_id"
-    t.index ["document_type_id"], name: "index_contact_documents_on_document_type_id"
-    t.index ["folder"], name: "index_contact_documents_on_folder"
-    t.index ["migration_status"], name: "index_contact_documents_on_migration_status"
-    t.index ["source", "external_id"], name: "index_contact_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
-    t.index ["source"], name: "index_contact_documents_on_source"
-    t.index ["storage_blob_id"], name: "index_contact_documents_on_storage_blob_id"
-    t.index ["storage_provider"], name: "index_contact_documents_on_storage_provider"
-    t.index ["uploaded_by_id"], name: "index_contact_documents_on_uploaded_by_id"
   end
 
   create_table "contact_emails", force: :cascade do |t|
@@ -10916,10 +10882,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
   add_foreign_key "contact_company_group_memberships", "contacts"
   add_foreign_key "contact_company_group_memberships", "corporates", column: "company_id"
   add_foreign_key "contact_company_group_memberships", "tenants"
-  add_foreign_key "contact_documents", "contacts"
-  add_foreign_key "contact_documents", "document_types"
-  add_foreign_key "contact_documents", "storage_blobs"
-  add_foreign_key "contact_documents", "users", column: "uploaded_by_id"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"

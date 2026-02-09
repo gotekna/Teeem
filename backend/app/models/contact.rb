@@ -111,11 +111,6 @@ class Contact < ApplicationRecord
   has_many :shareholding_companies, through: :corporate_shareholdings, source: :corporate
   has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy
 
-  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
-
-  # SSoT: Contact documents (Xero invoices, bills, etc.)
-  has_many :contact_documents, dependent: :destroy
-
   # SSoT: People documents (ID, licenses, personal documents for people scope)
   has_many :people_documents, dependent: :destroy
 
@@ -2130,7 +2125,7 @@ class Contact < ApplicationRecord
     end
 
     # Warning: Has documents
-    doc_count = contact_documents.count rescue 0
+    doc_count = WarehouseDocument.where(linkable: self).count rescue 0
     if doc_count > 0
       result[:warnings] << {
         type: "has_documents",
