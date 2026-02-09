@@ -677,12 +677,21 @@ class TenantConfigSyncService
       Rails.logger.info "[ConfigSync] Deleted #{deleted_count} existing price histories before import"
     end
 
+    # FRC (Feb 2026): Build record index ONCE before loop, not per-record.
+    # Previously import_single_record called model.all.to_a + build_record_index
+    # on every iteration — loading the entire table N times (5,163x for price histories).
+    existing_records = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
+    existing_index = build_record_index(existing_records, config[:match_fields])
+
     # Import each record
     source_records.each do |source_record|
       begin
-        result = import_single_record(source_record, config, model)
+        result = import_single_record(source_record, config, model, existing_index)
         if result[:imported]
           imported << result[:record]
+          # Update index with newly imported record so subsequent matches work
+          key = record_sync_key(result[:record]) || legacy_match_key(result[:record], config[:match_fields])
+          existing_index[key] = result[:record] if key.present?
         else
           skipped << { name: source_record.send(config[:name_field]), reason: result[:reason] }
         end
@@ -755,10 +764,15 @@ class TenantConfigSyncService
         end
       end
 
-      # Delete existing price histories for these combinations
+      # FRC (Feb 2026): Batch delete instead of one-by-one for performance.
+      # Group by supplier_id to reduce number of queries.
+      unique_conditions = delete_conditions.uniq
+      return 0 if unique_conditions.empty?
+
       deleted = 0
-      delete_conditions.uniq.each do |condition|
-        deleted += PriceHistory.where(condition).delete_all
+      unique_conditions.group_by { |c| c[:supplier_id] }.each do |supplier_id, conditions|
+        item_ids = conditions.map { |c| c[:pricebook_item_id] }
+        deleted += PriceHistory.where(supplier_id: supplier_id, pricebook_item_id: item_ids).delete_all
       end
       deleted
     end
@@ -1041,10 +1055,14 @@ class TenantConfigSyncService
     json
   end
 
-  def import_single_record(source_record, config, model)
+  def import_single_record(source_record, config, model, existing_index = nil)
     # Check if already exists in tenant (master) - sync_key primary, legacy fallback
-    tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
-    existing_index = build_record_index(tenant_all, config[:match_fields])
+    # FRC (Feb 2026): Accept pre-built index to avoid N+1 (loading entire table per record).
+    # Callers in import_from_tenant build the index once before the loop.
+    unless existing_index
+      tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
+      existing_index = build_record_index(tenant_all, config[:match_fields])
+    end
     existing = find_match(source_record, existing_index, config[:match_fields])
 
     if existing

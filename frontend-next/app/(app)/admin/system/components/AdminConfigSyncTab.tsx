@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { RefreshCw, Upload, Building2, Check, AlertCircle, ChevronDown, ChevronUp, Eye, Star, CircleDot, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { API_TIMEOUT_HEAVY_SYNC } from "@/lib/constants/timeout-constants";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -352,7 +354,7 @@ export function AdminConfigSyncTab() {
         table: selectedTable,
         record_ids: Array.from(selectedRecords),
         replace_existing_prices: selectedTable === "price_histories" && replaceExistingPrices,
-      });
+      }, { timeout: API_TIMEOUT_HEAVY_SYNC });
 
       if (response?.success) {
         setImportResult({
@@ -444,6 +446,28 @@ export function AdminConfigSyncTab() {
     return records.filter((r) => r.entity_type === entityTypeFilter);
   }, [records, selectedTable, entityTypeFilter]);
 
+  // ComboboxDropdown items for table and tenant selectors
+  type TableComboItem = ComboboxItem & { description: string };
+  const tableComboItems: TableComboItem[] = React.useMemo(() =>
+    tables.map((t) => ({
+      id: t.key,
+      label: t.model.replace(/([A-Z])/g, " $1").trim(),
+      description: t.description,
+      searchText: t.description,
+    })),
+    [tables]
+  );
+  const selectedTableItem = tableComboItems.find((t) => t.id === selectedTable);
+
+  const tenantComboItems = React.useMemo(() =>
+    tenants.map((t) => ({
+      id: t.id.toString(),
+      label: `${t.name} (${t.slug})`,
+    })),
+    [tenants]
+  );
+  const selectedTenantItem = tenantComboItems.find((t) => t.id === selectedTenant);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -511,39 +535,36 @@ export function AdminConfigSyncTab() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-4">
-            <Select value={selectedTable} onValueChange={setSelectedTable}>
-              <SelectTrigger className="w-full max-w-md">
-                <SelectValue placeholder="Choose a configuration table..." />
-              </SelectTrigger>
-              <SelectContent className="max-h-[400px]" position="popper" sideOffset={4}>
-                {tables.map((table) => (
-                  <SelectItem key={table.key} value={table.key}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">
-                        {table.model.replace(/([A-Z])/g, " $1").trim()}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {table.description}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ComboboxDropdown<TableComboItem>
+              items={tableComboItems}
+              selectedItem={selectedTableItem}
+              onSelect={(item) => setSelectedTable(item.id)}
+              placeholder="Choose a configuration table..."
+              searchPlaceholder="Search tables..."
+              clearable
+              onClear={() => setSelectedTable("")}
+              renderListItem={({ item, isChecked }) => (
+                <div className="flex flex-col">
+                  <span className="font-medium">{item.label}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {item.description}
+                  </span>
+                </div>
+              )}
+              className="w-full max-w-md"
+            />
 
             {viewMode === "browse" && (
-              <Select value={selectedTenant} onValueChange={setSelectedTenant}>
-                <SelectTrigger className="w-full max-w-md">
-                  <SelectValue placeholder="Choose a tenant to import from..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {tenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id.toString()}>
-                      {tenant.name} ({tenant.slug})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ComboboxDropdown
+                items={tenantComboItems}
+                selectedItem={selectedTenantItem}
+                onSelect={(item) => setSelectedTenant(item.id)}
+                placeholder="Choose a tenant to import from..."
+                searchPlaceholder="Search tenants..."
+                clearable
+                onClear={() => setSelectedTenant("")}
+                className="w-full max-w-md"
+              />
             )}
 
             {/* Entity Type Filter - only show for contacts table in browse/manage mode */}

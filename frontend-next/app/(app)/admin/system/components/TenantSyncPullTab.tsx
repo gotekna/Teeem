@@ -15,13 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { Download, Check, Star, CircleDot, AlertCircle, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -226,6 +220,19 @@ export function TenantSyncPullTab() {
   const choiceCount = records.filter((r) => r.sync_mode === "choice").length;
   const missingCompulsory = records.filter((r) => r.sync_mode === "compulsory" && !r.exists_in_tenant).length;
 
+  // ComboboxDropdown items for table selector
+  type TableComboItem = ComboboxItem & { description: string };
+  const tableComboItems: TableComboItem[] = React.useMemo(() =>
+    tables.map((t) => ({
+      id: t.key,
+      label: t.model.replace(/([A-Z])/g, " $1").trim(),
+      description: t.description,
+      searchText: t.description,
+    })),
+    [tables]
+  );
+  const selectedTableItem = tableComboItems.find((t) => t.id === selectedTable);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -261,25 +268,24 @@ export function TenantSyncPullTab() {
           <CardTitle className="text-lg">Select Configuration Type</CardTitle>
         </CardHeader>
         <CardContent>
-          <Select value={selectedTable} onValueChange={setSelectedTable}>
-            <SelectTrigger className="w-full max-w-md">
-              <SelectValue placeholder="Choose a configuration to sync..." />
-            </SelectTrigger>
-            <SelectContent className="max-h-[400px]" position="popper" sideOffset={4}>
-              {tables.map((table) => (
-                <SelectItem key={table.key} value={table.key}>
-                  <div className="flex flex-col">
-                    <span className="font-medium">
-                      {table.model.replace(/([A-Z])/g, " $1").trim()}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {table.description}
-                    </span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ComboboxDropdown<TableComboItem>
+            items={tableComboItems}
+            selectedItem={selectedTableItem}
+            onSelect={(item) => setSelectedTable(item.id)}
+            placeholder="Choose a configuration to sync..."
+            searchPlaceholder="Search configurations..."
+            clearable
+            onClear={() => setSelectedTable("")}
+            renderListItem={({ item }) => (
+              <div className="flex flex-col">
+                <span className="font-medium">{item.label}</span>
+                <span className="text-xs text-muted-foreground">
+                  {item.description}
+                </span>
+              </div>
+            )}
+            className="w-full max-w-md"
+          />
         </CardContent>
       </Card>
 
