@@ -162,19 +162,50 @@ const WarehouseTreeBase = dynamic(() => import("@/components/warehouse/Warehouse
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-// Wrapper: maps Job tab props to WarehouseTree scoped mode
-// Token values are auto-fetched by useWarehouseTree from the backend (fix once, benefit everywhere)
+// Wrapper: Job warehouse tab shows the full warehouse tree (same as /warehouse page)
+// Wires up file click handlers: single-click opens in new tab, double-click also opens in new tab
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const JobWarehouseTab = (props: any) => (
-  <WarehouseTreeBase
-    mode={{
-      type: "scoped",
-      linkableType: "Job",
-      linkableId: props.jobId,
-      warehouseTypeCode: "job",
-    }}
-  />
-);
+function JobWarehouseTab(_props: any) {
+  const warehouseRouter = useRouter();
+  const clickTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mailboxTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleFileClick = React.useCallback((doc: { fileUrl?: string }) => {
+    if (clickTimer.current) clearTimeout(clickTimer.current);
+    clickTimer.current = setTimeout(() => {
+      if (doc.fileUrl) window.open(doc.fileUrl, "_blank");
+      clickTimer.current = null;
+    }, 200);
+  }, []);
+
+  const handleFileDoubleClick = React.useCallback((doc: { fileUrl?: string }) => {
+    if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null; }
+    if (doc.fileUrl) window.open(doc.fileUrl, "_blank");
+  }, []);
+
+  const handleMailboxClick = React.useCallback((email: string) => {
+    if (mailboxTimer.current) clearTimeout(mailboxTimer.current);
+    mailboxTimer.current = setTimeout(() => {
+      warehouseRouter.push(`/email?mailbox=${encodeURIComponent(email)}`);
+      mailboxTimer.current = null;
+    }, 200);
+  }, [warehouseRouter]);
+
+  const handleMailboxDoubleClick = React.useCallback((link: string) => {
+    if (mailboxTimer.current) { clearTimeout(mailboxTimer.current); mailboxTimer.current = null; }
+    window.open(link, "_blank");
+  }, []);
+
+  return (
+    <WarehouseTreeBase
+      mode={{ type: "full" }}
+      onFileClick={handleFileClick}
+      onFileDoubleClick={handleFileDoubleClick}
+      onMailboxClick={handleMailboxClick}
+      onMailboxDoubleClick={handleMailboxDoubleClick}
+    />
+  );
+}
 
 // Loading skeleton shown while tab component loads
 function TabLoadingSkeleton() {
