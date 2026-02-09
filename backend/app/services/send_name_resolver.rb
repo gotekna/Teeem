@@ -65,25 +65,26 @@ class SendNameResolver
 
   # Resolve UI Name for a WarehouseDocument (what user sees in File Warehouse)
   # Uses WFDT's effective_ui_name_template with auto-numbering for duplicates.
+  # Falls back to "{DocTypeName} {Date} {Number}" when WFDT exists but has no template.
   #
   # @param warehouse_document [WarehouseDocument] The warehouse document record
-  # @return [String, nil] The resolved UI name, or nil if no template available
+  # @return [String, nil] The resolved UI name, or nil if no WFDT available
   def resolve_ui_name(warehouse_document)
     return nil unless warehouse_document
 
     wfdt = warehouse_document.warehouse_folder_document_type
     return nil unless wfdt
 
-    template = wfdt.effective_ui_name_template
-    return nil if template.blank?
-
     context = build_context(warehouse_document)
-    expanded = expand_template(template, context)
+    template = wfdt.effective_ui_name_template
 
-    return nil if expanded.blank? || !meaningful_filename?(expanded)
+    if template.present?
+      expanded = expand_template(template, context)
+      return expanded if expanded.present? && meaningful_filename?(expanded)
+    end
 
-    # Ensure extension is NOT included in UI name (it's a display name, not a filename)
-    expanded
+    # Smart fallback: Generate "{DocTypeName} {Date} {Number}" from WFDT context
+    generate_default_ui_name(wfdt, context)
   end
 
   # Resolve Send Name directly from a documentable (without WarehouseDocument)
@@ -533,6 +534,24 @@ class SendNameResolver
   #
   # @param filename [String] The filename to check
   # @return [Boolean] True if filename has meaningful content
+  # Generate a default UI name when WFDT exists but has no template configured.
+  # Pattern: "{DocTypeName} {Date} {Number}" e.g. "Site Photo 09-02-2026 01"
+  #
+  # @param wfdt [WarehouseFolderDocumentType] The WFDT (must be present)
+  # @param context [Hash] The expanded context with :doc_type_name, :number, etc.
+  # @return [String, nil] The generated name, or nil if no doc type
+  def generate_default_ui_name(wfdt, context)
+    doc_type_name = context[:doc_type_name] || wfdt.document_type&.name
+    return nil unless doc_type_name.present?
+
+    doc_date = (context[:document_date] || Time.current).strftime("%d-%m-%Y")
+
+    parts = [doc_type_name, doc_date]
+    parts << context[:number] if context[:number].present?
+
+    parts.join(" ").presence
+  end
+
   def meaningful_filename?(filename)
     return false if filename.blank?
 

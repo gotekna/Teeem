@@ -2571,8 +2571,11 @@ module Api
 
       # Download WarehouseDocument content from S3 via storage_blob
       # SSoT: Uses storage_blob.storage_path as the S3 key
+      # FRC (Feb 2026): Resolves tenant from WarehouseProvider when current_tenant is nil
+      # (job_document_download skips auth so <img src> preview works without JWT)
       def download_from_s3_warehouse(document, is_preview)
-        provider = DocumentProviders.for_tenant(current_tenant)
+        tenant = current_tenant || WarehouseProvider.instance&.tenant
+        provider = DocumentProviders.for_tenant(tenant)
 
         unless provider
           raise DocumentProviders::NotConnectedError, "S3 storage not configured"
