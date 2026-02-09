@@ -285,14 +285,14 @@ class BulkEmailSyncJob < ApplicationJob
     year = email_date.year
     month = email_date.strftime("%m")
     # SSoT: Use centralized path sanitization
-    org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
+    org_name = Warehouse::FilenameSanitizer.sanitize_path_segment(@credential.name)
     # SSoT: Get base path from WarehouseProvider
     base_path = scope_folder_path(:email_attachments)
     folder_path = "#{base_path}/#{org_name}/#{year}/#{month}"
 
     hash_prefix = content_hash[0..7]
     # SSoT: Use centralized filename sanitization
-    safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
+    safe_filename = Warehouse::FilenameSanitizer.sanitize(filename)
     final_filename = "#{hash_prefix}_#{safe_filename}"
 
     # SSoT: Use provider-agnostic upload (provider handles large files automatically)
@@ -365,7 +365,7 @@ class BulkEmailSyncJob < ApplicationJob
     year = email.received_at.year
     month = email.received_at.strftime("%m")
     # SSoT: Use centralized path sanitization
-    org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
+    org_name = Warehouse::FilenameSanitizer.sanitize_path_segment(@credential.name)
 
     # SSoT: Get email storage path from WarehouseFolder (system-managed)
     folder_path = email_storage_path(
@@ -452,8 +452,8 @@ class BulkEmailSyncJob < ApplicationJob
         .gsub("{{Year}}", year.to_s)
         .gsub("{{Month}}", month.to_s.rjust(2, "0"))
         .gsub("{{Date}}", formatted_date)
-        .gsub("{{Mailbox}}", SharePoint::FilenameSanitizer.sanitize_path_segment(mailbox.to_s))
-        .gsub("{{UserName}}", SharePoint::FilenameSanitizer.sanitize_path_segment(user_name))
+        .gsub("{{Mailbox}}", Warehouse::FilenameSanitizer.sanitize_path_segment(mailbox.to_s))
+        .gsub("{{UserName}}", Warehouse::FilenameSanitizer.sanitize_path_segment(user_name))
     else
       # Fallback if WarehouseFolder doesn't exist - use WarehouseProvider SSoT
       base_path = WarehouseProvider.instance.path_for(:email)
