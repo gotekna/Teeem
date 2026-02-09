@@ -288,7 +288,7 @@ module Api
 
       # GET /api/v1/documents/virtual_tree
       # Phase 4: Virtual File Warehouse - Database-driven folder tree
-      # Returns folder tree from WarehouseDocument.folder instead of S3
+      # Returns folder tree from WarehouseDocument.folder_path instead of S3
       #
       # When a scope is marked as virtual in WarehouseProvider:
       # - Folder tree renders from database (instant)
@@ -414,7 +414,7 @@ module Api
         results = results.sort_by { |r| r[:uploaded_at] || "" }.reverse.first(limit)
 
         # Only include folders for corporate-only queries (backward compatibility)
-        # SSoT (Jan 2026): Uses WarehouseDocument.folder for corporate documents
+        # SSoT (Jan 2026): Uses WarehouseDocument.folder_path for corporate documents
         folders = if sources == ["corporate"]
           folder_counts = WarehouseDocument.where(source_type: "corporate")
                                            .where.not(folder_path: [nil, ""])
@@ -573,7 +573,7 @@ module Api
         begin
           # Phase 3: After StorageBlob migration, all browsing uses virtual folders
           # Actual S3 only has Blobs/ folder (content-addressed storage)
-          # All user-facing folders are virtual (stored in warehouse_documents.folder column)
+          # All user-facing folders are virtual (stored in warehouse_documents.folder_path column)
           render_virtual_folders(path)
         rescue StandardError => e
           Rails.logger.error "[Documents] Virtual folder list failed for '#{path}': #{e.message}"
@@ -588,14 +588,14 @@ module Api
         end
       end
 
-      # Phase 3: Render virtual folders from WarehouseDocument.folder column
-      # SSoT: Uses indexed `folder` column for instant queries (no cache needed)
-      # The `folder` column is populated/updated by callbacks when documents are saved
+      # Phase 3: Render virtual folders from WarehouseDocument.folder_path column
+      # SSoT: Uses indexed `folder_path` column for instant queries (no cache needed)
+      # The `folder_path` column is populated/updated by before_save callback
       #
-      # Performance: All queries use the index on `folder` column - O(1) not O(n)
-      # - Root level: GROUP BY split_part(folder, '/', 1)
-      # - Subfolders: WHERE folder LIKE 'path/%' GROUP BY next level
-      # - Files: WHERE folder = 'exact/path'
+      # Performance: All queries use the index on `folder_path` column - O(1) not O(n)
+      # - Root level: GROUP BY split_part(folder_path, '/', 1)
+      # - Subfolders: WHERE folder_path LIKE 'path/%' GROUP BY next level
+      # - Files: WHERE folder_path = 'exact/path'
       #
       # @param path [String] The folder path to list (e.g., "" for root, "Contacts", "Contacts/Acme")
       def render_virtual_folders(path = "")
@@ -1560,14 +1560,14 @@ module Api
       # @return [Hash] { folders: [{ name, path, count }...], files: [...] }
       # SSoT (Jan 2026): Unified folder tree builder
       # Email has special logic (mailboxes, years, months from SyncedEmail)
-      # All other scopes use generic folder-based approach from WarehouseDocument.folder
+      # All other scopes use generic folder-based approach from WarehouseDocument.folder_path
       def build_live_folder_tree(scope, path_segments, folder_type = nil, linkable_type: nil, linkable_id: nil)
         case scope
         when "email", "emails"
           build_email_live_tree(path_segments, folder_type)
         else
           # Generic: job, contact, corporate, people, task, etc.
-          # All use WarehouseDocument.folder + WarehouseFolder tabs (SSoT Feb 2026)
+          # All use WarehouseDocument.folder_path + WarehouseFolder tabs (SSoT Feb 2026)
           build_generic_folder_tree(scope, path_segments, linkable_type: linkable_type, linkable_id: linkable_id)
         end
       end
@@ -1932,7 +1932,7 @@ module Api
         end
       end
 
-      # Phase 4: Build virtual folder tree from WarehouseDocument.folder paths
+      # Phase 4: Build virtual folder tree from WarehouseDocument.folder_path paths
       # Groups documents by folder path segments to create nested folder structure
       #
       # @param documents [ActiveRecord::Relation] WarehouseDocument query

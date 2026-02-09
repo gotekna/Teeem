@@ -435,7 +435,7 @@ class BankStatementReport < ApplicationRecord
     )
 
     # SSoT: Folder path comes from WarehouseProvider template (warehouse_folders['bank_statement'])
-    # Use resolve_virtual_path for WarehouseDocument.folder (UI display), not resolve_path (storage)
+    # Use resolve_virtual_path for WarehouseDocument.folder_path (UI display), not resolve_path (storage)
     folder_path = WarehouseProvider.instance.resolve_virtual_path(
       :bank_statement,
       {

@@ -406,22 +406,17 @@ export function ComposeEmailModal({
 
   // Generate signature when account is selected and user/company data is available
   useEffect(() => {
-    console.log('[ComposeSignature] Effect triggered:', {
-      credential_id: formData.credential_id,
-      accounts_length: accounts.length,
-      currentUser: currentUser?.name,
-      companySettings: companySettings?.company_name,
-      body_has_signature: hasSignature(formData.body),
-    });
+    // FRC (Feb 2026): Gate behind `open` to prevent effect loop when modal is closed.
+    // Root cause: Every WebSocket re-render triggered this effect (unstable `accounts` ref),
+    // causing hundreds of console.logs and CPU thrashing on the email page.
+    if (!open) return;
 
     if (!formData.credential_id || accounts.length === 0 || !currentUser) {
-      console.log('[ComposeSignature] Early return - missing data');
       return;
     }
 
     // Don't add signature to body if it already has one (e.g., from draft)
     if (hasSignature(formData.body)) {
-      console.log('[ComposeSignature] Body already has signature, clearing signatureHtml');
       setSignatureHtml(""); // Clear separate signature since it's in body
       return;
     }
@@ -432,7 +427,6 @@ export function ComposeEmailModal({
 
     // 1. If account has a custom signature configured, use it
     if (selectedAccount?.email_signature) {
-      console.log('[ComposeSignature] Using account signature for:', selectedAccount.email_address);
       setSignatureHtml(selectedAccount.email_signature);
       return;
     }
@@ -441,7 +435,6 @@ export function ComposeEmailModal({
     if (selectedAccount?.is_cross_tenant) {
       const ownerName = selectedAccount.owner_name || 'Team';
       const emailAddr = selectedAccount.email_address || '';
-      console.log('[ComposeSignature] Cross-tenant account - generating default signature for:', ownerName);
       const defaultSignature = `
         <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
           <p style="margin: 0; font-size: 14px;">Best regards,</p>
@@ -457,21 +450,14 @@ export function ComposeEmailModal({
     // (This preserves backwards compatibility - user's signature style from preferences)
     // SSoT (Feb 2026): Pass account ID to use per-account branding if configured
     const signature = getUserSignature(formData.credential_id);
-    console.log('[ComposeSignature] Generated user signature, length:', signature.length);
     setSignatureHtml(signature);
-  }, [formData.credential_id, accounts, currentUser, companySettings]);
+  }, [open, formData.credential_id, accounts, currentUser, companySettings]);
 
   const fetchAccounts = async () => {
-    console.log('[ComposeAccounts] fetchAccounts called');
     setLoading(true);
     try {
       const response = await api.get<{ success: boolean; data: EmailAccount[] }>("/api/v1/imap_credentials/all_accounts");
       const typedResponse = response as { success: boolean; data: EmailAccount[] };
-      console.log('[ComposeAccounts] API response:', {
-        success: typedResponse.success,
-        total_accounts: typedResponse.data?.length,
-        accounts: typedResponse.data?.map(a => ({ id: a.id, email: a.email_address, is_active: a.is_active })),
-      });
 
       const activeAccounts = (typedResponse.data || []).filter(
         (a) => a.is_active

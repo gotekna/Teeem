@@ -3138,7 +3138,7 @@ export function WarehouseProviderTab() {
                     </div>
                     <div className="flex items-start gap-2">
                       <span className="bg-purple-500 text-white text-xs px-1.5 py-0.5 rounded font-medium shrink-0">Virtual</span>
-                      <span>Folder paths are <strong>virtual</strong> - stored in <code className="bg-muted px-1 rounded text-xs">WarehouseDocument.folder</code>, not as actual S3/storage folders. Moving documents is instant (just update the path).</span>
+                      <span>Folder paths are <strong>virtual</strong> - stored in <code className="bg-muted px-1 rounded text-xs">WarehouseDocument.folder_path</code>, not as actual S3/storage folders. Moving documents is instant (just update the path).</span>
                     </div>
                   </div>
                 </div>
@@ -3148,7 +3148,7 @@ export function WarehouseProviderTab() {
                   <h5 className="text-xs font-medium mb-2 text-muted-foreground uppercase tracking-wide">How the Folder Tree is Built</h5>
                   <div className="text-xs space-y-1.5 text-muted-foreground">
                     <div><strong className="text-foreground">Base folders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.all_base_folders</code> (Jobs, Contacts, Tasks, etc.)</div>
-                    <div><strong className="text-foreground">Subfolders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.tabs_for_base_folder()</code> + <code className="bg-muted px-1 rounded">GROUP BY</code> on <code className="bg-muted px-1 rounded">WarehouseDocument.folder</code></div>
+                    <div><strong className="text-foreground">Subfolders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.tabs_for_base_folder()</code> + <code className="bg-muted px-1 rounded">GROUP BY</code> on <code className="bg-muted px-1 rounded">WarehouseDocument.folder_path</code></div>
                     <div><strong className="text-foreground">Files</strong> → from <code className="bg-muted px-1 rounded">WarehouseDocument</code> records at that folder path</div>
                   </div>
                 </div>

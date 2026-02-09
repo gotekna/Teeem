@@ -26,7 +26,7 @@
 # └─────────────────────────────────────────────────────────────────┘
 #
 # Physical Storage: s3://bucket/Blobs/{hash_prefix}/{hash}.pdf
-# Virtual Folders: Computed from WarehouseFolder.display_name, stored in warehouse_documents.folder
+# Virtual Folders: Computed from WarehouseFolder.display_name, stored in warehouse_documents.folder_path
 #
 class XeroAttachmentSyncService
   include DocumentProviderAware
