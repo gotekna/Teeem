@@ -193,12 +193,10 @@ class WarehouseDocument < ApplicationRecord
   #
   # @return [String] The computed folder path
   #
+  # SSoT: WarehousePathComputer is THE ONE path resolver. No fallbacks here.
+  # If it fails, we WANT to know - not silently produce wrong paths.
   def computed_folder_path
-    result = WarehousePathComputer.new.compute(self)
-    result[:folder_path] || source_type_to_root_folder
-  rescue StandardError => e
-    Rails.logger.debug "[WarehouseDocument] computed_folder_path failed for #{id}: #{e.message}"
-    source_type_to_root_folder
+    WarehousePathComputer.new.compute(self)[:folder_path]
   end
 
   # SSoT: Map source_type to root folder name
