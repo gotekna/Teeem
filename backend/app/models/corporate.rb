@@ -269,9 +269,9 @@ class Corporate < ApplicationRecord
     consolidated_children.exists?
   end
 
-  # SharePoint folder URL for this company's root folder (SSoT: from TenantSetting)
+  # Storage folder URL for this company's root folder (SSoT: from TenantSetting)
   # Structure: [company_path] / [Group Name] / [Company Name]
-  def sharepoint_folder_url
+  def storage_folder_url
     return nil unless company_group.present?
 
     # SSoT: Use MicrosoftCredential
@@ -285,7 +285,7 @@ class Corporate < ApplicationRecord
     # SSoT: Get paths from WarehouseProvider (Jan 2026)
     storage_config = WarehouseProvider.instance
     company_folder_path = storage_config.path_for(:corporate)
-    # SSoT: Use root_path from WarehouseProvider (SharePoint: "/Shared Documents", S3: "/")
+    # SSoT: Use root_path from WarehouseProvider (Storage: "/Shared Documents", S3: "/")
     root_path_encoded = ERB::Util.url_encode(storage_config.root_path.to_s.delete_prefix("/"))
 
     # URL encode the path components
@@ -298,10 +298,10 @@ class Corporate < ApplicationRecord
     "#{base_url}/#{root_path_encoded}/#{encoded_path}"
   end
 
-  # SharePoint folder URL for a specific document type/tab folder
+  # Storage folder URL for a specific document type/tab folder
   # Structure: [company_path] / [Group Name] / [Company Name] / [Folder Name]
-  def sharepoint_folder_url_for_tab(folder_name)
-    base_url = sharepoint_folder_url
+  def storage_folder_url_for_tab(folder_name)
+    base_url = storage_folder_url
     return nil unless base_url
 
     "#{base_url}/#{ERB::Util.url_encode(folder_name)}"

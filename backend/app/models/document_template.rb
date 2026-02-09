@@ -93,8 +93,6 @@ class DocumentTemplate < ApplicationRecord
     storage_item_id.present?
   end
 
-  # Legacy alias for backwards compatibility
-  alias_method :sharepoint_linked?, :storage_linked?
 
   # Template type helpers
   def html_template?

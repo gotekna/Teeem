@@ -10,7 +10,6 @@ class PlanFolderScan < ApplicationRecord
   STATUSES = %w[pending processing processed skipped error].freeze
 
   # SSoT: storage_item_id is THE ONE identifier for all providers
-  # (storage_file_id was renamed from sharepoint_file_id)
   validates :storage_item_id, presence: true, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
 
@@ -63,7 +62,7 @@ class PlanFolderScan < ApplicationRecord
   end
 
   # Provider-agnostic storage reference (SSoT: storage_item_id)
-  # Falls back to storage_file_id for backwards compatibility
+  # SSoT: Prefer storage_item_id, fall back to storage_file_id
   def storage_reference
     storage_item_id.presence || storage_file_id
   end

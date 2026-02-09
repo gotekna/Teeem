@@ -92,7 +92,7 @@ class PlanSetService
         Rails.logger.info "[PlanSetService] Renaming #{original_name}..."
 
         # Download the file content
-        doc = OpenStruct.new(storage_path: file[:path], sharepoint_file_id: file[:id])
+        doc = OpenStruct.new(storage_path: file[:path], storage_file_id: file[:id])
         result = storage_service.download(doc)
         raise "Failed to download file" unless result[:success] && result[:content].present?
         content = result[:content]

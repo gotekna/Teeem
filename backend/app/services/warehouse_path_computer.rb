@@ -47,7 +47,7 @@ class WarehousePathComputer
 
     # For warehouse source_type: delegate to documentable's warehouse_folder_path
     # SSoT: BillInbox/ChatMessage/TeeemSpreadsheet/TeeemPdf/TeeemDocument know their own path
-    # Each model computes the correct subfolder (e.g., "Warehousing/Excel/User/2026")
+    # Each model computes the correct subfolder (e.g., "Warehousing/TeeemXL/User/2026")
     if doc.source_type == "warehouse" && doc.documentable.respond_to?(:warehouse_folder_path)
       # Ensure tenant context for WarehouseProvider (needed by TeeemXL models)
       path = if doc.tenant_id.present? && ActsAsTenant.current_tenant.nil?

@@ -66,7 +66,6 @@ export {
   JOB_PLACEHOLDERS,
   DOCUMENT_PLACEHOLDERS,
   STORAGE_PLACEHOLDERS,
-  SHAREPOINT_PLACEHOLDERS, // Backwards compatibility alias
   PLACEHOLDERS_BY_SCOPE,
   // Utility functions
   getPlaceholders,

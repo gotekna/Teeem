@@ -11,9 +11,9 @@
 # Each documentable model defines warehouse_folder_path:
 #   BillInbox         → "Warehousing/BillInbox/{Status}/{Year}/{Month}"
 #   ChatMessage       → "Warehousing/Chat/General/{Year}/{Month}"
-#   TeeemSpreadsheet  → "Warehousing/Excel/{User}/{Year}" or "Jobs/{Code}/Excel"
-#   TeeemDocument     → "Warehousing/Word/{User}/{Year}" or "Jobs/{Code}/Word"
-#   TeeemPdf          → "Warehousing/PDF/{User}/{Year}" or "Jobs/{Code}/PDF"
+#   TeeemSpreadsheet  → "Warehousing/TeeemXL/{User}/{Year}" or "Jobs/{Code}/TeeemXL"
+#   TeeemDocument     → "Warehousing/TeeemWord/{User}/{Year}" or "Jobs/{Code}/TeeemWord"
+#   TeeemPdf          → "Warehousing/TeeemPDF/{User}/{Year}" or "Jobs/{Code}/TeeemPDF"
 #
 class RecomputeWarehouseSourceDocumentPaths < ActiveRecord::Migration[7.2]
   def up

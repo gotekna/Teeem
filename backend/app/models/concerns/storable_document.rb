@@ -117,11 +117,11 @@ module StorableDocument
     storage_provider == "wasabi" && storage_path.present?
   end
 
-  # Check if file is in SharePoint (for migration purposes)
-  # FRC (Feb 2026): Legacy documents with blank storage_provider AND SharePoint IDs
-  # are assumed to be SharePoint documents (created before storage_provider tracking)
+  # Check if file is in legacy storage (for migration purposes)
+  # FRC (Feb 2026): Legacy documents with blank storage_provider AND storage IDs
+  # are assumed to be legacy storage documents (created before storage_provider tracking)
   # New documents always have explicit storage_provider set
-  def in_sharepoint?
+  def in_legacy_storage?
     (storage_provider == "sharepoint" || storage_provider.blank?) &&
       (storage_item_id.present? || storage_file_id.present?)
   end
@@ -193,20 +193,20 @@ module StorableDocument
   # Migration Methods
   # ========================================
 
-  # Migrate this document from SharePoint to current storage provider
+  # Migrate this document from legacy storage to current storage provider
   def migrate_to_current_storage!(tokens: {})
     return { success: true, message: "Already migrated" } if in_current_storage?
-    return { success: false, error: "No source file" } unless in_sharepoint?
+    return { success: false, error: "No source file" } unless in_legacy_storage?
 
     update!(migration_status: "in_progress", migration_started_at: Time.current)
 
     begin
-      # Download from SharePoint
-      content = download_from_sharepoint
+      # Download from storage
+      content = download_from_storage
 
       unless content.present?
-        mark_migration_failed!("Could not download from SharePoint")
-        return { success: false, error: "Could not download from SharePoint" }
+        mark_migration_failed!("Could not download from storage")
+        return { success: false, error: "Could not download from storage" }
       end
 
       # Upload to current storage
@@ -247,8 +247,8 @@ module StorableDocument
 
   # SSoT: Unified legacy storage ID accessor
   # Different models use different column names:
-  #   - storage_item_id (ContactDocument - renamed from sharepoint_item_id)
-  #   - storage_file_id (BillInbox - renamed from sharepoint_file_id)
+  #   - storage_item_id (ContactDocument)
+  #   - storage_file_id (BillInbox)
   #   - external_id (PeopleDocument)
   # This method handles all - ONLY use internally, external code should use storage_reference
   def legacy_storage_id
@@ -261,15 +261,6 @@ module StorableDocument
     end
   end
 
-  # Backwards compatibility aliases for external code still using old method names
-  def sharepoint_item_id
-    legacy_storage_id
-  end
-
-  def sharepoint_file_id
-    legacy_storage_id
-  end
-
   # Override in model to provide default tokens
   def default_storage_tokens
     {}
@@ -277,7 +268,7 @@ module StorableDocument
 
   # Download content from current storage provider
   # SSoT: Delegates to DocumentStorageService (handles S3, SharePoint, ActiveStorage)
-  def download_from_sharepoint
+  def download_from_storage
     service = DocumentStorageService.new
     result = service.download(self)
     result[:success] ? result[:content] : nil

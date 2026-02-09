@@ -44,7 +44,7 @@ interface CaseDocument {
   file_size: number | null;
   relevance: string;
   notes: string | null;
-  sharepoint_path: string | null;
+  storage_path: string | null;
   web_url: string | null;
 }
 
