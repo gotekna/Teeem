@@ -14,8 +14,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Save, Undo2, Search, Plus, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Save, Undo2, Search, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import { CommandList } from "cmdk";
 
 // ============================================================================
 // Bill of Quantities - Reusable Component
@@ -65,8 +74,6 @@ export interface BOQSavePayload {
   newLines: BOQNewLine[];
 }
 
-export type BOQGroupMode = "po" | "supplier" | "stage" | "trade";
-
 type SortColumn = "group" | "supplier" | "description" | "code" | "qty" | "unitPrice" | "gst" | "subtotal";
 type SortDirection = "asc" | "desc";
 
@@ -111,54 +118,13 @@ function nextTempId(): string {
   return `new_${++tempIdCounter}`;
 }
 
-const GROUP_MODE_LABELS: Record<BOQGroupMode, string> = {
-  po: "PO / Task",
+type GroupSortBy = "supplier" | "stage" | "trade";
+
+const GROUP_SORT_LABELS: Record<GroupSortBy, string> = {
   supplier: "Supplier",
   stage: "Stage",
   trade: "Trade",
 };
-
-/** Regroup flat line items by a different key (supplier, stage, trade) */
-function regroupBy(groups: BOQGroup[], mode: BOQGroupMode): BOQGroup[] {
-  if (mode === "po") return groups;
-
-  const buckets = new Map<string, BOQGroup>();
-
-  for (const group of groups) {
-    const key =
-      mode === "supplier"
-        ? group.supplierName || "No Supplier"
-        : mode === "stage"
-          ? group.stageName || "No Stage"
-          : group.tradeName || "No Trade";
-
-    if (!buckets.has(key)) {
-      buckets.set(key, {
-        // Use a synthetic ID so change keys still reference original group:line
-        id: `${mode}:${key}`,
-        name: key,
-        supplierName: mode === "supplier" ? key : null,
-        taskName: null,
-        tradeName: mode === "trade" ? key : null,
-        stageName: mode === "stage" ? key : null,
-        items: [],
-      });
-    }
-
-    // Items keep their original IDs for change tracking
-    // Prefix with original group ID so save payload can resolve back
-    for (const item of group.items) {
-      buckets.get(key)!.items.push({
-        ...item,
-        // Encode original groupId into the item ID for save resolution
-        id: `${group.id}:${item.id}`,
-        description: `${item.description}`,
-      });
-    }
-  }
-
-  return Array.from(buckets.values()).sort((a, b) => a.name.localeCompare(b.name));
-}
 
 export function BillOfQuantities({
   groups,
@@ -171,21 +137,37 @@ export function BillOfQuantities({
   const [newLines, setNewLines] = useState<BOQNewLine[]>([]);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [groupMode, setGroupMode] = useState<BOQGroupMode>("po");
+  // PO/Task is always the primary grouping; optionally sort groups by a secondary dimension
+  const [groupSortBy, setGroupSortBy] = useState<GroupSortBy | null>(null);
 
-  // Editing only supported in PO mode (original grouping preserves save keys)
-  const canEdit = !readOnly && !!onSave && groupMode === "po";
+  const canEdit = !readOnly && !!onSave;
   const hasChanges = changes.size > 0 || newLines.length > 0;
   const changeCount = changes.size + newLines.length;
 
-  // Check if alternate groupings have data
-  const hasStages = useMemo(() => groups.some((g) => g.stageName), [groups]);
-  const hasTrades = useMemo(() => groups.some((g) => g.tradeName), [groups]);
-  const hasSuppliers = useMemo(() => groups.some((g) => g.supplierName), [groups]);
+  // Extract unique values for multi-select filters
+  const uniqueSuppliers = useMemo(() =>
+    [...new Set(groups.map((g) => g.supplierName).filter(Boolean) as string[])].sort(),
+    [groups]
+  );
+  const uniqueStages = useMemo(() =>
+    [...new Set(groups.map((g) => g.stageName).filter(Boolean) as string[])].sort(),
+    [groups]
+  );
+  const uniqueTrades = useMemo(() =>
+    [...new Set(groups.map((g) => g.tradeName).filter(Boolean) as string[])].sort(),
+    [groups]
+  );
+  const hasStages = uniqueStages.length > 0;
+  const hasTrades = uniqueTrades.length > 0;
+  const hasSuppliers = uniqueSuppliers.length > 0;
 
   // Sort + column filter state
   const [sortState, setSortState] = useState<{ column: SortColumn; direction: SortDirection } | null>(null);
-  const [columnFilters, setColumnFilters] = useState({ group: "", supplier: "", description: "", code: "", gst: "" });
+  const [columnFilters, setColumnFilters] = useState({ group: "", description: "", code: "", gst: "" });
+  // Multi-select set filters for supplier, stage, trade
+  const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
+  const [selectedStages, setSelectedStages] = useState<Set<string>>(new Set());
+  const [selectedTrades, setSelectedTrades] = useState<Set<string>>(new Set());
 
   const toggleSort = useCallback((column: SortColumn) => {
     setSortState((prev) => {
@@ -199,28 +181,52 @@ export function BillOfQuantities({
     setColumnFilters((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const toggleSetFilter = useCallback((set: Set<string>, value: string, setter: React.Dispatch<React.SetStateAction<Set<string>>>) => {
+    setter((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }, []);
+
   const hasActiveFilters = useMemo(
-    () => Object.values(columnFilters).some((v) => v.trim()),
-    [columnFilters]
+    () =>
+      Object.values(columnFilters).some((v) => v.trim()) ||
+      selectedSuppliers.size > 0 ||
+      selectedStages.size > 0 ||
+      selectedTrades.size > 0,
+    [columnFilters, selectedSuppliers, selectedStages, selectedTrades]
   );
 
   const clearAllFilters = useCallback(() => {
-    setColumnFilters({ group: "", supplier: "", description: "", code: "", gst: "" });
+    setColumnFilters({ group: "", description: "", code: "", gst: "" });
+    setSelectedSuppliers(new Set());
+    setSelectedStages(new Set());
+    setSelectedTrades(new Set());
     setSortState(null);
   }, []);
 
-  // Reset filters when group mode changes
-  const handleGroupModeChange = useCallback((mode: BOQGroupMode) => {
-    setGroupMode(mode);
-    setColumnFilters({ group: "", supplier: "", description: "", code: "", gst: "" });
-    setSortState(null);
+  // Toggle secondary group sort (click again to deselect)
+  const handleSortToggle = useCallback((dim: GroupSortBy) => {
+    setGroupSortBy((prev) => (prev === dim ? null : dim));
   }, []);
 
-  // Regroup when mode changes
-  const displayGroups = useMemo(
-    () => regroupBy(groups, groupMode),
-    [groups, groupMode]
-  );
+  // Sort PO groups by selected dimension (groups always stay as POs)
+  const displayGroups = useMemo(() => {
+    if (!groupSortBy) return groups;
+    return [...groups].sort((a, b) => {
+      const aVal =
+        groupSortBy === "supplier" ? (a.supplierName || "")
+          : groupSortBy === "stage" ? (a.stageName || "")
+            : (a.tradeName || "");
+      const bVal =
+        groupSortBy === "supplier" ? (b.supplierName || "")
+          : groupSortBy === "stage" ? (b.stageName || "")
+            : (b.tradeName || "");
+      return aVal.localeCompare(bVal);
+    });
+  }, [groups, groupSortBy]);
 
   // Get current quantity (edited or original)
   const getQty = useCallback(
@@ -337,11 +343,15 @@ export function BillOfQuantities({
       const term = columnFilters.group.toLowerCase();
       result = result.filter((g) => g.name.toLowerCase().includes(term));
     }
-    if (columnFilters.supplier.trim()) {
-      const term = columnFilters.supplier.toLowerCase();
-      result = result.filter((g) =>
-        (g.supplierName || "").toLowerCase().includes(term)
-      );
+    // Multi-select set filters (supplier, stage, trade)
+    if (selectedSuppliers.size > 0) {
+      result = result.filter((g) => g.supplierName && selectedSuppliers.has(g.supplierName));
+    }
+    if (selectedStages.size > 0) {
+      result = result.filter((g) => g.stageName && selectedStages.has(g.stageName));
+    }
+    if (selectedTrades.size > 0) {
+      result = result.filter((g) => g.tradeName && selectedTrades.has(g.tradeName));
     }
     const hasItemFilters =
       columnFilters.description.trim() || columnFilters.code.trim() || columnFilters.gst.trim();
@@ -352,7 +362,7 @@ export function BillOfQuantities({
           items: group.items.filter((item) => {
             if (
               columnFilters.description.trim() &&
-              !item.description.toLowerCase().includes(columnFilters.description.toLowerCase())
+              !(item.description || "").toLowerCase().includes(columnFilters.description.toLowerCase())
             )
               return false;
             if (
@@ -362,7 +372,7 @@ export function BillOfQuantities({
               return false;
             if (
               columnFilters.gst.trim() &&
-              !item.gstCode.toLowerCase().includes(columnFilters.gst.toLowerCase())
+              !(item.gstCode || "").toLowerCase().includes(columnFilters.gst.toLowerCase())
             )
               return false;
             return true;
@@ -390,7 +400,7 @@ export function BillOfQuantities({
           items: [...group.items].sort((a, b) => {
             switch (column) {
               case "description":
-                return a.description.localeCompare(b.description) * dir;
+                return (a.description || "").localeCompare(b.description || "") * dir;
               case "code":
                 return (a.pricebookItemCode || "").localeCompare(b.pricebookItemCode || "") * dir;
               case "qty":
@@ -398,7 +408,7 @@ export function BillOfQuantities({
               case "unitPrice":
                 return (a.unitPrice - b.unitPrice) * dir;
               case "gst":
-                return a.gstCode.localeCompare(b.gstCode) * dir;
+                return (a.gstCode || "").localeCompare(b.gstCode || "") * dir;
               case "subtotal": {
                 const aT = getQty(group.id, a) * a.unitPrice;
                 const bT = getQty(group.id, b) * b.unitPrice;
@@ -413,7 +423,28 @@ export function BillOfQuantities({
     }
 
     return result;
-  }, [displayGroups, searchTerm, columnFilters, sortState, getQty]);
+  }, [displayGroups, searchTerm, columnFilters, selectedSuppliers, selectedStages, selectedTrades, sortState, getQty]);
+
+  // Cascade sections: group POs under Stage/Supplier/Trade headers
+  const cascadeSections = useMemo(() => {
+    if (!groupSortBy) return null;
+    const buckets = new Map<string, { groups: BOQGroup[]; total: number }>();
+    for (const group of filteredGroups) {
+      const key =
+        groupSortBy === "supplier" ? (group.supplierName || "No Supplier")
+          : groupSortBy === "stage" ? (group.stageName || "No Stage")
+            : (group.tradeName || "No Trade");
+      if (!buckets.has(key)) buckets.set(key, { groups: [], total: 0 });
+      const bucket = buckets.get(key)!;
+      bucket.groups.push(group);
+      for (const item of group.items) {
+        bucket.total += getQty(group.id, item) * item.unitPrice;
+      }
+    }
+    return [...buckets.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([label, data]) => ({ label, ...data }));
+  }, [filteredGroups, groupSortBy, getQty]);
 
   // Totals (includes new lines)
   const totals = useMemo(() => {
@@ -472,30 +503,52 @@ export function BillOfQuantities({
             {formatCurrency(totals.grandTotal)}
           </Badge>
           <div className="flex items-center gap-1.5 ml-2">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">Group by:</span>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">Sort by:</span>
             <div className="flex items-center rounded-md border border-input bg-background">
-              {(["po", "supplier", "stage", "trade"] as BOQGroupMode[]).map((mode) => {
-                // Hide options with no data
-                if (mode === "stage" && !hasStages) return null;
-                if (mode === "trade" && !hasTrades) return null;
-                if (mode === "supplier" && !hasSuppliers) return null;
+              {/* PO/Task always active */}
+              <span className="px-2.5 py-1 text-xs bg-primary text-primary-foreground rounded-l-md">
+                PO / Task
+              </span>
+              {(["supplier", "stage", "trade"] as GroupSortBy[]).map((dim) => {
+                if (dim === "stage" && !hasStages) return null;
+                if (dim === "trade" && !hasTrades) return null;
+                if (dim === "supplier" && !hasSuppliers) return null;
                 return (
                   <button
-                    key={mode}
-                    onClick={() => handleGroupModeChange(mode)}
+                    key={dim}
+                    onClick={() => handleSortToggle(dim)}
                     className={cn(
-                      "px-2.5 py-1 text-xs transition-colors first:rounded-l-md last:rounded-r-md",
-                      groupMode === mode
+                      "px-2.5 py-1 text-xs transition-colors last:rounded-r-md",
+                      groupSortBy === dim
                         ? "bg-primary text-primary-foreground"
                         : "hover:bg-muted text-muted-foreground"
                     )}
                   >
-                    {GROUP_MODE_LABELS[mode]}
+                    {GROUP_SORT_LABELS[dim]}
                   </button>
                 );
               })}
             </div>
           </div>
+          {/* Multi-select dimension filters */}
+          {hasStages && (
+            <MultiSelectFilter
+              values={uniqueStages}
+              selected={selectedStages}
+              onToggle={(v) => toggleSetFilter(selectedStages, v, setSelectedStages)}
+              placeholder="Stage..."
+              label="Stage"
+            />
+          )}
+          {hasTrades && (
+            <MultiSelectFilter
+              values={uniqueTrades}
+              selected={selectedTrades}
+              onToggle={(v) => toggleSetFilter(selectedTrades, v, setSelectedTrades)}
+              placeholder="Trade..."
+              label="Trade"
+            />
+          )}
           {(hasActiveFilters || sortState) && (
             <Button
               variant="ghost"
@@ -540,16 +593,15 @@ export function BillOfQuantities({
       {/* Table */}
       <div
         className="flex-1 min-h-0 overflow-auto border rounded-md"
-        style={{ scrollSnapType: "y proximity" }}
       >
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
               <SortableHead column="group" sort={sortState} onSort={toggleSort} className="w-[220px]">
-                {GROUP_MODE_LABELS[groupMode]}
+                PO / Task
               </SortableHead>
               <SortableHead column="supplier" sort={sortState} onSort={toggleSort} className="w-[160px]">
-                {groupMode === "supplier" ? "PO / Task" : "Supplier"}
+                Supplier
               </SortableHead>
               <SortableHead column="description" sort={sortState} onSort={toggleSort}>
                 Description
@@ -581,11 +633,11 @@ export function BillOfQuantities({
                 />
               </TableHead>
               <TableHead className="py-1 px-2">
-                <Input
-                  value={columnFilters.supplier}
-                  onChange={(e) => updateFilter("supplier", e.target.value)}
-                  placeholder="Filter..."
-                  className="h-6 text-xs px-1.5 font-normal"
+                <MultiSelectFilter
+                  values={uniqueSuppliers}
+                  selected={selectedSuppliers}
+                  onToggle={(v) => toggleSetFilter(selectedSuppliers, v, setSelectedSuppliers)}
+                  placeholder="Supplier..."
                 />
               </TableHead>
               <TableHead className="py-1 px-2">
@@ -618,22 +670,65 @@ export function BillOfQuantities({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredGroups.map((group, groupIndex) => (
-              <BOQGroupRows
-                key={group.id}
-                group={group}
-                groupIndex={groupIndex}
-                groupMode={groupMode}
-                canEdit={canEdit}
-                changes={changes}
-                newLines={getNewLinesForGroup(group.id)}
-                getQty={getQty}
-                onQtyChange={handleQtyChange}
-                onAddLine={handleAddLine}
-                onNewLineChange={handleNewLineChange}
-                onRemoveNewLine={handleRemoveNewLine}
-              />
-            ))}
+            {cascadeSections ? (
+              // Cascade view: section headers + PO groups within each
+              (() => {
+                let runningIndex = 0;
+                return cascadeSections.map((section) => {
+                  const sectionRows = section.groups.map((group) => {
+                    const idx = runningIndex++;
+                    return (
+                      <BOQGroupRows
+                        key={group.id}
+                        group={group}
+                        groupIndex={idx}
+                        canEdit={canEdit}
+                        changes={changes}
+                        newLines={getNewLinesForGroup(group.id)}
+                        getQty={getQty}
+                        onQtyChange={handleQtyChange}
+                        onAddLine={handleAddLine}
+                        onNewLineChange={handleNewLineChange}
+                        onRemoveNewLine={handleRemoveNewLine}
+                      />
+                    );
+                  });
+                  return (
+                    <React.Fragment key={section.label}>
+                      <TableRow className="bg-muted border-y-2 border-primary/20">
+                        <TableCell colSpan={6} className="py-2 px-4 font-semibold text-sm">
+                          {section.label}
+                          <Badge variant="secondary" className="ml-2 text-xs font-normal">
+                            {section.groups.length} PO{section.groups.length !== 1 ? "s" : ""}
+                          </Badge>
+                        </TableCell>
+                        <TableCell colSpan={2} className="py-2 px-4 text-right text-sm font-mono font-semibold">
+                          {formatCurrency(section.total)}
+                        </TableCell>
+                      </TableRow>
+                      {sectionRows}
+                    </React.Fragment>
+                  );
+                });
+              })()
+            ) : (
+              // Flat view: PO groups only
+              filteredGroups.map((group, groupIndex) => (
+                <BOQGroupRows
+                  key={group.id}
+                  group={group}
+                  groupIndex={groupIndex}
+                  canEdit={canEdit}
+                  changes={changes}
+                  newLines={getNewLinesForGroup(group.id)}
+                  getQty={getQty}
+                  onQtyChange={handleQtyChange}
+                  onAddLine={handleAddLine}
+                  onNewLineChange={handleNewLineChange}
+                  onRemoveNewLine={handleRemoveNewLine}
+                />
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
@@ -645,7 +740,6 @@ export function BillOfQuantities({
 const BOQGroupRows = React.memo(function BOQGroupRows({
   group,
   groupIndex,
-  groupMode,
   canEdit,
   changes,
   newLines,
@@ -657,7 +751,6 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
 }: {
   group: BOQGroup;
   groupIndex: number;
-  groupMode: BOQGroupMode;
   canEdit: boolean;
   changes: BOQChanges;
   newLines: BOQNewLine[];
@@ -713,21 +806,16 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
               >
                 <div className="sticky top-10">
                   {group.name}
-                  {/* Show extra context based on group mode */}
-                  {groupMode === "po" && (
-                    <>
-                      {group.taskName && group.taskName !== group.name && (
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {group.taskName}
-                        </div>
-                      )}
-                      {(group.stageName || group.tradeName) && (
-                        <div className="text-xs text-muted-foreground mt-0.5 flex gap-2">
-                          {group.stageName && <span>{group.stageName}</span>}
-                          {group.tradeName && <span>{group.tradeName}</span>}
-                        </div>
-                      )}
-                    </>
+                  {group.taskName && group.taskName !== group.name && (
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {group.taskName}
+                    </div>
+                  )}
+                  {(group.stageName || group.tradeName) && (
+                    <div className="text-xs text-muted-foreground mt-0.5 flex gap-2">
+                      {group.stageName && <span>{group.stageName}</span>}
+                      {group.tradeName && <span>{group.tradeName}</span>}
+                    </div>
                   )}
                 </div>
               </TableCell>
@@ -738,13 +826,8 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                 className={cn("align-top text-sm text-muted-foreground border-r", color.side)}
               >
                 <div className="sticky top-10">
-                  {groupMode === "supplier" ? (
-                    // When grouped by supplier, show PO count
-                    <span className="italic text-xs">{group.items.length} items</span>
-                  ) : (
-                    group.supplierName || (
-                      <span className="italic text-xs">No supplier</span>
-                    )
+                  {group.supplierName || (
+                    <span className="italic text-xs">No supplier</span>
                   )}
                 </div>
               </TableCell>
@@ -963,5 +1046,73 @@ function SortableHead({
         )}
       </button>
     </TableHead>
+  );
+}
+
+// Multi-select filter popover (used for Supplier, Stage, Trade)
+function MultiSelectFilter({
+  values,
+  selected,
+  onToggle,
+  placeholder,
+  label,
+}: {
+  values: string[];
+  selected: Set<string>;
+  onToggle: (value: string) => void;
+  placeholder: string;
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const count = selected.size;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className={cn(
+            "flex items-center gap-1 h-6 px-1.5 text-xs rounded border border-input bg-background hover:bg-muted transition-colors w-full min-w-0",
+            count > 0 && "border-primary/50 bg-primary/5"
+          )}
+        >
+          {count > 0 ? (
+            <span className="truncate font-medium">
+              {label ? `${label}: ` : ""}{count} selected
+            </span>
+          ) : (
+            <span className="truncate text-muted-foreground">{placeholder}</span>
+          )}
+          <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[220px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder={`Search ${label || ""}...`} className="h-8 text-xs" />
+          <CommandList>
+            <CommandEmpty className="py-2 text-center text-xs text-muted-foreground">
+              No matches.
+            </CommandEmpty>
+            <CommandGroup className="max-h-[200px] overflow-auto">
+              {values.map((value) => (
+                <CommandItem
+                  key={value}
+                  value={value}
+                  onSelect={() => onToggle(value)}
+                  className="text-xs gap-2"
+                >
+                  <Check
+                    className={cn(
+                      "h-3 w-3 shrink-0",
+                      selected.has(value) ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span className="truncate">{value}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
