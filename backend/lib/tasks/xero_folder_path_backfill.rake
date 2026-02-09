@@ -40,9 +40,10 @@ namespace :xero do
     Tenant.find_each do |tenant|
       ActsAsTenant.with_tenant(tenant) do
         docs = WarehouseDocument.where(
-          documentable_type: "ExternalInvoice",
           source_type: "xero",
           tenant_id: tenant.id
+        ).where(
+          documentable_type: ["ExternalInvoice", nil]
         ).includes(:linkable, documentable: :contact)
 
         tenant_count = docs.count
