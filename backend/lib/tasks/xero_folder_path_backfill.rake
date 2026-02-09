@@ -77,9 +77,11 @@ namespace :xero do
           end
 
           # Resolve Xero org name PER INVOICE using xero_org_id (SSoT)
-          # Same priority chain as XeroAttachmentSyncService#find_xero_tenant_id_for_invoice
+          # Priority chain mirrors XeroAttachmentSyncService#find_xero_tenant_id_for_invoice
+          # with added fallback to document metadata for older docs without xero_org_id
           xero_org_uuid = invoice.xero_org_id.presence ||
-                          invoice.raw_data&.dig("TenantId").presence
+                          invoice.raw_data&.dig("TenantId").presence ||
+                          doc.metadata&.dig("xero_tenant_id").presence
           xero_org = nil
           if xero_org_uuid.present?
             xero_org = xero_org_name_cache[xero_org_uuid] ||= begin
