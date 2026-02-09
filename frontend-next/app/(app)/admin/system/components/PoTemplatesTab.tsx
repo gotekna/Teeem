@@ -213,7 +213,7 @@ export function PoTemplatesTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex items-center justify-center py-12 border-4 border-blue-500">
         <Spinner size={24} />
         <span className="ml-2 text-muted-foreground">Loading PO templates...</span>
       </div>
@@ -221,7 +221,8 @@ export function PoTemplatesTab() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 border-4 border-red-500 bg-red-50 dark:bg-red-950 p-2 min-h-[200px]">
+      <p className="text-red-500 text-2xl font-bold">DEBUG: PoTemplatesTab rendered with {packs.length} packs</p>
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">PO Template Packs</h3>
