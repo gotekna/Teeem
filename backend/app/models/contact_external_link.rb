@@ -6,6 +6,8 @@ class ContactExternalLink < ApplicationRecord
   # Callbacks to keep Contact's cached xero columns in sync
   after_save :update_contact_xero_cache
   after_destroy :update_contact_xero_cache
+  # FRC (Feb 2026): Ensure tenant_name is never blank - resolve from XeroCredential
+  before_validation :ensure_tenant_name
 
   # SSoT: ACCOUNTING_SYSTEMS, RECORD_SYNC_DIRECTIONS, MATCH_TYPES defined in ExternalSyncConstants concern
 
@@ -225,6 +227,17 @@ class ContactExternalLink < ApplicationRecord
     end
 
     d[m][n]
+  end
+
+  # FRC (Feb 2026): Ensure tenant_name is populated from XeroCredential when blank.
+  # Root cause: Ruby's `"" || "Unknown"` returns "" because empty string is truthy.
+  # This guardrail catches any creation path that fails to set tenant_name.
+  def ensure_tenant_name
+    return if tenant_name.present?
+    return unless xero_org_id.present?
+
+    cred = XeroCredential.find_by(tenant_id: xero_org_id)
+    self.tenant_name = cred&.tenant_name.presence || "Unknown"
   end
 
   # Update the contact's cached xero columns
