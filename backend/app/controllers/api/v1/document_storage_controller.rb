@@ -2569,6 +2569,92 @@ module Api
           disposition: disposition
       end
 
+      # Download WarehouseDocument content from S3 via storage_blob
+      # SSoT: Uses storage_blob.storage_path as the S3 key
+      def download_from_s3_warehouse(document, is_preview)
+        provider = DocumentProviders.for_tenant(current_tenant)
+
+        unless provider
+          raise DocumentProviders::NotConnectedError, "S3 storage not configured"
+        end
+
+        storage_path = document.storage_blob&.storage_path
+
+        unless storage_path.present?
+          raise DocumentProviders::NotFoundError, "No storage path for warehouse document"
+        end
+
+        # For previews, use ETag caching to avoid re-downloading unchanged files
+        if is_preview && request.headers["If-None-Match"].present?
+          etag = Digest::MD5.hexdigest("#{document.id}-#{document.updated_at}")
+          if request.headers["If-None-Match"] == %("#{etag}")
+            head :not_modified
+            return
+          end
+        end
+
+        content = provider.download_file(storage_path)
+
+        disposition = is_preview ? "inline" : "attachment"
+        mime_type = document.content_type || document.storage_blob&.content_type || "application/octet-stream"
+
+        headers["ETag"] = %("#{Digest::MD5.hexdigest("#{document.id}-#{document.updated_at}")}") if is_preview
+
+        send_data content,
+          filename: document.download_filename,
+          type: mime_type,
+          disposition: disposition
+      end
+
+      # Download WarehouseDocument content from SharePoint via metadata
+      # SSoT: Uses metadata["sharepoint_item_id"] as the file ID
+      def download_from_sharepoint_warehouse(document, is_preview)
+        unless sharepoint_connected?
+          raise DocumentProviders::NotConnectedError, "SharePoint not connected"
+        end
+
+        file_id = document.meta("sharepoint_item_id") || document.storage_blob&.storage_path
+
+        unless file_id.present?
+          raise DocumentProviders::NotFoundError, "No SharePoint file ID for warehouse document"
+        end
+
+        client = sharepoint_client
+        config = WarehouseProvider.instance
+
+        # For previews, use ETag caching
+        if is_preview && request.headers["If-None-Match"].present?
+          etag = Digest::MD5.hexdigest("#{document.id}-#{document.updated_at}")
+          if request.headers["If-None-Match"] == %("#{etag}")
+            head :not_modified
+            return
+          end
+        end
+
+        if sharepoint_credential.credential_type == "app"
+          unless config&.connected?
+            raise DocumentProviders::NotConnectedError, "SharePoint not configured"
+          end
+
+          file_content = client.get_drive_item_content(
+            drive_id: config.drive_id,
+            item_id: file_id
+          )
+        else
+          file_content = client.download_file(file_id)
+        end
+
+        disposition = is_preview ? "inline" : "attachment"
+        mime_type = document.content_type || document.storage_blob&.content_type || "application/octet-stream"
+
+        headers["ETag"] = %("#{Digest::MD5.hexdigest("#{document.id}-#{document.updated_at}")}") if is_preview
+
+        send_data file_content,
+          filename: document.download_filename,
+          type: mime_type,
+          disposition: disposition
+      end
+
       # Get S3 pre-signed URL for direct browser access
       def get_s3_presigned_url(document)
         # FRC (Feb 2026): Must be tenant-scoped

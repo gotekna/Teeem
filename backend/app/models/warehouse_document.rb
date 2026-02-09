@@ -47,8 +47,13 @@ class WarehouseDocument < ApplicationRecord
   # Falls back to computed_folder_path for documents without materialized path.
   before_save :materialize_folder_path, if: :needs_path_recomputation?
 
+  # Materialized UI Name (Feb 2026): Template-expand ui_name on creation
+  # Only runs on new records with a WFDT — doesn't overwrite manual renames.
+  before_save :materialize_ui_name, if: :needs_ui_name_recomputation?
+
   # Materialized Download Name (Feb 2026): Compute and store download_name on save
   # Same pattern as folder_path materialization — avoids redundant runtime resolution.
+  # Runs AFTER materialize_ui_name since download_name may reference ui_name.
   before_save :materialize_download_name, if: :needs_download_name_recomputation?
 
   # Materialized Path: Invalidate folder counts when documents change folders
@@ -463,6 +468,22 @@ class WarehouseDocument < ApplicationRecord
   # ========================================
   # Materialized Path Computation (Feb 2026)
   # ========================================
+
+  # Check if ui_name needs template expansion
+  # Only on new records with a WFDT — don't overwrite manual renames on existing docs.
+  def needs_ui_name_recomputation?
+    new_record? && warehouse_folder_document_type_id.present?
+  end
+
+  # Compute and store the materialized UI name using SendNameResolver
+  # Falls back to original_filename if no template produces a meaningful result.
+  def materialize_ui_name
+    resolved = SendNameResolver.new.resolve_ui_name(self)
+    self.ui_name = resolved if resolved.present?
+  rescue StandardError => e
+    Rails.logger.warn "[WarehouseDocument] materialize_ui_name failed for #{id}: #{e.message}"
+    # ui_name stays as-is (original_filename set by creator)
+  end
 
   # Check if folder_path needs (re)computation
   def needs_path_recomputation?

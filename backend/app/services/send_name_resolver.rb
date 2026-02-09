@@ -63,6 +63,29 @@ class SendNameResolver
     sanitize_and_ensure_extension(fallback_name, warehouse_document)
   end
 
+  # Resolve UI Name for a WarehouseDocument (what user sees in File Warehouse)
+  # Uses WFDT's effective_ui_name_template with auto-numbering for duplicates.
+  #
+  # @param warehouse_document [WarehouseDocument] The warehouse document record
+  # @return [String, nil] The resolved UI name, or nil if no template available
+  def resolve_ui_name(warehouse_document)
+    return nil unless warehouse_document
+
+    wfdt = warehouse_document.warehouse_folder_document_type
+    return nil unless wfdt
+
+    template = wfdt.effective_ui_name_template
+    return nil if template.blank?
+
+    context = build_context(warehouse_document)
+    expanded = expand_template(template, context)
+
+    return nil if expanded.blank? || !meaningful_filename?(expanded)
+
+    # Ensure extension is NOT included in UI name (it's a display name, not a filename)
+    expanded
+  end
+
   # Resolve Send Name directly from a documentable (without WarehouseDocument)
   # Useful for documents that haven't been migrated to warehouse yet
   # @param source_type [String] The source type for template selection
@@ -97,6 +120,35 @@ class SendNameResolver
 
   private
 
+  # Compute auto-number for a warehouse document to prevent duplicate names.
+  # Counts existing WarehouseDocuments with same linkable + WFDT, returns next number.
+  # Zero-padded to 2 digits: "01", "02", etc.
+  #
+  # @param warehouse_document [WarehouseDocument]
+  # @return [String, nil] The number string, or nil if no numbering needed
+  def compute_auto_number(warehouse_document)
+    wfdt_id = warehouse_document.warehouse_folder_document_type_id
+    return nil unless wfdt_id.present?
+
+    scope = WarehouseDocument.where(warehouse_folder_document_type_id: wfdt_id)
+
+    # Scope by linkable if present (e.g., all "Site Photos" for this job)
+    if warehouse_document.linkable_type.present? && warehouse_document.linkable_id.present?
+      scope = scope.where(
+        linkable_type: warehouse_document.linkable_type,
+        linkable_id: warehouse_document.linkable_id
+      )
+    end
+
+    # Exclude self if persisted (for re-computation on existing docs)
+    scope = scope.where.not(id: warehouse_document.id) if warehouse_document.persisted?
+
+    existing_count = scope.count
+    next_number = existing_count + 1
+
+    format("%02d", next_number)
+  end
+
   # Resolve the template to use for this warehouse document
   def resolve_template(warehouse_document)
     documentable = warehouse_document.documentable
@@ -119,6 +171,8 @@ class SendNameResolver
   end
 
   # Build template context from warehouse document
+  # SSoT (Feb 2026): Checks linkable FIRST (photos use linkable: Job, not documentable),
+  # then documentable, then metadata as fallback for tokens.
   def build_context(warehouse_document)
     documentable = warehouse_document.documentable
     context = build_context_from_documentable(documentable)
@@ -127,6 +181,45 @@ class SendNameResolver
     context[:ui_name] = warehouse_document.ui_name
     context[:original_filename] = warehouse_document.original_filename
     context[:folder] = warehouse_document.folder_path
+
+    # SSoT (Feb 2026): Extract tokens from linkable (photos link to Job directly)
+    linkable = warehouse_document.linkable
+    if linkable.present?
+      case linkable
+      when Job
+        context[:job_code] ||= linkable.job_code
+        context[:job_name] ||= linkable.title
+        context[:job_title] ||= linkable.title
+        context[:job_address] ||= linkable.address
+      when Contact
+        context[:name] ||= linkable.display_name
+        context[:person_name] ||= linkable.display_name
+        context[:contact_name] ||= linkable.display_name
+      when CorporateCompany
+        context[:company_code] ||= linkable.company_code || linkable.try(:code)
+        context[:company_name] ||= linkable.name
+        context[:company_group] ||= linkable.company_group&.name
+      end
+    end
+
+    # SSoT (Feb 2026): Metadata fallback for tokens not found in linkable/documentable
+    meta = warehouse_document.metadata || {}
+    context[:job_code] ||= meta["job_code"] if meta["job_code"].present?
+    context[:contact_name] ||= meta["contact_name"] if meta["contact_name"].present?
+    context[:company_code] ||= meta["company_code"] if meta["company_code"].present?
+
+    # Document type from WFDT association (not just documentable)
+    wfdt = warehouse_document.warehouse_folder_document_type
+    if wfdt&.document_type
+      context[:doc_type_name] ||= wfdt.document_type.name
+      context[:doc_type_code] ||= wfdt.document_type.abbreviation || wfdt.document_type.try(:code)
+      context[:category] ||= wfdt.document_type.category
+    end
+    # Metadata fallback for doc type
+    context[:doc_type_name] ||= meta["document_type"] if meta["document_type"].present?
+
+    # Auto-numbering: count existing docs with same linkable + WFDT, set {Number} token
+    context[:number] = compute_auto_number(warehouse_document)
 
     context
   end

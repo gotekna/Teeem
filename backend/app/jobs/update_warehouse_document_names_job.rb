@@ -63,7 +63,9 @@ class UpdateWarehouseDocumentNamesJob < ApplicationJob
 
   private
 
-  # Build context for template expansion (similar to SendNameResolver)
+  # Build context for template expansion
+  # SSoT (Feb 2026): Checks linkable FIRST (photos use linkable: Job, not documentable),
+  # then documentable, then metadata as fallback — mirrors SendNameResolver.build_context
   def build_context(wd)
     context = {}
     documentable = wd.documentable
@@ -80,43 +82,90 @@ class UpdateWarehouseDocumentNamesJob < ApplicationJob
       context[:file_extension] = File.extname(wd.original_filename).delete_prefix(".")
     end
 
-    return context unless documentable
+    # Documentable context (legacy path)
+    if documentable.present?
+      if documentable.respond_to?(:job) && documentable.job
+        job = documentable.job
+        context[:job_code] = job.job_code
+        context[:job_name] = job.title
+        context[:job_title] = job.title
+      end
 
-    # Job context
-    if documentable.respond_to?(:job) && documentable.job
-      job = documentable.job
-      context[:job_code] = job.job_code
-      context[:job_name] = job.title
-      context[:job_title] = job.title
+      if documentable.respond_to?(:contact) && documentable.contact
+        contact = documentable.contact
+        context[:name] = contact.display_name
+        context[:contact_name] = contact.display_name
+      end
+
+      if documentable.respond_to?(:corporate) && documentable.corporate
+        company = documentable.corporate
+        context[:company_code] = company.company_code
+        context[:company_name] = company.name
+      end
+
+      doc_type = documentable.try(:document_type_record) || documentable.try(:document_type)
+      if doc_type.respond_to?(:name)
+        context[:doc_type_name] = doc_type.name
+        context[:doc_type_code] = doc_type.try(:abbreviation)
+      end
+
+      if documentable.respond_to?(:subject)
+        context[:subject] = documentable.subject
+      end
     end
 
-    # Contact context
-    if documentable.respond_to?(:contact) && documentable.contact
-      contact = documentable.contact
-      context[:name] = contact.display_name
-      context[:contact_name] = contact.display_name
+    # SSoT (Feb 2026): Extract tokens from linkable (photos link to Job directly)
+    linkable = wd.linkable
+    if linkable.present?
+      case linkable
+      when Job
+        context[:job_code] ||= linkable.job_code
+        context[:job_name] ||= linkable.title
+        context[:job_title] ||= linkable.title
+      when Contact
+        context[:name] ||= linkable.display_name
+        context[:contact_name] ||= linkable.display_name
+      when CorporateCompany
+        context[:company_code] ||= linkable.company_code
+        context[:company_name] ||= linkable.name
+      end
     end
 
-    # Company context
-    if documentable.respond_to?(:corporate) && documentable.corporate
-      company = documentable.corporate
-      context[:company_code] = company.company_code
-      context[:company_name] = company.name
+    # SSoT (Feb 2026): Metadata fallback for tokens not found above
+    meta = wd.metadata || {}
+    context[:job_code] ||= meta["job_code"] if meta["job_code"].present?
+    context[:contact_name] ||= meta["contact_name"] if meta["contact_name"].present?
+    context[:company_code] ||= meta["company_code"] if meta["company_code"].present?
+    context[:doc_type_name] ||= meta["document_type"] if meta["document_type"].present?
+
+    # Document type from WFDT association
+    wfdt = wd.warehouse_folder_document_type
+    if wfdt&.document_type
+      context[:doc_type_name] ||= wfdt.document_type.name
+      context[:doc_type_code] ||= wfdt.document_type.abbreviation || wfdt.document_type.try(:code)
+      context[:category] ||= wfdt.document_type.category
     end
 
-    # Document type context
-    doc_type = documentable.try(:document_type_record) || documentable.try(:document_type)
-    if doc_type.respond_to?(:name)
-      context[:doc_type_name] = doc_type.name
-      context[:doc_type_code] = doc_type.try(:abbreviation)
-    end
-
-    # Email context
-    if documentable.respond_to?(:subject)
-      context[:subject] = documentable.subject
-    end
+    # Auto-numbering
+    context[:number] = compute_auto_number(wd)
 
     context
+  end
+
+  # Compute auto-number for duplicate prevention (mirrors SendNameResolver)
+  def compute_auto_number(wd)
+    wfdt_id = wd.warehouse_folder_document_type_id
+    return nil unless wfdt_id.present?
+
+    scope = WarehouseDocument.where(warehouse_folder_document_type_id: wfdt_id)
+
+    if wd.linkable_type.present? && wd.linkable_id.present?
+      scope = scope.where(linkable_type: wd.linkable_type, linkable_id: wd.linkable_id)
+    end
+
+    scope = scope.where.not(id: wd.id) if wd.persisted?
+
+    format("%02d", scope.count + 1)
   end
 
   # Expand template with context values
