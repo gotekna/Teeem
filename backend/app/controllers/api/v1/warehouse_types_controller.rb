@@ -228,7 +228,7 @@ module Api
             wd.download_filename
           rescue NameError => e
             Rails.logger.debug "[WarehouseTypes] Stale documentable_type for doc #{wd.id}: #{e.message}"
-            wd.display_name.presence || wd.original_filename.presence || "document-#{wd.id}"
+            wd.ui_name.presence || wd.original_filename.presence || "document-#{wd.id}"
           end
           download_url = if blob&.storage_path.present? && provider
             provider.download_url(blob.storage_path, expires_in: 3600, filename: safe_filename) rescue nil

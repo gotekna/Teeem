@@ -257,9 +257,7 @@ module Api
         template = config.path_for(scope) rescue nil
 
         # Build live folder tree based on scope
-        linkable_type = params[:linkable_type].to_s.presence
-        linkable_id = params[:linkable_id].to_i if params[:linkable_id].present?
-        result = build_live_folder_tree(scope, path_segments, folder_type, linkable_type: linkable_type, linkable_id: linkable_id)
+        result = build_live_folder_tree(scope, path_segments, folder_type)
 
         render json: {
           success: true,
@@ -1561,14 +1559,14 @@ module Api
       # SSoT (Jan 2026): Unified folder tree builder
       # Email has special logic (mailboxes, years, months from SyncedEmail)
       # All other scopes use generic folder-based approach from WarehouseDocument.folder_path
-      def build_live_folder_tree(scope, path_segments, folder_type = nil, linkable_type: nil, linkable_id: nil)
+      def build_live_folder_tree(scope, path_segments, folder_type = nil)
         case scope
         when "email", "emails"
           build_email_live_tree(path_segments, folder_type)
         else
           # Generic: job, contact, corporate, people, task, etc.
           # All use WarehouseDocument.folder_path + WarehouseFolder tabs (SSoT Feb 2026)
-          build_generic_folder_tree(scope, path_segments, linkable_type: linkable_type, linkable_id: linkable_id)
+          build_generic_folder_tree(scope, path_segments)
         end
       end
 
@@ -1579,18 +1577,12 @@ module Api
       #
       # ⚠️ FRC Fix (Feb 2026): Was querying legacy `folder` column with wrong root prefix
       # from WarehouseFolder.display_name. Fix: source_type for scoping, folder_path for tree.
-      def build_generic_folder_tree(scope, path_segments, linkable_type: nil, linkable_id: nil)
+      # SSoT (Feb 2026): Generic folder tree for full /warehouse page.
+      # Scoped mode (Job/Contact tabs) uses scoped_tree + scoped_folder_files
+      # in warehouse_types_controller.rb instead — FK-based, no path matching.
+      def build_generic_folder_tree(scope, path_segments)
         # SSoT: source_type scopes documents, folder_path provides tree structure
         base = WarehouseDocument.where(source_type: scope).where.not(folder_path: [nil, ""])
-
-        # Scope to specific record when provided (Job Warehouse tab, Contact tab, etc.)
-        # Uses same pattern as scoped_tree: check both linkable and documentable for older docs
-        if linkable_type.present? && linkable_id.present?
-          base = base.where(
-            "(linkable_type = ? AND linkable_id = ?) OR (documentable_type = ? AND documentable_id = ?)",
-            linkable_type, linkable_id, linkable_type, linkable_id
-          )
-        end
 
         # Root prefix = first segment of folder_path (set by WarehousePathComputer from template)
         # e.g., "Job" for job docs, "Contacts" for contact docs

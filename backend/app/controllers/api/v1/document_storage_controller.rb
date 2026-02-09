@@ -63,7 +63,8 @@ module Api
         case provider
         when "s3_compatible"
           # SSoT: S3-compatible storage via S3CompatibleCredential
-          credential = S3CompatibleCredential.active.first
+          # FRC (Feb 2026): Must be tenant-scoped
+          credential = S3CompatibleCredential.for_tenant(current_tenant).active.first
           if credential&.status == "connected"
             render json: {
               connected: true,
@@ -84,7 +85,9 @@ module Api
         when "sharepoint"
           # SSoT: SharePoint storage via MicrosoftCredential
           credential = begin
-            cred = MicrosoftCredential.sharepoint_credential
+            # FRC (Feb 2026): Must be tenant-scoped
+            cred = MicrosoftCredential.for_tenant(current_tenant).refreshable_delegated.org_level.first ||
+                   MicrosoftCredential.for_tenant(current_tenant).refreshable_app.first
             cred&.access_token if cred # Verify decryption works
             cred
           rescue ActiveRecord::Encryption::Errors::Decryption => e
@@ -1171,9 +1174,11 @@ module Api
             ActsAsTenant.current_tenant = Tenant.first
           end
 
-          if S3CompatibleCredential.active.connected.exists?
+          # FRC (Feb 2026): Must be tenant-scoped
+          if S3CompatibleCredential.for_tenant(current_tenant).active.connected.exists?
             download_from_s3_by_key(file_id, is_preview)
-          elsif MicrosoftCredential.sharepoint_credential&.connected?
+          elsif (MicrosoftCredential.for_tenant(current_tenant).refreshable_delegated.org_level.first ||
+                 MicrosoftCredential.for_tenant(current_tenant).refreshable_app.first)&.connected?
             download_from_sharepoint_by_id(file_id, is_preview)
           else
             raise DocumentProviders::NotConnectedError, "No storage provider configured"
@@ -2323,7 +2328,8 @@ module Api
 
       # SSoT: Used by presigned_url action for PDF performance optimization
       def presigned_url_for_s3(s3_key)
-        credential = S3CompatibleCredential.active.connected.first
+        # FRC (Feb 2026): Must be tenant-scoped
+        credential = S3CompatibleCredential.for_tenant(current_tenant).active.connected.first
 
         unless credential
           raise DocumentProviders::NotConnectedError, "S3 storage not configured"
@@ -2415,7 +2421,8 @@ module Api
       # Download file from S3 by key (for photo gallery and direct file access)
       # SSoT: Uses S3 key directly for file access
       def download_from_s3_by_key(s3_key, is_preview)
-        credential = S3CompatibleCredential.active.connected.first
+        # FRC (Feb 2026): Must be tenant-scoped
+        credential = S3CompatibleCredential.for_tenant(current_tenant).active.connected.first
 
         unless credential
           raise DocumentProviders::NotConnectedError, "S3 storage not configured"
@@ -2566,7 +2573,8 @@ module Api
 
       # Get S3 pre-signed URL for direct browser access
       def get_s3_presigned_url(document)
-        credential = S3CompatibleCredential.active.connected.first
+        # FRC (Feb 2026): Must be tenant-scoped
+        credential = S3CompatibleCredential.for_tenant(current_tenant).active.connected.first
 
         unless credential
           raise DocumentProviders::NotConnectedError, "S3 storage not configured"

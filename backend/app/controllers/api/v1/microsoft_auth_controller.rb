@@ -264,7 +264,9 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     user_email = microsoft_token&.email || current_user.email
 
     # SSoT: Use MicrosoftCredential
-    org_credential = MicrosoftCredential.sharepoint_credential
+    # FRC (Feb 2026): Must be tenant-scoped
+    org_credential = MicrosoftCredential.for_tenant(current_tenant).refreshable_delegated.org_level.first ||
+                     MicrosoftCredential.for_tenant(current_tenant).refreshable_app.first
     sharepoint_info = build_sharepoint_connection_info(org_credential)
 
     # Get personal OneDrive info (requires user's token)

@@ -250,17 +250,18 @@ class WarehousePathComputer
   # Path Template Construction
   # ════════════════════════════════════════════════════════════════════
 
-  # Build path template from warehouse_type base template + child folder segments.
+  # Build path template from warehouse_type base template + folder segments.
   #
-  # ⚠️ DO NOT USE folder.full_folder_path here!
-  # full_folder_path includes the root folder's own segment ON TOP of the
-  # warehouse_type template, causing duplication:
-  #   WT template = "Contacts/{{ContactName}}", root segment = "Contacts"
-  #   full_folder_path = "Contacts/{{ContactName}}/Contacts" ← WRONG
+  # ⚠️ DO NOT SIMPLIFY - Root segment deduplication (Feb 2026 FRC fix)
+  # ════════════════════════════════════════════════════════════════════
+  # Why: The WT template already includes the root prefix (e.g., "Contacts/{{ContactName}}").
+  #      Root folders whose segment matches the WT template's first segment (e.g., "Contacts")
+  #      must NOT be appended, or you get "Contacts/{{ContactName}}/Contacts".
+  #      But category root folders (e.g., "Financial", "Documents") MUST be appended.
   #
-  # Instead: WT template + child-only segments (excluding root)
-  #   = "Contacts/{{ContactName}}" for root folders
-  #   = "Contacts/{{ContactName}}/Receipts" for child folders
+  # ❌ WRONG: Skip ALL root folder segments → loses "Financial", "Documents"
+  # ✅ CORRECT: Skip root segment only if it matches WT template's first segment
+  # ════════════════════════════════════════════════════════════════════
   #
   # @param folder [WarehouseFolder]
   # @return [String] Path template with {{Token}} placeholders
@@ -271,19 +272,35 @@ class WarehousePathComputer
     base = wt.folder_path_template.presence
     return folder.folder_segment || wt.code.titleize unless base
 
-    # For root folders (no parent), just use the WT template
+    # The WT template's root segment (e.g., "Contacts" from "Contacts/{{ContactName}}")
+    # Root folders matching this are the WT root itself — skip to avoid duplication.
+    wt_root_segment = base.split("/").first
+
+    # For root folders (no parent): WT template + folder's own segment (if not WT root)
     if folder.parent_id.nil?
       result = base
+      if folder.folder_segment.present? && folder.folder_segment != wt_root_segment
+        result = "#{result}/#{folder.folder_segment}"
+      end
       result = "#{result}/#{folder.folder_path_suffix}" if folder.folder_path_suffix.present?
       return result
     end
 
-    # For child folders: WT template + child segments (skip root folder's segment)
+    # For child folders: WT template + ALL ancestor segments (including root, unless WT root)
     segments = []
     current = folder
-    while current && current.parent_id.present?
-      segments.unshift(current.folder_segment) if current.folder_segment.present?
-      current = current.parent
+    while current
+      if current.parent_id.present?
+        # Non-root: always include
+        segments.unshift(current.folder_segment) if current.folder_segment.present?
+        current = current.parent
+      else
+        # Root: include its segment unless it's the WT root
+        if current.folder_segment.present? && current.folder_segment != wt_root_segment
+          segments.unshift(current.folder_segment)
+        end
+        break
+      end
     end
 
     result = segments.any? ? "#{base}/#{segments.join('/')}" : base

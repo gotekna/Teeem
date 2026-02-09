@@ -79,7 +79,13 @@ module Api
       # GET /api/v1/xero/health/predictions
       # Returns predictive health analysis
       def predictions
-        credentials_with_risk = XeroCredential.all.map do |credential|
+        # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant health data leak
+        health_cred_scope = if current_tenant&.master_tenant?
+                              XeroCredential.all
+                            else
+                              XeroCredential.for_teeem_tenant(current_tenant)
+                            end
+        credentials_with_risk = health_cred_scope.map do |credential|
           {
             id: credential.id,
             tenant_name: credential.tenant_name,
@@ -102,7 +108,8 @@ module Api
       # GET /api/v1/xero/health/warnings
       # Returns early warnings for potential issues
       def warnings
-        warnings = XeroHealthEvent.early_warnings
+        # FRC (Feb 2026): Must be tenant-scoped
+        warnings = XeroHealthEvent.early_warnings(tenant: current_tenant)
 
         render json: {
           success: true,
@@ -115,7 +122,9 @@ module Api
       # GET /api/v1/xero/health/patterns
       # Returns failure patterns analysis
       def patterns
-        credential = params[:credential_id].present? ? XeroCredential.find_by(id: params[:credential_id]) : nil
+        # FRC (Feb 2026): Must be tenant-scoped
+        pattern_cred_scope = current_tenant&.master_tenant? ? XeroCredential : XeroCredential.for_teeem_tenant(current_tenant)
+        credential = params[:credential_id].present? ? pattern_cred_scope.find_by(id: params[:credential_id]) : nil
 
         render json: {
           success: true,
@@ -129,7 +138,8 @@ module Api
       def trends
         render json: {
           success: true,
-          trends: XeroHealthEvent.trend_analysis
+          # FRC (Feb 2026): Must be tenant-scoped
+          trends: XeroHealthEvent.trend_analysis(tenant: current_tenant)
         }
       end
 

@@ -10,7 +10,8 @@ class Api::V1::S3CredentialsController < ApplicationController
   # GET /api/v1/s3_credentials
   # List organization's S3 credentials
   def index
-    credentials = S3CompatibleCredential.order(created_at: :desc)
+    # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant credential access
+    credentials = S3CompatibleCredential.for_tenant(current_tenant).order(created_at: :desc)
 
     render json: {
       success: true,
@@ -234,7 +235,8 @@ class Api::V1::S3CredentialsController < ApplicationController
   # Get overall S3 storage status
   # SSoT (Jan 2026): bucket comes from WarehouseProvider, not credential
   def status
-    credential = S3CompatibleCredential.active.connected.first
+    # FRC (Feb 2026): Must be tenant-scoped
+    credential = S3CompatibleCredential.for_tenant(current_tenant).active.connected.first
 
     if credential
       render json: {
@@ -283,7 +285,8 @@ class Api::V1::S3CredentialsController < ApplicationController
   private
 
   def set_credential
-    @credential = S3CompatibleCredential.find(params[:id])
+    # FRC (Feb 2026): Must be tenant-scoped - prevent ID enumeration attack
+    @credential = S3CompatibleCredential.for_tenant(current_tenant).find(params[:id])
   end
 
   # SSoT (Jan 2026): bucket removed from params - WarehouseProvider.bucket is SSoT
