@@ -155,7 +155,7 @@ export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps
     try {
       setRecordsLoading(true);
       setError(null);
-      setImportResult(null);
+      // Don't clear importResult here — preserve success message after import refresh
       setSelectedRecords(new Set());
       setEntityTypeFilter("all");
 
@@ -237,7 +237,7 @@ export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps
     try {
       setRecordsLoading(true);
       setError(null);
-      setImportResult(null);
+      // Don't clear importResult here — preserve success message after import refresh
       setSelectedRecords(new Set());
       setEntityTypeFilter("all");
 
@@ -568,11 +568,11 @@ export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps
             <ComboboxDropdown<TableComboItem>
               items={tableComboItems}
               selectedItem={selectedTableItem}
-              onSelect={(item) => setSelectedTable(item.id)}
+              onSelect={(item) => { setSelectedTable(item.id); setImportResult(null); }}
               placeholder="Choose a configuration table..."
               searchPlaceholder="Search tables..."
               clearable
-              onClear={() => setSelectedTable("")}
+              onClear={() => { setSelectedTable(""); setImportResult(null); }}
               renderListItem={({ item, isChecked }) => (
                 <div className="flex flex-col">
                   <span className="font-medium">{item.label}</span>
@@ -588,11 +588,11 @@ export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps
               <ComboboxDropdown
                 items={tenantComboItems}
                 selectedItem={selectedTenantItem}
-                onSelect={(item) => setSelectedTenant(item.id)}
+                onSelect={(item) => { setSelectedTenant(item.id); setImportResult(null); }}
                 placeholder="Choose a tenant to import from..."
                 searchPlaceholder="Search tenants..."
                 clearable
-                onClear={() => setSelectedTenant("")}
+                onClear={() => { setSelectedTenant(""); setImportResult(null); }}
                 className="w-full max-w-md"
               />
             )}
