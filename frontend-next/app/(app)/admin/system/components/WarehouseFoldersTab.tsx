@@ -56,8 +56,8 @@ interface WarehouseType {
 interface WarehouseFolder {
   id: number;
   warehouse_type_id: number;
-  warehouse_type_code: string;
-  warehouse_type_name: string;
+  warehouse_type_code: string | null;
+  warehouse_type_name: string | null;
   parent_id: number | null;
   parent_name: string | null;
   children_count: number;
@@ -346,12 +346,12 @@ export function WarehouseFoldersTab() {
       let comparison = 0;
       switch (sortField) {
         case "warehouse_type_name":
-          comparison = (a.warehouse_type_name || a.warehouse_type_code).localeCompare(
-            b.warehouse_type_name || b.warehouse_type_code
+          comparison = (a.warehouse_type_name || a.warehouse_type_code || "").localeCompare(
+            b.warehouse_type_name || b.warehouse_type_code || ""
           );
           break;
         case "name":
-          comparison = a.name.localeCompare(b.name);
+          comparison = (a.name || "").localeCompare(b.name || "");
           break;
         case "folder_path_template":
           comparison = (a.folder_path_template || "").localeCompare(b.folder_path_template || "");
