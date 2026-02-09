@@ -711,6 +711,12 @@ export function Sidebar() {
 
   // Handle navigation click
   const handleNavClick = (href: string, isActiveItem: boolean) => {
+    // DEBUG: Track sidebar navigation clicks
+    const isEmailLink = href.startsWith('/email');
+    if (isEmailLink) {
+      console.log('[Email Nav Debug] Sidebar click:', { href, isActiveItem, currentPath: window.location.pathname + window.location.search });
+    }
+
     // Save scroll position BEFORE navigation triggers re-render
     if (navRef.current) {
       savedScrollRef.current = navRef.current.scrollTop;
