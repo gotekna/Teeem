@@ -43,7 +43,7 @@ namespace :xero do
           documentable_type: "ExternalInvoice",
           source_type: "xero",
           tenant_id: tenant.id
-        ).includes(documentable: :contact)
+        ).includes(:linkable, documentable: :contact)
 
         tenant_count = docs.count
         next if tenant_count.zero?
@@ -54,12 +54,10 @@ namespace :xero do
           total += 1
 
           invoice = doc.documentable
-          unless invoice
-            skipped += 1
-            next
-          end
+          # For contact name: prefer invoice.contact, fall back to doc.linkable
+          contact = invoice&.contact || doc.linkable
+          contact = nil unless contact.is_a?(Contact) if contact.present?
 
-          contact = invoice.contact
           unless contact
             skipped += 1
             next
@@ -68,7 +66,7 @@ namespace :xero do
           # Use display_name directly (NOT document_folder_name which includes "Contacts/" prefix)
           # The "Contacts" root segment is already added in the parts array below
           contact_name = SharePoint::FilenameSanitizer.sanitize_path_segment(
-            contact.display_name || contact.name || "Unknown"
+            contact.display_name || "Unknown"
           )
 
           unless contact_name.present?
@@ -77,10 +75,10 @@ namespace :xero do
           end
 
           # Resolve Xero org name PER INVOICE using xero_org_id (SSoT)
-          # Priority chain mirrors XeroAttachmentSyncService#find_xero_tenant_id_for_invoice
-          # with added fallback to document metadata for older docs without xero_org_id
-          xero_org_uuid = invoice.xero_org_id.presence ||
-                          invoice.raw_data&.dig("TenantId").presence ||
+          # Priority chain: invoice.xero_org_id → raw_data → document metadata
+          # Handles orphaned docs (nil documentable) via metadata fallback
+          xero_org_uuid = invoice&.xero_org_id.presence ||
+                          invoice&.raw_data&.dig("TenantId").presence ||
                           doc.metadata&.dig("xero_tenant_id").presence
           xero_org = nil
           if xero_org_uuid.present?
@@ -95,7 +93,8 @@ namespace :xero do
 
           # Fall back to looking up by invoice type (same logic as XeroAttachmentSyncService)
           unless document_type
-            type_name = case invoice.invoice_type
+            invoice_type = invoice&.invoice_type || doc.metadata&.dig("invoice_type")
+            type_name = case invoice_type
                         when "bill" then "Xero Bill"
                         when "credit_note" then "Xero Credit Note"
                         else "Xero Invoice"
