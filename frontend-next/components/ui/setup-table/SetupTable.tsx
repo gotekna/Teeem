@@ -119,7 +119,7 @@ export function SetupTable<T extends { id: string | number }>({
       </div>
 
       {/* List */}
-      <div className="p-2">
+      <div className="p-2 max-h-[60vh] overflow-y-auto">
         {loading ? (
           <div className="py-8 flex items-center justify-center">
             <Spinner size={24} className="text-muted-foreground" />
