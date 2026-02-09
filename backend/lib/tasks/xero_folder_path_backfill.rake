@@ -2,10 +2,16 @@
 
 # Backfill folder_path on ExternalInvoice warehouse_documents
 #
-# FRC (Feb 2026): XeroAttachmentSyncService was computing the correct folder path
-# via compute_folder_from_document_type() but never passing it to WarehouseDocumentCreator.
-# The materialize_folder_path callback fell back to root "contact" template, producing
-# truncated paths like "Contacts/7 Eleven" instead of "Contacts/7 Eleven/Financial/Tekna/Bills".
+# ⚠️ DO NOT SIMPLIFY - Per-invoice Xero org resolution (Feb 2026 FRC)
+# ════════════════════════════════════════════════════════════════════
+# Why: Tenants can have MULTIPLE Xero orgs (e.g., Tekna Homes + W2G Assets).
+#      The old code cached ONE credential per tenant, which is non-deterministic
+#      when multiple XeroCredentials share the same teeem_tenant_id.
+#      This caused bills to appear under the wrong org folder.
+#
+# ❌ WRONG: XeroCredential.find_by(teeem_tenant_id: tenant.id) → random org
+# ✅ CORRECT: invoice.xero_org_id → XeroCredential.find_by(tenant_id: uuid) → exact org
+# ════════════════════════════════════════════════════════════════════
 #
 # Usage:
 #   rails xero:backfill_folder_paths          # Dry run (shows what would change)
@@ -25,6 +31,11 @@ namespace :xero do
     skipped = 0
     errors = 0
 
+    # Cache xero_org_id (UUID) → tenant_name to avoid N+1 queries at scale.
+    # Keyed by Xero UUID (deterministic), NOT teeem_tenant_id (non-deterministic).
+    # With 10,000 clients × ~3 orgs each = ~30,000 entries max.
+    xero_org_name_cache = {}
+
     # Process per-tenant to satisfy ActsAsTenant and WarehouseProvider
     Tenant.find_each do |tenant|
       ActsAsTenant.with_tenant(tenant) do
@@ -38,10 +49,6 @@ namespace :xero do
         next if tenant_count.zero?
 
         puts "\nTenant: #{tenant.name} (#{tenant_count} docs)"
-
-        # Cache Xero org name for this tenant
-        credential = XeroCredential.find_by(teeem_tenant_id: tenant.id)
-        xero_org = credential&.tenant_name
 
         docs.find_each do |doc|
           total += 1
@@ -67,6 +74,17 @@ namespace :xero do
           unless contact_name.present?
             skipped += 1
             next
+          end
+
+          # Resolve Xero org name PER INVOICE using xero_org_id (SSoT)
+          # Same priority chain as XeroAttachmentSyncService#find_xero_tenant_id_for_invoice
+          xero_org_uuid = invoice.xero_org_id.presence ||
+                          invoice.raw_data&.dig("TenantId").presence
+          xero_org = nil
+          if xero_org_uuid.present?
+            xero_org = xero_org_name_cache[xero_org_uuid] ||= begin
+              XeroCredential.find_by(tenant_id: xero_org_uuid)&.tenant_name
+            end
           end
 
           # Get DocumentType from metadata
@@ -120,6 +138,7 @@ namespace :xero do
 
     puts "\n" + "-" * 70
     puts "Total: #{total} | #{execute ? 'Updated' : 'Would update'}: #{updated} | Skipped: #{skipped} | Errors: #{errors}"
+    puts "Xero orgs resolved: #{xero_org_name_cache.size} unique"
     puts "=" * 70
   end
 end

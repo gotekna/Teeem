@@ -55,11 +55,18 @@ class XeroAttachmentSyncService
   # FRC (Feb 2026): Get Xero tenant UUID for API calls
   # ExternalInvoice.tenant_id is TEEEM integer, need Xero UUID for API
   def find_xero_tenant_id_for_invoice
-    # First try raw_data (if stored during sync)
+    # Priority 1: raw_data (stored during webhook/API sync)
     xero_tid = external_invoice.raw_data&.dig("TenantId")
     return xero_tid if xero_tid.present?
 
-    # Fallback: Look up via XeroCredential.teeem_tenant_id
+    # Priority 2: xero_org_id (SSoT - set by ExternalInvoiceSyncService)
+    # ⚠️ DO NOT REMOVE - This prevents non-deterministic credential lookup (Feb 2026)
+    # When multiple XeroCredentials share the same teeem_tenant_id (e.g. Tekna + W2G),
+    # skipping this causes bills to appear under the wrong org in the File Warehouse.
+    return external_invoice.xero_org_id if external_invoice.xero_org_id.present?
+
+    # Priority 3: Last resort - find by TEEEM tenant
+    # WARNING: Non-deterministic if multiple credentials share same teeem_tenant_id
     credential = XeroCredential.find_by(teeem_tenant_id: external_invoice.tenant_id)
     credential&.tenant_id
   end
