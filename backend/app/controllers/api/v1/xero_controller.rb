@@ -1861,7 +1861,13 @@ module Api
           # PER-TENANT STATUS (Feb 2026: Ultra Transparency)
           # ============================================
           # Give customers complete visibility into WHY each org is paused
-          per_tenant_status = XeroCredential.where(status: %w[connected degraded disconnected]).map do |cred|
+          # FRC (Feb 2026): Must be tenant-scoped - master sees all, others see own orgs only
+          cred_scope = if current_tenant&.master_tenant?
+                         XeroCredential.where(status: %w[connected degraded disconnected])
+                       else
+                         XeroCredential.for_teeem_tenant(current_tenant).where(status: %w[connected degraded disconnected])
+                       end
+          per_tenant_status = cred_scope.map do |cred|
             usage = XeroRateLimitTracker.usage_for(cred.tenant_id)
             lockout = XeroRateLimitTracker.current_lockout(tenant_id: cred.tenant_id)
 

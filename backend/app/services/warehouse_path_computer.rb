@@ -149,9 +149,8 @@ class WarehousePathComputer
   # This is the same logic as the model callback but usable during backfill.
   #
   # Sources for document_type_id (in priority order):
-  #   1. metadata["document_type_id"] (set during creation)
+  #   1. metadata["document_type_id"] (set during creation or backfilled from contact_documents)
   #   2. documentable.document_type_id (if model responds to it)
-  #   3. contact_documents table (legacy FK - for ContactDocument docs without linkable)
   #
   # @param doc [WarehouseDocument]
   # @return [WarehouseFolderDocumentType, nil]
@@ -162,13 +161,6 @@ class WarehousePathComputer
     doc_type_id = doc.metadata&.dig("document_type_id")
     if doc_type_id.blank? && doc.documentable.present?
       doc_type_id = doc.documentable.document_type_id if doc.documentable.respond_to?(:document_type_id)
-    end
-
-    # Fallback: recover document_type_id from contact_documents table (legacy FK)
-    # The ContactDocument model was removed but the table persists with document_type_id column.
-    # ~2,333 contact_documents rows have a document_type_id we can recover.
-    if doc_type_id.blank? && doc.documentable_type == "ContactDocument" && doc.documentable_id.present?
-      doc_type_id = recover_document_type_id_from_contact_documents(doc.documentable_id)
     end
 
     return nil if doc_type_id.blank?
@@ -324,12 +316,6 @@ class WarehousePathComputer
       # Deleted model class - skip enrichment
     end
 
-    # 2b. Special case: ContactDocument table still exists with contact_id FK
-    #     Used when linkable is nil and documentable chain is broken
-    if tokens[:ContactName].blank? && doc.documentable_type == "ContactDocument" && doc.documentable_id.present?
-      resolve_contact_from_contact_documents(tokens, doc)
-    end
-
     # 3. Document type from warehouse_folder_document_type FK
     if doc.warehouse_folder_document_type&.document_type
       dt = doc.warehouse_folder_document_type.document_type
@@ -472,41 +458,6 @@ class WarehousePathComputer
         tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
       end
     end
-  end
-
-  # Resolve ContactName from the contact_documents table (legacy table still in DB).
-  # ContactDocument model was removed in Jan 2026 but the table persists with contact_id FK.
-  # This resolves the 10K+ contact docs that have no linkable and broken documentable chain.
-  def resolve_contact_from_contact_documents(tokens, doc)
-    result = ActiveRecord::Base.connection.exec_query(
-      "SELECT contact_id FROM contact_documents WHERE id = #{doc.documentable_id.to_i} LIMIT 1"
-    )
-    if (contact_id = result.first&.dig("contact_id"))
-      contact = Contact.find_by(id: contact_id)
-      if contact
-        tokens[:ContactName] = contact.display_name.presence || "Contact-#{contact.id}"
-        tokens[:ContactId] = contact.id
-      end
-    end
-  rescue => _e
-    # Table might not exist in all environments - silently skip
-  end
-
-  # Recover document_type_id from the legacy contact_documents table.
-  # ~2,333 rows have a document_type_id that isn't stored anywhere else.
-  # Used by resolve_warehouse_folder_document_type to enable WFDT lookup
-  # for contact docs that would otherwise be stuck at depth-2 paths.
-  #
-  # @param documentable_id [Integer] The ContactDocument ID
-  # @return [Integer, nil] The document_type_id if found
-  def recover_document_type_id_from_contact_documents(documentable_id)
-    result = ActiveRecord::Base.connection.exec_query(
-      "SELECT document_type_id FROM contact_documents WHERE id = #{documentable_id.to_i} LIMIT 1"
-    )
-    result.first&.dig("document_type_id")
-  rescue => _e
-    # Table might not exist in all environments - silently skip
-    nil
   end
 
   # ════════════════════════════════════════════════════════════════════

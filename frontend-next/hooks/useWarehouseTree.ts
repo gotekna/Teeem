@@ -503,7 +503,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         }));
         const folders = (response.data.folders || []).map(f => ({
           name: f.name,
-          path: `scoped/${f.folderId}`,
+          path: `scoped/wf-${f.folderId}`,
           count: f.count,
           folderId: f.folderId,
         }));
