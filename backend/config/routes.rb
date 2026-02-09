@@ -461,9 +461,9 @@ Rails.application.routes.draw do
       # SSoT: Folder hierarchy matching WarehouseProvider.SCOPE_TEMPLATES
       # Used by File Warehouse to build tree structure that mirrors storage paths
       get "documents/scope_hierarchy", to: "documents#scope_hierarchy"
-      # SSoT: OneDrive-like S3 folder browser - lists actual S3/Wasabi folders
-      # Used by Documents page to mirror exact storage structure for desktop sync
-      get "documents/s3_folders", to: "documents#s3_folders"
+      # SSoT: Virtual folder browser - builds tree from WarehouseDocument.folder_path
+      # Used by File Warehouse tree views to browse document folder structure
+      get "documents/browse_folders", to: "documents#browse_folders"
       # Phase 3: Universal warehouse documents endpoint (SSoT for all document types)
       # Queries WarehouseDocument table with filters: source_type, folder, search
       get "documents/warehouse", to: "documents#warehouse"
