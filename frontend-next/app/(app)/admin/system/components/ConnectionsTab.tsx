@@ -56,7 +56,6 @@ import {
 } from "@/components/ui/accordion";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { formatDateTimeForDisplay } from "@/lib/timezone-utils";
 import { cn } from "@/lib/utils";
 import { StorageCostTab } from "./StorageCostTab";
 import { Progress } from "@/components/ui/progress";
@@ -931,27 +930,20 @@ function S3StorageConnection() {
   );
 }
 
-// Organization document provider config type
-// SSoT (Jan 2026): bucket is from WarehouseProvider, visible on BOTH screens
-interface OrgDocumentProvider {
-  document_provider: string;
-  document_provider_credential_id: number | null;
-  available_providers: string[];
-  s3_credentials: Array<{
-    id: number;
-    name: string;
-    provider_type: string;
-    status: string;
-    connected: boolean;
-  }>;
-  sharepoint_configured: boolean;
-  can_switch: boolean;
-  // SSoT (Jan 2026): bucket from WarehouseProvider - visible on both screens
+// SSoT (Feb 2026): Consolidated to use WarehouseProvider API directly
+// Both Connections and Warehouse Config pages read/write the same API
+interface WarehouseProviderConfig {
+  configured: boolean;
+  provider_type: string;
+  status: string;
+  endpoint?: string;
   bucket?: string;
-  // Connection status info
-  connection_status?: string;
-  last_error?: string;
-  warehouse_provider_updated_at?: string;
+  region?: string;
+  site_url?: string;
+  site_id?: string;
+  drive_id?: string;
+  drive_name?: string;
+  root_path?: string;
 }
 
 // Document Storage Provider Selection (SSoT)
@@ -960,10 +952,9 @@ function DocumentStorageProvider() {
   const { confirm } = useConfirm();
   // FRC (Feb 2026): Don't default to sharepoint - wait for API to return actual provider
   const [selectedProvider, setSelectedProvider] = React.useState<string>("");
-  const [selectedCredentialId, setSelectedCredentialId] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [showConfig, setShowConfig] = React.useState(false);
-  const [orgConfig, setOrgConfig] = React.useState<OrgDocumentProvider | null>(null);
+  const [orgConfig, setOrgConfig] = React.useState<WarehouseProviderConfig | null>(null);
   const [s3Credentials, setS3Credentials] = React.useState<S3Credential[]>([]);
   const [savingProvider, setSavingProvider] = React.useState(false);
   // SSoT (Jan 2026): bucket from WarehouseProvider - visible on both screens
@@ -1005,29 +996,37 @@ function DocumentStorageProvider() {
 
   const loadOrgConfig = async () => {
     try {
-      const response = await api.get<{ success: boolean; data: OrgDocumentProvider }>("/api/v1/organization/document_provider");
+      // SSoT (Feb 2026): Use WarehouseProvider API directly - same as Warehouse Config page
+      const response = await api.get<{ success: boolean; data: WarehouseProviderConfig }>("/api/v1/warehouse_provider");
       if (response.data) {
         setOrgConfig(response.data);
-        setSelectedCredentialId(response.data.document_provider_credential_id);
-        // SSoT (Jan 2026): bucket from WarehouseProvider - visible on both screens
         setBucket(response.data.bucket || "");
 
-        // SSoT Fix (Jan 2026): Map "s3_compatible" to actual provider type from credential
-        // Backend returns generic "s3_compatible", but dropdown needs specific provider (wasabi, backblaze_b2, etc.)
-        // FRC (Feb 2026): Don't default to sharepoint - use actual configured provider or empty string
-        let provider = response.data.document_provider || "";
-        if (provider === "s3_compatible" && response.data.document_provider_credential_id) {
-          const activeCredential = response.data.s3_credentials?.find(
-            (c) => c.id === response.data.document_provider_credential_id
-          );
-          if (activeCredential?.provider_type) {
-            provider = activeCredential.provider_type;
+        // Map provider_type to dropdown value
+        // WarehouseProvider stores "s3_compatible" but dropdown has specific providers (wasabi, etc.)
+        // Try to determine specific provider from endpoint, fallback to s3_compatible → wasabi
+        let provider = response.data.provider_type || "";
+        if (provider === "s3_compatible") {
+          const endpoint = response.data.endpoint || "";
+          if (endpoint.includes("wasabi")) {
+            provider = "wasabi";
+          } else if (endpoint.includes("backblaze") || endpoint.includes("b2")) {
+            provider = "backblaze_b2";
+          } else if (endpoint.includes("amazonaws")) {
+            provider = "aws_s3";
+          } else if (endpoint.includes("minio") || endpoint.includes("localhost") || endpoint.includes("127.0.0.1")) {
+            provider = "minio";
+          } else if (endpoint.includes("synology")) {
+            provider = "synology";
+          } else {
+            // Default S3-compatible to wasabi (most common)
+            provider = "wasabi";
           }
         }
         setSelectedProvider(provider);
       }
     } catch (error) {
-      console.error("Failed to load organization document provider:", error);
+      console.error("Failed to load warehouse provider config:", error);
     } finally {
       setLoading(false);
     }
@@ -1049,20 +1048,28 @@ function DocumentStorageProvider() {
   const handleSaveProviderSelection = async () => {
     setSavingProvider(true);
     try {
-      const response = await api.put<{ success: boolean; message?: string; error?: string }>(
-        "/api/v1/organization/document_provider",
+      // SSoT (Feb 2026): Use WarehouseProvider API directly - same as Warehouse Config page
+      const providerType = selectedProvider === "sharepoint" ? "sharepoint" : "s3_compatible";
+      const preset = selectedProvider !== "sharepoint" ? PROVIDER_PRESETS[selectedProvider] : null;
+
+      const response = await api.patch<{ success: boolean; data?: WarehouseProviderConfig; errors?: string[] }>(
+        "/api/v1/warehouse_provider",
         {
-          document_provider: selectedProvider === "sharepoint" ? "sharepoint" : "s3_compatible",
-          document_provider_credential_id: selectedProvider !== "sharepoint" ? selectedCredentialId : null,
-          // SSoT (Jan 2026): bucket from WarehouseProvider - visible on both screens
-          bucket: bucket || undefined,
+          storage: {
+            provider_type: providerType,
+            ...(providerType === "s3_compatible" ? {
+              endpoint: preset?.endpoint || orgConfig?.endpoint || "",
+              bucket: bucket || undefined,
+              region: preset?.regionHint || orgConfig?.region || "",
+            } : {}),
+          },
         }
       );
       if (response.success) {
-        toast({ title: "Success", description: response.message || "Document provider updated" });
+        toast({ title: "Success", description: "Storage provider updated" });
         loadOrgConfig();
       } else {
-        toast({ title: "Error", description: response.error || "Failed to update provider", variant: "destructive" });
+        toast({ title: "Error", description: response.errors?.join(", ") || "Failed to update provider", variant: "destructive" });
       }
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } } };
@@ -1217,12 +1224,12 @@ function DocumentStorageProvider() {
   const preset = selectedProvider !== "sharepoint" ? PROVIDER_PRESETS[selectedProvider] : null;
 
   // Check if the selection has changed from org config
-  // SSoT (Jan 2026): Also check bucket changes
+  // SSoT (Feb 2026): Compare against WarehouseProvider config
+  const selectedIsS3 = selectedProvider !== "sharepoint" && selectedProvider !== "";
   const hasChanges = orgConfig && (
-    (selectedProvider === "sharepoint" && orgConfig.document_provider !== "sharepoint") ||
-    (selectedProvider !== "sharepoint" && orgConfig.document_provider === "sharepoint") ||
-    (selectedProvider !== "sharepoint" && selectedCredentialId !== orgConfig.document_provider_credential_id) ||
-    (selectedProvider !== "sharepoint" && bucket !== (orgConfig.bucket || ""))
+    (selectedProvider === "sharepoint" && !orgConfig.provider_type?.includes("sharepoint")) ||
+    (selectedIsS3 && orgConfig.provider_type === "sharepoint") ||
+    (selectedIsS3 && bucket !== (orgConfig.bucket || ""))
   );
 
   if (loading) {
@@ -1250,14 +1257,14 @@ function DocumentStorageProvider() {
           </div>
           {/* Current Active Provider Badge */}
           <div className="flex items-center gap-2">
-            {orgConfig?.bucket && orgConfig?.document_provider === "s3_compatible" && (
+            {orgConfig?.bucket && orgConfig?.provider_type === "s3_compatible" && (
               <Badge variant="secondary" className="text-xs">
                 {orgConfig.bucket}
               </Badge>
             )}
-            <Badge variant={orgConfig?.document_provider === "s3_compatible" ? "outline" : "default"}>
+            <Badge variant={orgConfig?.provider_type === "s3_compatible" ? "outline" : "default"}>
               <Check className="h-3 w-3 mr-1" />
-              Active: {orgConfig?.document_provider === "s3_compatible" ? "S3/Wasabi" : orgConfig?.document_provider === "sharepoint" ? "SharePoint" : "Cloud Storage"}
+              Active: {orgConfig?.provider_type === "s3_compatible" ? "S3/Wasabi" : orgConfig?.provider_type === "sharepoint" ? "SharePoint" : "Cloud Storage"}
             </Badge>
           </div>
         </div>
@@ -1281,39 +1288,12 @@ function DocumentStorageProvider() {
           </Select>
         </div>
 
-        {/* S3 Credential Selection - Only show when S3 is selected and credentials exist */}
-        {selectedProvider !== "sharepoint" && s3Credentials.length > 0 && (
-          <div className="space-y-2">
-            <Label>Select Credential</Label>
-            <Select
-              value={selectedCredentialId?.toString() || ""}
-              onValueChange={(val) => setSelectedCredentialId(parseInt(val))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a saved credential..." />
-              </SelectTrigger>
-              <SelectContent>
-                {/* SSoT (Jan 2026): bucket removed from display */}
-                {s3Credentials.map((cred) => (
-                  <SelectItem key={cred.id} value={cred.id.toString()}>
-                    <div className="flex items-center gap-2">
-                      {cred.status === "connected" ? (
-                        <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
-                      ) : (
-                        <X className="h-3 w-3 text-red-600 dark:text-red-400" />
-                      )}
-                      {cred.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        {/* S3 Credentials are managed in the "Saved Credentials" section below */}
+        {/* Provider selection + bucket is saved directly to WarehouseProvider */}
 
-        {/* SSoT (Jan 2026): Bucket field - visible on both Storage Config and Storage Provider pages */}
+        {/* SSoT (Feb 2026): Bucket field - visible on both Storage Config and Storage Provider pages */}
         {/* WarehouseProvider.bucket is SSoT, this just mirrors it for visibility */}
-        {selectedProvider !== "sharepoint" && selectedCredentialId && (
+        {selectedProvider !== "sharepoint" && selectedProvider !== "" && (
           <div className="space-y-2">
             <Label>Bucket Name</Label>
             <Input
@@ -1332,17 +1312,17 @@ function DocumentStorageProvider() {
         )}
 
         {/* Connection Status & Test Button */}
-        {orgConfig && orgConfig.document_provider !== "sharepoint" && selectedCredentialId && bucket && (
+        {orgConfig && orgConfig.provider_type !== "sharepoint" && selectedProvider !== "sharepoint" && bucket && (
           <div className="p-3 rounded-lg border bg-muted/30 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">Connection Status</span>
-                {orgConfig.connection_status === "connected" ? (
+                {orgConfig.status === "connected" ? (
                   <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800">
                     <Check className="h-3 w-3 mr-1" />
                     Connected
                   </Badge>
-                ) : orgConfig.connection_status === "error" ? (
+                ) : orgConfig.status === "error" ? (
                   <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800">
                     <X className="h-3 w-3 mr-1" />
                     Error
@@ -1395,15 +1375,7 @@ function DocumentStorageProvider() {
               </div>
             )}
 
-            {/* Last error from credential */}
-            {orgConfig.last_error && !connectionTestResult && (
-              <div className="p-2 rounded bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300 text-sm">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span>Last error: {orgConfig.last_error}</span>
-                </div>
-              </div>
-            )}
+            {/* Last error from connection test */}
 
             {/* Storage Usage Stats */}
             <div className="pt-2 border-t">
@@ -1454,12 +1426,7 @@ function DocumentStorageProvider() {
               )}
             </div>
 
-            {/* Last updated */}
-            {orgConfig.warehouse_provider_updated_at && (
-              <p className="text-xs text-muted-foreground pt-2 border-t">
-                Configuration last updated: {formatDateTimeForDisplay(orgConfig.warehouse_provider_updated_at)}
-              </p>
-            )}
+            {/* Last updated info removed - not in WarehouseProvider response */}
           </div>
         )}
 
@@ -1474,7 +1441,7 @@ function DocumentStorageProvider() {
               <Button
                 size="sm"
                 onClick={handleSaveProviderSelection}
-                disabled={savingProvider || (selectedProvider !== "sharepoint" && (!selectedCredentialId || !bucket))}
+                disabled={savingProvider || (selectedProvider !== "sharepoint" && !bucket)}
               >
                 {savingProvider ? (
                   <Spinner size={16} className="mr-1" />
