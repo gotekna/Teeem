@@ -95,6 +95,11 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
     mode.type === "scoped" ? mode.recordTokenValues : undefined
   );
 
+  // Scoped mode: per-folder document counts from scoped_tree endpoint
+  // Used to hide empty folders (only show folders with documents for THIS record)
+  const [scopedFolderCounts, setScopedFolderCounts] = useState<Record<string, number>>({});
+  const [scopedCountsLoaded, setScopedCountsLoaded] = useState(false);
+
   // ─── Fetch storage config ──────────────────────────────────────
   useEffect(() => {
     const fetchStorageConfig = async () => {
@@ -148,6 +153,32 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       }
     };
     fetchTokenValues();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode.type === "scoped" ? mode.linkableId : null]);
+
+  // ─── Scoped mode: fetch per-folder document counts ──────────
+  // Uses the existing scoped_tree endpoint to know which folders have documents
+  // for THIS specific record, so we can hide empty folders.
+  useEffect(() => {
+    if (mode.type !== "scoped") return;
+    const fetchScopedCounts = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: { tree: Record<string, number>; prefix: string | null; documentCount: number };
+        }>("/api/v1/warehouse_types/scoped_tree", {
+          params: { linkable_type: mode.linkableType, linkable_id: mode.linkableId }
+        });
+        if (response?.success && response.data?.tree) {
+          setScopedFolderCounts(response.data.tree);
+        }
+      } catch (err) {
+        console.error("Failed to fetch scoped folder counts:", err);
+      } finally {
+        setScopedCountsLoaded(true);
+      }
+    };
+    fetchScopedCounts();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode.type === "scoped" ? mode.linkableId : null]);
 
@@ -298,7 +329,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
             [key: string]: unknown;
           }>;
           count: { folders: number; files: number; total: number };
-        }>(`/api/v1/documents/live_folder_tree?scope=${encodeURIComponent(scope)}&path=${encodeURIComponent(relativePath)}`);
+        }>(`/api/v1/documents/live_folder_tree?scope=${encodeURIComponent(scope)}&path=${encodeURIComponent(relativePath)}${mode.type === "scoped" && mode.linkableType && mode.linkableId ? `&linkable_type=${encodeURIComponent(mode.linkableType)}&linkable_id=${mode.linkableId}` : ""}`);
 
         if (response?.success) {
           setS3Folders(prev => ({
@@ -826,6 +857,18 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         });
       };
 
+      // Helper: count documents for a folder name from scoped_tree data.
+      // scoped_tree keys are relative paths like "Plans", "Photos/Interior", etc.
+      const getFolderDocCount = (folderName: string): number => {
+        let total = 0;
+        for (const [key, count] of Object.entries(scopedFolderCounts)) {
+          if (key === folderName || key.startsWith(folderName + "/")) {
+            total += count;
+          }
+        }
+        return total;
+      };
+
       const convertWarehouseFolderForScoped = (warehouseFolder: WarehouseFolderTreeNode2): TreeNode => {
         const rawPath = warehouseFolder.warehouseFolder?.folderPath || warehouseFolder.folderPathTemplate;
         const folderPath = resolvePathTokens(rawPath, syntheticRecord.tokenValues);
@@ -843,14 +886,16 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         const childWarehouseFolders = findChildWarehouseFolders(numericId);
         const childWarehouseFolderNodes = childWarehouseFolders.map(child => convertWarehouseFolderForScoped(child));
 
+        const folderDisplayName = warehouseFolder.warehouseFolder?.displayName || warehouseFolder.name;
+
         return {
           id: nodeId,
-          name: warehouseFolder.warehouseFolder?.displayName || warehouseFolder.name,
+          name: folderDisplayName,
           type: "category" as const,
           icon: getIconComponent(warehouseFolder.warehouseFolder?.iconName || null, warehouseFolder.name),
           fullPath: folderPath || undefined,
           pathTemplate: folderPath || warehouseFolder.pathPreview || warehouseFolder.folderPathTemplate || undefined,
-          fileCount: 0,
+          fileCount: scopedCountsLoaded ? getFolderDocCount(folderDisplayName) : 0,
           sourceType: warehouseType.code,
           isVirtual,
           children: [...childWarehouseFolderNodes, ...warehouseFolderChildren, ...s3SubFolders, ...s3Files],
@@ -858,12 +903,20 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       };
 
       const rootWarehouseFolders = findChildWarehouseFolders(null);
-      return rootWarehouseFolders.map(wf => convertWarehouseFolderForScoped(wf));
+      const allNodes = rootWarehouseFolders.map(wf => convertWarehouseFolderForScoped(wf));
+
+      // Filter out empty folders when scoped counts are loaded
+      // getFolderDocCount checks both exact and nested paths (e.g., "Plans" and "Plans/Sub")
+      if (scopedCountsLoaded) {
+        return allNodes.filter(node => getFolderDocCount(node.name) > 0);
+      }
+
+      return allNodes;
     }
 
     // ── Full mode: convert all warehouse types ──
     return warehouseTypesTree.map(convertWarehouseTypeToTreeNode);
-  }, [warehouseTypesTree, warehouseTreeLoading, s3Folders, warehouseRecords, loadingRecords, mode, scopedTokenValues]);
+  }, [warehouseTypesTree, warehouseTreeLoading, s3Folders, warehouseRecords, loadingRecords, mode, scopedTokenValues, scopedFolderCounts, scopedCountsLoaded]);
 
   // ─── Collapse all folders ─────────────────────────────────────
   const collapseAll = useCallback(() => {
