@@ -2154,10 +2154,19 @@ module Api
           return render json: { error: "document_id is required" }, status: :bad_request
         end
 
-        document = WarehouseDocument.find_by(id: document_id)
+        # FRC (Feb 2026): This endpoint skips auth (skip_before_action :authorize_request)
+        # so <img src> previews work without JWT. Since current_tenant is nil when auth is
+        # skipped, use without_tenant to find the document, then set the tenant from it
+        # for all subsequent tenant-scoped operations (WarehouseProvider, DocumentProviders).
+        document = ActsAsTenant.without_tenant { WarehouseDocument.find_by(id: document_id) }
 
         unless document
           return render json: { error: "Document not found" }, status: :not_found
+        end
+
+        # Set tenant from document for all downstream operations
+        if ActsAsTenant.current_tenant.nil? && document.tenant_id.present?
+          ActsAsTenant.current_tenant = Tenant.find_by(id: document.tenant_id)
         end
 
         blob = document.storage_blob
@@ -2571,11 +2580,8 @@ module Api
 
       # Download WarehouseDocument content from S3 via storage_blob
       # SSoT: Uses storage_blob.storage_path as the S3 key
-      # FRC (Feb 2026): Resolves tenant from WarehouseProvider when current_tenant is nil
-      # (job_document_download skips auth so <img src> preview works without JWT)
       def download_from_s3_warehouse(document, is_preview)
-        tenant = current_tenant || WarehouseProvider.instance&.tenant
-        provider = DocumentProviders.for_tenant(tenant)
+        provider = DocumentProviders.for_tenant(ActsAsTenant.current_tenant)
 
         unless provider
           raise DocumentProviders::NotConnectedError, "S3 storage not configured"

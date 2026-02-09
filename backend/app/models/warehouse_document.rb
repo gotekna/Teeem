@@ -470,16 +470,29 @@ class WarehouseDocument < ApplicationRecord
   # ========================================
 
   # Check if ui_name needs template expansion
-  # Only on new records with a WFDT — don't overwrite manual renames on existing docs.
+  # Only on new records with folder context — don't overwrite manual renames on existing docs.
+  # Checks both WFDT and warehouse_folder_id (set by materialize_folder_path which runs first).
   def needs_ui_name_recomputation?
-    new_record? && warehouse_folder_document_type_id.present?
+    new_record? && (warehouse_folder_document_type_id.present? || warehouse_folder_id.present?)
   end
 
   # Compute and store the materialized UI name using SendNameResolver
-  # Falls back to original_filename if no template produces a meaningful result.
+  # Falls back to "{FolderName} {Date}" if no WFDT/template produces a meaningful result.
   def materialize_ui_name
     resolved = SendNameResolver.new.resolve_ui_name(self)
-    self.ui_name = resolved if resolved.present?
+    if resolved.present?
+      self.ui_name = resolved
+      return
+    end
+
+    # Fallback: No WFDT, but warehouse_folder available → use folder name + date
+    if warehouse_folder_id.present?
+      folder = WarehouseFolder.find_by(id: warehouse_folder_id)
+      if folder
+        date = Time.current.strftime("%d-%m-%Y")
+        self.ui_name = "#{folder.name} #{date}"
+      end
+    end
   rescue StandardError => e
     Rails.logger.warn "[WarehouseDocument] materialize_ui_name failed for #{id}: #{e.message}"
     # ui_name stays as-is (original_filename set by creator)
