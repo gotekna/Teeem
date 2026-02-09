@@ -44,6 +44,26 @@ class WarehousePathComputer
   # @return [Hash] { folder_path:, warehouse_folder_id:, path_template_version: }
   def compute(doc)
     @resolved_wfdt = nil  # Reset per-document
+
+    # For warehouse source_type: delegate to documentable's warehouse_folder_path
+    # SSoT: BillInbox/ChatMessage/TeeemSpreadsheet/TeeemPdf/TeeemDocument know their own path
+    # Each model computes the correct subfolder (e.g., "Warehousing/Excel/User/2026")
+    if doc.source_type == "warehouse" && doc.documentable.respond_to?(:warehouse_folder_path)
+      # Ensure tenant context for WarehouseProvider (needed by TeeemXL models)
+      path = if doc.tenant_id.present? && ActsAsTenant.current_tenant.nil?
+               ActsAsTenant.with_tenant(doc.tenant) { doc.documentable.warehouse_folder_path }
+             else
+               doc.documentable.warehouse_folder_path
+             end
+      if path.present?
+        return {
+          folder_path: sanitize_path(path),
+          warehouse_folder_id: nil,
+          path_template_version: 0
+        }
+      end
+    end
+
     # 1. Find the warehouse folder (FK-driven)
     folder = find_warehouse_folder_for_doc(doc)
 

@@ -230,6 +230,14 @@ class BillInbox < ApplicationRecord
     nil
   end
 
+  # SSoT: Folder path for File Warehouse Doc Tree
+  # Produces: "Warehousing/BillInbox/{Status}/{Year}/{Month}"
+  def warehouse_folder_path
+    s = status&.titleize || "Unknown"
+    date = created_at || Time.current
+    "Warehousing/BillInbox/#{s}/#{date.strftime('%Y/%m')}"
+  end
+
   private
 
   # Create WarehouseDocument entry for this bill inbox item
