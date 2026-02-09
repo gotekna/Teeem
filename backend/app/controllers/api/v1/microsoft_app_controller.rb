@@ -70,12 +70,10 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Health dashboard for 4-square status display
   # Shows overall health, connected count, needs attention, and self-healing status
   def health_dashboard
-    # Available organizations (SSoT - defined in one place)
-    available_org_names = %w[Tekna 100xBestLife Homes\ of\ Hope Love\ Your\ World]
-    total_count = available_org_names.length
-
     # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant health data leak
+    # Total count is dynamic from actual credentials, not a hardcoded list
     all_creds = tenant_scoped_ms_credentials.app_credentials.active.to_a
+    total_count = all_creds.length
 
     connected_count = all_creds.count { |c| c.status == "connected" }
     error_count = all_creds.count { |c| c.status.in?(%w[error dead]) }
