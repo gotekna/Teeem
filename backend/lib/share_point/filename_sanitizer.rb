@@ -36,8 +36,10 @@ module SharePoint
     # Characters that SharePoint/OneDrive cannot handle
     INVALID_CHARS = /[<>:"\/\\|?*+=#%]/
 
-    # Characters that can cause path issues
-    PATH_INVALID_CHARS = /[<>:"|?*+=#%]/
+    # Characters that can cause path issues in virtual folder paths
+    # Note: + is intentionally ALLOWED in path segments - it's valid in S3 and SharePoint
+    # filenames. URL encoding for SharePoint API calls is handled at the transport layer.
+    PATH_INVALID_CHARS = /[<>:"|?*=#%]/
 
     # Maximum filename length (SharePoint limit)
     MAX_FILENAME_LENGTH = 255
