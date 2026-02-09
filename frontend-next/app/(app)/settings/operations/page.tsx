@@ -4,6 +4,7 @@ import * as React from "react";
 import { useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 // Import operations-related tab components from admin
 import { ScheduleMasterTab } from "@/app/(app)/admin/system/components/ScheduleMasterTab";
@@ -39,6 +40,9 @@ const DEFAULT_TAB = "schedule-master";
 export default function OperationsSettingsPage() {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Tab panels use absolute inset-0 positioning, which requires full-height layout
+  useSetLayoutMode("full-height");
 
   // URL is SSoT for tab state (path-based navigation)
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
@@ -88,7 +92,7 @@ export default function OperationsSettingsPage() {
           <TabsContent value="cost" className="absolute inset-0 overflow-auto">
             <CostTab />
           </TabsContent>
-          <TabsContent value="po-templates" className="absolute inset-0 overflow-auto border-4 border-green-500 bg-green-50 dark:bg-green-950">
+          <TabsContent value="po-templates" className="absolute inset-0 overflow-auto">
             <PoTemplatesTab />
           </TabsContent>
         </div>

@@ -8,7 +8,7 @@ module Api
       # GET /api/v1/po_template_packs
       def index
         packs = PoTemplatePack.active.ordered
-          .includes(po_template_items: :po_template_line_items)
+          .includes(po_template_items: [:po_template_line_items, :sm_schedule_master])
 
         render json: {
           success: true,
@@ -160,6 +160,30 @@ module Api
         @pack = PoTemplatePack.find(params[:id])
       end
 
+      # SSoT: Trades lookup (ID => name) from Foundation SM Trades
+      def trades_map
+        @trades_map ||= begin
+          foundation = Foundation.find_by(name: "SM Trades")
+          return {} unless foundation
+          ActiveRecord::Base.connection
+            .execute("SELECT id, name FROM #{foundation.database_table_name}")
+            .to_a
+            .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
+        end
+      end
+
+      # SSoT: Stages lookup (ID => name) from Foundation SM Stages
+      def stages_map
+        @stages_map ||= begin
+          foundation = Foundation.find_by(name: "SM Stages")
+          return {} unless foundation
+          ActiveRecord::Base.connection
+            .execute("SELECT id, name FROM #{foundation.database_table_name}")
+            .to_a
+            .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
+        end
+      end
+
       def pack_params
         params.require(:po_template_pack).permit(
           :name, :description, :is_active, :position,
@@ -191,11 +215,14 @@ module Api
       end
 
       def item_json(item, include_line_items: false)
+        sm = item.sm_schedule_master
         json = {
           id: item.id,
           name: item.name,
           smScheduleMasterId: item.sm_schedule_master_id,
-          smScheduleMasterName: item.sm_schedule_master&.name,
+          smScheduleMasterName: sm&.name,
+          tradeName: sm&.trade.present? ? trades_map[sm.trade.to_i] : nil,
+          stageName: sm&.stage.present? ? stages_map[sm.stage.to_i] : nil,
           supplierId: item.supplier_id,
           supplierName: item.supplier&.display_name,
           supplierSyncKey: item.supplier_sync_key,
