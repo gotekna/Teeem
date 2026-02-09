@@ -532,15 +532,12 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # Compute and store the materialized folder path using WarehousePathComputer
+  # No rescue - broken config should fail fast, not silently produce wrong paths
   def materialize_folder_path
     result = WarehousePathComputer.new.compute(self)
     self.folder_path = result[:folder_path]
     self.warehouse_folder_id = result[:warehouse_folder_id]
     self.path_template_version = result[:path_template_version]
-  rescue StandardError => e
-    # Non-fatal: log and continue without materialized path
-    # computed_folder_path still works as runtime fallback
-    Rails.logger.warn "[WarehouseDocument] materialize_folder_path failed for #{id}: #{e.message}"
   end
 
   # Invalidate folder counts for affected paths

@@ -272,7 +272,9 @@ class WarehousePathComputer
     return folder.folder_segment || "Unknown" unless wt
 
     base = wt.folder_path_template.presence
-    return folder.folder_segment || wt.code.titleize unless base
+    unless base
+      raise "WarehouseType '#{wt.code}' (id: #{wt.id}) has no folder_path_template. Fix in Warehouse Config or seed migration."
+    end
 
     # The WT template's root segment (e.g., "Contacts" from "Contacts/{{ContactName}}")
     # Root folders matching this are the WT root itself — skip to avoid duplication.
