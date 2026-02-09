@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class PoTemplateLineItem < ApplicationRecord
+  acts_as_tenant :tenant
+
   # Associations
   belongs_to :po_template_item
   belongs_to :pricebook_item, optional: true

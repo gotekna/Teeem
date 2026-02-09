@@ -7277,8 +7277,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_300001) do
     t.integer "line_number", default: 1, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
     t.index ["po_template_item_id"], name: "index_po_template_line_items_on_po_template_item_id"
     t.index ["pricebook_item_id"], name: "index_po_template_line_items_on_pricebook_item_id"
+    t.index ["tenant_id"], name: "index_po_template_line_items_on_tenant_id"
   end
 
   create_table "po_template_packs", force: :cascade do |t|
