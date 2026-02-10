@@ -1,6 +1,6 @@
 module Api
   module V1
-    class JobJobDesignsController < ApplicationController
+    class JobDesignsController < ApplicationController
       before_action :set_design, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/designs
