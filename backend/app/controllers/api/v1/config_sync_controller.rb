@@ -288,16 +288,29 @@ module Api
             record_ids: batch_ids
           )
 
+          imported_count = result[:imported]&.length || 0
+          skipped_count = result[:skipped]&.length || 0
+          error_count = result[:errors]&.length || 0
+
+          # Log failures for debugging
+          if skipped_count > 0 || error_count > 0
+            Rails.logger.warn "[ConfigSync] #{table}: #{imported_count} imported, #{skipped_count} skipped, #{error_count} errors"
+            result[:skipped]&.first(3)&.each { |s| Rails.logger.warn "  Skipped: #{s[:name]} - #{s[:reason]}" }
+            result[:errors]&.first(3)&.each { |e| Rails.logger.warn "  Error: #{e}" }
+          end
+
           render json: {
             success: true, table: table.to_s,
-            imported: result[:imported]&.length || 0,
+            imported: imported_count,
             updated: 0,
-            skipped: result[:skipped]&.length || 0,
+            skipped: skipped_count,
             total: batch_ids.length,
             total_records: total_records,
             has_more: has_more,
             next_offset: has_more ? offset + batch_size : nil,
-            source: best_source.name
+            source: best_source.name,
+            errors: result[:errors]&.first(5),
+            skipped_reasons: result[:skipped]&.first(5)&.map { |s| "#{s[:name]}: #{s[:reason]}" }
           }
         else
           # Non-master tenant: pull from master
@@ -334,15 +347,28 @@ module Api
             mode: :replace_existing
           )
 
+          imported_count = result[:imported]&.length || 0
+          updated_count = result[:updated]&.length || 0
+          skipped_count = result[:skipped]&.length || 0
+          error_count = result[:errors]&.length || 0
+
+          if skipped_count > 0 || error_count > 0
+            Rails.logger.warn "[ConfigSync] #{table}: #{imported_count} imported, #{updated_count} updated, #{skipped_count} skipped, #{error_count} errors"
+            result[:skipped]&.first(3)&.each { |s| Rails.logger.warn "  Skipped: #{s[:name]} - #{s[:reason]}" }
+            result[:errors]&.first(3)&.each { |e| Rails.logger.warn "  Error: #{e}" }
+          end
+
           render json: {
             success: true, table: table.to_s,
-            imported: result[:imported]&.length || 0,
-            updated: result[:updated]&.length || 0,
-            skipped: result[:skipped]&.length || 0,
+            imported: imported_count,
+            updated: updated_count,
+            skipped: skipped_count,
             total: batch_ids.length,
             total_records: total_records,
             has_more: has_more,
-            next_offset: has_more ? offset + batch_size : nil
+            next_offset: has_more ? offset + batch_size : nil,
+            errors: result[:errors]&.first(5),
+            skipped_reasons: result[:skipped]&.first(5)&.map { |s| "#{s[:name]}: #{s[:reason]}" }
           }
         end
       rescue => e

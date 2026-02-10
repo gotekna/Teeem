@@ -26,7 +26,7 @@ class WarehouseFolder < ApplicationRecord
   # Multi-tenancy - REQUIRED for all warehouse_folders
   acts_as_tenant :tenant
   include ConfigSyncable
-  self.sync_key_source = [:warehouse_type, :tab_key]
+  self.sync_key_source = [:warehouse_type_code, :tab_key]
 
   # Dynamic tokens that generate virtual folder structure from database
   DYNAMIC_TOKENS = {
