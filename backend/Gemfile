@@ -70,7 +70,6 @@ gem "aws-sdk-s3", "~> 1.170"  # S3 client for document providers
 gem "httparty", "~> 0.22"  # HTTP requests for image scraping
 gem "http", "~> 5.1"  # HTTP client for OAuth token refresh
 gem "mini_magick", "~> 4.12"  # Image processing
-gem "rtesseract", "~> 3.1"  # OCR with Tesseract for precise field location extraction
 
 # OAuth2 for Xero integration
 gem "oauth2", "~> 2.0"  # OAuth2 authentication for Xero API

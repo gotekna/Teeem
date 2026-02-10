@@ -416,11 +416,26 @@ export default function ColourSelectionBuilderPage() {
     }
   };
 
-  // Export PDF
-  const handleExportPdf = () => {
-    // Open PDF in new tab
-    const baseUrl = getApiBaseUrl();
-    window.open(`${baseUrl}/api/v1/jobs/${jobId}/colour_selections/generate_pdf?download=true`, "_blank");
+  // Export PDF (async generation)
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: { pdfGenerationId: number; downloadUrl: string };
+      }>(`/api/v1/jobs/${jobId}/colour_selections/generate_pdf?download=true`);
+
+      if (response?.success && response.data?.pdfGenerationId) {
+        const baseUrl = getApiBaseUrl();
+        window.open(`${baseUrl}/api/v1/pdf_generations/${response.data.pdfGenerationId}/download`, "_blank");
+      }
+    } catch (error) {
+      console.error("Failed to generate PDF:", error);
+      toast({ title: "Failed to generate PDF", variant: "destructive" });
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   if (loading) {
@@ -455,9 +470,9 @@ export default function ColourSelectionBuilderPage() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Apply Template
             </Button>
-            <Button variant="outline" onClick={handleExportPdf}>
+            <Button variant="outline" onClick={handleExportPdf} disabled={exportingPdf}>
               <Download className="h-4 w-4 mr-2" />
-              Export PDF
+              {exportingPdf ? "Generating..." : "Export PDF"}
             </Button>
             <Button onClick={handleSave} disabled={saving || !isDirty}>
               {saving ? (

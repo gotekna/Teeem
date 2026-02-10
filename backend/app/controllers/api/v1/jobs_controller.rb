@@ -2,6 +2,7 @@ module Api
   module V1
     class JobsController < ApplicationController
       include DocumentProviderAware
+      include AsyncPdfGeneration
 
       before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders ]
 
@@ -860,15 +861,12 @@ module Api
       end
 
       # POST /api/v1/jobs/:id/generate_contract
-      # Generate QBCC contract PDF for preview
+      # Enqueues async QBCC contract PDF generation
       def generate_contract
-        engine = Engines::PdfOverlayEngine.new(:qbcc_contract)
-        pdf_content = engine.generate(job: @job)
-
-        send_data pdf_content,
-          type: "application/pdf",
-          disposition: "inline",
-          filename: "QBCC_Contract_#{@job.job_number || @job.id}.pdf"
+        enqueue_pdf_and_respond(
+          generator_type: "contract_overlay",
+          generator_params: { template_key: "qbcc_contract", job_id: @job.id }
+        )
       rescue => e
         Rails.logger.error("generate_contract error: #{e.message}")
         render json: { success: false, error: e.message }, status: :internal_server_error
@@ -878,36 +876,14 @@ module Api
       # Generate QBCC contract PDF and save to job documents
       # SSoT: Uses DocumentProviderAware for provider-agnostic storage
       def save_contract
-        engine = Engines::PdfOverlayEngine.new(:qbcc_contract)
-        pdf_content = engine.generate(job: @job)
-
-        # Create a document record for this job
-        filename = "QBCC_Contract_#{@job.job_number || @job.id}_#{Date.current.strftime('%Y%m%d')}.pdf"
-
-        # Upload to storage provider
-        begin
-          setup_default_provider!
-        rescue DocumentProviders::NotConnectedError => e
-          # Fallback: just return success with the filename
-          return render json: { success: true, data: { filename: filename, note: "Storage not connected - document generated but not saved" } }
-        end
-
-        # Build folder path using SSoT pattern
-        job_folder_path = build_job_folder_path(@job)
-        contracts_folder_name = WarehouseFolder.folder_name_for("job", "contracts", "01 Contract Documents")
-        folder_path = "#{job_folder_path}/#{contracts_folder_name}"
-
-        # Ensure folder exists
-        get_or_create_folder_path(folder_path)
-
-        # Upload file
-        result = upload_to_provider(folder_path, pdf_content, filename, content_type: "application/pdf")
-
-        if result
-          render json: { success: true, data: { filename: filename, storage_id: result[:id], folder: folder_path, provider: current_provider_type.to_s } }
-        else
-          render json: { success: false, error: "Failed to upload to storage" }, status: :internal_server_error
-        end
+        enqueue_pdf_and_respond(
+          generator_type: "contract_overlay",
+          generator_params: {
+            template_key: "qbcc_contract",
+            job_id: @job.id,
+            save_to_storage: true
+          }
+        )
       rescue => e
         Rails.logger.error("save_contract error: #{e.message}")
         Rails.logger.error(e.backtrace.first(5).join("\n"))

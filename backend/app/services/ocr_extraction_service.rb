@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-# Extracts text and bounding box coordinates from PDFs using Tesseract OCR
-# Provides exact pixel locations for each word/field in the document
+# Extracts text and word-level bounding boxes from PDFs using Claude Vision
+# Replaced Tesseract OCR (Feb 2026) to eliminate system package dependencies
 #
 # Usage:
 #   service = OcrExtractionService.new(bill_inbox)
@@ -9,6 +9,8 @@
 #   # => { text: "full text", words: [{text, x, y, width, height, confidence, page}], pages: [...] }
 #
 class OcrExtractionService
+  include AnthropicClient
+
   def initialize(bill_inbox)
     @bill = bill_inbox
   end
@@ -16,16 +18,16 @@ class OcrExtractionService
   def extract!
     return {} unless @bill.storage_reference.present?
 
-    Rails.logger.info "[OCR] Starting OCR extraction for BillInbox ##{@bill.id}"
+    Rails.logger.info "[OCR] Starting Claude Vision extraction for BillInbox ##{@bill.id}"
 
     @temp_files = []
 
-    # Convert PDF to images
+    # Convert PDF to images for Claude Vision
     images = pdf_to_images
 
-    # Run OCR on each page
+    # Extract text + word positions from each page via Claude Vision
     pages_data = images.map.with_index do |image_path, page_num|
-      extract_page(image_path, page_num + 1)
+      extract_page_with_vision(image_path, page_num + 1)
     end
 
     # Combine results
@@ -37,8 +39,8 @@ class OcrExtractionService
       words: all_words,
       pages: pages_data,
       extracted_at: Time.current,
-      ocr_engine: "tesseract",
-      ocr_version: tesseract_version
+      ocr_engine: "claude_vision",
+      ocr_version: CLAUDE_HAIKU
     }
   rescue StandardError => e
     Rails.logger.error "[OCR] Error extracting BillInbox ##{@bill.id}: #{e.message}"
@@ -56,31 +58,26 @@ class OcrExtractionService
 
     images = []
 
-    Tempfile.create([ "invoice", ".pdf" ], binmode: true) do |pdf_file|
+    Tempfile.create(["invoice", ".pdf"], binmode: true) do |pdf_file|
       pdf_file.write(content)
       pdf_file.rewind
 
-      # Use MiniMagick to convert each PDF page to PNG
-      # Higher density = better OCR accuracy
       image = MiniMagick::Image.open(pdf_file.path)
       image.format "png"
-      image.density 300  # DPI - high quality for accurate OCR
-      image.colorspace "Gray"  # Grayscale can improve OCR accuracy
+      image.density 200
+      image.colorspace "Gray"
 
-      # Check if PDF has multiple pages
       num_pages = image.pages.length
 
       if num_pages > 1
-        # Split multi-page PDF
         image.pages.each_with_index do |page, idx|
-          page_file = Tempfile.new([ "page_#{idx}", ".png" ], binmode: true)
+          page_file = Tempfile.new(["page_#{idx}", ".png"], binmode: true)
           @temp_files << page_file
           page.write(page_file.path)
           images << page_file.path
         end
       else
-        # Single page
-        page_file = Tempfile.new([ "page_0", ".png" ], binmode: true)
+        page_file = Tempfile.new(["page_0", ".png"], binmode: true)
         @temp_files << page_file
         image.write(page_file.path)
         images << page_file.path
@@ -90,95 +87,106 @@ class OcrExtractionService
     images
   end
 
-  def extract_page(image_path, page_number)
-    # Run Tesseract with TSV output (includes bounding boxes)
-    # Config: tessedit_create_tsv=1 outputs tab-separated values with coordinates
-    image = RTesseract.new(image_path, lang: "eng")
+  def extract_page_with_vision(image_path, page_number)
+    image_data = Base64.strict_encode64(File.binread(image_path))
+    img = MiniMagick::Image.open(image_path)
+    img_width = img.width.to_f
+    img_height = img.height.to_f
 
-    # Get bounding box data (word level)
-    # Tesseract TSV format: level, page_num, block_num, par_num, line_num, word_num,
-    #                       left, top, width, height, conf, text
-    tsv_file = image.to_tsv
+    response = call_claude_with_content(
+      content: [
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: "image/png",
+            data: image_data
+          }
+        },
+        {
+          type: "text",
+          text: word_extraction_prompt
+        }
+      ],
+      model: CLAUDE_HAIKU,
+      max_tokens: 4096
+    )
 
-    # RTesseract returns a File object, so read its contents
-    tsv_data = if tsv_file.respond_to?(:read)
-                 tsv_file.rewind if tsv_file.respond_to?(:rewind)
-                 tsv_file.read
-               else
-                 tsv_file.to_s
-               end
-
-    # Parse TSV to extract words with coordinates
-    words = parse_tsv_data(tsv_data, page_number, image_path)
-
-    # Get plain text
-    text = image.to_s
-
-    {
-      page: page_number,
-      text: text,
-      words: words,
-      image_width: get_image_width(image_path),
-      image_height: get_image_height(image_path)
-    }
+    result_text = extract_claude_text(response)
+    parse_vision_response(result_text, page_number, img_width, img_height)
   end
 
-  def parse_tsv_data(tsv_data, page_number, image_path)
-    return [] if tsv_data.blank?
+  def word_extraction_prompt
+    <<~PROMPT
+      Extract ALL text from this document image. Return ONLY valid JSON with no additional text.
 
-    # Get image dimensions for calculating percentages
-    img_width = get_image_width(image_path)
-    img_height = get_image_height(image_path)
+      Return this exact structure:
+      {
+        "text": "the complete text content of the page, preserving line breaks",
+        "words": [
+          {"text": "word", "x": 0.05, "y": 0.10, "w": 0.08, "h": 0.02},
+          {"text": "another", "x": 0.14, "y": 0.10, "w": 0.10, "h": 0.02}
+        ]
+      }
 
-    words = []
-    lines = tsv_data.split("\n")
+      For each word:
+      - text: the word as it appears
+      - x: left edge as fraction of image width (0.0 = left, 1.0 = right)
+      - y: top edge as fraction of image height (0.0 = top, 1.0 = bottom)
+      - w: word width as fraction of image width
+      - h: word height as fraction of image height
 
-    # Skip header row
-    lines[1..-1]&.each do |line|
-      parts = line.split("\t")
-      next if parts.length < 12
+      Extract EVERY word including numbers, dates, amounts, headers, footers, and fine print.
+      Coordinates must be as accurate as possible.
+      Return ONLY the JSON, no explanations.
+    PROMPT
+  end
 
-      level = parts[0].to_i
-      next unless level == 5  # Level 5 = word level
+  def parse_vision_response(text, page_number, img_width, img_height)
+    return empty_page_result(page_number) if text.blank?
 
-      left = parts[6].to_i
-      top = parts[7].to_i
-      width = parts[8].to_i
-      height = parts[9].to_i
-      confidence = parts[10].to_f
-      text = parts[11]&.strip
+    json_match = text.match(/\{[\s\S]*\}/)
+    return empty_page_result(page_number) unless json_match
 
-      next if text.blank? || text == ""
+    data = JSON.parse(json_match[0])
 
-      # Convert pixel coordinates to percentages (0.0 to 1.0)
-      # This matches the format Claude uses in field_locations
-      words << {
-        text: text,
-        x: left.to_f / img_width,
-        y: top.to_f / img_height,
-        width: width.to_f / img_width,
-        height: height.to_f / img_height,
-        confidence: confidence / 100.0,  # Convert 0-100 to 0.0-1.0
+    words = (data["words"] || []).filter_map do |w|
+      next if w["text"].blank?
+
+      x = w["x"].to_f.clamp(0.0, 1.0)
+      y = w["y"].to_f.clamp(0.0, 1.0)
+      width = w["w"].to_f.clamp(0.0, 1.0)
+      height = w["h"].to_f.clamp(0.0, 1.0)
+
+      {
+        text: w["text"].strip,
+        x: x,
+        y: y,
+        width: width,
+        height: height,
+        confidence: 0.95,
         page: page_number,
-        # Also store pixel coordinates for debugging
-        pixel_x: left,
-        pixel_y: top,
-        pixel_width: width,
-        pixel_height: height
+        pixel_x: (x * img_width).round,
+        pixel_y: (y * img_height).round,
+        pixel_width: (width * img_width).round,
+        pixel_height: (height * img_height).round
       }
     end
 
-    words
+    {
+      page: page_number,
+      text: data["text"] || words.map { |w| w[:text] }.join(" "),
+      words: words,
+      image_width: img_width.to_i,
+      image_height: img_height.to_i
+    }
+  rescue JSON::ParserError => e
+    Rails.logger.error "[OCR] Failed to parse Claude Vision response: #{e.message}"
+    empty_page_result(page_number)
   end
 
-  def get_image_width(image_path)
-    image = MiniMagick::Image.open(image_path)
-    image.width
-  end
-
-  def get_image_height(image_path)
-    image = MiniMagick::Image.open(image_path)
-    image.height
+  def empty_page_result(page_number)
+    { page: page_number, text: "", words: [], image_width: 0, image_height: 0 }
   end
 
   def cleanup_temp_files
@@ -191,11 +199,5 @@ class OcrExtractionService
       Rails.logger.debug "[OCR] Failed to clean up temp file: #{e.message}"
     end
     @temp_files = []
-  end
-
-  def tesseract_version
-    `tesseract --version 2>&1`.lines.first&.strip || "unknown"
-  rescue StandardError
-    "unknown"
   end
 end

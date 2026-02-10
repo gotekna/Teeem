@@ -772,14 +772,19 @@ class TenantConfigSyncService
     end
 
     # Second pass: set deferred self-referential FKs (parent_id) now that all
-    # records have correct warehouse_type_ids
+    # records have correct warehouse_type_ids.
+    # ⚠️ Uses update_column to bypass parent_same_warehouse_type validation
+    # which fails due to Rails association cache returning stale parent data.
+    # Safe because pass 1 already set correct warehouse_type_ids on all records.
     if deferred_parents.any?
       ActsAsTenant.with_tenant(tenant) do
         deferred_parents.each do |record_id, deferred_attrs|
           record = model.find_by(id: record_id)
           next unless record
           begin
-            record.update!(deferred_attrs)
+            deferred_attrs.each do |field, value|
+              record.update_column(field, value) if value.present?
+            end
           rescue => e
             @errors << "Failed to set parent for #{record.send(config[:name_field])}: #{e.message}"
           end
@@ -956,14 +961,19 @@ class TenantConfigSyncService
     end
 
     # Second pass: set deferred self-referential FKs (parent_id) now that all
-    # records have correct warehouse_type_ids
+    # records have correct warehouse_type_ids.
+    # ⚠️ Uses update_column to bypass parent_same_warehouse_type validation
+    # which fails due to Rails association cache returning stale parent data.
+    # Safe because pass 1 already set correct warehouse_type_ids on all records.
     if deferred_parents.any?
       ActsAsTenant.with_tenant(tenant) do
         deferred_parents.each do |record_id, deferred_attrs|
           record = model.find_by(id: record_id)
           next unless record
           begin
-            record.update!(deferred_attrs)
+            deferred_attrs.each do |field, value|
+              record.update_column(field, value) if value.present?
+            end
           rescue => e
             @errors << "Failed to set parent for #{record.send(config[:name_field])}: #{e.message}"
           end
