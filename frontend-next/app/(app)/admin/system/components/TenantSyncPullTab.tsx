@@ -67,6 +67,11 @@ export function TenantSyncPullTab() {
   const [error, setError] = useState<string | null>(null);
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
   const [priceMarkupPercent, setPriceMarkupPercent] = useState<number>(5); // Default 5% markup
+  const [pullingAll, setPullingAll] = useState(false);
+  const [pullAllResult, setPullAllResult] = useState<{
+    totals: { imported: number; updated: number; skipped: number; tables_processed: number };
+    results: Record<string, { imported: number; updated: number; skipped: number; total: number; error?: string }>;
+  } | null>(null);
 
   // Fetch available tables on mount
   useEffect(() => {
@@ -199,6 +204,43 @@ export function TenantSyncPullTab() {
     }
   };
 
+  // Handle pull ALL tables at once
+  const handlePullAll = async () => {
+    try {
+      setPullingAll(true);
+      setError(null);
+      setPullAllResult(null);
+      setPullResult(null);
+
+      const response = await api.post<{
+        success: boolean;
+        message?: string;
+        totals?: { imported: number; updated: number; skipped: number; tables_processed: number };
+        results?: Record<string, { imported: number; updated: number; skipped: number; total: number; error?: string }>;
+        errors?: string[];
+        error?: string;
+      }>("/api/v1/config_sync/pull_all");
+
+      if (response?.totals && response?.results) {
+        setPullAllResult({
+          totals: response.totals,
+          results: response.results,
+        });
+        // Refresh current table view if one is selected
+        if (selectedTable) {
+          await fetchRecords();
+        }
+      } else {
+        setError(response?.error || "Pull all failed");
+      }
+    } catch (err) {
+      console.error("Pull all failed:", err);
+      setError("Pull all failed. Please try again.");
+    } finally {
+      setPullingAll(false);
+    }
+  };
+
   // Get display name for record
   const getRecordDisplayName = useCallback((record: MasterRecord): string => {
     if (record.name && typeof record.name === "string" && isNaN(Number(record.name))) {
@@ -252,12 +294,63 @@ export function TenantSyncPullTab() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4 text-sm">
-            <span className="text-muted-foreground">Your tenant:</span>
-            <Badge variant="outline">{tenantInfo?.name || "Unknown"}</Badge>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 text-sm">
+              <span className="text-muted-foreground">Your tenant:</span>
+              <Badge variant="outline">{tenantInfo?.name || "Unknown"}</Badge>
+            </div>
+            <Button
+              onClick={handlePullAll}
+              disabled={pullingAll}
+              variant="default"
+            >
+              {pullingAll ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  Pulling all tables...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Fresh Pull All Tables
+                </>
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Pull All Results */}
+      {pullAllResult && (
+        <Card className="border-green-500 bg-green-50 dark:bg-green-950/20">
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                <Check className="h-5 w-5" />
+                <span className="font-medium">
+                  All tables synced: {pullAllResult.totals.imported} added, {pullAllResult.totals.updated} updated, {pullAllResult.totals.skipped} unchanged ({pullAllResult.totals.tables_processed} tables)
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {Object.entries(pullAllResult.results).map(([table, result]) => (
+                  <div key={table} className="flex items-center justify-between px-3 py-1.5 rounded bg-white/50 dark:bg-black/20">
+                    <span className="text-muted-foreground">{table.replace(/_/g, " ")}</span>
+                    {result.error ? (
+                      <Badge variant="destructive" className="text-xs">Error</Badge>
+                    ) : (
+                      <span className="text-xs">
+                        {result.imported > 0 && <span className="text-green-600 mr-2">+{result.imported}</span>}
+                        {result.updated > 0 && <span className="text-blue-600 mr-2">{result.updated} updated</span>}
+                        {result.imported === 0 && result.updated === 0 && <span className="text-muted-foreground">no changes</span>}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Table Selection */}
       <Card>
