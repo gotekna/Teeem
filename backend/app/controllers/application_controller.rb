@@ -34,18 +34,30 @@ class ApplicationController < ActionController::API
     # Using signed cookies since ActionController::API doesn't have sessions
     if current_user&.teeem_staff? && cookies.signed[:admin_tenant_id]
       tenant = Tenant.find_by(id: cookies.signed[:admin_tenant_id])
-      return tenant if tenant
+      if tenant
+        Rails.logger.info "[TenantDebug] ✅ OVERRIDE: cookie admin_tenant_id=#{cookies.signed[:admin_tenant_id]} → #{tenant.name} (id=#{tenant.id}, master=#{tenant.master_tenant?}) | user=#{current_user&.email} | path=#{request.path}"
+        return tenant
+      else
+        Rails.logger.warn "[TenantDebug] ⚠️ Cookie admin_tenant_id=#{cookies.signed[:admin_tenant_id]} but tenant NOT FOUND"
+      end
+    else
+      Rails.logger.info "[TenantDebug] 🔍 No override: teeem_staff=#{current_user&.teeem_staff?}, cookie=#{cookies.signed[:admin_tenant_id].inspect} | user=#{current_user&.email} | path=#{request.path}"
     end
 
     # Priority 2: Subdomain
     subdomain = request.subdomain
     if subdomain.present? && !%w[www api staging beta].include?(subdomain)
       tenant = Tenant.find_by(slug: subdomain)
-      return tenant if tenant
+      if tenant
+        Rails.logger.info "[TenantDebug] ✅ SUBDOMAIN: #{subdomain} → #{tenant.name} (id=#{tenant.id}, master=#{tenant.master_tenant?})"
+        return tenant
+      end
     end
 
     # Priority 3: User's assigned tenant (SSoT)
-    current_user&.tenant
+    fallback = current_user&.tenant
+    Rails.logger.info "[TenantDebug] ✅ FALLBACK: user.tenant → #{fallback&.name} (id=#{fallback&.id}, master=#{fallback&.master_tenant?})"
+    fallback
   end
 
   def current_tenant
