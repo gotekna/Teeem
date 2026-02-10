@@ -139,10 +139,10 @@ module Api
           @last_assigner_cache = {}
         end
 
-        # FRC (Feb 2026): Batch status counts in ONE query instead of 4 separate counts.
-        # Before: @tasks.count (re-runs full filtered query) + 3 unscoped counts = 4 queries
-        # After: Single GROUP BY query for all status counts
-        status_counts = SmTask.group(:status).count
+        # FRC (Feb 2026): Single combined GROUP BY for all meta counts.
+        # Groups by (status, is_hold_task) to derive active, hold, and completed counts
+        # in ONE query instead of 2 (was: group(:status).count + hold_tasks.count).
+        combo_counts = SmTask.group(:status, :is_hold_task).count
         active_statuses = %w[not_started in_progress]
 
         render json: {
@@ -150,9 +150,9 @@ module Api
           tasks: tasks_to_render.map { |task| task_to_json_with_job(task) },
           meta: {
             total_count: tasks_to_render.length,
-            active_count: active_statuses.sum { |s| status_counts[s] || 0 },
-            hold_count: SmTask.hold_tasks.where(status: "not_started").count,
-            completed_count: status_counts["completed"] || 0
+            active_count: combo_counts.sum { |(status, _), count| active_statuses.include?(status) ? count : 0 },
+            hold_count: combo_counts.sum { |(status, hold), count| status == "not_started" && hold ? count : 0 },
+            completed_count: combo_counts.sum { |(status, _), count| status == "completed" ? count : 0 }
           }
         }
       end
@@ -2892,7 +2892,9 @@ module Api
               # Frontend constructs download URL from email_id + doc.id (never expose storage_path)
               email_id: email.id,
               # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
-              email_attachments: email.attachment_documents.map do |doc|
+              # FRC (Feb 2026): Use batch-preloaded cache when available (index action)
+              # to avoid N+1 JSONB queries. Falls back to per-email query (show/detail action).
+              email_attachments: (@attachment_docs_cache&.dig(email.id) || email.attachment_documents).map do |doc|
                 {
                   id: doc.id,
                   filename: doc.original_filename || doc.ui_name,
