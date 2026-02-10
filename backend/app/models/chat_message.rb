@@ -14,9 +14,6 @@ class ChatMessage < ApplicationRecord
   # Chat messages with files appear under Warehousing/Chat folder in File Warehouse
   has_one :warehouse_document, as: :documentable, dependent: :destroy
 
-  # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - SSoT is storage_blob
-  # Files stored via StorageBlob with deduplication via content_hash
-
   validates :content, presence: true
   validates :message_type, inclusion: { in: %w[text image file] }, allow_nil: true
 

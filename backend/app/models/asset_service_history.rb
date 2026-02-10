@@ -7,8 +7,6 @@ class AssetServiceHistory < ApplicationRecord
   belongs_to :invoice_blob, class_name: "StorageBlob", optional: true
   belongs_to :document_blob, class_name: "StorageBlob", optional: true
 
-  # ActiveStorage has_one_attached :invoice/:document was REMOVED (Jan 2026) - it violated SSoT.
-
   # Validations
   validates :service_date, presence: true
   validates :service_type, inclusion: { in: %w[regular_service repair inspection registration warranty_work other] }, allow_blank: true

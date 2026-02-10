@@ -29,10 +29,6 @@ class BillInbox < ApplicationRecord
 
   has_many :bill_payments, dependent: :destroy
 
-  # ActiveStorage has_one_attached :invoice_file was REMOVED (Jan 2026) - SSoT is storage_blob
-  # ActiveStorage has_many_attached :supporting_documents was REMOVED - use separate association
-  # Files stored via StorageBlob with deduplication via content_hash
-
   # Allowed content types (used by upload validation in services)
   ALLOWED_INVOICE_TYPES = %w[application/pdf image/jpeg image/png image/tiff].freeze
   ALLOWED_SUPPORTING_TYPES = %w[

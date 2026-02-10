@@ -74,7 +74,7 @@ class Contact < ApplicationRecord
   # For new code, use:
   #   - employers method (reads from relationships)
   #   - outgoing_relationships.where(relationship_type: "employee_of")
-  # See: lib/tasks/ensure_contact_relationships.rake for audit/backfill tools
+
   belongs_to :primary_company, class_name: "Contact", optional: true, counter_cache: :employees_count
   has_many :employees, class_name: "Contact", foreign_key: :primary_company_id, dependent: :nullify
 

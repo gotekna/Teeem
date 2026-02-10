@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { TableColumn, SortColumn } from "../types";
+import { isNumericColumn, isBooleanColumn } from '@/lib/constants/column-types';
 
 interface ResizableColumnHeaderProps {
   column: TableColumn;
@@ -147,15 +148,14 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
 
   // Determine sort direction labels based on column type
   const getSortLabel = (dir: "asc" | "desc") => {
-    const numericTypes = ["number", "whole_number", "currency", "percentage", "computed"];
-    if (column.column_type && numericTypes.includes(column.column_type)) {
+    if (isNumericColumn(column.column_type)) {
       return dir === "asc" ? "Sort 1 → 9" : "Sort 9 → 1";
     }
     const dateTypes = ["date", "date_and_time"];
     if (column.column_type && dateTypes.includes(column.column_type)) {
       return dir === "asc" ? "Sort Old → New" : "Sort New → Old";
     }
-    if (column.column_type === "boolean") {
+    if (isBooleanColumn(column.column_type)) {
       return dir === "asc" ? "Sort ☐ → ☑" : "Sort ☑ → ☐";
     }
     return dir === "asc" ? "Sort A → Z" : "Sort Z → A";

@@ -9,8 +9,6 @@ class AssetOdometerReading < ApplicationRecord
   # SSoT: Link to deduplicated file storage (Jan 2026)
   belongs_to :storage_blob, optional: true
 
-  # ActiveStorage has_one_attached :photo was REMOVED (Jan 2026) - it violated SSoT.
-
   # Reading types
   READING_TYPES = %w[photo manual service fuel inspection].freeze
 

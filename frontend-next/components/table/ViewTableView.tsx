@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { isBooleanColumn } from '@/lib/constants/column-types';
 import {
   Table,
   TableBody,
@@ -241,7 +242,7 @@ interface FilterItemProps {
 
 function FilterItem({ filter, columns, onUpdate, onRemove }: FilterItemProps) {
   const column = columns.find((c) => c.key === filter.column);
-  const isBooleanColumn = column?.type === "boolean";
+  const isBoolCol = isBooleanColumn(column?.type);
   const isChoiceColumn = column?.type === "choice" || column?.type === "badge";
   const isNumericColumn = column?.type === "number" || column?.type === "currency";
   const isDateColumn = column?.type === "date";
@@ -253,7 +254,7 @@ function FilterItem({ filter, columns, onUpdate, onRemove }: FilterItemProps) {
     }
 
     // Boolean column - show Yes/No dropdown
-    if (isBooleanColumn) {
+    if (isBoolCol) {
       return (
         <Select
           value={filter.value === true || filter.value === "true" ? "true" : filter.value === false || filter.value === "false" ? "false" : ""}

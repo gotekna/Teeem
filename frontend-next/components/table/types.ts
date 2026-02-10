@@ -2,6 +2,7 @@
  * TeeemTableView Types
  * Core type definitions for the table component
  */
+import { isNumericColumn, isBooleanColumn } from '@/lib/constants/column-types';
 
 import { type LucideIcon } from "lucide-react";
 
@@ -323,8 +324,7 @@ export type GroupedEntries = Record<string, GroupEntry>;
 
 // Get sort direction label based on column type
 export const getSortDirectionLabel = (columnType: string | undefined, direction: "asc" | "desc"): string => {
-  const numericTypes = ["number", "whole_number", "currency", "percentage", "computed"];
-  if (columnType && numericTypes.includes(columnType)) {
+  if (isNumericColumn(columnType)) {
     return direction === "asc" ? "1-9" : "9-1";
   }
 
@@ -333,7 +333,7 @@ export const getSortDirectionLabel = (columnType: string | undefined, direction:
     return direction === "asc" ? "Old→New" : "New→Old";
   }
 
-  if (columnType === "boolean") {
+  if (isBooleanColumn(columnType)) {
     return direction === "asc" ? "☐→☑" : "☑→☐";
   }
 

@@ -449,15 +449,18 @@ module Api
             percentage: [ (get_memory_usage / 2048.0 * 100).round, 100 ].min,
             message: "OK"
           },
-          {
-            id: "workers",
-            name: "Workers",
-            status: "healthy",
-            value: get_active_workers.to_s,
-            max_value: "4",
-            percentage: 100,
-            message: "All active"
-          }
+          begin
+            worker_count = get_active_workers
+            {
+              id: "workers",
+              name: "Workers",
+              status: worker_count > 0 ? "healthy" : "critical",
+              value: worker_count.to_s,
+              max_value: "4",
+              percentage: worker_count > 0 ? 100 : 0,
+              message: worker_count > 0 ? "#{worker_count} active" : "No workers running!"
+            }
+          end
         ]
       end
 
@@ -975,8 +978,9 @@ module Api
       end
 
       def get_active_workers
-        # Placeholder - would check actual SolidQueue workers
-        4
+        SolidQueue::Process.where("last_heartbeat_at > ?", 5.minutes.ago).count
+      rescue StandardError
+        0
       end
 
       def get_xero_status

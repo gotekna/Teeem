@@ -1,5 +1,5 @@
 class HealthController < ApplicationController
-  skip_before_action :authorize_request, only: [ :index, :version ]
+  skip_before_action :authorize_request, only: [ :index, :version, :worker_status ]
 
   def index
     render json: {
@@ -23,6 +23,13 @@ class HealthController < ApplicationController
     heroku_release = ENV["HEROKU_RELEASE_VERSION"]
     response[:heroku_release] = heroku_release if heroku_release.present?
     render json: response
+  end
+
+  def worker_status
+    require_relative "../../lib/worker_watchdog" unless defined?(WorkerWatchdog)
+    status = WorkerWatchdog.assess_worker_health
+    http_status = status[:status] == "healthy" ? :ok : :service_unavailable
+    render json: status, status: http_status
   end
 
   def increment_version

@@ -24,6 +24,7 @@ import {
 import { Calendar, RefreshCw, SkipForward, Link2, Plus, Check, AlertTriangle, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
@@ -625,7 +626,7 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         key={refreshKey}
-        foundationId="sm-tasks"
+        foundationId={FOUNDATION_SLUGS.SM_TASKS}
         autoFetchRecords={true}
         initialFilters={[
           { id: "job-filter", column: "job_id", operator: "=", value: String(jobId) }

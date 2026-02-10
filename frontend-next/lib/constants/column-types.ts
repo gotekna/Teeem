@@ -21,8 +21,11 @@ export const FILE_COLUMN_TYPES = ['file_upload', 'file', 'attachment'] as const;
 // Rich text column types
 export const TEXT_COLUMN_TYPES = ['rich_text', 'long_text', 'multi_line_text', 'multiple_lines_text'] as const;
 
-// Numeric column types
-export const NUMERIC_COLUMN_TYPES = ['number', 'whole_number', 'currency', 'percentage'] as const;
+// Numeric column types (includes 'computed' for footer/aggregation contexts)
+export const NUMERIC_COLUMN_TYPES = ['number', 'whole_number', 'currency', 'percentage', 'computed'] as const;
+
+// Boolean column types
+export const BOOLEAN_COLUMN_TYPES = ['boolean'] as const;
 
 // Date/time column types
 export const DATE_COLUMN_TYPES = ['date', 'date_and_time', 'time'] as const;
@@ -33,6 +36,7 @@ export type ChoiceColumnType = typeof CHOICE_COLUMN_TYPES[number];
 export type FileColumnType = typeof FILE_COLUMN_TYPES[number];
 export type TextColumnType = typeof TEXT_COLUMN_TYPES[number];
 export type NumericColumnType = typeof NUMERIC_COLUMN_TYPES[number];
+export type BooleanColumnType = typeof BOOLEAN_COLUMN_TYPES[number];
 export type DateColumnType = typeof DATE_COLUMN_TYPES[number];
 
 // Helper functions
@@ -54,6 +58,10 @@ export function isTextColumn(columnType: string | undefined | null): boolean {
 
 export function isNumericColumn(columnType: string | undefined | null): boolean {
   return columnType != null && (NUMERIC_COLUMN_TYPES as readonly string[]).includes(columnType);
+}
+
+export function isBooleanColumn(columnType: string | undefined | null): boolean {
+  return columnType != null && (BOOLEAN_COLUMN_TYPES as readonly string[]).includes(columnType);
 }
 
 export function isDateColumn(columnType: string | undefined | null): boolean {

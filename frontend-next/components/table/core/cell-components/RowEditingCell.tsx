@@ -23,7 +23,7 @@ import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import type { TableColumn } from '../../types';
-import { isLookupColumn, isChoiceColumn } from '@/lib/constants/column-types';
+import { isLookupColumn, isChoiceColumn, isBooleanColumn } from '@/lib/constants/column-types';
 
 export interface RowEditingCellProps {
   /** Row entry data */
@@ -80,7 +80,7 @@ export function RowEditingCell({
   };
 
   // Boolean - Switch toggle
-  if (columnType === 'boolean') {
+  if (isBooleanColumn(columnType)) {
     const boolValue = rowEditingData[column.key] === true || rowEditingData[column.key] === 'true' || rowEditingData[column.key] === 1;
     return (
       <div className="flex items-center justify-center" onClick={handleClick}>

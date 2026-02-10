@@ -26,8 +26,6 @@ class NotebookPageAttachment < ApplicationRecord
   # Notebook attachments appear under Warehousing/Notes folder in File Warehouse
   has_one :warehouse_document, as: :documentable, dependent: :destroy
 
-  # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - it violated SSoT.
-
   # Validations
   validates :file_name, presence: true, length: { maximum: 255 }
   validates :storage_key, presence: true, uniqueness: true

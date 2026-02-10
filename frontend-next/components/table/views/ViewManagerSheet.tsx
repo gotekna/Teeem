@@ -93,7 +93,7 @@ import { SortableSortByItem } from "./SortableSortByItem";
 import { SortableGroupByItem } from "./SortableGroupByItem";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import { useContactChoices } from "@/hooks/useContactChoices";
-import { isLookupColumn as checkIsLookup, isChoiceColumn as checkIsChoice } from "@/lib/constants/column-types";
+import { isLookupColumn as checkIsLookup, isChoiceColumn as checkIsChoice, isNumericColumn, isBooleanColumn } from "@/lib/constants/column-types";
 
 // Column interface for view manager
 interface Column {
@@ -173,15 +173,12 @@ export function ViewManagerSheet({
   const safeColumns = Array.isArray(columns) ? columns : [];
   const effectiveColumns = safeAllFoundationColumns.length > 0 ? safeAllFoundationColumns : safeColumns;
 
-  // Numeric column types that can have totals
-  const NUMERIC_TYPES = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
   const SKIP_COLUMNS = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'job_design_id', 'user_id'];
 
   // Get columns that can have totals (numeric types, not skipped)
   const numericColumns = React.useMemo(() => {
     return effectiveColumns.filter(col =>
-      col.column_type &&
-      NUMERIC_TYPES.includes(col.column_type) &&
+      isNumericColumn(col.column_type) &&
       !SKIP_COLUMNS.includes(col.column_name)
     );
   }, [effectiveColumns]);
@@ -815,9 +812,7 @@ export function ViewManagerSheet({
     const columnType = column.column_type?.toLowerCase() || '';
     const isLookup = checkIsLookup(columnType);
     const isChoice = checkIsChoice(columnType);
-    const isBooleanColumn = columnType === 'boolean';
-
-    if (isBooleanColumn) {
+    if (isBooleanColumn(columnType)) {
       return (
         <Select
           value={filter.value === true ? "true" : filter.value === false ? "false" : ""}
