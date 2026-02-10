@@ -16,6 +16,7 @@ class OcrExtractionService
   end
 
   def extract!
+    raise "MiniMagick is only available on the worker dyno." unless defined?(MiniMagick)
     return {} unless @bill.storage_reference.present?
 
     Rails.logger.info "[OCR] Starting Claude Vision extraction for BillInbox ##{@bill.id}"
