@@ -115,21 +115,28 @@ class User < ApplicationRecord
   end
 
   # Check if user can access a specific tenant
+  # Access granted if: teeem_staff, assigned tenant, OR same email exists on that tenant
   def can_access_tenant?(tenant)
     return false unless tenant
 
-    teeem_staff? || company_group_id == tenant.id
+    teeem_staff? || tenant_id == tenant.id ||
+      User.unscoped.exists?(email: email, tenant_id: tenant.id)
   end
 
   # Get all tenants this user can access
+  # SSoT: Same email on multiple tenants = access to all those tenants
   def available_tenants
     if teeem_staff?
-      CompanyGroup.all
-    elsif company_group_id.present?
-      CompanyGroup.where(id: company_group_id)
+      Tenant.all
     else
-      CompanyGroup.none
+      tenant_ids = User.unscoped.where(email: email).pluck(:tenant_id).compact.uniq
+      Tenant.where(id: tenant_ids)
     end
+  end
+
+  # Whether this user has accounts on multiple tenants
+  def multi_tenant?
+    available_tenants.count > 1
   end
 
   # Get user initials from name (e.g., "Robert Harder" -> "RH")
