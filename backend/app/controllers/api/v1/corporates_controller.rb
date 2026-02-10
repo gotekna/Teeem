@@ -4,7 +4,8 @@ module Api
       before_action :set_company, only: [ :show, :update, :destroy, :directors, :add_director,
                                          :update_director, :remove_director, :compliance_items,
                                          :activities, :documents, :assets, :hierarchy, :shareholders,
-                                         :investments, :trust_roles, :data_stats, :warehouse_health, :health ]
+                                         :investments, :trust_roles, :data_stats, :warehouse_health, :health,
+                                         :director_changes ]
 
       # GET /api/v1/companies
       # By default, only shows companies linked to a corporate group (have company_group_id)
@@ -940,6 +941,64 @@ module Api
           end,
           total: @companies.count
         }
+      end
+
+      # POST /api/v1/companies/:id/director_changes
+      # Generates a director change package (Form 484) with resignation letters,
+      # consent forms, and record copy. Optionally sends for e-signature.
+      def director_changes
+        ceasing = (params[:ceasing_directors] || []).map do |cd|
+          director = @company.corporate_directors.find(cd[:corporate_director_id])
+          {
+            corporate_director: director,
+            positions: cd[:positions] || [director.position],
+            cessation_date: Date.parse(cd[:cessation_date])
+          }
+        end
+
+        appointments = (params[:new_appointments] || []).map do |appt|
+          contact = Contact.find(appt[:contact_id])
+          {
+            contact: contact,
+            positions: appt[:positions],
+            appointment_date: Date.parse(appt[:appointment_date])
+          }
+        end
+
+        service = DirectorChangeService.new(
+          company: @company,
+          ceasing_directors: ceasing,
+          new_appointments: appointments,
+          user: current_user
+        )
+
+        if params[:send_for_signing]
+          result = service.generate_and_send!
+          render json: {
+            success: true,
+            message: "Director change package sent for signing",
+            e_signature_request_id: result[:e_signature_request].id,
+            request_number: result[:e_signature_request].request_number,
+            filename: result[:filename],
+            documents: result[:documents]
+          }
+        else
+          result = service.generate_package
+          # Return PDF as base64 for preview/download
+          render json: {
+            success: true,
+            message: "Director change package generated",
+            filename: result[:filename],
+            pdf_base64: Base64.strict_encode64(result[:pdf_content]),
+            documents: result[:documents]
+          }
+        end
+      rescue DirectorChangeService::GenerationError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { success: false, error: "Record not found: #{e.message}" }, status: :not_found
+      rescue Date::Error => e
+        render json: { success: false, error: "Invalid date format: #{e.message}" }, status: :unprocessable_entity
       end
 
       private
