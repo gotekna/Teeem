@@ -308,6 +308,18 @@ const TIER_1_COMPONENTS: StandardComponent[] = [
     },
   },
   {
+    id: "search-input",
+    name: "SearchInput",
+    displayName: "Search Input",
+    category: "forms",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/search-input",
+    description: "Input with search icon prefix. SSoT for simple search fields across the app.",
+    whenToUse: "Any search field with a magnifying glass icon. Replaces the inline div>Search+Input pattern.",
+    usageCount: 26,
+  },
+  {
     id: "label",
     name: "Label",
     displayName: "Label",
@@ -1362,6 +1374,14 @@ export const DEPRECATED_COMPONENTS: DeprecatedComponent[] = [
     replacedBy: "placeholder-badge",
     reason: "Renamed for terminology consistency. Backwards compat alias exists.",
     migrationGuide: "Change import from @/components/ui/tokens to @/components/ui/placeholders and rename TokenBadge to PlaceholderBadge.",
+  },
+  {
+    id: "inline-search-pattern",
+    name: "Inline Search (div>Search+Input)",
+    importPath: "@/components/ui/input",
+    replacedBy: "search-input",
+    reason: "SearchInput component encapsulates the div>Search icon>Input pattern. Reduces 3 lines to 1.",
+    migrationGuide: "Replace <div className='relative'><Search .../><Input className='pl-9' .../></div> with <SearchInput value={...} onChange={...} />",
   },
   // Navigation State Patterns (Anti-patterns)
   {
