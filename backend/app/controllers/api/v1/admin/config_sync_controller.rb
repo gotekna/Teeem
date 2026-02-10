@@ -269,10 +269,11 @@ module Api
 
         def require_teeem_staff!
           return if current_user&.teeem_staff?
+          return if current_user&.admin?
 
           render json: {
             success: false,
-            error: "Unauthorized. TEEEM staff access required."
+            error: "Unauthorized. Admin or TEEEM staff access required."
           }, status: :forbidden
         end
 
