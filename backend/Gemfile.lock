@@ -395,7 +395,6 @@ GEM
       rspec-mocks (~> 3.13)
       rspec-support (~> 3.13)
     rspec-support (3.13.6)
-    rtesseract (3.1.4)
     rubocop (1.81.7)
       json (~> 2.3)
       language_server-protocol (~> 3.17.0.2)
@@ -551,7 +550,6 @@ DEPENDENCIES
   rails (~> 8.0.4)
   rexml
   rspec-rails (~> 7.1)
-  rtesseract (~> 3.1)
   rubocop-rails-omakase
   ruby-lsp
   rubyzip (~> 2.3)

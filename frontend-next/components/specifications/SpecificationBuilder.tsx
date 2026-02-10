@@ -342,10 +342,26 @@ export function SpecificationBuilder({ jobId, jobTypeId }: SpecificationBuilderP
     }
   };
 
-  // Export PDF
-  const handleExportPdf = () => {
-    const baseUrl = getApiBaseUrl();
-    window.open(`${baseUrl}/api/v1/jobs/${jobId}/specifications/generate_pdf?download=true`, "_blank");
+  // Export PDF (async generation)
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: { pdfGenerationId: number; downloadUrl: string };
+      }>(`/api/v1/jobs/${jobId}/specifications/generate_pdf?download=true`);
+
+      if (response?.success && response.data?.pdfGenerationId) {
+        const baseUrl = getApiBaseUrl();
+        window.open(`${baseUrl}/api/v1/pdf_generations/${response.data.pdfGenerationId}/download`, "_blank");
+      }
+    } catch (error) {
+      console.error("Failed to generate PDF:", error);
+      toast({ title: "Failed to generate PDF", variant: "destructive" });
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   // Custom specifications state
@@ -429,9 +445,9 @@ export function SpecificationBuilder({ jobId, jobTypeId }: SpecificationBuilderP
           <TabsTrigger value="custom">Custom</TabsTrigger>
         </TabsList>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleExportPdf}>
+          <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={exportingPdf}>
             <Download className="h-4 w-4 mr-2" />
-            Export PDF
+            {exportingPdf ? "Generating..." : "Export PDF"}
           </Button>
         </div>
       </div>

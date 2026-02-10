@@ -3,6 +3,7 @@
 module Api
   module V1
     class JobSpecificationsController < ApplicationController
+      include AsyncPdfGeneration
       before_action :set_job
       before_action :set_specification, only: [:show, :update, :destroy]
 
@@ -121,16 +122,15 @@ module Api
 
       # GET /api/v1/jobs/:job_id/specifications/generate_pdf
       def generate_pdf
-        generator = TeknaDocumentGenerator.new(:specifications)
-        result = generator.generate(job: @job)
-
         if params[:format] == "html" || params[:preview]
+          generator = TeknaDocumentGenerator.new(:specifications)
+          result = generator.generate(job: @job)
           render html: result[:html].html_safe
         else
-          send_data result[:pdf],
-                    filename: result[:filename],
-                    type: "application/pdf",
-                    disposition: params[:download] ? "attachment" : "inline"
+          enqueue_pdf_and_respond(
+            generator_type: "tekna_document",
+            generator_params: { template_key: "specifications", job_id: @job.id }
+          )
         end
       rescue StandardError => e
         Rails.logger.error "PDF generation failed: #{e.message}"

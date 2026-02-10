@@ -26,6 +26,13 @@ Rails.application.routes.draw do
         end
       end
 
+      # Async PDF Generation
+      resources :pdf_generations, only: [:create, :show] do
+        member do
+          get :download
+        end
+      end
+
       # =============================================================
       # Uploads API - THE ONE SSoT for presigned URL uploads
       # All file uploads should use this to bypass Heroku 30s timeout

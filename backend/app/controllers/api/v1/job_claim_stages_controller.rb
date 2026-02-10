@@ -3,6 +3,7 @@
 module Api
   module V1
     class JobClaimStagesController < ApplicationController
+      include AsyncPdfGeneration
       before_action :set_job
       before_action :set_stage, only: [:show, :update, :destroy, :match, :unmatch, :create_invoice, :send_to_client, :generate_pdf, :release_retainage]
 
@@ -436,7 +437,7 @@ module Api
       end
 
       # POST /api/v1/jobs/:job_id/claim_stages/:id/generate_pdf
-      # Generate invoice PDF from code-driven InvoiceTemplate
+      # Enqueues async invoice PDF generation
       def generate_pdf
         invoice = @stage.external_invoice
 
@@ -445,7 +446,6 @@ module Api
                        status: :unprocessable_entity
         end
 
-        # Find invoice template (code-driven JSONB template)
         template_id = params[:template_id]
         template = if template_id.present?
           InvoiceTemplate.find(template_id)
@@ -458,49 +458,16 @@ module Api
                        status: :unprocessable_entity
         end
 
-        begin
-          # Generate PDF using InvoicePdfGenerator (code-driven templates)
-          generator = InvoicePdfGenerator.new(template: template)
-          result = generator.generate(
-            invoice: invoice,
-            job: @job,
-            contact: @job.client || @job.primary_contact,
-            claim_stage: @stage
-          )
-
-          # SSoT: WarehouseDocumentCreator handles metadata + callbacks
-          document = WarehouseDocumentCreator.create!(
-            filename: "Invoice #{invoice.invoice_number || 'Draft'}",
-            source_type: "generated",
-            documentable: invoice
-          )
-
-          # Attach the PDF via StorageBlob
-          document.attach_file(
-            result[:pdf_content],
-            filename: result[:filename],
-            content_type: "application/pdf"
-          )
-
-          render json: {
-            success: true,
-            data: {
-              document_id: document.id,
-              filename: result[:filename],
-              url: document.download_url,
-              template_name: template.name,
-              message: "Invoice PDF generated successfully"
-            }
+        enqueue_pdf_and_respond(
+          generator_type: "invoice",
+          generator_params: {
+            template_id: template.id,
+            invoice_id: invoice.id,
+            job_id: @job.id,
+            contact_id: (@job.client || @job.primary_contact)&.id,
+            claim_stage_id: @stage.id
           }
-        rescue InvoicePdfGenerator::GenerationError => e
-          render json: { success: false, error: "PDF generation failed: #{e.message}" },
-                 status: :unprocessable_entity
-        rescue StandardError => e
-          Rails.logger.error("Failed to generate invoice PDF: #{e.message}")
-          Rails.logger.error(e.backtrace.join("\n"))
-          render json: { success: false, error: "Failed to generate PDF: #{e.message}" },
-                 status: :internal_server_error
-        end
+        )
       end
 
       # POST /api/v1/jobs/:job_id/claim_stages/:id/release_retainage

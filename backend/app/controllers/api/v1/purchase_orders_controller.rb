@@ -1,6 +1,7 @@
 module Api
   module V1
     class PurchaseOrdersController < ApplicationController
+      include AsyncPdfGeneration
       before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf, :schedule_sync_preview, :schedule_sync, :lock_budget, :unlock_budget, :save_pdf, :send_email, :bills ]
 
       # GET /api/v1/purchase_orders
@@ -675,16 +676,15 @@ module Api
       # GET /api/v1/purchase_orders/:id/generate_pdf
       # Generate PDF for this purchase order with colour selections from job (SSoT)
       def generate_pdf
-        generator = TeknaDocumentGenerator.new(:purchase_order)
-        result = generator.generate(purchase_order: @purchase_order)
-
         if params[:format] == "html" || params[:preview]
+          generator = TeknaDocumentGenerator.new(:purchase_order)
+          result = generator.generate(purchase_order: @purchase_order)
           render html: result[:html].html_safe
         else
-          send_data result[:pdf_content],
-            filename: result[:filename],
-            type: "application/pdf",
-            disposition: params[:download] ? "attachment" : "inline"
+          enqueue_pdf_and_respond(
+            generator_type: "tekna_document",
+            generator_params: { template_key: "purchase_order", purchase_order_id: @purchase_order.id }
+          )
         end
       rescue TeknaDocumentGenerator::GenerationError => e
         render json: { error: e.message }, status: :unprocessable_entity

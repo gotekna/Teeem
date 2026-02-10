@@ -180,7 +180,7 @@ sleep 1
 
 # Build and push to Staging (this is the ONLY slug build)
 DEPLOY_DIR=$(mktemp -d)
-rsync -a --exclude='.git' backend/ "$DEPLOY_DIR/"
+rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
 
 cd "$DEPLOY_DIR"
 git init
