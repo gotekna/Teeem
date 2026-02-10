@@ -22,8 +22,8 @@ export function GanttView() {
     return filteredTasks.map(task => ({
       id: String(task.id),
       name: task.name,
-      startDate: new Date(task.start_date),
-      endDate: new Date(task.end_date),
+      startDate: new Date(task.start_date + 'T00:00:00'),
+      endDate: new Date(task.end_date + 'T00:00:00'),
       progress: task.progress_percentage || 0,
       // SmTask status matches TaskStatus (both use snake_case: not_started, started, completed)
       status: task.status as TaskStatus,

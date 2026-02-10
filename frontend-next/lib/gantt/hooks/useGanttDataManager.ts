@@ -15,7 +15,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/lib/api';
 import { validateDependencies } from '@/lib/api/schemas/gantt';
 import {
+  addWorkingDays,
   convertRowsToTasks,
+  countWorkingDays,
   isHeaderRow,
   isWorkingDay,
   skipToPreviousWorkingDay,
@@ -1304,10 +1306,9 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     // Store undo state before making changes
     storeUndoState(task);
 
-    // Calculate new duration in days
+    // Calculate new duration in working days (skip weekends/holidays)
     const startDate = task.startDate;
-    const diffTime = newEndDate.getTime() - startDate.getTime();
-    const newDuration = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    const newDuration = Math.max(1, countWorkingDays(startDate, newEndDate));
 
     console.log('[GanttDataManager] Task resized:', task.id, 'new duration:', newDuration);
 
@@ -1339,9 +1340,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     setTasks(prevTasks => prevTasks.map(task => {
       if (task.id !== taskId) return task;
 
-      // Calculate new end date based on new duration
-      const newEndDate = new Date(task.startDate);
-      newEndDate.setDate(newEndDate.getDate() + newDuration - 1);
+      // Calculate new end date based on new duration (in working days)
+      const newEndDate = addWorkingDays(task.startDate, newDuration - 1);
 
       // Update rowData too for consistency
       const updatedRowData = task.rowData ? { ...task.rowData, duration_days: newDuration } : undefined;

@@ -1816,7 +1816,7 @@ export class UnifiedGanttCanvas {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         if (rowData) {
-          const newDuration = Math.max(1, this.daysBetween(task.startDate, task.endDate) + 1);
+          const newDuration = Math.max(1, countWorkingDays(task.startDate, task.endDate));
           rowData.duration_days = newDuration;
         }
       }
@@ -1934,7 +1934,7 @@ export class UnifiedGanttCanvas {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = task.rowData as any;
           if (rowData) {
-            const newDuration = Math.max(1, this.daysBetween(task.startDate, task.endDate) + 1);
+            const newDuration = Math.max(1, countWorkingDays(task.startDate, task.endDate));
             rowData.duration_days = newDuration;
           }
 
@@ -2788,7 +2788,7 @@ export class UnifiedGanttCanvas {
     // Format dates
     const startStr = task.startDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
     const endStr = task.endDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
-    const duration = this.daysBetween(task.startDate, task.endDate) + 1;
+    const duration = countWorkingDays(task.startDate, task.endDate);
     lines.push(`${startStr} → ${endStr} (${duration}d)`);
 
     // Add supplier if present
@@ -3552,7 +3552,7 @@ export class UnifiedGanttCanvas {
 
         // Draw hold date marker (pinned task indicator)
         if (rowData?.hold && rowData?.hold_date) {
-          const holdDate = new Date(rowData.hold_date);
+          const holdDate = new Date(rowData.hold_date + 'T00:00:00');
           const holdX = timelineX + this.daysBetween(this.startDate, holdDate) * dayWidth - this.scrollX;
 
           // Draw small triangle marker at hold date position

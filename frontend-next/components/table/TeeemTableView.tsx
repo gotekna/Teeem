@@ -124,7 +124,7 @@ import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "
 import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
 import { convertColumnsToTEEEMFormat, SYSTEM_DISPLAY_COLUMNS, type ApiColumn } from "@/lib/corporate/column-utils";
 import { isVisibleSystemColumn } from "@/lib/constants/system-columns";
-import { TABLE_ROW_LIMIT } from "@/lib/constants/pagination-constants";
+import { TABLE_ROW_LIMIT, MAX_RENDERED_ROWS } from "@/lib/constants/pagination-constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -3705,11 +3705,15 @@ export default function TeeemTableView({
   });
 
   // Limit displayed rows for performance (initial render shows INITIAL_ROW_LIMIT rows)
+  // Cap at MAX_RENDERED_ROWS to prevent browser from choking on large datasets
   const displayedRows = useMemo(() => {
-    if (showAllRows || filteredAndSortedEntries.length <= INITIAL_ROW_LIMIT) {
+    if (filteredAndSortedEntries.length <= INITIAL_ROW_LIMIT) {
       return filteredAndSortedEntries;
     }
-    return filteredAndSortedEntries.slice(0, rowLimit);
+    if (showAllRows) {
+      return filteredAndSortedEntries.slice(0, MAX_RENDERED_ROWS);
+    }
+    return filteredAndSortedEntries.slice(0, Math.min(rowLimit, MAX_RENDERED_ROWS));
   }, [filteredAndSortedEntries, rowLimit, showAllRows, INITIAL_ROW_LIMIT]);
 
   // Reset row limit when filters/sort change
@@ -5656,8 +5660,8 @@ export default function TeeemTableView({
               </TableRow>
             );
           })}
-          {/* Show "Load More" row if there are more rows to display */}
-          {!showAllRows && displayedRows.length < filteredAndSortedEntries.length && (
+          {/* Show "Load More" row if there are more rows to display (capped at MAX_RENDERED_ROWS) */}
+          {displayedRows.length < filteredAndSortedEntries.length && displayedRows.length < MAX_RENDERED_ROWS && (
             <TableRow>
               <TableCell
                 colSpan={visibleColumnsInOrder.length}
@@ -5666,18 +5670,30 @@ export default function TeeemTableView({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setRowLimit(prev => prev + INITIAL_ROW_LIMIT)}
+                  onClick={() => setRowLimit(prev => Math.min(prev + INITIAL_ROW_LIMIT, MAX_RENDERED_ROWS))}
                 >
-                  Load more ({filteredAndSortedEntries.length - displayedRows.length} remaining)
+                  Load more ({Math.min(filteredAndSortedEntries.length, MAX_RENDERED_ROWS) - displayedRows.length} remaining)
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ml-2"
-                  onClick={() => setShowAllRows(true)}
-                >
-                  Show all {filteredAndSortedEntries.length}
-                </Button>
+                {filteredAndSortedEntries.length <= MAX_RENDERED_ROWS && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-2"
+                    onClick={() => setShowAllRows(true)}
+                  >
+                    Show all {filteredAndSortedEntries.length}
+                  </Button>
+                )}
+              </TableCell>
+            </TableRow>
+          )}
+          {displayedRows.length >= MAX_RENDERED_ROWS && filteredAndSortedEntries.length > MAX_RENDERED_ROWS && (
+            <TableRow>
+              <TableCell
+                colSpan={visibleColumnsInOrder.length}
+                className="h-12 text-center text-muted-foreground text-sm"
+              >
+                Showing {MAX_RENDERED_ROWS} of {filteredAndSortedEntries.length} rows. Use search or filters to find specific items.
               </TableCell>
             </TableRow>
           )}

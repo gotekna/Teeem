@@ -167,9 +167,16 @@ class GanttDateCalculationService
   # - SmScheduleMaster: doesn't have locked? method → always calculates
   # - SmTask: has locked? method → checks it first
   def calculate_single_task_dates(task, date_map)
-    # Check if task is locked (SmTask only - SmScheduleMaster doesn't have this method)
-    # Locked tasks keep their stored dates as anchors
-    if task.respond_to?(:locked?) && task.locked? && task.start_date.present?
+    # ⚠️ DO NOT USE task.locked? here - it includes hold? which prevents recalculation (2026-02-09)
+    # ════════════════════════════════════════════════════════════════
+    # Why: locked? includes hold?, but held tasks need end_date RECALCULATED via
+    #      add_working_days to respect weekend/holiday changes. Using locked? returns
+    #      the stale stored end_date (which may fall on a weekend from before the fix).
+    # ❌ WRONG: task.locked? - catches held tasks, returns stale weekend end_dates
+    # ✅ CORRECT: Check confirm/supplier_confirm/started/completed explicitly
+    # ════════════════════════════════════════════════════════════════
+    if task.respond_to?(:confirm?) && task.start_date.present? &&
+       (task.confirm? || task.supplier_confirm? || task.status_started? || task.status_completed?)
       row_start = task.start_date
       row_end = task.end_date || @calendar.add_working_days(row_start, (task.duration_days || 1) - 1)
       return [row_start, row_end]
@@ -177,27 +184,33 @@ class GanttDateCalculationService
 
     # Started tasks use hold_date as anchor (even if hold is false)
     # This allows "started" checkbox without "hold" checkbox, but task stays pinned
+    # User-pinned dates are respected even on weekends/holidays
     if task.try(:started) && task.hold_date.present?
       row_start = task.hold_date.to_date
-      row_start = @calendar.next_working_day(row_start) unless @calendar.working_day?(row_start)
       duration = task.duration_days || 1
       row_end = @calendar.add_working_days(row_start, duration - 1)
       return [row_start, row_end]
     end
 
     # Supplier confirmed tasks use hold_date as anchor (pins to confirmation date)
+    # User-pinned dates are respected even on weekends/holidays
     if task.try(:supplier_confirm) && task.hold_date.present?
       row_start = task.hold_date.to_date
-      row_start = @calendar.next_working_day(row_start) unless @calendar.working_day?(row_start)
       duration = task.duration_days || 1
       row_end = @calendar.add_working_days(row_start, duration - 1)
       return [row_start, row_end]
     end
 
     # Hold with date (both tables have this)
+    # User-pinned dates are respected even on weekends/holidays
+    # ⚠️ For SmTask (jobs): use start_date (kept current by rollover), NOT hold_date (may be stale)
+    # For SmScheduleMaster (templates): use hold_date (no rollover, no start_date column)
     if task.hold && task.hold_date.present?
-      row_start = task.hold_date.to_date
-      row_start = @calendar.next_working_day(row_start) unless @calendar.working_day?(row_start)
+      row_start = if task.respond_to?(:start_date) && task.start_date.present?
+                    task.start_date
+                  else
+                    task.hold_date.to_date
+                  end
     else
       # Calculate from predecessors
       all_predecessors = @all_deps[task.task_number] || []

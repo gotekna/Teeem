@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { GanttUnified, GanttDependencyEditor } from '@/components/gantt';
+import { GanttTaskQuickEdit } from '@/components/gantt/GanttTaskQuickEdit';
 import { api } from '@/lib/api';
 import {
   ExternalLink,
@@ -42,6 +43,7 @@ import {
   GitBranch,
 } from 'lucide-react';
 import type { GanttTask, SmScheduleMaster } from '@/lib/gantt/types';
+import { isHeaderRow } from '@/lib/gantt/types';
 import type { PhotoItem } from '@/components/ui/photo-gallery';
 import { ImageLightbox } from '@/components/ui/image-lightbox';
 import { useGanttDataManager } from '@/lib/gantt/hooks';
@@ -104,6 +106,10 @@ export default function GanttPage() {
   // Edit Row Dialog state (SSoT: uses shared EditRowDialog component)
   const [selectedTaskForEdit, setSelectedTaskForEdit] = React.useState<EditRowData | null>(null);
   const [showTaskEditDialog, setShowTaskEditDialog] = React.useState(false);
+
+  // Quick Edit popover state (single-click on task bar)
+  const [quickEditTask, setQuickEditTask] = React.useState<GanttTask | null>(null);
+  const [quickEditPosition, setQuickEditPosition] = React.useState({ x: 0, y: 0 });
 
   // Reference data for EditRowDialog
   const [availableTrades, setAvailableTrades] = React.useState<{ id: number; name: string }[]>([]);
@@ -260,8 +266,9 @@ export default function GanttPage() {
   // EditRowDialog Handlers
   // ==========================================================================
 
-  // Handle task double-click to open EditRowDialog
+  // Handle task double-click to open EditRowDialog (close quick edit first)
   const handleTaskEditDoubleClick = React.useCallback((task: GanttTask) => {
+    setQuickEditTask(null);
     const row = task.rowData as SmScheduleMaster | undefined;
     if (!row) return;
 
@@ -355,6 +362,28 @@ export default function GanttPage() {
       sm_task: updates,
     });
     // Clear cache and reload gantt data
+    clearCachedRecords("sm_tasks");
+    gantt.loadData({ silent: true });
+  }, [gantt]);
+
+  // ==========================================================================
+  // Quick Edit Popover (single-click on task bar)
+  // ==========================================================================
+
+  const handleTaskClick = React.useCallback((task: GanttTask, event: MouseEvent) => {
+    // Don't open quick edit for header tasks
+    if (task.rowData && isHeaderRow(task.rowData)) return;
+    setQuickEditTask(task);
+    setQuickEditPosition({ x: event.clientX, y: event.clientY });
+  }, []);
+
+  const handleQuickEditSave = React.useCallback(async (
+    taskId: string,
+    updates: { start_date: string; duration_days: number; hold: boolean; hold_date: string }
+  ) => {
+    await api.patch(`/api/v1/sm_tasks/${taskId}`, {
+      sm_task: updates,
+    });
     clearCachedRecords("sm_tasks");
     gantt.loadData({ silent: true });
   }, [gantt]);
@@ -499,7 +528,7 @@ export default function GanttPage() {
             dependencies={gantt.dependencies}
             jobId={jobId}
             showToolbar={true}
-            onTaskClick={gantt.handleTaskClick}
+            onTaskClick={handleTaskClick}
             onTaskDoubleClick={handleTaskEditDoubleClick}
             onCheckboxToggle={gantt.handleCheckboxToggle}
             onRollover={gantt.handleRollover}
@@ -616,6 +645,17 @@ export default function GanttPage() {
         photos={jobPhotos}
         initialIndex={lightboxIndex}
       />
+
+      {/* Quick Edit Popover - single-click on task bar */}
+      {quickEditTask && (
+        <GanttTaskQuickEdit
+          task={quickEditTask}
+          position={quickEditPosition}
+          isOpen={!!quickEditTask}
+          onClose={() => setQuickEditTask(null)}
+          onSave={handleQuickEditSave}
+        />
+      )}
 
       {/* Dependency Editor - SSoT: shared component */}
       {/* SSoT: Always pass ALL tasks (gantt.tasks), not just visible tasks

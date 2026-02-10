@@ -786,8 +786,16 @@ class SmTask < ApplicationRecord
   end
 
   # Snap start_date to the next working day if it falls on a weekend or holiday
+  # ⚠️ DO NOT SIMPLIFY - Confirmed/held tasks can sit on weekends (2026-02-09)
+  # ════════════════════════════════════════════════════════════════
+  # Why: Users can explicitly confirm/hold a task to a weekend date.
+  #      Only auto-calculated tasks should snap to working days.
+  # ❌ WRONG: Always snapping - prevents users from pinning to weekends
+  # ✅ CORRECT: Skip snap if task is confirmed/held/started/completed
+  # ════════════════════════════════════════════════════════════════
   def snap_start_date_to_working_day
     return unless start_date.present?
+    return if user_pinned_date?
 
     calendar = WorkingDaysCalculator.new(TenantSetting.instance)
     snapped = calendar.next_working_day(start_date)
@@ -799,8 +807,10 @@ class SmTask < ApplicationRecord
   end
 
   # Snap end_date to the next working day if set directly (e.g., resize)
+  # Same weekend override logic as snap_start_date_to_working_day
   def snap_end_date_to_working_day
     return unless end_date.present?
+    return if user_pinned_date?
 
     calendar = WorkingDaysCalculator.new(TenantSetting.instance)
     snapped = calendar.next_working_day(end_date)
@@ -811,6 +821,12 @@ class SmTask < ApplicationRecord
       # Recalculate duration based on snapped dates
       self.duration_days = calendar.working_days_between(start_date, snapped)
     end
+  end
+
+  # Check if user has explicitly pinned this task (hold, confirm, started, completed)
+  # Pinned tasks are allowed to sit on weekends/holidays
+  def user_pinned_date?
+    hold? || confirm? || supplier_confirm? || status_started? || status_completed?
   end
 
   def calculate_end_date

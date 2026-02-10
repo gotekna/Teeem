@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1416,40 +1416,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
     t.index ["contact_id", "company_group_id", "membership_type"], name: "idx_contact_group_membership_unique", unique: true
     t.index ["contact_id"], name: "index_contact_company_group_memberships_on_contact_id"
     t.index ["tenant_id"], name: "index_contact_company_group_memberships_on_tenant_id"
-  end
-
-  create_table "contact_documents", force: :cascade do |t|
-    t.bigint "contact_id", null: false
-    t.bigint "document_type_id"
-    t.bigint "uploaded_by_id"
-    t.string "file_name", null: false
-    t.string "file_extension", limit: 10
-    t.integer "file_size"
-    t.string "content_type"
-    t.string "folder"
-    t.string "storage_path"
-    t.string "storage_item_id"
-    t.string "storage_provider", limit: 20
-    t.string "storage_file_id"
-    t.string "web_url"
-    t.string "migration_status", limit: 20
-    t.text "migration_error"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "source", default: "manual"
-    t.string "external_id"
-    t.bigint "storage_blob_id"
-    t.index ["contact_id"], name: "index_contact_documents_on_contact_id"
-    t.index ["document_type_id"], name: "index_contact_documents_on_document_type_id"
-    t.index ["folder"], name: "index_contact_documents_on_folder"
-    t.index ["migration_status"], name: "index_contact_documents_on_migration_status"
-    t.index ["source", "external_id"], name: "index_contact_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
-    t.index ["source"], name: "index_contact_documents_on_source"
-    t.index ["storage_blob_id"], name: "index_contact_documents_on_storage_blob_id"
-    t.index ["storage_provider"], name: "index_contact_documents_on_storage_provider"
-    t.index ["uploaded_by_id"], name: "index_contact_documents_on_uploaded_by_id"
   end
 
   create_table "contact_emails", force: :cascade do |t|
@@ -5934,94 +5900,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
     t.index ["parent_id"], name: "index_job_documentation_tabs_on_parent_id"
   end
 
-  create_table "job_documents", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.bigint "document_type_id"
-    t.string "storage_drive_id"
-    t.string "file_name", null: false
-    t.string "file_extension"
-    t.string "file_type"
-    t.bigint "file_size"
-    t.string "folder_path"
-    t.string "web_url"
-    t.string "thumbnail_url"
-    t.string "version_id"
-    t.datetime "last_modified_at"
-    t.string "last_modified_by"
-    t.string "sync_status", default: "synced"
-    t.datetime "last_synced_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "ai_suggested_type_id"
-    t.string "ai_proposed_name"
-    t.decimal "ai_confidence", precision: 5, scale: 2
-    t.text "ai_reasoning"
-    t.datetime "ai_analyzed_at"
-    t.string "rename_status", default: "pending"
-    t.datetime "rename_approved_at"
-    t.bigint "rename_approved_by_id"
-    t.string "original_file_name"
-    t.string "title"
-    t.text "description"
-    t.date "document_date"
-    t.string "display_title"
-    t.string "mime_type"
-    t.integer "financial_years", default: [], array: true
-    t.string "ai_verification_status"
-    t.datetime "ai_verified_at"
-    t.datetime "user_validated_at"
-    t.bigint "user_validated_by_id"
-    t.boolean "validation_required", default: false
-    t.string "content_hash"
-    t.string "external_id"
-    t.string "source", default: "manual"
-    t.string "storage_type"
-    t.bigint "contact_id"
-    t.bigint "company_id"
-    t.bigint "legacy_corporate_document_id"
-    t.string "storage_provider"
-    t.string "storage_item_id"
-    t.string "storage_path"
-    t.string "migration_status"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.text "migration_error"
-    t.string "source_provider"
-    t.string "source_item_id"
-    t.bigint "parent_document_id"
-    t.string "version_status", default: "draft", null: false
-    t.integer "version_number", default: 1, null: false
-    t.datetime "signed_at"
-    t.bigint "signed_by_id"
-    t.bigint "storage_blob_id"
-    t.index ["ai_analyzed_at"], name: "index_job_documents_on_ai_analyzed_at"
-    t.index ["ai_suggested_type_id"], name: "index_job_documents_on_ai_suggested_type_id"
-    t.index ["company_id"], name: "index_job_documents_on_company_id"
-    t.index ["contact_id"], name: "index_job_documents_on_contact_id"
-    t.index ["content_hash"], name: "index_job_documents_on_content_hash"
-    t.index ["document_type_id", "version_status"], name: "index_job_documents_on_document_type_id_and_version_status"
-    t.index ["document_type_id"], name: "index_job_documents_on_document_type_id"
-    t.index ["external_id"], name: "index_job_documents_on_external_id"
-    t.index ["file_type"], name: "index_job_documents_on_file_type"
-    t.index ["financial_years"], name: "index_job_documents_on_financial_years", using: :gin
-    t.index ["job_id", "file_type"], name: "index_job_documents_on_job_id_and_file_type"
-    t.index ["job_id", "folder_path"], name: "index_job_documents_on_job_id_and_folder_path"
-    t.index ["job_id"], name: "index_job_documents_on_job_id"
-    t.index ["legacy_corporate_document_id"], name: "index_job_documents_on_legacy_corporate_document_id"
-    t.index ["migration_status"], name: "index_job_documents_on_migration_status"
-    t.index ["parent_document_id"], name: "index_job_documents_on_parent_document_id"
-    t.index ["rename_approved_by_id"], name: "index_job_documents_on_rename_approved_by_id"
-    t.index ["rename_status"], name: "index_job_documents_on_rename_status"
-    t.index ["signed_by_id"], name: "index_job_documents_on_signed_by_id"
-    t.index ["storage_blob_id"], name: "index_job_documents_on_storage_blob_id"
-    t.index ["storage_drive_id"], name: "index_job_documents_on_storage_drive_id"
-    t.index ["storage_provider", "storage_item_id"], name: "index_job_documents_on_storage_provider_and_storage_item_id"
-    t.index ["storage_provider"], name: "index_job_documents_on_storage_provider"
-    t.index ["sync_status"], name: "index_job_documents_on_sync_status"
-    t.index ["version_id"], name: "index_job_documents_on_version_id"
-    t.index ["version_status"], name: "index_job_documents_on_version_status"
-  end
-
   create_table "job_plan_revisions", force: :cascade do |t|
     t.bigint "job_plan_id", null: false
     t.string "revision", null: false
@@ -8083,7 +7961,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
     t.bigint "user_id", null: false
     t.bigint "document_type_id"
     t.bigint "job_id"
-    t.bigint "job_document_id"
     t.datetime "signed_at", null: false
     t.string "certificate_type"
     t.string "document_name"
@@ -8094,7 +7971,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
     t.datetime "updated_at", null: false
     t.index ["certificate_type"], name: "index_signature_usages_on_certificate_type"
     t.index ["document_type_id"], name: "index_signature_usages_on_document_type_id"
-    t.index ["job_document_id"], name: "index_signature_usages_on_job_document_id"
     t.index ["job_id"], name: "index_signature_usages_on_job_id"
     t.index ["signed_at"], name: "index_signature_usages_on_signed_at"
     t.index ["user_id", "signed_at"], name: "index_signature_usages_on_user_id_and_signed_at"
@@ -8799,6 +8675,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
     t.string "response_zip_path"
     t.datetime "response_zip_created_at"
     t.boolean "auto_attach_email_files", default: true, null: false
+    t.string "sync_key"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
@@ -9757,7 +9634,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
     t.string "twilio_auth_token"
     t.string "twilio_phone_number"
     t.boolean "twilio_enabled"
-    t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>true, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}
+    t.jsonb "working_days", default: "{\"friday\": true, \"monday\": true, \"sunday\": false, \"tuesday\": true, \"saturday\": false, \"thursday\": true, \"wednesday\": true}"
     t.jsonb "team_email_domains", default: []
     t.bigint "tenant_id"
     t.string "internal_email_domains"
@@ -11006,10 +10883,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
   add_foreign_key "contact_company_group_memberships", "contacts"
   add_foreign_key "contact_company_group_memberships", "corporates", column: "company_id"
   add_foreign_key "contact_company_group_memberships", "tenants"
-  add_foreign_key "contact_documents", "contacts"
-  add_foreign_key "contact_documents", "document_types"
-  add_foreign_key "contact_documents", "storage_blobs"
-  add_foreign_key "contact_documents", "users", column: "uploaded_by_id"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"
@@ -11439,13 +11312,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
   add_foreign_key "job_cost_budgets", "users", column: "alert_acknowledged_by_id", on_delete: :nullify
   add_foreign_key "job_documentation_tabs", "job_documentation_tabs", column: "parent_id", on_delete: :cascade
   add_foreign_key "job_documentation_tabs", "jobs"
-  add_foreign_key "job_documents", "document_types"
-  add_foreign_key "job_documents", "document_types", column: "ai_suggested_type_id", on_delete: :nullify
-  add_foreign_key "job_documents", "job_documents", column: "parent_document_id"
-  add_foreign_key "job_documents", "jobs"
-  add_foreign_key "job_documents", "storage_blobs"
-  add_foreign_key "job_documents", "users", column: "rename_approved_by_id", on_delete: :nullify
-  add_foreign_key "job_documents", "users", column: "signed_by_id"
   add_foreign_key "job_plan_revisions", "job_plans"
   add_foreign_key "job_plan_revisions", "users", column: "issued_by_id"
   add_foreign_key "job_plan_tabs", "job_plan_tabs", column: "parent_id"
@@ -11648,7 +11514,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_09_200003) do
   add_foreign_key "share_transfers", "contacts", column: "to_shareholder_id"
   add_foreign_key "share_transfers", "corporates", column: "company_id"
   add_foreign_key "signature_usages", "document_types"
-  add_foreign_key "signature_usages", "job_documents"
   add_foreign_key "signature_usages", "jobs"
   add_foreign_key "signature_usages", "users"
   add_foreign_key "site_presence_sessions", "cost_centres"

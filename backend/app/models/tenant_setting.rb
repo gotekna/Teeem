@@ -129,7 +129,7 @@ class TenantSetting < ApplicationRecord
     thursday: true,
     friday: true,
     saturday: false,
-    sunday: true
+    sunday: false
   }.freeze
 
   # Check if a date is a working day (respects working_days config)
