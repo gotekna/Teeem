@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -25,7 +24,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Search,
   RefreshCw,
   CheckCircle,
   DollarSign,
@@ -44,6 +42,7 @@ import {
   Zap,
   Database,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 
 interface XeroStatus {
@@ -385,15 +384,11 @@ export default function XeroPage() {
                 </Button>
               </div>
             )}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 w-[200px]"
-              />
-            </div>
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              className="w-[200px]"
+            />
           </div>
         </div>
 

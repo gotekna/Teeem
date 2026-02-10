@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // This tab uses FullHeightTabContent for internal padding
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,7 +16,6 @@ import {
   Mail,
   Phone,
   Send,
-  Search,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -174,15 +174,12 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
             <span className="text-sm text-muted-foreground">({filteredMessages.length})</span>
           </div>
         </div>
-        <div className="relative mt-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search messages..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+        <SearchInput
+          value={searchTerm}
+          onChange={setSearchTerm}
+          placeholder="Search messages..."
+          className="mt-4"
+        />
       </CardHeader>
       <CardContent>
         {loading ? (

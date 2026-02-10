@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -37,7 +38,6 @@ import {
   MapPin,
   DollarSign,
   Plus,
-  Search,
   LayoutGrid,
   List,
   TrendingUp,
@@ -532,10 +532,7 @@ export default function DesignSystemPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="search">Search Input</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input id="search" placeholder="Search..." className="pl-9" />
-                  </div>
+                  <SearchInput value="" onChange={() => {}} />
                 </div>
                 <div className="space-y-2">
                   <Label>Select</Label>
