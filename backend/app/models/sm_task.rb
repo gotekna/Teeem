@@ -353,13 +353,13 @@ class SmTask < ApplicationRecord
   scope :for_user_roles, ->(user) {
     return none unless user.present?
 
-    # SSoT: Get role IDs directly from user_roles join table
-    user_role_ids = user.roles.pluck(:id)
-    user_role_names = user.roles.pluck(:name)
-    return where(assigned_user_id: user.id) if user_role_ids.empty?
+    # FRC (Feb 2026): Single query for all role data (was 3 separate pluck calls)
+    roles_data = user.roles.pluck(:id, :name)
+    return where(assigned_user_id: user.id) if roles_data.empty?
 
-    # Build role name → ID lookup
-    role_id_map = user.roles.pluck(:name, :id).to_h
+    user_role_ids = roles_data.map(&:first)
+    user_role_names = roles_data.map(&:last)
+    role_id_map = roles_data.each_with_object({}) { |(id, name), h| h[name] = id }
 
     # 1. Direct assignment
     direct = where(assigned_user_id: user.id)
@@ -382,14 +382,23 @@ class SmTask < ApplicationRecord
     #    no JobContact exists for that job+role, and user has that role globally
     internal_user_roles = user_role_names & JobContact::INTERNAL_ROLES
     if internal_user_roles.any?
-      # Find tasks with internal roles that have no JobContact assignment
+      # FRC (Feb 2026): Batch all internal role job lookups in 1 query (was N queries)
+      assigned_jobs_by_role = JobContact
+        .where(role: internal_user_roles)
+        .where.not(user_id: nil)
+        .pluck(:role, :job_id)
+        .group_by(&:first)
+        .transform_values { |pairs| pairs.map(&:last) }
+
       fallback_conditions = internal_user_roles.map do |role_name|
         role_id = role_id_map[role_name]
         next nil unless role_id
-        # Jobs where someone IS assigned to this role
-        assigned_job_ids = JobContact.where(role: role_name).where.not(user_id: nil).pluck(:job_id)
-        # Tasks for this role on jobs where NO ONE is assigned
-        where(assigned_role: role_id, assigned_user_id: nil).where.not(job_id: assigned_job_ids)
+        assigned_job_ids = assigned_jobs_by_role[role_name] || []
+        if assigned_job_ids.any?
+          where(assigned_role: role_id, assigned_user_id: nil).where.not(job_id: assigned_job_ids)
+        else
+          where(assigned_role: role_id, assigned_user_id: nil)
+        end
       end.compact
       fallback = fallback_conditions.any? ? fallback_conditions.reduce(:or) : none
     else
