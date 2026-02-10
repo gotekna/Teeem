@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Select,
   SelectContent,
@@ -22,7 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Search,
   SlidersHorizontal,
   X,
   Calendar as CalendarIcon,
@@ -32,6 +32,7 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   AlertCircle,
+  Search,
 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { format } from "date-fns";
@@ -147,13 +148,12 @@ export function EmailSearchFilters({
       <div className="flex items-center gap-2">
         {/* Search input */}
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
+          <SearchInput
             placeholder="Search subject, body, addresses... (from: to: has:attachment is:unread)"
             value={filters.search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             onKeyDown={handleKeyDown}
-            className="pl-8 pr-8 h-8 text-sm"
+            inputClassName="pr-8 h-8 text-sm"
             title="Operators: from:email to:email subject:text has:attachment is:unread is:starred before:YYYY-MM-DD after:YYYY-MM-DD"
           />
           {filters.search && (

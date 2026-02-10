@@ -192,22 +192,40 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
   # POST /api/v1/imap_credentials/:id/sync
   # Manually trigger sync for an account
+  # FRC (Feb 2026): Run sync synchronously so new emails are available
+  # when the frontend refreshes the list immediately after this returns.
+  # perform_later was causing a race: frontend fetched emails before sync completed.
   def sync
     full_sync = params[:full_sync] == "true"
 
-    # Mark as syncing immediately so UI can show progress
     @credential.update!(last_sync_status: "syncing", last_sync_error: nil)
 
-    ImapSyncJob.perform_later(@credential.id, full_sync: full_sync)
+    service = ImapEmailService.new(@credential)
+    results = service.sync_to_warehouse(full_sync: full_sync)
+    @credential.mark_sync_success!
+
+    # Process new emails for job matching (async - doesn't block response)
+    results[:new_emails]&.each do |email|
+      ProcessNewEmailJob.perform_later(email.id) if email.persisted?
+    end
 
     render json: {
       success: true,
-      message: "Sync started. New emails will appear shortly.",
+      message: "Sync complete.",
       data: {
         id: @credential.id,
-        sync_status: "syncing"
+        sync_status: "success",
+        total_synced: results[:synced] || 0,
+        skipped: results[:skipped] || 0
       }
     }
+  rescue => e
+    @credential.mark_sync_error!(e.message)
+    render json: {
+      success: false,
+      error: "Sync failed: #{e.message}",
+      data: { id: @credential.id, sync_status: "error" }
+    }, status: :unprocessable_entity
   end
 
   # GET /api/v1/imap_credentials/:id/sync_status
@@ -247,18 +265,32 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   # POST /api/v1/imap_credentials/sync_all
-  # Manually trigger sync for ALL user's IMAP accounts
+  # FRC (Feb 2026): Run sync synchronously so emails appear on refresh.
+  # Manual trigger = user is waiting, so blocking is the right UX.
   def sync_all
     credentials = current_user.imap_credentials.where(is_active: true)
+    total_synced = 0
 
     credentials.each do |credential|
-      ImapSyncJob.perform_later(credential.id, full_sync: false)
+      credential.update!(last_sync_status: "syncing", last_sync_error: nil)
+      service = ImapEmailService.new(credential)
+      results = service.sync_to_warehouse(full_sync: false)
+      credential.mark_sync_success!
+      total_synced += (results[:synced] || 0)
+
+      results[:new_emails]&.each do |email|
+        ProcessNewEmailJob.perform_later(email.id) if email.persisted?
+      end
+    rescue => e
+      credential.mark_sync_error!(e.message)
+      Rails.logger.error "[ImapSync] Manual sync_all error for #{credential.email_address}: #{e.message}"
     end
 
     render json: {
       success: true,
-      message: "Sync started for #{credentials.count} account(s). New emails will appear shortly.",
-      accounts_synced: credentials.count
+      message: "Sync complete for #{credentials.count} account(s).",
+      accounts_synced: credentials.count,
+      total_synced: total_synced
     }
   end
 

@@ -34,8 +34,6 @@ class CheckPoTimingJob < ApplicationJob
       end
 
       # TODO: Send notification/email to project manager
-      # Example:
-      # ProjectMailer.materials_timing_alert(job, late_tasks).deliver_later
     else
       Rails.logger.info("[PO Timing] All materials timing validated for #{job.title}")
     end

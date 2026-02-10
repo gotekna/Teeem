@@ -186,10 +186,7 @@ module Api
         end
 
         def ensure_corporate_access
-          # TODO: Implement permission check
-          # unless current_user.can_view_corporate?(@contact)
-          #   render json: { success: false, error: "Access denied" }, status: :forbidden
-          # end
+          # TODO: Implement permission check for corporate access
           true
         end
 

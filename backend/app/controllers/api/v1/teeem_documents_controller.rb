@@ -74,8 +74,7 @@ module Api
       # GET /api/v1/teeem_documents/:id/export
       # Exports document to DOCX format
       def export
-        # For now, return the HTML content
-        # TODO: Implement proper DOCX export using docx gem
+        # TODO: Implement proper DOCX export using docx gem (exports HTML for now)
         html_content = @document.data["content"] || "<p></p>"
 
         send_data html_content,

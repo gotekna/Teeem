@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "hexapdf"
-
 # =============================================================================
 # PlanCombinerService - Auto-generate "All Plans" combined PDF
 # =============================================================================
@@ -61,6 +59,7 @@ class PlanCombinerService
   end
 
   def combine_pdfs(plans)
+    require "hexapdf"
     target = HexaPDF::Document.new
 
     plans.each_with_index do |plan, index|

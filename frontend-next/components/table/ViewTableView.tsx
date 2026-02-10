@@ -40,7 +40,6 @@ import {
 } from "@/components/ui/sheet";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import {
-  Search,
   X,
   Download,
   Filter,
@@ -48,8 +47,10 @@ import {
   ArrowUpDown,
   ChevronUp,
   ChevronDown,
+  Search,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 
 // =============================================================================
@@ -396,8 +397,7 @@ export function ViewTableView<T extends ViewTableRow>({
   const [searchValue, setSearchValue] = useState("");
 
   // Debounced search
-  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const handleSearchChange = useCallback((value: string) => {
     setSearchValue(value);
 
     if (debounceRef.current) {
@@ -573,14 +573,12 @@ export function ViewTableView<T extends ViewTableRow>({
           {leftActions}
           {enableSearch && (
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
+              <SearchInput
                 ref={searchInputRef}
-                type="text"
                 value={searchValue}
                 onChange={handleSearchChange}
                 placeholder="Search across all fields..."
-                className="pl-9 pr-9 h-9"
+                inputClassName="pr-9 h-9"
               />
               {searchValue && (
                 <button

@@ -267,9 +267,7 @@ class FinancialTransactionService
                                        .select { |i| i.auto_sync_enabled? }
 
     integrations.each do |integration|
-      # Queue sync job for each active integration
-      # SyncTransactionJob.perform_later(transaction.id, integration.id)
-      # TODO: Implement when sync jobs are created
+      # TODO: Queue SyncTransactionJob.perform_later(transaction.id, integration.id)
     end
   end
 end

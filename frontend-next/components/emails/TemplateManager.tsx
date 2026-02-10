@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import {
   FileText,
@@ -48,11 +49,11 @@ import {
   Copy,
   Star,
   StarOff,
-  Search,
   Zap,
   Share2,
   Code,
   Eye,
+  Search,
 } from "lucide-react";
 
 // Types
@@ -611,15 +612,11 @@ export function TemplatePicker({ onSelect, context = {}, trigger, open: controll
       </PopoverTrigger>
       <PopoverContent className="w-96 p-0" align="start">
         <div className="p-3 border-b">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search templates..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8"
-            />
-          </div>
+          <SearchInput
+            placeholder="Search templates..."
+            value={search}
+            onChange={setSearch}
+          />
         </div>
 
         {loading ? (
@@ -802,15 +799,12 @@ export function TemplateManager({ onTemplateSelect }: TemplateManagerProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search templates..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 w-64"
-            />
-          </div>
+          <SearchInput
+            placeholder="Search templates..."
+            value={search}
+            onChange={setSearch}
+            inputClassName="w-64"
+          />
 
           <Select value={categoryFilter || "__all__"} onValueChange={(v) => setCategoryFilter(v === "__all__" ? "" : v)}>
             <SelectTrigger className="w-40">

@@ -47,10 +47,10 @@ import {
   Check,
   Expand,
   Minimize2,
-  Search,
   X,
+  Search,
 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import type { SavedView } from '../types';
 
 // ============================================================================
@@ -347,13 +347,11 @@ export function TableToolbar({
           {onSearchChange && (
             <div className="flex-1 max-w-md ml-auto">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
+                <SearchInput
                   value={searchQuery}
-                  onChange={(e) => onSearchChange(e.target.value)}
+                  onChange={onSearchChange}
                   placeholder={searchPlaceholder}
-                  className="h-9 pl-9 pr-9"
+                  inputClassName="h-9 pr-9"
                   aria-label="Search table"
                 />
                 {searchQuery && (

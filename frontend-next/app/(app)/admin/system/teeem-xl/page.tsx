@@ -23,11 +23,11 @@ import {
   Hash,
   Briefcase,
   X,
-  Search,
   AlignLeft,
   AlignCenter,
   AlignRight,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1976,16 +1976,13 @@ export default function TeeemXLPage() {
           </PopoverTrigger>
           <PopoverContent className="w-80 p-0" align="start">
             <div className="p-3 border-b">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search jobs..."
-                  value={jobSearchTerm}
-                  onChange={(e) => setJobSearchTerm(e.target.value)}
-                  className="pl-8"
-                  autoFocus
-                />
-              </div>
+              <SearchInput
+                placeholder="Search jobs..."
+                value={jobSearchTerm}
+                onChange={setJobSearchTerm}
+                inputClassName="pl-8"
+                autoFocus
+              />
             </div>
             <div className="max-h-[300px] overflow-y-auto">
               {loadingJobs ? (

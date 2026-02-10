@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ChevronRight,
@@ -12,7 +13,6 @@ import {
   FolderPlus,
   File,
   Image as ImageIcon,
-  Search,
   List,
   LayoutGrid,
   FolderTree,
@@ -582,15 +582,12 @@ export default function MyDocsPage() {
 
         <div className="flex items-center gap-2">
           {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search documents..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 w-64"
-            />
-          </div>
+          <SearchInput
+            placeholder="Search documents..."
+            value={searchQuery}
+            onChange={setSearchQuery}
+            inputClassName="w-64"
+          />
 
           {/* View mode toggle */}
           <div className="flex items-center border rounded-md">

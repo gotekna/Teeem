@@ -161,8 +161,7 @@ module Api
 
       # POST /api/v1/contacts/:contact_id/xero_links/:id/sync
       def sync
-        # TODO: Implement actual sync with Xero
-        # For now, just mark as synced
+        # TODO: Implement actual sync with Xero (currently just marks as synced)
         @xero_link.mark_synced!
 
         render json: {

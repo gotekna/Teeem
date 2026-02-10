@@ -7,10 +7,9 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
-  Search,
 } from "lucide-react";
 import { Button } from "./button";
-import { Input } from "./input";
+import { SearchInput } from "./search-input";
 import { Spinner } from "./spinner";
 import {
   Table,
@@ -122,16 +121,14 @@ export function ExcelViewer({
 
         <div className="flex items-center gap-2">
           {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-7 w-40 pl-7 text-xs"
-            />
-          </div>
+          <SearchInput
+            type="text"
+            placeholder="Search..."
+            value={searchTerm}
+            onChange={setSearchTerm}
+            className="w-40"
+            inputClassName="h-7 pl-7 text-xs"
+          />
 
           {/* Export CSV */}
           <Button

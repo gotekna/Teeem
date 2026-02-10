@@ -9,7 +9,7 @@
 
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
@@ -24,7 +24,6 @@ import {
   X,
   ChevronsDownUp,
   ChevronsUpDown,
-  Search,
   Filter,
   Columns,
   Activity,
@@ -264,18 +263,16 @@ export function GanttToolbar({
         {/* Search Input */}
         {onSearchChange && (
           <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              type="text"
+            <SearchInput
               placeholder="Search tasks..."
               value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="h-8 w-40 pl-7 text-xs"
+              onChange={onSearchChange}
+              inputClassName="h-8 w-40 pr-7 text-xs"
             />
             {searchQuery && (
               <button
                 onClick={() => onSearchChange('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 hover:bg-muted rounded-full p-0.5"
+                className="absolute right-2 top-1/2 -translate-y-1/2 hover:bg-muted rounded-full p-0.5 z-10"
               >
                 <X className="h-3 w-3" />
               </button>

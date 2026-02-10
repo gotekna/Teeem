@@ -236,13 +236,7 @@ module AccountingAdapters
     def create_invoice(invoice)
       payload = invoice_payload(invoice)
 
-      # TODO: Implement actual Xero API call
-      # response = HTTParty.post(
-      #   "#{XERO_API_URL}/Invoices",
-      #   headers: http_headers.merge('xero-tenant-id' => organization_id),
-      #   body: xero_invoice_payload(payload).to_json
-      # )
-
+      # TODO: Implement actual Xero API call (POST to /Invoices)
       # Placeholder response
       {
         success: true,
@@ -254,12 +248,7 @@ module AccountingAdapters
     end
 
     def get_invoice_status(external_invoice_id)
-      # TODO: Implement actual Xero API call
-      # response = HTTParty.get(
-      #   "#{XERO_API_URL}/Invoices/#{external_invoice_id}",
-      #   headers: http_headers.merge('xero-tenant-id' => organization_id)
-      # )
-
+      # TODO: Implement actual Xero API call (GET /Invoices/:id)
       # Placeholder response
       {
         success: true,
@@ -312,7 +301,7 @@ module AccountingAdapters
     def create_invoice(invoice)
       payload = invoice_payload(invoice)
 
-      # TODO: Implement actual MYOB API call
+      # TODO: Implement MYOB API call (create invoice)
       {
         success: true,
         external_invoice_id: "MYOB-INV-#{SecureRandom.hex(8)}",
@@ -323,7 +312,7 @@ module AccountingAdapters
     end
 
     def get_invoice_status(external_invoice_id)
-      # TODO: Implement actual MYOB API call
+      # TODO: Implement MYOB API call (get invoice status)
       {
         success: true,
         status: "Open",
@@ -351,7 +340,7 @@ module AccountingAdapters
     def create_invoice(invoice)
       payload = invoice_payload(invoice)
 
-      # TODO: Implement actual QuickBooks API call
+      # TODO: Implement QuickBooks API call (create invoice)
       {
         success: true,
         external_invoice_id: "QB-INV-#{SecureRandom.hex(8)}",
@@ -362,7 +351,7 @@ module AccountingAdapters
     end
 
     def get_invoice_status(external_invoice_id)
-      # TODO: Implement actual QuickBooks API call
+      # TODO: Implement QuickBooks API call (get invoice status)
       {
         success: true,
         status: "Unpaid",

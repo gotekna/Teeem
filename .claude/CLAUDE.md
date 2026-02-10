@@ -462,6 +462,7 @@ Use `[id]` pattern for dynamic routes:
 | Integrations | `/settings/connections/integrations` | Xero, Cloudflare |
 | Migration | `/settings/connections/migration` | Email migration, attachment deduplication, document migration |
 | Cost Comparison | `/settings/connections/costs` | Storage cost comparison |
+| Backups | `/settings/connections/backups` | Backup configuration, scheduling, mirroring (e.g., Wasabi → Backblaze B2) |
 
 ### Company Sub-tabs Detail
 | Sub-tab | URL | Contains |

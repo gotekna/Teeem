@@ -26,7 +26,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, Folder, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronRight } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -496,15 +497,13 @@ export function WarehouseTypesTab() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search types..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 w-[200px]"
-            />
-          </div>
+          <SearchInput
+            placeholder="Search types..."
+            value={searchQuery}
+            onChange={setSearchQuery}
+            className="w-[200px]"
+            inputClassName="pl-8"
+          />
           <div className="flex items-center gap-2">
             <Switch
               id="show-system"
@@ -855,15 +854,12 @@ export function WarehouseTypesTab() {
                     </p>
 
                     {/* Search */}
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search folders..."
-                        value={warehouseFolderSearch}
-                        onChange={(e) => setWarehouseFolderSearch(e.target.value)}
-                        className="pl-8 h-9"
-                      />
-                    </div>
+                    <SearchInput
+                      placeholder="Search folders..."
+                      value={warehouseFolderSearch}
+                      onChange={setWarehouseFolderSearch}
+                      inputClassName="pl-8 h-9"
+                    />
 
                     {/* Tree view - grouped by warehouse type */}
                     <div className="border rounded-md max-h-[300px] overflow-y-auto">

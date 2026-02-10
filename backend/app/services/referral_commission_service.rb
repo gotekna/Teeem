@@ -117,10 +117,8 @@ class ReferralCommissionService
       referrer.referral_commissions.eligible.sum(:commission_amount)
     end
 
-    # Notify referrer about new commission (to be implemented with notification system)
     def notify_referrer(commission)
       # TODO: Integrate with notification system
-      # ReferrerNotificationJob.perform_later(commission.id)
       Rails.logger.info("Commission created for referrer ##{commission.referrer_contact_id}: " \
                         "#{commission.level_display} - $#{commission.commission_amount}")
     end

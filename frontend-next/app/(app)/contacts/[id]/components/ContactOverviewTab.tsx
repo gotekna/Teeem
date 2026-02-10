@@ -46,10 +46,11 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
-  Search,
   X,
+  Search,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
 import Link from "next/link";
 
@@ -1123,12 +1124,11 @@ export function ContactOverviewTab({
 
                         {/* Company search */}
                         <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
+                          <SearchInput
                             placeholder="Search for a company..."
                             value={companySearchQuery}
-                            onChange={(e) => setCompanySearchQuery(e.target.value)}
-                            className="pl-9 pr-8"
+                            onChange={setCompanySearchQuery}
+                            inputClassName="pr-8"
                             autoFocus
                           />
                           <Button
@@ -1235,12 +1235,11 @@ export function ContactOverviewTab({
                       {showPersonSearch ? (
                         <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
                           <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
+                            <SearchInput
                               placeholder="Search for a person..."
                               value={personSearchQuery}
-                              onChange={(e) => setPersonSearchQuery(e.target.value)}
-                              className="pl-9 pr-8"
+                              onChange={setPersonSearchQuery}
+                              inputClassName="pr-8"
                               autoFocus
                             />
                             <Button

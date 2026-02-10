@@ -9,12 +9,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { Search, Package, X } from "lucide-react";
+import { Package, X, Search } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/utils/formatters";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -162,16 +162,12 @@ export function PricebookSelector({
         )}
 
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by code or name..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-            autoFocus
-          />
-        </div>
+        <SearchInput
+          placeholder="Search by code or name..."
+          value={search}
+          onChange={setSearch}
+          autoFocus
+        />
 
         {/* Items list */}
         <ScrollArea className="flex-1 min-h-[300px]">
