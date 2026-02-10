@@ -4692,7 +4692,7 @@ export default function TeeemTableView({
                   handleRowMouseEnter={handleRowMouseEnter}
                   isRowInDragRange={isRowInDragRange}
                   onRowClick={onRowClick}
-                  onRowDoubleClick={onRowDoubleClick}
+                  onRowDoubleClick={handleRowDoubleClick}
                   renderCellValue={renderCellValue}
                   renderTableHeader={renderTableHeader}
                   isEditMode={isEditMode}
@@ -5528,7 +5528,7 @@ export default function TeeemTableView({
           handleRowMouseEnter={handleRowMouseEnter}
           isRowInDragRange={isRowInDragRange}
           onRowClick={onRowClick}
-          onRowDoubleClick={onRowDoubleClick}
+          onRowDoubleClick={handleRowDoubleClick}
           renderCellValue={renderCellValue}
           renderTableHeader={renderTableHeader}
           renderTableFooter={() => renderTableFooter(filteredAndSortedEntries)}
