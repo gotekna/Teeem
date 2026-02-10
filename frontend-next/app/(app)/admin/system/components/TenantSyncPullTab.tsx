@@ -427,6 +427,28 @@ export function TenantSyncPullTab() {
         results: allResults,
       });
 
+      // Refresh counts so tenant columns show updated numbers
+      try {
+        const refreshed = await api.get<{
+          success: boolean;
+          counts?: Record<string, { master: number; tenant: number }>;
+          all_tenant_counts?: Record<string, Record<string, number>>;
+        }>("/api/v1/config_sync/tables");
+        if (refreshed?.success) {
+          if (refreshed.all_tenant_counts) {
+            setTableCounts(refreshed.all_tenant_counts);
+          } else if (refreshed.counts) {
+            const counts: Record<string, Record<string, number>> = {};
+            for (const [key, val] of Object.entries(refreshed.counts)) {
+              counts[key] = { master: val.master, tenant: val.tenant };
+            }
+            setTableCounts(counts);
+          }
+        }
+      } catch {
+        // Non-critical - counts just won't refresh
+      }
+
       // Refresh current table view if one is selected
       if (selectedTable) {
         await fetchRecords();
