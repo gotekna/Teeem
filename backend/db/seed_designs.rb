@@ -1,5 +1,5 @@
-# Designs Seed Data
-puts "Seeding Designs library..."
+# JobDesigns Seed Data
+puts "Seeding JobDesigns library..."
 
 designs_data = [
   {
@@ -45,10 +45,10 @@ designs_data = [
 ]
 
 designs_data.each do |design_data|
-  Design.find_or_create_by!(name: design_data[:name]) do |design|
+  JobDesign.find_or_create_by!(name: design_data[:name]) do |design|
     design.assign_attributes(design_data)
   end
 end
 
-puts "Created #{Design.count} designs"
-puts "Designs seed complete!"
+puts "Created #{JobDesign.count} designs"
+puts "JobDesigns seed complete!"

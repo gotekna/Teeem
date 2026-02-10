@@ -15,12 +15,12 @@ module Api
     #   GET    /api/v1/docsort/:id/download   - Download file
     #   GET    /api/v1/docsort/stats          - Get statistics
     #
-    class DocsortController < ApplicationController
+    class DocumentInboxesController < ApplicationController
       before_action :set_item, only: [:show, :destroy, :classify, :route, :override, :download]
 
       # GET /api/v1/docsort
       def index
-        items = DocsortItem.includes(:storage_blob, :uploaded_by, :synced_email)
+        items = DocumentInbox.includes(:storage_blob, :uploaded_by, :synced_email)
 
         # Filter by status
         items = items.where(status: params[:status]) if params[:status].present?
@@ -85,7 +85,7 @@ module Api
 
         files.each do |file|
           begin
-            item = DocsortItem.create_from_upload!(
+            item = DocumentInbox.create_from_upload!(
               file: file,
               user: current_user,
               metadata: {
@@ -179,10 +179,10 @@ module Api
           return render json: { error: 'document_type required' }, status: :unprocessable_entity
         end
 
-        unless DocsortItem::DOCUMENT_TYPES.include?(params[:document_type])
+        unless DocumentInbox::DOCUMENT_TYPES.include?(params[:document_type])
           return render json: {
             error: 'Invalid document_type',
-            valid_types: DocsortItem::DOCUMENT_TYPES
+            valid_types: DocumentInbox::DOCUMENT_TYPES
           }, status: :unprocessable_entity
         end
 
@@ -229,7 +229,7 @@ module Api
 
       # GET /api/v1/docsort/stats
       def stats
-        items = DocsortItem.all
+        items = DocumentInbox.all
 
         # Group by status
         status_counts = items.group(:status).count
@@ -263,7 +263,7 @@ module Api
       private
 
       def set_item
-        @item = DocsortItem.find(params[:id])
+        @item = DocumentInbox.find(params[:id])
       end
 
       def serialize_item(item, detailed: false)

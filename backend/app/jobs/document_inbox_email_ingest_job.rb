@@ -1,20 +1,20 @@
 # frozen_string_literal: true
 
-# DocsortEmailIngestJob - Sync emails from organization's docsort shared mailbox
+# DocumentInboxEmailIngestJob - Sync emails from organization's document inbox shared mailbox
 #
-# Multi-tenant: Each tenant configures their docsort mailbox in TenantSettings.
+# Multi-tenant: Each tenant configures their document inbox mailbox in TenantSettings.
 # SSoT: TenantSetting.monitored_mailbox_docsort
 #
-# Creates DocsortItem records for:
+# Creates DocumentInbox records for:
 # - Each email (for classification/routing of email content)
 # - Each attachment (for classification/routing of attached files)
 #
 # Usage:
-#   DocsortEmailIngestJob.perform_now                   # Current tenant
-#   DocsortEmailIngestJob.perform_now('full')           # Full sync current tenant
-#   DocsortEmailIngestJob.perform_later                 # Background incremental
+#   DocumentInboxEmailIngestJob.perform_now                   # Current tenant
+#   DocumentInboxEmailIngestJob.perform_now('full')           # Full sync current tenant
+#   DocumentInboxEmailIngestJob.perform_later                 # Background incremental
 #
-class DocsortEmailIngestJob < ApplicationJob
+class DocumentInboxEmailIngestJob < ApplicationJob
   queue_as :default
 
   # Retry on transient errors
@@ -137,7 +137,7 @@ class DocsortEmailIngestJob < ApplicationJob
     internet_message_id = email_data['internetMessageId'] || email_data['id']
 
     # Skip if we've already processed this email
-    existing = DocsortItem.find_by(
+    existing = DocumentInbox.find_by(
       source: 'email',
       'metadata->internet_message_id': internet_message_id
     )
@@ -159,7 +159,7 @@ class DocsortEmailIngestJob < ApplicationJob
       # Create or find SyncedEmail record (for linking)
       synced_email = find_or_create_synced_email(email_data, tenant)
 
-      # If email has attachments, process each one as a separate DocsortItem
+      # If email has attachments, process each one as a separate DocumentInbox
       if has_attachments
         attachments = fetch_attachments(client, email_data['id'])
 
@@ -179,12 +179,12 @@ class DocsortEmailIngestJob < ApplicationJob
           if item
             items_created += 1
             # Queue classification
-            DocsortClassificationJob.perform_later(item.id)
+            DocumentInboxClassificationJob.perform_later(item.id)
           end
         end
       end
 
-      # Also create a DocsortItem for the email itself (for email classification)
+      # Also create a DocumentInbox for the email itself (for email classification)
       # This is useful for correspondence routing
       if !has_attachments || attachments_are_all_signatures?(fetch_attachments(client, email_data['id']))
         item = create_docsort_item_from_email(
@@ -197,7 +197,7 @@ class DocsortEmailIngestJob < ApplicationJob
 
         if item
           items_created += 1
-          DocsortClassificationJob.perform_later(item.id)
+          DocumentInboxClassificationJob.perform_later(item.id)
         end
       end
     end
@@ -269,7 +269,7 @@ class DocsortEmailIngestJob < ApplicationJob
       content_type: content_type
     )
 
-    DocsortItem.create!(
+    DocumentInbox.create!(
       tenant: tenant,
       source: 'email',
       status: 'pending',
@@ -294,7 +294,7 @@ class DocsortEmailIngestJob < ApplicationJob
   end
 
   def create_docsort_item_from_email(email_data:, synced_email:, tenant:, from_email:, subject:)
-    DocsortItem.create!(
+    DocumentInbox.create!(
       tenant: tenant,
       source: 'email',
       status: 'pending',

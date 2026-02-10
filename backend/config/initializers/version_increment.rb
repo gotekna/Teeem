@@ -7,7 +7,7 @@ Rails.application.config.after_initialize do
       sleep 0.5
 
       # Increment version
-      new_version = Version.increment!
+      new_version = AppVersion.increment!
       Rails.logger.info "Development version incremented to v#{new_version}"
     rescue => e
       Rails.logger.warn "Could not increment development version: #{e.message}"

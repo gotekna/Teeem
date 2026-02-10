@@ -1,11 +1,11 @@
 module Api
   module V1
-    class DesignsController < ApplicationController
+    class JobJobDesignsController < ApplicationController
       before_action :set_design, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/designs
       def index
-        @designs = Design.all
+        @designs = JobDesign.all
 
         # Filter by active status
         @designs = @designs.active if params[:active] == "true"
@@ -17,7 +17,7 @@ module Api
             params[:search],
             columns: %w[name],
             mode: params[:search_mode] || 'contains',
-            model: Design
+            model: JobDesign
           )
         end
 
@@ -53,7 +53,7 @@ module Api
 
       # POST /api/v1/designs
       def create
-        @design = Design.new(design_params)
+        @design = JobDesign.new(design_params)
 
         if @design.save
           render json: { success: true, design: @design }, status: :created
@@ -88,9 +88,9 @@ module Api
       private
 
       def set_design
-        @design = Design.find(params[:id])
+        @design = JobDesign.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Design not found" }, status: :not_found
+        render json: { success: false, error: "JobDesign not found" }, status: :not_found
       end
 
       def design_params

@@ -6,14 +6,14 @@
 # Each slot represents one measurement to be taken (e.g., "Floor Area").
 # Slots track whether they've been filled and the resulting quantity.
 #
-# One measurement per slot (v1). The measurement backlink on UnrealMeasurement
+# One measurement per slot (v1). The measurement backlink on TakeoffMeasurement
 # enables cleanup when a measurement is deleted.
 #
 class TakeoffRoomSlot < ApplicationRecord
   # Associations
   belongs_to :takeoff_room_instance
   belongs_to :pricebook_item, class_name: "PricebookItem", optional: true
-  belongs_to :measurement, class_name: "UnrealMeasurement", optional: true
+  belongs_to :measurement, class_name: "TakeoffMeasurement", optional: true
 
   # Validations
   validates :step_index, presence: true, uniqueness: { scope: :takeoff_room_instance_id }

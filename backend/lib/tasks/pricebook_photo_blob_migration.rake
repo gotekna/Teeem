@@ -12,9 +12,19 @@
 
 namespace :pricebook do
   namespace :photos do
+    # Find the tenant that owns pricebook data (has the most active items)
+    def pricebook_tenant
+      tenant = Tenant.find_by(name: "Tekna") || Tenant.joins("INNER JOIN pricebooks ON pricebooks.tenant_id = tenants.id")
+                                                       .group("tenants.id")
+                                                       .order("COUNT(*) DESC")
+                                                       .first || Tenant.first
+      puts "Tenant: #{tenant.name} (ID: #{tenant.id})"
+      tenant
+    end
+
     desc "Show current pricebook photo migration status"
     task status: :environment do
-      ActsAsTenant.with_tenant(Tenant.first) do
+      ActsAsTenant.with_tenant(pricebook_tenant) do
         total_items = PricebookItem.active.count
         with_image_url = PricebookItem.active.where.not(image_url: [nil, ""]).count
         with_image_blob = PricebookItem.active.where.not(image_storage_blob_id: nil).count
@@ -45,7 +55,7 @@ namespace :pricebook do
       limit = args[:limit]&.to_i
       dry_run = ENV["DRY_RUN"] == "true"
 
-      ActsAsTenant.with_tenant(Tenant.first) do
+      ActsAsTenant.with_tenant(pricebook_tenant) do
         puts "=" * 60
         puts "PRICEBOOK PHOTO BLOB MIGRATION"
         puts "Mode: #{dry_run ? 'DRY RUN (no DB writes)' : 'LIVE'}"
@@ -271,7 +281,7 @@ namespace :pricebook do
 
     desc "Verify all pricebook photo blobs exist in storage"
     task verify: :environment do
-      ActsAsTenant.with_tenant(Tenant.first) do
+      ActsAsTenant.with_tenant(pricebook_tenant) do
         items = PricebookItem.active.where.not(image_storage_blob_id: nil).includes(:image_storage_blob)
         puts "Verifying #{items.count} pricebook items with image blobs..."
         puts

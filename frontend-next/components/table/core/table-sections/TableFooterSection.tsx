@@ -46,7 +46,7 @@ export function TableFooterSection({
       <tr>
         {visibleColumnsInOrder.map((column, colIndex) => {
           // Skip id column and other non-summable columns
-          const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'design_id', 'user_id'];
+          const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'job_design_id', 'user_id'];
           const isNumeric = column.column_type && numericTypes.includes(column.column_type) && !skipColumns.includes(column.key);
           let total: number | null = null;
 
