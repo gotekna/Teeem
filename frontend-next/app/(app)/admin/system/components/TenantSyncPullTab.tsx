@@ -96,6 +96,7 @@ export function TenantSyncPullTab() {
   const [tableCounts, setTableCounts] = useState<Record<string, Record<string, number>>>({});
   const [isMasterTenant, setIsMasterTenant] = useState(false);
   const [tableSyncStatus, setTableSyncStatus] = useState<Record<string, TableSyncStatus>>({});
+  const [tableBatchProgress, setTableBatchProgress] = useState<Record<string, { processed: number; total: number }>>({});
   const [showSyncDialog, setShowSyncDialog] = useState(false);
 
   // Fetch available tables on mount
@@ -292,9 +293,9 @@ export function TenantSyncPullTab() {
       hasMore = response.has_more;
       offset = response.next_offset || 0;
 
-      // Update progress text to show batch progress for large tables
+      // Update progress for large tables
       if (hasMore || totalRecords > BATCH_SIZE) {
-        setTableSyncStatus((prev) => ({ ...prev, [tableKey]: "syncing" }));
+        setTableBatchProgress((prev) => ({ ...prev, [tableKey]: { processed: totalProcessed, total: totalRecords } }));
         setPullAllProgress((prev) => prev ? {
           ...prev,
           currentTable: `${prev.currentTable.split(" (")[0]} (${totalProcessed.toLocaleString()}/${totalRecords.toLocaleString()})`,
@@ -538,6 +539,7 @@ export function TenantSyncPullTab() {
                 const counts = tableCounts[table.key] || {};
                 const status = tableSyncStatus[table.key];
                 const result = pullAllResult?.results[table.key];
+                const batch = tableBatchProgress[table.key];
 
                 return (
                   <TableRow
@@ -559,7 +561,11 @@ export function TenantSyncPullTab() {
                       {status === "syncing" && (
                         <span className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 text-xs">
                           <Spinner className="h-3 w-3" />
-                          Syncing...
+                          {batch ? (
+                            <span className="tabular-nums">{batch.processed.toLocaleString()}/{batch.total.toLocaleString()}</span>
+                          ) : (
+                            "Syncing..."
+                          )}
                         </span>
                       )}
                       {status === "pending" && (

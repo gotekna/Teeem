@@ -80,8 +80,6 @@ const POSITION_OPTIONS = [
   { value: "director", label: "Director" },
   { value: "secretary", label: "Secretary" },
   { value: "public_officer", label: "Public Officer" },
-  { value: "director_secretary", label: "Director / Secretary" },
-  { value: "director_public_officer", label: "Director / Public Officer" },
 ];
 
 // --- Component ---
@@ -204,6 +202,9 @@ export function DirectorChangeWizard({
   const addNewAppointment = (contact: ContactSearchResult) => {
     if (newAppointments.some((a) => a.contact_id === contact.id)) return;
 
+    // Default appointment date to the first ceasing director's cessation date (continuity)
+    const defaultDate = ceasingDirectors[0]?.cessation_date || format(new Date(), "yyyy-MM-dd");
+
     setNewAppointments((prev) => [
       ...prev,
       {
@@ -211,7 +212,7 @@ export function DirectorChangeWizard({
         name: contact.display_name,
         email: contact.email || "",
         positions: ["director"],
-        appointment_date: format(new Date(), "yyyy-MM-dd"),
+        appointment_date: defaultDate,
         has_dob: !!contact.date_of_birth,
         has_address: !!contact.full_address,
       },
@@ -526,24 +527,27 @@ export function DirectorChangeWizard({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
                     <div>
-                      <Label className="text-xs">Position</Label>
-                      <Select
-                        value={appt.positions[0]}
-                        onValueChange={(val) => updateAppointmentPositions(appt.contact_id, [val])}
-                      >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {POSITION_OPTIONS.map((pos) => (
-                            <SelectItem key={pos.value} value={pos.value}>
-                              {pos.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-xs">Positions</Label>
+                      <div className="flex flex-wrap gap-3 mt-1">
+                        {POSITION_OPTIONS.map((pos) => (
+                          <label key={pos.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={appt.positions.includes(pos.value)}
+                              onChange={(e) => {
+                                const updated = e.target.checked
+                                  ? [...appt.positions, pos.value]
+                                  : appt.positions.filter((p) => p !== pos.value);
+                                updateAppointmentPositions(appt.contact_id, updated.length > 0 ? updated : ["director"]);
+                              }}
+                              className="rounded border-input"
+                            />
+                            {pos.label}
+                          </label>
+                        ))}
+                      </div>
                     </div>
                     <div>
                       <Label className="text-xs">Appointment Date</Label>
