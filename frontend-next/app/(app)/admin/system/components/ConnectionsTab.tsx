@@ -1757,7 +1757,7 @@ function EmailMigrationCard() {
   }
 
   if (!storageUpload || storageUpload.uploadable === 0) {
-    return null; // Don't show card if no emails to migrate
+    return <></>; // No emails to migrate - render empty to maintain consistent component tree
   }
 
   const isComplete = storageUpload.upload_rate >= 100;
@@ -1942,7 +1942,7 @@ function AttachmentDeduplicationCard() {
   }
 
   if (!attachments || attachments.total === 0) {
-    return null;
+    return <></>; // No attachments to process - render empty to maintain consistent component tree
   }
 
   const isComplete = attachments.migration_rate >= 100;
