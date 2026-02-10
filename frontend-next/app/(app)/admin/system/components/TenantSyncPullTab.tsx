@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Download, Check, Star, CircleDot, AlertCircle, RefreshCw, X } from "lucide-react";
+import { Download, Check, Star, CircleDot, AlertCircle, RefreshCw, X, SkipForward } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -99,6 +99,13 @@ export function TenantSyncPullTab() {
   const [tableBatchProgress, setTableBatchProgress] = useState<Record<string, { processed: number; total: number }>>({});
   const [tableSyncErrors, setTableSyncErrors] = useState<Record<string, string[]>>({});
   const [showSyncDialog, setShowSyncDialog] = useState(false);
+  // Per-table source tenant selection (master tenant only)
+  // Maps table key → tenant ID to import from
+  const [tableSources, setTableSources] = useState<Record<string, number>>({});
+  // Tables the user has chosen to skip during pull all
+  const [skippedTables, setSkippedTables] = useState<Set<string>>(new Set());
+  // Contacts: price_only filter (checked by default, matching backend scope)
+  const [contactsPriceOnly, setContactsPriceOnly] = useState(true);
 
   // Fetch available tables on mount
   useEffect(() => {
@@ -124,6 +131,22 @@ export function TenantSyncPullTab() {
           if (response.all_tenants && response.all_tenant_counts) {
             setTenants(response.all_tenants);
             setTableCounts(response.all_tenant_counts);
+            // Compute default source tenant per table (largest non-master)
+            const nonMasterTenants = response.all_tenants.filter((t) => !t.is_master);
+            const defaults: Record<string, number> = {};
+            for (const [tableKey, counts] of Object.entries(response.all_tenant_counts)) {
+              let bestId = 0;
+              let bestCount = 0;
+              for (const t of nonMasterTenants) {
+                const count = counts[t.slug] || 0;
+                if (count > bestCount) {
+                  bestCount = count;
+                  bestId = t.id;
+                }
+              }
+              if (bestId > 0) defaults[tableKey] = bestId;
+            }
+            setTableSources(defaults);
           } else if (response.counts) {
             // Non-master: build a simple 2-column view
             const masterName = "TEEEM";
@@ -281,10 +304,19 @@ export function TenantSyncPullTab() {
     let offset = 0;
     let hasMore = true;
 
+    // Pass explicit source tenant if selected (master tenant only)
+    const sourceTenantId = tableSources[tableKey];
+    // For contacts/price_histories: pass price_only flag
+    const priceOnly = (tableKey === "contacts" || tableKey === "price_histories") ? contactsPriceOnly : undefined;
+
     while (hasMore) {
       const response = await api.post<PullResponse>(
         "/api/v1/config_sync/pull_one_table",
-        { table: tableKey, batch_size: BATCH_SIZE, offset }
+        {
+          table: tableKey, batch_size: BATCH_SIZE, offset,
+          ...(sourceTenantId ? { source_tenant_id: sourceTenantId } : {}),
+          ...(priceOnly !== undefined ? { price_only: priceOnly } : {}),
+        }
       );
 
       if (!response?.success) {
@@ -331,22 +363,25 @@ export function TenantSyncPullTab() {
       setPullResult(null);
       setTableSyncErrors({});
 
-      // Initialize all tables as pending
+      // Initialize all tables as pending (or pre-skipped)
       const initialStatus: Record<string, TableSyncStatus> = {};
-      tables.forEach((t) => { initialStatus[t.key] = "pending"; });
+      tables.forEach((t) => {
+        initialStatus[t.key] = skippedTables.has(t.key) ? "skipped" : "pending";
+      });
       setTableSyncStatus(initialStatus);
 
-      setPullAllProgress({ current: 0, total: tables.length, currentTable: "Starting..." });
+      const activeTables = tables.filter((t) => !skippedTables.has(t.key));
+      setPullAllProgress({ current: 0, total: activeTables.length, currentTable: "Starting..." });
 
       const allResults: Record<string, { imported: number; updated: number; skipped: number; total: number; error?: string; source?: string; errors?: string[]; skipped_reasons?: string[]; message?: string }> = {};
       let totalImported = 0;
       let totalUpdated = 0;
       let totalSkipped = 0;
 
-      for (let i = 0; i < tables.length; i++) {
-        const table = tables[i];
+      for (let i = 0; i < activeTables.length; i++) {
+        const table = activeTables[i];
         const displayName = table.model.replace(/([A-Z])/g, " $1").trim();
-        setPullAllProgress({ current: i + 1, total: tables.length, currentTable: displayName });
+        setPullAllProgress({ current: i + 1, total: activeTables.length, currentTable: displayName });
         setTableSyncStatus((prev) => ({ ...prev, [table.key]: "syncing" }));
 
         try {
@@ -387,7 +422,7 @@ export function TenantSyncPullTab() {
           imported: totalImported,
           updated: totalUpdated,
           skipped: totalSkipped,
-          tables_processed: tables.length,
+          tables_processed: activeTables.length,
         },
         results: allResults,
       });
@@ -501,7 +536,7 @@ export function TenantSyncPullTab() {
 
       {/* Sync Progress Dialog */}
       <Dialog open={showSyncDialog} onOpenChange={(open) => { if (!pullingAll) setShowSyncDialog(open); }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               {pullingAll ? (
@@ -550,6 +585,7 @@ export function TenantSyncPullTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Table</TableHead>
+                {isMasterTenant && <TableHead className="w-[130px]">Source</TableHead>}
                 {tenants.map((t) => (
                   <TableHead key={t.slug} className="text-right w-[80px]">
                     {t.name}
@@ -566,6 +602,13 @@ export function TenantSyncPullTab() {
                 const batch = tableBatchProgress[table.key];
                 const syncErrors = tableSyncErrors[table.key];
                 const errorTooltip = result?.error || syncErrors?.join("; ") || "";
+                const nonMasterTenants = tenants.filter((t) => !t.is_master);
+                const selectedSourceId = tableSources[table.key];
+                const selectedSourceName = nonMasterTenants.find((t) => t.id === selectedSourceId)?.name;
+
+                const isSkipped = skippedTables.has(table.key);
+                const isContacts = table.key === "contacts";
+                const isPriceHistories = table.key === "price_histories";
 
                 return (
                   <TableRow
@@ -574,11 +617,59 @@ export function TenantSyncPullTab() {
                       status === "syncing" && "bg-blue-50/50 dark:bg-blue-950/20",
                       status === "done" && "bg-green-50/30 dark:bg-green-950/10",
                       status === "error" && "bg-red-50/30 dark:bg-red-950/10",
+                      isSkipped && !pullAllResult && "opacity-40",
                     )}
                   >
                     <TableCell className="font-medium py-1.5 text-sm">
-                      {table.model.replace(/([A-Z])/g, " $1").trim()}
+                      <div className="flex items-center gap-2">
+                        <span>{table.model.replace(/([A-Z])/g, " $1").trim()}</span>
+                        {/* Price only checkbox for contacts */}
+                        {isContacts && !pullAllResult && (
+                          <label className="inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer ml-1">
+                            <Checkbox
+                              checked={contactsPriceOnly}
+                              onCheckedChange={(checked) => setContactsPriceOnly(!!checked)}
+                              className="h-3 w-3"
+                              disabled={pullingAll}
+                            />
+                            <span>Price only</span>
+                          </label>
+                        )}
+                        {isContacts && pullAllResult && contactsPriceOnly && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0">price only</Badge>
+                        )}
+                        {isPriceHistories && pullAllResult && contactsPriceOnly && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0">price only</Badge>
+                        )}
+                      </div>
                     </TableCell>
+                    {isMasterTenant && (
+                      <TableCell className="py-1.5">
+                        {pullingAll || pullAllResult ? (
+                          // During/after sync: show source name (read-only)
+                          <span className="text-xs text-muted-foreground">
+                            {result?.source || selectedSourceName || "-"}
+                          </span>
+                        ) : (
+                          // Before sync: editable dropdown
+                          <select
+                            value={selectedSourceId || ""}
+                            onChange={(e) => {
+                              const val = e.target.value ? Number(e.target.value) : 0;
+                              setTableSources((prev) => ({ ...prev, [table.key]: val }));
+                            }}
+                            className="text-xs border rounded px-1.5 py-0.5 bg-background text-foreground w-full max-w-[120px]"
+                          >
+                            <option value="">Auto (largest)</option>
+                            {nonMasterTenants.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name} ({(counts[t.slug] || 0).toLocaleString()})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </TableCell>
+                    )}
                     {tenants.map((t) => (
                       <TableCell key={t.slug} className="text-right tabular-nums py-1.5 text-sm">
                         {(counts[t.slug] ?? counts[t.is_master ? "master" : "tenant"] ?? 0).toLocaleString()}
@@ -596,7 +687,16 @@ export function TenantSyncPullTab() {
                         </span>
                       )}
                       {status === "pending" && (
-                        <span className="text-xs text-muted-foreground">Waiting</span>
+                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                          Waiting
+                          <button
+                            onClick={() => setSkippedTables((prev) => { const next = new Set(prev); next.add(table.key); return next; })}
+                            className="hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted"
+                            title="Skip this table"
+                          >
+                            <SkipForward className="h-3 w-3" />
+                          </button>
+                        </span>
                       )}
                       {status === "done" && result && (
                         <span className="text-xs flex items-center justify-end gap-1.5">
@@ -609,8 +709,32 @@ export function TenantSyncPullTab() {
                       )}
                       {status === "skipped" && (
                         <span className="text-xs text-muted-foreground flex items-center justify-end gap-1" title={result?.message || ""}>
-                          <Check className="h-3 w-3" />
-                          {result?.message || "no changes"}
+                          {isSkipped && !pullAllResult ? (
+                            // User-skipped before sync started: allow un-skip
+                            <>
+                              <SkipForward className="h-3 w-3" />
+                              <span>Skipped</span>
+                              <button
+                                onClick={() => setSkippedTables((prev) => { const next = new Set(prev); next.delete(table.key); return next; })}
+                                className="hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted ml-1"
+                                title="Undo skip"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </>
+                          ) : isSkipped ? (
+                            // User-skipped during sync
+                            <>
+                              <SkipForward className="h-3 w-3" />
+                              <span>Skipped by user</span>
+                            </>
+                          ) : (
+                            // No changes from server
+                            <>
+                              <Check className="h-3 w-3" />
+                              {result?.message || "no changes"}
+                            </>
+                          )}
                         </span>
                       )}
                       {status === "error" && (
@@ -645,7 +769,30 @@ export function TenantSyncPullTab() {
                         </div>
                       )}
                       {!status && (
-                        <span className="text-xs text-muted-foreground">-</span>
+                        isSkipped ? (
+                          <span className="text-xs text-muted-foreground flex items-center justify-end gap-1">
+                            <SkipForward className="h-3 w-3" />
+                            <span>Skipped</span>
+                            <button
+                              onClick={() => setSkippedTables((prev) => { const next = new Set(prev); next.delete(table.key); return next; })}
+                              className="hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted"
+                              title="Undo skip"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+                            -
+                            <button
+                              onClick={() => setSkippedTables((prev) => { const next = new Set(prev); next.add(table.key); return next; })}
+                              className="hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted"
+                              title="Skip this table"
+                            >
+                              <SkipForward className="h-3 w-3" />
+                            </button>
+                          </span>
+                        )
                       )}
                     </TableCell>
                   </TableRow>
