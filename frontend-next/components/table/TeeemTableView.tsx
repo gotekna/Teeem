@@ -533,6 +533,10 @@ export default function TeeemTableView({
   customCellRenderer,
   extraRowProps,
   extraColumns,
+  createDialogRenderExtra,
+  createDialogOnAfterSave,
+  editDialogRenderExtra,
+  editDialogOnAfterSave,
   viewOnly = false,
   preloadedViews = null,
   disableSavedViews = false,
@@ -6467,6 +6471,8 @@ export default function TeeemTableView({
               triggerAutoRefresh();
               onRefresh?.();
             }}
+            renderExtraContent={createDialogRenderExtra}
+            onAfterSave={createDialogOnAfterSave}
           />
 
           {/* Edit Record Modal */}
@@ -6484,6 +6490,8 @@ export default function TeeemTableView({
               triggerAutoRefresh();
               onRefresh?.();
             }}
+            renderExtraContent={editDialogRenderExtra}
+            onAfterSave={editDialogOnAfterSave}
           />
 
           {/* View Record Modal */}
