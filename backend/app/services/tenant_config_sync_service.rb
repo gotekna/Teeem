@@ -743,16 +743,23 @@ class TenantConfigSyncService
     existing_index = build_record_index(existing_records, config[:match_fields], config[:remap_fks])
 
     # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
-    # parents must be processed before children so that the parent's warehouse_type_id
-    # is updated before the child's validation checks parent.warehouse_type_id.
-    source_records = sort_parents_first(source_records, config)
+    # use two-pass import: first import all records WITHOUT the self-ref FK so all
+    # warehouse_type_ids are correct, then set parent_id in a second pass.
+    self_ref_fks = (config[:remap_fks] || {}).select { |_f, c| c[:model] == config[:model] }
+    deferred_parents = {} # record_id => { field => value } for second pass
 
     # Import each record
     source_records.each do |source_record|
       begin
-        result = import_single_record(source_record, config, model, existing_index)
+        # For self-referential FKs: defer parent_id to second pass
+        result = import_single_record(source_record, config, model, existing_index,
+                                       defer_fields: self_ref_fks.keys)
         if result[:imported]
           imported << result[:record]
+          # Store deferred parent values for second pass
+          if self_ref_fks.any? && result[:deferred].present?
+            deferred_parents[result[:record].id] = result[:deferred]
+          end
           # Update index with newly imported record so subsequent matches work
           key = record_sync_key(result[:record]) || legacy_match_key(result[:record], config[:match_fields], config[:remap_fks])
           existing_index[key] = result[:record] if key.present?
@@ -761,6 +768,22 @@ class TenantConfigSyncService
         end
       rescue => e
         @errors << "Failed to import #{source_record.send(config[:name_field])}: #{e.message}"
+      end
+    end
+
+    # Second pass: set deferred self-referential FKs (parent_id) now that all
+    # records have correct warehouse_type_ids
+    if deferred_parents.any?
+      ActsAsTenant.with_tenant(tenant) do
+        deferred_parents.each do |record_id, deferred_attrs|
+          record = model.find_by(id: record_id)
+          next unless record
+          begin
+            record.update!(deferred_attrs)
+          rescue => e
+            @errors << "Failed to set parent for #{record.send(config[:name_field])}: #{e.message}"
+          end
+        end
       end
     end
 
@@ -877,36 +900,74 @@ class TenantConfigSyncService
     tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
     existing_index = build_record_index(tenant_all, config[:match_fields], config[:remap_fks])
 
-    # FRC (Feb 2026): Sort parents before children for self-referential FKs
-    master_records = sort_parents_first(master_records, config)
+    # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
+    # use two-pass: first pass without self-ref FK, second pass sets parent_id.
+    self_ref_fks = (config[:remap_fks] || {}).select { |_f, c| c[:model] == config[:model] }
+    deferred_parents = {} # record_id => { field => value } for second pass
 
     # Process each master record
     master_records.each do |master_record|
       begin
         existing = find_match(master_record, existing_index, config[:match_fields], config[:remap_fks])
 
+        # Build attrs with FK remapping, deferring self-referential FKs
+        attrs = build_sync_attrs(master_record, config)
+        deferred = {}
+        if self_ref_fks.any?
+          self_ref_fks.each_key { |field| deferred[field] = attrs.delete(field) if attrs.key?(field) }
+        end
+
         if existing
           case mode.to_sym
           when :replace_existing
-            result = update_existing_record(existing, master_record, config)
-            if result[:updated]
-              updated << result[:record]
-            else
-              skipped << { name: master_record.send(config[:name_field]), reason: result[:reason] }
+            begin
+              ActsAsTenant.with_tenant(tenant) { existing.update!(attrs) }
+              updated << existing
+              deferred_parents[existing.id] = deferred if deferred.any?
+            rescue => e
+              skipped << { name: master_record.send(config[:name_field]), reason: e.message }
             end
           when :add_new, :skip_existing
             skipped << { name: master_record.send(config[:name_field]), reason: "Already exists" }
           end
         else
-          result = create_new_record(master_record, config, model)
-          if result[:created]
-            imported << result[:record]
-          else
-            skipped << { name: master_record.send(config[:name_field]), reason: result[:reason] }
+          begin
+            ActsAsTenant.with_tenant(tenant) do
+              new_record = model.new
+              attrs.each do |field, value|
+                new_record.send("#{field}=", value) if new_record.respond_to?("#{field}=")
+              end
+              if master_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
+                new_record.sync_key = master_record.sync_key.presence || master_record.class.build_sync_key(
+                  *Array(master_record.class.try(:sync_key_source) || :name).map { |f| master_record.send(f).to_s }
+                )
+              end
+              new_record.save!
+              imported << new_record
+              deferred_parents[new_record.id] = deferred if deferred.any?
+            end
+          rescue => e
+            skipped << { name: master_record.send(config[:name_field]), reason: e.message }
           end
         end
       rescue => e
         @errors << "Failed to process #{master_record.send(config[:name_field])}: #{e.message}"
+      end
+    end
+
+    # Second pass: set deferred self-referential FKs (parent_id) now that all
+    # records have correct warehouse_type_ids
+    if deferred_parents.any?
+      ActsAsTenant.with_tenant(tenant) do
+        deferred_parents.each do |record_id, deferred_attrs|
+          record = model.find_by(id: record_id)
+          next unless record
+          begin
+            record.update!(deferred_attrs)
+          rescue => e
+            @errors << "Failed to set parent for #{record.send(config[:name_field])}: #{e.message}"
+          end
+        end
       end
     end
 
@@ -1196,7 +1257,7 @@ class TenantConfigSyncService
     json
   end
 
-  def import_single_record(source_record, config, model, existing_index = nil)
+  def import_single_record(source_record, config, model, existing_index = nil, defer_fields: [])
     # Check if already exists in tenant (master) - sync_key primary, legacy fallback
     # FRC (Feb 2026): Accept pre-built index to avoid N+1 (loading entire table per record).
     # Callers in import_from_tenant build the index once before the loop.
@@ -1210,7 +1271,17 @@ class TenantConfigSyncService
     # from source tenant were copied directly, causing constraint violations)
     attrs = build_sync_attrs(source_record, config)
 
-    if existing
+    # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
+    # defer those fields to a second pass. First pass sets all other fields (including
+    # warehouse_type_id) so the parent validation can pass in the second pass.
+    deferred = {}
+    if defer_fields.any?
+      defer_fields.each do |field|
+        deferred[field] = attrs.delete(field) if attrs.key?(field)
+      end
+    end
+
+    result = if existing
       # Update existing
       ActsAsTenant.with_tenant(tenant) do
         existing.update!(attrs)
@@ -1232,6 +1303,10 @@ class TenantConfigSyncService
         { imported: true, record: new_record }
       end
     end
+
+    # Attach deferred fields to result for second pass
+    result[:deferred] = deferred if deferred.any?
+    result
   rescue ActiveRecord::RecordInvalid => e
     # FRC (Feb 2026): Uniqueness collision — match didn't find the record but it exists.
     # This happens when sync_key diverged and match_fields differ slightly (e.g., contact
