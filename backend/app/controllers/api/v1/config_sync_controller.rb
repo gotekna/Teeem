@@ -294,6 +294,17 @@ module Api
             }
           end
 
+          # Clean slate for price_histories: delete all existing before importing latest-only.
+          # Only on first batch (offset=0) to avoid re-deleting on subsequent batches.
+          deleted_count = 0
+          if table == :price_histories && offset == 0
+            deleted_count = ActsAsTenant.with_tenant(current_tenant) do
+              price_only_ids = Contact.where(entity_type: "price_only").pluck(:id)
+              PriceHistory.where(supplier_id: price_only_ids).delete_all
+            end
+            Rails.logger.info "[ConfigSync] Clean slate: deleted #{deleted_count} price histories before import"
+          end
+
           result = service.import_from_tenant(
             source_tenant: best_source,
             table: table.to_s,
@@ -475,6 +486,15 @@ module Api
               end
 
               next if all_ids.empty?
+
+              # Clean slate for price_histories: delete all existing before importing latest-only
+              if table == :price_histories
+                ActsAsTenant.with_tenant(current_tenant) do
+                  price_only_ids = Contact.where(entity_type: "price_only").pluck(:id)
+                  deleted = PriceHistory.where(supplier_id: price_only_ids).delete_all
+                  Rails.logger.info "[ConfigSync] Clean slate: deleted #{deleted} price histories before pull_all import"
+                end
+              end
 
               result = service.import_from_tenant(
                 source_tenant: best_source,
