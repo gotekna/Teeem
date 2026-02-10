@@ -2876,6 +2876,7 @@ Rails.application.routes.draw do
           get :shareholders
           get :investments
           get :trust_roles  # SSoT: Trustee, Beneficiaries, Appointor for Trust/Superfund entities
+          post :director_changes  # ASIC Form 484 director change package generation + e-signature
           get :data_stats   # Data warehouse statistics for this company
           get :warehouse_health   # Data warehouse health checks for this company
           get :health   # Single company health score (fast - loads only this company)
