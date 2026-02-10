@@ -134,10 +134,16 @@ module Api
       # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def tenants
         # Filter credentials by TEEEM tenant
+        Rails.logger.info "[XeroDebug] GET /xero/tenants | current_tenant=#{current_tenant&.name} (id=#{current_tenant&.id}, master=#{current_tenant&.master_tenant?}) | cookie=#{cookies.signed[:admin_tenant_id].inspect}"
         credentials = if current_tenant&.master_tenant?
+                        Rails.logger.info "[XeroDebug] → Master tenant: returning ALL #{XeroCredential.count} credentials"
                         XeroCredential.all
                       else
-                        XeroCredential.for_teeem_tenant(current_tenant)
+                        scoped = XeroCredential.for_teeem_tenant(current_tenant)
+                        Rails.logger.info "[XeroDebug] → Non-master tenant: returning #{scoped.count} credentials for teeem_tenant_id=#{current_tenant&.id}"
+                        # Debug: show what teeem_tenant_ids exist
+                        Rails.logger.info "[XeroDebug] → All teeem_tenant_ids in DB: #{XeroCredential.pluck(:id, :tenant_name, :teeem_tenant_id).map { |id, name, tid| "#{name}(#{id})→tenant#{tid}" }.join(', ')}"
+                        scoped
                       end
 
         tenants = credentials.map do |cred|
