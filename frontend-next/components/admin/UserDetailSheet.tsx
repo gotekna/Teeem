@@ -268,6 +268,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
   if (!user) return null;
 
   return (
+    <>
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto">
         <SheetHeader>
@@ -517,26 +518,28 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
           </div>
         </div>
 
-        {/* Send Login Email Confirmation Dialog */}
-        <AlertDialog open={showInviteConfirm} onOpenChange={setShowInviteConfirm}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Send Login Email</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will generate a temporary password and send login credentials to{" "}
-                <span className="font-medium text-foreground">{displayUser?.email}</span>.
-                The user will be required to change their password on first login.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={sendingInvite}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleSendInvite} disabled={sendingInvite}>
-                {sendingInvite ? "Sending..." : "Send Email"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </SheetContent>
     </Sheet>
+
+    {/* Send Login Email Confirmation Dialog - outside Sheet so it renders above the Sheet overlay */}
+    <AlertDialog open={showInviteConfirm} onOpenChange={setShowInviteConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Send Login Email</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will generate a temporary password and send login credentials to{" "}
+            <span className="font-medium text-foreground">{displayUser?.email}</span>.
+            The user will be required to change their password on first login.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={sendingInvite}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleSendInvite} disabled={sendingInvite}>
+            {sendingInvite ? "Sending..." : "Send Email"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
