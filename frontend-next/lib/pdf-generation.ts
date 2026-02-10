@@ -77,11 +77,11 @@ export async function enqueuePdfGeneration(
     generator_params: generatorParams,
   });
 
-  if (!response.success) {
+  if (!response?.success) {
     throw new Error("Failed to enqueue PDF generation");
   }
 
-  return response.data.pdfGenerationId;
+  return response!.data.pdfGenerationId;
 }
 
 /**

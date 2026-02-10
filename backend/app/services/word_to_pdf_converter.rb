@@ -66,6 +66,7 @@ class WordToPdfConverter
     Rails.logger.info "[WordToPdfConverter] Converting #{filename} (#{word_data[:paragraph_count]} paragraphs)"
 
     # Convert HTML to PDF via Grover
+    raise "Grover (PDF generation) is only available on the worker dyno. Use GeneratePdfJob." unless defined?(Grover)
     pdf = Grover.new(html, **grover_options).to_pdf
 
     # Stamp signatures based on mode

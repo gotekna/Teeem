@@ -375,21 +375,19 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
         queryParams.month = selectedMonth;
       }
 
-      // Get the blob using api.getBlob (SSoT for authenticated requests)
-      const blob = await api.getBlob(
-        "/api/v1/xero_bank_transactions/download_report",
-        { params: queryParams }
-      );
+      // Enqueue async PDF generation
+      const queryString = new URLSearchParams(queryParams).toString();
+      const url = `/api/v1/xero_bank_transactions/download_report${queryString ? `?${queryString}` : ""}`;
+      const response = await api.get<{
+        success: boolean;
+        data: { pdfGenerationId: number; downloadUrl: string };
+      }>(url);
 
-      // Trigger download
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = "Xero_Transaction_Report.pdf";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
+      if (response?.success && response.data?.pdfGenerationId) {
+        const { getApiBaseUrl } = await import("@/lib/api");
+        const baseUrl = getApiBaseUrl();
+        window.open(`${baseUrl}/api/v1/pdf_generations/${response.data.pdfGenerationId}/download`, "_blank");
+      }
     } catch (error) {
       console.error("Failed to download report:", error);
       toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to download report", variant: "destructive" });

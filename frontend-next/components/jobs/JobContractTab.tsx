@@ -338,15 +338,16 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
     }
   };
 
-  // Generate contract PDF for preview (direct generation without workflow)
+  // Generate contract PDF for preview (async generation)
   const handleGenerateContract = async () => {
     setGenerating(true);
     try {
-      const blob = await api.postBlob(`/api/v1/jobs/${job.id}/generate_contract`, {});
-
-      // Create blob URL for preview
-      const url = URL.createObjectURL(blob);
-      setPreviewUrl(url);
+      const { generateAndDownloadPdf } = await import("@/lib/pdf-generation");
+      const downloadUrl = await generateAndDownloadPdf(
+        "contract_overlay",
+        { template_key: "qbcc_contract", job_id: job.id }
+      );
+      setPreviewUrl(downloadUrl);
       setShowPreview(true);
     } catch (error) {
       console.error("Failed to generate contract:", error);
@@ -356,17 +357,18 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
     }
   };
 
-  // Save contract to job documents
+  // Save contract to job documents (async generation + save)
   const handleSaveContract = async () => {
     setSavingContract(true);
     try {
-      await api.post(`/api/v1/jobs/${job.id}/save_contract`);
+      const { generateAndDownloadPdf } = await import("@/lib/pdf-generation");
+      await generateAndDownloadPdf(
+        "contract_overlay",
+        { template_key: "qbcc_contract", job_id: job.id, save_to_storage: true }
+      );
       toast({ title: "Contract saved to job documents" });
       setShowPreview(false);
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(null);
-      }
+      setPreviewUrl(null);
       onUpdate();
     } catch (error) {
       console.error("Failed to save contract:", error);
@@ -379,12 +381,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
   // Download contract PDF
   const handleDownloadContract = () => {
     if (previewUrl) {
-      const link = document.createElement('a');
-      link.href = previewUrl;
-      link.download = `QBCC_Contract_${job.name?.replace(/[^a-zA-Z0-9]/g, '_') || job.id}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      window.open(previewUrl, "_blank");
     }
   };
 

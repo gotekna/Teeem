@@ -57,10 +57,15 @@ gem "caxlsx_rails", "~> 0.6.3"  # Rails integration for Excel export
 gem "pdf-reader", "~> 2.12"  # PDF text extraction for email attachments
 gem "rubyzip", "~> 2.3"  # Zip file creation for bulk downloads
 gem "business_time", "~> 0.13"  # Business days calculation for bill approval workflows
-gem "hexapdf", "~> 0.42"  # PDF manipulation for splitting documents
-gem "sablon", "~> 0.4"  # DOCX mail merge for document templates
-gem "docx", "~> 0.8"  # DOCX reading for Universal Document Reader
-gem "grover", "~> 1.1"  # HTML → PDF via Puppeteer (Tekna document templates)
+# Heavy gems for PDF/document processing - only needed on worker dyno
+# Web dyno excludes this group via BUNDLE_WITHOUT=worker
+group :worker do
+  gem "hexapdf", "~> 0.42"  # PDF manipulation for splitting documents
+  gem "sablon", "~> 0.4"  # DOCX mail merge for document templates
+  gem "docx", "~> 0.8"  # DOCX reading for Universal Document Reader
+  gem "grover", "~> 1.1"  # HTML → PDF via Puppeteer (Tekna document templates)
+  gem "mini_magick", "~> 4.12"  # Image processing (PDF→image for OCR)
+end
 
 # Image management and scraping
 gem "cloudinary", "~> 2.1"  # Cloud image storage and CDN
@@ -69,7 +74,6 @@ gem "cloudinary", "~> 2.1"  # Cloud image storage and CDN
 gem "aws-sdk-s3", "~> 1.170"  # S3 client for document providers
 gem "httparty", "~> 0.22"  # HTTP requests for image scraping
 gem "http", "~> 5.1"  # HTTP client for OAuth token refresh
-gem "mini_magick", "~> 4.12"  # Image processing
 
 # OAuth2 for Xero integration
 gem "oauth2", "~> 2.0"  # OAuth2 authentication for Xero API

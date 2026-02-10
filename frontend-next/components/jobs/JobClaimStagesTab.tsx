@@ -371,9 +371,8 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
       const response = await api.post<{
         success: boolean;
         data?: {
-          document_id: number;
-          filename: string;
-          url: string;
+          pdfGenerationId: number;
+          downloadUrl: string;
           message: string;
         };
         error?: string;
@@ -388,15 +387,14 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
         return;
       }
 
-      if (response.success && response.data) {
+      if (response.success && response.data?.pdfGenerationId) {
         toast({
-          title: "PDF Generated",
-          description: response.data.message,
+          title: "PDF Generating",
+          description: response.data.message || "Opening in new tab...",
         });
-        // Open the PDF in a new tab
-        if (response.data.url) {
-          window.open(response.data.url, "_blank");
-        }
+        const { getApiBaseUrl } = await import("@/lib/api");
+        const baseUrl = getApiBaseUrl();
+        window.open(`${baseUrl}/api/v1/pdf_generations/${response.data.pdfGenerationId}/download`, "_blank");
       } else {
         toast({
           title: "Error",

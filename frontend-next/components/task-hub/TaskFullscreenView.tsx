@@ -2854,9 +2854,25 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // PO PDF ACTIONS (for tasks with linked purchase orders)
   // ============================================================================
 
-  const handlePoPrint = () => {
+  const handlePoPrint = async () => {
     if (!task.purchase_order_id) return;
-    window.open(`/api/v1/purchase_orders/${task.purchase_order_id}/generate_pdf`, '_blank');
+    setPoPdfLoading('preview');
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: { pdfGenerationId: number; downloadUrl: string };
+      }>(`/api/v1/purchase_orders/${task.purchase_order_id}/generate_pdf`);
+
+      if (response?.success && response.data?.pdfGenerationId) {
+        const baseUrl = getApiBaseUrl();
+        window.open(`${baseUrl}/api/v1/pdf_generations/${response.data.pdfGenerationId}/download`, '_blank');
+      }
+    } catch (err) {
+      console.error('Failed to generate PO PDF:', err);
+      toast.error('Could not generate PDF');
+    } finally {
+      setPoPdfLoading(null);
+    }
   };
 
   const handlePoPreview = async () => {
