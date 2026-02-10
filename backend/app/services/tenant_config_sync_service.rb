@@ -171,7 +171,7 @@ class TenantConfigSyncService
     contacts: {
       model: "Contact",
       name_field: :display_name,
-      match_fields: [:display_name],
+      match_fields: [:contact_code],
       sync_fields: [:display_name, :company_name_or_trust, :first_name, :last_name,
                     :abn, :acn, :website, :email_domains, :address, :city, :state, :postcode,
                     :bank_bsb, :bank_account_number, :bank_account_name,
@@ -643,8 +643,9 @@ class TenantConfigSyncService
     tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
 
     # Build indexes (sync_key primary, legacy match_key fallback)
-    master_index = build_record_index(master_all, match_fields)
-    tenant_index = build_record_index(tenant_all, match_fields)
+    remap_fks = config[:remap_fks]
+    master_index = build_record_index(master_all, match_fields, remap_fks)
+    tenant_index = build_record_index(tenant_all, match_fields, remap_fks)
 
     result = {
       new_records: [],      # In master but not in tenant
@@ -657,10 +658,10 @@ class TenantConfigSyncService
 
     # Find new and modified
     master_all.each do |master_record|
-      tenant_record = find_match(master_record, tenant_index, match_fields)
+      tenant_record = find_match(master_record, tenant_index, match_fields, remap_fks)
 
       if tenant_record
-        key = record_sync_key(tenant_record) || legacy_match_key(tenant_record, match_fields)
+        key = record_sync_key(tenant_record) || legacy_match_key(tenant_record, match_fields, remap_fks)
         matched_tenant_keys << key
 
         if records_differ?(master_record, tenant_record, config[:sync_fields])
@@ -679,7 +680,7 @@ class TenantConfigSyncService
 
     # Find deleted (in tenant but not in master)
     tenant_all.each do |tenant_record|
-      key = record_sync_key(tenant_record) || legacy_match_key(tenant_record, match_fields)
+      key = record_sync_key(tenant_record) || legacy_match_key(tenant_record, match_fields, remap_fks)
       unless matched_tenant_keys.include?(key)
         result[:deleted_records] << record_to_json(tenant_record, config)
       end
@@ -737,7 +738,7 @@ class TenantConfigSyncService
     # Previously import_single_record called model.all.to_a + build_record_index
     # on every iteration — loading the entire table N times (5,163x for price histories).
     existing_records = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
-    existing_index = build_record_index(existing_records, config[:match_fields])
+    existing_index = build_record_index(existing_records, config[:match_fields], config[:remap_fks])
 
     # Import each record
     source_records.each do |source_record|
@@ -746,7 +747,7 @@ class TenantConfigSyncService
         if result[:imported]
           imported << result[:record]
           # Update index with newly imported record so subsequent matches work
-          key = record_sync_key(result[:record]) || legacy_match_key(result[:record], config[:match_fields])
+          key = record_sync_key(result[:record]) || legacy_match_key(result[:record], config[:match_fields], config[:remap_fks])
           existing_index[key] = result[:record] if key.present?
         else
           skipped << { name: source_record.send(config[:name_field]), reason: result[:reason] }
@@ -867,12 +868,12 @@ class TenantConfigSyncService
 
     # Get existing tenant records for matching (sync_key primary, legacy fallback)
     tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
-    existing_index = build_record_index(tenant_all, config[:match_fields])
+    existing_index = build_record_index(tenant_all, config[:match_fields], config[:remap_fks])
 
     # Process each master record
     master_records.each do |master_record|
       begin
-        existing = find_match(master_record, existing_index, config[:match_fields])
+        existing = find_match(master_record, existing_index, config[:match_fields], config[:remap_fks])
 
         if existing
           case mode.to_sym
@@ -1049,30 +1050,57 @@ class TenantConfigSyncService
   # ❌ WRONG: key = sync_key || legacy_key (only one key per record)
   # ✅ CORRECT: Index by both keys so fallback matching works
   # ════════════════════════════════════════════════════════════════════════
-  def build_record_index(records, match_fields)
+  def build_record_index(records, match_fields, remap_fks = nil)
     index = {}
     records.each do |r|
       sk = record_sync_key(r)
-      lk = legacy_match_key(r, match_fields)
+      lk = legacy_match_key(r, match_fields, remap_fks)
       index[sk] = r if sk.present?
       index[lk] = r if lk.present?
     end
     index
   end
 
-  # Find matching record: first try sync_key, then fall back to legacy match_key.
-  def find_match(record, target_index, match_fields)
+  # Find matching record: sync_key first, then legacy match_key.
+  def find_match(record, target_index, match_fields, remap_fks = nil)
     # Try sync_key first
     sk = record_sync_key(record)
     return target_index[sk] if sk && target_index[sk]
 
-    # Fallback to legacy match_key
-    lk = legacy_match_key(record, match_fields)
+    # Legacy match_key (resolves FK IDs to names for cross-tenant matching)
+    lk = legacy_match_key(record, match_fields, remap_fks)
     target_index[lk]
   end
 
-  def legacy_match_key(record, match_fields)
-    match_fields.map { |f| record.send(f).to_s.downcase.strip }.join("|")
+  # Build a match key from a record's match_fields.
+  # When remap_fks is provided and a match_field is an FK, resolve it to the
+  # FK target's match_field value (e.g., job_type_id → "Residential" instead of "45").
+  # This makes the key tenant-independent, so records from different tenants can match.
+  def legacy_match_key(record, match_fields, remap_fks = nil)
+    match_fields.map { |f|
+      value = record.send(f)
+      # If this field is an FK with remap config, resolve to the target's match value
+      if remap_fks&.key?(f) && value.present?
+        resolved = resolve_fk_to_match_value(value, remap_fks[f])
+        resolved.to_s.downcase.strip
+      else
+        value.to_s.downcase.strip
+      end
+    }.join("|")
+  end
+
+  # Resolve an FK ID to its target record's match_field value.
+  # Uses without_tenant to find the record regardless of which tenant owns it.
+  # Cached per (model, id) to avoid N+1 queries when building indexes.
+  def resolve_fk_to_match_value(fk_id, remap_config)
+    @fk_resolve_cache ||= {}
+    cache_key = "#{remap_config[:model]}:#{fk_id}"
+    return @fk_resolve_cache[cache_key] if @fk_resolve_cache.key?(cache_key)
+
+    target_model = remap_config[:model].constantize
+    match_field = remap_config[:match_field]
+    record = ActsAsTenant.without_tenant { target_model.find_by(id: fk_id) }
+    @fk_resolve_cache[cache_key] = record&.send(match_field)
   end
 
   def records_differ?(record1, record2, sync_fields)
@@ -1129,9 +1157,9 @@ class TenantConfigSyncService
     # Callers in import_from_tenant build the index once before the loop.
     unless existing_index
       tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
-      existing_index = build_record_index(tenant_all, config[:match_fields])
+      existing_index = build_record_index(tenant_all, config[:match_fields], config[:remap_fks])
     end
-    existing = find_match(source_record, existing_index, config[:match_fields])
+    existing = find_match(source_record, existing_index, config[:match_fields], config[:remap_fks])
 
     # FRC (Feb 2026): Use build_sync_attrs for FK remapping (was missing - raw FK IDs
     # from source tenant were copied directly, causing constraint violations)
