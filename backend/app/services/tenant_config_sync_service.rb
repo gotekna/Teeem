@@ -742,6 +742,11 @@ class TenantConfigSyncService
     existing_records = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
     existing_index = build_record_index(existing_records, config[:match_fields], config[:remap_fks])
 
+    # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
+    # parents must be processed before children so that the parent's warehouse_type_id
+    # is updated before the child's validation checks parent.warehouse_type_id.
+    source_records = sort_parents_first(source_records, config)
+
     # Import each record
     source_records.each do |source_record|
       begin
@@ -871,6 +876,9 @@ class TenantConfigSyncService
     # Get existing tenant records for matching (sync_key primary, legacy fallback)
     tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
     existing_index = build_record_index(tenant_all, config[:match_fields], config[:remap_fks])
+
+    # FRC (Feb 2026): Sort parents before children for self-referential FKs
+    master_records = sort_parents_first(master_records, config)
 
     # Process each master record
     master_records.each do |master_record|
@@ -1031,6 +1039,32 @@ class TenantConfigSyncService
   def validate_table!(table)
     unless CONFIG_TABLES.key?(table.to_sym)
       raise ArgumentError, "Unknown config table: #{table}. Valid tables: #{CONFIG_TABLES.keys.join(', ')}"
+    end
+  end
+
+  # Sort records so parents are processed before children for self-referential FKs.
+  # Without this, a child's parent might not yet be updated when the child's validation
+  # checks parent.warehouse_type_id (warehouse_folders parent_same_warehouse_type).
+  def sort_parents_first(records, config)
+    self_ref_fks = (config[:remap_fks] || {}).select { |_field, cfg| cfg[:model] == config[:model] }
+    return records if self_ref_fks.empty?
+
+    fk_field = self_ref_fks.keys.first # e.g. :parent_id
+    records_arr = records.respond_to?(:to_a) ? records.to_a : records
+
+    # Topological sort: nil parent first, then by parent chain depth
+    id_set = Set.new(records_arr.map(&:id))
+    records_arr.sort_by do |r|
+      depth = 0
+      current = r
+      seen = Set.new
+      while current.respond_to?(fk_field) && (pid = current.send(fk_field)).present? && id_set.include?(pid) && !seen.include?(pid)
+        seen << pid
+        depth += 1
+        current = records_arr.find { |rec| rec.id == pid }
+        break unless current
+      end
+      depth
     end
   end
 
@@ -1208,7 +1242,10 @@ class TenantConfigSyncService
         config[:match_fields].each do |field|
           value = source_record.send(field)
           next if value.blank?
-          found = model.find_by(field => value)
+          # Try exact match first, then case-insensitive (DB unique index may be CI)
+          found = model.find_by(field => value) ||
+                  model.where("LOWER(#{model.connection.quote_column_name(field)}) = ?",
+                              value.to_s.downcase.strip).first
           break found if found
         end
       end
