@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_10_270001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_10_280001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10022,7 +10022,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_270001) do
     t.boolean "force_password_change", default: false, null: false
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["contact_id"], name: "index_users_on_contact_id_unique", unique: true, where: "(contact_id IS NOT NULL)"
-    t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["email", "tenant_id"], name: "index_users_on_email_and_tenant", unique: true
     t.index ["photo_blob_id"], name: "index_users_on_photo_blob_id"
     t.index ["signature_blob_id"], name: "index_users_on_signature_blob_id"
     t.index ["tenant_id"], name: "index_users_on_tenant_id"
