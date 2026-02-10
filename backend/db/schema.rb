@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_10_220001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_10_240001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10066,6 +10066,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_220001) do
     t.string "folder_path"
     t.bigint "warehouse_folder_id"
     t.integer "path_template_version", default: 0
+    t.string "warehouse_type"
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["linkable_type", "linkable_id", "folder_path"], name: "idx_wd_linkable_folder_path"
@@ -10077,11 +10078,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_220001) do
     t.index ["storage_blob_id", "source_type"], name: "idx_warehouse_docs_blob_source"
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
     t.index ["tenant_id", "folder_path"], name: "idx_wd_tenant_folder_path"
+    t.index ["tenant_id", "warehouse_type"], name: "idx_wd_tenant_warehouse_type"
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
     t.index ["ui_name"], name: "index_warehouse_documents_on_ui_name"
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
     t.index ["warehouse_folder_document_type_id"], name: "index_warehouse_documents_on_warehouse_folder_document_type_id"
     t.index ["warehouse_folder_id"], name: "idx_wd_warehouse_folder"
+    t.index ["warehouse_type"], name: "idx_wd_warehouse_type"
   end
 
   create_table "warehouse_folder_counts", force: :cascade do |t|
