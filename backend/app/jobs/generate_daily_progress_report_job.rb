@@ -58,7 +58,6 @@ class GenerateDailyProgressReportJob < ApplicationJob
     # For now, log the summary
     Rails.logger.info "[DailyProgressReport] Job: #{job.name}, Photos: #{report[:photos_analyzed]}, Trades: #{report[:trades_detected].join(', ')}"
 
-    # TODO: Could store in a JobProgressReport model or send notification
-    # Could also update job.progress_notes or similar field
+    # TODO: Store in a JobProgressReport model or send notification
   end
 end

@@ -208,7 +208,7 @@ module Api
             return
           end
 
-          # TODO: Implement actual API test calls for each system
+          # TODO: Implement actual API test calls per system type
           test_result = {
             connected: true,
             organization: integration.organization_name,
@@ -267,7 +267,6 @@ module Api
         # OAuth URL generation methods (placeholders - actual implementation depends on env vars)
 
         def generate_xero_oauth_url
-          # TODO: Use actual Xero OAuth client_id from ENV
           client_id = ENV["XERO_CLIENT_ID"] || "YOUR_XERO_CLIENT_ID"
           redirect_uri = "#{ENV['FRONTEND_URL']}/portal/accounting/callback/xero"
           scope = "accounting.transactions accounting.contacts"
@@ -277,7 +276,6 @@ module Api
         end
 
         def generate_myob_oauth_url
-          # TODO: Implement MYOB OAuth
           client_id = ENV["MYOB_CLIENT_ID"] || "YOUR_MYOB_CLIENT_ID"
           redirect_uri = "#{ENV['FRONTEND_URL']}/portal/accounting/callback/myob"
 
@@ -285,7 +283,6 @@ module Api
         end
 
         def generate_quickbooks_oauth_url
-          # TODO: Implement QuickBooks OAuth
           client_id = ENV["QUICKBOOKS_CLIENT_ID"] || "YOUR_QUICKBOOKS_CLIENT_ID"
           redirect_uri = "#{ENV['FRONTEND_URL']}/portal/accounting/callback/quickbooks"
 
@@ -293,7 +290,6 @@ module Api
         end
 
         def generate_reckon_oauth_url
-          # TODO: Implement Reckon OAuth (similar to QuickBooks)
           generate_quickbooks_oauth_url.gsub("quickbooks", "reckon")
         end
 
@@ -301,7 +297,6 @@ module Api
 
         def exchange_xero_code(code)
           # TODO: Implement actual Xero token exchange
-          # Use HTTParty or similar to POST to Xero token endpoint
           {
             access_token: "placeholder_access_token",
             refresh_token: "placeholder_refresh_token",
@@ -313,7 +308,7 @@ module Api
         end
 
         def exchange_myob_code(code)
-          # TODO: Implement actual MYOB token exchange
+          # TODO: Implement MYOB token exchange
           {
             access_token: "placeholder_access_token",
             refresh_token: "placeholder_refresh_token",
@@ -325,7 +320,7 @@ module Api
         end
 
         def exchange_quickbooks_code(code)
-          # TODO: Implement actual QuickBooks token exchange
+          # TODO: Implement QuickBooks token exchange
           {
             access_token: "placeholder_access_token",
             refresh_token: "placeholder_refresh_token",
@@ -337,7 +332,7 @@ module Api
         end
 
         def exchange_reckon_code(code)
-          # TODO: Implement actual Reckon token exchange
+          # TODO: Implement Reckon token exchange
           exchange_quickbooks_code(code)
         end
       end

@@ -28,8 +28,7 @@ class GrokService
   def chat_stream(message, context = {}, &block)
     system_message = build_system_message(context)
 
-    # TODO: Implement streaming
-    # For now, use regular chat
+    # TODO: Implement streaming (falls back to regular chat for now)
     chat(message, context)
   end
 

@@ -106,8 +106,7 @@ class KudosRecalculationJob < ApplicationJob
   end
 
   def send_score_change_notification(account, old_score, new_score)
-    # TODO: Implement notification
-    # SubcontractorMailer.score_change_notification(account, old_score, new_score).deliver_later
+    # TODO: Implement SubcontractorMailer.score_change_notification
     Rails.logger.info(
       "Score change notification queued for #{account.portal_user.contact.display_name}: " \
       "#{old_score.round(2)} -> #{new_score.round(2)}"
@@ -115,8 +114,7 @@ class KudosRecalculationJob < ApplicationJob
   end
 
   def send_tier_change_notification(change)
-    # TODO: Implement notification
-    # SubcontractorMailer.tier_change_notification(change).deliver_later
+    # TODO: Implement SubcontractorMailer.tier_change_notification
     Rails.logger.info(
       "Tier change notification queued for #{change[:contact_name]}: " \
       "#{change[:old_tier]} -> #{change[:new_tier]}"
@@ -124,8 +122,7 @@ class KudosRecalculationJob < ApplicationJob
   end
 
   def update_leaderboard_cache
-    # TODO: Implement leaderboard caching if needed
-    # Rails.cache.write('kudos_leaderboard', KudosCalculationService.leaderboard(limit: 100))
+    # TODO: Implement leaderboard caching (currently served live from DB)
     Rails.logger.info("Leaderboard cache updated")
   end
 end

@@ -351,7 +351,6 @@ class User < ApplicationRecord
       uid: auth.uid,
       email: auth.info.email,
       name: auth.info.name,
-      role: "user",  # Legacy column (still required by validation)
       password: SecureRandom.hex(32)
     )
 
@@ -423,7 +422,7 @@ class User < ApplicationRecord
 
   # Get the name of the primary role
   def primary_role_name
-    primary_role&.name || role
+    primary_role&.name || "user"
   end
 
   # Get the ID of the primary role

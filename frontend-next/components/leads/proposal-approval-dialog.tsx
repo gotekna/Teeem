@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,6 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  Search,
   X,
   Plus,
   User,
@@ -323,16 +323,12 @@ export function ProposalApprovalDialog({
           </div>
         ) : searchMode === mode ? (
           <div className="space-y-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder="Search by name or email..."
-                className="pl-9"
-                autoFocus
-              />
-            </div>
+            <SearchInput
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="Search by name or email..."
+              autoFocus
+            />
             {searching && <Spinner className="h-4 w-4" />}
             {searchResults.length > 0 && (
               <div className="border rounded-md max-h-48 overflow-y-auto">
@@ -408,16 +404,12 @@ export function ProposalApprovalDialog({
 
               {searchMode === "external_sales" && (
                 <div className="space-y-2 mb-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      value={searchQuery}
-                      onChange={(e) => handleSearchChange(e.target.value)}
-                      placeholder="Search by name or email..."
-                      className="pl-9"
-                      autoFocus
-                    />
-                  </div>
+                  <SearchInput
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    placeholder="Search by name or email..."
+                    autoFocus
+                  />
                   {searchResults.length > 0 && (
                     <div className="border rounded-md max-h-48 overflow-y-auto">
                       {searchResults.map((contact) => (

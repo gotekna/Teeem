@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Shield, User } from "lucide-react";
+import { Shield, User, Search } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -153,15 +153,12 @@ export function PermissionsTab() {
       <Card className="lg:col-span-1">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Users</CardTitle>
-          <div className="relative mt-2">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
-          </div>
+          <SearchInput
+            className="mt-2"
+            placeholder="Search users..."
+            value={searchTerm}
+            onChange={setSearchTerm}
+          />
         </CardHeader>
         <CardContent className="p-0">
           <ScrollArea className="h-[500px]">

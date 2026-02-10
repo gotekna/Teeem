@@ -14,7 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Save, Undo2, Search, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, Check, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp } from "lucide-react";
+import { Save, Undo2, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, Check, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -567,15 +568,12 @@ export function BillOfQuantities({
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 px-2 pb-3 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search items..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 h-8 w-64 text-sm"
-            />
-          </div>
+          <SearchInput
+            placeholder="Search items..."
+            value={searchTerm}
+            onChange={setSearchTerm}
+            inputClassName="h-8 w-64 text-sm"
+          />
           <Badge variant="secondary" className="text-xs whitespace-nowrap">
             {totals.totalLines} lines
           </Badge>

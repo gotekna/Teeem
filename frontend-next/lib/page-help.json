@@ -998,9 +998,9 @@
     },
     "/settings/connections": {
       "title": "Connections",
-      "description": "Manage integrations with external services (Storage, Email, Xero).",
-      "tips": ["Storage provider syncs documents to cloud", "Email integration syncs your inbox", "Xero connects accounting data"],
-      "tasks": ["Connect storage provider", "Add email account", "Link Xero organization", "Test connections"]
+      "description": "Manage integrations with external services (Storage, Email, Xero) and configure backups.",
+      "tips": ["Storage provider syncs documents to cloud", "Email integration syncs your inbox", "Xero connects accounting data", "Backups tab configures automatic storage mirroring to Backblaze B2"],
+      "tasks": ["Connect storage provider", "Add email account", "Link Xero organization", "Test connections", "Configure backup schedules and mirroring"]
     },
     "/settings/integrations": {
       "title": "Integrations",
@@ -1035,7 +1035,7 @@
     "/settings/system": {
       "title": "System Settings",
       "description": "Advanced system configuration for administrators.",
-      "tips": ["Navigation Manager controls sidebar menu", "AI Agents configure automated processing", "Scheduled Jobs show background task status"],
+      "tips": ["Navigation Manager controls sidebar menu", "AI Agents configure automated processing", "Scheduled Jobs show background task status", "Backups have moved to Settings > Connections > Backups"],
       "tasks": ["Manage navigation items", "Configure AI processing", "View scheduled job status", "Check system health"]
     },
     "/settings/developer": {

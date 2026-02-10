@@ -31,7 +31,7 @@ class SubcontractorActivationService
 
       # Send welcome email with credentials
       if send_welcome && contact.email.present?
-        # TODO: SubcontractorMailer.welcome_email(portal_user, temp_password).deliver_later
+        # TODO: Send welcome email with credentials via SubcontractorMailer
       end
 
       {
@@ -119,7 +119,7 @@ class SubcontractorActivationService
         subcontractor_account.update(metadata: metadata)
       end
 
-      # TODO: Send deactivation notification
+      # TODO: Send deactivation notification via SubcontractorMailer
 
       {
         success: true,
@@ -153,7 +153,7 @@ class SubcontractorActivationService
         subcontractor_account.update(metadata: metadata)
       end
 
-      # TODO: Send reactivation notification
+      # TODO: Send reactivation notification via SubcontractorMailer
 
       {
         success: true,
@@ -178,7 +178,7 @@ class SubcontractorActivationService
 
     token = portal_user.generate_reset_token!
 
-    # TODO: SubcontractorMailer.password_reset_email(portal_user, token).deliver_later
+    # TODO: Send password reset email via SubcontractorMailer
 
     {
       success: true,
@@ -239,7 +239,7 @@ class SubcontractorActivationService
       }
       subcontractor_account.update(metadata: metadata)
 
-      # TODO: Send upgrade confirmation email
+      # TODO: Send upgrade confirmation email via SubcontractorMailer
 
       {
         success: true,
@@ -308,7 +308,7 @@ class SubcontractorActivationService
     }
     contact.update(metadata: metadata)
 
-    # TODO: SubcontractorMailer.invitation_email(contact, invitation_token, invited_by).deliver_later
+    # TODO: Send invitation email via SubcontractorMailer
 
     {
       success: true,

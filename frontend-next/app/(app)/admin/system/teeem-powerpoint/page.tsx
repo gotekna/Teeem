@@ -30,11 +30,11 @@ import {
   PieChart,
   Briefcase,
   X,
-  Search,
   GripVertical,
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1481,15 +1481,12 @@ export default function TeeemPowerPointPage() {
             </PopoverTrigger>
             <PopoverContent className="w-72 p-2" align="end">
               <div className="space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    value={jobSearchTerm}
-                    onChange={(e) => setJobSearchTerm(e.target.value)}
-                    placeholder="Search jobs..."
-                    className="h-8 pl-7 text-sm"
-                  />
-                </div>
+                <SearchInput
+                  value={jobSearchTerm}
+                  onChange={setJobSearchTerm}
+                  placeholder="Search jobs..."
+                  inputClassName="h-8 pl-7 text-sm"
+                />
                 <div className="max-h-48 overflow-y-auto">
                   {loadingJobs ? (
                     <div className="flex items-center justify-center py-4">

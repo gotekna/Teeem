@@ -58,6 +58,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Search } from "lucide-react";
 import {
   Plus,
   Pencil,
@@ -73,9 +74,9 @@ import {
   Globe,
   User,
   Check,
-  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { useFoundationColumns } from "@/lib/column-state-atoms";
@@ -1802,12 +1803,11 @@ export function ViewManagerSheet({
                         </div>
                         {columnsExpanded && (
                           <div className="relative mb-3 shrink-0">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                            <Input
+                            <SearchInput
                               placeholder="Search columns..."
                               value={columnSearch}
-                              onChange={(e) => setColumnSearch(e.target.value)}
-                              className="h-8 pl-8 pr-8 text-sm"
+                              onChange={setColumnSearch}
+                              inputClassName="h-8 pr-8 text-sm"
                             />
                             {columnSearch && (
                               <button

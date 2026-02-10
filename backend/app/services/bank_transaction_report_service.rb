@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "hexapdf"
-
 # Generates a PDF bank statement report from Xero bank feed data.
 # Format matches standard bank statement layout with running balance.
 # Bank-specific branding applied based on account name.
@@ -138,6 +136,7 @@ class BankTransactionReportService
   end
 
   def build_pdf(transactions)
+    require "hexapdf"
     doc = HexaPDF::Document.new
 
     # Get account info - prefer BankAccount record (SSoT), fallback to first transaction

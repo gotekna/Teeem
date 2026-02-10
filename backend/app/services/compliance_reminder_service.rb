@@ -149,13 +149,8 @@ class ComplianceReminderService
   end
 
   def send_email(recipients, subject, body)
-    # TODO: Integrate with existing email service (ActionMailer or MicrosoftAppGraphClient)
-    # For now, log the email
+    # TODO: Integrate with ActionMailer or MicrosoftAppGraphClient
     Rails.logger.info("Email to #{recipients.join(', ')}: #{subject}")
-
-    # Example integration with ActionMailer:
-    # ComplianceMailer.reminder_email(recipients, subject, body).deliver_later
-
     true
   end
 end

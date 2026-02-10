@@ -12,12 +12,11 @@ import * as React from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   BookOpen,
-  Search,
   ChevronRight,
   Home,
   Menu,
@@ -231,17 +230,13 @@ export default function DocsPage() {
           </Button>
 
           {/* Search */}
-          <div className="flex-1 max-w-md relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              placeholder="Search documentation..."
-              className="pl-9"
-            />
-          </div>
+          <SearchInput
+            className="flex-1 max-w-md"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            placeholder="Search documentation..."
+          />
 
           <Button variant="outline" size="sm" onClick={handleSearch}>
             Search

@@ -21,8 +21,3 @@ export { BankAccountsTab } from "./BankAccountsTab";
 export { HealthTab } from "./HealthTab";
 export { TrustsTab } from "./TrustsTab";
 export { ConsolidationTab } from "./ConsolidationTab";
-
-// TODO: Export remaining components as they are extracted
-// export { CorporateTab } from "./CorporateTab";
-// export { DataTab } from "./DataTab";
-// export { DocumentsTab } from "./DocumentsTab";

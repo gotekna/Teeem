@@ -133,13 +133,10 @@ class AccountingIntegration < ApplicationRecord
   private
 
   def encrypt_tokens
-    # In production, implement proper encryption
-    # For now, storing as-is (tokens are already sensitive)
     # TODO: Add encryption with Rails encrypted credentials
   end
 
   def decrypt_tokens
-    # In production, implement proper decryption
-    # For now, reading as-is
+    # TODO: Add decryption with Rails encrypted credentials
   end
 end

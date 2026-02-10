@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Users,
   FileText,
@@ -24,7 +24,6 @@ import {
   Eye,
   Zap,
   HardDrive,
-  Search,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -988,15 +987,13 @@ export function XeroSyncStats() {
           </div>
           {/* Search input for large tenant lists */}
           {tenants.length > 5 && (
-            <div className="relative w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search organizations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 h-9"
-              />
-            </div>
+            <SearchInput
+              className="w-64"
+              placeholder="Search organizations..."
+              value={searchQuery}
+              onChange={setSearchQuery}
+              inputClassName="h-9"
+            />
           )}
         </div>
 
