@@ -3,6 +3,10 @@
 # Downloads pricebook photos from SharePoint, stores as deduplicated StorageBlobs
 # in S3/Wasabi, creates WarehouseDocuments, and links to PricebookItems.
 #
+# Unmatched photos are classified as either colour swatches (stored under
+# "Colour Swatches" folder) or unmatched product photos (stored under
+# "Pricebook Photos" folder without a pricebook item link).
+#
 # Usage:
 #   rails pricebook:photos:status                    # Show current state
 #   rails pricebook:photos:import                    # Import all photos
@@ -22,6 +26,71 @@ namespace :pricebook do
       tenant
     end
 
+    # Classify an unmatched photo as a colour swatch or product photo.
+    # Returns { type: :colour_swatch|:product_photo, brand:, colour_name: }
+    def classify_photo(filename)
+      base = File.basename(filename, File.extname(filename)).strip
+
+      # 512x512 pattern - Colorbond, Austral, roof profiles, designer ranges
+      if base.match?(/512\s*x?\s*512/i)
+        colour = base.gsub(/\s*-?\s*matt\s*fin[is]*h?\s*/i, "")
+                     .gsub(/\s*512\s*x?\s*512\s*/i, "")
+                     .gsub(/\s*-\s*\d+\s*/, "")       # hex codes like "- 000000"
+                     .gsub(/\s*\(\d+\)\s*$/, "")       # duplicate markers like "(1)"
+                     .strip
+
+        if base.match?(/austral/i)
+          brand = "Austral"
+          colour = colour.gsub(/austral[_ ]*/i, "").gsub(/_/, " ").strip
+        elsif base.match?(/exposed/i)
+          brand = "Roof Profile"
+          colour = colour.gsub(/-?exposed/i, "").strip
+        elsif (m = base.match(/(hamptons|horizons|beachcomber|daytona)/i))
+          brand = m[1].capitalize
+          colour = colour.gsub(/#{brand}\s*-?\s*/i, "").strip
+        else
+          brand = "Colorbond"
+        end
+
+        { type: :colour_swatch, brand: brand, colour_name: colour }
+
+      # Non-512x512 but known swatch patterns
+      elsif base.match?(/profile$/i)
+        colour = base.gsub(/\s*profile\s*$/i, "").strip
+        { type: :colour_swatch, brand: "Roof Profile", colour_name: colour }
+      elsif base.match?(/^austral/i)
+        colour = base.gsub(/^austral[_ ]*/i, "").strip
+        { type: :colour_swatch, brand: "Austral", colour_name: colour }
+      elsif base.match?(/polytec/i)
+        colour = base.gsub(/\s*-?\s*polytec\s*/i, "").strip
+        { type: :colour_swatch, brand: "Polytec", colour_name: colour }
+      elsif base.match?(/lithostonequartz/i)
+        { type: :colour_swatch, brand: "Lithostone", colour_name: base.gsub(/lithostonequartz/i, "").strip }
+      else
+        { type: :product_photo, brand: nil, colour_name: nil }
+      end
+    end
+
+    # Find or create the "Colour Swatches" WarehouseFolder
+    def find_or_create_colour_swatch_folder(warehouse_type)
+      folder = WarehouseFolder.for_warehouse_type("warehouse")
+                              .find_by("LOWER(name) LIKE ?", "%colour%swatch%")
+      unless folder
+        folder = WarehouseFolder.create!(
+          warehouse_type: warehouse_type,
+          name: "Colour Swatches",
+          folder_segment: "Colour Swatches",
+          tab_type: "photo",
+          tab_group: "documents",
+          is_photo_category: true,
+          enabled: true,
+          description: "Material colour swatches (Colorbond, Austral, Roof Profiles, etc.)"
+        )
+        puts "Created WarehouseFolder: #{folder.name} (ID: #{folder.id})"
+      end
+      folder
+    end
+
     desc "Show current pricebook photo migration status"
     task status: :environment do
       ActsAsTenant.with_tenant(pricebook_tenant) do
@@ -32,6 +101,8 @@ namespace :pricebook do
 
         # WarehouseDocument stats
         pricebook_docs = WarehouseDocument.where("metadata->>'category' = ?", "pricebook_photo").count
+        colour_swatch_docs = WarehouseDocument.where("metadata->>'category' = ?", "colour_swatch").count
+        unmatched_product_docs = WarehouseDocument.where("metadata->>'category' = ?", "unmatched_product").count
 
         puts "=" * 60
         puts "PRICEBOOK PHOTO MIGRATION STATUS"
@@ -45,6 +116,8 @@ namespace :pricebook do
         puts
         puts "WarehouseDocuments:"
         puts "  Pricebook photos:          #{pricebook_docs}"
+        puts "  Colour swatches:           #{colour_swatch_docs}"
+        puts "  Unmatched products:        #{unmatched_product_docs}"
         puts
         puts "=" * 60
       end
@@ -63,15 +136,16 @@ namespace :pricebook do
         puts "=" * 60
         puts
 
-        # 1. Look up or create WarehouseFolder (SSoT for folder_path)
+        # 1. Look up or create WarehouseFolders (SSoT for folder_path)
+        wt = WarehouseType.find_by_code("warehouse")
+        unless wt
+          puts "ERROR: 'warehouse' WarehouseType not found!"
+          exit 1
+        end
+
         pricebook_wf = WarehouseFolder.for_warehouse_type("warehouse")
                                       .find_by("LOWER(name) LIKE ?", "%pricebook%photo%")
         unless pricebook_wf
-          wt = WarehouseType.find_by_code("warehouse")
-          unless wt
-            puts "ERROR: 'warehouse' WarehouseType not found!"
-            exit 1
-          end
           pricebook_wf = WarehouseFolder.create!(
             warehouse_type: wt,
             name: "Pricebook Photos",
@@ -85,6 +159,9 @@ namespace :pricebook do
           puts "Created WarehouseFolder: #{pricebook_wf.name} (ID: #{pricebook_wf.id})"
         end
         puts "WarehouseFolder: #{pricebook_wf.name} (ID: #{pricebook_wf.id})"
+
+        colour_swatch_wf = find_or_create_colour_swatch_folder(wt)
+        puts "WarehouseFolder: #{colour_swatch_wf.name} (ID: #{colour_swatch_wf.id})"
         puts
 
         # 2. Connect to SharePoint
@@ -134,7 +211,8 @@ namespace :pricebook do
           docs_existed: 0,
           items_linked: 0,
           matched: 0,
-          unmatched: 0,
+          colour_swatches: 0,
+          unmatched_products: 0,
           errors: 0,
           skipped_qr: 0
         }
@@ -158,21 +236,66 @@ namespace :pricebook do
               matched_item = match_result[:item]
               strategy = match_result[:match_strategy]
               confidence = match_result[:confidence]
+              category = "pricebook_photo"
+              target_folder = pricebook_wf
+              doc_metadata = {
+                "sharepoint_item_id" => photo[:id],
+                "sharepoint_web_url" => photo[:web_url],
+                "category" => category,
+                "match_strategy" => strategy,
+                "match_confidence" => confidence
+              }
             else
-              stats[:unmatched] += 1
-              unmatched_files << photo[:name]
+              # Classify unmatched photos as colour swatches or product photos
+              classification = classify_photo(photo[:name])
               matched_item = nil
-              strategy = "none"
-              confidence = "none"
+
+              if classification[:type] == :colour_swatch
+                stats[:colour_swatches] += 1
+                category = "colour_swatch"
+                target_folder = colour_swatch_wf
+                strategy = "colour_swatch"
+                confidence = "auto"
+                doc_metadata = {
+                  "sharepoint_item_id" => photo[:id],
+                  "sharepoint_web_url" => photo[:web_url],
+                  "category" => category,
+                  "brand" => classification[:brand],
+                  "colour_name" => classification[:colour_name],
+                  "match_strategy" => strategy,
+                  "match_confidence" => confidence
+                }
+              else
+                stats[:unmatched_products] += 1
+                unmatched_files << photo[:name]
+                category = "unmatched_product"
+                target_folder = pricebook_wf
+                strategy = "none"
+                confidence = "none"
+                doc_metadata = {
+                  "sharepoint_item_id" => photo[:id],
+                  "sharepoint_web_url" => photo[:web_url],
+                  "category" => category,
+                  "match_strategy" => strategy,
+                  "match_confidence" => confidence
+                }
+              end
             end
 
             if dry_run
-              status = matched_item ? "MATCH (#{strategy}/#{confidence}) → #{matched_item.item_code}" : "NO MATCH"
+              case category
+              when "pricebook_photo"
+                status = "MATCH (#{strategy}/#{confidence}) → #{matched_item.item_code}"
+              when "colour_swatch"
+                status = "SWATCH [#{classification[:brand]}] #{classification[:colour_name]}"
+              else
+                status = "UNMATCHED PRODUCT"
+              end
               puts "  [DRY] #{photo[:name]} → #{status}"
               next
             end
 
-            # Download from SharePoint
+            # Download from SharePoint (ALL photos get stored)
             content = client.get_drive_item_content(drive_id: drive_id, item_id: photo[:id])
             stats[:downloaded] += 1
 
@@ -194,23 +317,16 @@ namespace :pricebook do
             doc = WarehouseDocumentCreator.find_or_create!(
               find_by: {
                 source_type: "warehouse",
-                linkable: matched_item,
                 metadata_match: { "sharepoint_item_id" => photo[:id] }
               },
               filename: photo[:name],
               source_type: "warehouse",
               storage_blob: blob,
               linkable: matched_item,
-              warehouse_folder_id: pricebook_wf.id,
+              warehouse_folder_id: target_folder.id,
               file_size: content.bytesize,
               content_type: content_type,
-              metadata: {
-                "sharepoint_item_id" => photo[:id],
-                "sharepoint_web_url" => photo[:web_url],
-                "category" => "pricebook_photo",
-                "match_strategy" => strategy,
-                "match_confidence" => confidence
-              }
+              metadata: doc_metadata
             )
 
             if doc.previously_new_record? || doc.created_at > 1.minute.ago
@@ -220,7 +336,7 @@ namespace :pricebook do
               stats[:docs_existed] += 1
             end
 
-            # Link blob to PricebookItem
+            # Link blob to PricebookItem (only for matched product photos)
             if matched_item && matched_item.image_storage_blob_id != blob.id
               matched_item.update!(
                 image_storage_blob_id: blob.id,
@@ -231,7 +347,14 @@ namespace :pricebook do
               stats[:items_linked] += 1
             end
 
-            status = matched_item ? "→ #{matched_item.item_code} (#{strategy})" : "NO MATCH"
+            case category
+            when "pricebook_photo"
+              status = "→ #{matched_item.item_code} (#{strategy})"
+            when "colour_swatch"
+              status = "→ Colour Swatch [#{doc_metadata["brand"]}] #{doc_metadata["colour_name"]}"
+            else
+              status = "→ Unmatched product (stored)"
+            end
             puts "  [#{idx + 1}/#{photos.size}] #{photo[:name]} #{status}"
 
           rescue => e
@@ -242,7 +365,7 @@ namespace :pricebook do
 
           # Progress log every 10 items
           if (idx + 1) % 10 == 0
-            puts "  --- Progress: #{idx + 1}/#{photos.size} (#{stats[:matched]} matched, #{stats[:errors]} errors) ---"
+            puts "  --- Progress: #{idx + 1}/#{photos.size} (#{stats[:matched]} matched, #{stats[:colour_swatches]} swatches, #{stats[:errors]} errors) ---"
           end
 
           # Rate limit to avoid SharePoint throttling
@@ -257,7 +380,8 @@ namespace :pricebook do
         puts "Files processed:       #{stats[:processed]}"
         puts "QR codes skipped:      #{stats[:skipped_qr]}"
         puts "Matched to items:      #{stats[:matched]}"
-        puts "Unmatched:             #{stats[:unmatched]}"
+        puts "Colour swatches:       #{stats[:colour_swatches]}"
+        puts "Unmatched products:    #{stats[:unmatched_products]}"
         unless dry_run
           puts "Downloaded:            #{stats[:downloaded]}"
           puts "Blobs created (new):   #{stats[:blobs_created]}"
@@ -270,7 +394,8 @@ namespace :pricebook do
         puts
 
         if unmatched_files.any?
-          puts "UNMATCHED FILES (#{unmatched_files.size}):"
+          puts "UNMATCHED PRODUCT PHOTOS (#{unmatched_files.size}):"
+          puts "(These are stored under Pricebook Photos without a pricebook item link)"
           unmatched_files.each { |f| puts "  - #{f}" }
           puts
         end

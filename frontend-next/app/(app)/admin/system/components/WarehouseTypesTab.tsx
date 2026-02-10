@@ -221,6 +221,16 @@ export function WarehouseTypesTab() {
     setIsDialogOpen(true);
   };
 
+  // SSoT: folder_path_template stores the full path (e.g., "User/{{UserName}}")
+  // but the editor shows display_name as a greyed-out prefix, so we strip
+  // the first segment on load and prepend display_name on save.
+  const stripRootSegment = (template: string) => {
+    if (!template) return "";
+    const slashIdx = template.indexOf("/");
+    if (slashIdx === -1) return ""; // Single segment = just the root, suffix is empty
+    return template.slice(slashIdx + 1);
+  };
+
   const openEditDialog = async (type: WarehouseType) => {
     setEditingType(type);
 
@@ -229,7 +239,7 @@ export function WarehouseTypesTab() {
       display_name: type.display_name,
       description: type.description || "",
       icon_name: type.icon_name || "",
-      folder_path_template: type.folder_path_template || "",
+      folder_path_template: stripRootSegment(type.folder_path_template || ""),
       enabled: type.enabled,
       order_position: type.order_position,
     });
@@ -303,6 +313,13 @@ export function WarehouseTypesTab() {
     if (e) e.preventDefault();
 
     const dataToSave = { ...formData };
+
+    // SSoT: Reconstruct full folder_path_template by prepending display_name
+    // Editor only stores the suffix (e.g., "{{UserName}}"), we prepend root (e.g., "User")
+    const suffix = dataToSave.folder_path_template?.trim();
+    dataToSave.folder_path_template = suffix
+      ? `${dataToSave.display_name}/${suffix}`
+      : dataToSave.display_name;
 
     // Update warehouse folder assignments using the dedicated endpoint
     // This handles BOTH adding AND removing folders from this warehouse type
@@ -591,13 +608,15 @@ export function WarehouseTypesTab() {
                 <TableCell className="font-mono text-xs text-muted-foreground align-top py-2">
                   {(() => {
                     const tpl = type.folder_path_template;
-                    if (!tpl) return "-";
+                    if (!tpl) return <span className="opacity-50">{type.display_name}/</span>;
                     const slashIdx = tpl.indexOf('/');
-                    if (slashIdx === -1) return tpl;
+                    if (slashIdx === -1) return <span className="opacity-50">{type.display_name}/</span>;
+                    // SSoT: Show display_name as the root (greyed), then the suffix tokens
+                    const suffix = tpl.slice(slashIdx);
                     return (
                       <>
-                        <span className="opacity-50">{tpl.slice(0, slashIdx)}</span>
-                        {tpl.slice(slashIdx)}
+                        <span className="opacity-50">{type.display_name}</span>
+                        {suffix}
                       </>
                     );
                   })()}
@@ -791,6 +810,7 @@ export function WarehouseTypesTab() {
                 scope={getWarehouseScopeForType(formData.code)}
                 separator="/"
                 showPreview
+                prefixValue={formData.display_name}
               />
 
               {/* Warehouse Folders - Tree View (only show when editing, hidden for corporate/job/contact - managed via their own config pages) */}

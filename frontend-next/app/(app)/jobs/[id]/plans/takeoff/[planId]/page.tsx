@@ -1201,7 +1201,7 @@ export default function TakeoffPage() {
       <div className="flex flex-col items-center justify-center h-screen gap-4">
         <p className="text-lg font-medium text-destructive">Failed to load plan</p>
         <p className="text-sm text-muted-foreground">{planError}</p>
-        <Button onClick={() => router.back()}>Go Back</Button>
+        <BackButton fallbackHref="/jobs" />
       </div>
     );
   }

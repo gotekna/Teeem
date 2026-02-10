@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 
 import {
   Select,
@@ -18,7 +19,6 @@ import {
   Folder,
   File,
   Image as ImageIcon,
-  Search,
   List,
   LayoutGrid,
   FolderTree,
@@ -918,14 +918,8 @@ export default function AllDocumentsPage() {
 
           <div className="flex items-center gap-2">
             {/* Search */}
-            <div className="relative w-64" data-tour="warehouse-search">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search documents..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
+            <div data-tour="warehouse-search">
+              <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search documents..." className="w-64" />
             </div>
 
             {/* View Mode Toggle */}
@@ -1764,18 +1758,14 @@ export default function AllDocumentsPage() {
                     : "Search for a task to link this document to."}
                 </p>
 
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search tasks by name or number..."
-                    value={linkToTaskSearch}
-                    onChange={(e) => {
-                      setLinkToTaskSearch(e.target.value);
-                      searchTasksForLink(e.target.value);
-                    }}
-                    className="pl-9"
-                  />
-                </div>
+                <SearchInput
+                  value={linkToTaskSearch}
+                  onChange={(value) => {
+                    setLinkToTaskSearch(value);
+                    searchTasksForLink(value);
+                  }}
+                  placeholder="Search tasks by name or number..."
+                />
 
                 {linkToTaskResults.length > 0 && (
                   <div className="border rounded-md max-h-60 overflow-auto">

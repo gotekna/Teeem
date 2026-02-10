@@ -1066,13 +1066,14 @@ module Api
         tokens
       end
 
-      # SSoT (Feb 2026): No cascade needed - paths are computed dynamically
-      # When warehouse_type.folder_path_template changes, all related warehouse_folder
-      # paths automatically update because full_folder_path is computed at runtime
-      # from: warehouse_type.folder_path_template + parent_chain_segments + folder_segment
-      def cascade_template_change(_old_template, _new_template)
-        # No-op: paths are computed dynamically, no sync needed
-        # Kept as placeholder for any future cascade logic
+      # SSoT (Feb 2026): Rematerialize document paths when template changes.
+      # Uses the same RecomputeWarehouseTypePathsJob that WarehouseFolder changes use.
+      def cascade_template_change(old_template, new_template)
+        return if old_template == new_template
+        return unless current_tenant&.id
+
+        RecomputeWarehouseTypePathsJob.perform_later(@warehouse_type.id, current_tenant.id)
+        Rails.logger.info("[WarehouseTypes] Template changed '#{old_template}' → '#{new_template}': queued path recompute for WT##{@warehouse_type.id}")
       end
 
       # ═══════════════════════════════════════════════════════════════════════════

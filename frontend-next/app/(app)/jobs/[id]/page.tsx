@@ -383,7 +383,6 @@ interface JobStage {
   name: string;
 }
 
-// Static tabs removed - now using dynamic tabs from useJobTabs hook
 
 function getStageBadgeVariant(stage: string): "default" | "secondary" | "outline" {
   switch (stage?.toLowerCase()) {
