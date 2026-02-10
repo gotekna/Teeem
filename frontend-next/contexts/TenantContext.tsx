@@ -3,7 +3,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
-import { getStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 // Tenant types
 export interface Tenant {
@@ -142,59 +141,10 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
       console.log('[TenantSwitch] API response:', response);
 
       if (response?.success && response?.tenant) {
-        const tenant = response.tenant;
-        const targetEnv = tenant.environment;
-        const currentHost = window.location.hostname;
-
-        // ════════════════════════════════════════════════════════════════════
-        // CROSS-ENVIRONMENT REDIRECT
-        // When switching to a tenant in a different environment, redirect to
-        // that environment's frontend URL instead of just reloading.
-        // URLs are now DYNAMIC from backend SSoT (CorporateSetting)
-        // ════════════════════════════════════════════════════════════════════
-
-        // Determine current environment from hostname
-        const isOnStaging = currentHost.includes('staging') || currentHost.includes('localhost');
-        const isOnBeta = currentHost.includes('beta');
-        const isOnProduction = currentHost === 'teeem.vercel.app' ||
-                              (currentHost.includes('teeem') && !isOnStaging && !isOnBeta);
-
-        // Check if we need to redirect to a different environment
-        const needsRedirect = (
-          (targetEnv === 'staging' && !isOnStaging) ||
-          (targetEnv === 'beta' && !isOnBeta) ||
-          (targetEnv === 'production' && !isOnProduction)
-        );
-
-        if (needsRedirect && tenant.frontendUrl) {
-          console.log(`[TenantSwitch] Environment change: ${targetEnv} - redirecting to ${tenant.frontendUrl}`);
-
-          // Get the current token from localStorage to pass to the new frontend
-          // (localStorage is per-domain, so we need to pass the token in the URL)
-          const currentToken = getStorageItem<string>(STORAGE_KEYS.TOKEN, '');
-
-          // Build redirect URL with token for cross-domain authentication
-          // URLs are DYNAMIC from backend SSoT - no hardcoded values
-          const redirectUrl = new URL('/login', tenant.frontendUrl);
-          if (currentToken) {
-            redirectUrl.searchParams.set('token', currentToken);
-          }
-          redirectUrl.searchParams.set('redirect', window.location.pathname);
-
-          // Pass the target API URL from backend SSoT
-          if (tenant.apiUrl) {
-            redirectUrl.searchParams.set('api_url', tenant.apiUrl);
-          }
-          redirectUrl.searchParams.set('environment', targetEnv);
-
-          console.log(`[TenantSwitch] Redirecting to: ${redirectUrl.toString()}`);
-          window.location.href = redirectUrl.toString();
-          return true;
-        }
-
-        // Same environment - just reload
-        console.log('[TenantSwitch] Same environment - reloading page');
-        setCurrentTenant(tenant);
+        // All tenants share the same deployment - just set state and reload.
+        // The backend cookie (admin_tenant_id) handles the context switch.
+        console.log(`[TenantSwitch] Success: switched to ${response.tenant.name} (id=${response.tenant.id}) - reloading`);
+        setCurrentTenant(response.tenant);
         window.location.reload();
         return true;
       } else {

@@ -12,8 +12,8 @@
     "Pricebook List": { "lcp": 1232, "cls": 0.00 },
     "Email List": { "lcp": 896, "cls": 0.00 },
     "Tasks List": { "lcp": 994, "cls": 0.00 },
-    "Tasks > Mine": { "api_ms": 6314, "status": "FAIL", "note": "GET /api/v1/sm_tasks?mine=true x-runtime 6.3s" },
-    "Tasks > All": { "api_ms": 6000, "status": "FAIL", "note": "GET /api/v1/sm_tasks x-runtime ~6s, same N+1 bottleneck" }
+    "Tasks > Mine": { "api_ms": 934, "status": "PASS", "note": "GET /api/v1/sm_tasks?mine=true x-runtime 0.93s (was 6.3s, fixed Feb 2026)" },
+    "Tasks > All": { "api_ms": 934, "status": "PASS", "note": "GET /api/v1/sm_tasks x-runtime ~0.9s (was 6s, same fixes)" }
   },
   "backend": {
     "server_error_rate": 0.00,
