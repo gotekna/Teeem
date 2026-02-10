@@ -244,7 +244,61 @@ export function TenantSyncPullTab() {
     }
   };
 
-  // Handle pull ALL tables one-by-one with live progress
+  // Batch size for large tables (prevents Heroku 30s timeout)
+  const BATCH_SIZE = 500;
+
+  // Pull a single table, auto-batching if needed
+  const pullOneTable = async (tableKey: string): Promise<{
+    imported: number; updated: number; skipped: number;
+    total: number; source?: string; error?: string;
+  }> => {
+    type PullResponse = {
+      success: boolean; table: string;
+      imported: number; updated: number; skipped: number;
+      total: number; total_records: number;
+      has_more: boolean; next_offset?: number;
+      source?: string; error?: string; message?: string;
+    };
+
+    let totalImported = 0, totalUpdated = 0, totalSkipped = 0, totalProcessed = 0;
+    let totalRecords = 0;
+    let source: string | undefined;
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await api.post<PullResponse>(
+        "/api/v1/config_sync/pull_one_table",
+        { table: tableKey, batch_size: BATCH_SIZE, offset }
+      );
+
+      if (!response?.success) {
+        return { imported: totalImported, updated: totalUpdated, skipped: totalSkipped, total: totalProcessed, source, error: response?.error || "Unknown error" };
+      }
+
+      totalImported += response.imported || 0;
+      totalUpdated += response.updated || 0;
+      totalSkipped += response.skipped || 0;
+      totalProcessed += response.total || 0;
+      totalRecords = response.total_records || totalProcessed;
+      source = response.source;
+      hasMore = response.has_more;
+      offset = response.next_offset || 0;
+
+      // Update progress text to show batch progress for large tables
+      if (hasMore || totalRecords > BATCH_SIZE) {
+        setTableSyncStatus((prev) => ({ ...prev, [tableKey]: "syncing" }));
+        setPullAllProgress((prev) => prev ? {
+          ...prev,
+          currentTable: `${prev.currentTable.split(" (")[0]} (${totalProcessed.toLocaleString()}/${totalRecords.toLocaleString()})`,
+        } : null);
+      }
+    }
+
+    return { imported: totalImported, updated: totalUpdated, skipped: totalSkipped, total: totalRecords, source };
+  };
+
+  // Handle pull ALL tables one-by-one with live progress + auto-batching
   const handlePullAll = async () => {
     try {
       setPullingAll(true);
@@ -271,42 +325,20 @@ export function TenantSyncPullTab() {
         setTableSyncStatus((prev) => ({ ...prev, [table.key]: "syncing" }));
 
         try {
-          const response = await api.post<{
-            success: boolean;
-            table: string;
-            imported: number;
-            updated: number;
-            skipped: number;
-            total: number;
-            source?: string;
-            error?: string;
-            message?: string;
-          }>("/api/v1/config_sync/pull_one_table", { table: table.key });
+          const result = await pullOneTable(table.key);
 
-          if (response?.success) {
-            const imported = response.imported || 0;
-            const updated = response.updated || 0;
-            const skipped = response.skipped || 0;
+          allResults[table.key] = result;
+          totalImported += result.imported;
+          totalUpdated += result.updated;
+          totalSkipped += result.skipped;
 
-            allResults[table.key] = {
-              imported, updated, skipped,
-              total: response.total || 0,
-              source: response.source,
-            };
-            totalImported += imported;
-            totalUpdated += updated;
-            totalSkipped += skipped;
-
+          if (result.error) {
+            setTableSyncStatus((prev) => ({ ...prev, [table.key]: "error" }));
+          } else {
             setTableSyncStatus((prev) => ({
               ...prev,
-              [table.key]: (imported > 0 || updated > 0) ? "done" : "skipped",
+              [table.key]: (result.imported > 0 || result.updated > 0) ? "done" : "skipped",
             }));
-          } else {
-            allResults[table.key] = {
-              imported: 0, updated: 0, skipped: 0, total: 0,
-              error: response?.error || "Unknown error",
-            };
-            setTableSyncStatus((prev) => ({ ...prev, [table.key]: "error" }));
           }
         } catch (tableErr) {
           allResults[table.key] = {

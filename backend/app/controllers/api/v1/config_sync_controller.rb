@@ -201,6 +201,8 @@ module Api
       #
       # Params:
       #   table: string - config table key (e.g. "job_types")
+      #   batch_size: integer - optional, process N records at a time (default: all)
+      #   offset: integer - optional, skip first N IDs (for batching)
       def pull_one_table
         table = params[:table]&.to_sym
         table_config = TenantConfigSyncService::CONFIG_TABLES[table]
@@ -211,13 +213,16 @@ module Api
         service = TenantConfigSyncService.new(current_tenant)
         is_master = current_tenant&.is_master_tenant? || false
         model = table_config[:model].constantize
+        batch_size = params[:batch_size]&.to_i
+        offset = params[:offset]&.to_i || 0
 
         if is_master
           # Master tenant: skip contacts and contact_types
           if table.in?([:contacts, :contact_types])
             return render json: {
               success: true, table: table.to_s,
-              imported: 0, updated: 0, skipped: 0, total: 0,
+              imported: 0, updated: 0, skipped: 0, total: 0, total_records: 0,
+              has_more: false,
               message: "Skipped (master imports contacts via price_histories)"
             }
           end
@@ -238,7 +243,8 @@ module Api
           unless best_source && best_count > 0
             return render json: {
               success: true, table: table.to_s,
-              imported: 0, updated: 0, skipped: 0, total: 0,
+              imported: 0, updated: 0, skipped: 0, total: 0, total_records: 0,
+              has_more: false,
               message: "No source records found"
             }
           end
@@ -254,15 +260,32 @@ module Api
           if all_ids.empty?
             return render json: {
               success: true, table: table.to_s,
-              imported: 0, updated: 0, skipped: 0, total: 0,
+              imported: 0, updated: 0, skipped: 0, total: 0, total_records: 0,
+              has_more: false,
               source: best_source.name, message: "All FK-filtered out"
+            }
+          end
+
+          total_records = all_ids.length
+          batch_ids = if batch_size && batch_size > 0
+            all_ids.sort[offset, batch_size] || []
+          else
+            all_ids
+          end
+          has_more = batch_size && batch_size > 0 && (offset + batch_size) < total_records
+
+          if batch_ids.empty?
+            return render json: {
+              success: true, table: table.to_s,
+              imported: 0, updated: 0, skipped: 0, total: 0, total_records: total_records,
+              has_more: false, source: best_source.name
             }
           end
 
           result = service.import_from_tenant(
             source_tenant: best_source,
             table: table.to_s,
-            record_ids: all_ids
+            record_ids: batch_ids
           )
 
           render json: {
@@ -270,7 +293,10 @@ module Api
             imported: result[:imported]&.length || 0,
             updated: 0,
             skipped: result[:skipped]&.length || 0,
-            total: all_ids.length,
+            total: batch_ids.length,
+            total_records: total_records,
+            has_more: has_more,
+            next_offset: has_more ? offset + batch_size : nil,
             source: best_source.name
           }
         else
@@ -280,14 +306,31 @@ module Api
           if all_ids.empty?
             return render json: {
               success: true, table: table.to_s,
-              imported: 0, updated: 0, skipped: 0, total: 0,
+              imported: 0, updated: 0, skipped: 0, total: 0, total_records: 0,
+              has_more: false,
               message: "No master records"
+            }
+          end
+
+          total_records = all_ids.length
+          batch_ids = if batch_size && batch_size > 0
+            all_ids.sort[offset, batch_size] || []
+          else
+            all_ids
+          end
+          has_more = batch_size && batch_size > 0 && (offset + batch_size) < total_records
+
+          if batch_ids.empty?
+            return render json: {
+              success: true, table: table.to_s,
+              imported: 0, updated: 0, skipped: 0, total: 0, total_records: total_records,
+              has_more: false
             }
           end
 
           result = service.pull_from_master(
             table: table.to_s,
-            record_ids: all_ids,
+            record_ids: batch_ids,
             mode: :replace_existing
           )
 
@@ -296,7 +339,10 @@ module Api
             imported: result[:imported]&.length || 0,
             updated: result[:updated]&.length || 0,
             skipped: result[:skipped]&.length || 0,
-            total: all_ids.length
+            total: batch_ids.length,
+            total_records: total_records,
+            has_more: has_more,
+            next_offset: has_more ? offset + batch_size : nil
           }
         end
       rescue => e
