@@ -70,7 +70,7 @@ export function TenantSyncPullTab() {
   const [pullingAll, setPullingAll] = useState(false);
   const [pullAllResult, setPullAllResult] = useState<{
     totals: { imported: number; updated: number; skipped: number; tables_processed: number };
-    results: Record<string, { imported: number; updated: number; skipped: number; total: number; error?: string }>;
+    results: Record<string, { imported: number; updated: number; skipped: number; total: number; error?: string; source?: string }>;
   } | null>(null);
 
   // Fetch available tables on mount
@@ -338,9 +338,10 @@ export function TenantSyncPullTab() {
                     {result.error ? (
                       <Badge variant="destructive" className="text-xs">Error</Badge>
                     ) : (
-                      <span className="text-xs">
-                        {result.imported > 0 && <span className="text-green-600 mr-2">+{result.imported}</span>}
-                        {result.updated > 0 && <span className="text-blue-600 mr-2">{result.updated} updated</span>}
+                      <span className="text-xs flex items-center gap-2">
+                        {result.source && <span className="text-muted-foreground">from {result.source}</span>}
+                        {result.imported > 0 && <span className="text-green-600">+{result.imported}</span>}
+                        {result.updated > 0 && <span className="text-blue-600">{result.updated} updated</span>}
                         {result.imported === 0 && result.updated === 0 && <span className="text-muted-foreground">no changes</span>}
                       </span>
                     )}
