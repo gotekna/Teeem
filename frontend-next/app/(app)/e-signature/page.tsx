@@ -7,7 +7,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -28,7 +27,6 @@ import {
 import {
   FileSignature,
   Plus,
-  Search,
   Clock,
   CheckCircle2,
   XCircle,
@@ -37,6 +35,7 @@ import {
   Users,
   FileText,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 
@@ -146,15 +145,7 @@ export default function ESignaturePage() {
 
       {/* Filters */}
       <div className="px-6 py-3 border-b shrink-0 flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search requests..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search requests..." className="flex-1 max-w-sm" />
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Filter by status" />

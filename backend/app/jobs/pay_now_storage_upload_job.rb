@@ -44,7 +44,8 @@ class PayNowStorageUploadJob < ApplicationJob
   private
 
   def upload_invoice_file(request)
-    folder_path = "/Warehousing/PayNowRequests/#{request.created_at.strftime('%Y-%m')}/Invoices"
+    wt_root = WarehouseType.find_by_code("warehouse")&.folder_path_template.presence || "Warehouse"
+    folder_path = "/#{wt_root}/PayNowRequests/#{request.created_at.strftime('%Y-%m')}/Invoices"
     filename = request.invoice_file.filename.to_s
     content = request.invoice_file.download
 
@@ -58,7 +59,8 @@ class PayNowStorageUploadJob < ApplicationJob
   end
 
   def upload_proof_photos(request)
-    folder_path = "/Warehousing/PayNowRequests/#{request.created_at.strftime('%Y-%m')}/ProofPhotos/#{request.id}"
+    wt_root = WarehouseType.find_by_code("warehouse")&.folder_path_template.presence || "Warehouse"
+    folder_path = "/#{wt_root}/PayNowRequests/#{request.created_at.strftime('%Y-%m')}/ProofPhotos/#{request.id}"
     get_or_create_folder_path(folder_path)
 
     ids = []

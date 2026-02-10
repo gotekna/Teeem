@@ -20,7 +20,6 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
@@ -45,12 +44,12 @@ import {
   Users,
   Building2,
   Briefcase,
-  Search,
   ExternalLink,
   Plus,
   Trash2,
   User,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
 
@@ -727,15 +726,11 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
 
             <div className="space-y-2">
               <Label>Search Contact</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name, email, or company..."
-                  value={contactSearchQuery}
-                  onChange={(e) => setContactSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+              <SearchInput
+                value={contactSearchQuery}
+                onChange={setContactSearchQuery}
+                placeholder="Search by name, email, or company..."
+              />
             </div>
             {searchingContacts && (
               <div className="flex items-center justify-center py-4">

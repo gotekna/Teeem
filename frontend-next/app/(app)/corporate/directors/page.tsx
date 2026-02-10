@@ -4,19 +4,18 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Users,
-  Search,
   Building2,
   Mail,
   Phone,
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
@@ -140,15 +139,7 @@ export default function DirectorsPage() {
       {/* Search */}
       <Card>
         <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name, email, or TFN..."
-              className="pl-9"
-            />
-          </div>
+          <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search by name, email, or TFN..." />
         </CardContent>
       </Card>
 

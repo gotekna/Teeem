@@ -53,7 +53,7 @@ import { CreateTaskDialog } from "@/components/task-hub/CreateTaskDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-// Note: useMicrosoftAutoReconnect removed - now using org-level credentials
+
 
 // Microsoft 365 icon component
 function Microsoft365Icon({ className }: { className?: string }) {
@@ -314,9 +314,6 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       fetchingRef.current = false;
     };
   }, []);
-
-  // Note: Auto-reconnect hook was for user-level OAuth, now we use org-level credentials
-  // The useMicrosoftAutoReconnect hook can be removed in a future cleanup
 
   // Helper to get color classes based on connection status
   const getStatusColors = (status: ConnectionStatus) => {

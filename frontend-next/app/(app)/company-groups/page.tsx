@@ -4,7 +4,6 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
@@ -12,11 +11,11 @@ import {
   ChevronRight,
   ChevronDown,
   Plus,
-  Search,
   Users,
   DollarSign,
   FileText,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { isTrust } from "@/lib/entity-types";
@@ -533,15 +532,7 @@ export default function CompanyGroupsPage() {
         <Card className="flex-1 flex flex-col min-h-0">
           {/* Toolbar */}
           <div className="border-b px-4 py-3 flex items-center gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search companies..."
-                className="pl-9"
-              />
-            </div>
+            <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search companies..." className="flex-1 max-w-md" />
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={expandAll}>
                 Expand All
