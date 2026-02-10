@@ -74,7 +74,6 @@ class BackfillImapEmailBlobsJob < ApplicationJob
       end
     end
 
-    puts ""
     Rails.logger.info "[BackfillImapBlobs] Completed: #{total_uploaded} uploaded, #{total_errors} errors"
 
     # Check if more work remains

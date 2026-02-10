@@ -35,7 +35,7 @@ module Api
       # Use ?show_claims=true to show claim tasks (hidden by default in templates)
       def gantt_data
         all_records = @template.sm_schedule_master_rows.in_sequence.includes(:po_supplier).to_a
-        puts "[gantt_data] Template: #{@template.name}, Total records: #{all_records.count}, show_all_po: '#{params[:show_all_po]}', show_claims: '#{params[:show_claims]}'"
+        Rails.logger.debug "[gantt_data] Template: #{@template.name}, Total records: #{all_records.count}, show_all_po: '#{params[:show_all_po]}', show_claims: '#{params[:show_claims]}'"
 
         # SSoT: Calculate dates from ALL records FIRST (before filtering)
         # This ensures the dependency chain is complete for accurate date calculations
@@ -45,7 +45,7 @@ module Api
         # This ensures the lookup map is complete for dependency rewiring
         filter_po = params[:show_all_po] != "true"
         filter_claims = params[:show_claims] != "true"
-        puts "[gantt_data] filter_po_tasks: #{filter_po}, filter_claim_tasks: #{filter_claims}"
+        Rails.logger.debug "[gantt_data] filter_po_tasks: #{filter_po}, filter_claim_tasks: #{filter_claims}"
 
         service = GanttDataService.new(all_records, date_overrides: date_overrides, filter_po_tasks: filter_po, filter_claim_tasks: filter_claims)
         result = service.build_response
