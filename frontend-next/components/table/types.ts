@@ -160,6 +160,12 @@ export interface TeeemTableViewProps {
   extraRowProps?: Record<string, unknown>;
   extraColumns?: TableColumn[]; // Additional columns appended after Foundation columns (for dynamic/computed columns)
 
+  // Record CRUD modal extension points
+  createDialogRenderExtra?: () => React.ReactNode; // Extra content rendered in CreateRecordDialog
+  createDialogOnAfterSave?: (record: Record<string, unknown>) => Promise<void>; // Called after successful create
+  editDialogRenderExtra?: (record: TableRow) => React.ReactNode; // Extra content rendered in EditRecordModal
+  editDialogOnAfterSave?: (record: Record<string, unknown>) => Promise<void>; // Called after successful edit
+
   // View configuration
   viewOnly?: boolean;
   // SSR views - can be ViewData[] from SSR or SavedView[] from client
