@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "hexapdf"
-
 module Engines
   # PdfOverlayEngine handles PDF form filling and text overlay for documents
   # that must maintain exact original format (e.g., QBCC contracts, HIA documents).
@@ -175,6 +173,7 @@ module Engines
       field_mapping = field_mapping_for_template
 
       # Open PDF and apply overlays
+      require "hexapdf"
       doc = HexaPDF::Document.open(pdf_path)
 
       # Try form filling first (if PDF has AcroForm fields)
