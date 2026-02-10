@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, useEffect } from "react";
+
 /**
  * SSoT: Contact Corporate Tab
  * Part of Contact SSoT Consolidation
@@ -16,12 +18,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  Check,
   IdCard,
   Table as TableIcon,
   Network,
   Lock,
   Home,
   Briefcase,
+  Loader2,
+  Pencil,
   Percent,
   Landmark,
   ShieldCheck,
@@ -29,7 +34,10 @@ import {
   CheckCircle,
   ExternalLink,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -178,7 +186,41 @@ export function ContactCorporateTab({
 // Identity Sub-Tab
 // ================================
 
-function IdentitySubTab({ contact }: { contact: Contact }) {
+function IdentitySubTab({ contact }: { contact: Contact; }) {
+  const [savingField, setSavingField] = useState<string | null>(null);
+  const [localContact, setLocalContact] = useState(contact);
+  const [editingDob, setEditingDob] = useState(false);
+  const [dobValue, setDobValue] = useState(contact.date_of_birth || "");
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [addressValue, setAddressValue] = useState(contact.residential_address || "");
+  const [sameAsStreet, setSameAsStreet] = useState(false);
+
+  // Keep local in sync with prop
+  useEffect(() => {
+    setLocalContact(contact);
+    setDobValue(contact.date_of_birth || "");
+    setAddressValue(contact.residential_address || "");
+  }, [contact]);
+
+  // Build street address string from contact_addresses
+  const streetAddr = contact.contact_addresses?.find(
+    (a) => a.address_type === "STREET" && !a._destroy
+  );
+  const streetAddressText = streetAddr
+    ? [streetAddr.line1, streetAddr.line2, streetAddr.city, streetAddr.region, streetAddr.postal_code]
+        .filter(Boolean)
+        .join(", ")
+    : null;
+
+  const saveField = async (field: string, value: string) => {
+    setSavingField(field);
+    try {
+      const { api } = await import("@/lib/api");
+      await api.patch(`/api/v1/contacts/${contact.id}`, { contact: { [field]: value } });
+      setLocalContact((prev) => ({ ...prev, [field]: value }));
+    } catch { /* ignore */ }
+    setSavingField(null);
+  };
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Identity Information */}
@@ -200,17 +242,55 @@ function IdentitySubTab({ contact }: { contact: Contact }) {
             {/* Date of Birth */}
             <div>
               <p className="text-xs text-muted-foreground">Date of Birth</p>
-              <p className="text-sm font-medium">
-                {contact.date_of_birth === "[RESTRICTED]" ? (
-                  <span className="text-amber-600 flex items-center gap-1">
-                    <Lock className="h-3 w-3" /> Restricted
-                  </span>
-                ) : contact.date_of_birth ? (
-                  new Date(contact.date_of_birth).toLocaleDateString()
-                ) : (
-                  <span className="text-muted-foreground">Not set</span>
-                )}
-              </p>
+              {localContact.date_of_birth === "[RESTRICTED]" ? (
+                <span className="text-amber-600 flex items-center gap-1 text-sm">
+                  <Lock className="h-3 w-3" /> Restricted
+                </span>
+              ) : editingDob ? (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <Input
+                    type="date"
+                    value={dobValue}
+                    onChange={(e) => setDobValue(e.target.value)}
+                    className="h-7 text-sm w-40"
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0"
+                    disabled={savingField === "date_of_birth"}
+                    onClick={async () => {
+                      if (dobValue) {
+                        await saveField("date_of_birth", dobValue);
+                      }
+                      setEditingDob(false);
+                    }}
+                  >
+                    {savingField === "date_of_birth" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Check className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-medium">
+                    {localContact.date_of_birth ? (
+                      new Date(localContact.date_of_birth).toLocaleDateString()
+                    ) : (
+                      <span className="text-muted-foreground">Not set</span>
+                    )}
+                  </p>
+                  <button
+                    onClick={() => setEditingDob(true)}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Place of Birth */}
@@ -304,16 +384,102 @@ function IdentitySubTab({ contact }: { contact: Contact }) {
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          {contact.residential_address === "[RESTRICTED]" ? (
+        <CardContent className="space-y-3">
+          {localContact.residential_address === "[RESTRICTED]" ? (
             <div className="text-amber-600 flex items-center gap-2">
               <Lock className="h-4 w-4" />
               <span>Restricted - You don&apos;t have permission to view this field</span>
             </div>
-          ) : contact.residential_address ? (
-            <p className="text-sm whitespace-pre-line">{contact.residential_address}</p>
+          ) : localContact.residential_address && !editingAddress ? (
+            <div className="flex items-start justify-between">
+              <p className="text-sm whitespace-pre-line">{localContact.residential_address}</p>
+              <button
+                onClick={() => {
+                  setAddressValue(localContact.residential_address || "");
+                  setEditingAddress(true);
+                  setSameAsStreet(false);
+                }}
+                className="text-muted-foreground hover:text-foreground transition-colors ml-2 mt-0.5 shrink-0"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </div>
           ) : (
-            <p className="text-muted-foreground text-sm">No residential address on file</p>
+            <div className="space-y-3">
+              {!localContact.residential_address && !editingAddress && (
+                <p className="text-muted-foreground text-sm">No residential address on file</p>
+              )}
+
+              {/* Same as street address checkbox */}
+              {streetAddressText && (
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="same-as-street"
+                    checked={sameAsStreet}
+                    onCheckedChange={async (checked) => {
+                      setSameAsStreet(!!checked);
+                      if (checked && streetAddressText) {
+                        setAddressValue(streetAddressText);
+                        await saveField("residential_address", streetAddressText);
+                        setEditingAddress(false);
+                      } else if (!checked) {
+                        setAddressValue("");
+                        setEditingAddress(true);
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="same-as-street"
+                    className="text-sm cursor-pointer leading-tight"
+                  >
+                    Same as street address
+                    <span className="block text-xs text-muted-foreground mt-0.5">
+                      {streetAddressText}
+                    </span>
+                  </label>
+                </div>
+              )}
+
+              {/* Manual address entry */}
+              {(editingAddress || (!localContact.residential_address && !sameAsStreet)) && (
+                <div className="space-y-2">
+                  <Input
+                    value={addressValue}
+                    onChange={(e) => setAddressValue(e.target.value)}
+                    placeholder="e.g. 123 Main St, Brisbane QLD 4000"
+                    className="text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={!addressValue || savingField === "residential_address"}
+                      onClick={async () => {
+                        await saveField("residential_address", addressValue);
+                        setEditingAddress(false);
+                      }}
+                    >
+                      {savingField === "residential_address" ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                      ) : null}
+                      Save
+                    </Button>
+                    {(editingAddress || localContact.residential_address) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingAddress(false);
+                          setAddressValue(localContact.residential_address || "");
+                          setSameAsStreet(false);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>

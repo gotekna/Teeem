@@ -228,16 +228,18 @@ export function DirectorChangeWizard({
     // Default appointment date to the first ceasing director's cessation date (continuity)
     const defaultDate = ceasingDirectors[0]?.cessation_date || format(new Date(), "yyyy-MM-dd");
 
-    // Fetch full contact details to check DOB and address (search API doesn't include these)
+    // Fetch full contact details to check DOB and residential address (search API doesn't include these)
+    // ASIC forms require residential_address specifically, not just contact_addresses
     let hasDob = !!contact.date_of_birth;
-    let hasAddress = !!contact.full_address;
+    let hasAddress = false;
     try {
-      const detail = await api.get<{ contact: { date_of_birth?: string; contact_addresses?: Array<{ line1?: string; city?: string }> } }>(
+      const detail = await api.get<{ contact: { date_of_birth?: string; residential_address?: string | null; contact_addresses?: Array<{ line1?: string; city?: string }> } }>(
         `/api/v1/contacts/${contact.id}`
       );
       const c = detail.contact;
       hasDob = !!c?.date_of_birth && c.date_of_birth !== "[RESTRICTED]";
-      hasAddress = (c?.contact_addresses?.length ?? 0) > 0;
+      // Check residential_address first (ASIC requirement), fall back to contact_addresses
+      hasAddress = (!!c?.residential_address && c.residential_address !== "[RESTRICTED]") || (c?.contact_addresses?.length ?? 0) > 0;
     } catch {
       // If fetch fails, keep search-level values
     }

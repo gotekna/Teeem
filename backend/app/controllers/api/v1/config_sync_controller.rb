@@ -247,6 +247,10 @@ module Api
                 .select("DISTINCT ON (pricebook_item_id, supplier_id) price_histories.id")
                 .order(:pricebook_item_id, :supplier_id, "date_effective DESC NULLS LAST", "created_at DESC")
                 .map(&:id)
+            elsif table == :contacts
+              # Master only needs price_only supplier stubs for price history matching.
+              # No point importing all 1000+ tenant contacts into TEEEM.
+              Contact.where(entity_type: "price_only").pluck(:id)
             else
               model.pluck(:id)
             end
@@ -322,7 +326,26 @@ module Api
               success: true, table: table.to_s,
               imported: 0, updated: 0, skipped: 0, total: 0, total_records: 0,
               has_more: false,
-              message: "No master records"
+              message: "No source records found"
+            }
+          end
+
+          # FRC (Feb 2026): Filter by FK availability BEFORE pulling, same as master flow.
+          # Without this, records whose FK targets don't exist in the tenant would all fail
+          # during remap_foreign_key and be counted as "failed" instead of "filtered out".
+          original_count = all_ids.length
+          if table_config[:remap_fks].present?
+            all_ids = filter_ids_by_existing_fks(
+              all_ids, model, master_tenant, table_config[:remap_fks]
+            )
+          end
+
+          if all_ids.empty? && original_count > 0
+            return render json: {
+              success: true, table: table.to_s,
+              imported: 0, updated: 0, skipped: 0, total: 0, total_records: original_count,
+              has_more: false,
+              message: "All FK-filtered out"
             }
           end
 
@@ -402,10 +425,8 @@ module Api
           model = table_config[:model].constantize
 
           if is_master
-            # Master tenant: skip contacts and contact_types - master only needs
-            # price_only supplier stubs, not the full tenant contact list.
-            # Contacts come in via price_histories import (remap_fks creates them).
-            next if table.in?([:contacts, :contact_types])
+            # Master tenant: skip contact_types (not needed in master)
+            next if table == :contact_types
 
             # Master tenant: import from the tenant with the most records for this table
             best_source = nil
@@ -422,7 +443,20 @@ module Api
             next unless best_source && best_count > 0
 
             begin
-              all_ids = ActsAsTenant.with_tenant(best_source) { model.pluck(:id) }
+              all_ids = ActsAsTenant.with_tenant(best_source) do
+                if table == :contacts
+                  # Master only needs price_only supplier stubs
+                  Contact.where(entity_type: "price_only").pluck(:id)
+                elsif table == :price_histories
+                  PriceHistory
+                    .where("pricebook_item_id IS NOT NULL AND supplier_id IS NOT NULL")
+                    .select("DISTINCT ON (pricebook_item_id, supplier_id) price_histories.id")
+                    .order(:pricebook_item_id, :supplier_id, "date_effective DESC NULLS LAST", "created_at DESC")
+                    .map(&:id)
+                else
+                  model.pluck(:id)
+                end
+              end
 
               # For tables with FK dependencies (e.g. price_histories needs matching
               # contacts + pricebook_items), filter to only records whose FKs exist
@@ -463,6 +497,14 @@ module Api
             all_ids = ActsAsTenant.with_tenant(master_tenant) { model.pluck(:id) }
 
             next if all_ids.empty?
+
+            # FRC (Feb 2026): Filter by FK availability before pulling
+            if table_config[:remap_fks].present?
+              all_ids = filter_ids_by_existing_fks(
+                all_ids, model, master_tenant, table_config[:remap_fks]
+              )
+              next if all_ids.empty?
+            end
 
             begin
               result = service.pull_from_master(

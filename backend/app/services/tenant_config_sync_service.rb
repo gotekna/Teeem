@@ -340,7 +340,7 @@ class TenantConfigSyncService
       model: "PoTemplateItem",
       name_field: :name,
       match_fields: [:po_template_pack_id, :name],
-      sync_fields: [:name, :sm_schedule_master_id, :supplier_sync_key,
+      sync_fields: [:po_template_pack_id, :name, :sm_schedule_master_id, :supplier_sync_key,
                     :position, :budget, :notes, :status_on_create],
       description: "PO template pack items (individual PO definitions)",
       group: "operations",
@@ -353,7 +353,7 @@ class TenantConfigSyncService
       model: "PoTemplateLineItem",
       name_field: :description,
       match_fields: [:po_template_item_id, :line_number],
-      sync_fields: [:pricebook_item_code, :description, :quantity,
+      sync_fields: [:po_template_item_id, :pricebook_item_code, :description, :quantity,
                     :unit_price, :gst_code, :line_number],
       description: "PO template line item details",
       group: "operations",
@@ -1133,12 +1133,13 @@ class TenantConfigSyncService
     end
     existing = find_match(source_record, existing_index, config[:match_fields])
 
+    # FRC (Feb 2026): Use build_sync_attrs for FK remapping (was missing - raw FK IDs
+    # from source tenant were copied directly, causing constraint violations)
+    attrs = build_sync_attrs(source_record, config)
+
     if existing
       # Update existing
       ActsAsTenant.with_tenant(tenant) do
-        attrs = config[:sync_fields].each_with_object({}) do |field, hash|
-          hash[field] = source_record.send(field) if source_record.respond_to?(field)
-        end
         existing.update!(attrs)
       end
       { imported: true, record: existing }
@@ -1146,8 +1147,8 @@ class TenantConfigSyncService
       # Create new - copy sync_key to establish link
       ActsAsTenant.with_tenant(tenant) do
         new_record = model.new
-        config[:sync_fields].each do |field|
-          new_record.send("#{field}=", source_record.send(field)) if source_record.respond_to?(field)
+        attrs.each do |field, value|
+          new_record.send("#{field}=", value) if new_record.respond_to?("#{field}=")
         end
         if source_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
           new_record.sync_key = source_record.sync_key.presence || source_record.class.build_sync_key(
@@ -1236,25 +1237,39 @@ class TenantConfigSyncService
   end
 
   # Remap a foreign key from source tenant to target tenant
+  #
+  # FRC (Feb 2026): Uses case-insensitive matching to align with filter_ids_by_existing_fks
+  # in the controller. Without this, records could pass the FK filter but fail during remap
+  # if there's a case mismatch between source and target values.
   def remap_foreign_key(field, source_id, remap_config)
     source_model = remap_config[:model].constantize
     match_field = remap_config[:match_field]
 
     # Find the source record to get the match value
-    source_record = source_model.unscoped.find_by(id: source_id)
-    return nil unless source_record
+    # Use without_tenant to bypass acts_as_tenant scoping completely
+    source_record = ActsAsTenant.without_tenant do
+      source_model.find_by(id: source_id)
+    end
+
+    unless source_record
+      Rails.logger.warn "[ConfigSync] Could not remap #{field}=#{source_id}: source #{source_model} not found (unscoped)"
+      return nil
+    end
 
     match_value = source_record.send(match_field)
 
     # Find the target record in the current tenant
+    # Try exact match first, fall back to case-insensitive
     target_record = ActsAsTenant.with_tenant(tenant) do
-      source_model.find_by(match_field => match_value)
+      source_model.find_by(match_field => match_value) ||
+        source_model.where("LOWER(#{source_model.connection.quote_column_name(match_field)}) = ?",
+                           match_value.to_s.downcase.strip).first
     end
 
     if target_record
       target_record.id
     else
-      Rails.logger.warn "[ConfigSync] Could not remap #{field}=#{source_id}: no matching #{source_model} found with #{match_field}=#{match_value}"
+      Rails.logger.warn "[ConfigSync] Could not remap #{field}=#{source_id}: no matching #{source_model} with #{match_field}=#{match_value.inspect} in tenant #{tenant.name} (#{tenant.id})"
       nil
     end
   end
