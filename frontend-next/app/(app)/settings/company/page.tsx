@@ -95,7 +95,7 @@ export default function CompanySettingsPage() {
   }, [activeTab, router]);
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6 pb-8">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           {COMPANY_TABS.map((tab) => (

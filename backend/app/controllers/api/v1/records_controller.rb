@@ -1040,11 +1040,23 @@ module Api
             association_name = id_column.to_s.sub(/_id$/, "")
             if record.respond_to?(association_name)
               begin
-                related = record.send(association_name)
-                if related
-                  # Use centralized DisplayValueResolver (SSoT for display values)
-                  display_value = DisplayValueResolver.resolve(related)
-                  json[id_column] = { id: json[id_column], display: display_value }
+                # Performance: Only expand associations that were eager-loaded.
+                # Non-loaded associations would fire N+1 queries (e.g., polymorphic
+                # documentable/linkable on WarehouseDocument with 125K+ records).
+                assoc_ref = record.class.reflect_on_association(association_name.to_sym)
+                if assoc_ref && record.association(association_name.to_sym).loaded?
+                  related = record.send(association_name)
+                  if related
+                    display_value = DisplayValueResolver.resolve(related)
+                    json[id_column] = { id: json[id_column], display: display_value }
+                  end
+                elsif assoc_ref.nil?
+                  # No association defined - try direct access (computed method)
+                  related = record.send(association_name)
+                  if related.is_a?(ActiveRecord::Base)
+                    display_value = DisplayValueResolver.resolve(related)
+                    json[id_column] = { id: json[id_column], display: display_value }
+                  end
                 end
               rescue ActiveModel::MissingAttributeError
                 # Column wasn't loaded - skip expansion
