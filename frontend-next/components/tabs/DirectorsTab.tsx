@@ -5,10 +5,12 @@
  *
  * Extracted from corporate page for unified tab system.
  * Fetches and displays officer history with current/former status.
+ * Includes Director Change button for ASIC Form 484 package generation.
  */
 
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
@@ -18,41 +20,52 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { FileText } from "lucide-react";
 
 import { format } from "date-fns";
 import { api } from "@/lib/api";
-import type { OfficerRecord } from "@/lib/types/corporate";
+import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
+import { DirectorChangeWizard } from "@/components/corporate/DirectorChangeWizard";
 
 interface DirectorsTabProps {
   companyId: string;
   entityId?: string;
+  company?: Corporate;
+  onUpdate?: () => void;
 }
 
-export function DirectorsTab({ companyId, entityId }: DirectorsTabProps) {
+export function DirectorsTab({ companyId, entityId, company, onUpdate }: DirectorsTabProps) {
   const effectiveCompanyId = companyId || entityId;
   const [officers, setOfficers] = React.useState<OfficerRecord[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [wizardOpen, setWizardOpen] = React.useState(false);
+
+  const loadOfficers = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; directors: OfficerRecord[] }>(
+        `/api/v1/companies/${effectiveCompanyId}/directors`
+      );
+      setOfficers(response.directors || []);
+    } catch (error) {
+      console.error("Failed to load officers:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [effectiveCompanyId]);
 
   React.useEffect(() => {
-    const loadOfficers = async () => {
-      try {
-        const response = await api.get<{ success: boolean; directors: OfficerRecord[] }>(
-          `/api/v1/companies/${effectiveCompanyId}/directors`
-        );
-        setOfficers(response.directors || []);
-      } catch (error) {
-        console.error("Failed to load officers:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadOfficers();
-  }, [effectiveCompanyId]);
+  }, [loadOfficers]);
 
   // Group officers by role type
   const directors = officers.filter(o => o.position?.includes("director") || o.position === "chairman");
   const secretaries = officers.filter(o => o.position?.includes("secretary"));
   const publicOfficers = officers.filter(o => o.position?.includes("public_officer"));
+
+  const handleWizardComplete = () => {
+    loadOfficers();
+    onUpdate?.();
+  };
 
   const renderOfficerList = (title: string, officerList: OfficerRecord[]) => {
     const current = officerList.filter(o => o.is_current);
@@ -144,10 +157,30 @@ export function DirectorsTab({ companyId, entityId }: DirectorsTabProps) {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-lg font-medium">Corporate Officers History</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-medium">Corporate Officers History</h3>
+        {company && (
+          <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
+            <FileText className="w-4 h-4 mr-1.5" />
+            Director Changes
+          </Button>
+        )}
+      </div>
       {renderOfficerList("Directors", directors)}
       {renderOfficerList("Secretaries", secretaries)}
       {renderOfficerList("Public Officers", publicOfficers)}
+
+      {/* Director Change Wizard */}
+      {company && (
+        <DirectorChangeWizard
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          company={company}
+          companyId={effectiveCompanyId || ""}
+          officers={officers}
+          onComplete={handleWizardComplete}
+        />
+      )}
     </div>
   );
 }

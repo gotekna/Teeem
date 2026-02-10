@@ -1,0 +1,159 @@
+<% # Form 484 Record Copy - ASIC Director Change Summary %>
+<% # Template variables: company, ceasing_directors, new_appointments, lodgement_date, lodgement_date_formatted %>
+
+<div class="page">
+  <!-- Header -->
+  <div style="border: 2px solid #000; padding: 15px; margin-bottom: 20px;">
+    <table style="width: 100%; border: none;">
+      <tr>
+        <td style="border: none; width: 70%; vertical-align: top;">
+          <div style="font-size: 20pt; font-weight: bold; color: #003366;">Form 484</div>
+          <div style="font-size: 12pt; margin-top: 5px;">Change to company details</div>
+          <div class="small-text" style="margin-top: 3px;">Corporations Act 2001 &mdash; Section 205B</div>
+        </td>
+        <td style="border: none; width: 30%; text-align: right; vertical-align: top;">
+          <div class="small-text">
+            <strong>RECORD COPY</strong><br>
+            For internal records only<br>
+            Lodge online at asic.gov.au
+          </div>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Section 1: Company Details -->
+  <div class="section">
+    <h3 style="background: #003366; color: #fff; padding: 6px 10px; font-size: 11pt;">
+      Section 1 &mdash; Company Details
+    </h3>
+    <table class="bordered-table" style="margin-top: 10px;">
+      <tr>
+        <td style="width: 180px; background: #f5f5f5;"><strong>Company Name</strong></td>
+        <td><%= company[:name] %></td>
+      </tr>
+      <% if company[:acn].present? %>
+      <tr>
+        <td style="background: #f5f5f5;"><strong>ACN</strong></td>
+        <td><%= company[:formatted_acn] %></td>
+      </tr>
+      <% end %>
+      <% if company[:abn].present? %>
+      <tr>
+        <td style="background: #f5f5f5;"><strong>ABN</strong></td>
+        <td><%= company[:formatted_abn] %></td>
+      </tr>
+      <% end %>
+    </table>
+  </div>
+
+  <!-- Section 2: Officeholders Ceasing -->
+  <% if ceasing_directors.any? %>
+  <div class="section">
+    <h3 style="background: #003366; color: #fff; padding: 6px 10px; font-size: 11pt;">
+      Section 2 &mdash; Officeholder(s) Ceasing
+    </h3>
+
+    <% ceasing_directors.each_with_index do |director, index| %>
+      <% if index > 0 %><hr style="margin: 15px 0; border: 1px solid #ccc;"><% end %>
+      <table class="bordered-table" style="margin-top: 10px;">
+        <tr>
+          <td style="width: 180px; background: #f5f5f5;"><strong>Full Name</strong></td>
+          <td><%= director[:full_name] %></td>
+        </tr>
+        <% if director[:date_of_birth].present? %>
+        <tr>
+          <td style="background: #f5f5f5;"><strong>Date of Birth</strong></td>
+          <td><%= director[:date_of_birth] %></td>
+        </tr>
+        <% end %>
+        <% if director[:address].present? %>
+        <tr>
+          <td style="background: #f5f5f5;"><strong>Residential Address</strong></td>
+          <td><%= director[:address] %></td>
+        </tr>
+        <% end %>
+        <tr>
+          <td style="background: #f5f5f5;"><strong>Position(s) Ceasing</strong></td>
+          <td><%= director[:positions].map { |p| p.titleize.gsub("_", " / ") }.join(", ") %></td>
+        </tr>
+        <tr>
+          <td style="background: #f5f5f5;"><strong>Date of Cessation</strong></td>
+          <td><%= director[:cessation_date_formatted] %></td>
+        </tr>
+      </table>
+    <% end %>
+  </div>
+  <% end %>
+
+  <!-- Section 3: New Officeholder(s) Appointed -->
+  <% if new_appointments.any? %>
+  <div class="section">
+    <h3 style="background: #003366; color: #fff; padding: 6px 10px; font-size: 11pt;">
+      Section 3 &mdash; New Officeholder(s) Appointed
+    </h3>
+
+    <% new_appointments.each_with_index do |director, index| %>
+      <% if index > 0 %><hr style="margin: 15px 0; border: 1px solid #ccc;"><% end %>
+      <table class="bordered-table" style="margin-top: 10px;">
+        <tr>
+          <td style="width: 180px; background: #f5f5f5;"><strong>Full Name</strong></td>
+          <td><%= director[:full_name] %></td>
+        </tr>
+        <% if director[:date_of_birth].present? %>
+        <tr>
+          <td style="background: #f5f5f5;"><strong>Date of Birth</strong></td>
+          <td><%= director[:date_of_birth] %></td>
+        </tr>
+        <% end %>
+        <% if director[:address].present? %>
+        <tr>
+          <td style="background: #f5f5f5;"><strong>Residential Address</strong></td>
+          <td><%= director[:address] %></td>
+        </tr>
+        <% end %>
+        <tr>
+          <td style="background: #f5f5f5;"><strong>Position(s) Appointed</strong></td>
+          <td><%= director[:positions].map { |p| p.titleize.gsub("_", " / ") }.join(", ") %></td>
+        </tr>
+        <tr>
+          <td style="background: #f5f5f5;"><strong>Date of Appointment</strong></td>
+          <td><%= director[:appointment_date_formatted] %></td>
+        </tr>
+      </table>
+    <% end %>
+  </div>
+  <% end %>
+
+  <!-- Section 4: Lodgement Details -->
+  <div class="section">
+    <h3 style="background: #003366; color: #fff; padding: 6px 10px; font-size: 11pt;">
+      Section 4 &mdash; Lodgement Details
+    </h3>
+    <table class="bordered-table" style="margin-top: 10px;">
+      <tr>
+        <td style="width: 180px; background: #f5f5f5;"><strong>Date Prepared</strong></td>
+        <td><%= lodgement_date_formatted %></td>
+      </tr>
+      <tr>
+        <td style="background: #f5f5f5;"><strong>Lodgement Method</strong></td>
+        <td>Online via ASIC portal (asic.gov.au)</td>
+      </tr>
+      <tr>
+        <td style="background: #f5f5f5;"><strong>Status</strong></td>
+        <td>Record copy &mdash; lodge online at ASIC</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Footer -->
+  <div style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #003366;">
+    <p class="small-text">
+      This is a record copy of a Form 484 (Change to Company Details) prepared for internal records.
+      ASIC Form 484 must be lodged online at <strong>asic.gov.au</strong> within 28 days of the change.
+    </p>
+    <p class="small-text" style="margin-top: 5px;">
+      Generated by TEEEM on <%= lodgement_date_formatted %>
+    </p>
+  </div>
+</div>

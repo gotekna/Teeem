@@ -84,7 +84,7 @@ class TenantConfigSyncService
     document_types: {
       model: "DocumentType",
       name_field: :name,
-      match_fields: [:name],
+      match_fields: [:name, :scope],
       sync_fields: [:name, :scope, :file_name, :display_name, :abbreviation, :category,
                     :folder, :primary_tab, :aliases, :requires_filing, :supports_versioning,
                     :generates_certificate, :certificate_template, :form_number_mapping,
@@ -1014,13 +1014,25 @@ class TenantConfigSyncService
     record.respond_to?(:sync_key) ? record.sync_key.presence : nil
   end
 
-  # Build index of records keyed by sync_key (primary) or legacy match_key (fallback).
+  # Build index of records keyed by BOTH sync_key AND legacy match_key.
   # Returns hash: { key => record }
+  #
+  # ⚠️ DO NOT SIMPLIFY - Index must contain BOTH keys per record (Feb 2026)
+  # ════════════════════════════════════════════════════════════════════════
+  # Why: find_match() tries sync_key first, then falls back to legacy_match_key.
+  #      If we only index by sync_key (when present), the legacy fallback can
+  #      never find the record — causing duplicates when sync_keys diverge
+  #      (e.g., source tenant renumbers task_numbers → new sync_keys).
+  # ❌ WRONG: key = sync_key || legacy_key (only one key per record)
+  # ✅ CORRECT: Index by both keys so fallback matching works
+  # ════════════════════════════════════════════════════════════════════════
   def build_record_index(records, match_fields)
     index = {}
     records.each do |r|
-      key = record_sync_key(r) || legacy_match_key(r, match_fields)
-      index[key] = r if key.present?
+      sk = record_sync_key(r)
+      lk = legacy_match_key(r, match_fields)
+      index[sk] = r if sk.present?
+      index[lk] = r if lk.present?
     end
     index
   end
