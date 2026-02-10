@@ -58,10 +58,10 @@ class XeroCredential < ApplicationRecord
     primary.connected.first || primary.first || connected.order(created_at: :desc).first || order(created_at: :desc).first
   end
 
-  # Set this credential as the primary one (and unset others)
+  # Set this credential as the primary one (and unset others for this tenant)
   def set_as_primary!
     transaction do
-      XeroCredential.update_all(is_primary: false)
+      XeroCredential.where(teeem_tenant_id: teeem_tenant_id).update_all(is_primary: false)
       update!(is_primary: true)
     end
   end
@@ -232,9 +232,9 @@ class XeroCredential < ApplicationRecord
 
   private
 
-  # Automatically set as primary if no other primary exists
+  # Automatically set as primary if no other primary exists for this tenant
   def set_as_primary_if_none_exists
-    if XeroCredential.where.not(id: id).primary.none?
+    if XeroCredential.where(teeem_tenant_id: teeem_tenant_id).where.not(id: id).primary.none?
       update_column(:is_primary, true)
     end
   end
