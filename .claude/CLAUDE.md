@@ -871,12 +871,64 @@ rails blob:audit:warehouse
 rails phase3:test:all
 ```
 
+### Creating WarehouseDocuments (Minimum Requirements)
+
+**SSoT:** `WarehouseDocumentCreator` (`app/services/warehouse_document_creator.rb`)
+
+**NEVER create WarehouseDocuments directly.** Always use the creator service.
+
+**Required fields (validation enforced):**
+- `filename:` → sets `ui_name` AND `original_filename`
+- `source_type:` → must be one of: `corporate job email email_attachment task people contact user template warehouse asset financial compliance xero notebook`
+
+**Important optional fields:**
+- `storage_blob:` → links to actual file in S3/Wasabi
+- `linkable:` → domain object (Job, Contact, PricebookItem, etc.)
+- `warehouse_folder_id:` → looks up WarehouseFolder for path/name materialization
+- `folder_path:` → explicit folder path (fallback if no warehouse_folder_id)
+- `metadata:` → JSONB (sharepoint IDs, match info, audit fields)
+- `user:` → who uploaded (audit trail in metadata)
+
+**Callbacks auto-set (don't set manually):**
+- `tenant_id` → from linkable/documentable chain or ActsAsTenant
+- `folder_path` → materialized from WarehouseFolder template
+- `ui_name` → template-expanded from WFDT (only if WFDT has template)
+- `download_name` → materialized via SendNameResolver
+- `warehouse_folder_document_type_id` → from warehouse_folder_id lookup
+
+**Three creation methods:**
+
+```ruby
+# 1. With pre-created blob (file already in S3)
+WarehouseDocumentCreator.create!(
+  filename: "photo.jpg", source_type: "warehouse",
+  storage_blob: blob, linkable: job,
+  warehouse_folder_id: wf.id
+)
+
+# 2. With file content (creates blob automatically with dedup)
+WarehouseDocumentCreator.create_with_content!(
+  content: binary_data, filename: "photo.jpg",
+  content_type: "image/jpeg", source_type: "warehouse",
+  linkable: job, warehouse_folder_id: wf.id
+)
+
+# 3. Idempotent find-or-create (for syncs - won't duplicate on re-run)
+WarehouseDocumentCreator.find_or_create!(
+  find_by: { source_type: "warehouse", linkable: job,
+             metadata_match: { "sharepoint_item_id" => sp_id } },
+  filename: "photo.jpg", source_type: "warehouse",
+  storage_blob: blob, linkable: job
+)
+```
+
 ### Key Files
 
 | File | Purpose |
 |------|---------|
 | `app/models/warehouse_document.rb` | Universal document table |
 | `app/models/storage_blob.rb` | Deduplicated blob storage |
+| `app/services/warehouse_document_creator.rb` | SSoT service for creating documents |
 | `app/services/send_name_resolver.rb` | Template expansion + sanitization |
 | `lib/tasks/phase3_garbage_collection.rake` | Cleanup & audit tasks |
 | `lib/tasks/phase3_tests.rake` | Test suite |

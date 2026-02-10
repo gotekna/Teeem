@@ -578,7 +578,7 @@ class XeroContactSyncService
 
     link.assign_attributes(
       source: "xero",
-      tenant_name: @sync_config&.xero_tenant_name || "Unknown",
+      tenant_name: @sync_config&.xero_tenant_name.presence || "Unknown",
       sync_enabled: !needs_review,  # Disable sync until reviewed if needed
       sync_direction: "bidirectional",
       last_synced_at: needs_review ? nil : @sync_timestamp,
@@ -1074,7 +1074,7 @@ class XeroContactSyncService
         link = teeem_contact.xero_links.create!(
           source: "xero",
           tenant_id: tenant_id,
-          tenant_name: @sync_config&.xero_tenant_name || "Unknown",
+          tenant_name: @sync_config&.xero_tenant_name.presence || "Unknown",
           external_contact_id: created_contact["ContactID"],
           sync_enabled: true,
           sync_direction: "bidirectional",
