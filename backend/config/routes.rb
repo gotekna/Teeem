@@ -449,6 +449,7 @@ Rails.application.routes.draw do
           post :push  # TEEEM staff only - push records to master
           post :auto_sync_compulsory  # Auto-sync all compulsory records from master
           post :pull_all  # Fresh pull of ALL records from ALL tables
+          post :pull_one_table  # Pull a single table (for live progress)
         end
       end
       delete "job_status_stages/:id", to: "job_status_stages#destroy"

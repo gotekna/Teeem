@@ -196,6 +196,116 @@ module Api
         }
       end
 
+      # POST /api/v1/config_sync/pull_one_table
+      # Pull a single table (called by frontend for live progress)
+      #
+      # Params:
+      #   table: string - config table key (e.g. "job_types")
+      def pull_one_table
+        table = params[:table]&.to_sym
+        table_config = TenantConfigSyncService::CONFIG_TABLES[table]
+        unless table_config
+          return render json: { success: false, error: "Unknown table: #{params[:table]}" }, status: :bad_request
+        end
+
+        service = TenantConfigSyncService.new(current_tenant)
+        is_master = current_tenant&.is_master_tenant? || false
+        model = table_config[:model].constantize
+
+        if is_master
+          # Master tenant: skip contacts and contact_types
+          if table.in?([:contacts, :contact_types])
+            return render json: {
+              success: true, table: table.to_s,
+              imported: 0, updated: 0, skipped: 0, total: 0,
+              message: "Skipped (master imports contacts via price_histories)"
+            }
+          end
+
+          # Find the tenant with the most records for this table
+          source_tenants = Tenant.where(is_master_tenant: false).to_a
+          best_source = nil
+          best_count = 0
+
+          source_tenants.each do |t|
+            count = ActsAsTenant.with_tenant(t) { model.count }
+            if count > best_count
+              best_count = count
+              best_source = t
+            end
+          end
+
+          unless best_source && best_count > 0
+            return render json: {
+              success: true, table: table.to_s,
+              imported: 0, updated: 0, skipped: 0, total: 0,
+              message: "No source records found"
+            }
+          end
+
+          all_ids = ActsAsTenant.with_tenant(best_source) { model.pluck(:id) }
+
+          if table_config[:remap_fks].present?
+            all_ids = filter_ids_by_existing_fks(
+              all_ids, model, best_source, table_config[:remap_fks]
+            )
+          end
+
+          if all_ids.empty?
+            return render json: {
+              success: true, table: table.to_s,
+              imported: 0, updated: 0, skipped: 0, total: 0,
+              source: best_source.name, message: "All FK-filtered out"
+            }
+          end
+
+          result = service.import_from_tenant(
+            source_tenant: best_source,
+            table: table.to_s,
+            record_ids: all_ids
+          )
+
+          render json: {
+            success: true, table: table.to_s,
+            imported: result[:imported]&.length || 0,
+            updated: 0,
+            skipped: result[:skipped]&.length || 0,
+            total: all_ids.length,
+            source: best_source.name
+          }
+        else
+          # Non-master tenant: pull from master
+          all_ids = ActsAsTenant.with_tenant(master_tenant) { model.pluck(:id) }
+
+          if all_ids.empty?
+            return render json: {
+              success: true, table: table.to_s,
+              imported: 0, updated: 0, skipped: 0, total: 0,
+              message: "No master records"
+            }
+          end
+
+          result = service.pull_from_master(
+            table: table.to_s,
+            record_ids: all_ids,
+            mode: :replace_existing
+          )
+
+          render json: {
+            success: true, table: table.to_s,
+            imported: result[:imported]&.length || 0,
+            updated: result[:updated]&.length || 0,
+            skipped: result[:skipped]&.length || 0,
+            total: all_ids.length
+          }
+        end
+      rescue => e
+        render json: {
+          success: false, table: params[:table],
+          error: e.message
+        }, status: :unprocessable_entity
+      end
+
       # POST /api/v1/config_sync/pull_all
       # Fresh pull of ALL records from ALL tables
       #
