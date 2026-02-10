@@ -6,17 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { BackButton } from "@/components/ui/back-button";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
   Globe,
   Trash2,
   ShieldCheck,
-  ChevronDown,
-  Check,
-  Plus,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -77,7 +69,6 @@ export function ContactHeader({
   const [xeroLinks, setXeroLinks] = useState<XeroLink[]>([]);
   const [allTenants, setAllTenants] = useState<XeroTenant[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
-  const [pushingToTenant, setPushingToTenant] = useState<string | null>(null);
 
   // Load Xero links and all tenants when contact changes
   useEffect(() => {
@@ -118,28 +109,6 @@ export function ContactHeader({
     }
   };
 
-  const handlePushToXero = async (tenantId: string, tenantName: string) => {
-    setPushingToTenant(tenantId);
-    try {
-      await api.post(`/api/v1/contacts/${contact.id}/xero_links`, {
-        xero_link: {
-          tenant_id: tenantId,
-          tenant_name: tenantName,
-        }
-      });
-      // Reload links to show the new connection
-      await loadXeroLinks();
-    } catch (err) {
-      console.error("Failed to push to Xero:", err);
-    } finally {
-      setPushingToTenant(null);
-    }
-  };
-
-  // Check if a tenant is linked
-  const isLinked = (tenantId: string) =>
-    xeroLinks.some(link => link.xero_tenant_id === tenantId);
-
   return (
     <div className="flex items-start justify-between">
       <div className="flex items-start gap-4">
@@ -178,83 +147,12 @@ export function ContactHeader({
                 Family
               </Badge>
             )}
+            {/* SSoT: Simple badge showing linked org count. Org management is in Financial tab. */}
             {allTenants.length > 0 && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Badge variant="outline" className="gap-1 cursor-pointer hover:bg-accent">
-                    <ShieldCheck className="h-3 w-3" />
-                    {/* SSoT: Count unique tenants, not total links (contact can have multiple Xero IDs per tenant after merge) */}
-                    {new Set(xeroLinks.map(l => l.xero_tenant_id)).size}/{allTenants.length} Xero
-                    <ChevronDown className="h-3 w-3" />
-                  </Badge>
-                </PopoverTrigger>
-                <PopoverContent className="w-72 p-2" align="start">
-                  <div className="text-xs font-medium text-muted-foreground mb-2">
-                    Xero Organizations ({new Set(xeroLinks.map(l => l.xero_tenant_id)).size}/{allTenants.length} linked)
-                  </div>
-                  <div className="space-y-1">
-                    {[...allTenants].sort((a, b) => a.tenant_name.localeCompare(b.tenant_name)).map((tenant) => {
-                      // SSoT: Get ALL links for this tenant (contact can have multiple Xero IDs per tenant after merge)
-                      const tenantLinks = xeroLinks.filter(l => l.xero_tenant_id === tenant.tenant_id);
-                      const linked = tenantLinks.length > 0;
-                      const totalInvoices = tenantLinks.reduce((sum, l) => sum + (l.invoice_count || 0), 0);
-                      const pushing = pushingToTenant === tenant.tenant_id;
-                      return (
-                        <div
-                          key={tenant.tenant_id}
-                          className={`flex items-center justify-between py-1.5 px-2 rounded ${
-                            linked ? "bg-green-50 dark:bg-green-900/20" : "hover:bg-accent"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            {linked ? (
-                              <Check className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
-                            ) : (
-                              <div className="h-4 w-4 flex-shrink-0" />
-                            )}
-                            <div className="flex flex-col min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-sm ${linked ? "text-green-700 dark:text-green-300" : ""}`}>
-                                  {tenant.tenant_name}
-                                </span>
-                                {linked && totalInvoices > 0 && (
-                                  <span className="text-xs text-muted-foreground">
-                                    ({totalInvoices})
-                                  </span>
-                                )}
-                              </div>
-                              {linked && tenantLinks[0]?.xero_contact_id && (
-                                <span className="text-xs text-muted-foreground font-mono truncate">
-                                  {tenantLinks[0].xero_contact_id.substring(0, 8)}...
-                                  {tenantLinks.length > 1 && ` +${tenantLinks.length - 1} more`}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {!linked && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 px-2 text-xs flex-shrink-0"
-                              onClick={() => handlePushToXero(tenant.tenant_id, tenant.tenant_name)}
-                              disabled={pushing}
-                            >
-                              {pushing ? (
-                                <Spinner size={12} />
-                              ) : (
-                                <>
-                                  <Plus className="h-3 w-3 mr-1" />
-                                  Push
-                                </>
-                              )}
-                            </Button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <Badge variant="outline" className="gap-1">
+                <ShieldCheck className="h-3 w-3" />
+                {new Set(xeroLinks.map(l => l.xero_tenant_id)).size}/{allTenants.length} Xero
+              </Badge>
             )}
           </div>
           {contact.company_name && (
