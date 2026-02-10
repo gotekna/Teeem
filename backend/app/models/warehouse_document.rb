@@ -56,6 +56,10 @@ class WarehouseDocument < ApplicationRecord
   # Runs AFTER materialize_ui_name since download_name may reference ui_name.
   before_save :materialize_download_name, if: :needs_download_name_recomputation?
 
+  # Materialized Warehouse Type (Feb 2026): Derive from linkable_type or source_type
+  # Stores the warehouse_type code (e.g., "job", "contact", "email") for direct filtering.
+  before_save :materialize_warehouse_type, if: :needs_warehouse_type_recomputation?
+
   # Materialized Path: Invalidate folder counts when documents change folders
   after_commit :invalidate_folder_counts, on: [:create, :update, :destroy]
 
@@ -103,6 +107,7 @@ class WarehouseDocument < ApplicationRecord
 
   # Basic scopes
   scope :by_source, ->(source) { where(source_type: source) }
+  scope :by_warehouse_type, ->(wt) { where(warehouse_type: wt) }
   scope :with_blob, -> { where.not(storage_blob_id: nil) }
   scope :without_blob, -> { where(storage_blob_id: nil) }
 
@@ -529,6 +534,50 @@ class WarehouseDocument < ApplicationRecord
     self.download_name = resolved if resolved.present? && resolved != "document"
   rescue StandardError => e
     Rails.logger.warn "[WarehouseDocument] materialize_download_name failed for #{id}: #{e.message}"
+  end
+
+  # Check if warehouse_type needs (re)computation
+  def needs_warehouse_type_recomputation?
+    warehouse_type.blank? ||
+      source_type_changed? ||
+      linkable_type_changed?
+  end
+
+  # Compute and store the warehouse_type code from linkable_type or source_type.
+  # Uses the same mapping as WarehousePathComputer#source_type_to_warehouse_type_code.
+  def materialize_warehouse_type
+    # Prefer linkable_type (most precise) then fall back to source_type
+    self.warehouse_type = derive_warehouse_type
+  end
+
+  # SSoT: Derive warehouse_type code from linkable_type or source_type
+  # Matches WarehousePathComputer mappings exactly.
+  def derive_warehouse_type
+    # 1. From linkable_type (most precise, FK-driven)
+    if linkable_type.present?
+      code = case linkable_type
+             when "Job" then "job"
+             when "Contact" then "contact"
+             when "CorporateCompany" then "corporate"
+             when "SmTask" then "task"
+             end
+      return code if code
+    end
+
+    # 2. From source_type (fallback)
+    case source_type
+    when "task" then "task"
+    when "email", "email_attachment" then "email"
+    when "corporate", "xero", "financial", "asset" then "corporate"
+    when "job", "compliance" then "job"
+    when "contact", "people" then "contact"
+    when "case" then "case"
+    when "notebook" then "notebook"
+    when "user" then "user"
+    when "warehouse", "template" then "warehouse"
+    when "esignature" then "e_signing"
+    else "unassigned"
+    end
   end
 
   # Compute and store the materialized folder path using WarehousePathComputer
