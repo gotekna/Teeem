@@ -53,6 +53,7 @@ interface PriceBookItem {
   needs_pricing_review: boolean;
   price_last_updated_at: string | null;
   image_url: string | null;
+  image_presigned_url?: string | null;
   default_supplier_id: number | null;
   default_supplier: Supplier | null;
   requires_photo: boolean;
@@ -344,7 +345,7 @@ export function PricebookDetailDrawer({ itemId, open, onOpenChange }: PricebookD
                 )}
 
                 {/* Image */}
-                {item.image_url && (
+                {(item.image_presigned_url || item.image_url) && (
                   <Card>
                     <CardHeader className="py-3">
                       <CardTitle className="text-sm flex items-center gap-2">
@@ -354,7 +355,7 @@ export function PricebookDetailDrawer({ itemId, open, onOpenChange }: PricebookD
                     </CardHeader>
                     <CardContent>
                       <img
-                        src={item.image_url}
+                        src={item.image_presigned_url || item.image_url || ""}
                         alt={item.item_name}
                         className="w-full rounded-lg border object-cover"
                         style={{ maxHeight: "200px" }}
