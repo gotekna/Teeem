@@ -1885,7 +1885,11 @@ module Api
           :notes,
           :entity_type,
           :company_name_or_trust, # SSoT for company/trust names
-          # Family/Director fields
+          # Personal/Director fields
+          :date_of_birth,
+          :place_of_birth,
+          :birth_state,
+          :birth_country,
           :is_family_member,
           :is_potential_director,
           :company_group_id,
