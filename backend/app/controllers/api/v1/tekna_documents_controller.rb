@@ -3,6 +3,8 @@
 module Api
   module V1
     class TeknaDocumentsController < ApplicationController
+      include AsyncPdfGeneration
+
       # Allow unauthenticated access for viewing templates and previews
       skip_before_action :authorize_request, only: [ :templates, :preview ]
       before_action :set_job, only: [ :preview, :generate ]
@@ -51,7 +53,7 @@ module Api
       end
 
       # POST /api/v1/tekna_documents/:id/generate
-      # Generates PDF and returns for download
+      # Enqueues async PDF generation and returns job status
       def generate
         template_key = params[:id].to_sym
 
@@ -59,24 +61,19 @@ module Api
           return render json: { success: false, error: "Template not found: #{params[:id]}" }, status: :not_found
         end
 
-        generator = TeknaDocumentGenerator.new(template_key)
-        result = generator.generate(
-          job: @job,
-          contact: @contact,
-          extra_data: extra_data_params
+        enqueue_pdf_and_respond(
+          generator_type: "tekna_document",
+          generator_params: {
+            template_key: template_key.to_s,
+            job_id: @job&.id,
+            contact_id: @contact&.id,
+            extra_data: extra_data_params
+          }
         )
-
-        send_data result[:pdf_content],
-                  filename: result[:filename],
-                  type: "application/pdf",
-                  disposition: params[:inline] ? "inline" : "attachment"
-      rescue StandardError => e
-        Rails.logger.error("TeknaDocuments generate error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
       # POST /api/v1/tekna_documents/:id/generate_and_send
-      # Generates PDF and sends for e-signature
+      # Enqueues async PDF generation (and optional e-signature send)
       def generate_and_send
         template_key = params[:id].to_sym
 
@@ -84,33 +81,16 @@ module Api
           return render json: { success: false, error: "Template not found: #{params[:id]}" }, status: :not_found
         end
 
-        # Generate the PDF
-        generator = TeknaDocumentGenerator.new(template_key)
-        result = generator.generate(
-          job: @job,
-          contact: @contact,
-          extra_data: extra_data_params
-        )
-
-        # Store the document
-        document = store_document(result, template_key)
-
-        # Send for e-signature if requested
-        if params[:send_for_signature]
-          send_for_signature(document)
-        end
-
-        render json: {
-          success: true,
-          data: {
-            document_id: document.id,
-            filename: result[:filename],
-            message: params[:send_for_signature] ? "Document generated and sent for signature" : "Document generated"
+        enqueue_pdf_and_respond(
+          generator_type: "tekna_document",
+          generator_params: {
+            template_key: template_key.to_s,
+            job_id: @job&.id,
+            contact_id: @contact&.id,
+            extra_data: extra_data_params,
+            send_for_signature: params[:send_for_signature].present?
           }
-        }
-      rescue StandardError => e
-        Rails.logger.error("TeknaDocuments generate_and_send error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        )
       end
 
       private

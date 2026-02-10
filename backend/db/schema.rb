@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_10_280001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_11_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1726,6 +1726,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_280001) do
     t.boolean "is_corporate_managed", default: false, null: false
     t.bigint "parent_company_contact_id"
     t.string "sync_key"
+    t.date "date_of_birth"
     t.index "lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -6949,6 +6950,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_280001) do
     t.index ["pdf_template_key", "field_key"], name: "index_pdf_field_positions_on_pdf_template_key_and_field_key", unique: true
   end
 
+  create_table "pdf_generations", force: :cascade do |t|
+    t.string "status", default: "pending", null: false
+    t.string "generator_type", null: false
+    t.jsonb "generator_params", default: {}, null: false
+    t.bigint "user_id"
+    t.bigint "tenant_id"
+    t.bigint "storage_blob_id"
+    t.string "result_filename"
+    t.string "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["status"], name: "index_pdf_generations_on_status"
+    t.index ["storage_blob_id"], name: "index_pdf_generations_on_storage_blob_id"
+    t.index ["tenant_id"], name: "index_pdf_generations_on_tenant_id"
+    t.index ["user_id", "status"], name: "index_pdf_generations_on_user_id_and_status"
+    t.index ["user_id"], name: "index_pdf_generations_on_user_id"
+  end
+
   create_table "performance_anomalies", force: :cascade do |t|
     t.string "anomaly_type", null: false
     t.string "severity", null: false
@@ -10206,7 +10225,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_280001) do
     t.jsonb "token_config", default: {}, null: false
     t.jsonb "records_config", default: {}, null: false
     t.string "sync_key"
-    t.index ["code"], name: "index_warehouse_types_on_code", unique: true
+    t.index ["code"], name: "idx_warehouse_types_code"
     t.index ["enabled"], name: "index_warehouse_types_on_enabled"
     t.index ["order_position"], name: "index_warehouse_types_on_order_position"
     t.index ["tenant_id", "code"], name: "idx_warehouse_types_tenant_code", unique: true
@@ -11462,6 +11481,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_280001) do
   add_foreign_key "payment_links", "external_invoices", column: "invoice_id"
   add_foreign_key "payments", "purchase_orders"
   add_foreign_key "payments", "users", column: "created_by_id"
+  add_foreign_key "pdf_generations", "storage_blobs"
+  add_foreign_key "pdf_generations", "tenants"
+  add_foreign_key "pdf_generations", "users"
   add_foreign_key "performance_anomalies", "users", column: "acknowledged_by_id"
   add_foreign_key "performance_requests", "tenants", on_delete: :cascade
   add_foreign_key "performance_requests", "users"
