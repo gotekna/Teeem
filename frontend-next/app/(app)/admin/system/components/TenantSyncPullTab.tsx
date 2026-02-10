@@ -90,13 +90,14 @@ export function TenantSyncPullTab() {
   } | null>(null);
   const [pullAllResult, setPullAllResult] = useState<{
     totals: { imported: number; updated: number; skipped: number; tables_processed: number };
-    results: Record<string, { imported: number; updated: number; skipped: number; total: number; error?: string; source?: string }>;
+    results: Record<string, { imported: number; updated: number; skipped: number; total: number; error?: string; source?: string; errors?: string[]; skipped_reasons?: string[]; message?: string }>;
   } | null>(null);
   const [tenants, setTenants] = useState<TenantCount[]>([]);
   const [tableCounts, setTableCounts] = useState<Record<string, Record<string, number>>>({});
   const [isMasterTenant, setIsMasterTenant] = useState(false);
   const [tableSyncStatus, setTableSyncStatus] = useState<Record<string, TableSyncStatus>>({});
   const [tableBatchProgress, setTableBatchProgress] = useState<Record<string, { processed: number; total: number }>>({});
+  const [tableSyncErrors, setTableSyncErrors] = useState<Record<string, string[]>>({});
   const [showSyncDialog, setShowSyncDialog] = useState(false);
 
   // Fetch available tables on mount
@@ -259,6 +260,8 @@ export function TenantSyncPullTab() {
   const pullOneTable = async (tableKey: string): Promise<{
     imported: number; updated: number; skipped: number;
     total: number; source?: string; error?: string;
+    errors?: string[]; skipped_reasons?: string[];
+    message?: string;
   }> => {
     type PullResponse = {
       success: boolean; table: string;
@@ -266,11 +269,15 @@ export function TenantSyncPullTab() {
       total: number; total_records: number;
       has_more: boolean; next_offset?: number;
       source?: string; error?: string; message?: string;
+      errors?: string[]; skipped_reasons?: string[];
     };
 
     let totalImported = 0, totalUpdated = 0, totalSkipped = 0, totalProcessed = 0;
     let totalRecords = 0;
     let source: string | undefined;
+    let lastMessage: string | undefined;
+    let allErrors: string[] = [];
+    let allSkippedReasons: string[] = [];
     let offset = 0;
     let hasMore = true;
 
@@ -290,8 +297,11 @@ export function TenantSyncPullTab() {
       totalProcessed += response.total || 0;
       totalRecords = response.total_records || totalProcessed;
       source = response.source;
+      lastMessage = response.message;
       hasMore = response.has_more;
       offset = response.next_offset || 0;
+      if (response.errors?.length) allErrors = [...allErrors, ...response.errors];
+      if (response.skipped_reasons?.length) allSkippedReasons = [...allSkippedReasons, ...response.skipped_reasons];
 
       // Update progress for large tables
       if (hasMore || totalRecords > BATCH_SIZE) {
@@ -303,7 +313,12 @@ export function TenantSyncPullTab() {
       }
     }
 
-    return { imported: totalImported, updated: totalUpdated, skipped: totalSkipped, total: totalRecords, source };
+    // Track errors for display in dialog
+    if (allErrors.length > 0 || allSkippedReasons.length > 0) {
+      setTableSyncErrors((prev) => ({ ...prev, [tableKey]: [...allErrors, ...allSkippedReasons].slice(0, 5) }));
+    }
+
+    return { imported: totalImported, updated: totalUpdated, skipped: totalSkipped, total: totalRecords, source, errors: allErrors, skipped_reasons: allSkippedReasons, message: lastMessage };
   };
 
   // Handle pull ALL tables one-by-one with live progress + auto-batching
@@ -314,6 +329,7 @@ export function TenantSyncPullTab() {
       setError(null);
       setPullAllResult(null);
       setPullResult(null);
+      setTableSyncErrors({});
 
       // Initialize all tables as pending
       const initialStatus: Record<string, TableSyncStatus> = {};
@@ -322,7 +338,7 @@ export function TenantSyncPullTab() {
 
       setPullAllProgress({ current: 0, total: tables.length, currentTable: "Starting..." });
 
-      const allResults: Record<string, { imported: number; updated: number; skipped: number; total: number; error?: string; source?: string }> = {};
+      const allResults: Record<string, { imported: number; updated: number; skipped: number; total: number; error?: string; source?: string; errors?: string[]; skipped_reasons?: string[]; message?: string }> = {};
       let totalImported = 0;
       let totalUpdated = 0;
       let totalSkipped = 0;
@@ -343,11 +359,13 @@ export function TenantSyncPullTab() {
 
           if (result.error) {
             setTableSyncStatus((prev) => ({ ...prev, [table.key]: "error" }));
+          } else if (result.imported > 0 || result.updated > 0) {
+            setTableSyncStatus((prev) => ({ ...prev, [table.key]: "done" }));
+          } else if (result.skipped > 0) {
+            // Records were attempted but all skipped/failed - show as error not "no changes"
+            setTableSyncStatus((prev) => ({ ...prev, [table.key]: "error" }));
           } else {
-            setTableSyncStatus((prev) => ({
-              ...prev,
-              [table.key]: (result.imported > 0 || result.updated > 0) ? "done" : "skipped",
-            }));
+            setTableSyncStatus((prev) => ({ ...prev, [table.key]: "skipped" }));
           }
         } catch (tableErr) {
           allResults[table.key] = {
@@ -540,6 +558,8 @@ export function TenantSyncPullTab() {
                 const status = tableSyncStatus[table.key];
                 const result = pullAllResult?.results[table.key];
                 const batch = tableBatchProgress[table.key];
+                const syncErrors = tableSyncErrors[table.key];
+                const errorTooltip = result?.error || syncErrors?.join("; ") || "";
 
                 return (
                   <TableRow
@@ -547,6 +567,7 @@ export function TenantSyncPullTab() {
                     className={cn(
                       status === "syncing" && "bg-blue-50/50 dark:bg-blue-950/20",
                       status === "done" && "bg-green-50/30 dark:bg-green-950/10",
+                      status === "error" && "bg-red-50/30 dark:bg-red-950/10",
                     )}
                   >
                     <TableCell className="font-medium py-1.5 text-sm">
@@ -581,18 +602,18 @@ export function TenantSyncPullTab() {
                         </span>
                       )}
                       {status === "skipped" && (
-                        <span className="text-xs text-muted-foreground flex items-center justify-end gap-1">
+                        <span className="text-xs text-muted-foreground flex items-center justify-end gap-1" title={result?.message || ""}>
                           <Check className="h-3 w-3" />
-                          no changes
+                          {result?.message || "no changes"}
                         </span>
                       )}
-                      {status === "error" && result?.error && (
-                        <span className="text-xs text-destructive flex items-center justify-end gap-1" title={result.error}>
+                      {status === "error" && result && (result.skipped > 0 || result.error) && (
+                        <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center justify-end gap-1" title={errorTooltip}>
                           <AlertCircle className="h-3 w-3" />
-                          Error
+                          {result.skipped > 0 ? `${result.skipped} failed` : "Error"}
                         </span>
                       )}
-                      {status === "error" && !result?.error && (
+                      {status === "error" && (!result || (!result.skipped && !result.error)) && (
                         <span className="text-xs text-destructive flex items-center justify-end gap-1">
                           <AlertCircle className="h-3 w-3" />
                           Error
