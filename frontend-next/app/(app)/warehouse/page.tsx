@@ -45,6 +45,11 @@ import {
   ArrowLeft,
   MessageSquare,
   Database,
+  Table as TableIcon,
+  FolderOpen,
+  Calendar,
+  Tag,
+  HardDrive,
 } from "lucide-react";
 import {
   Dialog,
@@ -69,6 +74,8 @@ import { MailboxDrawer } from "@/components/documents/MailboxDrawer";
 import { formatFileSize } from "@/utils/formatters";
 import { WarehouseTree } from "@/components/warehouse/WarehouseTree";
 import { WarehouseDocTree } from "@/components/warehouse/WarehouseDocTree";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import type { DocumentItem, TreeDisplayMode } from "@/components/warehouse/types";
 
 interface AllDocumentsResponse {
@@ -84,7 +91,7 @@ interface AllDocumentsResponse {
 }
 
 
-type ViewMode = "tree" | "list" | "gallery" | "warehouse-tree";
+type ViewMode = "tree" | "list" | "gallery" | "warehouse-tree" | "table";
 
 // URL slug ↔ ViewMode mapping for deep-linkable warehouse views
 const VIEW_SLUG_TO_MODE: Record<string, ViewMode> = {
@@ -92,12 +99,14 @@ const VIEW_SLUG_TO_MODE: Record<string, ViewMode> = {
   "doc-tree": "warehouse-tree",
   list: "list",
   gallery: "gallery",
+  table: "table",
 };
 const VIEW_MODE_TO_SLUG: Record<ViewMode, string> = {
   tree: "tree",
   "warehouse-tree": "doc-tree",
   list: "list",
   gallery: "gallery",
+  table: "table",
 };
 
 
@@ -954,11 +963,20 @@ export default function AllDocumentsPage() {
               <Button
                 variant={viewMode === "gallery" ? "secondary" : "ghost"}
                 size="sm"
-                className="rounded-l-none"
+                className="rounded-none border-r"
                 onClick={() => setViewMode("gallery")}
               >
                 <LayoutGrid className="h-4 w-4 mr-1" />
                 Gallery
+              </Button>
+              <Button
+                variant={viewMode === "table" ? "secondary" : "ghost"}
+                size="sm"
+                className="rounded-l-none"
+                onClick={() => setViewMode("table")}
+              >
+                <TableIcon className="h-4 w-4 mr-1" />
+                Table
               </Button>
             </div>
 
@@ -1048,12 +1066,13 @@ export default function AllDocumentsPage() {
         </div>
       )}
 
-      {/* Content - Split Pane Layout */}
+      {/* Content - Split Pane Layout (or full-width for Table view) */}
       <div className="flex-1 flex min-h-0">
         {/* Left Panel - File Browser */}
         <div className={cn(
-          "flex-1 overflow-auto px-4 py-4 border-r",
-          previewDocument && "max-w-[50%]"
+          "flex-1 overflow-auto border-r",
+          viewMode === "table" ? "p-0" : "px-4 py-4",
+          previewDocument && viewMode !== "table" && "max-w-[50%]"
         )} data-tour="warehouse-files">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-4">
@@ -1142,7 +1161,7 @@ export default function AllDocumentsPage() {
                 ))
               )}
             </div>
-          ) : (
+          ) : viewMode === "gallery" ? (
             // Gallery View (images only)
             <div>
               {allImages.length === 0 ? (
@@ -1181,7 +1200,15 @@ export default function AllDocumentsPage() {
                 </div>
               )}
             </div>
-          )}
+          ) : viewMode === "table" ? (
+            // Table View - TeeemTableView backed by Foundation API
+            <div className="flex flex-col h-full">
+              <TeeemTableView
+                foundationId={FOUNDATION_SLUGS.WAREHOUSE_DOCUMENTS}
+                autoFetchRecords={true}
+              />
+            </div>
+          ) : null}
         </div>
 
         {/* Right Panel - Preview Panel */}
@@ -1337,6 +1364,49 @@ export default function AllDocumentsPage() {
                   </Button>
                 </div>
               </div>
+            </div>
+
+            {/* SSoT Document Info */}
+            <div className="border-b px-4 py-2 space-y-1 text-xs bg-muted/30 dark:bg-muted/10">
+              {previewDocument.folderPath && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <FolderOpen className="h-3 w-3 shrink-0" />
+                  <span className="font-medium shrink-0">Path:</span>
+                  <span className="truncate" title={previewDocument.folderPath}>{previewDocument.folderPath}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Tag className="h-3 w-3 shrink-0" />
+                <span className="font-medium shrink-0">Source:</span>
+                <span className="capitalize">{previewDocument.source}</span>
+                {previewDocument.documentTypeName && (
+                  <>
+                    <span className="text-muted-foreground/50">|</span>
+                    <span>{previewDocument.documentTypeName}</span>
+                  </>
+                )}
+              </div>
+              {previewDocument.createdAt && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="h-3 w-3 shrink-0" />
+                  <span className="font-medium shrink-0">Created:</span>
+                  <span>{new Date(previewDocument.createdAt).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+              )}
+              {previewDocument.storagePath && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <HardDrive className="h-3 w-3 shrink-0" />
+                  <span className="font-medium shrink-0">Storage:</span>
+                  <span className="truncate font-mono text-[10px]" title={previewDocument.storagePath}>{previewDocument.storagePath}</span>
+                </div>
+              )}
+              {previewDocument.fileName && previewDocument.fileName !== previewDocument.uiName && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <File className="h-3 w-3 shrink-0" />
+                  <span className="font-medium shrink-0">Original:</span>
+                  <span className="truncate" title={previewDocument.fileName}>{previewDocument.fileName}</span>
+                </div>
+              )}
             </div>
 
             {/* Preview Content */}

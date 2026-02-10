@@ -249,8 +249,8 @@
     "/warehouse": {
       "title": "File Warehouse",
       "description": "Central document storage for all files across jobs, contacts, and emails.",
-      "tips": ["Browse by folder structure (Jobs, Contacts, Emails, etc.)", "Search across all documents", "Preview PDFs and images inline"],
-      "tasks": ["Upload documents", "Organize into folders", "Search for files", "Download or share documents"]
+      "tips": ["Browse by folder structure (Jobs, Contacts, Emails, etc.)", "Search across all documents", "Preview PDFs and images inline", "Use Table view to see all document metadata with sorting, filtering, and grouping"],
+      "tasks": ["Upload documents", "Organize into folders", "Search for files", "Download or share documents", "View raw document data in Table view"]
     },
     "/pricebook": {
       "title": "Pricebook",

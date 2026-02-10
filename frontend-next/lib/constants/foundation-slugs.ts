@@ -222,6 +222,7 @@ export const FOUNDATION_SLUGS = {
   TRADING_NAMES: 'trading_names',
   TRINITIES: 'trinities',
   UNREAL_VARIABLES: 'unreal_variables',
+  WAREHOUSE_DOCUMENTS: 'warehouse-documents',  // ⚠️ HYPHEN
   DESIGNS: 'designs',
 } as const;
 
@@ -250,5 +251,6 @@ export const HYPHENATED_SLUGS = [
   'sm-schedule-master',
   'sm-tasks',
   'user-management',
+  'warehouse-documents',
   'xero-sync-contacts',
 ] as const;
