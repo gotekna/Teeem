@@ -200,6 +200,12 @@ echo "📦 Building slug on Staging..."
 git push staging HEAD:main --force
 STAGING_EXIT=$?
 
+# Deploy to worker apps (separate slugs - not part of pipeline promotion)
+git remote add staging-worker https://git.heroku.com/teeem-staging-worker.git
+git push staging-worker HEAD:main --force
+
+git remote add beta-worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null && git push beta-worker HEAD:main --force || echo "⚠️ Beta worker app not yet created"
+
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
