@@ -64,6 +64,15 @@ class WarehouseDocument < ApplicationRecord
   after_commit :invalidate_folder_counts, on: [:create, :update, :destroy]
 
   # ========================================
+  # Performance: Whitelist associations for Foundation API eager loading
+  # Skip polymorphic (documentable, linkable) and self-referential (parent_document)
+  # as they generate expensive per-type queries across 125K+ records
+  # ========================================
+  def self.safe_eager_load_associations
+    [:warehouse_folder, :warehouse_folder_document_type, :storage_blob]
+  end
+
+  # ========================================
   # Associations
   # ========================================
 

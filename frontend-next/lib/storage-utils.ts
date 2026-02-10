@@ -41,6 +41,7 @@ export const STORAGE_KEYS = {
   // API Configuration
   API_URL: 'api_url',
   API_ENVIRONMENT: 'api_environment',
+  TENANT_OVERRIDE: 'tenant_override',
 
   // Feature-specific
   EMAIL_DRAFTS: 'email_drafts',

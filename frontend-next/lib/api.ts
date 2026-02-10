@@ -154,6 +154,12 @@ const getAuthHeaders = (includeContentType = true): HeadersInit => {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
+
+    // Send tenant override header (replaces cross-origin cookie approach)
+    const tenantOverride = getStorageItem<string | null>(STORAGE_KEYS.TENANT_OVERRIDE, null);
+    if (tenantOverride) {
+      headers['X-Tenant-Override'] = tenantOverride;
+    }
   }
 
   return headers;
@@ -445,6 +451,10 @@ export const api = {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
+      const tenantOverride = getStorageItem<string | null>(STORAGE_KEYS.TENANT_OVERRIDE, null);
+      if (tenantOverride) {
+        headers['X-Tenant-Override'] = tenantOverride;
+      }
     }
 
     const response = await withRetry(
@@ -492,6 +502,10 @@ export const api = {
       const token = getStorageItem(STORAGE_KEYS.TOKEN, null);
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+      }
+      const tenantOverride = getStorageItem<string | null>(STORAGE_KEYS.TENANT_OVERRIDE, null);
+      if (tenantOverride) {
+        headers['X-Tenant-Override'] = tenantOverride;
       }
     }
     const response = await withRetry(
