@@ -111,17 +111,26 @@ module Api
         model = table_config[:model].constantize
         match_fields = table_config[:match_fields]
 
-        # Get master records
+        # Get master records (respecting scope filters, e.g. contacts → price_only only)
         master_records = ActsAsTenant.with_tenant(master_tenant) do
-          model.all.order(table_config[:name_field])
+          base = scoped_model(model, table_config)
+          if params[:table] == "price_histories"
+            # Only latest price per pricebook_item + supplier combo (same as pull_one_table)
+            base
+              .where("pricebook_item_id IS NOT NULL AND supplier_id IS NOT NULL")
+              .select("DISTINCT ON (pricebook_item_id, supplier_id) price_histories.*")
+              .order(:pricebook_item_id, :supplier_id, "date_effective DESC NULLS LAST", "created_at DESC")
+          else
+            base.order(table_config[:name_field])
+          end
         end
 
         # Get sync preferences for master records
         preferences = TenantSyncPreference.modes_for_type(table_config[:model], tenant: master_tenant)
 
-        # Get tenant's existing records for comparison
+        # Get tenant's existing records for comparison (respecting scope filters)
         tenant_records_by_key = ActsAsTenant.with_tenant(current_tenant) do
-          model.all.index_by { |r| match_key(r, match_fields) }
+          scoped_model(model, table_config).index_by { |r| match_key(r, match_fields) }
         end
 
         # Build response with sync status
@@ -223,7 +232,7 @@ module Api
           best_count = 0
 
           source_tenants.each do |t|
-            count = ActsAsTenant.with_tenant(t) { model.count }
+            count = ActsAsTenant.with_tenant(t) { scoped_model(model, table_config).count }
             if count > best_count
               best_count = count
               best_source = t
@@ -239,20 +248,18 @@ module Api
             }
           end
 
+          # Use scope from config (SSoT) — e.g. contacts → price_only, price_histories → price_only suppliers
           all_ids = ActsAsTenant.with_tenant(best_source) do
+            base = scoped_model(model, table_config)
             if table == :price_histories
-              # Only sync latest price per pricebook_item + supplier combo (one per pricebook)
-              PriceHistory
+              # Only latest price per pricebook_item + supplier combo
+              base
                 .where("pricebook_item_id IS NOT NULL AND supplier_id IS NOT NULL")
                 .select("DISTINCT ON (pricebook_item_id, supplier_id) price_histories.id")
                 .order(:pricebook_item_id, :supplier_id, "date_effective DESC NULLS LAST", "created_at DESC")
                 .map(&:id)
-            elsif table == :contacts
-              # Master only needs price_only supplier stubs for price history matching.
-              # No point importing all 1000+ tenant contacts into TEEEM.
-              Contact.where(entity_type: "price_only").pluck(:id)
             else
-              model.pluck(:id)
+              base.pluck(:id)
             end
           end
 
@@ -318,8 +325,8 @@ module Api
             skipped_reasons: result[:skipped]&.first(5)&.map { |s| "#{s[:name]}: #{s[:reason]}" }
           }
         else
-          # Non-master tenant: pull from master
-          all_ids = ActsAsTenant.with_tenant(master_tenant) { model.pluck(:id) }
+          # Non-master tenant: pull from master (respecting scope filters)
+          all_ids = ActsAsTenant.with_tenant(master_tenant) { scoped_model(model, table_config).pluck(:id) }
 
           if all_ids.empty?
             return render json: {
@@ -433,7 +440,7 @@ module Api
             best_count = 0
 
             source_tenants.each do |t|
-              count = ActsAsTenant.with_tenant(t) { model.count }
+              count = ActsAsTenant.with_tenant(t) { scoped_model(model, table_config).count }
               if count > best_count
                 best_count = count
                 best_source = t
@@ -443,18 +450,18 @@ module Api
             next unless best_source && best_count > 0
 
             begin
+              # Use scope from config (SSoT) — e.g. contacts → price_only, price_histories → price_only suppliers
               all_ids = ActsAsTenant.with_tenant(best_source) do
-                if table == :contacts
-                  # Master only needs price_only supplier stubs
-                  Contact.where(entity_type: "price_only").pluck(:id)
-                elsif table == :price_histories
-                  PriceHistory
+                base = scoped_model(model, table_config)
+                if table == :price_histories
+                  # Only latest price per pricebook_item + supplier combo
+                  base
                     .where("pricebook_item_id IS NOT NULL AND supplier_id IS NOT NULL")
                     .select("DISTINCT ON (pricebook_item_id, supplier_id) price_histories.id")
                     .order(:pricebook_item_id, :supplier_id, "date_effective DESC NULLS LAST", "created_at DESC")
                     .map(&:id)
                 else
-                  model.pluck(:id)
+                  base.pluck(:id)
                 end
               end
 
@@ -493,8 +500,8 @@ module Api
               results[table.to_s] = { error: e.message }
             end
           else
-            # Non-master tenant: pull from master (standard flow)
-            all_ids = ActsAsTenant.with_tenant(master_tenant) { model.pluck(:id) }
+            # Non-master tenant: pull from master (respecting scope filters)
+            all_ids = ActsAsTenant.with_tenant(master_tenant) { scoped_model(model, table_config).pluck(:id) }
 
             next if all_ids.empty?
 
@@ -635,6 +642,16 @@ module Api
 
       def push_params
         params.permit(:table, record_ids: [])
+      end
+
+      # Apply config[:scope] lambda if present, otherwise return model.all
+      # Mirrors TenantConfigSyncService#scoped_query — SSoT for scope application
+      def scoped_model(model, table_config)
+        if table_config[:scope]
+          model.instance_exec(&table_config[:scope])
+        else
+          model.all
+        end
       end
 
       # Filter source record IDs to only those whose FK targets exist in current tenant.

@@ -177,7 +177,8 @@ class TenantConfigSyncService
                     :bank_bsb, :bank_account_number, :bank_account_name,
                     :default_purchase_account, :default_sales_account, :payment_terms,
                     :is_active, :entity_type, :notes, :contact_code],
-      description: "Contacts (suppliers, customers)",
+      scope: -> { where(entity_type: "price_only") },  # SSoT: Only sync price_only supplier stubs
+      description: "Contacts (price_only suppliers for pricebook)",
       group: "contacts"
     },
     # NOTE: price_histories moved to after pricebook_items (depends on both contacts + pricebook_items existing)
@@ -293,7 +294,8 @@ class TenantConfigSyncService
       match_fields: [:pricebook_item_id, :supplier_id],
       sync_fields: [:pricebook_item_id, :supplier_id, :old_price, :new_price, :change_reason,
                     :quote_reference, :lga, :date_effective, :user_name],
-      description: "Latest supplier price per pricebook item",
+      scope: -> { where(supplier_id: Contact.where(entity_type: "price_only").select(:id)) },  # SSoT: Only sync prices from price_only suppliers
+      description: "Price histories (price_only suppliers only)",
       group: "operations",
       remap_fks: {
         supplier_id: { model: "Contact", match_field: :display_name },
@@ -572,12 +574,12 @@ class TenantConfigSyncService
       model = config[:model].constantize
 
       master_count = if master
-        ActsAsTenant.with_tenant(master) { model.count }
+        ActsAsTenant.with_tenant(master) { scoped_query(model, config).count }
       else
         0
       end
 
-      tenant_count = ActsAsTenant.with_tenant(tenant) { model.count }
+      tenant_count = ActsAsTenant.with_tenant(tenant) { scoped_query(model, config).count }
 
       counts[key.to_s] = {
         master: master_count,
@@ -600,7 +602,7 @@ class TenantConfigSyncService
       counts[key.to_s] = {}
 
       tenants.each do |t|
-        count = ActsAsTenant.with_tenant(t) { model.count }
+        count = ActsAsTenant.with_tenant(t) { scoped_query(model, config).count }
         counts[key.to_s][t.slug || t.id.to_s] = count
       end
 
@@ -622,7 +624,7 @@ class TenantConfigSyncService
 
     # Temporarily switch tenant context to read from source
     ActsAsTenant.with_tenant(source_tenant) do
-      model.all.order(config[:name_field]).map do |record|
+      scoped_query(model, config).order(config[:name_field]).map do |record|
         record_to_json(record, config)
       end
     end
@@ -638,9 +640,9 @@ class TenantConfigSyncService
     model = config[:model].constantize
     match_fields = config[:match_fields]
 
-    # Get all records from both tenants
-    master_all = ActsAsTenant.with_tenant(master) { model.all.to_a }
-    tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
+    # Get all records from both tenants (respecting scope filters)
+    master_all = ActsAsTenant.with_tenant(master) { scoped_query(model, config).to_a }
+    tenant_all = ActsAsTenant.with_tenant(tenant) { scoped_query(model, config).to_a }
 
     # Build indexes (sync_key primary, legacy match_key fallback)
     remap_fks = config[:remap_fks]
@@ -1029,6 +1031,15 @@ class TenantConfigSyncService
   def validate_table!(table)
     unless CONFIG_TABLES.key?(table.to_sym)
       raise ArgumentError, "Unknown config table: #{table}. Valid tables: #{CONFIG_TABLES.keys.join(', ')}"
+    end
+  end
+
+  # Apply config[:scope] lambda if present, otherwise return model.all
+  def scoped_query(model, config)
+    if config[:scope]
+      model.instance_exec(&config[:scope])
+    else
+      model.all
     end
   end
 
