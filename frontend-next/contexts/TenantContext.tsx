@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
+import { setStorageItem, removeStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 // Tenant types
 export interface Tenant {
@@ -141,9 +142,10 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
       console.log('[TenantSwitch] API response:', response);
 
       if (response?.success && response?.tenant) {
-        // All tenants share the same deployment - just set state and reload.
-        // The backend cookie (admin_tenant_id) handles the context switch.
-        console.log(`[TenantSwitch] Success: switched to ${response.tenant.name} (id=${response.tenant.id}) - reloading`);
+        // Store tenant override in localStorage - sent as X-Tenant-Override header on all API calls.
+        // This replaces the cookie approach which fails cross-origin (Vercel → Heroku).
+        console.log(`[TenantSwitch] Success: switched to ${response.tenant.name} (id=${response.tenant.id}) - storing override and reloading`);
+        setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.tenant.id));
         setCurrentTenant(response.tenant);
         window.location.reload();
         return true;
@@ -170,7 +172,8 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
       const response = await api.delete<SwitchResponse>('/api/v1/admin/tenants/switch');
 
       if (response?.success) {
-        // Reload to get default tenant context
+        // Clear tenant override from localStorage
+        removeStorageItem(STORAGE_KEYS.TENANT_OVERRIDE);
         window.location.reload();
         return true;
       } else {
