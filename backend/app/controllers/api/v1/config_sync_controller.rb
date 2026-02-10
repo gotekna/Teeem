@@ -236,6 +236,17 @@ module Api
             begin
               all_ids = ActsAsTenant.with_tenant(best_source) { model.pluck(:id) }
 
+              # For tables with FK dependencies (e.g. price_histories needs matching
+              # contacts + pricebook_items), filter to only records whose FKs exist
+              # in the current tenant. No point importing orphaned records.
+              if table_config[:remap_fks].present?
+                all_ids = filter_ids_by_existing_fks(
+                  all_ids, model, best_source, table_config[:remap_fks]
+                )
+              end
+
+              next if all_ids.empty?
+
               result = service.import_from_tenant(
                 source_tenant: best_source,
                 table: table.to_s,
@@ -394,6 +405,56 @@ module Api
 
       def push_params
         params.permit(:table, record_ids: [])
+      end
+
+      # Filter source record IDs to only those whose FK targets exist in current tenant.
+      # e.g. for price_histories, only include records where the supplier (Contact)
+      # and pricebook_item (PricebookItem) already exist in the current tenant.
+      def filter_ids_by_existing_fks(source_ids, model, source_tenant, remap_fks)
+        return source_ids if remap_fks.blank?
+
+        # Load source records with their FK values
+        source_records = ActsAsTenant.with_tenant(source_tenant) do
+          model.where(id: source_ids)
+        end
+
+        # Build lookup sets for each FK: { match_value => true }
+        # These are the values that exist in the current (target) tenant
+        target_values = {}
+        remap_fks.each do |fk_field, remap_config|
+          fk_model = remap_config[:model].constantize
+          match_field = remap_config[:match_field]
+          target_values[fk_field] = ActsAsTenant.with_tenant(current_tenant) do
+            Set.new(fk_model.pluck(match_field).map { |v| v.to_s.downcase.strip })
+          end
+        end
+
+        # Build source FK value lookups (source_id → match_value)
+        source_fk_values = {}
+        remap_fks.each do |fk_field, remap_config|
+          fk_model = remap_config[:model].constantize
+          match_field = remap_config[:match_field]
+          source_fk_ids = source_records.map { |r| r.send(fk_field) }.compact.uniq
+          source_fk_values[fk_field] = ActsAsTenant.with_tenant(source_tenant) do
+            fk_model.where(id: source_fk_ids).pluck(:id, match_field).to_h
+          end
+        end
+
+        # Filter: keep only records where ALL FKs have a matching target
+        kept_ids = source_records.select do |record|
+          remap_fks.all? do |fk_field, _config|
+            fk_id = record.send(fk_field)
+            next true if fk_id.blank? # Optional FK, allow nil
+
+            source_value = source_fk_values[fk_field][fk_id]
+            next false unless source_value
+
+            target_values[fk_field].include?(source_value.to_s.downcase.strip)
+          end
+        end.map(&:id)
+
+        Rails.logger.info "[ConfigSync] FK filter for #{model.name}: #{source_ids.length} → #{kept_ids.length} (#{source_ids.length - kept_ids.length} filtered out)"
+        kept_ids
       end
     end
   end
