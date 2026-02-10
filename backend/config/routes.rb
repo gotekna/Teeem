@@ -2084,10 +2084,12 @@ Rails.application.routes.draw do
       resources :cost_centres, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           get :tree
+          get :po_tasks
         end
         member do
           get :report
           get :pnl
+          post :assign_po_tasks
         end
       end
 

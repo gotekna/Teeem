@@ -160,6 +160,40 @@ class Api::V1::UsersController < ApplicationController
     render json: { error: "User not found" }, status: :not_found
   end
 
+  # POST /api/v1/users/:id/send_invite
+  # Generate temp password, set force_password_change, and send welcome email
+  def send_invite
+    unless current_user&.admin?
+      return render json: { success: false, error: "Admin access required" }, status: :forbidden
+    end
+
+    @user = User.find(params[:id])
+
+    # Generate a temp password that meets complexity rules
+    temp_password = generate_temp_password
+
+    # Update user's password and flag for forced change
+    @user.password = temp_password
+    @user.force_password_change = true
+
+    if @user.save
+      # Send the welcome email with temp credentials
+      UserMailer.welcome_email(@user, temp_password).deliver_later
+
+      render json: {
+        success: true,
+        message: "Login email sent to #{@user.email}"
+      }
+    else
+      render json: {
+        success: false,
+        errors: @user.errors.full_messages
+      }, status: :unprocessable_entity
+    end
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: "User not found" }, status: :not_found
+  end
+
   # DELETE /api/v1/users/:id
   def destroy
     @user = User.find(params[:id])

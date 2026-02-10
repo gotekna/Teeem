@@ -77,6 +77,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import type { TableRow as TeeemTableRow } from "@/components/table/types";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import { GanttUnified, GanttDependencyEditor } from "@/components/gantt";
 import { useGanttDataManager } from "@/lib/gantt/hooks";
@@ -608,6 +609,168 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const [availableWorkflows, setAvailableWorkflows] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Task Groups from Foundation SM Task Groups - for grouping PO and non-PO tasks
   const [availableTaskGroups, setAvailableTaskGroups] = React.useState<{ id: number; name: string }[]>([]);
+
+  // PO Task assignment state for Cost Centres table
+  interface POTask {
+    id: number;
+    name: string;
+    taskNumber: number;
+    costCentreId: number | null;
+    costCentreName: string | null;
+  }
+  const [poTasks, setPoTasks] = React.useState<POTask[]>([]);
+  const [poTasksLoaded, setPoTasksLoaded] = React.useState(false);
+  const [selectedPoTaskIds, setSelectedPoTaskIds] = React.useState<number[]>([]);
+  const poTasksEditRecordIdRef = React.useRef<number | string | null>(null);
+
+  // Fetch PO tasks for Cost Centre assignment
+  const fetchPoTasks = React.useCallback(async () => {
+    try {
+      const data = await api.get<{ success: boolean; data: POTask[] }>("/api/v1/cost_centres/po_tasks");
+      if (data?.data) {
+        setPoTasks(data.data);
+        setPoTasksLoaded(true);
+      }
+    } catch (error) {
+      console.error("Failed to fetch PO tasks:", error);
+    }
+  }, []);
+
+  // Render PO Task picker for Cost Centre create dialog
+  const renderPoTaskPickerForCreate = React.useCallback(() => {
+    if (!poTasksLoaded) {
+      fetchPoTasks();
+      return (
+        <div className="py-4 border-t">
+          <Label className="text-sm font-medium">PO Tasks</Label>
+          <p className="text-xs text-muted-foreground mt-1">Loading PO tasks...</p>
+        </div>
+      );
+    }
+
+    // For create: no tasks pre-selected, reset on mount
+    const selectedOptions: Option[] = selectedPoTaskIds
+      .map((id) => {
+        const task = poTasks.find((t) => t.id === id);
+        if (!task) return null;
+        return { value: String(task.id), label: `${task.taskNumber} - ${task.name}` };
+      })
+      .filter((o): o is Option => !!o);
+
+    // Build options: disable tasks assigned to other cost centres
+    const availableOptions: Option[] = poTasks.map((task) => {
+      const isAssignedElsewhere = task.costCentreId != null && !selectedPoTaskIds.includes(task.id);
+      return {
+        value: String(task.id),
+        label: isAssignedElsewhere
+          ? `${task.taskNumber} - ${task.name} (${task.costCentreName || "CC #" + task.costCentreId})`
+          : `${task.taskNumber} - ${task.name}`,
+        disable: isAssignedElsewhere,
+      };
+    });
+
+    return (
+      <div className="py-4 border-t">
+        <Label className="text-sm font-medium">PO Tasks</Label>
+        <p className="text-xs text-muted-foreground mt-1 mb-2">
+          Assign SM PO Tasks to this Cost Centre. Greyed-out tasks are already assigned to another Cost Centre.
+        </p>
+        <MultipleSelector
+          value={selectedOptions}
+          options={availableOptions}
+          placeholder="Search PO tasks..."
+          emptyIndicator={<p className="text-center text-sm text-muted-foreground py-2">No PO tasks found</p>}
+          onChange={(options) => {
+            setSelectedPoTaskIds(options.map((o) => Number(o.value)));
+          }}
+        />
+      </div>
+    );
+  }, [poTasksLoaded, poTasks, selectedPoTaskIds, fetchPoTasks]);
+
+  // Render PO Task picker for editing (pre-selects existing tasks)
+  const renderPoTaskPickerForEdit = React.useCallback((record: TeeemTableRow) => {
+    const recordId = record.id;
+
+    // Fetch PO tasks if not loaded yet
+    if (!poTasksLoaded) {
+      fetchPoTasks();
+      return (
+        <div className="py-4 border-t">
+          <Label className="text-sm font-medium">PO Tasks</Label>
+          <p className="text-xs text-muted-foreground mt-1">Loading PO tasks...</p>
+        </div>
+      );
+    }
+
+    // Initialize selectedPoTaskIds when editing a different record
+    if (poTasksEditRecordIdRef.current !== recordId) {
+      poTasksEditRecordIdRef.current = recordId;
+      const assignedIds = poTasks
+        .filter((t) => t.costCentreId === Number(recordId))
+        .map((t) => t.id);
+      // Use setTimeout to avoid setState during render
+      setTimeout(() => setSelectedPoTaskIds(assignedIds), 0);
+    }
+
+    const selectedOptions: Option[] = selectedPoTaskIds
+      .map((id) => {
+        const task = poTasks.find((t) => t.id === id);
+        if (!task) return null;
+        return { value: String(task.id), label: `${task.taskNumber} - ${task.name}` };
+      })
+      .filter((o): o is Option => !!o);
+
+    const availableOptions: Option[] = poTasks.map((task) => {
+      const isAssignedElsewhere = task.costCentreId != null
+        && task.costCentreId !== Number(recordId)
+        && !selectedPoTaskIds.includes(task.id);
+      return {
+        value: String(task.id),
+        label: isAssignedElsewhere
+          ? `${task.taskNumber} - ${task.name} (${task.costCentreName || "CC #" + task.costCentreId})`
+          : `${task.taskNumber} - ${task.name}`,
+        disable: isAssignedElsewhere,
+      };
+    });
+
+    return (
+      <div className="py-4 border-t">
+        <Label className="text-sm font-medium">PO Tasks</Label>
+        <p className="text-xs text-muted-foreground mt-1 mb-2">
+          Assign SM PO Tasks to this Cost Centre. Greyed-out tasks are already assigned to another Cost Centre.
+        </p>
+        <MultipleSelector
+          value={selectedOptions}
+          options={availableOptions}
+          placeholder="Search PO tasks..."
+          emptyIndicator={<p className="text-center text-sm text-muted-foreground py-2">No PO tasks found</p>}
+          onChange={(options) => {
+            setSelectedPoTaskIds(options.map((o) => Number(o.value)));
+          }}
+        />
+      </div>
+    );
+  }, [poTasksLoaded, poTasks, selectedPoTaskIds, fetchPoTasks]);
+
+  // Handle after-save for Cost Centre: assign PO tasks
+  const handleCostCentreAfterSave = React.useCallback(async (record: Record<string, unknown>) => {
+    const costCentreId = record.id;
+    if (!costCentreId) return;
+
+    try {
+      await api.post(`/api/v1/cost_centres/${costCentreId}/assign_po_tasks`, {
+        po_task_ids: selectedPoTaskIds,
+      });
+      // Refresh PO tasks to reflect new assignments
+      await fetchPoTasks();
+      // Reset state for next modal open
+      setSelectedPoTaskIds([]);
+      poTasksEditRecordIdRef.current = null;
+    } catch (error) {
+      console.error("Failed to assign PO tasks:", error);
+    }
+  }, [selectedPoTaskIds, fetchPoTasks]);
 
   // FRC (Feb 2026): Edit dialog data loaded lazily on first edit sheet open.
   // These 5 endpoints took ~19 seconds combined and were only used in EditRowDialog.
@@ -3904,6 +4067,12 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                     enableExport={true}
                     autoFetchRecords
                     onRefresh={() => setLookupTableRefreshKey(k => k + 1)}
+                    {...(table.id === "cost_centres" ? {
+                      createDialogRenderExtra: renderPoTaskPickerForCreate,
+                      createDialogOnAfterSave: handleCostCentreAfterSave,
+                      editDialogRenderExtra: renderPoTaskPickerForEdit,
+                      editDialogOnAfterSave: handleCostCentreAfterSave,
+                    } : {})}
                   />
                 </div>
               )
