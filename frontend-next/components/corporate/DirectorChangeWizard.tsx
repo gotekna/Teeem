@@ -51,6 +51,8 @@ import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
 
 interface CeasingDirector {
   corporate_director_id: number;
+  contact_id: number;
+  officer_ids: number[];
   name: string;
   position: string;
   positions: string[];
@@ -173,15 +175,30 @@ export function DirectorChangeWizard({
   // --- Ceasing Directors ---
 
   const addCeasingDirector = (officer: OfficerRecord) => {
-    if (ceasingDirectors.some((cd) => cd.corporate_director_id === officer.id)) return;
+    // Check if this contact is already added (by contact id, not officer id)
+    const contactId = officer.contact?.id;
+    if (contactId && ceasingDirectors.some((cd) => cd.contact_id === contactId)) return;
+
+    // Find ALL positions this person holds (they may have multiple officer records)
+    const allPositions = currentOfficers
+      .filter((o) => o.contact?.id === contactId && o.is_current)
+      .map((o) => o.position);
+    const uniquePositions = [...new Set(allPositions)];
+
+    // Collect all officer record IDs for this contact
+    const officerIds = currentOfficers
+      .filter((o) => o.contact?.id === contactId && o.is_current)
+      .map((o) => o.id);
 
     setCeasingDirectors((prev) => [
       ...prev,
       {
         corporate_director_id: officer.id,
+        contact_id: contactId || 0,
+        officer_ids: officerIds,
         name: officer.contact?.display_name || "Unknown",
         position: officer.position,
-        positions: [officer.position],
+        positions: uniquePositions.length > 0 ? uniquePositions : [officer.position],
         cessation_date: format(new Date(), "yyyy-MM-dd"),
       },
     ]);
@@ -194,6 +211,12 @@ export function DirectorChangeWizard({
   const updateCeasingDate = (id: number, date: string) => {
     setCeasingDirectors((prev) =>
       prev.map((cd) => (cd.corporate_director_id === id ? { ...cd, cessation_date: date } : cd))
+    );
+  };
+
+  const updateCeasingPositions = (id: number, positions: string[]) => {
+    setCeasingDirectors((prev) =>
+      prev.map((cd) => (cd.corporate_director_id === id ? { ...cd, positions } : cd))
     );
   };
 
@@ -446,12 +469,7 @@ export function DirectorChangeWizard({
               {ceasingDirectors.map((cd) => (
                 <div key={cd.corporate_director_id} className="p-3 border rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-sm">{cd.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {cd.positions.map((p) => p.replace(/_/g, " / ").replace(/\b\w/g, (c) => c.toUpperCase())).join(", ")}
-                      </p>
-                    </div>
+                    <p className="font-medium text-sm">{cd.name}</p>
                     <button
                       onClick={() => removeCeasingDirector(cd.corporate_director_id)}
                       className="text-muted-foreground hover:text-destructive"
@@ -459,42 +477,76 @@ export function DirectorChangeWizard({
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  <div>
-                    <Label className="text-xs">Cessation Date</Label>
-                    <Input
-                      type="date"
-                      value={cd.cessation_date}
-                      onChange={(e) => updateCeasingDate(cd.corporate_director_id, e.target.value)}
-                      className="h-8 text-sm"
-                    />
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-xs">Resigning From</Label>
+                      <div className="flex flex-wrap gap-3 mt-1">
+                        {POSITION_OPTIONS.map((pos) => (
+                          <label key={pos.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={cd.positions.includes(pos.value)}
+                              onChange={(e) => {
+                                const updated = e.target.checked
+                                  ? [...cd.positions, pos.value]
+                                  : cd.positions.filter((p) => p !== pos.value);
+                                updateCeasingPositions(cd.corporate_director_id, updated.length > 0 ? updated : [cd.position]);
+                              }}
+                              className="rounded border-input"
+                            />
+                            {pos.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Cessation Date</Label>
+                      <Input
+                        type="date"
+                        value={cd.cessation_date}
+                        onChange={(e) => updateCeasingDate(cd.corporate_director_id, e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
 
-              {/* Add ceasing director */}
-              {currentOfficers.filter(
-                (o) => !ceasingDirectors.some((cd) => cd.corporate_director_id === o.id)
-              ).length > 0 && (
-                <Select
-                  onValueChange={(val) => {
-                    const officer = currentOfficers.find((o) => o.id === Number(val));
-                    if (officer) addCeasingDirector(officer);
-                  }}
-                >
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="Select officer to resign..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {currentOfficers
-                      .filter((o) => !ceasingDirectors.some((cd) => cd.corporate_director_id === o.id))
-                      .map((officer) => (
+              {/* Add ceasing director - grouped by contact to avoid duplicates */}
+              {(() => {
+                // Group officers by contact, excluding already-added contacts
+                const availableByContact = currentOfficers
+                  .filter((o) => o.is_current && !ceasingDirectors.some((cd) => cd.contact_id === o.contact?.id))
+                  .reduce((acc, o) => {
+                    const cId = o.contact?.id;
+                    if (!cId) return acc;
+                    if (!acc.has(cId)) acc.set(cId, { officer: o, positions: [] });
+                    acc.get(cId)!.positions.push(o.formatted_position);
+                    return acc;
+                  }, new Map<number, { officer: OfficerRecord; positions: string[] }>());
+
+                if (availableByContact.size === 0) return null;
+
+                return (
+                  <Select
+                    onValueChange={(val) => {
+                      const officer = currentOfficers.find((o) => o.id === Number(val));
+                      if (officer) addCeasingDirector(officer);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Select officer to resign..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[...availableByContact.values()].map(({ officer, positions }) => (
                         <SelectItem key={officer.id} value={String(officer.id)}>
-                          {officer.contact?.display_name} - {officer.formatted_position}
+                          {officer.contact?.display_name} - {positions.join(", ")}
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
-              )}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
             </div>
 
             {/* New Appointments */}
