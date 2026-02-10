@@ -225,17 +225,32 @@ module Api
         batch_size = params[:batch_size]&.to_i
         offset = params[:offset]&.to_i || 0
 
+        # Allow overriding scope filter (e.g. contacts: price_only=false to sync ALL contacts)
+        effective_config = table_config
+        if params[:price_only] == "false" && table.in?([:contacts, :price_histories])
+          effective_config = table_config.except(:scope)
+        end
+
         if is_master
-          # Find the tenant with the most records for this table
-          source_tenants = Tenant.where(is_master_tenant: false).to_a
+          # Allow explicit source tenant selection (from frontend dropdown)
+          # Falls back to auto-selecting the tenant with the most records
           best_source = nil
           best_count = 0
 
-          source_tenants.each do |t|
-            count = ActsAsTenant.with_tenant(t) { scoped_model(model, table_config).count }
-            if count > best_count
-              best_count = count
-              best_source = t
+          if params[:source_tenant_id].present?
+            best_source = Tenant.find_by(id: params[:source_tenant_id])
+            best_count = best_source ? ActsAsTenant.with_tenant(best_source) { scoped_model(model, effective_config).count } : 0
+          end
+
+          unless best_source && best_count > 0
+            # Auto-select: find the tenant with the most records for this table
+            source_tenants = Tenant.where(is_master_tenant: false).to_a
+            source_tenants.each do |t|
+              count = ActsAsTenant.with_tenant(t) { scoped_model(model, effective_config).count }
+              if count > best_count
+                best_count = count
+                best_source = t
+              end
             end
           end
 
@@ -250,7 +265,7 @@ module Api
 
           # Use scope from config (SSoT) — e.g. contacts → price_only, price_histories → price_only suppliers
           all_ids = ActsAsTenant.with_tenant(best_source) do
-            base = scoped_model(model, table_config)
+            base = scoped_model(model, effective_config)
             if table == :price_histories
               # Only latest price per pricebook_item + supplier combo
               base
@@ -337,7 +352,7 @@ module Api
           }
         else
           # Non-master tenant: pull from master (respecting scope filters)
-          all_ids = ActsAsTenant.with_tenant(master_tenant) { scoped_model(model, table_config).pluck(:id) }
+          all_ids = ActsAsTenant.with_tenant(master_tenant) { scoped_model(model, effective_config).pluck(:id) }
 
           if all_ids.empty?
             return render json: {
