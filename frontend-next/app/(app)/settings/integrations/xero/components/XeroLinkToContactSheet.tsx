@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -29,7 +29,6 @@ import {
   Link2,
   LinkIcon,
   Plus,
-  Search,
   Unlink,
   User,
   ArrowRightLeft,
@@ -110,8 +109,7 @@ export function XeroLinkToContactSheet({
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Search for TEEEM contacts with debounce
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const handleSearchChange = (value: string) => {
     setSearch(value);
 
     // Clear previous timeout
@@ -494,15 +492,11 @@ export function XeroLinkToContactSheet({
               <div className="text-xs font-semibold text-muted-foreground mb-2">
                 {localSynced ? "Change Link To" : "Link To TEEEM Contact"}
               </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search TEEEM contacts..."
-                  value={search}
-                  onChange={handleSearchChange}
-                  className="pl-9"
-                />
-              </div>
+              <SearchInput
+                value={search}
+                onChange={handleSearchChange}
+                placeholder="Search TEEEM contacts..."
+              />
             </div>
 
             {/* Search Results */}

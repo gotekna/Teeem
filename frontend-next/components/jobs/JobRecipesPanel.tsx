@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
@@ -30,7 +30,6 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
-  Search,
   ShoppingCart,
   Check,
   AlertCircle,
@@ -471,15 +470,11 @@ export function JobRecipesPanel({ jobId, onPOGenerated }: JobRecipesPanelProps) 
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search recipes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+            <SearchInput
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Search recipes..."
+            />
 
             <div className="max-h-[400px] overflow-y-auto border rounded-lg">
               {loadingAvailable ? (

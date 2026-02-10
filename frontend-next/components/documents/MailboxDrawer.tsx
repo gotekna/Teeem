@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sheet,
@@ -14,9 +13,9 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Mail,
-  Search,
   ExternalLink,
   Paperclip,
   ChevronLeft,
@@ -281,16 +280,11 @@ export function MailboxDrawer({ mailbox, jobId, open, onOpenChange }: MailboxDra
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Search */}
               <div className="px-4 py-2 border-b">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder="Search emails..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
+                <SearchInput
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder="Search emails..."
+                />
                 <div className="mt-2 text-xs text-muted-foreground">
                   {totalCount.toLocaleString()} emails
                 </div>

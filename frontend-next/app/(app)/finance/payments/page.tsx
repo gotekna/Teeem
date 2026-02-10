@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
-  Search,
   Plus,
   Download,
   CheckCircle,
@@ -49,6 +48,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
+import { SearchInput } from "@/components/ui/search-input";
 
 interface BankAccount {
   id: number;
@@ -269,15 +269,12 @@ export default function PaymentBatchesPage() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-4 flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search batches..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search batches..."
+              className="flex-1 min-w-[200px]"
+            />
             <Select
               value={statusFilter}
               onValueChange={(v) => {

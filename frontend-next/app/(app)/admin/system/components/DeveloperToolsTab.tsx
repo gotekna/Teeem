@@ -32,7 +32,6 @@ import {
 import {
   RefreshCw,
   Database,
-  Search,
   ExternalLink,
   CheckCircle,
   AlertTriangle,
@@ -50,6 +49,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -426,15 +426,12 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
 
             {/* Search and Feature Filter */}
             <div className="flex gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search tables by name, database table, or feature..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search tables by name, database table, or feature..."
+                className="flex-1"
+              />
               <Select value={featureFilter} onValueChange={setFeatureFilter}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="All Features" />
@@ -667,15 +664,12 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
         {/* Columns Tab */}
         <TabsContent value="columns">
           <div className="space-y-4">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search columns across all tables..."
-                value={columnSearchQuery}
-                onChange={(e) => setColumnSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+            <SearchInput
+              value={columnSearchQuery}
+              onChange={setColumnSearchQuery}
+              placeholder="Search columns across all tables..."
+              className="max-w-md"
+            />
 
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">

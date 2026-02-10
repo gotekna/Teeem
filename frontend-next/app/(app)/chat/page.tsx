@@ -52,6 +52,7 @@ import {
 import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import type {
   ChatMessage,
@@ -687,15 +688,11 @@ export default function ChatPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search team members..."
-                  value={userSearchQuery}
-                  onChange={(e) => setUserSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+              <SearchInput
+                value={userSearchQuery}
+                onChange={setUserSearchQuery}
+                placeholder="Search team members..."
+              />
               <ScrollArea className="h-[300px]">
                 <div className="space-y-1">
                   {filteredUsers.map((user) => (

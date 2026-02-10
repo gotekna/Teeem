@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
-import { X, CheckCircle, XCircle, RefreshCw, Building2, AlertTriangle, ChevronDown, Users, Search, Filter } from "lucide-react";
+import { X, CheckCircle, XCircle, RefreshCw, Building2, AlertTriangle, ChevronDown, Users, Filter } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 
 interface CompanyLink {
@@ -271,15 +272,11 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
         {/* Search and Filters */}
         <div className="border-b p-3 space-y-3">
           {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search Xero orgs, tenants, or companies..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+          <SearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search Xero orgs, tenants, or companies..."
+          />
 
           {/* Filter Pills */}
           <div className="flex items-center gap-2">
