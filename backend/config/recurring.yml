@@ -385,13 +385,13 @@ email_reminders:
 # ============================================
 # DOCSORT - Universal Document Inbox
 # ============================================
-# Sync docsort@tekna.com.au mailbox for document classification
-# Creates DocsortItem records for incoming emails and attachments
-# Triggers AI classification and auto-routing
-docsort_email_ingest:
-  class: DocsortEmailIngestJob
-  queue: default
-  schedule: every 15 minutes
+# DISABLED: DocsortEmailIngestJob class does not exist yet.
+# This was crashing workers on both staging and production.
+# Re-enable when DocsortEmailIngestJob is implemented.
+# docsort_email_ingest:
+#   class: DocsortEmailIngestJob
+#   queue: default
+#   schedule: every 15 minutes
 
 # ============================================
 # EMAIL TO JOB / EMAIL TO TASK
