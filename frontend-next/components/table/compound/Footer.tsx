@@ -22,6 +22,7 @@ import { useTableContext } from './TableContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { isNumericColumn } from '@/lib/constants/column-types';
 
 // ============================================================================
 // FOOTER ROOT
@@ -148,15 +149,13 @@ export function Totals({ columns: includeColumns, className }: TotalsProps) {
 
   // Calculate totals for numeric columns
   const totals = useMemo(() => {
-    const numericTypes = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
     const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude'];
 
     const result: Record<string, { total: number; type: string }> = {};
 
     visibleColumnsInOrder.forEach((col) => {
       const isNumeric =
-        col.column_type &&
-        numericTypes.includes(col.column_type) &&
+        isNumericColumn(col.column_type) &&
         !skipColumns.includes(col.key);
 
       const shouldInclude = !includeColumns || includeColumns.includes(col.key);

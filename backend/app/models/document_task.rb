@@ -10,8 +10,6 @@ class DocumentTask < ApplicationRecord
   # SSoT: Link to deduplicated file storage (Jan 2026)
   belongs_to :storage_blob, optional: true
 
-  # ActiveStorage has_one_attached :document was REMOVED (Jan 2026) - it violated SSoT.
-
   validates :name, presence: true
   validates :category, presence: true
   validates :job_id, presence: true

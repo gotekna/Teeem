@@ -431,7 +431,7 @@ import { selectDefaultView } from '@/lib/view-loading-utils';
 // Single hook provides all view state with SSR support and foundation isolation
 import { useFoundationViewState } from '@/lib/view-state/hooks/useFoundationViewState';
 import { useViewFromPath } from '@/lib/view-state/hooks/useViewFromPath';
-import { isLookupColumn, isChoiceColumn } from '@/lib/constants/column-types';
+import { isLookupColumn, isChoiceColumn, isBooleanColumn, isNumericColumn } from '@/lib/constants/column-types';
 
 // Layer 2: Feature Hooks (new architecture - gradual migration)
 import { useSorting } from './hooks/useSorting';
@@ -3171,7 +3171,7 @@ export default function TeeemTableView({
     const hasChoices = column.choices && column.choices.length > 0;
     const isLookup = isLookupColumn(colType) || !!column.lookup_foundation_id;
     const isChoice = isChoiceColumn(colType);
-    const isBoolean = colType === 'boolean';
+    const isBoolean = isBooleanColumn(colType);
     return hasChoices || isLookup || isChoice || isBoolean;
   }, []);
 
@@ -4092,7 +4092,6 @@ export default function TeeemTableView({
   // Calculate column totals for numeric columns
   // Respects totalsColumns setting - empty array means ALL numeric columns
   const columnTotals = useMemo(() => {
-    const numericTypes = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
     const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'job_design_id', 'user_id']; // Never show totals for these
     const totals: Record<string, { value: number; type: string; label: string; isAverage: boolean }> = {};
 
@@ -4101,7 +4100,7 @@ export default function TeeemTableView({
     const hasNoneMarker = totalsColumns.includes('__none__');
 
     visibleDataColumns.forEach(col => {
-      if (col.column_type && numericTypes.includes(col.column_type) && !skipColumns.includes(col.key)) {
+      if (col.column_type && isNumericColumn(col.column_type) && !skipColumns.includes(col.key)) {
         // Skip if specific columns selected and this column isn't in the list
         // Empty array means "all columns" (default behavior)
         if (hasNoneMarker) return; // '__none__' marker means show no totals
@@ -4809,7 +4808,7 @@ export default function TeeemTableView({
                   textAlign: 'center',
                   verticalAlign: 'middle',
                 }),
-                ...(column.column_type === 'boolean' && {
+                ...(isBooleanColumn(column.column_type) && {
                   textAlign: 'center',
                   verticalAlign: 'middle',
                 }),
@@ -4820,7 +4819,7 @@ export default function TeeemTableView({
               className={cn(
                 column.key === "select" && "!border-r-0 !p-0 !h-full",
                 column.key === "actions" && "!border-l-0",
-                column.column_type === "boolean" && "!px-1"
+                isBooleanColumn(column.column_type) && "!px-1"
               )}
               onClick={(e) => {
                 if (column.key === "select") {
@@ -5084,7 +5083,7 @@ export default function TeeemTableView({
                           textAlign: 'center',
                           verticalAlign: 'middle',
                         }),
-                        ...(column.column_type === 'boolean' && {
+                        ...(isBooleanColumn(column.column_type) && {
                           textAlign: 'center',
                           verticalAlign: 'middle',
                         }),
@@ -5096,7 +5095,7 @@ export default function TeeemTableView({
                         column.key === "select" && "!border-r-0 !p-0 !h-full",
                         column.key === "actions" && "!border-l-0",
                         isFirstDataColumn && "font-semibold",
-                        column.column_type === "boolean" && "!px-1"
+                        isBooleanColumn(column.column_type) && "!px-1"
                       )}
                       onClick={(e) => {
                         if (column.key === "select") {
@@ -5180,7 +5179,7 @@ export default function TeeemTableView({
                         textAlign: 'center',
                         verticalAlign: 'middle',
                       }),
-                      ...(column.column_type === 'boolean' && {
+                      ...(isBooleanColumn(column.column_type) && {
                         textAlign: 'center',
                         verticalAlign: 'middle',
                       }),
@@ -5191,7 +5190,7 @@ export default function TeeemTableView({
                     className={cn(
                       column.key === "select" && "!border-r-0 !p-0 !h-full",
                       column.key === "actions" && "!border-l-0",
-                      column.column_type === "boolean" && "!px-1"
+                      isBooleanColumn(column.column_type) && "!px-1"
                     )}
                     onClick={(e) => {
                       if (column.key === "select") {
@@ -5613,7 +5612,7 @@ export default function TeeemTableView({
                           textAlign: 'center',
                           verticalAlign: 'middle'
                         }),
-                        ...(column.column_type === 'boolean' && {
+                        ...(isBooleanColumn(column.column_type) && {
                           textAlign: 'center',
                           verticalAlign: 'middle',
                         }),
@@ -5624,7 +5623,7 @@ export default function TeeemTableView({
                       className={cn(
                         column.key === "select" && "!border-r-0 !p-0 !h-full",
                         column.key === "actions" && "!border-l-0",
-                        column.column_type === "boolean" && "!px-1"
+                        isBooleanColumn(column.column_type) && "!px-1"
                       )}
                       onClick={(e) => {
                         if (column.key === "select") {
@@ -5644,7 +5643,7 @@ export default function TeeemTableView({
                         </div>
                       ) : column.key === "actions" ? (
                         renderCellValue(row, column)
-                      ) : column.column_type === "boolean" ? (
+                      ) : isBooleanColumn(column.column_type) ? (
                         renderCellValue(row, column)
                       ) : (
                         <div

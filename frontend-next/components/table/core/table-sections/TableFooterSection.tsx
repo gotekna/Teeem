@@ -9,6 +9,7 @@
 
 import React from 'react';
 import type { TableColumn } from '../../types';
+import { isNumericColumn } from '@/lib/constants/column-types';
 
 export interface TableFooterSectionProps {
   /** Visible columns in display order */
@@ -34,9 +35,8 @@ export function TableFooterSection({
   getStickyColumnStyles,
 }: TableFooterSectionProps) {
   // Check if any visible columns are numeric
-  const numericTypes = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
   const hasNumericColumns = visibleColumnsInOrder.some(
-    col => col.column_type && numericTypes.includes(col.column_type)
+    col => isNumericColumn(col.column_type)
   );
 
   if (!hasNumericColumns || rows.length === 0) return null;
@@ -47,7 +47,7 @@ export function TableFooterSection({
         {visibleColumnsInOrder.map((column, colIndex) => {
           // Skip id column and other non-summable columns
           const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'job_design_id', 'user_id'];
-          const isNumeric = column.column_type && numericTypes.includes(column.column_type) && !skipColumns.includes(column.key);
+          const isNumeric = isNumericColumn(column.column_type) && !skipColumns.includes(column.key);
           let total: number | null = null;
 
           if (isNumeric) {

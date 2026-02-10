@@ -32,18 +32,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { useAtom, useSetAtom } from "jotai";
 import { selectedRowsAtom, clearSelectionAtom } from "@/lib/table-atoms";
-
-// Foundation table name for Purchase Orders
-const PURCHASE_ORDERS_TABLE_NAME = "purchase-orders";
-
-// Internal team roles for assignment (SSoT: JobPeopleTab.tsx INTERNAL_ROLES)
-const INTERNAL_TEAM_ROLES = [
-  { key: "supervisor", label: "Supervisor" },
-  { key: "site_coordinator", label: "Site Coordinator" },
-  { key: "estimator", label: "Estimator" },
-  { key: "internal_sales", label: "Internal Sales" },
-  { key: "coordinator", label: "Client Coordinator" },
-] as const;
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
+import { INTERNAL_ROLES } from "@/lib/constants/job-roles";
 
 interface Contact {
   id: number;
@@ -149,7 +139,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   // Handle inline row update - use slug-based API
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/${PURCHASE_ORDERS_TABLE_NAME}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/${FOUNDATION_SLUGS.PURCHASE_ORDERS}/records/${rowId}`, {
         record: { [field]: value }
       });
       setRefreshKey(k => k + 1);
@@ -232,7 +222,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         `/api/v1/jobs/${jobId}/job_contacts`
       );
       // Filter for internal team roles only (those with user_id)
-      const internalRoleKeys = INTERNAL_TEAM_ROLES.map(r => r.key) as string[];
+      const internalRoleKeys = INTERNAL_ROLES.map(r => r.key) as string[];
       const team = (response?.job_contacts || []).filter(
         jc => internalRoleKeys.includes(jc.role) && jc.user_id
       );
@@ -448,7 +438,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       {/* SSoT: onAddRow opens the PO modal - single way to create POs */}
       <TeeemTableView
         key={refreshKey}
-        foundationId={PURCHASE_ORDERS_TABLE_NAME}
+        foundationId={FOUNDATION_SLUGS.PURCHASE_ORDERS}
         autoFetchRecords={true}
         initialFilters={[
           { id: "job-filter", column: "job_id", operator: "=", value: String(jobId) }
@@ -644,7 +634,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 <Label>Assign To</Label>
                 {/* Quick-select buttons for job's internal team */}
                 <div className="flex flex-wrap gap-2">
-                  {INTERNAL_TEAM_ROLES.map((role) => {
+                  {INTERNAL_ROLES.map((role) => {
                     const teamMember = getTeamMemberForRole(role.key);
                     const isSelected = isRoleButtonSelected(role.key);
                     return (

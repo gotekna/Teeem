@@ -87,6 +87,7 @@ import { UIComponentsPlaygroundTab } from "./UIComponentsPlaygroundTab";
 import { ColumnTypeDefinitionsTab } from "./ColumnTypeDefinitionsTab";
 import { SortableList, SortableItem, DragHandle, ItemBadge } from "@/components/ui/dnd";
 import { Spinner } from "@/components/ui/spinner";
+import { isBooleanColumn, isNumericColumn } from '@/lib/constants/column-types';
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 
@@ -627,9 +628,9 @@ function GoldStandardDataTab() {
     // Initialize form with empty values for all columns
     const initialData: Record<string, unknown> = {};
     rawColumns.forEach((col) => {
-      if (col.column_type === "boolean") {
+      if (isBooleanColumn(col.column_type)) {
         initialData[col.column_name] = false;
-      } else if (col.column_type === "number" || col.column_type === "whole_number" || col.column_type === "currency" || col.column_type === "percentage") {
+      } else if (isNumericColumn(col.column_type)) {
         initialData[col.column_name] = "";
       } else {
         initialData[col.column_name] = "";

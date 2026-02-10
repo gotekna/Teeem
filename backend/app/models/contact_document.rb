@@ -16,10 +16,6 @@ class ContactDocument < ApplicationRecord
   # Same file = same StorageBlob, deduplication via content_hash
   belongs_to :storage_blob, optional: true
 
-  # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - it violated SSoT by
-  # duplicating storage location. Files now stored via StorageBlob (belongs_to :storage_blob)
-  # which deduplicates via content_hash and uses WarehouseProvider for provider-agnostic paths.
-
   # Phase 3: Universal warehouse metadata (SSoT for ui_name, download_name, folder)
   # NOTE: has_one :warehouse_document is now provided by WarehouseDocumentable concern
 

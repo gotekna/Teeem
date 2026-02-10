@@ -8,7 +8,7 @@ class User < ApplicationRecord
   # User.email is the login email, synced to Contact.contact_emails with label='login'
   belongs_to :contact  # REQUIRED - User must have a Contact (Jan 2026 consolidation)
   belongs_to :tenant, optional: true  # Multi-tenancy: User's assigned tenant (SSoT)
-  belongs_to :company_group, optional: true  # DEPRECATED: Use tenant instead for multi-tenancy
+  # company_group_id column removed from users table - use tenant for multi-tenancy
   has_many :grok_plans, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
   has_many :foundation_views, dependent: :destroy
@@ -35,8 +35,6 @@ class User < ApplicationRecord
   # SSoT: Links to deduplicated file storage (Jan 2026)
   belongs_to :signature_blob, class_name: "StorageBlob", optional: true
   belongs_to :photo_blob, class_name: "StorageBlob", optional: true
-
-  # ActiveStorage has_one_attached :signature/:photo was REMOVED (Jan 2026) - it violated SSoT.
 
   # Signature usage register - tracks every time signature is used
   has_many :signature_usages, dependent: :destroy
