@@ -39,8 +39,7 @@ class TenantConfigSyncService
       model: "JobStatus",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :color, :icon, :description, :is_active, :position,
-                    :is_complete, :is_default, :order_index, :status_category],
+      sync_fields: [:name, :color, :is_active, :position],
       description: "Job status workflow states",
       group: "jobs"
     },
@@ -48,8 +47,7 @@ class TenantConfigSyncService
       model: "JobStage",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :color, :icon, :description, :is_active, :position,
-                    :stage_order, :is_milestone],
+      sync_fields: [:name, :color, :is_active, :position],
       description: "Job stage progression",
       group: "jobs"
     },
@@ -273,7 +271,7 @@ class TenantConfigSyncService
       model: "PricebookCategory",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :description, :parent_id, :position, :icon, :color],
+      sync_fields: [:name, :display_name, :position, :icon, :color, :is_active],
       description: "Pricebook organization categories",
       group: "operations"
     },
@@ -306,7 +304,7 @@ class TenantConfigSyncService
       model: "PublicHoliday",
       name_field: :name,
       match_fields: [:name, :date],
-      sync_fields: [:name, :date, :region, :description, :recurring],
+      sync_fields: [:name, :date, :region],
       description: "Regional public holidays",
       group: "operations"
     },
@@ -317,7 +315,10 @@ class TenantConfigSyncService
       sync_fields: [:code, :name, :description, :centre_type, :parent_id,
                     :overhead_allocation_percent, :budget_amount, :active, :metadata],
       description: "Cost centre definitions",
-      group: "operations"
+      group: "operations",
+      remap_fks: {
+        parent_id: { model: "CostCentre", match_field: :code }
+      }
     },
     supervisor_checklist_templates: {
       model: "SupervisorChecklistTemplate",
