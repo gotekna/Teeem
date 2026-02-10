@@ -222,11 +222,25 @@ export function DirectorChangeWizard({
 
   // --- New Appointments ---
 
-  const addNewAppointment = (contact: ContactSearchResult) => {
+  const addNewAppointment = async (contact: ContactSearchResult) => {
     if (newAppointments.some((a) => a.contact_id === contact.id)) return;
 
     // Default appointment date to the first ceasing director's cessation date (continuity)
     const defaultDate = ceasingDirectors[0]?.cessation_date || format(new Date(), "yyyy-MM-dd");
+
+    // Fetch full contact details to check DOB and address (search API doesn't include these)
+    let hasDob = !!contact.date_of_birth;
+    let hasAddress = !!contact.full_address;
+    try {
+      const detail = await api.get<{ contact: { date_of_birth?: string; contact_addresses?: Array<{ line1?: string; city?: string }> } }>(
+        `/api/v1/contacts/${contact.id}`
+      );
+      const c = detail.contact;
+      hasDob = !!c?.date_of_birth && c.date_of_birth !== "[RESTRICTED]";
+      hasAddress = (c?.contact_addresses?.length ?? 0) > 0;
+    } catch {
+      // If fetch fails, keep search-level values
+    }
 
     setNewAppointments((prev) => [
       ...prev,
@@ -236,8 +250,8 @@ export function DirectorChangeWizard({
         email: contact.email || "",
         positions: ["director"],
         appointment_date: defaultDate,
-        has_dob: !!contact.date_of_birth,
-        has_address: !!contact.full_address,
+        has_dob: hasDob,
+        has_address: hasAddress,
       },
     ]);
     setContactSearch("");
@@ -571,18 +585,60 @@ export function DirectorChangeWizard({
                     </button>
                   </div>
 
-                  {/* Warnings */}
+                  {/* Missing fields - inline entry */}
                   {(!appt.has_dob || !appt.has_address) && (
-                    <a
-                      href={`/contacts/${appt.contact_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
-                    >
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      Missing: {[!appt.has_dob && "Date of Birth", !appt.has_address && "Address"].filter(Boolean).join(", ")}
-                      <span className="text-[10px] opacity-70">(click to update)</span>
-                    </a>
+                    <div className="space-y-2 p-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded text-sm">
+                      <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        Required for ASIC forms:
+                      </div>
+                      {!appt.has_dob && (
+                        <div>
+                          <Label className="text-xs">Date of Birth</Label>
+                          <Input
+                            type="date"
+                            className="h-8 text-sm"
+                            onChange={async (e) => {
+                              if (!e.target.value) return;
+                              try {
+                                await api.patch(`/api/v1/contacts/${appt.contact_id}`, {
+                                  contact: { date_of_birth: e.target.value },
+                                });
+                                setNewAppointments((prev) =>
+                                  prev.map((a) => a.contact_id === appt.contact_id ? { ...a, has_dob: true } : a)
+                                );
+                              } catch { /* ignore */ }
+                            }}
+                          />
+                        </div>
+                      )}
+                      {!appt.has_address && (
+                        <div>
+                          <Label className="text-xs">Residential Address</Label>
+                          <Input
+                            type="text"
+                            placeholder="e.g. 123 Main St, Brisbane QLD 4000"
+                            className="h-8 text-sm"
+                            onBlur={async (e) => {
+                              if (!e.target.value) return;
+                              try {
+                                await api.patch(`/api/v1/contacts/${appt.contact_id}`, {
+                                  contact: {
+                                    contact_addresses_attributes: [
+                                      { line1: e.target.value, address_type: "STREET", is_primary: true },
+                                    ],
+                                  },
+                                });
+                                setNewAppointments((prev) =>
+                                  prev.map((a) => a.contact_id === appt.contact_id ? { ...a, has_address: true } : a)
+                                );
+                              } catch { /* ignore */ }
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                          />
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   <div className="space-y-2">
