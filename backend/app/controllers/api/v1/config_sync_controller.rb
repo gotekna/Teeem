@@ -219,6 +219,11 @@ module Api
           model = table_config[:model].constantize
 
           if is_master
+            # Master tenant: skip contacts and contact_types - master only needs
+            # price_only supplier stubs, not the full tenant contact list.
+            # Contacts come in via price_histories import (remap_fks creates them).
+            next if table.in?([:contacts, :contact_types])
+
             # Master tenant: import from the tenant with the most records for this table
             best_source = nil
             best_count = 0
