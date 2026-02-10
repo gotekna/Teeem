@@ -2,7 +2,7 @@
 
 module Api
   module V1
-    class PdfGenerationsController < Api::V1::BaseController
+    class PdfGenerationsController < ApplicationController
       # POST /api/v1/pdf_generations
       # Enqueue a new PDF generation job
       def create

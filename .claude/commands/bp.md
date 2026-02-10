@@ -49,8 +49,14 @@ cd "$DEPLOY_DIR"
 git init
 git add .
 git commit -m "Deploy to Production $(date +%Y%m%d-%H%M%S)"
+
+# Deploy to web app
 git remote add heroku https://git.heroku.com/teeem-production.git
 git push heroku HEAD:main --force
+
+# Deploy to worker app (same code, separate slug with heavy gems)
+git remote add worker https://git.heroku.com/teeem-production-worker.git 2>/dev/null && git push worker HEAD:main --force || echo "⚠️ Production worker app not yet created"
+
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 ```
