@@ -468,11 +468,11 @@ module Api
             claim_stage: @stage
           )
 
-          # SSoT: Create WarehouseDocument for the generated PDF (Jan 2026)
-          document = WarehouseDocument.create!(
-            ui_name: "Invoice #{invoice.invoice_number || 'Draft'}",  # SSoT: display_name renamed to ui_name (Feb 2026)
-            documentable: invoice,
-            source_type: "generated"
+          # SSoT: WarehouseDocumentCreator handles metadata + callbacks
+          document = WarehouseDocumentCreator.create!(
+            filename: "Invoice #{invoice.invoice_number || 'Draft'}",
+            source_type: "generated",
+            documentable: invoice
           )
 
           # Attach the PDF via StorageBlob

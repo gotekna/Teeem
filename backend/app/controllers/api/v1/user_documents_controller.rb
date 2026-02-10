@@ -103,16 +103,14 @@ module Api
         if document.save
           blob.increment_reference!
 
-          # Create WarehouseDocument for universal metadata
-          WarehouseDocument.create!(
-            documentable: document,
+          # SSoT: WarehouseDocumentCreator handles metadata + callbacks
+          WarehouseDocumentCreator.create!(
+            filename: document.file_name,
             source_type: "user",
-            ui_name: document.file_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
-            original_filename: document.file_name,
-            folder_path: document.virtual_folder_path,
+            documentable: document,
+            storage_blob: blob,
             content_type: document.content_type,
-            file_size: document.file_size,
-            storage_blob: blob
+            file_size: document.file_size
           )
 
           @document_provider = fetch_document_provider
@@ -201,34 +199,29 @@ module Api
           return render json: { success: false, error: "Job not found" }, status: :not_found
         end
 
-        # SSoT (Jan 2026): Create WarehouseDocument directly (no legacy JobDocument)
+        # SSoT: WarehouseDocumentCreator handles metadata + callbacks
         # Same StorageBlob = deduplication (same file, new reference)
-        folder_path = params[:folder_path].presence || "From My Docs"
-
-        warehouse_doc = WarehouseDocument.new(
+        warehouse_doc = WarehouseDocumentCreator.create!(
+          filename: @document.file_name,
           source_type: "job",
           linkable: job,
-          ui_name: @document.file_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
-          original_filename: @document.file_name,
-          folder: folder_path,
+          storage_blob: @document.storage_blob,
           content_type: @document.content_type,
           file_size: @document.file_size,
-          storage_blob: @document.storage_blob,
           metadata: {
-            job_code: job.job_code,
-            storage_provider: @document.storage_provider,
-            source: "linked_from_my_docs"
+            "storage_provider" => @document.storage_provider,
+            "source" => "linked_from_my_docs"
           }
         )
 
-        if warehouse_doc.save
+        if warehouse_doc
           # Increment blob reference count (same file, new reference)
           @document.storage_blob&.increment_reference!
 
           render json: {
             success: true,
             message: "Document linked to job #{job.job_code}",
-            job_document_id: warehouse_doc.id
+            warehouse_document_id: warehouse_doc.id
           }
         else
           render json: {

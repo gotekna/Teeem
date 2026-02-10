@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { BackButton } from "@/components/ui/back-button";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
@@ -67,7 +68,7 @@ function PhotoThumbnailWithFallback({
       >
         {error ? (
           <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground text-xs">
-            Failed
+            No preview
           </div>
         ) : (
           <img
@@ -427,9 +428,7 @@ export default function JobPhotosPage() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-2">
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <Spinner className="h-8 w-8" />
-          </div>
+          <LoadingOverlay />
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <p>{error}</p>

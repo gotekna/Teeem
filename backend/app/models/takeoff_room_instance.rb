@@ -6,7 +6,7 @@
 # a room instance is created with pre-built slots copied from the template steps.
 # Each slot represents one measurement to be taken (e.g., "Floor Area", "Wall Tiles").
 #
-# Belongs to EITHER a JobPlan OR a DocsortItem (one must be set).
+# Belongs to EITHER a JobPlan OR a DocumentInbox (one must be set).
 #
 class TakeoffRoomInstance < ApplicationRecord
   acts_as_tenant(:tenant)
@@ -16,7 +16,7 @@ class TakeoffRoomInstance < ApplicationRecord
   belongs_to :takeoff_template
   belongs_to :job, optional: true
   belongs_to :job_plan, optional: true
-  belongs_to :docsort_item, optional: true
+  belongs_to :document_inbox, optional: true
   belongs_to :created_by, class_name: "User", optional: true
   has_many :slots, class_name: "TakeoffRoomSlot", dependent: :destroy
 
@@ -28,7 +28,7 @@ class TakeoffRoomInstance < ApplicationRecord
   # Scopes
   scope :ordered, -> { order(:display_order) }
   scope :for_job_plan, ->(plan) { where(job_plan: plan) }
-  scope :for_docsort_item, ->(item) { where(docsort_item: item) }
+  scope :for_document_inbox, ->(item) { where(document_inbox: item) }
   scope :in_progress, -> { where(status: "in_progress") }
   scope :complete, -> { where(status: "complete") }
 
@@ -127,10 +127,10 @@ class TakeoffRoomInstance < ApplicationRecord
   private
 
   def must_belong_to_plan_or_docsort
-    if job_plan_id.blank? && docsort_item_id.blank?
+    if job_plan_id.blank? && document_inbox_id.blank?
       errors.add(:base, "Must belong to either a job plan or a docsort item")
     end
-    if job_plan_id.present? && docsort_item_id.present?
+    if job_plan_id.present? && document_inbox_id.present?
       errors.add(:base, "Cannot belong to both a job plan and a docsort item")
     end
   end
@@ -141,7 +141,7 @@ class TakeoffRoomInstance < ApplicationRecord
     scope = if job_plan_id
               self.class.where(job_plan_id: job_plan_id)
             else
-              self.class.where(docsort_item_id: docsort_item_id)
+              self.class.where(document_inbox_id: document_inbox_id)
             end
     max_order = scope.maximum(:display_order) || -1
     self.display_order = max_order + 1

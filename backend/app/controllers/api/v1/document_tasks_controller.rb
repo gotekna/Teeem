@@ -3,7 +3,7 @@
 # SSoT (Jan 2026): Document Tasks Controller
 #
 # Provides document task data per job + document type category.
-# Originally backed by JobDocument table (dropped), now uses WarehouseDocument.
+# Backed by WarehouseDocument.
 #
 module Api
   module V1

@@ -95,7 +95,7 @@ export interface UseDocumentOfflineSyncResult {
 
 interface JobDocument {
   // IDs
-  id: string;              // sharepoint_item_id
+  id: string;              // storage_item_id
   document_id: number;     // JobDocument.id (database ID)
   // File info
   name: string;            // file_name

@@ -34,6 +34,51 @@
 #   # => [{ id: 1, folder_path: "...", warehouse_folder_id: 123, path_template_version: 1 }, ...]
 #
 class WarehousePathComputer
+  # ════════════════════════════════════════════════════════════════════
+  # Rematerialize folder_path on WarehouseDocuments when config changes.
+  #
+  # Call this from ANY controller that modifies path-affecting config:
+  #   - WarehouseType.folder_path_template or display_name changed
+  #   - WarehouseFolder.folder_segment renamed
+  #   - WarehouseFolder.parent_id changed (moved)
+  #   - WarehouseFolder.warehouse_type_id changed (reassigned)
+  #   - WarehouseFolder.folder_path_suffix changed
+  #
+  # @param folder_ids [Array<Integer>] WarehouseFolder IDs whose paths changed
+  # @return [Integer] Number of documents updated
+  # ════════════════════════════════════════════════════════════════════
+  def self.rematerialize_for_folders(folder_ids)
+    return 0 if folder_ids.blank?
+
+    computer = new
+    updated = 0
+
+    # Process in batches to avoid memory issues
+    WarehouseDocument.where(warehouse_folder_id: folder_ids).find_in_batches(batch_size: 500) do |batch|
+      # Pre-load associations
+      ActiveRecord::Associations::Preloader.new(
+        records: batch,
+        associations: [:storage_blob, :tenant, :warehouse_folder_document_type, :warehouse_folder, :linkable]
+      ).call
+
+      batch.each do |doc|
+        begin
+          result = computer.compute(doc)
+          new_path = result[:folder_path]
+          if new_path.present? && new_path != doc.folder_path
+            doc.update_columns(folder_path: new_path, path_template_version: result[:path_template_version])
+            updated += 1
+          end
+        rescue => e
+          Rails.logger.warn("[WarehousePathComputer] Failed to rematerialize doc #{doc.id}: #{e.message}")
+        end
+      end
+    end
+
+    Rails.logger.info("[WarehousePathComputer] Rematerialized #{updated} documents for folder_ids: #{folder_ids.first(10).inspect}#{folder_ids.size > 10 ? '...' : ''}")
+    updated
+  end
+
   # The resolved WarehouseFolderDocumentType from the last compute() call.
   # Used by backfill to persist the FK on documents that were missing it.
   attr_reader :resolved_wfdt
@@ -44,6 +89,26 @@ class WarehousePathComputer
   # @return [Hash] { folder_path:, warehouse_folder_id:, path_template_version: }
   def compute(doc)
     @resolved_wfdt = nil  # Reset per-document
+
+    # For warehouse source_type: delegate to documentable's warehouse_folder_path
+    # SSoT: BillInbox/ChatMessage/TeeemSpreadsheet/TeeemPdf/TeeemDocument know their own path
+    # Each model computes the correct subfolder (e.g., "Warehousing/TeeemXL/User/2026")
+    if doc.source_type == "warehouse" && doc.documentable.respond_to?(:warehouse_folder_path)
+      # Ensure tenant context for WarehouseProvider (needed by TeeemXL models)
+      path = if doc.tenant_id.present? && ActsAsTenant.current_tenant.nil?
+               ActsAsTenant.with_tenant(doc.tenant) { doc.documentable.warehouse_folder_path }
+             else
+               doc.documentable.warehouse_folder_path
+             end
+      if path.present?
+        return {
+          folder_path: sanitize_path(path),
+          warehouse_folder_id: nil,
+          path_template_version: 0
+        }
+      end
+    end
+
     # 1. Find the warehouse folder (FK-driven)
     folder = find_warehouse_folder_for_doc(doc)
 
@@ -122,6 +187,14 @@ class WarehousePathComputer
       return doc.warehouse_folder_document_type.warehouse_folder
     end
 
+    # 1b. Respect existing warehouse_folder_id if already set
+    # FRC (Feb 2026): Pricebook photos and colour swatches were created with correct
+    # warehouse_folder_id, but migrations that recompute paths ignored this FK and
+    # fell through to heuristic lookup, wrongly assigning them to TeeemXL.
+    if doc.warehouse_folder_id.present? && doc.warehouse_folder.present?
+      return doc.warehouse_folder
+    end
+
     # 2. Derive from document_type_id (backfill recovery for existing docs without FK)
     #    Same logic as WarehouseDocument#set_warehouse_folder_document_type callback
     #    but works during backfill when the FK wasn't set on creation.
@@ -149,9 +222,8 @@ class WarehousePathComputer
   # This is the same logic as the model callback but usable during backfill.
   #
   # Sources for document_type_id (in priority order):
-  #   1. metadata["document_type_id"] (set during creation)
+  #   1. metadata["document_type_id"] (set during creation or backfilled from contact_documents)
   #   2. documentable.document_type_id (if model responds to it)
-  #   3. contact_documents table (legacy FK - for ContactDocument docs without linkable)
   #
   # @param doc [WarehouseDocument]
   # @return [WarehouseFolderDocumentType, nil]
@@ -162,13 +234,6 @@ class WarehousePathComputer
     doc_type_id = doc.metadata&.dig("document_type_id")
     if doc_type_id.blank? && doc.documentable.present?
       doc_type_id = doc.documentable.document_type_id if doc.documentable.respond_to?(:document_type_id)
-    end
-
-    # Fallback: recover document_type_id from contact_documents table (legacy FK)
-    # The ContactDocument model was removed but the table persists with document_type_id column.
-    # ~2,333 contact_documents rows have a document_type_id we can recover.
-    if doc_type_id.blank? && doc.documentable_type == "ContactDocument" && doc.documentable_id.present?
-      doc_type_id = recover_document_type_id_from_contact_documents(doc.documentable_id)
     end
 
     return nil if doc_type_id.blank?
@@ -200,6 +265,7 @@ class WarehousePathComputer
     when "Contact" then "contact"
     when "CorporateCompany" then "corporate"
     when "SmTask" then "task"
+    when "PricebookItem" then "warehouse"
     else nil
     end
   end
@@ -217,6 +283,8 @@ class WarehousePathComputer
     when "case" then "case"
     when "notebook" then "notebook"
     when "user" then "user"
+    when "warehouse", "template" then "warehouse"
+    when "esignature" then "e_signing"
     else "unassigned"
     end
   end
@@ -258,17 +326,18 @@ class WarehousePathComputer
   # Path Template Construction
   # ════════════════════════════════════════════════════════════════════
 
-  # Build path template from warehouse_type base template + child folder segments.
+  # Build path template from warehouse_type base template + folder segments.
   #
-  # ⚠️ DO NOT USE folder.full_folder_path here!
-  # full_folder_path includes the root folder's own segment ON TOP of the
-  # warehouse_type template, causing duplication:
-  #   WT template = "Contacts/{{ContactName}}", root segment = "Contacts"
-  #   full_folder_path = "Contacts/{{ContactName}}/Contacts" ← WRONG
+  # ⚠️ DO NOT SIMPLIFY - Root segment deduplication (Feb 2026 FRC fix)
+  # ════════════════════════════════════════════════════════════════════
+  # Why: The WT template already includes the root prefix (e.g., "Contacts/{{ContactName}}").
+  #      Root folders whose segment matches the WT template's first segment (e.g., "Contacts")
+  #      must NOT be appended, or you get "Contacts/{{ContactName}}/Contacts".
+  #      But category root folders (e.g., "Financial", "Documents") MUST be appended.
   #
-  # Instead: WT template + child-only segments (excluding root)
-  #   = "Contacts/{{ContactName}}" for root folders
-  #   = "Contacts/{{ContactName}}/Receipts" for child folders
+  # ❌ WRONG: Skip ALL root folder segments → loses "Financial", "Documents"
+  # ✅ CORRECT: Skip root segment only if it matches WT template's first segment
+  # ════════════════════════════════════════════════════════════════════
   #
   # @param folder [WarehouseFolder]
   # @return [String] Path template with {{Token}} placeholders
@@ -276,22 +345,38 @@ class WarehousePathComputer
     wt = folder.warehouse_type
     return folder.folder_segment || "Unknown" unless wt
 
-    base = wt.folder_path_template.presence
-    return folder.folder_segment || wt.code.titleize unless base
+    # SSoT: folder_path_template is authoritative, falls back to display_name
+    base = wt.folder_path_template.presence || wt.display_name
 
-    # For root folders (no parent), just use the WT template
+    # The WT template's root segment (e.g., "Contacts" from "Contacts/{{ContactName}}")
+    # Root folders matching this are the WT root itself — skip to avoid duplication.
+    wt_root_segment = base.split("/").first
+
+    # For root folders (no parent): WT template + folder's own segment (if not WT root)
     if folder.parent_id.nil?
       result = base
+      if folder.folder_segment.present? && folder.folder_segment != wt_root_segment
+        result = "#{result}/#{folder.folder_segment}"
+      end
       result = "#{result}/#{folder.folder_path_suffix}" if folder.folder_path_suffix.present?
       return result
     end
 
-    # For child folders: WT template + child segments (skip root folder's segment)
+    # For child folders: WT template + ALL ancestor segments (including root, unless WT root)
     segments = []
     current = folder
-    while current && current.parent_id.present?
-      segments.unshift(current.folder_segment) if current.folder_segment.present?
-      current = current.parent
+    while current
+      if current.parent_id.present?
+        # Non-root: always include
+        segments.unshift(current.folder_segment) if current.folder_segment.present?
+        current = current.parent
+      else
+        # Root: include its segment unless it's the WT root
+        if current.folder_segment.present? && current.folder_segment != wt_root_segment
+          segments.unshift(current.folder_segment)
+        end
+        break
+      end
     end
 
     result = segments.any? ? "#{base}/#{segments.join('/')}" : base
@@ -300,52 +385,61 @@ class WarehousePathComputer
   end
 
   # ════════════════════════════════════════════════════════════════════
-  # Token Extraction (Linkable-First)
+  # Token Extraction — SSoT: warehouse_types.token_config
+  # ════════════════════════════════════════════════════════════════════
+  #
+  # ⚠️ DO NOT hardcode token extraction — read from DB (Feb 2026 rewrite)
+  # ════════════════════════════════════════════════════════════════════
+  # Why: The old code hardcoded ~170 lines of case/when to extract tokens
+  #      like JobCode, JobName. But the admin UI lets users put ANY token
+  #      in folder_path_template (e.g., {{JobStatus}}, {{JobType}}).
+  #      Hardcoded list fell out of sync → tokens silently stripped → wrong paths.
+  #
+  # The FIX: Read token_config from warehouse_types table.
+  #   token_config is a JSONB column: { "JobCode": "job_code", "JobStatus": "job_status.name" }
+  #   Each value is a dot-path resolved on the linkable record (same as warehouse_types_controller).
+  #
+  # ❌ WRONG: case doc.linkable_type when "Job" then tokens[:JobCode] = job.job_code
+  # ✅ CORRECT: token_config.each { |name, path| tokens[name] = resolve_dot_path(linkable, path) }
   # ════════════════════════════════════════════════════════════════════
 
   # Extract token values for template expansion.
-  # Linkable FK is the primary source (always reliable), with
-  # documentable as enrichment for extra context.
+  # Reads token definitions from warehouse_types.token_config (SSoT).
   #
   # @param doc [WarehouseDocument]
   # @return [Hash] Token name => value
   def extract_tokens(doc)
     tokens = {}
 
-    # 1. Tokens from LINKABLE (direct FK - always reliable)
-    extract_tokens_from_linkable(tokens, doc)
+    # 1. SSoT: Resolve tokens from warehouse_type.token_config using linkable
+    warehouse_type = find_warehouse_type_for_doc(doc)
+    if warehouse_type
+      token_config = warehouse_type.token_config || {}
+      record = doc.linkable || doc.documentable
 
-    # 2. Enrich from documentable (if available and class exists)
-    begin
-      if doc.documentable.present?
-        enrich_tokens_from_documentable(tokens, doc)
+      if record.present? && token_config.any?
+        token_config.each do |token_name, dot_path|
+          value = resolve_dot_path(record, dot_path)
+          tokens[token_name.to_sym] = value.to_s if value.present?
+        end
       end
-    rescue NameError
-      # Deleted model class (e.g. JobDocument) - skip enrichment
     end
 
-    # 2b. Special case: ContactDocument table still exists with contact_id FK
-    #     Used when linkable is nil and documentable chain is broken
-    if tokens[:ContactName].blank? && doc.documentable_type == "ContactDocument" && doc.documentable_id.present?
-      resolve_contact_from_contact_documents(tokens, doc)
-    end
-
-    # 3. Document type from warehouse_folder_document_type FK
+    # 2. Document type from warehouse_folder_document_type FK
     if doc.warehouse_folder_document_type&.document_type
       dt = doc.warehouse_folder_document_type.document_type
       tokens[:DocTypeName] ||= dt.name
       tokens[:Folder] ||= dt.folder.presence || dt.name if dt.respond_to?(:folder)
     end
 
-    # 4. Date tokens (always available)
+    # 3. Date tokens (always available)
     date = doc.created_at || Time.current
     tokens[:Year] ||= date.year.to_s
     tokens[:Month] ||= date.strftime("%m")
 
-    # 5. Email-specific tokens from metadata
+    # 4. Email-specific tokens from metadata
     if doc.source_type.in?(%w[email email_attachment])
       tokens[:Mailbox] ||= doc.meta("mailbox") || "Unknown"
-      # Use received_at for email date tokens (more accurate than created_at)
       received_at = doc.email_received_at || doc.created_at || Time.current
       tokens[:Year] = received_at.year.to_s
       tokens[:Month] = received_at.strftime("%m")
@@ -354,158 +448,36 @@ class WarehousePathComputer
     tokens
   end
 
-  # Extract tokens from the linkable FK (Job, Contact, CorporateCompany, SmTask)
-  def extract_tokens_from_linkable(tokens, doc)
-    case doc.linkable_type
-    when "Job"
-      job = doc.linkable
-      if job
-        tokens[:JobCode] = job.job_code
-        tokens[:JobName] = job.name.presence || job.job_code
-      end
-    when "Contact"
-      contact = doc.linkable
-      if contact
-        tokens[:ContactName] = contact.display_name.presence || "Contact-#{contact.id}"
-        tokens[:ContactId] = contact.id
-      end
-    when "CorporateCompany"
-      cc = doc.linkable
-      if cc
-        tokens[:CompanyCode] = cc.company_code
-        tokens[:CompanyGroup] = cc.company_group&.name.presence || "Default"
-        tokens[:CompanyName] = cc.name
-      end
-    when "SmTask"
-      task = doc.linkable
-      if task
-        tokens[:TaskId] = task.id
-        tokens[:TaskName] = task.name&.parameterize || "task-#{task.id}"
-        status_label = task.status&.titleize || "Unknown"
-        tokens[:TaskStatus] = status_label
-        tokens[:Status] = status_label
-        if task.respond_to?(:job) && task.job
-          tokens[:JobName] = task.job.name.presence || task.job.job_code
-          tokens[:JobCode] = task.job.job_code
-        else
-          tokens[:JobName] = "Unassigned Job"
-        end
-      end
+  # Find the WarehouseType for this document (for token_config lookup)
+  def find_warehouse_type_for_doc(doc)
+    # Try from WFDT FK first (most precise)
+    wt = doc.warehouse_folder_document_type&.warehouse_folder&.warehouse_type
+    return wt if wt
+
+    # Derive from linkable_type or source_type
+    wt_code = if doc.linkable_type.present?
+                linkable_type_to_warehouse_type_code(doc.linkable_type)
+              end
+    wt_code ||= source_type_to_warehouse_type_code(doc.source_type)
+
+    @warehouse_type_cache ||= {}
+    unless @warehouse_type_cache.key?(wt_code)
+      @warehouse_type_cache[wt_code] = WarehouseType.find_by(code: wt_code)
     end
+    @warehouse_type_cache[wt_code]
   end
 
-  # Enrich tokens from the documentable association (extra context)
-  # Uses ||= so linkable tokens take priority (they're more reliable)
-  def enrich_tokens_from_documentable(tokens, doc)
-    documentable = doc.documentable
+  # Resolve a dot-path on a record (e.g., "job_status.name" on a Job)
+  # Same logic as warehouse_types_controller#resolve_dot_path
+  def resolve_dot_path(record, path)
+    return nil if path.blank? || record.nil?
 
-    # Task context - handle SmTask, SmTaskAttachment, etc.
-    if doc.source_type == "task" && tokens[:TaskId].blank?
-      task = if documentable.is_a?(SmTask)
-               documentable
-             elsif documentable.respond_to?(:sm_task) && documentable.sm_task
-               documentable.sm_task
-             end
-
-      if task
-        tokens[:TaskId] ||= task.id
-        tokens[:TaskName] ||= task.name&.parameterize || "task-#{task.id}"
-        status_label = task.status&.titleize || "Unknown"
-        tokens[:TaskStatus] ||= status_label
-        tokens[:Status] ||= status_label
-        if task.respond_to?(:job) && task.job
-          tokens[:JobName] ||= task.job.name.presence || task.job.job_code
-          tokens[:JobCode] ||= task.job.job_code
-        else
-          tokens[:JobName] ||= "Unassigned Job"
-        end
-      end
+    path.to_s.split('.').reduce(record) do |obj, method|
+      return nil if obj.nil?
+      return nil unless obj.respond_to?(method)
+      obj.public_send(method)
     end
-
-    # Job context (||= to not overwrite tokens set by linkable)
-    if documentable.respond_to?(:job) && documentable.job
-      tokens[:JobCode] ||= documentable.job.job_code
-      tokens[:JobName] ||= documentable.job.name.presence
-    elsif documentable.respond_to?(:job_code)
-      tokens[:JobCode] ||= documentable.job_code
-    end
-
-    # Contact context
-    if documentable.respond_to?(:contact) && documentable.contact
-      tokens[:ContactName] ||= documentable.contact.display_name.presence || "Contact-#{documentable.contact.id}"
-    end
-
-    # Corporate company context
-    if documentable.respond_to?(:corporate) && documentable.corporate
-      cc = documentable.corporate
-      tokens[:CompanyCode] ||= cc.company_code
-      tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
-      tokens[:CompanyName] ||= cc.name
-    end
-
-    # User context
-    if doc.source_type == "user" && documentable.respond_to?(:user) && documentable.user
-      tokens[:UserName] ||= documentable.user.name.presence || "User-#{documentable.user.id}"
-    end
-
-    # Case context
-    if documentable.respond_to?(:case_number)
-      tokens[:CaseId] ||= documentable.case_number
-    end
-
-    # Asset context
-    if documentable.is_a?(Asset)
-      tokens[:AssetName] ||= documentable.display_name.presence || documentable.name.presence || "Asset-#{documentable.id}"
-      tokens[:AssetNumber] ||= documentable.asset_number if documentable.asset_number.present?
-      if documentable.corporate
-        cc = documentable.corporate
-        tokens[:CompanyCode] ||= cc.company_code
-        tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
-      end
-    elsif documentable.respond_to?(:asset) && documentable.asset
-      asset = documentable.asset
-      tokens[:AssetName] ||= asset.display_name.presence || asset.name.presence || "Asset-#{asset.id}"
-      tokens[:AssetNumber] ||= asset.asset_number if asset.asset_number.present?
-      if asset.corporate
-        cc = asset.corporate
-        tokens[:CompanyCode] ||= cc.company_code
-        tokens[:CompanyGroup] ||= cc.company_group&.name.presence || "Default"
-      end
-    end
-  end
-
-  # Resolve ContactName from the contact_documents table (legacy table still in DB).
-  # ContactDocument model was removed in Jan 2026 but the table persists with contact_id FK.
-  # This resolves the 10K+ contact docs that have no linkable and broken documentable chain.
-  def resolve_contact_from_contact_documents(tokens, doc)
-    result = ActiveRecord::Base.connection.exec_query(
-      "SELECT contact_id FROM contact_documents WHERE id = #{doc.documentable_id.to_i} LIMIT 1"
-    )
-    if (contact_id = result.first&.dig("contact_id"))
-      contact = Contact.find_by(id: contact_id)
-      if contact
-        tokens[:ContactName] = contact.display_name.presence || "Contact-#{contact.id}"
-        tokens[:ContactId] = contact.id
-      end
-    end
-  rescue => _e
-    # Table might not exist in all environments - silently skip
-  end
-
-  # Recover document_type_id from the legacy contact_documents table.
-  # ~2,333 rows have a document_type_id that isn't stored anywhere else.
-  # Used by resolve_warehouse_folder_document_type to enable WFDT lookup
-  # for contact docs that would otherwise be stuck at depth-2 paths.
-  #
-  # @param documentable_id [Integer] The ContactDocument ID
-  # @return [Integer, nil] The document_type_id if found
-  def recover_document_type_id_from_contact_documents(documentable_id)
-    result = ActiveRecord::Base.connection.exec_query(
-      "SELECT document_type_id FROM contact_documents WHERE id = #{documentable_id.to_i} LIMIT 1"
-    )
-    result.first&.dig("document_type_id")
-  rescue => _e
-    # Table might not exist in all environments - silently skip
+  rescue StandardError
     nil
   end
 

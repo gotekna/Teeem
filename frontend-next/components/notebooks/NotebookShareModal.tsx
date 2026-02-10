@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, UserPlus, Trash2, Crown, Shield, Eye } from "lucide-react";
+import { UserPlus, Trash2, Crown, Shield, Eye } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   notebookActions,
@@ -150,15 +150,11 @@ export function NotebookShareModal({
           {/* Search for users */}
           <div className="space-y-2">
             <Label>Add people</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                placeholder="Search by name or email..."
-                className="pl-9"
-              />
-            </div>
+            <SearchInput
+              value={searchQuery}
+              onChange={handleSearch}
+              placeholder="Search by name or email..."
+            />
 
             {/* Search results */}
             {(searchResults.length > 0 || isSearching) && (

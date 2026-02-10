@@ -31,7 +31,7 @@ interface DocumentTemplate {
   category: string;
   output_format: string;
   is_active: boolean;
-  sharepoint_linked: boolean;
+  storage_linked: boolean;
 }
 
 interface PropertiesPanelProps {
@@ -365,7 +365,7 @@ function ServiceTaskProperties({
                     <SelectItem key={template.id} value={template.id.toString()}>
                       <div className="flex items-center gap-2">
                         <span>{template.name}</span>
-                        {!template.sharepoint_linked && (
+                        {!template.storage_linked && (
                           <Badge variant="outline" className="text-xs">
                             Not linked
                           </Badge>
@@ -396,7 +396,7 @@ function ServiceTaskProperties({
                 <Badge variant="secondary" className="text-xs">
                   {selectedTemplate.output_format.toUpperCase()}
                 </Badge>
-                {selectedTemplate.sharepoint_linked ? (
+                {selectedTemplate.storage_linked ? (
                   <Badge variant="default" className="bg-green-600 text-xs">
                     Storage Linked
                   </Badge>

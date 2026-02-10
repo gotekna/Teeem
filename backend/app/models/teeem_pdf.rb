@@ -76,9 +76,16 @@ class TeeemPdf < ApplicationRecord
     "#{warehouse_folder_path}/#{safe_filename}_#{id}.pdf".gsub(%r{/+}, "/")
   end
 
-  # SSoT: Folder path computed by WarehouseProvider
+  # SSoT: Folder path for File Warehouse Doc Tree
+  # Job-attached: "Jobs/{JobCode}/TeeemPDF", Standalone: "Warehousing/TeeemPDF/{UserName}/{Year}"
   def warehouse_folder_path
-    WarehouseProvider.instance.resolve_warehouse_path(self, scope: :pdf_documents)
+    if job.present?
+      "Jobs/#{job.job_code}/TeeemPDF"
+    else
+      user_name = user&.name || "Unknown"
+      year = (created_at || Time.current).year
+      "Warehousing/TeeemPDF/#{user_name}/#{year}"
+    end
   end
 
   # Safe filename (remove special characters)

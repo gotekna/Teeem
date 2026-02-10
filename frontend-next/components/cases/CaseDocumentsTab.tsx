@@ -33,6 +33,7 @@ import {
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { formatFileSize } from "@/utils/formatters";
 
@@ -44,7 +45,7 @@ interface CaseDocument {
   file_size: number | null;
   relevance: string;
   notes: string | null;
-  sharepoint_path: string | null;
+  storage_path: string | null;
   web_url: string | null;
 }
 

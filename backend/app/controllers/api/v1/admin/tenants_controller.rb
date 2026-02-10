@@ -82,8 +82,6 @@ module Api
             domain: Rails.env.development? ? 'localhost' : nil  # Share across ports in dev
           }
 
-          Rails.logger.info "[TenantSwitch] Cookie set for tenant #{tenant.id}"
-
           Rails.logger.info "[TenantSwitch] User #{current_user.id} (#{current_user.email}) switched to tenant #{tenant.id} (#{tenant.name})"
 
           render json: {

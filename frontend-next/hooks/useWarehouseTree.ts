@@ -100,6 +100,11 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
   const [scopedFolderCounts, setScopedFolderCounts] = useState<Record<string, number>>({});
   const [scopedCountsLoaded, setScopedCountsLoaded] = useState(false);
 
+  // Context mode: which warehouse types have related records and their IDs
+  const [contextRecordIds, setContextRecordIds] = useState<Record<string, number[]>>({});
+  const [contextRecordsLoaded, setContextRecordsLoaded] = useState(false);
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
   // ─── Fetch storage config ──────────────────────────────────────
   useEffect(() => {
     const fetchStorageConfig = async () => {
@@ -181,6 +186,49 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
     fetchScopedCounts();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode.type === "scoped" ? mode.linkableId : null]);
+
+  // ─── Context mode: fetch related records across all warehouse types ──
+  // Calls context_records endpoint to get related record IDs, then pre-populates
+  // warehouseRecords with the serialized record data for each type.
+  useEffect(() => {
+    if (mode.type !== "context") return;
+    const fetchContextRecords = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: {
+            records: Record<string, number[]>;
+            record_data: Record<string, RecordNode[]>;
+          };
+        }>("/api/v1/warehouse_types/context_records", {
+          params: { entity_type: mode.entityType, entity_id: mode.entityId }
+        });
+        if (response?.success && response.data) {
+          setContextRecordIds(response.data.records);
+
+          // Pre-populate warehouseRecords so the tree can render records immediately
+          const preloaded: Record<string, {
+            records: RecordNode[];
+            groupingTokens?: string[];
+            pagination: RecordsPagination;
+          }> = {};
+          for (const [wtCode, records] of Object.entries(response.data.record_data)) {
+            preloaded[wtCode] = {
+              records,
+              pagination: { total: records.length, limit: records.length, offset: 0, has_more: false }
+            };
+          }
+          setWarehouseRecords(prev => ({ ...prev, ...preloaded }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch context records:", err);
+      } finally {
+        setContextRecordsLoaded(true);
+      }
+    };
+    fetchContextRecords();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode.type === "context" ? `${mode.entityType}-${mode.entityId}` : null, refreshCounter]);
 
   // ─── Fetch warehouse types tree ────────────────────────────────
   const fetchWarehouseTypesTree = useCallback(async () => {
@@ -329,7 +377,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
             [key: string]: unknown;
           }>;
           count: { folders: number; files: number; total: number };
-        }>(`/api/v1/documents/live_folder_tree?scope=${encodeURIComponent(scope)}&path=${encodeURIComponent(relativePath)}${mode.type === "scoped" && mode.linkableType && mode.linkableId ? `&linkable_type=${encodeURIComponent(mode.linkableType)}&linkable_id=${mode.linkableId}` : ""}`);
+        }>(`/api/v1/documents/live_folder_tree?scope=${encodeURIComponent(scope)}&path=${encodeURIComponent(relativePath)}`);
 
         if (response?.success) {
           setS3Folders(prev => ({
@@ -362,7 +410,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
           folders: Array<{ name: string; path: string }>;
           files: Array<{ name: string; path: string; size: number; content_type: string; last_modified?: string; url?: string; id?: number; warehouse_document_id?: number }>;
           count: { folders: number; files: number; total: number };
-        }>(`/api/v1/documents/s3_folders?path=${encodeURIComponent(path)}`);
+        }>(`/api/v1/documents/browse_folders?path=${encodeURIComponent(path)}`);
 
         if (response?.success) {
           if (response.loading) {
@@ -464,6 +512,63 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
     }
   }, [s3Folders, loadingS3Folders]);
 
+  // ─── Fetch scoped folder files (FK-based, no S3 path matching) ──
+  // SSoT: Uses warehouse_folder_id FK instead of live_folder_tree path matching
+  const fetchScopedFolderFiles = useCallback(async (folderId: number, cacheKey: string) => {
+    if (s3Folders[cacheKey] || loadingS3Folders.has(cacheKey)) return;
+    if (mode.type !== "scoped") return;
+
+    setLoadingS3Folders(prev => new Set(prev).add(cacheKey));
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          folders: Array<{ name: string; count: number; folderId: number }>;
+          files: Array<{
+            id: number;
+            uiName: string;
+            sendName?: string;
+            type: string;
+            mimeType: string;
+            fileSize?: number;
+            createdAt?: string;
+            fileUrl?: string | null;
+            isImage?: boolean;
+          }>;
+          count: { folders: number; files: number; total: number };
+        };
+      }>(`/api/v1/warehouse_types/scoped_folder_files?linkable_type=${encodeURIComponent(mode.linkableType)}&linkable_id=${mode.linkableId}&folder_id=${folderId}`);
+
+      if (response?.success && response.data) {
+        const files = (response.data.files || []).map(f => ({
+          name: f.uiName || "Unknown",
+          path: `scoped/${folderId}/${f.uiName || "Unknown"}`,
+          size: f.fileSize || 0,
+          content_type: f.mimeType || "application/octet-stream",
+          url: f.fileUrl ?? undefined,
+          id: f.id,
+          warehouse_document_id: f.id,
+        }));
+        const folders = (response.data.folders || []).map(f => ({
+          name: f.name,
+          path: `scoped/wf-${f.folderId}`,
+          count: f.count,
+          folderId: f.folderId,
+        }));
+        setS3Folders(prev => ({ ...prev, [cacheKey]: { folders, files } }));
+      }
+    } catch (err) {
+      console.error(`Failed to fetch scoped folder files for folder ${folderId}:`, err);
+      setS3Folders(prev => ({ ...prev, [cacheKey]: { folders: [], files: [] } }));
+    } finally {
+      setLoadingS3Folders(prev => {
+        const next = new Set(prev);
+        next.delete(cacheKey);
+        return next;
+      });
+    }
+  }, [s3Folders, loadingS3Folders, mode]);
+
   // ─── Fetch email drill-down ────────────────────────────────────
   const fetchEmailDrillDown = useCallback(async (folderType: string, path: string, scopeKey: string) => {
     if (s3Folders[scopeKey] || loadingS3Folders.has(scopeKey)) return;
@@ -560,6 +665,14 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         const drillPath = isVirtual ? "" : (folderPath || "");
         const cacheKey = isVirtual ? folderId : (folderPath || folderId);
         fetchEmailDrillDown(folderType, drillPath, cacheKey);
+      } else if (mode.type === "scoped" && folderId.includes("wf-")) {
+        // SSoT: Scoped mode uses warehouse_folder_id FK — no S3 path matching
+        const wfMatch = folderId.match(/wf-(\d+)/);
+        if (wfMatch) {
+          const warehouseFolderId = parseInt(wfMatch[1], 10);
+          const cacheKey = isVirtual ? folderId : (folderPath || folderId);
+          fetchScopedFolderFiles(warehouseFolderId, cacheKey);
+        }
       } else if (isVirtual && sourceType) {
         const folderName = folderPath || "";
         fetchVirtualFolderFiles(sourceType, folderName, folderId);
@@ -567,7 +680,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         fetchS3Folders(folderPath);
       }
     }
-  }, [expandedFolders, fetchS3Folders, fetchVirtualFolderFiles, fetchEmailDrillDown, fetchRecords, deriveEmailFolderType, router]);
+  }, [expandedFolders, fetchS3Folders, fetchScopedFolderFiles, fetchVirtualFolderFiles, fetchEmailDrillDown, fetchRecords, deriveEmailFolderType, mode, router]);
 
   // ─── Build tree data ───────────────────────────────────────────
   const treeData = useMemo((): TreeNode[] => {
@@ -630,6 +743,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       sourceType: string,
       tokenValues?: Record<string, string | null>,
       recordId?: number,
+      isScoped?: boolean,
     ): TreeNode => {
       const rawPath = folder.fullPath || folder.folderPath;
       const folderPath = tokenValues ? resolvePathTokens(rawPath, tokenValues) : rawPath;
@@ -637,8 +751,8 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       const nodeId = recordId ? `${folder.id}-rec-${recordId}` : folder.id;
       const s3CacheKey = isVirtual ? nodeId : folderPath;
       const s3Files = buildS3FileNodes(s3CacheKey);
-      const s3SubFolders = buildS3FolderNodes(s3CacheKey, sourceType);
-      const children = folder.children.map(child => convertWarehouseFolderChildToTreeNode(child, sourceType, tokenValues, recordId));
+      const s3SubFolders = isScoped ? [] : buildS3FolderNodes(s3CacheKey, sourceType);
+      const children = folder.children.map(child => convertWarehouseFolderChildToTreeNode(child, sourceType, tokenValues, recordId, isScoped));
 
       return {
         id: nodeId,
@@ -876,10 +990,9 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         const nodeId = `${warehouseFolder.id}-rec-${syntheticRecord.id}`;
         const s3CacheKey = isVirtual ? nodeId : folderPath;
         const s3Files = buildS3FileNodes(s3CacheKey);
-        const s3SubFolders = buildS3FolderNodes(s3CacheKey, warehouseType.code);
 
         const warehouseFolderChildren = warehouseFolder.children.map(child =>
-          convertWarehouseFolderChildToTreeNode(child, warehouseType.code, syntheticRecord.tokenValues, syntheticRecord.id)
+          convertWarehouseFolderChildToTreeNode(child, warehouseType.code, syntheticRecord.tokenValues, syntheticRecord.id, true)
         );
 
         const numericId = parseInt(warehouseFolder.id.replace("wf-", ""), 10);
@@ -898,25 +1011,50 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
           fileCount: scopedCountsLoaded ? getFolderDocCount(folderDisplayName) : 0,
           sourceType: warehouseType.code,
           isVirtual,
-          children: [...childWarehouseFolderNodes, ...warehouseFolderChildren, ...s3SubFolders, ...s3Files],
+          children: [...childWarehouseFolderNodes, ...warehouseFolderChildren, ...s3Files],
         };
       };
 
       const rootWarehouseFolders = findChildWarehouseFolders(null);
       const allNodes = rootWarehouseFolders.map(wf => convertWarehouseFolderForScoped(wf));
 
-      // Filter out empty folders when scoped counts are loaded
-      // getFolderDocCount checks both exact and nested paths (e.g., "Plans" and "Plans/Sub")
-      if (scopedCountsLoaded) {
-        return allNodes.filter(node => getFolderDocCount(node.name) > 0);
+      // Show ALL configured folders regardless of document count.
+      // Users expect to see the full folder structure for the job so they
+      // can upload/organise files into any folder, not just ones that
+      // already contain documents.
+      return allNodes;
+    }
+
+    // ── Context mode: show all warehouse types but only related records ──
+    if (mode.type === "context") {
+      if (!contextRecordsLoaded) {
+        return [{
+          id: "loading-context",
+          name: "Loading related records...",
+          type: "loading" as const,
+        }];
       }
 
-      return allNodes;
+      // Filter to warehouse types that have related records
+      const contextTypes = warehouseTypesTree.filter(wt => {
+        const ids = contextRecordIds[wt.code];
+        return ids && ids.length > 0;
+      });
+
+      if (contextTypes.length === 0) {
+        return [{
+          id: "no-context-records",
+          name: "No related records found",
+          type: "loading" as const,
+        }];
+      }
+
+      return contextTypes.map(convertWarehouseTypeToTreeNode);
     }
 
     // ── Full mode: convert all warehouse types ──
     return warehouseTypesTree.map(convertWarehouseTypeToTreeNode);
-  }, [warehouseTypesTree, warehouseTreeLoading, s3Folders, warehouseRecords, loadingRecords, mode, scopedTokenValues, scopedFolderCounts, scopedCountsLoaded]);
+  }, [warehouseTypesTree, warehouseTreeLoading, s3Folders, warehouseRecords, loadingRecords, mode, scopedTokenValues, scopedFolderCounts, scopedCountsLoaded, contextRecordIds, contextRecordsLoaded]);
 
   // ─── Collapse all folders ─────────────────────────────────────
   const collapseAll = useCallback(() => {
@@ -927,6 +1065,9 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
   const refresh = useCallback(() => {
     setS3Folders({});
     setWarehouseRecords({});
+    setContextRecordsLoaded(false);
+    setContextRecordIds({});
+    setRefreshCounter(c => c + 1);
     fetchWarehouseTypesTree();
   }, [fetchWarehouseTypesTree]);
 

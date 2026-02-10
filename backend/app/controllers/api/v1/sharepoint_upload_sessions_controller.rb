@@ -85,8 +85,21 @@ module Api
           if folder_path.present? && job_id.present?
             job = Job.find(job_id)
 
-            # SSoT: Strip {{JobCode}} placeholder if present
-            clean_path = folder_path.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")
+            # FRC (Feb 2026): folder_path from WarehouseFolder is full_folder_path which includes
+            # the warehouse_type template prefix (e.g., "Jobs/{{JobCode}}/Photo/Site").
+            # Since find_job_folder already navigates to the job's root folder, we need just the
+            # relative path WITHIN the job folder (e.g., "Photo/Site").
+            if folder_path.match?(/\{\{/)
+              # New-style path from WarehouseFolder - strip warehouse_type template prefix
+              warehouse_type = WarehouseType.find_by(code: "job")
+              prefix_segment_count = warehouse_type&.folder_path_template&.split('/')&.length || 0
+              segments = folder_path.split('/')
+              clean_path = segments.drop(prefix_segment_count).join('/')
+            else
+              # Legacy hardcoded path (e.g., "06 Photo/01 SITE") - use as-is
+              clean_path = folder_path
+            end
+            clean_path = clean_path.gsub(/^\/+/, "")
 
             # Find or create job folder structure
             job_folder = client.find_job_folder(job)
@@ -107,7 +120,7 @@ module Api
           end
 
           # Sanitize filename for SharePoint
-          safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
+          safe_filename = Warehouse::FilenameSanitizer.sanitize(filename)
 
           # Create upload session - returns pre-authenticated URL
           # The uploadUrl contains an embedded token - browsers can PUT directly to it
@@ -146,7 +159,7 @@ module Api
 
       # POST /api/v1/sharepoint/upload_complete
       # Called by browser after direct upload completes successfully
-      # Updates: 1) JobActivity (audit trail), 2) JobDocument (warehouse indexing)
+      # Updates: 1) JobActivity (audit trail), 2) WarehouseDocument (warehouse indexing)
       #
       # Params:
       #   - job_id: (optional) Job ID for activity logging and indexing
@@ -155,6 +168,7 @@ module Api
       #   - folder_path: (optional) Folder path for indexing
       #   - web_url: (optional) SharePoint web URL
       #   - sharepoint_item_id: (required for indexing) SharePoint item ID
+      #   - warehouse_folder_id: (optional) WarehouseFolder ID for document type + templates
       def complete
         job = Job.find(params[:job_id]) if params[:job_id].present?
 
@@ -169,32 +183,25 @@ module Api
           Rails.logger.info "[SharePointUploadSession] Logged activity for #{params[:filename]} on job #{job.id}"
         end
 
-        # SSoT (Jan 2026): Create/update WarehouseDocument directly (no legacy JobDocument)
+        # SSoT: Create/update WarehouseDocument via standard service
         if job && params[:sharepoint_item_id].present?
-          # Detect document type from extension
-          extension = File.extname(params[:filename].to_s).delete(".").downcase
-          doc_type = DocumentType.find_by_extension(extension) if extension.present?
-
-          # Find existing by SharePoint item ID in metadata, or create new
-          warehouse_doc = WarehouseDocument.find_by(
-            "source_type = ? AND linkable_type = ? AND linkable_id = ? AND metadata->>'sharepoint_item_id' = ?",
-            "job", "Job", job.id, params[:sharepoint_item_id]
-          ) || WarehouseDocument.new(source_type: "job", linkable: job)
-
-          warehouse_doc.update!(
-            ui_name: params[:filename],  # SSoT: display_name renamed to ui_name (Feb 2026)
-            original_filename: params[:filename],
+          warehouse_doc = WarehouseDocumentCreator.find_or_create!(
+            find_by: {
+              source_type: "job",
+              linkable: job,
+              metadata_match: { "sharepoint_item_id" => params[:sharepoint_item_id] }
+            },
+            filename: params[:filename],
+            source_type: "job",
+            linkable: job,
             file_size: params[:file_size].to_i,
-            metadata: (warehouse_doc.metadata || {}).merge(
-              "job_code" => job.job_code,
-              "document_type_id" => doc_type&.id,
-              "document_type" => doc_type&.name,
+            warehouse_folder_id: params[:warehouse_folder_id],
+            metadata: {
               "sharepoint_item_id" => params[:sharepoint_item_id],
               "web_url" => params[:web_url],
-              "source" => "sharepoint_upload",
-              "last_modified_by" => current_user&.name,
-              "synced_at" => Time.current.iso8601
-            )
+              "source" => "sharepoint_upload"
+            },
+            user: current_user
           )
 
           Rails.logger.info "[SharePointUploadSession] Indexed WarehouseDocument #{warehouse_doc.id} for #{params[:filename]}"

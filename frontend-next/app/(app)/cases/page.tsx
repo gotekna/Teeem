@@ -6,7 +6,6 @@ import { TabbedPage } from "@/components/ui/page-wrappers";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -17,7 +16,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plus,
-  Search,
   Briefcase,
   AlertTriangle,
   Clock,
@@ -28,11 +26,13 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { format } from "date-fns";
 import { CaseProposalsTab } from "@/components/cases/case-proposals-tab";
 import { useToast } from "@/components/ui/use-toast";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 
 interface CaseItem {
@@ -289,17 +289,7 @@ export default function CasesPage() {
           <Card>
             <CardContent className="pt-4">
               <div className="flex gap-4 flex-wrap">
-                <div className="flex-1 min-w-[200px]">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search cases..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
-                </div>
+                <SearchInput value={search} onChange={setSearch} placeholder="Search cases..." className="flex-1 min-w-[200px]" />
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[150px]">
                     <SelectValue placeholder="Status" />
@@ -350,9 +340,7 @@ export default function CasesPage() {
           <Card>
             <CardContent className="p-0">
               {loading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Spinner size={32} className="text-muted-foreground" />
-                </div>
+                <LoadingOverlay />
               ) : cases.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />

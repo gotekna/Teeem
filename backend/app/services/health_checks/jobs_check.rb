@@ -57,25 +57,7 @@ module HealthChecks
       )
     end
 
-    # Jobs without project manager
-    # Note: Jobs don't have direct project_manager_id - they have projects which have PMs
-    # This checks for jobs without a project, or with a project that has no PM
-    def check_jobs_without_pm
-      jobs = Job.includes(:job_status, :project)
-               .where.not(job_statuses: { name: [ "Completed", "Cancelled", "Archived", "Enquiry" ] })
-               .where("projects.id IS NULL OR projects.project_manager_id IS NULL")
-               .references(:projects)
-               .select(:id, :name, :job_status_id)
-
-      build_result(
-        name: "Jobs Without Project Manager",
-        description: "Active jobs without a project or assigned project manager.",
-        severity: :info,
-        items: jobs,
-        icon: "user",
-        action_path: "/jobs/:id"
-      )
-    end
+    # check_jobs_without_pm removed (Feb 2026) - Project model deleted
 
     protected
 

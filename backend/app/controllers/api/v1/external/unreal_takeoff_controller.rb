@@ -56,8 +56,8 @@ module Api
               revision: revision&.revision,
               revision_date: revision&.revision_date,
               is_on_issue: revision&.is_on_issue,
-              sharepoint_file_id: revision&.storage_reference,  # Keep JSON key for backwards compat
-              sharepoint_web_url: revision&.storage_web_url,
+              storage_file_id: revision&.storage_reference,
+              storage_web_url: revision&.storage_web_url,
               file_name: revision&.file_name,
               file_size: revision&.file_size,
               thumbnail_base64: revision&.micro_thumbnail_base64,
@@ -242,7 +242,7 @@ module Api
                 pricebook_item = PricebookItem.find_by(id: m[:pricebook_item_id])
               end
 
-              measurement = UnrealMeasurement.create!(
+              measurement = TakeoffMeasurement.create!(
                 job_id: job.id,
                 job_plan_id: m[:plan_id],
                 pricebook_item_id: pricebook_item&.id,
@@ -311,7 +311,7 @@ module Api
             }, status: :not_found
           end
 
-          scope = job.unreal_measurements.includes(:pricebook_item, :job_plan, :job_colour_selection)
+          scope = job.takeoff_measurements.includes(:pricebook_item, :job_plan, :job_colour_selection)
           scope = scope.where(session_id: params[:session_id]) if params[:session_id].present?
 
           measurements = scope.map do |m|
@@ -380,7 +380,7 @@ module Api
             return render json: { success: false, error: "Job not found with ID: #{job_id}" }, status: :not_found
           end
 
-          scope = job.unreal_measurements.includes(:pricebook_item)
+          scope = job.takeoff_measurements.includes(:pricebook_item)
           scope = scope.where(session_id: session_id) if session_id.present?
 
           measurements = scope.where.not(pricebook_item_id: nil)
@@ -481,7 +481,7 @@ module Api
             return render json: { success: false, error: "session_id is required" }, status: :unprocessable_entity
           end
 
-          deleted_count = UnrealMeasurement.where(session_id: session_id).destroy_all.count
+          deleted_count = TakeoffMeasurement.where(session_id: session_id).destroy_all.count
 
           render json: {
             success: true,

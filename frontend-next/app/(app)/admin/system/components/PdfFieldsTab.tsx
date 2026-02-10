@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Initialize pdf.js worker
@@ -619,11 +620,7 @@ export function PdfFieldsTab() {
   const totalPages = templateConfig?.pages || 5;
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (

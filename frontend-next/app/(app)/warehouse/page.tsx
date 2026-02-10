@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 
 import {
   Select,
@@ -18,7 +19,6 @@ import {
   Folder,
   File,
   Image as ImageIcon,
-  Search,
   List,
   LayoutGrid,
   FolderTree,
@@ -44,6 +44,12 @@ import {
   Link2,
   ArrowLeft,
   MessageSquare,
+  Database,
+  Table as TableIcon,
+  FolderOpen,
+  Calendar,
+  Tag,
+  HardDrive,
 } from "lucide-react";
 import {
   Dialog,
@@ -62,10 +68,14 @@ import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { VIEW_CHANGE_EVENT } from "@/lib/breadcrumb-atoms";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import { MailboxDrawer } from "@/components/documents/MailboxDrawer";
 import { formatFileSize } from "@/utils/formatters";
 import { WarehouseTree } from "@/components/warehouse/WarehouseTree";
+import { WarehouseDocTree } from "@/components/warehouse/WarehouseDocTree";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import type { DocumentItem, TreeDisplayMode } from "@/components/warehouse/types";
 
 interface AllDocumentsResponse {
@@ -73,7 +83,7 @@ interface AllDocumentsResponse {
   data: {
     job_documents: DocumentItem[];
     corporate_documents: DocumentItem[];
-    people_documents: DocumentItem[];
+    contact_documents: DocumentItem[];
     task_documents: DocumentItem[];
   };
   // Counts for all scopes - dynamic, extends as new scopes are added
@@ -81,7 +91,23 @@ interface AllDocumentsResponse {
 }
 
 
-type ViewMode = "tree" | "list" | "gallery";
+type ViewMode = "tree" | "list" | "gallery" | "warehouse-tree" | "table";
+
+// URL slug ↔ ViewMode mapping for deep-linkable warehouse views
+const VIEW_SLUG_TO_MODE: Record<string, ViewMode> = {
+  tree: "tree",
+  "doc-tree": "warehouse-tree",
+  list: "list",
+  gallery: "gallery",
+  table: "table",
+};
+const VIEW_MODE_TO_SLUG: Record<ViewMode, string> = {
+  tree: "tree",
+  "warehouse-tree": "doc-tree",
+  list: "list",
+  gallery: "gallery",
+  table: "table",
+};
 
 
 // Sync settings types
@@ -133,7 +159,10 @@ interface SyncSubscription {
 export default function AllDocumentsPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const [viewMode, setViewMode] = useState<ViewMode>("tree");
+  const params = useParams();
+  const tabSegments = (params?.tab as string[] | undefined) || [];
+  const initialViewMode = tabSegments[0] ? (VIEW_SLUG_TO_MODE[tabSegments[0]] || "tree") : "tree";
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
   const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -227,10 +256,23 @@ export default function AllDocumentsPage() {
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const dragCounterRef = useRef(0);
 
+  // Sync viewMode and previewDocument to URL for deep linking
+  // Uses replaceState (no React navigation) to avoid re-renders
+  const isInitialUrlSync = useRef(true);
+  useEffect(() => {
+    const slug = VIEW_MODE_TO_SLUG[viewMode] || "tree";
+    const docPart = previewDocument?.id ? `/${previewDocument.id}` : "";
+    const newPath = `/warehouse/${slug}${docPart}`;
 
-
-
-
+    if (window.location.pathname !== newPath) {
+      window.history.replaceState(null, "", newPath);
+      // Skip breadcrumb event on initial mount to avoid flash
+      if (!isInitialUrlSync.current) {
+        window.dispatchEvent(new Event(VIEW_CHANGE_EVENT));
+      }
+    }
+    isInitialUrlSync.current = false;
+  }, [viewMode, previewDocument]);
 
   // Fetch all documents
   const fetchDocuments = useCallback(async () => {
@@ -241,7 +283,7 @@ export default function AllDocumentsPage() {
         setDocuments({
           jobs: response.data.job_documents || [],
           corporate: response.data.corporate_documents || [],
-          people: response.data.people_documents || [],
+          people: response.data.contact_documents || [],
           tasks: response.data.task_documents || [],
         });
         // Merge API counts with defaults - API now returns all scope counts
@@ -885,14 +927,8 @@ export default function AllDocumentsPage() {
 
           <div className="flex items-center gap-2">
             {/* Search */}
-            <div className="relative w-64" data-tour="warehouse-search">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search documents..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
+            <div data-tour="warehouse-search">
+              <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search documents..." className="w-64" />
             </div>
 
             {/* View Mode Toggle */}
@@ -907,9 +943,18 @@ export default function AllDocumentsPage() {
                 Tree
               </Button>
               <Button
-                variant={viewMode === "list" ? "secondary" : "ghost"}
+                variant={viewMode === "warehouse-tree" ? "secondary" : "ghost"}
                 size="sm"
                 className="rounded-none border-x"
+                onClick={() => setViewMode("warehouse-tree")}
+              >
+                <Database className="h-4 w-4 mr-1" />
+                Doc Tree
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="sm"
+                className="rounded-none border-r"
                 onClick={() => setViewMode("list")}
               >
                 <List className="h-4 w-4 mr-1" />
@@ -918,11 +963,20 @@ export default function AllDocumentsPage() {
               <Button
                 variant={viewMode === "gallery" ? "secondary" : "ghost"}
                 size="sm"
-                className="rounded-l-none"
+                className="rounded-none border-r"
                 onClick={() => setViewMode("gallery")}
               >
                 <LayoutGrid className="h-4 w-4 mr-1" />
                 Gallery
+              </Button>
+              <Button
+                variant={viewMode === "table" ? "secondary" : "ghost"}
+                size="sm"
+                className="rounded-l-none"
+                onClick={() => setViewMode("table")}
+              >
+                <TableIcon className="h-4 w-4 mr-1" />
+                Table
               </Button>
             </div>
 
@@ -1012,12 +1066,13 @@ export default function AllDocumentsPage() {
         </div>
       )}
 
-      {/* Content - Split Pane Layout */}
+      {/* Content - Split Pane Layout (or full-width for Table view) */}
       <div className="flex-1 flex min-h-0">
         {/* Left Panel - File Browser */}
         <div className={cn(
-          "flex-1 overflow-auto px-4 py-4 border-r",
-          previewDocument && "max-w-[50%]"
+          "flex-1 overflow-auto border-r",
+          viewMode === "table" ? "p-0" : "px-4 py-4",
+          previewDocument && viewMode !== "table" && "max-w-[50%]"
         )} data-tour="warehouse-files">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-4">
@@ -1050,6 +1105,17 @@ export default function AllDocumentsPage() {
                 hideToolbar
                 treeDisplayMode={treeDisplayMode}
                 onTreeDisplayModeChange={(m) => setTreeDisplayMode(m)}
+              />
+            </div>
+          ) : viewMode === "warehouse-tree" ? (
+            // Warehouse Doc Tree - simple tree from WarehouseDocument.folder_path
+            <div data-tour="warehouse-doc-tree">
+              <WarehouseDocTree
+                onFileClick={openFileInPopup}
+                onFileDoubleClick={openFileInNewWindow}
+                onMailboxClick={handleMailboxClick}
+                onMailboxDoubleClick={handleMailboxDoubleClick}
+                selectedDocument={previewDocument}
               />
             </div>
           ) : viewMode === "list" ? (
@@ -1095,7 +1161,7 @@ export default function AllDocumentsPage() {
                 ))
               )}
             </div>
-          ) : (
+          ) : viewMode === "gallery" ? (
             // Gallery View (images only)
             <div>
               {allImages.length === 0 ? (
@@ -1134,7 +1200,15 @@ export default function AllDocumentsPage() {
                 </div>
               )}
             </div>
-          )}
+          ) : viewMode === "table" ? (
+            // Table View - TeeemTableView backed by Foundation API
+            <div className="flex flex-col h-full">
+              <TeeemTableView
+                foundationId={FOUNDATION_SLUGS.WAREHOUSE_DOCUMENTS}
+                autoFetchRecords={true}
+              />
+            </div>
+          ) : null}
         </div>
 
         {/* Right Panel - Preview Panel */}
@@ -1292,10 +1366,53 @@ export default function AllDocumentsPage() {
               </div>
             </div>
 
+            {/* SSoT Document Info */}
+            <div className="border-b px-4 py-2 space-y-1 text-xs bg-muted/30 dark:bg-muted/10">
+              {previewDocument.folderPath && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <FolderOpen className="h-3 w-3 shrink-0" />
+                  <span className="font-medium shrink-0">Path:</span>
+                  <span className="truncate" title={previewDocument.folderPath}>{previewDocument.folderPath}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Tag className="h-3 w-3 shrink-0" />
+                <span className="font-medium shrink-0">Source:</span>
+                <span className="capitalize">{previewDocument.source}</span>
+                {previewDocument.documentTypeName && (
+                  <>
+                    <span className="text-muted-foreground/50">|</span>
+                    <span>{previewDocument.documentTypeName}</span>
+                  </>
+                )}
+              </div>
+              {previewDocument.createdAt && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="h-3 w-3 shrink-0" />
+                  <span className="font-medium shrink-0">Created:</span>
+                  <span>{new Date(previewDocument.createdAt).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+              )}
+              {previewDocument.storagePath && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <HardDrive className="h-3 w-3 shrink-0" />
+                  <span className="font-medium shrink-0">Storage:</span>
+                  <span className="truncate font-mono text-[10px]" title={previewDocument.storagePath}>{previewDocument.storagePath}</span>
+                </div>
+              )}
+              {previewDocument.fileName && previewDocument.fileName !== previewDocument.uiName && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <File className="h-3 w-3 shrink-0" />
+                  <span className="font-medium shrink-0">Original:</span>
+                  <span className="truncate" title={previewDocument.fileName}>{previewDocument.fileName}</span>
+                </div>
+              )}
+            </div>
+
             {/* Preview Content */}
             <div className="flex-1 min-h-0 overflow-auto">
               {previewDocument.fileUrl ? (
-                previewDocument.isImage ? (
+                (previewDocument.isImage || previewDocument.mimeType?.startsWith("image/")) ? (
                   // Image preview
                   <div className="h-full w-full flex items-center justify-center p-4">
                     <img
@@ -1711,18 +1828,14 @@ export default function AllDocumentsPage() {
                     : "Search for a task to link this document to."}
                 </p>
 
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search tasks by name or number..."
-                    value={linkToTaskSearch}
-                    onChange={(e) => {
-                      setLinkToTaskSearch(e.target.value);
-                      searchTasksForLink(e.target.value);
-                    }}
-                    className="pl-9"
-                  />
-                </div>
+                <SearchInput
+                  value={linkToTaskSearch}
+                  onChange={(value) => {
+                    setLinkToTaskSearch(value);
+                    searchTasksForLink(value);
+                  }}
+                  placeholder="Search tasks by name or number..."
+                />
 
                 {linkToTaskResults.length > 0 && (
                   <div className="border rounded-md max-h-60 overflow-auto">

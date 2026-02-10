@@ -87,6 +87,7 @@ import { UIComponentsPlaygroundTab } from "./UIComponentsPlaygroundTab";
 import { ColumnTypeDefinitionsTab } from "./ColumnTypeDefinitionsTab";
 import { SortableList, SortableItem, DragHandle, ItemBadge } from "@/components/ui/dnd";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface ColumnType {
@@ -844,11 +845,7 @@ function GoldStandardDataTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   if (foundationNotFound) {
@@ -1043,11 +1040,7 @@ function GoldStandardTableTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   const isSystemColumn = (name: string) => ["id", "created_at", "updated_at"].includes(name);
@@ -1552,11 +1545,7 @@ function GoldDocumentTypeEditor() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (
@@ -1839,11 +1828,7 @@ function SyncCheckTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   if (error) {

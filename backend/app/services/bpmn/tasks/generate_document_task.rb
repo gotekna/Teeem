@@ -9,7 +9,7 @@ module Bpmn
     #   destination_folder: SharePoint folder path for upload (optional)
     #   store_as_variable: Variable name to store result (optional)
     #   contact_id: Specific contact ID to use (optional)
-    #   attach_to_job: Whether to create JobDocument record (optional)
+    #   attach_to_job: Whether to create WarehouseDocument record (optional)
     #
     # Subject: Job (required) - The job to generate document for
     #
@@ -49,7 +49,7 @@ module Bpmn
                    )
         end
 
-        # Create JobDocument record if configured
+        # Create WarehouseDocument record if configured
         if @config["attach_to_job"] && job && result[:uploaded_files]&.any?
           create_job_documents(job, result[:uploaded_files])
         end
@@ -236,21 +236,19 @@ module Bpmn
         end
       end
 
-      # SSoT (Jan 2026): Uses WarehouseDocument directly (no legacy JobDocument)
+      # SSoT: Uses WarehouseDocument directly
       def create_job_documents(job, uploaded_files)
         uploaded_files.each do |file|
           next unless file[:web_url]
 
-          WarehouseDocument.create!(
+          WarehouseDocumentCreator.create!(
+            filename: file[:name],
             source_type: "job",
-            ui_name: file[:name],  # SSoT: display_name renamed to ui_name (Feb 2026)
-            original_filename: file[:name],
             linkable: job,
             metadata: {
-              job_code: job.job_code,
-              source: "generated",
-              web_url: file[:web_url],
-              file_type: "generated"
+              "source" => "generated",
+              "web_url" => file[:web_url],
+              "file_type" => "generated"
             }
           )
         end

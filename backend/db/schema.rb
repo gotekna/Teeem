@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_10_250001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -169,6 +169,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.index ["suggestion_date"], name: "index_ai_timesheet_suggestions_on_suggestion_date"
     t.index ["worker_profile_id", "suggestion_date"], name: "idx_ai_suggestions_worker_date"
     t.index ["worker_profile_id"], name: "index_ai_timesheet_suggestions_on_worker_profile_id"
+  end
+
+  create_table "app_versions", force: :cascade do |t|
+    t.integer "current_version", default: 101, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "asset_depreciation_profiles", force: :cascade do |t|
@@ -1138,7 +1144,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
 
   create_table "chat_messages", force: :cascade do |t|
     t.bigint "user_id", null: false
-    t.bigint "project_id"
     t.text "content", null: false
     t.string "channel", default: "general", null: false
     t.datetime "created_at", null: false
@@ -1160,8 +1165,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.index ["created_at"], name: "index_chat_messages_on_created_at"
     t.index ["job_id", "channel", "created_at"], name: "index_chat_messages_on_construction_channel_created"
     t.index ["job_id"], name: "index_chat_messages_on_job_id"
-    t.index ["project_id", "created_at"], name: "index_chat_messages_on_project_id_and_created_at"
-    t.index ["project_id"], name: "index_chat_messages_on_project_id"
     t.index ["recipient_user_id"], name: "index_chat_messages_on_recipient_user_id"
     t.index ["storage_blob_id"], name: "index_chat_messages_on_storage_blob_id"
     t.index ["storage_file_id"], name: "index_chat_messages_on_storage_file_id"
@@ -1417,6 +1420,48 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.index ["contact_id"], name: "index_contact_company_group_memberships_on_contact_id"
     t.index ["tenant_id"], name: "index_contact_company_group_memberships_on_tenant_id"
   end
+
+  create_table "contact_documents", force: :cascade do |t|
+    t.bigint "contact_id", null: false
+    t.string "title", null: false
+    t.text "description"
+    t.string "document_type", null: false
+    t.date "document_date"
+    t.date "expiry_date"
+    t.string "file_name"
+    t.integer "file_size"
+    t.string "mime_type"
+    t.datetime "uploaded_at"
+    t.string "folder"
+    t.string "source", default: "manual"
+    t.bigint "document_type_id"
+    t.string "content_hash"
+    t.string "external_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "storage_provider"
+    t.string "storage_item_id"
+    t.string "storage_path"
+    t.string "migration_status"
+    t.datetime "migration_started_at"
+    t.datetime "migration_completed_at"
+    t.text "migration_error"
+    t.string "source_provider"
+    t.string "source_item_id"
+    t.bigint "storage_blob_id"
+    t.index ["contact_id"], name: "index_contact_documents_on_contact_id"
+    t.index ["content_hash"], name: "index_contact_documents_on_content_hash"
+    t.index ["document_date"], name: "index_contact_documents_on_document_date"
+    t.index ["document_type"], name: "index_contact_documents_on_document_type"
+    t.index ["document_type_id"], name: "index_contact_documents_on_document_type_id"
+    t.index ["expiry_date"], name: "index_contact_documents_on_expiry_date"
+    t.index ["external_id"], name: "index_contact_documents_on_external_id"
+    t.index ["migration_status"], name: "index_contact_documents_on_migration_status"
+    t.index ["storage_blob_id"], name: "index_contact_documents_on_storage_blob_id"
+    t.index ["storage_provider", "migration_status"], name: "idx_people_docs_provider_migration"
+    t.index ["storage_provider"], name: "index_contact_documents_on_storage_provider"
+  end
+
 
   create_table "contact_emails", force: :cascade do |t|
     t.bigint "contact_id", null: false
@@ -2048,19 +2093,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.index ["view_name"], name: "index_data_quality_issues_on_view_name"
   end
 
-  create_table "designs", force: :cascade do |t|
-    t.string "name", null: false
-    t.decimal "size", precision: 10, scale: 2
-    t.decimal "frontage_required", precision: 10, scale: 2
-    t.string "floor_plan_url"
-    t.text "description"
-    t.boolean "is_active", default: true, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_designs_on_is_active"
-    t.index ["name"], name: "index_designs_on_name", unique: true
-  end
-
   create_table "desktop_clients", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "device_id", null: false
@@ -2167,7 +2199,29 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.index ["status"], name: "index_dividends_on_status"
   end
 
-  create_table "docsort_items", force: :cascade do |t|
+  create_table "document_duplicate_reviews", force: :cascade do |t|
+    t.bigint "case_id", null: false
+    t.bigint "existing_document_id", null: false
+    t.bigint "new_document_id"
+    t.string "new_file_path"
+    t.string "new_file_hash"
+    t.string "new_file_name"
+    t.bigint "new_file_size"
+    t.string "source_type"
+    t.string "status", default: "pending"
+    t.string "resolution"
+    t.bigint "resolved_by_id"
+    t.datetime "resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["case_id", "status"], name: "index_document_duplicate_reviews_on_case_id_and_status"
+    t.index ["case_id"], name: "index_document_duplicate_reviews_on_case_id"
+    t.index ["existing_document_id"], name: "index_document_duplicate_reviews_on_existing_document_id"
+    t.index ["new_document_id"], name: "index_document_duplicate_reviews_on_new_document_id"
+    t.index ["resolved_by_id"], name: "index_document_duplicate_reviews_on_resolved_by_id"
+  end
+
+  create_table "document_inboxes", force: :cascade do |t|
     t.bigint "tenant_id", null: false
     t.bigint "storage_blob_id"
     t.bigint "warehouse_document_id"
@@ -2194,42 +2248,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.datetime "processed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["classification_confidence"], name: "index_docsort_items_on_classification_confidence"
-    t.index ["created_at"], name: "index_docsort_items_on_created_at"
-    t.index ["document_type"], name: "index_docsort_items_on_document_type"
-    t.index ["overridden_by_id"], name: "index_docsort_items_on_overridden_by_id"
-    t.index ["routed_to_type", "routed_to_id"], name: "index_docsort_items_on_routed_to_type_and_routed_to_id"
-    t.index ["source"], name: "index_docsort_items_on_source"
-    t.index ["status"], name: "index_docsort_items_on_status"
-    t.index ["storage_blob_id"], name: "index_docsort_items_on_storage_blob_id"
-    t.index ["synced_email_id"], name: "index_docsort_items_on_synced_email_id"
-    t.index ["tenant_id", "document_type"], name: "index_docsort_items_on_tenant_id_and_document_type"
-    t.index ["tenant_id", "status"], name: "index_docsort_items_on_tenant_id_and_status"
-    t.index ["tenant_id"], name: "index_docsort_items_on_tenant_id"
-    t.index ["uploaded_by_id"], name: "index_docsort_items_on_uploaded_by_id"
-    t.index ["warehouse_document_id"], name: "index_docsort_items_on_warehouse_document_id"
-  end
-
-  create_table "document_duplicate_reviews", force: :cascade do |t|
-    t.bigint "case_id", null: false
-    t.bigint "existing_document_id", null: false
-    t.bigint "new_document_id"
-    t.string "new_file_path"
-    t.string "new_file_hash"
-    t.string "new_file_name"
-    t.bigint "new_file_size"
-    t.string "source_type"
-    t.string "status", default: "pending"
-    t.string "resolution"
-    t.bigint "resolved_by_id"
-    t.datetime "resolved_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["case_id", "status"], name: "index_document_duplicate_reviews_on_case_id_and_status"
-    t.index ["case_id"], name: "index_document_duplicate_reviews_on_case_id"
-    t.index ["existing_document_id"], name: "index_document_duplicate_reviews_on_existing_document_id"
-    t.index ["new_document_id"], name: "index_document_duplicate_reviews_on_new_document_id"
-    t.index ["resolved_by_id"], name: "index_document_duplicate_reviews_on_resolved_by_id"
+    t.index ["classification_confidence"], name: "index_document_inboxes_on_classification_confidence"
+    t.index ["created_at"], name: "index_document_inboxes_on_created_at"
+    t.index ["document_type"], name: "index_document_inboxes_on_document_type"
+    t.index ["overridden_by_id"], name: "index_document_inboxes_on_overridden_by_id"
+    t.index ["routed_to_type", "routed_to_id"], name: "index_document_inboxes_on_routed_to_type_and_routed_to_id"
+    t.index ["source"], name: "index_document_inboxes_on_source"
+    t.index ["status"], name: "index_document_inboxes_on_status"
+    t.index ["storage_blob_id"], name: "index_document_inboxes_on_storage_blob_id"
+    t.index ["synced_email_id"], name: "index_document_inboxes_on_synced_email_id"
+    t.index ["tenant_id", "document_type"], name: "index_document_inboxes_on_tenant_id_and_document_type"
+    t.index ["tenant_id", "status"], name: "index_document_inboxes_on_tenant_id_and_status"
+    t.index ["tenant_id"], name: "index_document_inboxes_on_tenant_id"
+    t.index ["uploaded_by_id"], name: "index_document_inboxes_on_uploaded_by_id"
+    t.index ["warehouse_document_id"], name: "index_document_inboxes_on_warehouse_document_id"
   end
 
   create_table "document_tasks", force: :cascade do |t|
@@ -5882,6 +5914,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.index ["last_calculated_at"], name: "index_job_cost_budgets_on_last_calculated_at"
   end
 
+  create_table "job_designs", force: :cascade do |t|
+    t.string "name", null: false
+    t.decimal "size", precision: 10, scale: 2
+    t.decimal "frontage_required", precision: 10, scale: 2
+    t.string "floor_plan_url"
+    t.text "description"
+    t.boolean "is_active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_job_designs_on_is_active"
+    t.index ["name"], name: "index_job_designs_on_name", unique: true
+  end
+
   create_table "job_documentation_tabs", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.string "name", null: false
@@ -6766,9 +6811,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.datetime "calibrated_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "docsort_item_id"
+    t.bigint "document_inbox_id"
     t.index ["calibrated_by_id"], name: "index_page_scales_on_calibrated_by_id"
-    t.index ["docsort_item_id"], name: "index_page_scales_on_docsort_item_id"
+    t.index ["document_inbox_id"], name: "index_page_scales_on_document_inbox_id"
     t.index ["job_plan_id", "page_number"], name: "index_page_scales_on_job_plan_id_and_page_number", unique: true
     t.index ["job_plan_id"], name: "index_page_scales_on_job_plan_id"
     t.index ["job_plan_revision_id", "page_number"], name: "index_page_scales_on_job_plan_revision_id_and_page_number"
@@ -6903,47 +6948,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.string "text_align"
     t.string "pdf_form_field_name"
     t.index ["pdf_template_key", "field_key"], name: "index_pdf_field_positions_on_pdf_template_key_and_field_key", unique: true
-  end
-
-  create_table "people_documents", force: :cascade do |t|
-    t.bigint "contact_id", null: false
-    t.string "title", null: false
-    t.text "description"
-    t.string "document_type", null: false
-    t.date "document_date"
-    t.date "expiry_date"
-    t.string "file_name"
-    t.integer "file_size"
-    t.string "mime_type"
-    t.datetime "uploaded_at"
-    t.string "folder"
-    t.string "source", default: "manual"
-    t.bigint "document_type_id"
-    t.string "content_hash"
-    t.string "external_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "storage_provider"
-    t.string "storage_item_id"
-    t.string "storage_path"
-    t.string "migration_status"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.text "migration_error"
-    t.string "source_provider"
-    t.string "source_item_id"
-    t.bigint "storage_blob_id"
-    t.index ["contact_id"], name: "index_people_documents_on_contact_id"
-    t.index ["content_hash"], name: "index_people_documents_on_content_hash"
-    t.index ["document_date"], name: "index_people_documents_on_document_date"
-    t.index ["document_type"], name: "index_people_documents_on_document_type"
-    t.index ["document_type_id"], name: "index_people_documents_on_document_type_id"
-    t.index ["expiry_date"], name: "index_people_documents_on_expiry_date"
-    t.index ["external_id"], name: "index_people_documents_on_external_id"
-    t.index ["migration_status"], name: "index_people_documents_on_migration_status"
-    t.index ["storage_blob_id"], name: "index_people_documents_on_storage_blob_id"
-    t.index ["storage_provider", "migration_status"], name: "idx_people_docs_provider_migration"
-    t.index ["storage_provider"], name: "index_people_documents_on_storage_provider"
   end
 
   create_table "performance_anomalies", force: :cascade do |t|
@@ -7245,6 +7249,60 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.index ["uploaded_by_id"], name: "index_plan_uploads_on_uploaded_by_id"
   end
 
+  create_table "po_template_items", force: :cascade do |t|
+    t.bigint "po_template_pack_id", null: false
+    t.string "name", null: false
+    t.bigint "sm_schedule_master_id"
+    t.bigint "supplier_id"
+    t.string "supplier_sync_key"
+    t.integer "position", default: 0, null: false
+    t.decimal "budget", precision: 15, scale: 2
+    t.text "notes"
+    t.string "status_on_create", default: "draft"
+    t.bigint "tenant_id"
+    t.string "sync_key"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["po_template_pack_id"], name: "index_po_template_items_on_po_template_pack_id"
+    t.index ["sm_schedule_master_id"], name: "index_po_template_items_on_sm_schedule_master_id"
+    t.index ["supplier_id"], name: "index_po_template_items_on_supplier_id"
+    t.index ["tenant_id", "sync_key"], name: "index_po_template_items_on_tenant_id_and_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_po_template_items_on_tenant_id"
+  end
+
+  create_table "po_template_line_items", force: :cascade do |t|
+    t.bigint "po_template_item_id", null: false
+    t.bigint "pricebook_item_id"
+    t.string "pricebook_item_code"
+    t.text "description", null: false
+    t.decimal "quantity", precision: 15, scale: 3, default: "1.0", null: false
+    t.decimal "unit_price", precision: 15, scale: 2, default: "0.0", null: false
+    t.string "gst_code", default: "GST"
+    t.integer "line_number", default: 1, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
+    t.index ["po_template_item_id"], name: "index_po_template_line_items_on_po_template_item_id"
+    t.index ["pricebook_item_id"], name: "index_po_template_line_items_on_pricebook_item_id"
+    t.index ["tenant_id"], name: "index_po_template_line_items_on_tenant_id"
+  end
+
+  create_table "po_template_packs", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.boolean "is_active", default: true, null: false
+    t.integer "position", default: 0
+    t.bigint "tenant_id"
+    t.string "sync_key"
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "name"], name: "index_po_template_packs_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "index_po_template_packs_on_tenant_id_and_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_po_template_packs_on_tenant_id"
+  end
+
   create_table "polaris_credentials", force: :cascade do |t|
     t.text "api_key"
     t.text "api_secret"
@@ -7374,6 +7432,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.integer "call_time_days"
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.bigint "image_storage_blob_id"
+    t.bigint "spec_storage_blob_id"
+    t.bigint "qr_code_storage_blob_id"
     t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
     t.index ["category"], name: "index_pricebooks_on_category"
     t.index ["category_id"], name: "index_pricebooks_on_category_id"
@@ -7381,12 +7442,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.index ["default_supplier_id"], name: "index_pricebooks_on_default_supplier_id"
     t.index ["image_fetch_status"], name: "index_pricebooks_on_image_fetch_status"
     t.index ["image_file_id"], name: "index_pricebooks_on_image_file_id"
+    t.index ["image_storage_blob_id"], name: "index_pricebooks_on_image_storage_blob_id"
     t.index ["is_active"], name: "index_pricebooks_on_is_active"
     t.index ["needs_pricing_review"], name: "index_pricebooks_on_needs_pricing_review"
     t.index ["price_last_updated_at"], name: "index_pricebooks_on_price_last_updated_at"
     t.index ["qr_code_file_id"], name: "index_pricebooks_on_qr_code_file_id"
+    t.index ["qr_code_storage_blob_id"], name: "index_pricebooks_on_qr_code_storage_blob_id"
     t.index ["searchable_text"], name: "idx_pricebook_search", using: :gin
     t.index ["spec_file_id"], name: "index_pricebooks_on_spec_file_id"
+    t.index ["spec_storage_blob_id"], name: "index_pricebooks_on_spec_storage_blob_id"
     t.index ["supplier_id"], name: "index_pricebooks_on_supplier_id"
     t.index ["tenant_id", "sync_key"], name: "idx_pricebooks_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_pricebooks_on_tenant_id"
@@ -7422,28 +7486,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.index ["document_type_id"], name: "index_profit_loss_reports_on_document_type_id"
     t.index ["financial_year"], name: "index_profit_loss_reports_on_financial_year"
     t.index ["status"], name: "index_profit_loss_reports_on_status"
-  end
-
-  create_table "projects", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "project_code"
-    t.text "description"
-    t.date "start_date"
-    t.date "planned_end_date"
-    t.date "actual_end_date"
-    t.string "status", default: "planning"
-    t.string "client_name"
-    t.text "site_address"
-    t.bigint "project_manager_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "job_id", null: false
-    t.datetime "generated_at"
-    t.index ["job_id"], name: "index_projects_on_job_id"
-    t.index ["project_code"], name: "index_projects_on_project_code", unique: true
-    t.index ["project_manager_id"], name: "index_projects_on_project_manager_id"
-    t.index ["start_date", "planned_end_date"], name: "index_projects_on_start_date_and_planned_end_date"
-    t.index ["status"], name: "index_projects_on_status"
   end
 
   create_table "public_holidays", force: :cascade do |t|
@@ -8676,6 +8718,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.datetime "response_zip_created_at"
     t.boolean "auto_attach_email_files", default: true, null: false
     t.string "sync_key"
+    t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
@@ -9333,14 +9376,59 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.boolean "locked", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "docsort_item_id"
-    t.index ["docsort_item_id", "display_order"], name: "index_takeoff_layers_on_docsort_item_id_and_order"
-    t.index ["docsort_item_id", "name"], name: "index_takeoff_layers_on_docsort_item_id_and_name", unique: true, where: "(docsort_item_id IS NOT NULL)"
-    t.index ["docsort_item_id"], name: "index_takeoff_layers_on_docsort_item_id"
+    t.bigint "document_inbox_id"
+    t.index ["document_inbox_id", "display_order"], name: "index_takeoff_layers_on_docsort_item_id_and_order"
+    t.index ["document_inbox_id", "name"], name: "index_takeoff_layers_on_document_inbox_id_and_name", unique: true, where: "(document_inbox_id IS NOT NULL)"
+    t.index ["document_inbox_id"], name: "index_takeoff_layers_on_document_inbox_id"
     t.index ["job_id", "display_order"], name: "index_takeoff_layers_on_job_id_and_display_order"
     t.index ["job_id", "name"], name: "index_takeoff_layers_on_job_id_and_name", unique: true
     t.index ["job_id"], name: "index_takeoff_layers_on_job_id"
     t.index ["tenant_id"], name: "index_takeoff_layers_on_tenant_id"
+  end
+
+  create_table "takeoff_measurements", force: :cascade do |t|
+    t.bigint "job_id"
+    t.bigint "job_plan_id"
+    t.bigint "pricebook_item_id"
+    t.bigint "job_colour_selection_id"
+    t.string "session_id", null: false
+    t.string "measurement_type", null: false
+    t.decimal "value", precision: 15, scale: 4, null: false
+    t.string "unit", null: false
+    t.string "category"
+    t.string "subcategory"
+    t.text "notes"
+    t.jsonb "geometry_data", default: {}
+    t.bigint "synced_to_po_id"
+    t.datetime "synced_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "page_number"
+    t.bigint "takeoff_layer_id"
+    t.boolean "is_deduction", default: false, null: false
+    t.bigint "parent_measurement_id"
+    t.string "source", default: "unreal"
+    t.string "display_label"
+    t.string "color"
+    t.bigint "document_inbox_id"
+    t.bigint "takeoff_room_slot_id"
+    t.index ["category"], name: "index_takeoff_measurements_on_category"
+    t.index ["document_inbox_id"], name: "index_takeoff_measurements_on_document_inbox_id"
+    t.index ["is_deduction"], name: "index_takeoff_measurements_on_is_deduction"
+    t.index ["job_colour_selection_id"], name: "index_takeoff_measurements_on_job_colour_selection_id"
+    t.index ["job_id", "session_id"], name: "index_takeoff_measurements_on_job_id_and_session_id"
+    t.index ["job_id"], name: "index_takeoff_measurements_on_job_id"
+    t.index ["job_plan_id", "page_number"], name: "index_takeoff_measurements_on_job_plan_id_and_page_number"
+    t.index ["job_plan_id"], name: "index_takeoff_measurements_on_job_plan_id"
+    t.index ["measurement_type"], name: "index_takeoff_measurements_on_measurement_type"
+    t.index ["page_number"], name: "index_takeoff_measurements_on_page_number"
+    t.index ["parent_measurement_id"], name: "index_takeoff_measurements_on_parent_measurement_id"
+    t.index ["pricebook_item_id"], name: "index_takeoff_measurements_on_pricebook_item_id"
+    t.index ["session_id"], name: "index_takeoff_measurements_on_session_id"
+    t.index ["source"], name: "index_takeoff_measurements_on_source"
+    t.index ["synced_to_po_id"], name: "index_takeoff_measurements_on_synced_to_po_id"
+    t.index ["takeoff_layer_id"], name: "index_takeoff_measurements_on_takeoff_layer_id"
+    t.index ["takeoff_room_slot_id"], name: "index_takeoff_measurements_on_takeoff_room_slot_id"
   end
 
   create_table "takeoff_room_instances", force: :cascade do |t|
@@ -9348,7 +9436,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.bigint "takeoff_template_id", null: false
     t.bigint "job_id"
     t.bigint "job_plan_id"
-    t.bigint "docsort_item_id"
+    t.bigint "document_inbox_id"
     t.string "name", null: false
     t.string "status", default: "in_progress", null: false
     t.integer "display_order", default: 0
@@ -9357,9 +9445,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["created_by_id"], name: "index_takeoff_room_instances_on_created_by_id"
-    t.index ["docsort_item_id", "display_order"], name: "idx_on_docsort_item_id_display_order_cc0fc8fdd0"
-    t.index ["docsort_item_id", "name"], name: "index_takeoff_room_instances_on_docsort_item_id_and_name"
-    t.index ["docsort_item_id"], name: "index_takeoff_room_instances_on_docsort_item_id"
+    t.index ["document_inbox_id", "display_order"], name: "idx_on_document_inbox_id_display_order_64b99aa145"
+    t.index ["document_inbox_id", "name"], name: "index_takeoff_room_instances_on_document_inbox_id_and_name"
+    t.index ["document_inbox_id"], name: "index_takeoff_room_instances_on_document_inbox_id"
     t.index ["job_id"], name: "index_takeoff_room_instances_on_job_id"
     t.index ["job_plan_id", "display_order"], name: "index_takeoff_room_instances_on_job_plan_id_and_display_order"
     t.index ["job_plan_id", "name"], name: "index_takeoff_room_instances_on_job_plan_id_and_name"
@@ -9789,51 +9877,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.index ["status"], name: "index_trinities_on_status"
   end
 
-  create_table "unreal_measurements", force: :cascade do |t|
-    t.bigint "job_id"
-    t.bigint "job_plan_id"
-    t.bigint "pricebook_item_id"
-    t.bigint "job_colour_selection_id"
-    t.string "session_id", null: false
-    t.string "measurement_type", null: false
-    t.decimal "value", precision: 15, scale: 4, null: false
-    t.string "unit", null: false
-    t.string "category"
-    t.string "subcategory"
-    t.text "notes"
-    t.jsonb "geometry_data", default: {}
-    t.bigint "synced_to_po_id"
-    t.datetime "synced_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.integer "page_number"
-    t.bigint "takeoff_layer_id"
-    t.boolean "is_deduction", default: false, null: false
-    t.bigint "parent_measurement_id"
-    t.string "source", default: "unreal"
-    t.string "display_label"
-    t.string "color"
-    t.bigint "docsort_item_id"
-    t.bigint "takeoff_room_slot_id"
-    t.index ["category"], name: "index_unreal_measurements_on_category"
-    t.index ["docsort_item_id"], name: "index_unreal_measurements_on_docsort_item_id"
-    t.index ["is_deduction"], name: "index_unreal_measurements_on_is_deduction"
-    t.index ["job_colour_selection_id"], name: "index_unreal_measurements_on_job_colour_selection_id"
-    t.index ["job_id", "session_id"], name: "index_unreal_measurements_on_job_id_and_session_id"
-    t.index ["job_id"], name: "index_unreal_measurements_on_job_id"
-    t.index ["job_plan_id", "page_number"], name: "index_unreal_measurements_on_job_plan_id_and_page_number"
-    t.index ["job_plan_id"], name: "index_unreal_measurements_on_job_plan_id"
-    t.index ["measurement_type"], name: "index_unreal_measurements_on_measurement_type"
-    t.index ["page_number"], name: "index_unreal_measurements_on_page_number"
-    t.index ["parent_measurement_id"], name: "index_unreal_measurements_on_parent_measurement_id"
-    t.index ["pricebook_item_id"], name: "index_unreal_measurements_on_pricebook_item_id"
-    t.index ["session_id"], name: "index_unreal_measurements_on_session_id"
-    t.index ["source"], name: "index_unreal_measurements_on_source"
-    t.index ["synced_to_po_id"], name: "index_unreal_measurements_on_synced_to_po_id"
-    t.index ["takeoff_layer_id"], name: "index_unreal_measurements_on_takeoff_layer_id"
-    t.index ["takeoff_room_slot_id"], name: "index_unreal_measurements_on_takeoff_room_slot_id"
-  end
-
   create_table "unreal_variables", force: :cascade do |t|
     t.string "variable_name", null: false
     t.decimal "claude_value", precision: 10, scale: 2, default: "0.0"
@@ -9988,12 +10031,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
-  create_table "versions", force: :cascade do |t|
-    t.integer "current_version", default: 101, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
   create_table "vip_senders", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "email_address", null: false
@@ -10032,6 +10069,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.string "folder_path"
     t.bigint "warehouse_folder_id"
     t.integer "path_template_version", default: 0
+    t.string "warehouse_type"
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["linkable_type", "linkable_id", "folder_path"], name: "idx_wd_linkable_folder_path"
@@ -10043,11 +10081,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
     t.index ["storage_blob_id", "source_type"], name: "idx_warehouse_docs_blob_source"
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
     t.index ["tenant_id", "folder_path"], name: "idx_wd_tenant_folder_path"
+    t.index ["tenant_id", "warehouse_type"], name: "idx_wd_tenant_warehouse_type"
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"
     t.index ["ui_name"], name: "index_warehouse_documents_on_ui_name"
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
     t.index ["warehouse_folder_document_type_id"], name: "index_warehouse_documents_on_warehouse_folder_document_type_id"
     t.index ["warehouse_folder_id"], name: "idx_wd_warehouse_folder"
+    t.index ["warehouse_type"], name: "idx_wd_warehouse_type"
   end
 
   create_table "warehouse_folder_counts", force: :cascade do |t|
@@ -10863,7 +10903,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
   add_foreign_key "cases", "users", column: "assigned_to_id"
   add_foreign_key "cases", "users", column: "created_by_id"
   add_foreign_key "chat_messages", "jobs"
-  add_foreign_key "chat_messages", "projects"
   add_foreign_key "chat_messages", "storage_blobs"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "claim_invoice_templates", "tenants", on_delete: :cascade
@@ -10883,6 +10922,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
   add_foreign_key "contact_company_group_memberships", "contacts"
   add_foreign_key "contact_company_group_memberships", "corporates", column: "company_id"
   add_foreign_key "contact_company_group_memberships", "tenants"
+  add_foreign_key "contact_documents", "storage_blobs"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"
@@ -10937,14 +10977,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
   add_foreign_key "dividend_payments", "contacts", column: "shareholder_id"
   add_foreign_key "dividend_payments", "dividends"
   add_foreign_key "dividends", "corporates", column: "company_id"
-  add_foreign_key "docsort_items", "storage_blobs"
-  add_foreign_key "docsort_items", "synced_emails"
-  add_foreign_key "docsort_items", "tenants"
-  add_foreign_key "docsort_items", "users", column: "overridden_by_id"
-  add_foreign_key "docsort_items", "users", column: "uploaded_by_id"
-  add_foreign_key "docsort_items", "warehouse_documents"
   add_foreign_key "document_duplicate_reviews", "cases"
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
+  add_foreign_key "document_inboxes", "storage_blobs"
+  add_foreign_key "document_inboxes", "synced_emails"
+  add_foreign_key "document_inboxes", "tenants"
+  add_foreign_key "document_inboxes", "users", column: "overridden_by_id"
+  add_foreign_key "document_inboxes", "users", column: "uploaded_by_id"
+  add_foreign_key "document_inboxes", "warehouse_documents"
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "document_tasks", "storage_blobs"
   add_foreign_key "document_templates", "tenants"
@@ -11405,7 +11445,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
   add_foreign_key "notifications", "users"
   add_foreign_key "organizations", "corporates", column: "company_id"
   add_foreign_key "organizations", "tenants"
-  add_foreign_key "page_scales", "docsort_items"
+  add_foreign_key "page_scales", "document_inboxes"
   add_foreign_key "page_scales", "job_plan_revisions"
   add_foreign_key "page_scales", "job_plans"
   add_foreign_key "page_scales", "tenants"
@@ -11423,7 +11463,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
   add_foreign_key "payment_links", "external_invoices", column: "invoice_id"
   add_foreign_key "payments", "purchase_orders"
   add_foreign_key "payments", "users", column: "created_by_id"
-  add_foreign_key "people_documents", "storage_blobs"
   add_foreign_key "performance_anomalies", "users", column: "acknowledged_by_id"
   add_foreign_key "performance_requests", "tenants", on_delete: :cascade
   add_foreign_key "performance_requests", "users"
@@ -11446,6 +11485,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
   add_foreign_key "plan_uploads", "job_plan_tabs"
   add_foreign_key "plan_uploads", "jobs"
   add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
+  add_foreign_key "po_template_items", "po_template_packs"
+  add_foreign_key "po_template_line_items", "po_template_items"
   add_foreign_key "polaris_credentials", "tenants", on_delete: :cascade
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"
@@ -11456,11 +11497,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
   add_foreign_key "pricebooks", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
   add_foreign_key "pricebooks", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
   add_foreign_key "pricebooks", "pricebook_categories", column: "category_id"
+  add_foreign_key "pricebooks", "storage_blobs", column: "image_storage_blob_id"
+  add_foreign_key "pricebooks", "storage_blobs", column: "qr_code_storage_blob_id"
+  add_foreign_key "pricebooks", "storage_blobs", column: "spec_storage_blob_id"
   add_foreign_key "pricebooks", "tenants"
   add_foreign_key "profit_loss_reports", "corporates", column: "company_id"
   add_foreign_key "profit_loss_reports", "document_types"
-  add_foreign_key "projects", "jobs"
-  add_foreign_key "projects", "users", column: "project_manager_id"
   add_foreign_key "public_holidays", "tenants"
   add_foreign_key "purchase_order_documents", "document_tasks"
   add_foreign_key "purchase_order_documents", "purchase_orders"
@@ -11653,18 +11695,27 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
   add_foreign_key "synced_emails", "email_mailboxes"
   add_foreign_key "synced_emails", "tenants"
   add_foreign_key "table_health_checks", "foundations"
-  add_foreign_key "takeoff_layers", "docsort_items"
+  add_foreign_key "takeoff_layers", "document_inboxes"
   add_foreign_key "takeoff_layers", "jobs"
   add_foreign_key "takeoff_layers", "tenants"
-  add_foreign_key "takeoff_room_instances", "docsort_items"
+  add_foreign_key "takeoff_measurements", "document_inboxes"
+  add_foreign_key "takeoff_measurements", "job_colour_selections"
+  add_foreign_key "takeoff_measurements", "job_plans"
+  add_foreign_key "takeoff_measurements", "jobs"
+  add_foreign_key "takeoff_measurements", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "takeoff_measurements", "purchase_orders", column: "synced_to_po_id"
+  add_foreign_key "takeoff_measurements", "takeoff_layers"
+  add_foreign_key "takeoff_measurements", "takeoff_measurements", column: "parent_measurement_id"
+  add_foreign_key "takeoff_measurements", "takeoff_room_slots"
+  add_foreign_key "takeoff_room_instances", "document_inboxes"
   add_foreign_key "takeoff_room_instances", "job_plans"
   add_foreign_key "takeoff_room_instances", "jobs"
   add_foreign_key "takeoff_room_instances", "takeoff_templates"
   add_foreign_key "takeoff_room_instances", "tenants"
   add_foreign_key "takeoff_room_instances", "users", column: "created_by_id"
   add_foreign_key "takeoff_room_slots", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "takeoff_room_slots", "takeoff_measurements", column: "measurement_id"
   add_foreign_key "takeoff_room_slots", "takeoff_room_instances"
-  add_foreign_key "takeoff_room_slots", "unreal_measurements", column: "measurement_id"
   add_foreign_key "takeoff_templates", "tenants"
   add_foreign_key "takeoff_templates", "users", column: "created_by_id"
   add_foreign_key "task_action_items", "sm_tasks"
@@ -11706,15 +11757,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_130000) do
   add_foreign_key "trial_invitations", "tenants", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "invited_by_user_id", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "sent_from_user_id", on_delete: :nullify
-  add_foreign_key "unreal_measurements", "docsort_items"
-  add_foreign_key "unreal_measurements", "job_colour_selections"
-  add_foreign_key "unreal_measurements", "job_plans"
-  add_foreign_key "unreal_measurements", "jobs"
-  add_foreign_key "unreal_measurements", "pricebooks", column: "pricebook_item_id"
-  add_foreign_key "unreal_measurements", "purchase_orders", column: "synced_to_po_id"
-  add_foreign_key "unreal_measurements", "takeoff_layers"
-  add_foreign_key "unreal_measurements", "takeoff_room_slots"
-  add_foreign_key "unreal_measurements", "unreal_measurements", column: "parent_measurement_id"
   add_foreign_key "user_absences", "users"
   add_foreign_key "user_absences", "users", column: "approved_by_id"
   add_foreign_key "user_dictionary_words", "users"

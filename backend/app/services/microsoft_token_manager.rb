@@ -184,7 +184,7 @@ class MicrosoftTokenManager
     # App credentials use client credentials flow (no user interaction)
     def perform_app_refresh(credential)
       response = HTTP.post(
-        "https://login.microsoftonline.com/#{credential.tenant_id}/oauth2/v2.0/token",
+        "https://login.microsoftonline.com/#{credential.azure_tenant_id}/oauth2/v2.0/token",
         form: {
           client_id: credential.client_id,
           client_secret: credential.client_secret,
@@ -221,7 +221,7 @@ class MicrosoftTokenManager
       return { success: false, error: "No refresh token" } if credential.refresh_token.blank?
 
       response = HTTP.post(
-        "https://login.microsoftonline.com/#{credential.tenant_id.presence || 'common'}/oauth2/v2.0/token",
+        "https://login.microsoftonline.com/#{credential.azure_tenant_id.presence || 'common'}/oauth2/v2.0/token",
         form: {
           client_id: ENV["OUTLOOK_CLIENT_ID"],
           client_secret: ENV["OUTLOOK_CLIENT_SECRET"],

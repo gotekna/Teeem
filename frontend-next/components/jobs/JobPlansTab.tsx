@@ -86,10 +86,9 @@ interface Revision {
   issued_date: string | null;
   is_on_issue: boolean;
   has_file: boolean;
-  // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
   storage_item_id?: string | null;
-  sharepoint_file_id: string | null;
-  sharepoint_web_url: string | null;
+  storage_file_id: string | null;
+  storage_web_url: string | null;
   file_name: string | null;
   file_size: number | null;
   formatted_file_size: string | null;
@@ -333,7 +332,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       if (cancelled) return false;
 
       const revision = plan.current_revision;
-      const fileId = revision?.storage_item_id || revision?.sharepoint_file_id;
+      const fileId = revision?.storage_item_id || revision?.storage_file_id;
       if (!fileId || !revision) return false;
 
       // Must match getPdfPreviewUrl format (includes rev= for cache-busting)
@@ -416,10 +415,9 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   }, [selectedPlan?.id, filteredPlans]);
 
   // Get PDF preview URL
-  // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
   // Cache-busting: revision.id changes when file is updated, invalidating old cache
   const getPdfPreviewUrl = (revision: Revision | null) => {
-    const fileId = revision?.storage_item_id || revision?.sharepoint_file_id;
+    const fileId = revision?.storage_item_id || revision?.storage_file_id;
     if (!fileId) return null;
     // Include revision.id as cache-buster - new revision = new URL = fresh cache
     return `${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}&preview=true&rev=${revision.id}`;
@@ -664,7 +662,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
   // Handle re-extract single plan from PDF (uses PdfTextExtractionService SSoT)
   const handleReprocess = async (plan: JobPlan) => {
-    const fileId = plan.current_revision?.storage_item_id || plan.current_revision?.sharepoint_file_id;
+    const fileId = plan.current_revision?.storage_item_id || plan.current_revision?.storage_file_id;
     if (!fileId) {
       toast({
         title: "Error",
@@ -779,8 +777,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           await api.post(
             `/api/v1/jobs/${jobId}/job_plans/${newPlan.id}/add_revision`,
             {
-              sharepoint_file_id: uploadResult.itemId,
-              sharepoint_web_url: uploadResult.webUrl,
+              storage_file_id: uploadResult.itemId,
+              storage_web_url: uploadResult.webUrl,
               file_name: renamedFileName,
               file_size: selectedFile.size,
               revision_date: new Date().toISOString().split("T")[0],
@@ -950,22 +948,21 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                   Scan Folder for New Plans
                 </DropdownMenuItem>
 {/* Storage folder button removed - S3/Wasabi doesn't have web UI */}
-                {((selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.sharepoint_file_id) || selectedPlanIds.length > 0) && (
+                {((selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.storage_file_id) || selectedPlanIds.length > 0) && (
                   <DropdownMenuItem onClick={() => {
                     // Download selected plans' PDFs
-                    // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
                     if (selectedPlanIds.length > 0) {
                       // Download all checkbox-selected plans
                       const selectedPlansData = plans.filter(p => selectedPlanIds.includes(p.id));
                       selectedPlansData.forEach(plan => {
-                        const fileId = plan.current_revision?.storage_item_id || plan.current_revision?.sharepoint_file_id;
+                        const fileId = plan.current_revision?.storage_item_id || plan.current_revision?.storage_file_id;
                         if (fileId) {
                           window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}`, "_blank");
                         }
                       });
                     } else {
                       // Download single-selected plan
-                      const fileId = selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.sharepoint_file_id;
+                      const fileId = selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.storage_file_id;
                       if (fileId) {
                         window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}`, "_blank");
                       }
@@ -1018,7 +1015,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
             p.current_revision?.is_on_issue ? "approved" : "draft"
           }
           getPreviewUrl={(p) => getPdfPreviewUrl(p.current_revision)}
-          getExternalUrl={(p) => p.current_revision?.sharepoint_web_url || null}
+          getExternalUrl={(p) => p.current_revision?.storage_web_url || null}
           getRevision={(p) => p.current_revision?.revision_label || null}
           getThumbnailUrl={(p) => getThumbnailUrl(p.current_revision)}
           onRename={handleRename}

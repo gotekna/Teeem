@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Plus, Pencil, Trash2, Lock, FolderOpen, Search, ArrowUpDown, ArrowUp, ArrowDown, Mail, Zap, ChevronRight, ChevronDown } from "lucide-react";
 import { TabTypeBadge } from "@/components/ui/tab-type-badge";
 import { deriveTabType } from "@/lib/constants/tab-types";
@@ -56,8 +57,8 @@ interface WarehouseType {
 interface WarehouseFolder {
   id: number;
   warehouse_type_id: number;
-  warehouse_type_code: string;
-  warehouse_type_name: string;
+  warehouse_type_code: string | null;
+  warehouse_type_name: string | null;
   parent_id: number | null;
   parent_name: string | null;
   children_count: number;
@@ -346,12 +347,12 @@ export function WarehouseFoldersTab() {
       let comparison = 0;
       switch (sortField) {
         case "warehouse_type_name":
-          comparison = (a.warehouse_type_name || a.warehouse_type_code).localeCompare(
-            b.warehouse_type_name || b.warehouse_type_code
+          comparison = (a.warehouse_type_name || a.warehouse_type_code || "").localeCompare(
+            b.warehouse_type_name || b.warehouse_type_code || ""
           );
           break;
         case "name":
-          comparison = a.name.localeCompare(b.name);
+          comparison = (a.name || "").localeCompare(b.name || "");
           break;
         case "folder_path_template":
           comparison = (a.folder_path_template || "").localeCompare(b.folder_path_template || "");
@@ -529,11 +530,7 @@ export function WarehouseFoldersTab() {
 
   // Early returns AFTER all hooks (React Rules of Hooks)
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="h-8 w-8" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   if (error) {

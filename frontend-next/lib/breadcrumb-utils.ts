@@ -23,6 +23,7 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/purchase_orders": "Purchase Orders",
   "/purchase_orders/new": "New PO",
   "/pricebook": "Pricebook",
+  "/pricebook/colour-swatches": "Colour Swatches",
   "/estimates": "Estimates",
   "/leads": "Leads",
   "/leads/new": "New Lead",
@@ -47,6 +48,10 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
 
   // File Warehouse
   "/warehouse": "File Warehouse",
+  "/warehouse/tree": "Tree",
+  "/warehouse/doc-tree": "Doc Tree",
+  "/warehouse/list": "List",
+  "/warehouse/gallery": "Gallery",
   "/warehouse/templates": "Templates",
 
   // Admin (legacy paths - display as Settings for consistency)
@@ -114,6 +119,11 @@ const ENTITY_LABELS: Record<string, string> = {
   estimates: "Estimate",
   bills: "Bill",
   invoices: "Invoice",
+  // Warehouse views - document ID shown as "Document #123"
+  tree: "Document",
+  "doc-tree": "Document",
+  list: "Document",
+  gallery: "Document",
 };
 
 /**
@@ -419,6 +429,13 @@ export function isSiblingTab(path1: string, path2: string): boolean {
   // e.g., /settings/users and /settings/profile are siblings
   if (segments1.length === 2 && segments2.length === 2 &&
       segments1[0] === "settings" && segments2[0] === "settings") {
+    return true;
+  }
+
+  // Check for warehouse view tabs: /warehouse/{view}
+  // e.g., /warehouse/tree and /warehouse/doc-tree are siblings
+  if (segments1.length === 2 && segments2.length === 2 &&
+      segments1[0] === "warehouse" && segments2[0] === "warehouse") {
     return true;
   }
 

@@ -214,14 +214,14 @@ class DocumentEsignService
   end
 
   def calculate_document_hash(file_info)
-    # file_info can have :id (SharePoint) or :path (S3/Wasabi)
+    # file_info can have :id or :path from any storage provider
     file_identifier = file_info[:path] || file_info[:id]
     return nil unless file_identifier
 
     storage_service = DocumentStorageService.new
     doc = OpenStruct.new(
       storage_path: file_info[:path],
-      sharepoint_file_id: file_info[:id]
+      storage_file_id: file_info[:id]
     )
     result = storage_service.download(doc)
     return nil unless result[:success] && result[:content].present?

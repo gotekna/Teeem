@@ -269,8 +269,6 @@ module Api
         if include_receipt && transaction.storage_reference.present?
           data[:receipt] = {
             has_receipt: true,
-            # SSoT: Use storage_reference, keep key for backwards compat
-            sharepoint_file_id: transaction.storage_reference,
             storage_reference: transaction.storage_reference,
             filename: transaction.receipt.attached? ? transaction.receipt.filename.to_s : nil
           }

@@ -57,6 +57,8 @@ module Api
       end
 
       # PATCH/PUT /api/v1/warehouse_folders/:id
+      # Path cascades handled by WarehouseFolder model callback:
+      #   after_commit :queue_template_recompute (triggers RecomputeWarehouseTypePathsJob)
       def update
         Rails.logger.info "[WarehouseFolders#update] Received params: #{warehouse_folder_params.inspect}"
 
@@ -127,8 +129,7 @@ module Api
                 hierarchy_path: tab.full_folder_path,
                 tab_group: tab.tab_group,
                 warehouse_enabled: tab.warehouse_enabled,
-                has_storage_folder: tab.warehouse_enabled,  # Legacy backwards compat
-                has_sharepoint_folder: tab.warehouse_enabled  # Legacy backwards compat
+                has_storage_folder: tab.warehouse_enabled
               }
             end
           }

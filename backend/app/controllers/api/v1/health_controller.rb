@@ -22,13 +22,10 @@ module Api
 
         # Try to get cached results first (unless forcing refresh)
         unless force_refresh
-          cached = HealthCheckCache.system_wide.first
-          if cached&.fresh?
-            Rails.logger.info "[Health] Serving cached system health (age: #{cached.age_in_hours}h)"
-            return render json: cached.results.merge(
-              cached: true,
-              cached_at: cached.last_run_at.iso8601
-            )
+          cached = Rails.cache.read("health_check:system")
+          if cached.is_a?(Hash)
+            Rails.logger.info "[Health] Serving cached system health"
+            return render json: cached.merge(cached: true)
           end
         end
 
@@ -98,8 +95,8 @@ module Api
           cached: false
         }
 
-        # Cache the fresh results
-        HealthCheckCache.cache_system_health(result)
+        # Cache the fresh results (24 hour expiry)
+        Rails.cache.write("health_check:system", result, expires_in: 24.hours)
 
         render json: result
       end

@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-02-10T15:00:00+10:00",
+  "environment": "production",
+  "pages": {
+    "Jobs List": { "lcp": 1272, "cls": 0.09 },
+    "Jobs > Overview": { "lcp": 3004, "cls": 0.01 },
+    "Jobs > Schedule": { "lcp": 1625, "cls": 0.02 },
+    "Jobs > Documents": { "lcp": 2504, "cls": 0.01 },
+    "Jobs > Finance": { "lcp": 2563, "cls": 0.01 },
+    "Contacts List": { "lcp": 2304, "cls": 0.00 },
+    "Contacts > Detail": { "lcp": 2831, "cls": 0.00 },
+    "Pricebook List": { "lcp": 1232, "cls": 0.00 },
+    "Email List": { "lcp": 896, "cls": 0.00 },
+    "Tasks List": { "lcp": 994, "cls": 0.00 },
+    "Tasks > Mine": { "api_ms": 934, "status": "PASS", "note": "GET /api/v1/sm_tasks?mine=true x-runtime 0.93s (was 6.3s, fixed Feb 2026)" },
+    "Tasks > All": { "api_ms": 934, "status": "PASS", "note": "GET /api/v1/sm_tasks x-runtime ~0.9s (was 6s, same fixes)" }
+  },
+  "backend": {
+    "server_error_rate": 0.00,
+    "api_error_rate": 0.09,
+    "slow_queries": {
+      "synced_emails": { "count": 9445, "avg_ms": 254 },
+      "email_case_proposals": { "count": 7503, "avg_ms": 376 },
+      "email_job_proposals": { "count": 6514, "avg_ms": 417 },
+      "external_invoices": { "count": 1874, "avg_ms": 383 },
+      "tenants": { "count": 1385, "avg_ms": 262 }
+    },
+    "slo": {
+      "api_p95_latency": "no_data",
+      "api_error_rate": { "value": 0.09, "target": 1.0, "status": "met", "compliance": 99.9 },
+      "lcp": { "value": 4522, "target": 2500, "status": "violated", "compliance": 53.4 },
+      "cls": { "value": 0.080, "target": 0.1, "status": "violated", "compliance": 83.5 },
+      "inp": { "value": 66, "target": 200, "status": "violated", "compliance": 92.5 }
+    }
+  }
+}

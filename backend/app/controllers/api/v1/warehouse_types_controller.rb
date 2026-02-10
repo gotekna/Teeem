@@ -122,81 +122,186 @@ module Api
       #   2. Documentable match (older docs that use documentable instead of linkable)
       #   3. Cross-linked via "Also show in" + FK chains (e.g., Xero bills linked to Contact
       #      but visible in Job warehouse because document type has secondary folder in Job)
+      # ⚠️ DO NOT SIMPLIFY - FK-driven folder counts (Feb 2026 rewrite)
+      # ════════════════════════════════════════════════════════════════════
+      # Why: The old code parsed folder_path strings, stripped common prefixes,
+      #      and tried to match remaining segments to configured folder names.
+      #      This broke when: single doc (prefix = full path), root-level docs
+      #      (no sub-folder segment), or folder_path missing folder name.
+      #
+      # The FIX: Use warehouse_folder_id FK (SSoT) to count docs per folder.
+      #   warehouse_document.warehouse_folder_id → warehouse_folder.name
+      #   No string parsing, no prefix stripping, no name matching.
+      #
+      # ❌ WRONG: group(:folder_path) → strip prefix → match folder names
+      # ✅ CORRECT: group(:warehouse_folder_id) → FK lookup → folder name
+      # ════════════════════════════════════════════════════════════════════
       def scoped_tree
         linkable_type = params[:linkable_type]
         linkable_id = params[:linkable_id]
+        combined_ids = scoped_document_ids(linkable_type, linkable_id)
 
-        docs = WarehouseDocument
-          .where(tenant_id: current_tenant&.id)
-          .where(linkable_type: linkable_type, linkable_id: linkable_id)
-          .where.not(folder_path: nil)
-
-        # Also check documentable (some older docs use documentable instead of linkable)
-        documentable_docs = WarehouseDocument
-          .where(tenant_id: current_tenant&.id)
-          .where(documentable_type: linkable_type, documentable_id: linkable_id)
-          .where.not(folder_path: nil)
-
-        # Cross-linked documents via "Also show in" config + FK chains
-        cross_docs = cross_linked_documents(linkable_type, linkable_id)
-
-        # Direct + documentable paths use their actual folder_path
-        direct_paths = (docs.pluck(:folder_path) + documentable_docs.pluck(:folder_path)).compact
-
-        # Cross-linked docs need their paths remapped to the secondary folder
-        # in the target warehouse type (e.g., Contact path → Job path)
-        cross_remapped = remap_cross_linked_paths(cross_docs, linkable_type)
-
-        all_paths = (direct_paths + cross_remapped.keys).compact.uniq
-
-        if all_paths.empty?
+        if combined_ids.empty?
           return render json: {
             success: true,
             data: { tree: {}, prefix: nil, documentCount: 0 }
           }
         end
 
-        # Find common prefix to strip (the record-specific part)
-        common_prefix = find_common_prefix(all_paths)
-        prefix_depth = common_prefix.present? ? common_prefix.count("/") + 2 : 1
+        # SSoT: Count docs per warehouse_folder_id (FK-driven, no string parsing)
+        folder_id_counts = WarehouseDocument.where(id: combined_ids)
+          .where.not(warehouse_folder_id: nil)
+          .group(:warehouse_folder_id)
+          .count
 
-        # Build sub-tree from remaining path segments
-        tree = {}
-        all_paths.each do |path|
-          remaining = common_prefix.present? ? path.sub("#{common_prefix}/", "") : path
-          segments = remaining.split("/")
-          segments.each_with_index do |segment, i|
-            key = segments[0..i].join("/")
-            tree[key] ||= { name: segment, depth: i, count: 0 }
-          end
-          # Count at the leaf
-          leaf_key = remaining
-          tree[leaf_key][:count] += 1 if tree[leaf_key]
+        # Map warehouse_folder_id → folder name (with parent path for nested folders)
+        folder_counts = {}
+        folder_id_counts.each do |wf_id, count|
+          wf = WarehouseFolder.find_by(id: wf_id)
+          next unless wf
+          name_path = build_folder_name_path(wf)
+          folder_counts[name_path] = (folder_counts[name_path] || 0) + count
         end
 
-        # Get folder-level counts for direct + documentable docs
-        direct_ids = (docs.pluck(:id) + documentable_docs.pluck(:id)).uniq
-        folder_counts = if direct_ids.any?
-          WarehouseDocument.where(id: direct_ids).group(:folder_path).count
-        else
-          {}
-        end
-
-        # Add cross-linked doc counts under their remapped paths
-        cross_remapped.each do |remapped_path, doc_ids|
-          folder_counts[remapped_path] = (folder_counts[remapped_path] || 0) + doc_ids.size
-        end
-
-        combined_ids = (direct_ids + cross_docs.pluck(:id)).uniq
+        # Count docs without a warehouse_folder_id (unsorted)
+        unsorted = WarehouseDocument.where(id: combined_ids, warehouse_folder_id: nil).count
+        folder_counts[""] = unsorted if unsorted > 0
 
         render json: {
           success: true,
           data: {
-            tree: folder_counts.transform_keys { |k|
-              common_prefix.present? ? k.sub("#{common_prefix}/", "") : k
-            },
-            prefix: common_prefix,
+            tree: folder_counts,
+            prefix: nil,
             documentCount: combined_ids.size
+          }
+        }
+      end
+
+      # GET /api/v1/warehouse_types/scoped_folder_files
+      # Returns documents and sub-folders for a specific folder in scoped mode.
+      # Uses warehouse_folder_id FK (SSoT) — no S3 path matching.
+      #
+      # Params:
+      #   linkable_type, linkable_id — the entity (Job, Contact, etc.)
+      #   folder_id — the warehouse_folder_id to list files for
+      def scoped_folder_files
+        linkable_type = params[:linkable_type]
+        linkable_id = params[:linkable_id]
+        folder_id = params[:folder_id].to_i
+
+        combined_ids = scoped_document_ids(linkable_type, linkable_id)
+        empty_response = { success: true, data: { folders: [], files: [], count: { folders: 0, files: 0, total: 0 } } }
+        return render(json: empty_response) if combined_ids.empty?
+
+        target_folder = WarehouseFolder.find_by(id: folder_id)
+        return render(json: empty_response) unless target_folder
+
+        # Files directly in this folder
+        file_docs = WarehouseDocument.where(id: combined_ids, warehouse_folder_id: folder_id)
+          .includes(:storage_blob)
+          .order(created_at: :desc)
+          .limit(500)
+
+        # Child folders that have documents (with counts)
+        child_folder_ids = WarehouseFolder.where(parent_id: folder_id).pluck(:id)
+        child_counts = WarehouseDocument.where(id: combined_ids, warehouse_folder_id: child_folder_ids)
+          .group(:warehouse_folder_id).count
+
+        folders = child_counts.filter_map do |wf_id, count|
+          wf = WarehouseFolder.find_by(id: wf_id)
+          next unless wf
+          { name: wf.display_name.presence || wf.name, count: count, folderId: wf.id }
+        end
+
+        provider = begin
+          DocumentProviders.for_tenant(current_tenant)
+        rescue => e
+          Rails.logger.debug "[WarehouseTypes] No storage provider: #{e.message}"
+          nil
+        end
+
+        files = file_docs.filter_map do |wd|
+          blob = wd.storage_blob
+          # download_filename calls SendNameResolver which accesses documentable —
+          # some legacy records have stale polymorphic types (e.g. "JobDocument")
+          safe_filename = begin
+            wd.download_filename
+          rescue NameError => e
+            Rails.logger.debug "[WarehouseTypes] Stale documentable_type for doc #{wd.id}: #{e.message}"
+            wd.ui_name.presence || wd.original_filename.presence || "document-#{wd.id}"
+          end
+          download_url = if blob&.storage_path.present? && provider
+            provider.download_url(blob.storage_path, expires_in: 3600, filename: safe_filename) rescue nil
+          end
+
+          {
+            id: wd.id,
+            uiName: wd.ui_name,
+            sendName: safe_filename,
+            type: wd.source_type || "document",
+            mimeType: wd.content_type || blob&.content_type || "application/octet-stream",
+            fileSize: wd.file_size || blob&.file_size || 0,
+            createdAt: wd.created_at&.iso8601,
+            fileUrl: download_url,
+            isImage: wd.original_filename.present? && wd.original_filename.match?(/\.(jpg|jpeg|png|gif|webp|svg)$/i)
+          }
+        end
+
+        render json: {
+          success: true,
+          data: {
+            folders: folders,
+            files: files,
+            count: { folders: folders.size, files: files.size, total: folders.size + files.size }
+          }
+        }
+      end
+
+      # GET /api/v1/warehouse_types/context_records?entity_type=Job&entity_id=123
+      # Returns related record IDs across ALL warehouse types for a given entity.
+      # Used by the "context" warehouse tree mode on Job/Contact/Corporate pages
+      # to show records from related entities (e.g., a Job's contacts, tasks, cases).
+      #
+      # Response:
+      # {
+      #   success: true,
+      #   data: {
+      #     records: { "job" => [123], "contact" => [45, 67], "task" => [89, 90] },
+      #     record_data: {
+      #       "job" => [{ id: 123, name: "Smith Res", code: "J-001", tokenValues: {...} }],
+      #       "contact" => [{ id: 45, name: "John Smith", ... }, ...],
+      #       ...
+      #     }
+      #   }
+      # }
+      def context_records
+        entity_type = params[:entity_type]
+        entity_id = params[:entity_id].to_i
+
+        related = resolve_context_relations(entity_type, entity_id)
+
+        # For each warehouse type with related IDs, serialize the records
+        # using the warehouse type's config-driven serialization
+        record_data = {}
+        related.each do |wt_code, ids|
+          next if ids.empty?
+          wt = WarehouseType.find_by(code: wt_code)
+          next unless wt&.source_model.present?
+
+          model = wt.source_model.constantize
+          eager_loads = derive_eager_loads_for(wt)
+          scope = eager_loads.any? ? model.includes(*eager_loads) : model.all
+          records = scope.where(id: ids).to_a
+
+          @warehouse_type = wt  # Set for serialize_record_from_config
+          record_data[wt_code] = records.map { |r| serialize_record_from_config(r) }
+        end
+
+        render json: {
+          success: true,
+          data: {
+            records: related,
+            record_data: record_data
           }
         }
       end
@@ -515,6 +620,37 @@ module Api
         path_parts.join('/')
       end
 
+      # Build the display name path for a warehouse folder.
+      # For root folders: just the display_name (e.g., "Photo Documents")
+      # For child folders: "Parent/Child" (e.g., "Finance/Bills")
+      # Uses display_name (what the UI shows) falling back to name.
+      # Shared: get all WarehouseDocument IDs for an entity (direct + documentable + cross-linked)
+      def scoped_document_ids(linkable_type, linkable_id)
+        direct_ids = WarehouseDocument
+          .where(tenant_id: current_tenant&.id)
+          .where(linkable_type: linkable_type, linkable_id: linkable_id)
+          .pluck(:id)
+
+        documentable_ids = WarehouseDocument
+          .where(tenant_id: current_tenant&.id)
+          .where(documentable_type: linkable_type, documentable_id: linkable_id)
+          .pluck(:id)
+
+        cross_ids = cross_linked_documents(linkable_type, linkable_id).pluck(:id)
+
+        (direct_ids + documentable_ids + cross_ids).uniq
+      end
+
+      def build_folder_name_path(warehouse_folder)
+        parts = []
+        current = warehouse_folder
+        while current
+          parts.unshift(current.display_name.presence || current.name)
+          current = current.parent
+        end
+        parts.join("/")
+      end
+
       def serialize_warehouse_type(warehouse_type)
         {
           id: warehouse_type.id,
@@ -536,7 +672,7 @@ module Api
             # Example: Corporate type has "Corporate/{{CompanyGroup}}/{{CompanyCode}}"
             #          Statement has parent Balance Sheet, which has parent Xero
             #          Full path = "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Balance Sheet/Statement"
-            wt_template = warehouse_type.folder_path_template.presence
+            wt_template = warehouse_type.folder_path_template.presence || warehouse_type.display_name
 
             # Build path from parent hierarchy
             ancestor_path = build_ancestor_path(wf)
@@ -633,10 +769,28 @@ module Api
           .count
       end
 
-      # Find the longest common prefix among a set of paths
+      # Find the longest common prefix among a set of paths.
+      # For scoped_tree, this strips the record-identity portion
+      # (e.g., "Job/J46 Smith St...") so remaining keys are folder names.
+      #
+      # ⚠️ DO NOT SIMPLIFY - Single-path edge case (Feb 2026)
+      # ════════════════════════════════════════════════════════
+      # With 2+ paths the common prefix naturally stops at the record identity
+      # because folder segments diverge. With 1 path, the "common prefix" is the
+      # entire path, which swallows the folder name into "". Fix: strip last
+      # segment for single paths — it's the actual folder, not record identity.
+      # ❌ WRONG: return paths.first (folder name becomes "")
+      # ✅ CORRECT: return all-but-last segment
+      # ════════════════════════════════════════════════════════
       def find_common_prefix(paths)
         return "" if paths.empty?
-        return paths.first if paths.size == 1
+
+        if paths.size == 1
+          segments = paths.first.split("/")
+          # Last segment is the folder name — don't include it in the prefix.
+          # If only 1-2 segments (root-level doc), return the full path as prefix.
+          return segments.length > 2 ? segments[0..-2].join("/") : paths.first
+        end
 
         # Split all paths into segments
         split_paths = paths.map { |p| p.split("/") }
@@ -697,8 +851,8 @@ module Api
           displayName: warehouse_type.display_name,
           iconName: warehouse_type.icon_name,
           orderPosition: warehouse_type.order_position,
-          folderPathTemplate: warehouse_type.folder_path_template,
-          pathPreview: resolve_template_tokens(warehouse_type.folder_path_template),
+          folderPathTemplate: warehouse_type.folder_path_template.presence || warehouse_type.display_name,
+          pathPreview: resolve_template_tokens(warehouse_type.folder_path_template.presence || warehouse_type.display_name),
           fileCount: file_count,
           warehouseFolders: warehouse_folders.map { |wf| warehouse_folder_tree_node(wf, warehouse_type) }
         }
@@ -708,7 +862,7 @@ module Api
       # SSoT (Feb 2026): WarehouseFolder is THE ONE
       def warehouse_folder_tree_node(warehouse_folder, warehouse_type)
         # Build full path template
-        wt_template = warehouse_type.folder_path_template.presence
+        wt_template = warehouse_type.folder_path_template.presence || warehouse_type.display_name
         ancestor_path = build_ancestor_path(warehouse_folder)
 
         full_template = if wt_template.blank?
@@ -912,35 +1066,146 @@ module Api
         tokens
       end
 
-      # SSoT (Feb 2026): No cascade needed - paths are computed dynamically
-      # When warehouse_type.folder_path_template changes, all related warehouse_folder
-      # paths automatically update because full_folder_path is computed at runtime
-      # from: warehouse_type.folder_path_template + parent_chain_segments + folder_segment
-      def cascade_template_change(_old_template, _new_template)
-        # No-op: paths are computed dynamically, no sync needed
-        # Kept as placeholder for any future cascade logic
+      # SSoT (Feb 2026): Rematerialize document paths when template changes.
+      # Uses the same RecomputeWarehouseTypePathsJob that WarehouseFolder changes use.
+      def cascade_template_change(old_template, new_template)
+        return if old_template == new_template
+        return unless current_tenant&.id
+
+        RecomputeWarehouseTypePathsJob.perform_later(@warehouse_type.id, current_tenant.id)
+        Rails.logger.info("[WarehouseTypes] Template changed '#{old_template}' → '#{new_template}': queued path recompute for WT##{@warehouse_type.id}")
       end
 
-      # Helper to resolve template tokens to example values for preview display
+      # ═══════════════════════════════════════════════════════════════════════════
+      # Context records helpers (Feb 2026)
+      # Resolves related record IDs across warehouse types for a given entity.
+      # Used by the contextual warehouse tree on entity pages.
+      # ═══════════════════════════════════════════════════════════════════════════
+
+      # Returns { warehouse_type_code => [record_ids] } for all related entities
+      def resolve_context_relations(entity_type, entity_id)
+        case entity_type
+        when "Job"
+          resolve_context_for_job(entity_id)
+        when "Contact"
+          resolve_context_for_contact(entity_id)
+        when "CorporateCompany"
+          resolve_context_for_corporate(entity_id)
+        else
+          {}
+        end
+      end
+
+      def resolve_context_for_job(job_id)
+        job = Job.find_by(id: job_id)
+        return {} unless job
+
+        result = { "job" => [job_id] }
+
+        # Contacts linked to this job
+        contact_ids = JobContact.where(job_id: job_id).pluck(:contact_id).compact.uniq
+        result["contact"] = contact_ids if contact_ids.any?
+
+        # Tasks on this job
+        task_ids = SmTask.where(job_id: job_id).pluck(:id)
+        result["task"] = task_ids if task_ids.any?
+
+        # Cases linked to this job
+        case_ids = CaseJob.where(job_id: job_id).pluck(:case_id).compact.uniq
+        result["case"] = case_ids if case_ids.any?
+
+        result
+      end
+
+      def resolve_context_for_contact(contact_id)
+        contact = Contact.find_by(id: contact_id)
+        return {} unless contact
+
+        result = { "contact" => [contact_id] }
+
+        # Jobs this contact is on
+        job_ids = JobContact.where(contact_id: contact_id).pluck(:job_id).compact.uniq
+        result["job"] = job_ids if job_ids.any?
+
+        # Tasks where this contact is supplier
+        task_ids = SmTask.where(supplier_id: contact_id).pluck(:id)
+        result["task"] = task_ids if task_ids.any?
+
+        # Cases linked to this contact
+        case_ids = CaseContact.where(contact_id: contact_id).pluck(:case_id).compact.uniq
+        result["case"] = case_ids if case_ids.any?
+
+        # Corporate record for this contact (if any)
+        corporate = Corporate.find_by(contact_id: contact_id)
+        result["corporate"] = [corporate.id] if corporate
+
+        result
+      end
+
+      def resolve_context_for_corporate(corporate_id)
+        corporate = Corporate.find_by(id: corporate_id)
+        return {} unless corporate
+
+        result = { "corporate" => [corporate_id] }
+
+        # The corporate's contact
+        contact_id = corporate.contact_id
+        result["contact"] = [contact_id] if contact_id
+
+        # Jobs via the contact
+        if contact_id
+          job_ids = JobContact.where(contact_id: contact_id).pluck(:job_id).compact.uniq
+          result["job"] = job_ids if job_ids.any?
+
+          # Cases via the contact
+          case_ids = CaseContact.where(contact_id: contact_id).pluck(:case_id).compact.uniq
+          result["case"] = case_ids if case_ids.any?
+        end
+
+        # Directors/shareholders are contacts too — include their jobs and cases
+        director_contact_ids = CorporateDirector.where(company_id: corporate_id).pluck(:contact_id).compact.uniq
+        if director_contact_ids.any?
+          result["contact"] = (result["contact"] || []).concat(director_contact_ids).uniq
+        end
+
+        result
+      end
+
+      # Derive .includes() for a specific warehouse type (used by context_records
+      # which iterates multiple types, unlike #records which uses @warehouse_type)
+      def derive_eager_loads_for(warehouse_type)
+        all_paths = (warehouse_type.token_config || {}).values
+        display = warehouse_type.records_config&.dig('display') || {}
+        all_paths += display.values.compact
+
+        all_paths
+          .select { |p| p.is_a?(String) && p.include?('.') }
+          .map { |p| p.split('.').first.to_sym }
+          .uniq
+      end
+
+      # Helper to resolve template tokens to example values for preview display.
+      # SSoT: Reads token names from the template itself — no hardcoded list needed.
+      # Any {{TokenName}} in a template automatically gets a human-readable example.
+      # Unknown tokens get a CamelCase → "Camel Case" fallback.
       def resolve_template_tokens(template)
         return nil if template.blank?
 
-        preview = template.dup
-        preview.gsub!("{{JobCode}}", "J-001")
-        preview.gsub!("{{JobName}}", "Smith Residence")
-        preview.gsub!("{{ContactName}}", "John Smith")
-        preview.gsub!("{{CompanyCode}}", "ABC")
-        preview.gsub!("{{CompanyGroup}}", "ABC Group")
-        preview.gsub!("{{TaskId}}", "123")
-        preview.gsub!("{{TaskName}}", "Site Inspection")
-        preview.gsub!("{{CaseId}}", "456")
-        preview.gsub!("{{CaseName}}", "Insurance Claim")
-        preview.gsub!("{{UserName}}", "John Doe")
-        preview.gsub!("{{TabName}}", "Sales")
-        preview.gsub!("{{Year}}", Time.current.year.to_s)
-        preview.gsub!("{{Month}}", Time.current.strftime("%B"))
-        preview.gsub!("{{Mailbox}}", "inbox@example.com")
-        preview
+        examples = {
+          "JobCode" => "J-001", "JobName" => "Smith Residence",
+          "JobStatus" => "Active", "JobType" => "Renovation",
+          "ContactName" => "John Smith",
+          "CompanyCode" => "ABC", "CompanyName" => "ABC Pty Ltd", "CompanyGroup" => "ABC Group",
+          "TaskId" => "123", "TaskName" => "Site Inspection", "Status" => "Scheduled",
+          "CaseId" => "456", "CaseName" => "Insurance Claim",
+          "UserName" => "John Doe", "TabName" => "Sales",
+          "Year" => Time.current.year.to_s, "Month" => Time.current.strftime("%B"),
+          "Mailbox" => "inbox@example.com"
+        }
+
+        template.gsub(/\{\{(\w+)\}\}/) do
+          examples[$1] || $1.gsub(/([a-z])([A-Z])/, '\1 \2')
+        end
       end
     end
   end

@@ -27,8 +27,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
                      ENV["OUTLOOK_CLIENT_SECRET"].present? &&
                      ENV["OUTLOOK_TENANT_ID"].present?
 
-    # SSoT: Use MicrosoftCredential only
-    credentials = MicrosoftCredential.active_credentials
+    # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant credential access
+    credentials = tenant_scoped_ms_credentials.app_credentials.active.order(:name)
 
     if credentials.empty?
       render json: {
@@ -70,20 +70,18 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Health dashboard for 4-square status display
   # Shows overall health, connected count, needs attention, and self-healing status
   def health_dashboard
-    # Available organizations (SSoT - defined in one place)
-    available_org_names = %w[Tekna 100xBestLife Homes\ of\ Hope Love\ Your\ World]
-    total_count = available_org_names.length
-
-    # SSoT: Get all active MicrosoftCredential (app type)
-    all_creds = MicrosoftCredential.app_credentials.active.to_a
+    # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant health data leak
+    # Total count is dynamic from actual credentials, not a hardcoded list
+    all_creds = tenant_scoped_ms_credentials.app_credentials.active.to_a
+    total_count = all_creds.length
 
     connected_count = all_creds.count { |c| c.status == "connected" }
     error_count = all_creds.count { |c| c.status.in?(%w[error dead]) }
     warning_count = all_creds.count { |c| c.token_expired? && c.status == "connected" }
 
     # Check self-healing status (last token refresh from RefreshIntegrationTokensJob)
-    # SSoT: Only check MicrosoftCredential
-    last_refresh = MicrosoftCredential.maximum(:last_refresh_attempt_at)
+    # FRC (Feb 2026): Must be tenant-scoped
+    last_refresh = tenant_scoped_ms_credentials.maximum(:last_refresh_attempt_at)
 
     self_healing_active = last_refresh.present? && last_refresh > 20.minutes.ago
 
@@ -150,9 +148,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
       }, status: :unprocessable_entity
     end
 
-    # SSoT: Use MicrosoftCredential only
+    # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant credential access
     # Check if org with this name already exists (active OR inactive)
-    existing = MicrosoftCredential.app_credentials.find_by(name: org_name)
+    existing = tenant_scoped_ms_credentials.app_credentials.find_by(name: org_name)
     if existing
       # Reactivate and update existing credential
       existing.update!(
@@ -215,9 +213,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
       }
     end
 
-    # SSoT: Use MicrosoftCredential only
+    # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant credential access
     # Check if org with this name already exists (active OR inactive)
-    existing = MicrosoftCredential.app_credentials.find_by(name: org_name)
+    existing = tenant_scoped_ms_credentials.app_credentials.find_by(name: org_name)
     if existing
       # Reactivate and update existing credential
       # FRC (Feb 2026): Use azure_tenant_id column (string for Azure AD GUID),
@@ -498,8 +496,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Only admins can configure mailbox access" }, status: :forbidden
     end
 
-    # SSoT: Use MicrosoftCredential
-    credential = MicrosoftCredential.find_by(id: params[:id])
+    # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant credential access
+    credential = tenant_scoped_ms_credentials.find_by(id: params[:id])
     unless credential
       return render json: { error: "Organization not found" }, status: :not_found
     end
@@ -544,7 +542,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Only admins can toggle sync settings" }, status: :forbidden
     end
 
-    credential = MicrosoftCredential.find_by(id: params[:id])
+    # FRC (Feb 2026): Must be tenant-scoped
+    credential = tenant_scoped_ms_credentials.find_by(id: params[:id])
     unless credential
       return render json: { error: "Organization not found" }, status: :not_found
     end
@@ -581,7 +580,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Only admins can trigger syncs" }, status: :forbidden
     end
 
-    credential = MicrosoftCredential.find_by(id: params[:id])
+    # FRC (Feb 2026): Must be tenant-scoped
+    credential = tenant_scoped_ms_credentials.find_by(id: params[:id])
     unless credential
       return render json: { error: "Organization not found" }, status: :not_found
     end
@@ -833,16 +833,18 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Only admins can view SharePoint configuration" }, status: :forbidden
     end
 
-    # SSoT: Use MicrosoftCredential
-    sp_config = MicrosoftCredential.teeem_sharepoint_config
+    # FRC (Feb 2026): Must be tenant-scoped for credential lookup
+    storage_config = WarehouseProvider.instance
+    sp_credential = tenant_scoped_ms_credentials.refreshable_delegated.org_level.first ||
+                    tenant_scoped_ms_credentials.refreshable_app.first
 
-    if sp_config
+    if storage_config&.connected? && sp_credential
       render json: {
         configured: true,
-        site_id: sp_config[:site_id],
-        drive_id: sp_config[:drive_id],
-        drive_name: sp_config[:drive_name],
-        credential_name: sp_config[:credential].name
+        site_id: storage_config.site_id,
+        drive_id: storage_config.drive_id,
+        drive_name: storage_config.drive_name,
+        credential_name: sp_credential.name
       }
     else
       render json: {
@@ -888,17 +890,19 @@ class Api::V1::MicrosoftAppController < ApplicationController
         end
       end.compact
 
-      # Get current config (SSoT: MicrosoftCredential)
-      current_config = MicrosoftCredential.teeem_sharepoint_config
+      # FRC (Feb 2026): Get current config with tenant-scoped credential
+      current_sp_credential = tenant_scoped_ms_credentials.refreshable_delegated.org_level.first ||
+                              tenant_scoped_ms_credentials.refreshable_app.first
+      current_storage = WarehouseProvider.instance
 
       render json: {
         success: true,
         sites: sites_with_drives,
-        current_config: current_config ? {
-          site_id: current_config[:site_id],
-          drive_id: current_config[:drive_id],
-          drive_name: current_config[:drive_name],
-          credential_name: current_config[:credential].name
+        current_config: current_storage&.connected? && current_sp_credential ? {
+          site_id: current_storage.site_id,
+          drive_id: current_storage.drive_id,
+          drive_name: current_storage.drive_name,
+          credential_name: current_sp_credential.name
         } : nil
       }
     rescue StandardError => e
@@ -972,8 +976,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "organization_id is required" }, status: :bad_request
     end
 
-    # SSoT: Use MicrosoftCredential
-    credential = MicrosoftCredential.find_by(id: organization_id)
+    # FRC (Feb 2026): Must be tenant-scoped
+    credential = tenant_scoped_ms_credentials.find_by(id: organization_id)
     unless credential&.status == "connected"
       return render json: { error: "Organization not connected" }, status: :not_found
     end
@@ -1017,38 +1021,51 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
   end
 
+  # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant credential access
+  # Returns MicrosoftCredential scope filtered to current tenant
+  # Master tenant sees all credentials; customer tenants see only their own
+  def tenant_scoped_ms_credentials
+    if current_tenant&.master_tenant?
+      MicrosoftCredential
+    else
+      MicrosoftCredential.for_tenant(current_tenant)
+    end
+  end
+
   # SSoT: Find credential with org context
   # Uses organization_id if provided, otherwise falls back to legacy patterns (with warning)
+  # FRC (Feb 2026): All lookups are tenant-scoped
   def find_credential_with_org_context
     org = find_organization
 
     if org.present?
-      # SSoT: Org-scoped lookup (MicrosoftCredential only)
-      MicrosoftCredential.active_for_org(org)
+      # SSoT: Org-scoped lookup, tenant-filtered
+      tenant_scoped_ms_credentials.active.app_credentials.where(organization: org).where.not(status: %w[dead disconnected]).first
     elsif params[:id].present? || params[:credential_id].present?
-      # Lookup by credential ID
+      # Lookup by credential ID, tenant-filtered
       cred_id = params[:id].presence || params[:credential_id].presence
-      MicrosoftCredential.find_by(id: cred_id)
+      tenant_scoped_ms_credentials.find_by(id: cred_id)
     else
-      # Fallback - logs warning
+      # Fallback - tenant-scoped
       Rails.logger.warn "[MicrosoftAppController] Credential lookup without org context. " \
                         "Pass organization_id parameter for proper isolation. " \
                         "Action: #{action_name}, Params: #{params.keys.join(', ')}"
-      MicrosoftCredential.active_credential
+      tenant_scoped_ms_credentials.refreshable_app.first
     end
   end
 
   # FRC (Feb 2026): Find credential for disconnect - includes ALL statuses including "dead"
   # Unlike find_credential_with_org_context which filters out dead credentials,
   # disconnect needs to find credentials regardless of status so they can be removed.
+  # Must be tenant-scoped to prevent cross-tenant disconnect.
   def find_credential_for_disconnect(org_id, org_name)
     if org_id.present?
       org = Organization.find_by(id: org_id)
-      # Find ANY credential for this org, including dead/disconnected
-      MicrosoftCredential.active.app_credentials.for_org(org).first if org
+      # Find ANY credential for this org, including dead/disconnected - tenant-scoped
+      tenant_scoped_ms_credentials.active.app_credentials.for_org(org).first if org
     elsif org_name.present?
       org = Organization.find_by_name_or_slug(org_name)
-      MicrosoftCredential.active.app_credentials.for_org(org).first if org
+      tenant_scoped_ms_credentials.active.app_credentials.for_org(org).first if org
     end
   end
 

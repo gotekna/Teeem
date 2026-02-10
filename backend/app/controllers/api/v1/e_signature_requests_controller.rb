@@ -278,10 +278,6 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       :original_storage_file_id,
       :storage_site_id,
       :storage_drive_id,
-      # Legacy params for backwards compatibility
-      :original_sharepoint_file_id,
-      :sharepoint_site_id,
-      :sharepoint_drive_id,
       signers_attributes: [ :id, :name, :email, :role, :signing_order, :contact_id, :_destroy ]
     )
   end

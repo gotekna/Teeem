@@ -2,15 +2,15 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import axios from "axios";
 import {
   BriefcaseIcon,
   DocumentTextIcon,
   TrophyIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { portalApi } from "@/lib/portal-api";
 
 interface Construction {
   id: number;
@@ -55,14 +55,11 @@ export default function PortalDashboard() {
 
   const loadDashboardData = async () => {
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
       // Load dashboard data in parallel
       const [jobsRes, quotesRes, kudosRes] = await Promise.all([
-        axios.get("/api/v1/portal/jobs"),
-        axios.get("/api/v1/portal/quote_requests"),
-        axios.get("/api/v1/portal/kudos"),
+        portalApi.get("/api/v1/portal/jobs"),
+        portalApi.get("/api/v1/portal/quote_requests"),
+        portalApi.get("/api/v1/portal/kudos"),
       ]);
 
       if (jobsRes.data.success) {

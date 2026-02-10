@@ -245,7 +245,9 @@ module Api
 
       def test_sharepoint_connection(storage_config)
         begin
-          credential = MicrosoftCredential.sharepoint_credential
+          # FRC (Feb 2026): Must be tenant-scoped
+          credential = MicrosoftCredential.for_tenant(current_tenant).refreshable_delegated.org_level.first ||
+                       MicrosoftCredential.for_tenant(current_tenant).refreshable_app.first
 
           unless credential
             return render json: {
@@ -277,7 +279,8 @@ module Api
       def test_s3_connection(storage_config)
         begin
           # Find the active S3 credential for this tenant
-          credential = S3CompatibleCredential.active.connected.first
+          # FRC (Feb 2026): Must be tenant-scoped
+          credential = S3CompatibleCredential.for_tenant(current_tenant).active.connected.first
 
           unless credential
             return render json: {
@@ -383,7 +386,8 @@ module Api
       private
 
       def get_s3_storage_stats(storage_config)
-        credential = S3CompatibleCredential.active.connected.first
+        # FRC (Feb 2026): Must be tenant-scoped
+        credential = S3CompatibleCredential.for_tenant(current_tenant).active.connected.first
 
         unless credential
           return render json: {

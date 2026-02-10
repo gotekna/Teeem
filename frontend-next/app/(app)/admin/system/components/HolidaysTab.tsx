@@ -48,6 +48,7 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { format } from "date-fns";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 
@@ -333,9 +334,7 @@ export function HolidaysTab() {
 
       <Card>
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <Spinner size={32} className="text-muted-foreground" />
-          </div>
+          <LoadingOverlay />
         ) : (
           <Table>
             <TableHeader>

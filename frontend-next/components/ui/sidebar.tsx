@@ -3,7 +3,7 @@
 
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useSidebar } from "@/contexts/SidebarContext";
 import {
@@ -319,8 +319,9 @@ function SidebarContent({
                   disabled={tenantInfo.isLoading}
                   placeholder="Select tenant..."
                   searchPlaceholder="Search tenants..."
+                  searchInTrigger={false}
                   className="h-7 text-xs flex-1 min-w-0"
-                  popoverProps={{ className: "w-[200px]" }}
+                  popoverProps={{ className: "w-[220px]" }}
                 />
               ) : (
                 <span className="text-xs font-medium truncate flex-1 min-w-0">
@@ -482,6 +483,7 @@ export function Sidebar() {
   const [deployedAt, setDeployedAt] = useState<string | null>(null);
   const [loadingHref, setLoadingHref] = useState<string | null>(null);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
@@ -536,10 +538,10 @@ export function Sidebar() {
     }
   }, [pathname]);
 
-  // Clear loading state when navigation completes
+  // Clear loading state when navigation completes (pathname or query params change)
   useEffect(() => {
     setLoadingHref(null);
-  }, [pathname]);
+  }, [pathname, searchParams]);
 
   // Load persona from localStorage on mount
   useEffect(() => {
@@ -706,6 +708,16 @@ export function Sidebar() {
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
+    // Handle email links with query params (e.g., /email?account=ms365_9_6588f630)
+    if (href.includes('?')) {
+      const [hrefPath, hrefQuery] = href.split('?');
+      if (!pathname.startsWith(hrefPath)) return false;
+      const hrefParams = new URLSearchParams(hrefQuery);
+      for (const [key, value] of hrefParams.entries()) {
+        if (searchParams.get(key) !== value) return false;
+      }
+      return true;
+    }
     return pathname.startsWith(href);
   };
 

@@ -808,9 +808,7 @@ class MicrosoftAppGraphClient
     # Ensure folder exists first
     folder_id = ensure_folder_exists(site_id, drive_id, parent_folder_path)
 
-    # SSoT: Use centralized SharePoint filename sanitization
-    # See lib/sharepoint/filename_sanitizer.rb for rules
-    safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
+    safe_filename = Warehouse::FilenameSanitizer.sanitize(filename)
     encoded_filename = CGI.escape(safe_filename)
 
     # Upload via PUT request
@@ -830,7 +828,7 @@ class MicrosoftAppGraphClient
   # Upload file to a specific folder by ID (simpler than path-based upload)
   # Used for thumbnails where we already have the parent folder ID
   def upload_to_folder(drive_id:, parent_folder_id:, filename:, content:)
-    safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
+    safe_filename = Warehouse::FilenameSanitizer.sanitize(filename)
     encoded_filename = CGI.escape(safe_filename)
 
     endpoint = "/drives/#{drive_id}/items/#{parent_folder_id}:/#{encoded_filename}:/content"
@@ -847,9 +845,7 @@ class MicrosoftAppGraphClient
   def create_upload_session(site_id, drive_id, parent_folder_path, filename)
     folder_id = ensure_folder_exists(site_id, drive_id, parent_folder_path)
 
-    # SSoT: Use centralized SharePoint filename sanitization
-    # See lib/sharepoint/filename_sanitizer.rb for rules
-    safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
+    safe_filename = Warehouse::FilenameSanitizer.sanitize(filename)
     encoded_filename = CGI.escape(safe_filename)
 
     endpoint = "/sites/#{site_id}/drives/#{drive_id}/items/#{folder_id}:/#{encoded_filename}:/createUploadSession"

@@ -46,14 +46,6 @@ export { PlaceholderBadge, type PlaceholderBadgeProps } from "./PlaceholderBadge
 export { PlaceholderPalette, type PlaceholderPaletteProps } from "./PlaceholderPalette";
 export { PlaceholderBuilder, type PlaceholderBuilderProps } from "./PlaceholderBuilder";
 
-// Backwards compatibility aliases (DEPRECATED - use new Placeholder* names)
-export { PlaceholderBadge as TokenBadge } from "./PlaceholderBadge";
-export { PlaceholderPalette as TokenPalette } from "./PlaceholderPalette";
-export { PlaceholderBuilder as TokenBuilder } from "./PlaceholderBuilder";
-export type { PlaceholderBadgeProps as TokenBadgeProps } from "./PlaceholderBadge";
-export type { PlaceholderPaletteProps as TokenPaletteProps } from "./PlaceholderPalette";
-export type { PlaceholderBuilderProps as TokenBuilderProps } from "./PlaceholderBuilder";
-
 // Re-export placeholder utilities for convenience
 export {
   // Types
@@ -66,7 +58,6 @@ export {
   JOB_PLACEHOLDERS,
   DOCUMENT_PLACEHOLDERS,
   STORAGE_PLACEHOLDERS,
-  SHAREPOINT_PLACEHOLDERS, // Backwards compatibility alias
   PLACEHOLDERS_BY_SCOPE,
   // Utility functions
   getPlaceholders,

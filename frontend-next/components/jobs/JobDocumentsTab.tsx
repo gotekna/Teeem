@@ -310,9 +310,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
   // Check if a file is an image
   const isImageFile = (item: LegacyItem): boolean => {
-    const name = item.name?.toLowerCase() || "";
     const imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".heic", ".heif"];
-    return imageExtensions.some((ext) => name.endsWith(ext));
+    // Check both display name and original filename (ui_name may not have extension)
+    const name = item.name?.toLowerCase() || "";
+    const originalName = item.original_name?.toLowerCase() || "";
+    return imageExtensions.some((ext) => name.endsWith(ext) || originalName.endsWith(ext));
   };
 
   // Get document URL - handles both SharePoint and S3 storage providers
@@ -664,35 +666,15 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // ULTRA MASTERPIECE: Direct browser-to-SharePoint upload (50% faster)
   // Returns true on success, false on failure
   const handlePhotoUpload = async (file: File): Promise<boolean> => {
-    if (!file || !orgStatus.connected) return false;
+    if (!file) return false;
 
     setUploadingPhoto(true);
     setShowPhotoOptions(false);
     setError(null);
 
-    // Get the folder path from the current category or initialCategory
+    // SSoT: Get folder path from WarehouseFolder (via selected category)
     const category = selectedSubCategory || selectedCategory;
-    let folderPath = category?.folder_path || "";
-
-    // If no folder path from category, derive from initialCategory
-    if (!folderPath && initialCategory) {
-      // Map tab names to folder paths
-      const folderMap: Record<string, string> = {
-        "site-photo": "06 Photo/01 SITE",
-        "client-photo": "06 Photo/02 Client",
-        "slab-photo": "06 Photo/02 SLAB",
-        "frame-photo": "06 Photo/03 FRAME",
-        "pc-photo": "06 Photo/06 Practical Completion",
-        "enclosed-photo": "06 Photo/04 ENCLOSED",
-        "fixing-photo": "06 Photo/05 FIXING",
-        "supervisor-photo": "06 Photo/07 Supervisor Photos",
-      };
-      folderPath = folderMap[initialCategory] || "06 Photo";
-    }
-
-    if (!folderPath) {
-      folderPath = "06 Photo";
-    }
+    const folderPath = category?.folder_path || "";
 
     // Generate a proper filename based on category and date/time
     const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
@@ -723,6 +705,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         jobId,
         folderPath,
         filename: newFilename,
+        warehouseFolderId: category?.id,
         onProgress: (progress: UploadProgress) => {
           // Could add progress UI here in the future
           console.log(`[PhotoUpload] ${progress.status}: ${progress.percentage}%`);
@@ -732,10 +715,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       if (result.success) {
         // Refresh file list in background to get real SharePoint URLs
         // Wait for SharePoint to index the file (3s is usually enough)
+        // NOTE: Don't revoke blobUrl here - optimistic items may still need it
+        // if storage hasn't indexed the file yet. Blob URLs are cleaned up
+        // automatically on page navigation.
         setTimeout(() => {
-          loadAllFiles().then(() => {
-            URL.revokeObjectURL(blobUrl);
-          });
+          loadAllFiles();
         }, 3000);
         return true;
       } else {
@@ -945,22 +929,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       // SSoT: Use prop categories if provided (from useEntityTabs in parent)
       // This eliminates duplicate API calls and ensures consistency
       if (propCategories && propCategories.length > 0) {
-        console.log('[JobDocumentsTab] Using prop categories (SSoT):', propCategories.length);
         categories = propCategories;
       } else {
         // Fallback to API for standalone usage (e.g., Documents tab)
-        console.log('[JobDocumentsTab] Loading documentation_tabs from API for job:', jobId);
         const response = await api.get<DocumentCategory[]>(`/api/v1/jobs/${jobId}/documentation_tabs`);
         categories = response || [];
       }
 
-      console.log('[JobDocumentsTab] Categories:', categories.length, categories.map(c => ({
-        id: c.id,
-        tab_key: c.tab_key,
-        name: c.name,
-        is_photo_category: c.is_photo_category,
-        children: c.children?.map(ch => ({ id: ch.id, tab_key: ch.tab_key, name: ch.name, is_photo_category: ch.is_photo_category }))
-      })));
       setDocumentCategories(categories);
 
       if (categories.length > 0) {
@@ -980,13 +955,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             childKey = c;
           }
 
-          console.log("[JobDocumentsTab] Category lookup:", {
-            initialCategory,
-            isCompositeKey,
-            parentKey,
-            childKey,
-          });
-
           // SSoT: Match by tab_key directly (e.g., "supervisor-photo")
           // No name conversion needed - tab_key is the unique identifier
           let foundMatch = false;
@@ -1002,11 +970,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                 (child) => child.tab_key === childKey
               );
               if (matchingChild) {
-                console.log("[JobDocumentsTab] Found matching child:", {
-                  parent: parent.tab_key,
-                  child: matchingChild.tab_key,
-                  is_photo_category: matchingChild.is_photo_category,
-                });
+                // Skip redundant state updates if already selected (prevents re-render cascade)
+                if (selectedCategory?.id === parent.id && selectedSubCategory?.id === matchingChild.id) {
+                  return;
+                }
                 // Set flag BEFORE setting state to prevent useEffect from overwriting
                 initialCategoryAppliedRef.current = true;
                 setSelectedCategory(parent);
@@ -1017,11 +984,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             }
             // Also check if the parent itself matches (only if no composite key)
             if (!parentKey && parent.tab_key === childKey) {
-              console.log("[JobDocumentsTab] Found matching parent:", {
-                parent: parent.tab_key,
-                is_photo_category: parent.is_photo_category,
-              });
-              setSelectedCategory(parent);
+              if (selectedCategory?.id !== parent.id) {
+                setSelectedCategory(parent);
+              }
               foundMatch = true;
               return;
             }
@@ -1035,11 +1000,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               (cat) => cat.tab_key === childKey
             );
             if (matchingCategory) {
-              console.log("[JobDocumentsTab] Found matching category (flat list):", {
-                tab_key: matchingCategory.tab_key,
-                name: matchingCategory.name,
-                is_photo_category: matchingCategory.is_photo_category,
-              });
               initialCategoryAppliedRef.current = true;
               setSelectedCategory(matchingCategory);
               return;
@@ -1053,7 +1013,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       }
     } catch (err) {
       console.error("[JobDocumentsTab] Failed to load document categories:", err);
-      console.error("[JobDocumentsTab] Error details:", JSON.stringify(err, null, 2));
     }
   };
 
@@ -1353,7 +1312,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       }
 
       const url = `/api/v1/documents/job_all_files?${params.toString()}`;
-      console.log('[All Files] Fetching:', url);
 
       const response = await api.get<{
         success: boolean;
@@ -1364,11 +1322,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         error?: string;
       }>(url);
 
-      console.log('[All Files] Response:', response);
-
       if (response?.success) {
-        console.log('[All Files] Found', response.items?.length || 0, 'files');
-
         // ULTRA FIX: Preserve optimistic items that aren't yet in the API response
         // SharePoint may take a few seconds to index new files, so we keep optimistic
         // items until they appear in the real data (matched by filename)
@@ -1382,8 +1336,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             !newItemNames.has(item.name.toLowerCase())
           );
 
-          if (preservedOptimistic.length > 0) {
-            console.log('[All Files] Preserving', preservedOptimistic.length, 'optimistic items');
+          // Avoid unnecessary re-renders if nothing changed
+          if (newItems.length === 0 && preservedOptimistic.length === prev.length) {
+            return prev;
           }
 
           return [...newItems, ...preservedOptimistic];
@@ -1391,7 +1346,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         setAllFilesJobFolderUrl(response.job_folder_web_url || null);
         setAiStats(response.ai_stats || null);
       } else {
-        console.log('[All Files] No job folder or empty:', response?.error);
         setAllFiles([]);
         setAllFilesJobFolderUrl(null);
         setAiStats(null);
@@ -1527,7 +1481,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     // Load files for: All Files tab, Document Tasks view (any category)
     const needsFiles = viewMode === "allfiles" || viewMode === "tasks" || viewMode === "treeview";
 
-    if (orgStatus.connected && needsFiles) {
+    if (!orgStatus.loading && needsFiles) {
       // Prevent duplicate requests if one is already in flight
       if (loadAllFilesInFlightRef.current) {
         return;
@@ -1537,7 +1491,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         loadAllFilesInFlightRef.current = false;
       });
     }
-  }, [viewMode, orgStatus.connected, selectedCategoryKey, selectedSubCategoryKey, cascadeMode]);
+  }, [viewMode, orgStatus.loading, selectedCategoryKey, selectedSubCategoryKey, cascadeMode]);
 
   const getStatusBadge = (task: DocumentTask) => {
     if (task.is_validated) {
@@ -1552,14 +1506,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // Document Tasks View
   const renderTasksView = () => {
     const activeCategory = selectedSubCategory || selectedCategory;
-    const photoCheck = isPhotoCategory(activeCategory);
-    console.log('[JobDocumentsTab] DEBUG:', {
-      viewMode,
-      activeCategory: activeCategory?.name,
-      isPhotoCategory: photoCheck,
-      is_photo_category_flag: activeCategory?.is_photo_category,
-      orgStatusConnected: orgStatus.connected,
-    });
 
     if (documentCategories.length === 0) {
       return (
@@ -1572,8 +1518,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         </Card>
       );
     }
-
-    // activeCategory already declared in debug block above
 
     return (
       <div className="space-y-4">
@@ -1652,7 +1596,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                     )}
                   </CardTitle>
                   {/* Add Photo and Select buttons - show for photo categories (SSoT: uses tab_type='photo') */}
-                  {isPhotoCategory(activeCategory) && orgStatus.connected && (
+                  {/* Photos upload via StorageBlob (not document provider), so don't gate on orgStatus.connected */}
+                  {isPhotoCategory(activeCategory) && (
                     <div className="flex items-center gap-2">
                       {/* Select button - toggle multi-select mode */}
                       {categoryPhotoItems.length > 0 && (
@@ -1872,26 +1817,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         <div className="flex items-center justify-center py-12">
           <Spinner size={32} className="text-muted-foreground" />
         </div>
-      );
-    }
-
-    if (!orgStatus.connected) {
-      return (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Cloud className="h-16 w-16 text-muted-foreground mx-auto" />
-            <h3 className="mt-4 text-lg font-semibold">SharePoint Not Connected</h3>
-            <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-              Your organization hasn't connected SharePoint yet. An admin needs to connect Microsoft 365 in Settings first.
-            </p>
-            <Button asChild className="mt-6">
-              <Link href="/settings/integrations/microsoft">
-                <Settings className="h-4 w-4 mr-2" />
-                Go to Settings
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
       );
     }
 
@@ -2119,26 +2044,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         <div className="flex items-center justify-center py-12">
           <Spinner size={32} className="text-muted-foreground" />
         </div>
-      );
-    }
-
-    if (!orgStatus.connected) {
-      return (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Cloud className="h-16 w-16 text-muted-foreground mx-auto" />
-            <h3 className="mt-4 text-lg font-semibold">SharePoint Not Connected</h3>
-            <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-              Your organization hasn't connected SharePoint yet. An admin needs to connect Microsoft 365 in Settings first.
-            </p>
-            <Button asChild className="mt-6">
-              <Link href="/settings/integrations/microsoft">
-                <Settings className="h-4 w-4 mr-2" />
-                Go to Settings
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
       );
     }
 
@@ -2793,7 +2698,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       } else {
         // File node
         const file = node.file!;
-        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name) || /\.(jpg|jpeg|png|gif|webp)$/i.test(file.original_name || "");
 
         return (
           <div

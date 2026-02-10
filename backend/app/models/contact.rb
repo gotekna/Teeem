@@ -111,13 +111,8 @@ class Contact < ApplicationRecord
   has_many :shareholding_companies, through: :corporate_shareholdings, source: :corporate
   has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy
 
-  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
-
-  # SSoT: Contact documents (Xero invoices, bills, etc.)
+  # SSoT: Contact documents (ID, licenses, personal documents for people scope)
   has_many :contact_documents, dependent: :destroy
-
-  # SSoT: People documents (ID, licenses, personal documents for people scope)
-  has_many :people_documents, dependent: :destroy
 
   # Company Group memberships (SSoT - links contact to company groups with permissions)
   has_many :company_group_memberships, class_name: "ContactCompanyGroupMembership", dependent: :destroy
@@ -1432,7 +1427,7 @@ class Contact < ApplicationRecord
   # @example Template "{{ContactId}} - {{ContactName}}" => "123 - ABC Supplies"
   def self.generate_folder_name(contact_id:, display_name:)
     template = WarehouseProvider.instance&.path_for(:contact) || "{{ContactId}} - {{ContactName}}"
-    sanitized_name = SharePoint::FilenameSanitizer.sanitize_path_segment(display_name || "Unknown")
+    sanitized_name = Warehouse::FilenameSanitizer.sanitize_path_segment(display_name || "Unknown")
 
     result = template.dup
     result.gsub!("{{ContactId}}", contact_id.to_s)
@@ -2130,7 +2125,7 @@ class Contact < ApplicationRecord
     end
 
     # Warning: Has documents
-    doc_count = contact_documents.count rescue 0
+    doc_count = WarehouseDocument.where(linkable: self).count rescue 0
     if doc_count > 0
       result[:warnings] << {
         type: "has_documents",

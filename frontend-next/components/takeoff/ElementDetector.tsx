@@ -131,7 +131,7 @@ export function ElementDetector({
     try {
       const endpoint = planId
         ? `/api/v1/pdf_takeoff/plans/${planId}/detect_elements`
-        : `/api/v1/pdf_takeoff/docsort/${docsortItemId}/detect_elements`;
+        : `/api/v1/pdf_takeoff/document_inbox/${docsortItemId}/detect_elements`;
 
       const response = await api.post<{
         success: boolean;

@@ -275,24 +275,22 @@ class SmTaskCompletionService
       content_type: "application/pdf"
     )
 
-    # Create WarehouseDocument (SSoT for all document metadata)
-    warehouse_doc = WarehouseDocument.create!(
+    # Create WarehouseDocument via standard service
+    warehouse_doc = WarehouseDocumentCreator.create!(
+      filename: result[:filename],
       source_type: "job",
-      ui_name: result[:filename],  # SSoT: display_name renamed to ui_name (Feb 2026)
-      original_filename: result[:filename],
-      content_type: "application/pdf",
-      file_size: result[:pdf_content].bytesize,
-      storage_blob: blob,
       linkable: job,
+      storage_blob: blob,
+      file_size: result[:pdf_content].bytesize,
+      content_type: "application/pdf",
       metadata: {
-        document_type_id: document_type.id,
-        document_type: document_type.name,
-        job_code: job.job_code,
-        version_status: "signed",
-        signed_by_id: supervisor.id,
-        signed_at: result[:generated_at]&.iso8601,
-        source: "generated",
-        certificate_template: document_type.certificate_template
+        "document_type_id" => document_type.id,
+        "document_type" => document_type.name,
+        "version_status" => "signed",
+        "signed_by_id" => supervisor.id,
+        "signed_at" => result[:generated_at]&.iso8601,
+        "source" => "generated",
+        "certificate_template" => document_type.certificate_template
       }
     )
 

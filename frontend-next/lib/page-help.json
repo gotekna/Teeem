@@ -249,14 +249,20 @@
     "/warehouse": {
       "title": "File Warehouse",
       "description": "Central document storage for all files across jobs, contacts, and emails.",
-      "tips": ["Browse by folder structure (Jobs, Contacts, Emails, etc.)", "Search across all documents", "Preview PDFs and images inline"],
-      "tasks": ["Upload documents", "Organize into folders", "Search for files", "Download or share documents"]
+      "tips": ["Browse by folder structure (Jobs, Contacts, Emails, etc.)", "Search across all documents", "Preview PDFs and images inline", "Use Table view to see all document metadata with sorting, filtering, and grouping"],
+      "tasks": ["Upload documents", "Organize into folders", "Search for files", "Download or share documents", "View raw document data in Table view"]
     },
     "/pricebook": {
       "title": "Pricebook",
       "description": "Manage your product and service catalog with pricing.",
       "tips": ["Use categories to organize items", "Set markup percentages for cost-to-price calculation", "Import from supplier price lists"],
       "tasks": ["Add new pricebook item", "Update prices", "Import supplier prices", "Export price list"]
+    },
+    "/pricebook/colour-swatches": {
+      "title": "Colour Swatches",
+      "description": "Browse colour swatches from Colorbond, Austral, Roof Profiles, Polytec and other brands.",
+      "tips": ["Swatches are grouped by brand", "Click a swatch to view full-size in the lightbox", "Navigate between swatches with arrow keys"],
+      "tasks": ["Browse colour options by brand", "View swatch details", "Download swatch images"]
     },
     "/pricebook/health": {
       "title": "Pricebook Health",
@@ -980,9 +986,15 @@
     },
     "/settings/operations": {
       "title": "Operations Settings",
-      "description": "Configure operational settings like schedule master and contact types.",
-      "tips": ["Schedule Master settings affect task scheduling", "Contact types help organize contacts", "Meeting types standardize meeting records"],
-      "tasks": ["Configure Schedule Master", "Manage contact types", "Set up meeting types", "Configure checklist templates"]
+      "description": "Configure operational settings like schedule master, contact types, and PO templates.",
+      "tips": ["Schedule Master settings affect task scheduling", "Contact types help organize contacts", "Meeting types standardize meeting records", "PO Templates let you stamp all POs onto a new job in one click"],
+      "tasks": ["Configure Schedule Master", "Manage contact types", "Set up meeting types", "Configure checklist templates", "Create PO template packs"]
+    },
+    "/settings/operations/po-templates": {
+      "title": "PO Template Packs",
+      "description": "Define template packs (e.g., Standard House, Townhouse) to stamp purchase orders onto new jobs in one click.",
+      "tips": ["Create packs from existing jobs using 'Create from Job'", "Each pack contains multiple PO definitions with line items", "Templates link to SM tasks and suppliers for automatic matching", "Duplicate a pack to create variations (e.g., 2-storey house)"],
+      "tasks": ["Create a template pack", "Create pack from existing job", "Edit pack items and line items", "Duplicate a pack", "Apply template to a job"]
     },
     "/settings/connections": {
       "title": "Connections",

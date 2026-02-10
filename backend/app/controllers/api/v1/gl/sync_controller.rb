@@ -277,7 +277,9 @@ module Api
 
           # Try to find via tenant_id from XeroCredential connection
           if params[:tenant_id].present?
-            xero_cred = XeroCredential.find_by(tenant_id: params[:tenant_id])
+            # FRC (Feb 2026): Must be tenant-scoped
+            xero_cred_scope = current_tenant&.master_tenant? ? XeroCredential : XeroCredential.for_teeem_tenant(current_tenant)
+            xero_cred = xero_cred_scope.find_by(tenant_id: params[:tenant_id])
             if xero_cred
               connection = xero_cred.corporate_xero_connections.first
               @corporate = connection&.corporate
@@ -330,7 +332,9 @@ module Api
 
           # If tenant_id provided, try to match
           if params[:tenant_id].present?
-            XeroCredential.find_by(tenant_id: params[:tenant_id], status: 'connected')
+            # FRC (Feb 2026): Must be tenant-scoped
+            gl_cred_scope = current_tenant&.master_tenant? ? XeroCredential : XeroCredential.for_teeem_tenant(current_tenant)
+            gl_cred_scope.find_by(tenant_id: params[:tenant_id], status: 'connected')
           else
             nil
           end

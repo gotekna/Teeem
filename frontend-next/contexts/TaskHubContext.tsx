@@ -64,7 +64,7 @@ export interface TaskAttachment {
   created_at: string;
   email?: TaskAttachmentEmail;
   document?: TaskAttachmentDocument;
-  sharepoint_url?: string; // For response files uploaded to SharePoint
+  storage_url?: string; // For response files uploaded to storage provider
   action_item_id?: number; // Links attachment to a specific question as response
   is_source?: boolean; // SSoT: True if this is the source email (task created from)
 }

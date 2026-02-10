@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { usePathTabs } from "@/hooks/usePathTabs";
 
 // Import operations-related tab components from admin
 import { ScheduleMasterTab } from "@/app/(app)/admin/system/components/ScheduleMasterTab";
@@ -12,6 +12,7 @@ import { MeetingTypesTab } from "@/app/(app)/admin/system/components/MeetingType
 import { SupervisorChecklistTab } from "@/app/(app)/admin/system/components/SupervisorChecklistTab";
 import { SMTasksTab } from "@/app/(app)/admin/system/components/SMTasksTab";
 import { CostTab } from "@/app/(app)/admin/system/components/CostTab";
+import { PoTemplatesTab } from "@/app/(app)/admin/system/components/PoTemplatesTab";
 
 /**
  * Operations Settings Page - Organization Settings
@@ -30,31 +31,27 @@ const OPERATIONS_TABS = [
   { id: "meetings", label: "Meeting Types" },
   { id: "supervisor", label: "Supervisor Checklist" },
   { id: "cost", label: "Cost" },
+  { id: "po-templates", label: "PO Templates" },
 ];
 
 const DEFAULT_TAB = "schedule-master";
 
 export default function OperationsSettingsPage() {
-  const pathname = usePathname();
-  const router = useRouter();
+  // Tab panels use absolute inset-0 positioning, which requires full-height layout
+  useSetLayoutMode("full-height");
 
   // URL is SSoT for tab state (path-based navigation)
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/operations to work
-  const activeTab = useMemo(() => {
-    const parts = (pathname ?? "").replace("/settings/operations", "").split("/").filter(Boolean);
-    const tab = parts[0] || DEFAULT_TAB;
-    // Validate tab exists
-    return OPERATIONS_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
-  }, [pathname]);
-
-  const handleTabChange = useCallback((tabId: string) => {
-    router.push(`/settings/operations/${tabId}`, { scroll: false });
-  }, [router]);
+  const [activeTab, setActiveTab] = usePathTabs(
+    "/settings/operations",
+    DEFAULT_TAB,
+    OPERATIONS_TABS.map(t => t.id)
+  );
 
   return (
     <div className="flex flex-col h-full">
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col h-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
         <TabsList className="flex-wrap h-auto gap-1 shrink-0">
           {OPERATIONS_TABS.map((tab) => (
             <TabsTrigger
@@ -85,6 +82,9 @@ export default function OperationsSettingsPage() {
           </TabsContent>
           <TabsContent value="cost" className="absolute inset-0 overflow-auto">
             <CostTab />
+          </TabsContent>
+          <TabsContent value="po-templates" className="absolute inset-0 overflow-auto">
+            <PoTemplatesTab />
           </TabsContent>
         </div>
       </Tabs>

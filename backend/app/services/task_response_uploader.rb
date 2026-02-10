@@ -46,7 +46,7 @@ class TaskResponseUploader
 
   # Upload a file to the appropriate SharePoint folder
   # @param file [ActionDispatch::Http::UploadedFile] The file to upload
-  # @return [Hash] { success: true, sharepoint_url: "...", file_id: "...", filename: "..." }
+  # @return [Hash] { success: true, storage_url: "...", file_id: "...", filename: "..." }
   def upload(file)
     config = WarehouseProvider.for_tenant(@tenant)
 
@@ -70,12 +70,12 @@ class TaskResponseUploader
     content = file.respond_to?(:read) ? file.read : file
     filename = file.respond_to?(:original_filename) ? file.original_filename : File.basename(file.to_s)
 
-    # Upload to SharePoint
+    # Upload to storage provider
     result = provider.upload_file(folder_path, content, filename)
 
     {
       success: true,
-      sharepoint_url: result[:web_url],
+      storage_url: result[:web_url],
       file_id: result[:id],
       filename: filename,
       folder_path: folder_path,
@@ -125,17 +125,15 @@ class TaskResponseUploader
     documentable = task
     documentable = job if job.present?
 
-    WarehouseDocument.create!(
+    WarehouseDocumentCreator.create!(
+      filename: resolved_display_name,
+      source_type: "task",
       documentable: documentable,
       storage_blob: blob,
-      source_type: "task",
-      ui_name: resolved_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
-      original_filename: upload_result[:filename],
-      tenant_id: @tenant.id,
       metadata: {
-        task_id: task.id,
-        job_id: job&.id,
-        upload_category: @category
+        "task_id" => task.id,
+        "job_id" => job&.id,
+        "upload_category" => @category
       }
     )
   end

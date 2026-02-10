@@ -11,7 +11,6 @@ import {
   ExclamationTriangleIcon,
   XMarkIcon,
   FunnelIcon,
-  MagnifyingGlassIcon,
   ChevronRightIcon,
   DocumentTextIcon,
   DocumentChartBarIcon,
@@ -22,7 +21,7 @@ import { Ruler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Select,
   SelectContent,
@@ -45,7 +44,7 @@ import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
 // Types
-interface DocsortItem {
+interface DocumentInboxItem {
   id: number;
   source: string;
   status: string;
@@ -140,12 +139,12 @@ export default function DocsortPage() {
   const { toast } = useToast();
 
   // State
-  const [items, setItems] = useState<DocsortItem[]>([]);
+  const [items, setItems] = useState<DocumentInboxItem[]>([]);
   const [stats, setStats] = useState<DocsortStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<DocsortItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<DocumentInboxItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
 
@@ -167,8 +166,8 @@ export default function DocsortPage() {
       if (searchQuery) params.set("search", searchQuery);
 
       const [itemsResponse, statsResponse] = await Promise.all([
-        api.get<{ items: DocsortItem[]; meta: any }>(`/api/v1/docsort?${params}`),
-        api.get<DocsortStats>("/api/v1/docsort/stats"),
+        api.get<{ items: DocumentInboxItem[]; meta: any }>(`/api/v1/document_inboxes?${params}`),
+        api.get<DocsortStats>("/api/v1/document_inboxes/stats"),
       ]);
 
       setItems(itemsResponse?.items || []);
@@ -229,7 +228,7 @@ export default function DocsortPage() {
       files.forEach((file) => formData.append("files[]", file));
 
       const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, "");
-      const response = await fetch(`${getApiBaseUrl()}/api/v1/docsort`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/document_inboxes`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -265,10 +264,10 @@ export default function DocsortPage() {
   };
 
   // Actions
-  const handleClassify = async (item: DocsortItem) => {
+  const handleClassify = async (item: DocumentInboxItem) => {
     setProcessingId(item.id);
     try {
-      await api.post(`/api/v1/docsort/${item.id}/classify`);
+      await api.post(`/api/v1/document_inboxes/${item.id}/classify`);
       toast({ title: "Classification started" });
       loadData();
     } catch (error) {
@@ -281,14 +280,14 @@ export default function DocsortPage() {
     }
   };
 
-  const handleRoute = async (item: DocsortItem, jobId?: number) => {
+  const handleRoute = async (item: DocumentInboxItem, jobId?: number) => {
     setProcessingId(item.id);
     try {
       const params: any = {};
       if (jobId) params.job_id = jobId;
 
       const response = await api.post<{ success: boolean; routing: any }>(
-        `/api/v1/docsort/${item.id}/route`,
+        `/api/v1/document_inboxes/${item.id}/route`,
         params
       );
 
@@ -317,10 +316,10 @@ export default function DocsortPage() {
     }
   };
 
-  const handleOverride = async (item: DocsortItem, newType: string) => {
+  const handleOverride = async (item: DocumentInboxItem, newType: string) => {
     setProcessingId(item.id);
     try {
-      await api.patch(`/api/v1/docsort/${item.id}/override`, {
+      await api.patch(`/api/v1/document_inboxes/${item.id}/override`, {
         document_type: newType,
         auto_route: false,
       });
@@ -336,10 +335,10 @@ export default function DocsortPage() {
     }
   };
 
-  const handleDelete = async (item: DocsortItem) => {
+  const handleDelete = async (item: DocumentInboxItem) => {
     setProcessingId(item.id);
     try {
-      await api.delete(`/api/v1/docsort/${item.id}?hard=true`);
+      await api.delete(`/api/v1/document_inboxes/${item.id}?hard=true`);
       toast({ title: "Item deleted" });
       loadData();
       setDrawerOpen(false);
@@ -442,15 +441,7 @@ export default function DocsortPage() {
           {/* Filters */}
           <div className="flex flex-col gap-2 p-4 border-b bg-muted/30">
             <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-xs">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+              <SearchInput value={searchQuery} onChange={setSearchQuery} className="flex-1 max-w-xs" />
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[140px]">
                   <FunnelIcon className="h-4 w-4 mr-2" />
@@ -791,7 +782,7 @@ export default function DocsortPage() {
 
                     <Button variant="outline" asChild>
                       <a
-                        href={`${getApiBaseUrl()}/api/v1/docsort/${selectedItem.id}/download?url_only=false`}
+                        href={`${getApiBaseUrl()}/api/v1/document_inboxes/${selectedItem.id}/download?url_only=false`}
                         target="_blank"
                         rel="noopener noreferrer"
                       >

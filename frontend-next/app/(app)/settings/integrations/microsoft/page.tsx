@@ -38,7 +38,9 @@ import {
   Heart,
   Cloud,
   Link,
+  Plus,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
@@ -115,14 +117,8 @@ interface HealthDashboard {
   }>;
 }
 
-// Pre-defined organizations that can be connected
-// SSoT: Must match backend MicrosoftAppController#health_dashboard available_org_names
-const AVAILABLE_ORGANIZATIONS = [
-  { name: "Tekna", description: "Tekna Group Microsoft 365" },
-  { name: "100xBestLife", description: "100x Best Life Microsoft 365" },
-  { name: "Homes of Hope", description: "Homes of Hope Microsoft 365" },
-  { name: "Love Your World", description: "Love Your World Microsoft 365" },
-];
+// FRC (Feb 2026): Removed hardcoded AVAILABLE_ORGANIZATIONS list
+// Organizations are now dynamic per-tenant from the backend API
 
 // ============================================
 // SharePoint Delegated Connection Component
@@ -390,13 +386,15 @@ export default function MicrosoftIntegrationPage() {
     }
   };
 
-  // Get configured orgs and available orgs for setup
+  // FRC (Feb 2026): Organizations are dynamic from backend, not hardcoded
   const configuredOrgs = orgStatus?.organizations || [];
-  const configuredOrgNames = new Set(configuredOrgs.map(o => o.name));
-  const unconfiguredOrgs = AVAILABLE_ORGANIZATIONS.filter(o => !configuredOrgNames.has(o.name));
+  const totalOrgs = configuredOrgs.length;
 
   // Count connected orgs
   const connectedCount = configuredOrgs.filter(o => o.status === "connected").length;
+
+  // State for adding new organization
+  const [newOrgName, setNewOrgName] = React.useState("");
 
   if (loading) {
     return (
@@ -469,13 +467,13 @@ export default function MicrosoftIntegrationPage() {
               </div>
             </div>
             <Badge className={
-              connectedCount === AVAILABLE_ORGANIZATIONS.length
+              totalOrgs > 0 && connectedCount === totalOrgs
                 ? "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300"  // All connected = green
                 : connectedCount > 0
                   ? "bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-300"  // Partial = yellow (needs attention)
                   : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"  // None = grey
             }>
-              {connectedCount}/{AVAILABLE_ORGANIZATIONS.length} Connected
+              {connectedCount}{totalOrgs > 0 ? `/${totalOrgs}` : ""} Connected
             </Badge>
           </div>
         </CardHeader>
@@ -608,55 +606,57 @@ export default function MicrosoftIntegrationPage() {
           );
         })}
 
-        {/* Unconfigured Organizations - Show as setup cards */}
-        {unconfiguredOrgs.map((org) => {
-          const isThisOneConnecting = connectingOrg === org.name;
-
-          return (
-            <Card key={org.name} className={isThisOneConnecting ? "border-blue-200 bg-blue-50/30 dark:border-blue-800 dark:bg-blue-950/20" : "border-dashed"}>
-              <CardHeader className="py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isThisOneConnecting ? "bg-blue-100 dark:bg-blue-900" : "bg-muted dark:bg-card"}`}>
-                      {isThisOneConnecting ? (
-                        <Spinner size={20} className="text-blue-500 dark:text-blue-400" />
-                      ) : (
-                        <Building2 className="h-5 w-5 text-muted-foreground" />
-                      )}
-                    </div>
-                    <div>
-                      <CardTitle className="text-base">{org.name}</CardTitle>
-                      <CardDescription className="text-xs">{org.description}</CardDescription>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isThisOneConnecting ? (
-                      <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300">
-                        <Spinner size={12} className="mr-1" />
-                        Connecting...
-                      </Badge>
-                    ) : (
-                      <>
-                        <Badge variant="secondary">
-                          <XCircle className="h-3 w-3 mr-1" />
-                          Not Connected
-                        </Badge>
-                        <Button
-                          size="sm"
-                          onClick={() => handleSetupOrg(org.name)}
-                          disabled={connectingOrg !== null}
-                        >
-                          <Shield className="h-4 w-4 mr-1" />
-                          Connect
-                        </Button>
-                      </>
-                    )}
-                  </div>
+        {/* Add New Organization */}
+        <Card className="border-dashed">
+          <CardHeader className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-muted dark:bg-card">
+                  <Plus className="h-5 w-5 text-muted-foreground" />
                 </div>
-              </CardHeader>
-            </Card>
-          );
-        })}
+                <div className="flex-1">
+                  <CardTitle className="text-base">Add Microsoft 365 Organization</CardTitle>
+                  <CardDescription className="text-xs">Connect a new Microsoft 365 tenant</CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Organization name"
+                  value={newOrgName}
+                  onChange={(e) => setNewOrgName(e.target.value)}
+                  className="w-48 h-8 text-sm"
+                  disabled={connectingOrg !== null}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newOrgName.trim()) {
+                      handleSetupOrg(newOrgName.trim());
+                      setNewOrgName("");
+                    }
+                  }}
+                />
+                {connectingOrg ? (
+                  <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                    <Spinner size={12} className="mr-1" />
+                    Connecting...
+                  </Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (newOrgName.trim()) {
+                        handleSetupOrg(newOrgName.trim());
+                        setNewOrgName("");
+                      }
+                    }}
+                    disabled={!newOrgName.trim() || connectingOrg !== null}
+                  >
+                    <Shield className="h-4 w-4 mr-1" />
+                    Connect
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
       </div>
     </div>
   );

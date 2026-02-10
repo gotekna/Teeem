@@ -9,7 +9,6 @@
  * Components:
  * - DragHandle: 6-dot grip icon for drag operations
  * - ItemBadge: Flexible badge (position, label, icon, or custom) - THE ONE
- * - PositionBadge: DEPRECATED - use ItemBadge instead
  * - SortableItem: Base item with handle, badge, content, and actions
  * - SortableList: DnD context wrapper with standard configuration
  *
@@ -61,9 +60,6 @@ export {
   ItemBadge,
   type ItemBadgeProps,
   type ItemBadgeColor,
-  // Backwards compatibility - deprecated aliases
-  PositionBadge,
-  type PositionBadgeProps,
 } from "./ItemBadge";
 export { SortableItem, type SortableItemProps } from "./SortableItem";
 export {

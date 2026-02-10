@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   RefreshCw,
@@ -32,9 +33,7 @@ interface PlanFolderScan {
   id: number;
   job_id: number;
   job_name: string;
-  // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
-  storage_item_id?: string;
-  sharepoint_file_id: string;
+  storage_file_id: string;
   file_name: string;
   file_modified_at: string;
   file_size: number;
@@ -165,9 +164,7 @@ export default function PlansPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay />
     );
   }
 

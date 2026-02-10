@@ -2190,14 +2190,13 @@ export default function ContactDetailPage() {
           />
         </TabsContent>
 
-        {/* Warehouse Tab - Scoped warehouse sub-tree for this contact */}
+        {/* Warehouse Tab - Contextual view showing all related records */}
         <TabsContent value="warehouse" className="mt-6">
           <WarehouseTree
             mode={{
-              type: "scoped",
-              linkableType: "Contact",
-              linkableId: contact.id,
-              warehouseTypeCode: "contact",
+              type: "context",
+              entityType: "Contact",
+              entityId: contact.id,
             }}
           />
         </TabsContent>

@@ -117,7 +117,7 @@ class BulkEmailSyncJob < ApplicationJob
         "attachments_processed" => 0,
         "attachments_uploaded" => 0,
         "attachments_deduplicated" => 0,
-        "emails_uploaded_to_sharepoint" => 0,
+        "emails_uploaded_to_storage" => 0,
         "last_processed_email_id" => nil,
         "last_processed_attachment_email_id" => nil,
         "last_uploaded_email_id" => nil,
@@ -240,19 +240,15 @@ class BulkEmailSyncJob < ApplicationJob
 
       if existing_blob
         # Deduplicate - just create WarehouseDocument link
-        WarehouseDocument.find_or_create_by!(
-          source_type: 'email_attachment',
-          storage_blob_id: existing_blob.id,
-          metadata: { 'synced_email_id' => email.id.to_s }
-        ) do |doc|
-          doc.documentable = email
-          doc.ui_name = filename
-          doc.original_filename = filename
-          doc.tenant_id = email.tenant_id
-          doc.content_type = content_type || existing_blob.content_type
-          doc.file_size = file_size || existing_blob.file_size
-          doc.metadata = { 'synced_email_id' => email.id.to_s, 'content_id' => content_id }.compact
-        end
+        WarehouseDocumentCreator.create!(
+          filename: filename,
+          source_type: "email_attachment",
+          documentable: email,
+          storage_blob: existing_blob,
+          file_size: file_size || existing_blob.file_size,
+          content_type: content_type || existing_blob.content_type,
+          metadata: { "synced_email_id" => email.id.to_s, "content_id" => content_id }.compact
+        )
 
         existing_blob.increment!(:reference_count)
         @progress["attachments_deduplicated"] += 1
@@ -264,16 +260,14 @@ class BulkEmailSyncJob < ApplicationJob
           content_type: content_type
         )
 
-        WarehouseDocument.create!(
+        WarehouseDocumentCreator.create!(
+          filename: filename,
+          source_type: "email_attachment",
           documentable: email,
-          storage_blob_id: blob.id,
-          ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
-          original_filename: filename,
-          source_type: 'email_attachment',
-          tenant_id: email.tenant_id,
-          content_type: content_type || blob.content_type,
+          storage_blob: blob,
           file_size: file_size || blob.file_size,
-          metadata: { 'synced_email_id' => email.id.to_s, 'content_id' => content_id }.compact
+          content_type: content_type || blob.content_type,
+          metadata: { "synced_email_id" => email.id.to_s, "content_id" => content_id }.compact
         )
 
         blob.increment!(:reference_count)
@@ -291,14 +285,14 @@ class BulkEmailSyncJob < ApplicationJob
     year = email_date.year
     month = email_date.strftime("%m")
     # SSoT: Use centralized path sanitization
-    org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
+    org_name = Warehouse::FilenameSanitizer.sanitize_path_segment(@credential.name)
     # SSoT: Get base path from WarehouseProvider
     base_path = scope_folder_path(:email_attachments)
     folder_path = "#{base_path}/#{org_name}/#{year}/#{month}"
 
     hash_prefix = content_hash[0..7]
     # SSoT: Use centralized filename sanitization
-    safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
+    safe_filename = Warehouse::FilenameSanitizer.sanitize(filename)
     final_filename = "#{hash_prefix}_#{safe_filename}"
 
     # SSoT: Use provider-agnostic upload (provider handles large files automatically)
@@ -345,7 +339,7 @@ class BulkEmailSyncJob < ApplicationJob
       begin
         upload_email_to_storage(email, client)
         @progress["last_uploaded_email_id"] = email.id
-        @progress["emails_uploaded_to_sharepoint"] += 1
+        @progress["emails_uploaded_to_storage"] += 1
         processed += 1
 
         # Checkpoint periodically
@@ -362,7 +356,7 @@ class BulkEmailSyncJob < ApplicationJob
     end
 
     save_progress!
-    Rails.logger.info "[BulkSync] Phase 3 complete: #{@progress['emails_uploaded_to_sharepoint']} emails uploaded"
+    Rails.logger.info "[BulkSync] Phase 3 complete: #{@progress['emails_uploaded_to_storage']} emails uploaded"
   end
 
   def upload_email_to_storage(email, client)
@@ -371,7 +365,7 @@ class BulkEmailSyncJob < ApplicationJob
     year = email.received_at.year
     month = email.received_at.strftime("%m")
     # SSoT: Use centralized path sanitization
-    org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
+    org_name = Warehouse::FilenameSanitizer.sanitize_path_segment(@credential.name)
 
     # SSoT: Get email storage path from WarehouseFolder (system-managed)
     folder_path = email_storage_path(
@@ -425,7 +419,7 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "Attachments processed: #{@progress['attachments_processed']}"
     Rails.logger.info "  - Uploaded (new): #{@progress['attachments_uploaded']}"
     Rails.logger.info "  - Deduplicated: #{@progress['attachments_deduplicated']}"
-    Rails.logger.info "Emails uploaded to SharePoint: #{@progress['emails_uploaded_to_sharepoint']}"
+    Rails.logger.info "Emails uploaded to storage: #{@progress['emails_uploaded_to_storage']}"
     Rails.logger.info "Errors: #{@progress['errors'].count}"
     Rails.logger.info "=" * 60
   end
@@ -458,8 +452,8 @@ class BulkEmailSyncJob < ApplicationJob
         .gsub("{{Year}}", year.to_s)
         .gsub("{{Month}}", month.to_s.rjust(2, "0"))
         .gsub("{{Date}}", formatted_date)
-        .gsub("{{Mailbox}}", SharePoint::FilenameSanitizer.sanitize_path_segment(mailbox.to_s))
-        .gsub("{{UserName}}", SharePoint::FilenameSanitizer.sanitize_path_segment(user_name))
+        .gsub("{{Mailbox}}", Warehouse::FilenameSanitizer.sanitize_path_segment(mailbox.to_s))
+        .gsub("{{UserName}}", Warehouse::FilenameSanitizer.sanitize_path_segment(user_name))
     else
       # Fallback if WarehouseFolder doesn't exist - use WarehouseProvider SSoT
       base_path = WarehouseProvider.instance.path_for(:email)

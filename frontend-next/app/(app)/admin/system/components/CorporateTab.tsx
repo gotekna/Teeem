@@ -57,6 +57,7 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 
@@ -102,7 +103,7 @@ interface Company {
   address: string;
   email: string;
   phone: string;
-  sharepoint_url?: string;
+  storage_folder_url?: string;
 }
 
 // ===== GROUPS SUB-TAB =====
@@ -228,11 +229,7 @@ function GroupsSubTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (
@@ -784,9 +781,7 @@ function CompaniesSubTab() {
 
       <Card>
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <Spinner size={32} className="text-muted-foreground" />
-          </div>
+          <LoadingOverlay />
         ) : (
           <Table>
             <TableHeader>
@@ -878,15 +873,15 @@ function CompaniesSubTab() {
                             <Pencil className="h-4 w-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
-                          {company.sharepoint_url && (
+                          {company.storage_folder_url && (
                             <DropdownMenuItem asChild>
                               <a
-                                href={company.sharepoint_url}
+                                href={company.storage_folder_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
                               >
                                 <ExternalLink className="h-4 w-4 mr-2" />
-                                SharePoint
+                                Open Folder
                               </a>
                             </DropdownMenuItem>
                           )}
@@ -1210,9 +1205,9 @@ interface CorporateTabConfig {
   order_position?: number;
   description?: string;
   component?: string;
-  // SharePoint folder config
-  has_sharepoint_folder?: boolean;
-  sharepoint_folder_path?: string;
+  // Storage folder config
+  warehouse_enabled?: boolean;
+  folder_path?: string;
   sub_tabs?: Array<{ key: string; name: string; folder: string }>;
   document_types?: Array<{ id: number; name: string; display_name: string; is_primary: boolean }>;
 }

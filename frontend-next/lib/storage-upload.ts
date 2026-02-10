@@ -46,6 +46,7 @@ export interface DirectUploadOptions {
   folderId?: string;
   folderPath?: string;
   filename?: string;
+  warehouseFolderId?: string | number;
   onProgress?: (progress: UploadProgress) => void;
 }
 
@@ -79,7 +80,7 @@ export async function uploadToSharePointDirect(
   file: File,
   options: DirectUploadOptions
 ): Promise<DirectUploadResult> {
-  const { jobId, folderId, folderPath, filename, onProgress } = options;
+  const { jobId, folderId, folderPath, filename, warehouseFolderId, onProgress } = options;
 
   try {
     // Step 1: Get pre-authenticated upload URL from backend (instant)
@@ -96,6 +97,7 @@ export async function uploadToSharePointDirect(
       file_size: file.size,
       folder_path: folderPath,
       job_id: jobId,
+      warehouse_folder_id: warehouseFolderId,
     });
 
     let sessionResponse: UploadSessionResponse | null;
@@ -108,6 +110,7 @@ export async function uploadToSharePointDirect(
           folder_id: folderId,
           folder_path: folderPath,
           job_id: jobId,
+          warehouse_folder_id: warehouseFolderId,
         }
       );
       console.log("[DirectUpload] Session response:", sessionResponse);
@@ -163,7 +166,7 @@ export async function uploadToSharePointDirect(
       message: "Finalizing...",
     });
 
-    // Always call upload_complete if we have a jobId - even without SharePoint ID
+    // Always call upload_complete if we have a jobId - even without storage ID
     // This ensures warehouse sync happens. Let backend handle missing ID gracefully.
     if (jobId) {
       await api.post("/api/v1/sharepoint/upload_complete", {
@@ -172,7 +175,8 @@ export async function uploadToSharePointDirect(
         file_size: file.size,
         folder_path: folderPath,
         web_url: result.webUrl,
-        sharepoint_item_id: result.id, // May be undefined - backend will sync by path
+        sharepoint_item_id: result.id, // Param name matches backend controller expectation
+        warehouse_folder_id: warehouseFolderId,
       });
     }
 
@@ -393,7 +397,7 @@ export async function uploadPhoto(
   file: File,
   options: DirectUploadOptions
 ): Promise<DirectUploadResult> {
-  const { jobId, folderPath, filename, onProgress } = options;
+  const { jobId, folderPath, filename, warehouseFolderId, onProgress } = options;
 
   // Check provider type
   const providerType = await getStorageProviderType();
@@ -426,6 +430,7 @@ export async function uploadPhoto(
     formData.append("file", file);
     if (folderPath) formData.append("folder_path", folderPath);
     if (filename) formData.append("filename", filename);
+    if (warehouseFolderId) formData.append("warehouse_folder_id", String(warehouseFolderId));
 
     onProgress?.({
       loaded: 0,

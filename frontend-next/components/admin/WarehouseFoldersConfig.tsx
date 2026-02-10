@@ -89,6 +89,7 @@ import { api } from "@/lib/api";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 // useUrlState removed - doesn't work reliably with catch-all routes
 // SharePointFolderBrowser removed - flat blob storage, no physical folder renames needed
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import type {
   WarehouseFolder,
@@ -1374,7 +1375,18 @@ export function WarehouseFoldersConfig({
                         )}
                       >
                         <FolderOpen className="h-3 w-3 shrink-0" />
-                        <span className="break-all">{tab.effective_warehouse_path || tab.full_warehouse_path || getTabFullPath(tab, scope)}</span>
+                        {(() => {
+                          const fullPath = tab.effective_warehouse_path || tab.full_warehouse_path || getTabFullPath(tab, scope);
+                          const slashIndex = fullPath.indexOf('/');
+                          if (slashIndex === -1) return <span className="break-all">{fullPath}</span>;
+                          const rootSegment = fullPath.slice(0, slashIndex);
+                          const rest = fullPath.slice(slashIndex);
+                          return (
+                            <span className="break-all">
+                              <span className="opacity-50">{rootSegment}</span>{rest}
+                            </span>
+                          );
+                        })()}
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-lg">
@@ -1712,9 +1724,7 @@ export function WarehouseFoldersConfig({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay />
     );
   }
 

@@ -229,11 +229,17 @@ class XeroHealthEvent < ApplicationRecord
       [ score, 100 ].min
     end
 
-    # Get early warnings for all credentials
-    def early_warnings
+    # Get early warnings for credentials
+    # FRC (Feb 2026): Must be tenant-scoped - accepts optional tenant parameter
+    def early_warnings(tenant: nil)
       warnings = []
 
-      XeroCredential.find_each do |credential|
+      cred_scope = if tenant.nil? || tenant.master_tenant?
+                     XeroCredential.all
+                   else
+                     XeroCredential.for_teeem_tenant(tenant)
+                   end
+      cred_scope.find_each do |credential|
         score = risk_score_for(credential)
         events = for_credential(credential).in_last(24.hours)
 
@@ -327,10 +333,11 @@ class XeroHealthEvent < ApplicationRecord
     end
 
     # Get trend analysis
-    def trend_analysis
+    # FRC (Feb 2026): Must be tenant-scoped - accepts optional tenant parameter
+    def trend_analysis(tenant: nil)
       {
         failure_rate_trend: failure_rate_trend,
-        health_score_trend: health_score_trend,
+        health_score_trend: health_score_trend(tenant: tenant),
         mttr_trend: mttr_trend
       }
     end
@@ -355,8 +362,14 @@ class XeroHealthEvent < ApplicationRecord
       last_7_days
     end
 
-    def health_score_trend
-      XeroCredential.all.map do |credential|
+    def health_score_trend(tenant: nil)
+      # FRC (Feb 2026): Must be tenant-scoped
+      cred_scope = if tenant.nil? || tenant.master_tenant?
+                     XeroCredential.all
+                   else
+                     XeroCredential.for_teeem_tenant(tenant)
+                   end
+      cred_scope.map do |credential|
         {
           credential_id: credential.id,
           tenant_name: credential.tenant_name,

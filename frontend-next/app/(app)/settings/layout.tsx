@@ -63,12 +63,23 @@ export default function SettingsLayout({
   // Hide navigation on detail pages (e.g., /settings/integrations/xero)
   // Detail pages are 2+ levels deep under sections without sub-tabs
   // Company and Connections sub-tabs still show navigation (e.g., /settings/company/info, /settings/connections/provider)
-  const sectionsWithSubTabs = ["company", "connections"];
+  const sectionsWithSubTabs = ["company", "connections", "operations"];
   const isDetailPage = pathParts.length >= 2 && !sectionsWithSubTabs.includes(pathParts[0]);
+
+  // Full-page routes that skip ALL settings chrome (including ScrollablePage wrapper)
+  // These pages handle their own layout completely
+  const fullPageRoutes = ["operations/po-templates"];
+  const pathKey = pathParts.slice(0, 2).join("/");
+  const isFullPage = fullPageRoutes.includes(pathKey);
 
   const handleTabChange = (value: string) => {
     router.push(`/settings/${value}`);
   };
+
+  // Full-page routes render children directly (page handles its own layout)
+  if (isFullPage) {
+    return <>{children}</>;
+  }
 
   // Detail pages show only their own content without settings navigation
   if (isDetailPage) {

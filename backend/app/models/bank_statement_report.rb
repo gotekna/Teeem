@@ -428,33 +428,25 @@ class BankStatementReport < ApplicationRecord
       b.content_type = "application/pdf"
     end
 
-    # Create WarehouseDocument
+    # Create/update WarehouseDocument via find_or_initialize pattern
+    # (bank statements are idempotent — re-generate should update, not duplicate)
     doc = WarehouseDocument.find_or_initialize_by(
       documentable_type: "BankStatementReport",
       documentable_id: id
     )
 
-    # SSoT: Folder path comes from WarehouseProvider template (warehouse_folders['bank_statement'])
-    # Use resolve_virtual_path for WarehouseDocument.folder (UI display), not resolve_path (storage)
-    folder_path = WarehouseProvider.instance.resolve_virtual_path(
-      :bank_statement,
-      {
-        CompanyGroup: corporate&.company_group&.name.presence || "Default",
-        CompanyCode: corporate&.company_code
-      }
-    )
     doc.assign_attributes(
       source_type: "xero",
-      display_name: display_name,
+      ui_name: display_name,
       original_filename: filename,
       storage_blob: blob,
       linkable: corporate,
       metadata: {
-        document_type: "Bank Statement",
-        document_date: period_end&.iso8601,
-        company_id: company_id,
-        storage_file_id: storage_file_id,
-        storage_url: storage_url
+        "document_type" => "Bank Statement",
+        "document_date" => period_end&.iso8601,
+        "company_id" => company_id,
+        "storage_file_id" => storage_file_id,
+        "storage_url" => storage_url
       }
     )
 

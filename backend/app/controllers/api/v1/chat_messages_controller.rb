@@ -84,7 +84,6 @@ class Api::V1::ChatMessagesController < ApplicationController
   end
 
   # GET /api/v1/chat_messages?channel=general
-  # GET /api/v1/chat_messages?project_id=123
   # GET /api/v1/chat_messages?user_id=456
   # GET /api/v1/chat_messages?job_id=789
   # GET /api/v1/chat_messages?contact_id=101
@@ -103,8 +102,6 @@ class Api::V1::ChatMessagesController < ApplicationController
       ChatMessage.for_contact(params[:contact_id])
     elsif params[:case_id].present?
       ChatMessage.for_case(params[:case_id])
-    elsif params[:project_id].present?
-      ChatMessage.for_project(params[:project_id])
     elsif params[:user_id].present?
       # Direct messages between current user and specified user
       ChatMessage.between_users(current_user.id, params[:user_id])
@@ -128,8 +125,6 @@ class Api::V1::ChatMessagesController < ApplicationController
       # SSoT: Use has_file? (storage_blob based) - ActiveStorage was removed (Jan 2026)
       if msg.has_file?
         json[:has_file] = true
-        # SSoT: Use storage_reference, keep key for backwards compat
-        json[:sharepoint_file_id] = msg.storage_reference
         json[:storage_reference] = msg.storage_reference
         json[:file_name] = msg.file_name
       end
@@ -248,6 +243,6 @@ class Api::V1::ChatMessagesController < ApplicationController
   private
 
   def message_params
-    params.require(:chat_message).permit(:content, :channel, :project_id, :recipient_user_id, :job_id, :contact_id, :case_id, :message_type, :file)
+    params.require(:chat_message).permit(:content, :channel, :recipient_user_id, :job_id, :contact_id, :case_id, :message_type, :file)
   end
 end

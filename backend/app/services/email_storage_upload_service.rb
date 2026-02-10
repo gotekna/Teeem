@@ -5,7 +5,7 @@
 # Architecture (Jan 2026):
 #   - Content-addressed storage: Files stored at Blobs/{hash-prefix}/{hash}.eml
 #   - Deduplication: Same email content = same StorageBlob (saves space)
-#   - Virtual folders: WarehouseDocument.folder stores UI path (e.g., "inbox@tekna.com.au/2026/01")
+#   - Virtual folders: WarehouseDocument.folder_path stores UI path (e.g., "inbox@tekna.com.au/2026/01")
 #   - Files NEVER move in S3 - only virtual folder paths change in database
 #
 # Provider-agnostic: Uses WarehouseProvider to determine Wasabi/S3 vs SharePoint
@@ -332,7 +332,7 @@ class EmailStorageUploadService
 
     # SSoT: Use StorageBlob for content-addressed storage (Jan 2026 fix)
     # Files stored at Blobs/{hash-prefix}/{hash}.eml for deduplication
-    # Virtual folders in WarehouseDocument.folder enable UI organization
+    # Virtual folders in WarehouseDocument.folder_path enable UI organization
     blob = ActsAsTenant.with_tenant(@tenant) do
       StorageBlob.find_or_create_for_content!(
         mime_content,
@@ -354,7 +354,7 @@ class EmailStorageUploadService
     # SSoT: Create WarehouseDocument for virtual folder rendering (Phase 4)
     # This enables the File Warehouse to show emails in folder structure
     # Virtual folder path (e.g., "inbox@tekna.com.au/Email Body/2026/01")
-    # is stored in WarehouseDocument.folder - files never move in S3
+    # is stored in WarehouseDocument.folder_path - files never move in S3
     create_warehouse_document_for_email(email, blob)
 
     Rails.logger.info "[EmailUpload] Email #{email_id} - SUCCESS: #{blob.storage_path}"
@@ -439,30 +439,28 @@ class EmailStorageUploadService
     # Skip if warehouse_document already exists (fast path)
     return if email.warehouse_document.present?
 
-    # SSoT: Use find_or_create_by! to handle race conditions
-    # Unique constraint is on (documentable_type, documentable_id)
+    # SSoT: Create WarehouseDocument via standard service
+    # Use find_or_create_by! for race condition handling (parallel email processing)
     doc = WarehouseDocument.find_or_create_by!(
       documentable_type: "SyncedEmail",
       documentable_id: email.id
     ) do |d|
       d.storage_blob = blob
       d.source_type = "email"
-      d.ui_name = email.subject.presence || "No Subject"  # SSoT: display_name renamed to ui_name (Feb 2026)
+      d.ui_name = email.subject.presence || "No Subject"
       d.original_filename = "#{email.id}.eml"
-      d.tenant_id = @tenant.id  # SSoT: Always set tenant for multi-tenant support
+      d.tenant_id = @tenant.id
       d.metadata = {
-        subject: email.subject,
-        from_email: email.from_email,
-        received_at: email.received_at&.iso8601,
-        mailbox: email.mailbox_owner_email
+        "subject" => email.subject,
+        "from_email" => email.from_email,
+        "received_at" => email.received_at&.iso8601,
+        "mailbox" => email.mailbox_owner_email
       }
     end
 
-    # Only increment reference count if we created a new document
-    # previously_new_record? returns true if this record was just created by find_or_create_by!
     if doc.previously_new_record?
       blob.increment!(:reference_count)
-      Rails.logger.debug "[EmailUpload] Created WarehouseDocument for email #{email.id} in folder: #{email.virtual_folder_path}"
+      Rails.logger.debug "[EmailUpload] Created WarehouseDocument for email #{email.id}"
     else
       Rails.logger.debug "[EmailUpload] WarehouseDocument already exists for email #{email.id}"
     end

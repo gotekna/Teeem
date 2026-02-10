@@ -12,8 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import {
   Table,
   TableBody,
@@ -72,7 +74,11 @@ interface CompareRecord {
   tenants: Record<string, { id?: number; exists: boolean; updated_at?: string }>;
 }
 
-export function AdminConfigSyncTab() {
+interface AdminConfigSyncTabProps {
+  onImportComplete?: () => void;
+}
+
+export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps = {}) {
   const [tables, setTables] = useState<ConfigTable[]>([]);
   const [tenants, setTenants] = useState<TenantInfo[]>([]);
   const [masterTenant, setMasterTenant] = useState<TenantInfo | null>(null);
@@ -85,6 +91,7 @@ export function AdminConfigSyncTab() {
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [compareLoading, setCompareLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
   const [importResult, setImportResult] = useState<{
     imported: number;
     skipped: number;
@@ -149,7 +156,7 @@ export function AdminConfigSyncTab() {
     try {
       setRecordsLoading(true);
       setError(null);
-      setImportResult(null);
+      // Don't clear importResult here — preserve success message after import refresh
       setSelectedRecords(new Set());
       setEntityTypeFilter("all");
 
@@ -231,7 +238,7 @@ export function AdminConfigSyncTab() {
     try {
       setRecordsLoading(true);
       setError(null);
-      setImportResult(null);
+      // Don't clear importResult here — preserve success message after import refresh
       setSelectedRecords(new Set());
       setEntityTypeFilter("all");
 
@@ -332,45 +339,71 @@ export function AdminConfigSyncTab() {
     setSelectedRecords(new Set());
   }, []);
 
-  // Handle import
+  // Handle import - batched to avoid Heroku 30s request timeout
+  const IMPORT_BATCH_SIZE = 500;
+
   const handleImport = async () => {
     if (selectedRecords.size === 0 || !selectedTenant || !selectedTable) return;
 
     try {
       setImporting(true);
       setError(null);
+      setImportResult(null);
 
-      const response = await api.post<{
-        success: boolean;
-        imported?: ConfigRecord[];
-        skipped?: Array<{ name: string; reason: string }>;
-        errors?: string[];
-        error?: string;
-        deleted_count?: number;
-      }>("/api/v1/admin/config_sync/import", {
-        source_tenant_id: parseInt(selectedTenant),
-        table: selectedTable,
-        record_ids: Array.from(selectedRecords),
-        replace_existing_prices: selectedTable === "price_histories" && replaceExistingPrices,
-      });
+      const allIds = Array.from(selectedRecords);
+      const total = allIds.length;
+      let totalImported = 0;
+      let totalSkipped = 0;
+      let totalDeleted = 0;
 
-      if (response?.success) {
-        setImportResult({
-          imported: response.imported?.length || 0,
-          skipped: response.skipped?.length || 0,
-          deleted: response.deleted_count,
+      setImportProgress({ done: 0, total });
+
+      // Split into batches
+      for (let i = 0; i < allIds.length; i += IMPORT_BATCH_SIZE) {
+        const batchIds = allIds.slice(i, i + IMPORT_BATCH_SIZE);
+
+        const response = await api.post<{
+          success: boolean;
+          imported?: ConfigRecord[];
+          skipped?: Array<{ name: string; reason: string }>;
+          errors?: string[];
+          error?: string;
+          deleted_count?: number;
+        }>("/api/v1/admin/config_sync/import", {
+          source_tenant_id: parseInt(selectedTenant),
+          table: selectedTable,
+          record_ids: batchIds,
+          // Only delete existing prices on the first batch
+          replace_existing_prices: selectedTable === "price_histories" && replaceExistingPrices && i === 0,
         });
-        setSelectedRecords(new Set());
-        // Refresh records
-        await fetchRecords();
-      } else {
-        setError(response?.error || "Import failed");
+
+        if (response?.success) {
+          totalImported += response.imported?.length || 0;
+          totalSkipped += response.skipped?.length || 0;
+          totalDeleted += response.deleted_count || 0;
+          setImportProgress({ done: Math.min(i + IMPORT_BATCH_SIZE, total), total });
+        } else {
+          setError(response?.error || `Import failed at batch ${Math.floor(i / IMPORT_BATCH_SIZE) + 1}`);
+          break;
+        }
       }
+
+      setImportResult({
+        imported: totalImported,
+        skipped: totalSkipped,
+        deleted: totalDeleted,
+      });
+      setSelectedRecords(new Set());
+      // Refresh records
+      await fetchRecords();
+      // Notify parent to refresh overview counts
+      onImportComplete?.();
     } catch (err) {
       console.error("Import failed:", err);
       setError("Import failed. Please try again.");
     } finally {
       setImporting(false);
+      setImportProgress(null);
     }
   };
 
@@ -444,12 +477,30 @@ export function AdminConfigSyncTab() {
     return records.filter((r) => r.entity_type === entityTypeFilter);
   }, [records, selectedTable, entityTypeFilter]);
 
+  // ComboboxDropdown items for table and tenant selectors
+  type TableComboItem = ComboboxItem & { description: string };
+  const tableComboItems: TableComboItem[] = React.useMemo(() =>
+    tables.map((t) => ({
+      id: t.key,
+      label: t.model.replace(/([A-Z])/g, " $1").trim(),
+      description: t.description,
+      searchText: t.description,
+    })),
+    [tables]
+  );
+  const selectedTableItem = tableComboItems.find((t) => t.id === selectedTable);
+
+  const tenantComboItems = React.useMemo(() =>
+    tenants.map((t) => ({
+      id: t.id.toString(),
+      label: `${t.name} (${t.slug})`,
+    })),
+    [tenants]
+  );
+  const selectedTenantItem = tenantComboItems.find((t) => t.id === selectedTenant);
+
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="h-8 w-8" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   // For non-TEEEM staff users, silently hide this admin-only section
@@ -511,39 +562,36 @@ export function AdminConfigSyncTab() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-4">
-            <Select value={selectedTable} onValueChange={setSelectedTable}>
-              <SelectTrigger className="w-full max-w-md">
-                <SelectValue placeholder="Choose a configuration table..." />
-              </SelectTrigger>
-              <SelectContent className="max-h-[400px]" position="popper" sideOffset={4}>
-                {tables.map((table) => (
-                  <SelectItem key={table.key} value={table.key}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">
-                        {table.model.replace(/([A-Z])/g, " $1").trim()}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {table.description}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ComboboxDropdown<TableComboItem>
+              items={tableComboItems}
+              selectedItem={selectedTableItem}
+              onSelect={(item) => { setSelectedTable(item.id); setImportResult(null); }}
+              placeholder="Choose a configuration table..."
+              searchPlaceholder="Search tables..."
+              clearable
+              onClear={() => { setSelectedTable(""); setImportResult(null); }}
+              renderListItem={({ item, isChecked }) => (
+                <div className="flex flex-col">
+                  <span className="font-medium">{item.label}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {item.description}
+                  </span>
+                </div>
+              )}
+              className="w-full max-w-md"
+            />
 
             {viewMode === "browse" && (
-              <Select value={selectedTenant} onValueChange={setSelectedTenant}>
-                <SelectTrigger className="w-full max-w-md">
-                  <SelectValue placeholder="Choose a tenant to import from..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {tenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id.toString()}>
-                      {tenant.name} ({tenant.slug})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ComboboxDropdown
+                items={tenantComboItems}
+                selectedItem={selectedTenantItem}
+                onSelect={(item) => { setSelectedTenant(item.id); setImportResult(null); }}
+                placeholder="Choose a tenant to import from..."
+                searchPlaceholder="Search tenants..."
+                clearable
+                onClear={() => { setSelectedTenant(""); setImportResult(null); }}
+                className="w-full max-w-md"
+              />
             )}
 
             {/* Entity Type Filter - only show for contacts table in browse/manage mode */}
@@ -683,7 +731,9 @@ export function AdminConfigSyncTab() {
                       {importing ? (
                         <>
                           <Spinner className="h-4 w-4 mr-2" />
-                          Importing...
+                          {importProgress
+                            ? `Importing ${importProgress.done.toLocaleString()} / ${importProgress.total.toLocaleString()}...`
+                            : "Importing..."}
                         </>
                       ) : (
                         <>

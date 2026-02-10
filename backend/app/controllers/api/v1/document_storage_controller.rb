@@ -63,7 +63,8 @@ module Api
         case provider
         when "s3_compatible"
           # SSoT: S3-compatible storage via S3CompatibleCredential
-          credential = S3CompatibleCredential.active.first
+          # FRC (Feb 2026): Must be tenant-scoped
+          credential = S3CompatibleCredential.for_tenant(current_tenant).active.first
           if credential&.status == "connected"
             render json: {
               connected: true,
@@ -84,7 +85,9 @@ module Api
         when "sharepoint"
           # SSoT: SharePoint storage via MicrosoftCredential
           credential = begin
-            cred = MicrosoftCredential.sharepoint_credential
+            # FRC (Feb 2026): Must be tenant-scoped
+            cred = MicrosoftCredential.for_tenant(current_tenant).refreshable_delegated.org_level.first ||
+                   MicrosoftCredential.for_tenant(current_tenant).refreshable_app.first
             cred&.access_token if cred # Verify decryption works
             cred
           rescue ActiveRecord::Encryption::Errors::Decryption => e
@@ -1171,9 +1174,11 @@ module Api
             ActsAsTenant.current_tenant = Tenant.first
           end
 
-          if S3CompatibleCredential.active.connected.exists?
+          # FRC (Feb 2026): Must be tenant-scoped
+          if S3CompatibleCredential.for_tenant(current_tenant).active.connected.exists?
             download_from_s3_by_key(file_id, is_preview)
-          elsif MicrosoftCredential.sharepoint_credential&.connected?
+          elsif (MicrosoftCredential.for_tenant(current_tenant).refreshable_delegated.org_level.first ||
+                 MicrosoftCredential.for_tenant(current_tenant).refreshable_app.first)&.connected?
             download_from_sharepoint_by_id(file_id, is_preview)
           else
             raise DocumentProviders::NotConnectedError, "No storage provider configured"
@@ -1201,7 +1206,6 @@ module Api
       # Params:
       #   - file_id: Direct storage reference (S3 key or SharePoint item ID)
       #   - document_id: WarehouseDocument ID (will lookup storage_reference from the model)
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def presigned_url
         file_id = params[:file_id]
         document_id = params[:document_id]
@@ -1654,8 +1658,7 @@ module Api
 
       # GET /api/v1/documents/job_all_files
       # List ALL files from the job's OneDrive folder
-      # Uses Data Warehouse pattern: reads from JobDocument table for instant results
-      # Falls back to live API if no cached data, and triggers background sync
+      # Uses Data Warehouse pattern: reads from WarehouseDocument for instant results
       #
       # Params:
       #   refresh_thumbnails: "true" - Fetch fresh thumbnail URLs from SharePoint (cached ones expire)
@@ -1664,241 +1667,49 @@ module Api
       def job_all_files
         job = Job.find(params[:job_id])
 
-        # SSoT (Jan 2026): JobDocument table was dropped. Use WarehouseDocument instead.
-        # Return warehouse documents linked to this job until full migration to WarehouseDocument is complete.
-        unless defined?(JobDocument) && ActiveRecord::Base.connection.table_exists?("job_documents")
-          warehouse_docs = WarehouseDocument.where(linkable_type: "Job", linkable_id: job.id)
-            .or(WarehouseDocument.where(source_type: "job", documentable_type: "Job", documentable_id: job.id))
-            .includes(:storage_blob)
+        # SSoT (Feb 2026): WarehouseDocument is THE ONE source for job files.
+        # SSoT: WarehouseDocument is THE ONE source for job files.
+        warehouse_docs = WarehouseDocument.for_job(job).includes(:storage_blob)
 
-          # Filter by folder with optional cascade (include_descendants)
-          if params[:folder].present?
-            if params[:include_descendants] == 'true'
-              # Cascade view: include this folder AND all subfolders
-              folder_path = params[:folder]
-              warehouse_docs = warehouse_docs.where("folder_path = ? OR folder_path LIKE ?", folder_path, "#{folder_path}/%")
-            else
-              # Exact folder match only
-              warehouse_docs = warehouse_docs.where(folder_path: params[:folder])
-            end
-          end
-
-          files = warehouse_docs.map do |doc|
-            blob = doc.storage_blob
-            {
-              id: doc.id.to_s,
-              document_id: doc.id,
-              name: doc.ui_name || doc.original_filename || "Untitled",
-              original_name: doc.original_filename,
-              size: doc.file_size || blob&.file_size || 0,
-              web_url: nil,
-              storage_provider: "wasabi",
-              storage_path: blob&.storage_path,
-              download_url: doc.download_url ? "#{request.base_url}/api/v1/documents/warehouse_download?id=#{doc.id}" : nil,
-              modified: doc.updated_at&.iso8601,
-              type: "file",
-              folder_path: doc.folder_path || "",
-              document_type_id: nil,
-              document_type_name: doc.document_type_name,
-              from_cache: false
-            }
-          end
-
-          return render json: {
-            success: true,
-            files: files.sort_by { |f| [f[:folder_path].to_s.downcase, f[:name].to_s.downcase] },
-            total: files.size,
-            ai_stats: { total: 0, analyzed: 0, unanalyzed: 0, pending_review: 0, approved: 0, rejected: 0 },
-            source: "warehouse_documents"
-          }
-        end
-
-        # Legacy path: JobDocument table (deprecated - will be removed)
-        # Check if we have cached documents in the data warehouse
-        # Include warehouse_folders through document_type to get warehouse_folder_key for folder view
-        cached_docs = job.job_documents.includes({ document_type: :warehouse_folders }, :ai_suggested_type, :parent_document, :child_versions, :signed_by).synced
-
-        # Filter by folder with optional cascade (include_descendants)
+        # Filter by folder with optional cascade
         if params[:folder].present?
-          if params[:include_descendants] == 'true'
-            # Cascade view: include this folder AND all subfolders
+          if params[:include_descendants] == "true"
             folder_path = params[:folder]
-            cached_docs = cached_docs.where("folder_path = ? OR folder_path LIKE ?", folder_path, "#{folder_path}/%")
+            warehouse_docs = warehouse_docs.where("folder_path = ? OR folder_path LIKE ?", folder_path, "#{folder_path}/%")
           else
-            # Exact folder match only
-            cached_docs = cached_docs.where(folder_path: params[:folder])
+            warehouse_docs = warehouse_docs.where(folder_path: params[:folder])
           end
         end
 
-        if cached_docs.any?
-          # Refresh thumbnails if requested (they expire after ~24-48 hours)
-          fresh_thumbnails = {}
-          if params[:refresh_thumbnails] == "true"
-            fresh_thumbnails = refresh_thumbnails_for_docs(cached_docs)
-          end
-          # Data Warehouse approach: instant results from database
-          files_with_suggestions = cached_docs.map do |doc|
-            {
-              # SSoT: Use storage_reference (provider-agnostic) not legacy sharepoint_item_id
-              id: doc.storage_reference,
-              document_id: doc.id,
-              name: doc.file_name,
-              original_name: doc.original_file_name,
-              size: doc.file_size,
-              web_url: doc.web_url,
-              # Storage provider routing - frontend uses this to determine download method
-              # FRC (Feb 2026): Use actual configured provider, no hardcoded defaults
-              storage_provider: doc.storage_provider || WarehouseProvider.instance&.provider_type,
-              # S3 storage path for display (e.g., "teeem-tekna/jobs/49/finance/invoice.pdf")
-              storage_path: doc.storage_path,
-              # SSoT download URL - works for both SharePoint and S3
-              # Must be absolute URL since frontend opens in new tab via window.open()
-              download_url: "#{request.base_url}/api/v1/documents/job_document_download?document_id=#{doc.id}",
-              modified: doc.last_modified_at&.iso8601,
-              type: "file",
-              folder_path: doc.folder_path || "",
-              document_type_id: doc.document_type_id,
-              document_type_name: doc.document_type&.name,
-              document_type_abbreviation: doc.document_type&.abbreviation,
-              # Warehouse Folder key for folder view - uses primary_warehouse_folder (first ordered)
-              warehouse_folder_key: doc.document_type&.primary_warehouse_folder&.tab_key,
-              warehouse_folder_name: doc.document_type&.primary_warehouse_folder&.display_name,
-              suggested_document_types: build_document_type_display(doc),
-              # AI analysis fields
-              ai_analyzed: doc.ai_analyzed_at.present?,
-              ai_analyzed_at: doc.ai_analyzed_at&.iso8601,
-              ai_suggested_type_id: doc.ai_suggested_type_id,
-              ai_suggested_type_name: doc.ai_suggested_type&.name,
-              ai_proposed_name: doc.ai_proposed_name,
-              ai_confidence: doc.ai_confidence&.to_f,
-              ai_reasoning: doc.ai_reasoning,
-              rename_status: doc.rename_status,
-              thumbnail_url: fresh_thumbnails[doc.storage_reference] || doc.thumbnail_url,
-              from_cache: true,
-              # Version chain fields (Draft/Signed versioning)
-              version_status: doc.version_status,
-              version_number: doc.version_number,
-              parent_document_id: doc.parent_document_id,
-              is_versionable: doc.versionable?,
-              has_signed_version: doc.has_signed_version?,
-              signed_at: doc.signed_at&.iso8601,
-              signed_by_name: doc.signed_by&.name,
-              child_versions: doc.child_versions.map { |cv| { id: cv.id, version_status: cv.version_status, version_number: cv.version_number, file_name: cv.file_name } }
-            }
-          end
-
-          # Sort by folder path then name
-          files_with_suggestions.sort_by! { |f| [ f[:folder_path].to_s.downcase, f[:name].downcase ] }
-
-          # Calculate AI stats
-          ai_stats = {
-            total: cached_docs.count,
-            analyzed: cached_docs.where.not(ai_analyzed_at: nil).count,
-            unanalyzed: cached_docs.where(ai_analyzed_at: nil).count,
-            pending_review: cached_docs.where(rename_status: "pending").where.not(ai_analyzed_at: nil).count,
-            approved: cached_docs.where(rename_status: "completed").count,
-            rejected: cached_docs.where(rename_status: "rejected").count
-          }
-
-          return render json: {
-            success: true,
-            job_id: job.id,
-            job_title: job.title,
-            items: files_with_suggestions,
-            count: files_with_suggestions.length,
-            from_cache: true,
-            last_synced_at: cached_docs.maximum(:last_synced_at)&.iso8601,
-            ai_stats: ai_stats
+        files = warehouse_docs.map do |doc|
+          {
+            id: doc.storage_blob&.storage_path || "wd-#{doc.id}",
+            document_id: doc.id,
+            name: doc.ui_name || doc.original_filename || "Unknown",
+            original_name: doc.original_filename,
+            size: doc.file_size,
+            web_url: nil,
+            storage_provider: WarehouseProvider.instance&.provider_type,
+            storage_path: doc.storage_blob&.storage_path,
+            download_url: "#{request.base_url}/api/v1/documents/job_document_download?document_id=#{doc.id}",
+            modified: doc.created_at&.iso8601,
+            type: "file",
+            folder_path: doc.folder_path || "",
+            content_type: doc.content_type,
+            from_cache: true
           }
         end
 
-        # No cached data - fall back to live API (provider-agnostic)
-        # SSoT: Use DocumentProviderAware for Wasabi/S3, SharePoint code for SharePoint
-        begin
-          setup_default_provider!
-        rescue DocumentProviders::NotConnectedError => e
-          return render json: { error: "Storage not connected: #{e.message}" }, status: :unauthorized
-        end
+        files.sort_by! { |f| [f[:folder_path].to_s.downcase, f[:name].to_s.downcase] }
 
-        provider_type = current_provider_type
-
-        begin
-          if provider_type == :sharepoint
-            # SharePoint: Use existing MicrosoftGraphClient code
-            credential = get_onedrive_credential
-            unless credential
-              return render json: { error: "SharePoint not connected" }, status: :unauthorized
-            end
-
-            client = MicrosoftGraphClient.new(credential)
-            job_folder = client.find_job_folder(job)
-
-            unless job_folder
-              return render json: {
-                success: false,
-                error: "Job folder not found. Please create the folder structure first.",
-                job_folder_exists: false,
-                items: []
-              }, status: :ok
-            end
-
-            files = list_all_job_files_recursive(client, credential, job_folder["id"])
-            job_folder_id = job_folder["id"]
-            job_folder_web_url = job_folder["webUrl"]
-          else
-            # Wasabi/S3: Use provider-agnostic listing
-            job_folder_path = build_job_folder_path(job)
-
-            unless folder_exists_in_provider?(job_folder_path)
-              return render json: {
-                success: false,
-                error: "Job folder not found. Please create the folder structure first.",
-                job_folder_exists: false,
-                items: []
-              }, status: :ok
-            end
-
-            # List all files recursively
-            files = list_job_files_from_provider(job_folder_path)
-            job_folder_id = nil
-            job_folder_web_url = nil
-          end
-
-          # Load document types ONCE for efficiency (not per-file)
-          @cached_doc_types = DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil)).to_a
-
-          # Add suggested document types for each file based on filename and folder
-          files_with_suggestions = files.map do |file|
-            suggested = suggest_document_type_for_file(file[:name], file[:folder_path])
-            file.merge(suggested_document_types: suggested, from_cache: false)
-          end
-
-          # Trigger background sync to populate data warehouse for next time
-          JobDocumentSyncJob.perform_later(job.id) if defined?(JobDocumentSyncJob)
-
-          render json: {
-            success: true,
-            job_id: job.id,
-            job_title: job.title,
-            items: files_with_suggestions,
-            count: files_with_suggestions.length,
-            job_folder_id: job_folder_id,
-            job_folder_web_url: job_folder_web_url,
-            from_cache: false,
-            sync_triggered: true
-          }
-
-        rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
-        rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
-        rescue DocumentProviders::Error => e
-          render json: { error: "Storage error: #{e.message}" }, status: :bad_gateway
-        rescue StandardError => e
-          Rails.logger.error "[Job All Files] Exception: #{e.message}"
-          Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to list files: #{e.message}" }, status: :internal_server_error
-        end
+        render json: {
+          success: true,
+          job_id: job.id,
+          job_title: job.title,
+          items: files,
+          count: files.length,
+          from_cache: true
+        }
       end
 
       # Helper to build document type display for cached documents
@@ -1924,35 +1735,6 @@ module Api
         @cached_doc_types ||= DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil)).to_a
         suggestions = suggest_document_type_for_file(doc.file_name, doc.folder_path)
         suggestions || []
-      end
-
-      # POST /api/v1/documents/sync_job_documents
-      # Manually trigger sync of job documents to data warehouse
-      # Can sync a single job or all jobs with OneDrive folders
-      def sync_job_documents
-        job_id = params[:job_id]
-
-        if job_id.present?
-          # Sync single job
-          job = Job.find(job_id)
-          JobDocumentSyncJob.perform_later(job.id)
-          render json: {
-            success: true,
-            message: "Sync triggered for job #{job.id}: #{job.title}",
-            job_id: job.id
-          }
-        else
-          # Sync all jobs with SharePoint folders
-          JobDocumentSyncJob.perform_later
-          jobs_count = Job.where(storage_folder_status: "completed").count
-          render json: {
-            success: true,
-            message: "Sync triggered for #{jobs_count} jobs with SharePoint folders",
-            jobs_count: jobs_count
-          }
-        end
-      rescue ActiveRecord::RecordNotFound => e
-        render json: { error: "Job not found" }, status: :not_found
       end
 
       # POST /api/v1/documents/upload_signed_version
@@ -2040,24 +1822,22 @@ module Api
             byte_size: uploaded_file["size"]
           )
 
-          # Create signed version as new WarehouseDocument with parent reference
+          # SSoT: WarehouseDocumentCreator handles metadata + callbacks
           version_number = (parent_doc.meta("version_number") || 1).to_i + 1
-          signed_version = WarehouseDocument.create!(
+          signed_version = WarehouseDocumentCreator.create!(
+            filename: signed_filename,
             source_type: parent_doc.source_type,
             linkable: job,
             storage_blob: blob,
-            ui_name: signed_filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
-            original_filename: signed_filename,
+            parent_document: parent_doc,
+            user: current_user,
             metadata: {
-              document_type_id: doc_type_id,
-              document_type: doc_type&.name,
-              version_status: "signed",
-              version_number: version_number,
-              parent_document_id: parent_doc.id,
-              signed_at: Time.current.iso8601,
-              signed_by_id: current_user&.id,
-              signed_by_name: current_user&.name,
-              storage_provider: "sharepoint"
+              "document_type_id" => doc_type_id,
+              "document_type" => doc_type&.name,
+              "version_status" => "signed",
+              "version_number" => version_number,
+              "signed_at" => Time.current.iso8601,
+              "storage_provider" => "sharepoint"
             }
           )
 
@@ -2103,124 +1883,6 @@ module Api
       # GET /api/v1/documents/legacy_files
       # List files from the legacy "Old House Data/00 Active" folder that match a job
       # Used for importing legacy job documents into the new job folder structure
-      # Supports folder navigation with optional folder_id parameter
-      def legacy_files
-        job = Job.find(params[:job_id])
-
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
-        end
-
-        begin
-          service = JobDocumentMigrationService.new
-          # Pass folder_id for subfolder navigation, recursive for all files
-          recursive = params[:recursive] == "true" || params[:recursive] == true
-          items = service.list_legacy_files_for_job(job, folder_id: params[:folder_id], recursive: recursive)
-
-          render json: {
-            success: true,
-            job_id: job.id,
-            job_title: job.title,
-            items: items,
-            count: items.length,
-            current_folder_id: params[:folder_id],
-            recursive: recursive,
-            source_folder: JobDocumentMigrationService::SOURCE_FOLDER_PATH
-          }
-
-        rescue StandardError => e
-          Rails.logger.error "[Legacy Files] Exception: #{e.message}"
-          Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to list legacy files: #{e.message}" }, status: :internal_server_error
-        end
-      end
-
-      # POST /api/v1/documents/import_legacy
-      # Import selected files from legacy location to a job's OneDrive folder
-      # Params:
-      #   - job_id: Target job ID
-      #   - file_ids: Array of OneDrive file IDs to import
-      def import_legacy
-        job = Job.find(params[:job_id])
-        file_ids = params[:file_ids] || []
-
-        if file_ids.empty?
-          return render json: { error: "No files selected for import" }, status: :bad_request
-        end
-
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
-        end
-
-        begin
-          # Queue the import as a background job to avoid HTTP timeouts
-          # Large imports can take several minutes
-          ImportLegacyFilesJob.perform_later(job.id, file_ids, current_user&.id)
-
-          render json: {
-            success: true,
-            message: "Import of #{file_ids.length} files has been queued. Files will appear in the job folder shortly.",
-            job_id: job.id,
-            queued: true,
-            file_count: file_ids.length
-          }
-
-        rescue StandardError => e
-          Rails.logger.error "[Import Legacy] Exception: #{e.message}"
-          Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to queue import: #{e.message}" }, status: :internal_server_error
-        end
-      end
-
-      # POST /api/v1/documents/analyze_job_documents
-      # Trigger AI analysis for a job's documents
-      # Analyzes unanalyzed documents and suggests document types and filenames
-      def analyze_job_documents
-        job_id = params[:job_id]
-        limit = params[:limit]&.to_i || 25
-
-        unless job_id.present?
-          return render json: { error: "job_id is required" }, status: :bad_request
-        end
-
-        job = Job.find(job_id)
-
-        # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
-        # Count documents needing analysis
-        unanalyzed_count = WarehouseDocument.where(source_type: "job", linkable: job)
-                                            .where("metadata->>'ai_analyzed_at' IS NULL")
-                                            .count
-
-        if unanalyzed_count == 0
-          return render json: {
-            success: true,
-            message: "All documents have already been analyzed",
-            job_id: job.id,
-            analyzed_count: 0,
-            total_unanalyzed: 0
-          }
-        end
-
-        # Queue the batch analysis job
-        BatchJobDocumentAnalysisJob.perform_later(job_id: job.id, limit: limit)
-
-        render json: {
-          success: true,
-          message: "AI analysis queued for #{[ limit, unanalyzed_count ].min} documents",
-          job_id: job.id,
-          queued_count: [ limit, unanalyzed_count ].min,
-          total_unanalyzed: unanalyzed_count
-        }
-      rescue ActiveRecord::RecordNotFound
-        render json: { error: "Job not found" }, status: :not_found
-      end
-
       # POST /api/v1/documents/bulk_categorize_job_documents
       # Bulk categorize documents for a job based on folder paths matching WarehouseFolders
       # Used for client onboarding to automatically assign document types
@@ -2266,7 +1928,7 @@ module Api
       #   - job_id: Optional - filter by job
       #   - status: 'pending' (default), 'approved', 'rejected', 'all'
       #   - min_confidence: Optional - only show docs above this confidence (0-100)
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      # SSoT: Uses WarehouseDocument
       def documents_needing_review
         scope = WarehouseDocument.where(source_type: "job")
                                  .includes(:storage_blob, :linkable)
@@ -2311,7 +1973,7 @@ module Api
       #   - action: 'approve' or 'reject'
       #   - custom_name: Optional - use this name instead of AI suggestion
       #   - custom_type_id: Optional - use this document type instead of AI suggestion
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      # SSoT: Uses WarehouseDocument
       def approve_document_rename
         document = WarehouseDocument.find(params[:document_id])
         action = params[:action]
@@ -2406,7 +2068,7 @@ module Api
       # Bulk approve multiple document renames
       # Params:
       #   - document_ids: Array of WarehouseDocument IDs to approve
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      # SSoT: Uses WarehouseDocument
       def bulk_approve_renames
         document_ids = params[:document_ids] || []
 
@@ -2472,41 +2134,6 @@ module Api
         }
       end
 
-      # POST /api/v1/documents/run_migration
-      # Run the bulk job document migration (dry_run by default)
-      # Admin only - migrates all documents from legacy folder to job folders
-      def run_migration
-        unless current_user&.admin?
-          return render json: { error: "Admin access required" }, status: :forbidden
-        end
-
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
-        end
-
-        dry_run = params[:dry_run] != "false" && params[:dry_run] != false
-        limit = params[:limit]&.to_i
-
-        begin
-          service = JobDocumentMigrationService.new
-          stats = service.run(dry_run: dry_run, limit: limit)
-
-          render json: {
-            success: true,
-            dry_run: dry_run,
-            stats: stats
-          }
-
-        rescue StandardError => e
-          Rails.logger.error "[Run Migration] Exception: #{e.message}"
-          Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Migration failed: #{e.message}" }, status: :internal_server_error
-        end
-      end
-
       # GET /api/v1/documents/job_document_download
       # Unified download endpoint for job documents - routes to correct provider
       #
@@ -2518,7 +2145,7 @@ module Api
       # Params:
       #   document_id: WarehouseDocument ID (required)
       #   preview: "true" for inline display, omit for attachment download
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      # SSoT: Uses WarehouseDocument
       def job_document_download
         document_id = params[:document_id]
         is_preview = params[:preview] == "true"
@@ -2527,10 +2154,19 @@ module Api
           return render json: { error: "document_id is required" }, status: :bad_request
         end
 
-        document = WarehouseDocument.find_by(id: document_id)
+        # FRC (Feb 2026): This endpoint skips auth (skip_before_action :authorize_request)
+        # so <img src> previews work without JWT. Since current_tenant is nil when auth is
+        # skipped, use without_tenant to find the document, then set the tenant from it
+        # for all subsequent tenant-scoped operations (WarehouseProvider, DocumentProviders).
+        document = ActsAsTenant.without_tenant { WarehouseDocument.find_by(id: document_id) }
 
         unless document
           return render json: { error: "Document not found" }, status: :not_found
+        end
+
+        # Set tenant from document for all downstream operations
+        if ActsAsTenant.current_tenant.nil? && document.tenant_id.present?
+          ActsAsTenant.current_tenant = Tenant.find_by(id: document.tenant_id)
         end
 
         blob = document.storage_blob
@@ -2587,7 +2223,7 @@ module Api
       #
       # Params:
       #   document_id: WarehouseDocument ID (required)
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      # SSoT: Uses WarehouseDocument
       def job_document_url
         document_id = params[:document_id]
 
@@ -2699,7 +2335,8 @@ module Api
 
       # SSoT: Used by presigned_url action for PDF performance optimization
       def presigned_url_for_s3(s3_key)
-        credential = S3CompatibleCredential.active.connected.first
+        # FRC (Feb 2026): Must be tenant-scoped
+        credential = S3CompatibleCredential.for_tenant(current_tenant).active.connected.first
 
         unless credential
           raise DocumentProviders::NotConnectedError, "S3 storage not configured"
@@ -2789,9 +2426,10 @@ module Api
       end
 
       # Download file from S3 by key (for photo gallery and direct file access)
-      # SSoT: Uses S3 key directly without requiring a JobDocument record
+      # SSoT: Uses S3 key directly for file access
       def download_from_s3_by_key(s3_key, is_preview)
-        credential = S3CompatibleCredential.active.connected.first
+        # FRC (Feb 2026): Must be tenant-scoped
+        credential = S3CompatibleCredential.for_tenant(current_tenant).active.connected.first
 
         unless credential
           raise DocumentProviders::NotConnectedError, "S3 storage not configured"
@@ -2873,7 +2511,7 @@ module Api
           disposition: disposition
       end
 
-      # Download document content from S3 (for JobDocument records)
+      # Download document content from S3
       def download_from_s3(document, is_preview)
         # SSoT (Jan 2026): Use tenant for storage provider
         provider = DocumentProviders.for_tenant(current_tenant)
@@ -2940,9 +2578,96 @@ module Api
           disposition: disposition
       end
 
+      # Download WarehouseDocument content from S3 via storage_blob
+      # SSoT: Uses storage_blob.storage_path as the S3 key
+      def download_from_s3_warehouse(document, is_preview)
+        provider = DocumentProviders.for_tenant(ActsAsTenant.current_tenant)
+
+        unless provider
+          raise DocumentProviders::NotConnectedError, "S3 storage not configured"
+        end
+
+        storage_path = document.storage_blob&.storage_path
+
+        unless storage_path.present?
+          raise DocumentProviders::NotFoundError, "No storage path for warehouse document"
+        end
+
+        # For previews, use ETag caching to avoid re-downloading unchanged files
+        if is_preview && request.headers["If-None-Match"].present?
+          etag = Digest::MD5.hexdigest("#{document.id}-#{document.updated_at}")
+          if request.headers["If-None-Match"] == %("#{etag}")
+            head :not_modified
+            return
+          end
+        end
+
+        content = provider.download_file(storage_path)
+
+        disposition = is_preview ? "inline" : "attachment"
+        mime_type = document.content_type || document.storage_blob&.content_type || "application/octet-stream"
+
+        headers["ETag"] = %("#{Digest::MD5.hexdigest("#{document.id}-#{document.updated_at}")}") if is_preview
+
+        send_data content,
+          filename: document.download_filename,
+          type: mime_type,
+          disposition: disposition
+      end
+
+      # Download WarehouseDocument content from SharePoint via metadata
+      # SSoT: Uses metadata["sharepoint_item_id"] as the file ID
+      def download_from_sharepoint_warehouse(document, is_preview)
+        unless sharepoint_connected?
+          raise DocumentProviders::NotConnectedError, "SharePoint not connected"
+        end
+
+        file_id = document.meta("sharepoint_item_id") || document.storage_blob&.storage_path
+
+        unless file_id.present?
+          raise DocumentProviders::NotFoundError, "No SharePoint file ID for warehouse document"
+        end
+
+        client = sharepoint_client
+        config = WarehouseProvider.instance
+
+        # For previews, use ETag caching
+        if is_preview && request.headers["If-None-Match"].present?
+          etag = Digest::MD5.hexdigest("#{document.id}-#{document.updated_at}")
+          if request.headers["If-None-Match"] == %("#{etag}")
+            head :not_modified
+            return
+          end
+        end
+
+        if sharepoint_credential.credential_type == "app"
+          unless config&.connected?
+            raise DocumentProviders::NotConnectedError, "SharePoint not configured"
+          end
+
+          file_content = client.get_drive_item_content(
+            drive_id: config.drive_id,
+            item_id: file_id
+          )
+        else
+          file_content = client.download_file(file_id)
+        end
+
+        disposition = is_preview ? "inline" : "attachment"
+        mime_type = document.content_type || document.storage_blob&.content_type || "application/octet-stream"
+
+        headers["ETag"] = %("#{Digest::MD5.hexdigest("#{document.id}-#{document.updated_at}")}") if is_preview
+
+        send_data file_content,
+          filename: document.download_filename,
+          type: mime_type,
+          disposition: disposition
+      end
+
       # Get S3 pre-signed URL for direct browser access
       def get_s3_presigned_url(document)
-        credential = S3CompatibleCredential.active.connected.first
+        # FRC (Feb 2026): Must be tenant-scoped
+        credential = S3CompatibleCredential.for_tenant(current_tenant).active.connected.first
 
         unless credential
           raise DocumentProviders::NotConnectedError, "S3 storage not configured"
@@ -3190,8 +2915,8 @@ module Api
       end
 
       # Refresh thumbnail URLs for cached documents
-      # SharePoint thumbnails expire after ~24-48 hours, so we need to fetch fresh ones
-      # Returns hash: { sharepoint_item_id => thumbnail_url }
+      # Storage thumbnails expire after ~24-48 hours, so we need to fetch fresh ones
+      # Returns hash: { storage_item_id => thumbnail_url }
       def refresh_thumbnails_for_docs(docs)
         return {} if docs.empty?
 
@@ -3236,8 +2961,7 @@ module Api
       end
 
       # Recursively list all files in a job folder
-      # Similar to JobDocumentMigrationService but for the job's own folder
-      # SSoT: Uses WarehouseProvider for drive_id (Jan 2026)
+      # SSoT: Uses WarehouseProvider for drive_id
       def list_all_job_files_recursive(client, credential, root_folder_id, max_depth: 5, max_time: 25)
         files = []
         folders_to_process = [ [ root_folder_id, 0, "" ] ] # [folder_id, depth, path]
@@ -3376,7 +3100,7 @@ module Api
       end
 
       # Format a document for the review UI
-      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      # SSoT: Uses WarehouseDocument
       def format_warehouse_document_for_review(doc)
         job = doc.linkable if doc.linkable_type == "Job"
         doc_type_id = doc.meta("document_type_id")
@@ -3389,7 +3113,6 @@ module Api
           job_id: job&.id,
           job_title: job&.title,
           # SSoT: Use storage_path from blob (provider-agnostic)
-          sharepoint_item_id: doc.storage_blob&.storage_path,
           storage_reference: doc.storage_blob&.storage_path,
           current_name: doc.ui_name || doc.original_filename,
           original_name: doc.original_filename,

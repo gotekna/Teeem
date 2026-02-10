@@ -52,6 +52,7 @@ import {
 import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import type {
   ChatMessage,
@@ -176,9 +177,8 @@ export default function ChatPage() {
         message_type?: "text" | "image" | "file";
         file_url?: string | null;
         file_name?: string | null;
-        // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
         storage_item_id?: string | null;
-        sharepoint_file_id?: string | null;
+        storage_reference?: string | null;
         has_file?: boolean;
       }
 
@@ -195,9 +195,7 @@ export default function ChatPage() {
         message_type: msg.message_type || "text",
         file_url: msg.file_url || null,
         file_name: msg.file_name || null,
-        // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
-        storage_item_id: msg.storage_item_id || msg.sharepoint_file_id || null,
-        sharepoint_file_id: msg.sharepoint_file_id || null, // Keep for backwards compat
+        storage_item_id: msg.storage_item_id || msg.storage_reference || null,
         created_at: msg.created_at,
         read_by: [msg.user_id],
         is_own: msg.user_id === user.id,
@@ -690,15 +688,11 @@ export default function ChatPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search team members..."
-                  value={userSearchQuery}
-                  onChange={(e) => setUserSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+              <SearchInput
+                value={userSearchQuery}
+                onChange={setUserSearchQuery}
+                placeholder="Search team members..."
+              />
               <ScrollArea className="h-[300px]">
                 <div className="space-y-1">
                   {filteredUsers.map((user) => (
@@ -1290,7 +1284,7 @@ function MessageBubble({
                   <div className="flex items-center gap-2 px-3 py-2">
                     <FileIcon className="h-4 w-4 shrink-0" />
                     <span className="text-sm break-words">{message.file_name}</span>
-                    {!message.storage_item_id && !message.sharepoint_file_id && (
+                    {!message.storage_item_id && (
                       <span className="text-xs text-muted-foreground">(uploading...)</span>
                     )}
                   </div>

@@ -30,8 +30,14 @@ class ApplicationController < ActionController::API
   end
 
   def determine_tenant
-    # Priority 1: Admin override (for TEEEM staff switching tenants)
-    # Using signed cookies since ActionController::API doesn't have sessions
+    # Priority 1: Admin override via header (for TEEEM staff switching tenants)
+    # X-Tenant-Override header replaces cookies which fail cross-origin (Vercel → Heroku)
+    if current_user&.teeem_staff? && request.headers["X-Tenant-Override"].present?
+      tenant = Tenant.find_by(id: request.headers["X-Tenant-Override"])
+      return tenant if tenant
+    end
+
+    # Priority 1b: Admin override via cookie (legacy/local dev fallback)
     if current_user&.teeem_staff? && cookies.signed[:admin_tenant_id]
       tenant = Tenant.find_by(id: cookies.signed[:admin_tenant_id])
       return tenant if tenant

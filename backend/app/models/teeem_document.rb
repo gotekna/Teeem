@@ -42,9 +42,16 @@ class TeeemDocument < ApplicationRecord
     "#{warehouse_folder_path}/#{safe_filename}_#{id}.html".gsub(%r{/+}, "/")
   end
 
-  # SSoT: Folder path computed by WarehouseProvider
+  # SSoT: Folder path for File Warehouse Doc Tree
+  # Job-attached: "Jobs/{JobCode}/TeeemWord", Standalone: "Warehousing/TeeemWord/{UserName}/{Year}"
   def warehouse_folder_path
-    WarehouseProvider.instance.resolve_warehouse_path(self, scope: :word_documents)
+    if job.present?
+      "Jobs/#{job.job_code}/TeeemWord"
+    else
+      user_name = user&.name || "Unknown"
+      year = (created_at || Time.current).year
+      "Warehousing/TeeemWord/#{user_name}/#{year}"
+    end
   end
 
   # Safe filename (remove special characters)

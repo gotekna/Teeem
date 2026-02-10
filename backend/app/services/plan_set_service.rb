@@ -92,7 +92,7 @@ class PlanSetService
         Rails.logger.info "[PlanSetService] Renaming #{original_name}..."
 
         # Download the file content
-        doc = OpenStruct.new(storage_path: file[:path], sharepoint_file_id: file[:id])
+        doc = OpenStruct.new(storage_path: file[:path], storage_file_id: file[:id])
         result = storage_service.download(doc)
         raise "Failed to download file" unless result[:success] && result[:content].present?
         content = result[:content]
@@ -347,10 +347,9 @@ class PlanSetService
     filename
   end
 
-  # SSoT: Use centralized SharePoint filename sanitization
-  # See lib/sharepoint/filename_sanitizer.rb for rules
+  # SSoT: Use centralized filename sanitization
   def sanitize_filename(filename)
-    SharePoint::FilenameSanitizer.sanitize(filename)
+    Warehouse::FilenameSanitizer.sanitize(filename)
   end
 
   # Extract short project name from job (e.g., "5 Wategos" from "Lot 5 (0) Wategos Street Tingalpa 4173 QLD")

@@ -31,7 +31,7 @@ class DocumentRelocateService
     # Determine what needs to change
     needs_rename = new_file_name.present? && new_file_name != @document.file_name
     needs_move = (new_company_id.present? && new_company_id.to_s != @document.company_id.to_s) ||
-                 (new_folder.present? && new_folder != @document.folder)
+                 (new_folder.present? && new_folder != @document.folder_path)
 
     # Calculate target folder path if moving
     target_folder_path = nil
@@ -79,7 +79,7 @@ class DocumentRelocateService
       updates = {}
       updates[:file_name] = new_name if needs_rename
       updates[:company_id] = new_company_id if new_company_id.present?
-      updates[:folder] = new_folder if new_folder.present?
+      updates[:folder_path] = new_folder if new_folder.present?
       updates[:storage_path] = result[:path] if result.is_a?(Hash) && result[:path]
 
       @document.update!(updates)
@@ -106,8 +106,7 @@ class DocumentRelocateService
   # Sanitize filename for storage - remove illegal characters
   # SSoT: Use centralized filename sanitization
   def sanitize_storage_filename(filename)
-    return filename unless defined?(SharePoint::FilenameSanitizer)
-    SharePoint::FilenameSanitizer.sanitize(filename)
+    Warehouse::FilenameSanitizer.sanitize(filename)
   end
 
   # Build target folder path for company/folder combination

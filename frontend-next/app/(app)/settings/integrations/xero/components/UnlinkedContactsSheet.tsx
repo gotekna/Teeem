@@ -11,8 +11,8 @@ import {
 import { copyToClipboard } from "@/utils/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   AlertTriangle,
@@ -26,11 +26,11 @@ import {
   MapPin,
   Phone,
   Plus,
-  Search,
   Sparkles,
   User,
   X,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatCurrencyWhole } from "@/utils/formatters";
@@ -249,23 +249,13 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
         </SheetHeader>
 
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <Spinner size={32} className="text-muted-foreground" />
-          </div>
+          <LoadingOverlay />
         ) : (
           <div className="flex flex-col h-full">
             {/* Actions Bar */}
             <div className="p-4 border-b space-y-3">
               <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search contacts..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
+                <SearchInput value={search} onChange={setSearch} placeholder="Search contacts..." className="flex-1" />
                 <Button
                   onClick={handleAutoMatch}
                   disabled={autoMatching}

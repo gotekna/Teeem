@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import axios from "axios";
 import {
   BriefcaseIcon,
   ClockIcon,
@@ -11,8 +10,10 @@ import {
   CalendarIcon,
   MapPinIcon,
 } from "@heroicons/react/24/outline";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { EmptyState } from "@/components/ui/empty-state";
+import { portalApi } from "@/lib/portal-api";
 
 interface Construction {
   id: number;
@@ -81,10 +82,7 @@ export default function PortalJobs() {
 
   const loadJobs = async () => {
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      const response = await axios.get("/api/v1/portal/jobs");
+      const response = await portalApi.get("/api/v1/portal/jobs");
 
       if (response?.data.success) {
         setJobs(response.data.data);
@@ -215,16 +213,14 @@ export default function PortalJobs() {
 
       {/* Job List */}
       {currentJobs.length === 0 ? (
-        <div className="text-center py-12 bg-card rounded-lg shadow">
-          <BriefcaseIcon className="mx-auto h-12 w-12 text-muted-foreground dark:text-muted-foreground" />
-          <h3 className="mt-2 text-sm font-medium text-foreground dark:text-white">
-            No {activeTab.replace("_", " ")} jobs
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
-            {activeTab === "upcoming"
+        <div className="bg-card rounded-lg shadow">
+          <EmptyState
+            title={`No ${activeTab.replace("_", " ")} jobs`}
+            description={activeTab === "upcoming"
               ? "You don't have any upcoming jobs scheduled."
               : `No jobs in ${activeTab.replace("_", " ")} status.`}
-          </p>
+            icon={<BriefcaseIcon className="h-12 w-12" />}
+          />
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

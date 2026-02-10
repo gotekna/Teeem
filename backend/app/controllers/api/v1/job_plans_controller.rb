@@ -443,9 +443,6 @@ module Api
           :notes,
           :storage_file_id,
           :storage_web_url,
-          # Legacy param names (backwards compat)
-          :sharepoint_file_id,
-          :sharepoint_web_url,
           :file_name,
           :file_size
         )
@@ -488,8 +485,7 @@ module Api
           revision_label: revision.revision_label,
           is_on_issue: revision.is_on_issue,
           has_file: revision.has_file?,
-          # SSoT: Use storage_reference (provider-agnostic), keep key for backwards compat
-          sharepoint_file_id: revision.storage_reference,
+          storage_file_id: revision.storage_reference,
           storage_reference: revision.storage_reference,
           micro_thumbnail_base64: revision.micro_thumbnail_base64,
           thumbnail_file_id: revision.thumbnail_file_id
@@ -534,10 +530,9 @@ module Api
           issued_date: revision.issued_date,
           is_on_issue: revision.is_on_issue,
           has_file: revision.has_file?,
-          # SSoT: Use storage_reference (provider-agnostic), keep key for backwards compat
-          sharepoint_file_id: revision.storage_reference,
+          storage_file_id: revision.storage_reference,
           storage_reference: revision.storage_reference,
-          sharepoint_web_url: revision.storage_web_url,
+          storage_web_url: revision.storage_web_url,
           file_name: revision.file_name,
           file_size: revision.file_size,
           formatted_file_size: revision.formatted_file_size,

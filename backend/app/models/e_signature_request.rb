@@ -246,7 +246,7 @@ class ESignatureRequest < ApplicationRecord
   end
 
   # Provider-agnostic storage references (SSoT: original/signed_storage_item_id)
-  # Now uses storage_file_id columns (renamed from sharepoint_file_id)
+  # SSoT: Uses storage_file_id columns
   def original_storage_reference
     original_storage_item_id.presence || original_storage_file_id
   end

@@ -174,7 +174,7 @@ class RefreshIntegrationTokensJob < ApplicationJob
       .where.not(refresh_token_dead: true) # Don't try to heal dead tokens
       .where.not(client_id: nil)
       .where.not(client_secret: nil)
-      .where.not(tenant_id: nil)
+      .where.not(azure_tenant_id: nil)
       .find_each do |credential|
         Rails.logger.info "[TokenRefresh] HEALING MicrosoftCredential (app) #{credential.name || credential.id} (status: #{credential.status})"
 

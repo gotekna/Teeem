@@ -21,7 +21,6 @@ import {
   Copy,
   Check,
   ChevronDown,
-  Search,
   Plus,
   Trash2,
   Settings,
@@ -33,6 +32,7 @@ import {
   AlertCircle,
   Pencil,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 
 // Standard Components (THE ONE for each use case)
@@ -104,7 +104,7 @@ import { StatusIndicator, StatusBadge, ActiveIndicator } from "@/components/ui/s
 import { TruncatedText, ClampedText } from "@/components/ui/truncated-text";
 
 // Pattern Components
-import { DragHandle, PositionBadge, ItemBadge, SortableList, SortableItem } from "@/components/ui/dnd";
+import { DragHandle, ItemBadge, SortableList, SortableItem } from "@/components/ui/dnd";
 import {
   KanbanBoard,
   KanbanCard,
@@ -943,27 +943,6 @@ function DragHandleDemo() {
   );
 }
 
-function PositionBadgeDemo() {
-  const [position, setPosition] = React.useState(1);
-  return (
-    <div className="flex items-center gap-4">
-      <div className="flex items-center gap-2">
-        <PositionBadge position={1} />
-        <span className="text-sm text-muted-foreground">Read-only</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <PositionBadge
-          position={position}
-          editable
-          onPositionChange={setPosition}
-          maxPosition={10}
-        />
-        <span className="text-sm text-muted-foreground">Editable</span>
-      </div>
-    </div>
-  );
-}
-
 function ItemBadgeDemo() {
   const [position, setPosition] = React.useState(1);
   const [label, setLabel] = React.useState("02a");
@@ -1476,7 +1455,6 @@ const COMPONENT_DEMOS: Record<string, () => React.ReactNode> = {
   accordion: AccordionDemo,
   tooltip: TooltipDemo,
   "drag-handle": DragHandleDemo,
-  "position-badge": PositionBadgeDemo,
   "item-badge": ItemBadgeDemo,
   "placeholder-badge": PlaceholderBadgeDemo,
   "placeholder-palette": PlaceholderPaletteDemo,
@@ -1683,15 +1661,7 @@ export function UIComponentsPlaygroundTab() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search components..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+        <SearchInput value={search} onChange={setSearch} placeholder="Search components..." className="flex-1 min-w-[200px] max-w-sm" />
 
         {/* Tier Filter */}
         <Select

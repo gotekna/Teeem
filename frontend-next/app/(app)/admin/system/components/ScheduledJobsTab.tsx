@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SimpleTableView, type SimpleColumn } from "@/components/table";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import {
   Clock,
   RefreshCw,
@@ -90,11 +91,7 @@ export function ScheduledJobsTab() {
   const overdueJobs = jobs.filter((j) => j.status === "overdue").length;
 
   if (loading && jobs.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   if (error) {

@@ -91,13 +91,20 @@ class XeroApiClient
       tenant_info.each do |tenant|
         # Find or create credential for this tenant
         credential = XeroCredential.find_or_initialize_by(tenant_id: tenant["tenantId"])
+
+        # Multi-tenancy: Only set teeem_tenant_id for NEW credentials.
+        # Don't overwrite tenant ownership of existing credentials from other tenants.
+        # All orgs share the same OAuth token, but each belongs to its own TEEEM tenant.
+        if credential.new_record?
+          credential.teeem_tenant_id = teeem_tenant&.id
+        end
+
         credential.assign_attributes(
           access_token: token.token,
           refresh_token: token.refresh_token,
           expires_at: Time.current + token.expires_in.seconds,
           tenant_name: tenant["tenantName"],
-          tenant_type: tenant["tenantType"],
-          teeem_tenant_id: teeem_tenant&.id || credential.teeem_tenant_id
+          tenant_type: tenant["tenantType"]
         )
         credential.save!
 

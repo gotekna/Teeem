@@ -81,9 +81,6 @@ interface WarehouseTabRow {
   warehouse_enabled?: boolean;
   folder_path?: string;
   warehouse_type?: string;
-  // Legacy backwards compat aliases (API returns both)
-  has_sharepoint_folder?: boolean;
-  sharepoint_folder_path?: string;
   sub_tabs?: SubTab[];
   document_types?: Array<{ id: number; name: string; display_name: string; is_primary: boolean }>;
 }
@@ -453,9 +450,8 @@ export function WarehouseFoldersTable() {
                     {groupTabs.map((tab) => {
                       const isTabExpanded = expandedTabs.has(tab.id);
                       const hasSubTabs = tab.sub_tabs && tab.sub_tabs.length > 0;
-                      // Use new naming with fallback to legacy
-                      const warehouseEnabled = tab.warehouse_enabled ?? tab.has_sharepoint_folder;
-                      const warehouseFolder = tab.folder_path ?? tab.sharepoint_folder_path;
+                      const warehouseEnabled = tab.warehouse_enabled;
+                      const warehouseFolder = tab.folder_path;
                       const hasFolder = warehouseEnabled && warehouseFolder;
 
                       return (
@@ -793,10 +789,10 @@ export function WarehouseFoldersTable() {
 
           <div className="mt-6 space-y-4">
             {/* Current path info */}
-            {(folderBrowserTab?.folder_path || folderBrowserTab?.sharepoint_folder_path) && (
+            {folderBrowserTab?.folder_path && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Current folder: </span>
-                <span className="font-mono text-blue-600 dark:text-blue-400">/{folderBrowserTab?.folder_path || folderBrowserTab?.sharepoint_folder_path}</span>
+                <span className="font-mono text-blue-600 dark:text-blue-400">/{folderBrowserTab.folder_path}</span>
               </div>
             )}
 

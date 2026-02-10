@@ -60,15 +60,16 @@ export function ContactFinancialTab({
 }: ContactFinancialTabProps) {
   // Deduplicate xeroLinks by tenant_id (a contact may have multiple Xero contacts in same tenant)
   // Show one tab per unique tenant, not one tab per external link
+  // FRC (Feb 2026): Prefer link with non-empty tenant_name to avoid invisible tabs
   const uniqueXeroLinks = useMemo(() => {
-    const seenTenantIds = new Set<string>();
-    return xeroLinks.filter((link) => {
-      if (seenTenantIds.has(link.xero_tenant_id)) {
-        return false;
+    const bestByTenant = new Map<string, XeroLink>();
+    for (const link of xeroLinks) {
+      const existing = bestByTenant.get(link.xero_tenant_id);
+      if (!existing || (!existing.xero_tenant_name && link.xero_tenant_name)) {
+        bestByTenant.set(link.xero_tenant_id, link);
       }
-      seenTenantIds.add(link.xero_tenant_id);
-      return true;
-    });
+    }
+    return Array.from(bestByTenant.values());
   }, [xeroLinks]);
 
   const hasXeroLinks = uniqueXeroLinks.length > 0;

@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useMemo, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePathTabs } from "@/hooks/usePathTabs";
 
 // Import company-related tab components from admin
 // SSoT: Security & Permissions moved to /settings/roles (consolidated Access Control page)
@@ -51,35 +52,38 @@ const COMPANY_TABS = [
 const DEFAULT_TAB = "info";
 
 export default function CompanySettingsPage() {
-  const pathname = usePathname();
   const router = useRouter();
 
   // URL is SSoT for tab state (path-based navigation)
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/company to work
   // SSoT (Jan 2026): Connections moved to top-level /settings/connections
-  const { activeTab, subTab, deepTab } = useMemo(() => {
-    const parts = (pathname ?? "").replace("/settings/company", "").split("/").filter(Boolean);
-    const tab = parts[0] || DEFAULT_TAB;
-    const sub = parts[1] || undefined;
-    const deep = parts[2] || undefined;
-    // Validate tab exists
-    // For warehouse-config tab without subTab, default to "warehouse_folders"
-    const validTab = COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
-    let effectiveSubTab = sub;
-    if (validTab === "warehouse-config" && !sub) effectiveSubTab = "warehouse_folders";
-    return {
-      activeTab: validTab,
-      subTab: effectiveSubTab,
-      deepTab: deep,
-    };
-  }, [pathname]);
+  const [activeTab, setActiveTab, subTab] = usePathTabs(
+    "/settings/company",
+    DEFAULT_TAB,
+    COMPANY_TABS.map(t => t.id)
+  );
+
+  // Parse deepTab from URL manually for warehouse-config (third level)
+  const deepTab = useMemo(() => {
+    if (typeof window === "undefined") return undefined;
+    const parts = window.location.pathname.replace("/settings/company", "").split("/").filter(Boolean);
+    return parts[2] || undefined;
+  }, []);
+
+  // Apply default sub-tab for warehouse-config
+  const effectiveSubTab = useMemo(() => {
+    let sub = subTab;
+    if (activeTab === "warehouse-config" && !sub) sub = "warehouse_folders";
+    return sub;
+  }, [activeTab, subTab]);
 
   // Redirect to include default sub-tab in URL for breadcrumb visibility
   // This keeps URL as SSoT for current tab state
   // SSoT (Jan 2026): Connections redirect removed - now at /settings/connections
   useEffect(() => {
-    const parts = (pathname ?? "").replace("/settings/company", "").split("/").filter(Boolean);
+    if (typeof window === "undefined") return;
+    const parts = window.location.pathname.replace("/settings/company", "").split("/").filter(Boolean);
     const urlHasSubTab = parts.length >= 2;
 
     // Redirect tabs with default sub-tabs to full URL
@@ -88,15 +92,11 @@ export default function CompanySettingsPage() {
         router.replace(`/settings/company/warehouse-config/warehouse_folders`, { scroll: false });
       }
     }
-  }, [pathname, activeTab, router]);
-
-  const handleTabChange = useCallback((tabId: string) => {
-    router.push(`/settings/company/${tabId}`, { scroll: false });
-  }, [router]);
+  }, [activeTab, router]);
 
   return (
-    <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+    <div className="flex flex-col gap-6 pb-8">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           {COMPANY_TABS.map((tab) => (
             <TabsTrigger
@@ -124,13 +124,13 @@ export default function CompanySettingsPage() {
           </TabsContent>
           {/* SSoT (Jan 2026): Connections moved to top-level /settings/connections */}
           <TabsContent value="job-setup">
-            <JobSetupTab subTab={subTab} basePath="/settings/company/job-setup" />
+            <JobSetupTab subTab={effectiveSubTab} basePath="/settings/company/job-setup" />
           </TabsContent>
           <TabsContent value="documents">
-            <DocumentsTab subTab={subTab} deepTab={deepTab} basePath="/settings/company/documents" />
+            <DocumentsTab subTab={effectiveSubTab} deepTab={deepTab} basePath="/settings/company/documents" />
           </TabsContent>
           <TabsContent value="warehouse-config">
-            <EntityConfigurationTab subTab={subTab} deepTab={deepTab} basePath="/settings/company/warehouse-config" />
+            <EntityConfigurationTab subTab={effectiveSubTab} deepTab={deepTab} basePath="/settings/company/warehouse-config" />
           </TabsContent>
           <TabsContent value="offline">
             <OfflineTab />

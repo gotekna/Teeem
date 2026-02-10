@@ -372,7 +372,7 @@ class WarehouseProvider < ApplicationRecord
   end
 
   # SSoT: Resolve VIRTUAL folder path (without root_path prefix)
-  # Use this for WarehouseDocument.folder - the virtual path displayed in File Warehouse UI
+  # Use this for WarehouseDocument.folder_path - the virtual path displayed in File Warehouse UI
   # Use resolve_path() for actual storage operations that need the full path
   #
   # @param warehouse_type [String, Symbol] The warehouse type (task, job, email, etc.)
@@ -790,8 +790,8 @@ class WarehouseProvider < ApplicationRecord
   #
   # Examples:
   #   resolve_warehouse_path(spreadsheet, scope: :excel_documents)
-  #   # Job attached: "Jobs/JOB-001/Excel"
-  #   # No job:       "Warehousing/Excel/Robert Harder/2026"
+  #   # Job attached: "Jobs/JOB-001/TeeemXL"
+  #   # No job:       "Warehousing/TeeemXL/Robert Harder/2026"
   #
   def resolve_warehouse_path(entity, scope:, tab_name: nil)
     job = entity.respond_to?(:job) ? entity.job : nil
@@ -819,10 +819,10 @@ class WarehouseProvider < ApplicationRecord
   # Default tab name for each document warehouse type (used when job-attached)
   def default_tab_name_for(warehouse_type)
     case warehouse_type.to_sym
-    when :excel_documents then "Excel"
-    when :word_documents then "Word"
-    when :powerpoint_documents then "PowerPoint"
-    when :pdf_documents then "PDF"
+    when :excel_documents then "TeeemXL"
+    when :word_documents then "TeeemWord"
+    when :powerpoint_documents then "TeeemPowerPoint"
+    when :pdf_documents then "TeeemPDF"
     when :notes then "Notes"
     else warehouse_type.to_s.titleize
     end
@@ -891,7 +891,7 @@ class WarehouseProvider < ApplicationRecord
 
   # SSoT: Check if warehouse type renders from database (virtual) vs S3 (physical)
   # Virtual warehouses:
-  # - Folder tree renders from WarehouseDocument.folder (database)
+  # - Folder tree renders from WarehouseDocument.folder_path (database)
   # - Reorganization is instant (bulk DB update)
   # - Physical storage stays at Blobs/{hash}.ext (never moves)
   #

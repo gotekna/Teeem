@@ -47,8 +47,30 @@ class WarehouseDocument < ApplicationRecord
   # Falls back to computed_folder_path for documents without materialized path.
   before_save :materialize_folder_path, if: :needs_path_recomputation?
 
+  # Materialized UI Name (Feb 2026): Template-expand ui_name on creation
+  # Only runs on new records with a WFDT — doesn't overwrite manual renames.
+  before_save :materialize_ui_name, if: :needs_ui_name_recomputation?
+
+  # Materialized Download Name (Feb 2026): Compute and store download_name on save
+  # Same pattern as folder_path materialization — avoids redundant runtime resolution.
+  # Runs AFTER materialize_ui_name since download_name may reference ui_name.
+  before_save :materialize_download_name, if: :needs_download_name_recomputation?
+
+  # Materialized Warehouse Type (Feb 2026): Derive from linkable_type or source_type
+  # Stores the warehouse_type code (e.g., "job", "contact", "email") for direct filtering.
+  before_save :materialize_warehouse_type, if: :needs_warehouse_type_recomputation?
+
   # Materialized Path: Invalidate folder counts when documents change folders
   after_commit :invalidate_folder_counts, on: [:create, :update, :destroy]
+
+  # ========================================
+  # Performance: Whitelist associations for Foundation API eager loading
+  # Skip polymorphic (documentable, linkable) and self-referential (parent_document)
+  # as they generate expensive per-type queries across 125K+ records
+  # ========================================
+  def self.safe_eager_load_associations
+    [:warehouse_folder, :warehouse_folder_document_type, :storage_blob]
+  end
 
   # ========================================
   # Associations
@@ -94,6 +116,7 @@ class WarehouseDocument < ApplicationRecord
 
   # Basic scopes
   scope :by_source, ->(source) { where(source_type: source) }
+  scope :by_warehouse_type, ->(wt) { where(warehouse_type: wt) }
   scope :with_blob, -> { where.not(storage_blob_id: nil) }
   scope :without_blob, -> { where(storage_blob_id: nil) }
 
@@ -130,6 +153,10 @@ class WarehouseDocument < ApplicationRecord
   #   6. "document" (last resort)
   #
   def download_filename
+    # Use materialized value if present and not an unexpanded template
+    return download_name if download_name.present? && !download_name.include?("{")
+
+    # Fall back to runtime resolution
     SendNameResolver.new.resolve(self)
   end
 
@@ -180,12 +207,10 @@ class WarehouseDocument < ApplicationRecord
   #
   # @return [String] The computed folder path
   #
+  # SSoT: WarehousePathComputer is THE ONE path resolver. No fallbacks here.
+  # If it fails, we WANT to know - not silently produce wrong paths.
   def computed_folder_path
-    result = WarehousePathComputer.new.compute(self)
-    result[:folder_path] || source_type_to_root_folder
-  rescue StandardError => e
-    Rails.logger.debug "[WarehouseDocument] computed_folder_path failed for #{id}: #{e.message}"
-    source_type_to_root_folder
+    WarehousePathComputer.new.compute(self)[:folder_path]
   end
 
   # SSoT: Map source_type to root folder name
@@ -456,10 +481,41 @@ class WarehouseDocument < ApplicationRecord
   # Materialized Path Computation (Feb 2026)
   # ========================================
 
+  # Check if ui_name needs template expansion
+  # Only on new records with folder context — don't overwrite manual renames on existing docs.
+  # Checks both WFDT and warehouse_folder_id (set by materialize_folder_path which runs first).
+  def needs_ui_name_recomputation?
+    new_record? && (warehouse_folder_document_type_id.present? || warehouse_folder_id.present?)
+  end
+
+  # Compute and store the materialized UI name using SendNameResolver
+  # Falls back to "{FolderName} {Date}" if no WFDT/template produces a meaningful result.
+  def materialize_ui_name
+    resolved = SendNameResolver.new.resolve_ui_name(self)
+    if resolved.present?
+      self.ui_name = resolved
+      return
+    end
+
+    # Fallback: No WFDT, but warehouse_folder available → use folder name + date
+    if warehouse_folder_id.present?
+      folder = WarehouseFolder.find_by(id: warehouse_folder_id)
+      if folder
+        date = Time.current.strftime("%d-%m-%Y")
+        self.ui_name = "#{folder.name} #{date}"
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.warn "[WarehouseDocument] materialize_ui_name failed for #{id}: #{e.message}"
+    # ui_name stays as-is (original_filename set by creator)
+  end
+
   # Check if folder_path needs (re)computation
+  # Respects explicitly-set folder_path on new records (e.g., Xero sync computes its own path)
   def needs_path_recomputation?
-    new_record? ||
-      folder_path.blank? ||
+    return false if new_record? && folder_path.present?
+
+    folder_path.blank? ||
       source_type_changed? ||
       documentable_type_changed? ||
       documentable_id_changed? ||
@@ -467,16 +523,79 @@ class WarehouseDocument < ApplicationRecord
       linkable_id_changed?
   end
 
+  # Check if download_name needs (re)computation
+  def needs_download_name_recomputation?
+    new_record? ||
+      download_name.blank? ||
+      ui_name_changed? ||
+      original_filename_changed? ||
+      warehouse_folder_document_type_id_changed? ||
+      source_type_changed? ||
+      metadata_changed?
+  end
+
+  # Compute and store the materialized download name using SendNameResolver
+  def materialize_download_name
+    # Clear existing to force fresh resolution from templates/fallbacks
+    # (SendNameResolver.resolve returns download_name immediately if already set)
+    self.download_name = nil
+    resolved = SendNameResolver.new.resolve(self)
+    self.download_name = resolved if resolved.present? && resolved != "document"
+  rescue StandardError => e
+    Rails.logger.warn "[WarehouseDocument] materialize_download_name failed for #{id}: #{e.message}"
+  end
+
+  # Check if warehouse_type needs (re)computation
+  def needs_warehouse_type_recomputation?
+    warehouse_type.blank? ||
+      source_type_changed? ||
+      linkable_type_changed?
+  end
+
+  # Compute and store the warehouse_type code from linkable_type or source_type.
+  # Uses the same mapping as WarehousePathComputer#source_type_to_warehouse_type_code.
+  def materialize_warehouse_type
+    # Prefer linkable_type (most precise) then fall back to source_type
+    self.warehouse_type = derive_warehouse_type
+  end
+
+  # SSoT: Derive warehouse_type code from linkable_type or source_type
+  # Matches WarehousePathComputer mappings exactly.
+  def derive_warehouse_type
+    # 1. From linkable_type (most precise, FK-driven)
+    if linkable_type.present?
+      code = case linkable_type
+             when "Job" then "job"
+             when "Contact" then "contact"
+             when "CorporateCompany" then "corporate"
+             when "SmTask" then "task"
+             end
+      return code if code
+    end
+
+    # 2. From source_type (fallback)
+    case source_type
+    when "task" then "task"
+    when "email", "email_attachment" then "email"
+    when "corporate", "xero", "financial", "asset" then "corporate"
+    when "job", "compliance" then "job"
+    when "contact", "people" then "contact"
+    when "case" then "case"
+    when "notebook" then "notebook"
+    when "user" then "user"
+    when "warehouse", "template" then "warehouse"
+    when "esignature" then "e_signing"
+    else "unassigned"
+    end
+  end
+
   # Compute and store the materialized folder path using WarehousePathComputer
+  # No rescue - broken config should fail fast, not silently produce wrong paths
   def materialize_folder_path
     result = WarehousePathComputer.new.compute(self)
     self.folder_path = result[:folder_path]
     self.warehouse_folder_id = result[:warehouse_folder_id]
     self.path_template_version = result[:path_template_version]
-  rescue StandardError => e
-    # Non-fatal: log and continue without materialized path
-    # computed_folder_path still works as runtime fallback
-    Rails.logger.warn "[WarehouseDocument] materialize_folder_path failed for #{id}: #{e.message}"
   end
 
   # Invalidate folder counts for affected paths

@@ -26,7 +26,7 @@
 # └─────────────────────────────────────────────────────────────────┘
 #
 # Physical Storage: s3://bucket/Blobs/{hash_prefix}/{hash}.pdf
-# Virtual Folders: Computed from WarehouseFolder.display_name, stored in warehouse_documents.folder
+# Virtual Folders: Computed from WarehouseFolder.display_name, stored in warehouse_documents.folder_path
 #
 class XeroAttachmentSyncService
   include DocumentProviderAware
@@ -55,11 +55,18 @@ class XeroAttachmentSyncService
   # FRC (Feb 2026): Get Xero tenant UUID for API calls
   # ExternalInvoice.tenant_id is TEEEM integer, need Xero UUID for API
   def find_xero_tenant_id_for_invoice
-    # First try raw_data (if stored during sync)
+    # Priority 1: raw_data (stored during webhook/API sync)
     xero_tid = external_invoice.raw_data&.dig("TenantId")
     return xero_tid if xero_tid.present?
 
-    # Fallback: Look up via XeroCredential.teeem_tenant_id
+    # Priority 2: xero_org_id (SSoT - set by ExternalInvoiceSyncService)
+    # ⚠️ DO NOT REMOVE - This prevents non-deterministic credential lookup (Feb 2026)
+    # When multiple XeroCredentials share the same teeem_tenant_id (e.g. Tekna + W2G),
+    # skipping this causes bills to appear under the wrong org in the File Warehouse.
+    return external_invoice.xero_org_id if external_invoice.xero_org_id.present?
+
+    # Priority 3: Last resort - find by TEEEM tenant
+    # WARNING: Non-deterministic if multiple credentials share same teeem_tenant_id
     credential = XeroCredential.find_by(teeem_tenant_id: external_invoice.tenant_id)
     credential&.tenant_id
   end
@@ -168,28 +175,39 @@ class XeroAttachmentSyncService
     )
     storage_blob.increment_reference!
 
-    # SSoT: Create WarehouseDocument (universal metadata)
-    warehouse_doc = existing || WarehouseDocument.new
-    warehouse_doc.assign_attributes(
-      documentable: external_invoice,
-      storage_blob: storage_blob,
-      source_type: "xero",
-      ui_name: build_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
-      original_filename: filename,
-      tenant_id: @tenant.id,
-      content_type: "application/pdf",
-      file_size: pdf_content.bytesize,
-      # Link to contact for filtering in File Warehouse
-      linkable: external_invoice.contact,
-      metadata: build_metadata(document_type)
-    )
-
-    if warehouse_doc.save
+    # SSoT: Create/update WarehouseDocument via standard service
+    begin
+      warehouse_doc = if existing
+        existing.assign_attributes(
+          storage_blob: storage_blob,
+          ui_name: build_display_name,
+          original_filename: filename,
+          content_type: "application/pdf",
+          file_size: pdf_content.bytesize,
+          linkable: external_invoice.contact,
+          folder_path: folder,
+          metadata: (existing.metadata || {}).merge(build_metadata(document_type))
+        )
+        existing.save!
+        existing
+      else
+        WarehouseDocumentCreator.create!(
+          filename: filename,
+          source_type: "xero",
+          documentable: external_invoice,
+          linkable: external_invoice.contact,
+          storage_blob: storage_blob,
+          file_size: pdf_content.bytesize,
+          content_type: "application/pdf",
+          metadata: build_metadata(document_type),
+          folder_path: folder
+        )
+      end
       results[:pdf] = warehouse_doc
       Rails.logger.info("[XeroAttachmentSync] Saved PDF via WarehouseDocument: #{filename} -> #{storage_blob.storage_path}")
-    else
+    rescue ActiveRecord::RecordInvalid => e
       storage_blob.decrement_reference!
-      results[:errors] << "Failed to save WarehouseDocument: #{warehouse_doc.errors.full_messages.join(', ')}"
+      results[:errors] << "Failed to save WarehouseDocument: #{e.message}"
     end
   rescue ActiveRecord::RecordNotUnique => e
     handle_race_condition(e, external_invoice, "pdf")
@@ -207,25 +225,31 @@ class XeroAttachmentSyncService
     document_type = find_document_type_for_invoice
     folder = document_type ? compute_folder_from_document_type(document_type) : nil
 
-    warehouse_doc = existing || WarehouseDocument.new
-    warehouse_doc.assign_attributes(
-      documentable: external_invoice,
-      storage_blob: nil,  # No auto-generated PDF for bills
-      source_type: "xero",
-      ui_name: build_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
-      original_filename: nil,
-      tenant_id: @tenant.id,
-      content_type: nil,
-      file_size: 0,
-      linkable: external_invoice.contact,
-      metadata: build_metadata(document_type).merge("is_bill_record" => true)
-    )
-
-    if warehouse_doc.save
+    begin
+      warehouse_doc = if existing
+        existing.assign_attributes(
+          ui_name: build_display_name,
+          linkable: external_invoice.contact,
+          folder_path: folder,
+          metadata: (existing.metadata || {}).merge(build_metadata(document_type)).merge("is_bill_record" => true)
+        )
+        existing.save!
+        existing
+      else
+        WarehouseDocumentCreator.create!(
+          filename: build_display_name,
+          source_type: "xero",
+          documentable: external_invoice,
+          linkable: external_invoice.contact,
+          file_size: 0,
+          metadata: build_metadata(document_type).merge("is_bill_record" => true),
+          folder_path: folder
+        )
+      end
       Rails.logger.info("[XeroAttachmentSync] Created bill record for attachments: #{external_invoice.invoice_number}")
       warehouse_doc
-    else
-      results[:errors] << "Failed to save bill record: #{warehouse_doc.errors.full_messages.join(', ')}"
+    rescue ActiveRecord::RecordInvalid => e
+      results[:errors] << "Failed to save bill record: #{e.message}"
       nil
     end
   rescue ActiveRecord::RecordNotUnique
@@ -321,24 +345,20 @@ class XeroAttachmentSyncService
     )
     storage_blob.increment_reference!
 
-    # SSoT: Create WarehouseDocument as child of primary PDF
-    # Attachments use parent_document_id to link to the primary PDF
-    # documentable is nil for attachments (parent has the link to ExternalInvoice)
-    warehouse_doc = WarehouseDocument.new(
-      documentable: nil,  # Attachments don't link directly to ExternalInvoice
-      parent_document_id: parent_doc.id,  # Link to primary PDF instead
-      storage_blob: storage_blob,
+    # SSoT: Create WarehouseDocument as child of primary PDF via standard service
+    warehouse_doc = WarehouseDocumentCreator.create!(
+      filename: filename,
       source_type: "xero",
-      ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
-      original_filename: filename,
-      tenant_id: @tenant.id,
-      content_type: mime_type,
-      file_size: content.bytesize,
       linkable: external_invoice.contact,
-      metadata: build_attachment_metadata(document_type, attachment_id, filename)
+      storage_blob: storage_blob,
+      file_size: content.bytesize,
+      content_type: mime_type,
+      parent_document: parent_doc,
+      metadata: build_attachment_metadata(document_type, attachment_id, filename),
+      folder_path: folder
     )
 
-    if warehouse_doc.save
+    if warehouse_doc.persisted?
       results[:attachments] << warehouse_doc
       Rails.logger.info("[XeroAttachmentSync] Saved attachment via WarehouseDocument (parent: #{parent_doc.id}): #{filename}")
     else
@@ -464,7 +484,10 @@ class XeroAttachmentSyncService
   def contact_folder_name
     contact = external_invoice.contact
     return nil unless contact.present?
-    contact.document_folder_name
+
+    # Use display_name directly (NOT document_folder_name which includes "Contacts/" prefix)
+    # compute_folder_from_document_type already adds the "Contacts" root segment
+    Warehouse::FilenameSanitizer.sanitize_path_segment(contact.display_name || contact.name || "Unknown")
   end
 
   def find_matching_purchase_order

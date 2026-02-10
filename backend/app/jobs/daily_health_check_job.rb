@@ -37,7 +37,7 @@ class DailyHealthCheckJob < ApplicationJob
       # 2. Run all health checks and cache results
       # Cache system-wide health
       system_health = HealthChecks::Registry.system_health
-      HealthCheckCache.cache_system_health(system_health)
+      Rails.cache.write("health_check:system", system_health, expires_in: 24.hours)
       results[:health_checks_run] = system_health[:summary][:total_checks]
       results[:issues_found] = system_health[:summary][:total_issues]
       results[:critical_issues] = system_health[:summary][:critical_issues]
@@ -54,7 +54,7 @@ class DailyHealthCheckJob < ApplicationJob
             table_name: foundation.database_table_name
           )
 
-          HealthCheckCache.cache_foundation_health(foundation.id, result)
+          Rails.cache.write("health_check:foundation:#{foundation.id}", result, expires_in: 24.hours)
           foundations_cached += 1
 
           Rails.logger.info "[DailyHealthCheck] Cached health for #{foundation.name} (ID: #{foundation.id}, score: #{result[:overall_health]})"

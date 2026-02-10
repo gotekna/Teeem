@@ -4,7 +4,6 @@ import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -24,7 +23,6 @@ import {
 import {
   ClipboardCheck,
   Plus,
-  Search,
   Calendar,
   CheckCircle,
   Clock,
@@ -34,8 +32,11 @@ import {
   Eye,
   Edit,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { BackButton } from "@/components/ui/back-button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
+import { EmptyState } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
 
 interface SWMS {
@@ -200,9 +201,7 @@ export default function WHSSWMSPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 
@@ -227,15 +226,7 @@ export default function WHSSWMSPage() {
 
       {/* Filters */}
       <div className="flex items-center gap-4 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search SWMS..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search SWMS..." className="flex-1 max-w-sm" />
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="Status" />
@@ -347,13 +338,15 @@ export default function WHSSWMSPage() {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12">
-                  <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No SWMS found</p>
-                  <Button className="mt-4">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create First SWMS
-                  </Button>
+                <TableCell colSpan={6}>
+                  <EmptyState
+                    title="No SWMS found"
+                    icon={<ClipboardCheck className="h-12 w-12" />}
+                    action={{
+                      label: "Create First SWMS",
+                      onClick: () => {},
+                    }}
+                  />
                 </TableCell>
               </TableRow>
             )}

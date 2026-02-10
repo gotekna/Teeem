@@ -594,17 +594,15 @@ class ImapEmailService
         content_type: content_type
       )
 
-      # Create WarehouseDocument linking to blob
-      WarehouseDocument.create!(
+      # Create WarehouseDocument via standard service
+      WarehouseDocumentCreator.create!(
+        filename: filename,
+        source_type: "email_attachment",
         documentable: email,
-        storage_blob_id: blob.id,
-        ui_name: filename,  # SSoT: display_name renamed to ui_name (Feb 2026)
-        original_filename: filename,
-        source_type: 'email_attachment',
-        tenant_id: email.tenant_id,
-        content_type: content_type || blob.content_type,
+        storage_blob: blob,
         file_size: content.bytesize,
-        metadata: { 'synced_email_id' => email.id.to_s }
+        content_type: content_type || blob.content_type,
+        metadata: { "synced_email_id" => email.id.to_s }
       )
 
       blob.increment!(:reference_count)
@@ -641,25 +639,24 @@ class ImapEmailService
       storage_email_file_id: blob.id.to_s
     )
 
-    # Create WarehouseDocument for File Warehouse integration
+    # Create WarehouseDocument via standard service (race-condition safe)
     doc = WarehouseDocument.find_or_create_by!(
       documentable_type: "SyncedEmail",
       documentable_id: email.id
     ) do |d|
       d.storage_blob = blob
       d.source_type = "email"
-      d.ui_name = email.subject.presence || "No Subject"  # SSoT: display_name renamed to ui_name (Feb 2026)
+      d.ui_name = email.subject.presence || "No Subject"
       d.original_filename = "#{email.id}.eml"
       d.tenant_id = tenant.id
       d.metadata = {
-        subject: email.subject,
-        from_email: email.from_email,
-        received_at: email.received_at&.iso8601,
-        mailbox: email.mailbox_owner_email
+        "subject" => email.subject,
+        "from_email" => email.from_email,
+        "received_at" => email.received_at&.iso8601,
+        "mailbox" => email.mailbox_owner_email
       }
     end
 
-    # Increment blob reference if we created new document
     blob.increment!(:reference_count) if doc.previously_new_record?
 
     Rails.logger.debug "[ImapEmailService] Stored email #{email.id} to blob: #{blob.storage_path}"

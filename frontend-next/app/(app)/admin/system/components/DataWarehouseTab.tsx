@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { WAREHOUSE_PAGE_SIZE } from "@/lib/constants/pagination-constants";
 import {
   Table,
@@ -107,9 +108,9 @@ interface OrgDataStats {
     total_documents: number;
     by_source: Record<string, number>;
     by_folder: Record<string, number>;
-    by_ai_status: Record<string, number>;
-    verified_count: number;
-    needs_review_count: number;
+    by_ai_status?: Record<string, number>;
+    verified_count?: number;
+    needs_review_count?: number;
     total_file_size: number;
     latest_upload: string | null;
   };
@@ -616,11 +617,7 @@ export function DataWarehouseTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   if (!stats) {
@@ -631,7 +628,7 @@ export function DataWarehouseTab() {
     );
   }
 
-  const verificationRate = stats.documents.total_documents > 0
+  const verificationRate = stats.documents.total_documents > 0 && stats.documents.verified_count != null
     ? Math.round((stats.documents.verified_count / stats.documents.total_documents) * 100)
     : 0;
 
@@ -2124,7 +2121,8 @@ export function DataWarehouseTab() {
         </Card>
       )}
 
-      {/* AI Verification Progress */}
+      {/* AI Verification Progress - only show if backend returns verification data */}
+      {stats.documents.verified_count != null && stats.documents.by_ai_status && (
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">AI Document Verification Progress</CardTitle>
@@ -2132,7 +2130,7 @@ export function DataWarehouseTab() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
-              {stats.documents.verified_count.toLocaleString()} of {stats.documents.total_documents.toLocaleString()} documents verified
+              {(stats.documents.verified_count ?? 0).toLocaleString()} of {stats.documents.total_documents.toLocaleString()} documents verified
             </span>
             <span className="font-medium">{verificationRate}%</span>
           </div>
@@ -2149,13 +2147,14 @@ export function DataWarehouseTab() {
               return (
                 <Badge key={status} variant="outline" className={cn("text-sm py-1 px-3", color)}>
                   <Icon className="h-3 w-3 mr-1" />
-                  {status.replace("_", " ")}: {count.toLocaleString()}
+                  {status.replace("_", " ")}: {(count ?? 0).toLocaleString()}
                 </Badge>
               );
             })}
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* CAD/BIM Files (Job Documents) */}
       <Card>

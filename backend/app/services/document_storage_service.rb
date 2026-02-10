@@ -750,22 +750,20 @@ class DocumentStorageService
     MicrosoftCredential.active_credential
   end
 
-  # Create WarehouseDocument for email (copied from EmailStorageUploadService for consistency)
+  # Create WarehouseDocument for email via standard service
   def create_warehouse_document_for_email(email, blob)
     return if email.warehouse_document.present?
 
-    WarehouseDocument.create!(
+    WarehouseDocumentCreator.create!(
+      filename: "#{email.id}.eml",
+      source_type: "email",
       documentable: email,
       storage_blob: blob,
-      source_type: "email",
-      ui_name: email.subject.presence || "No Subject",  # SSoT: display_name renamed to ui_name (Feb 2026)
-      original_filename: "#{email.id}.eml",
-      tenant_id: @tenant.id,
       metadata: {
-        subject: email.subject,
-        from_email: email.from_email,
-        received_at: email.received_at&.iso8601,
-        mailbox: email.mailbox_owner_email
+        "subject" => email.subject,
+        "from_email" => email.from_email,
+        "received_at" => email.received_at&.iso8601,
+        "mailbox" => email.mailbox_owner_email
       }
     )
 

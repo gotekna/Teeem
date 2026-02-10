@@ -684,6 +684,7 @@ export default function EmailPage() {
   // Support both "account" and "mailbox" query params (mailbox used by Warehouse links)
   const rawAccountParam = pathSegments?.[0] || searchParams.get("account") || searchParams.get("mailbox");
   const accountParam = rawAccountParam ? decodeURIComponent(rawAccountParam) : undefined;
+
   const emailIdParam = searchParams.get("id");
   // Standalone mode: check path segment first, then legacy query param
   const isStandalone = pathSegments?.includes("standalone") || searchParams.get("standalone") === "true";

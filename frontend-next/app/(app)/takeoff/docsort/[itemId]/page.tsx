@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/ui/back-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -41,7 +42,7 @@ import type { TakeoffTemplate as RoomTemplate } from "@/components/takeoff/RoomM
 // =============================================================================
 
 interface DocsortTakeoffResponse {
-  docsort_item: {
+  document_inbox: {
     id: number;
     display_name: string;
     document_type: string | null;
@@ -57,7 +58,6 @@ interface DocsortTakeoffResponse {
 
 export default function DocsortTakeoffPage() {
   const params = useParams();
-  const router = useRouter();
   const { toast } = useToast();
 
   const itemId = params.itemId as string;
@@ -80,7 +80,7 @@ export default function DocsortTakeoffPage() {
   const [summary, setSummary] = React.useState<MeasurementSummary | null>(null);
   const [selectedMeasurement, setSelectedMeasurement] = React.useState<TakeoffMeasurement | null>(null);
 
-  // Layers - persisted to backend via /api/v1/pdf_takeoff/docsort/:id/layers
+  // Layers - persisted to backend via /api/v1/pdf_takeoff/document_inbox/:id/layers
   const [layers, setLayers] = React.useState<TakeoffLayer[]>([]);
   // null = "All" view (shows all layers, saves to default layer)
   const [activeLayer, setActiveLayer] = React.useState<TakeoffLayer | null>(null);
@@ -142,7 +142,7 @@ export default function DocsortTakeoffPage() {
         setItemError(null);
 
         const response = await api.get<{ success: boolean; data: DocsortTakeoffResponse; error?: string }>(
-          `/api/v1/pdf_takeoff/docsort/${itemId}`
+          `/api/v1/pdf_takeoff/document_inbox/${itemId}`
         );
 
         if (response?.success && response?.data) {
@@ -172,7 +172,7 @@ export default function DocsortTakeoffPage() {
       const response = await api.get<{
         success: boolean;
         data: { measurements: TakeoffMeasurement[]; summary: MeasurementSummary };
-      }>(`/api/v1/pdf_takeoff/docsort/${itemId}/measurements`);
+      }>(`/api/v1/pdf_takeoff/document_inbox/${itemId}/measurements`);
 
       if (response?.success && response?.data) {
         setMeasurements(response.data.measurements);
@@ -190,7 +190,7 @@ export default function DocsortTakeoffPage() {
       const response = await api.get<{
         success: boolean;
         data: TakeoffRoomInstance[];
-      }>(`/api/v1/pdf_takeoff/docsort/${itemId}/rooms`);
+      }>(`/api/v1/pdf_takeoff/document_inbox/${itemId}/rooms`);
       if (response?.success && response?.data) {
         setRooms(response.data);
         if (activeRoom) {
@@ -254,7 +254,7 @@ export default function DocsortTakeoffPage() {
           success: boolean;
           data: TakeoffRoomInstance;
           error?: string;
-        }>(`/api/v1/pdf_takeoff/docsort/${itemId}/rooms`, {
+        }>(`/api/v1/pdf_takeoff/document_inbox/${itemId}/rooms`, {
           template_id: templateId,
           name,
         });
@@ -387,7 +387,7 @@ export default function DocsortTakeoffPage() {
       const response = await api.get<{
         success: boolean;
         data: { layers: TakeoffLayer[] };
-      }>(`/api/v1/pdf_takeoff/docsort/${itemId}/layers`);
+      }>(`/api/v1/pdf_takeoff/document_inbox/${itemId}/layers`);
 
       if (response?.success && response?.data) {
         setLayers(response.data.layers);
@@ -410,7 +410,7 @@ export default function DocsortTakeoffPage() {
         const response = await api.post<{
           success: boolean;
           data: TakeoffLayer;
-        }>(`/api/v1/pdf_takeoff/docsort/${itemId}/layers`, {
+        }>(`/api/v1/pdf_takeoff/document_inbox/${itemId}/layers`, {
           layer: { name, color },
         });
 
@@ -538,7 +538,7 @@ export default function DocsortTakeoffPage() {
           success: boolean;
           data: { page_scale: PageScale };
           error?: string;
-        }>(`/api/v1/pdf_takeoff/docsort/${itemId}/calibrate`, {
+        }>(`/api/v1/pdf_takeoff/document_inbox/${itemId}/calibrate`, {
           page_number: currentPageNumber,
           reference_length_mm: data.referenceLengthMm,
           line_start_x: data.lineStart.x,
@@ -592,7 +592,7 @@ export default function DocsortTakeoffPage() {
     async () => {
       if (!itemId) return;
       try {
-        await api.delete(`/api/v1/pdf_takeoff/docsort/${itemId}/calibrate`, {
+        await api.delete(`/api/v1/pdf_takeoff/document_inbox/${itemId}/calibrate`, {
           params: { page_number: currentPageNumber },
         });
         // Clear page scale locally
@@ -627,7 +627,7 @@ export default function DocsortTakeoffPage() {
           success: boolean;
           data: { measurement: TakeoffMeasurement; summary: MeasurementSummary };
           error?: string;
-        }>(`/api/v1/pdf_takeoff/docsort/${itemId}/measurements`, {
+        }>(`/api/v1/pdf_takeoff/document_inbox/${itemId}/measurements`, {
           measurement: {
             measurement_type: type,
             pixel_value: pixelValue,
@@ -1020,7 +1020,7 @@ export default function DocsortTakeoffPage() {
   }, [toast]);
 
   // Set filename in breadcrumb to save a header row
-  const breadcrumbName = itemData?.docsort_item.display_name;
+  const breadcrumbName = itemData?.document_inbox.display_name;
   React.useEffect(() => {
     if (breadcrumbName) {
       setDisplayName(`${breadcrumbName} - Takeoff`);
@@ -1049,12 +1049,12 @@ export default function DocsortTakeoffPage() {
       <div className="flex flex-col items-center justify-center h-screen gap-4">
         <p className="text-lg font-medium text-destructive">Failed to load document</p>
         <p className="text-sm text-muted-foreground">{itemError}</p>
-        <Button onClick={() => router.back()}>Go Back</Button>
+        <BackButton fallbackHref="/takeoff/docsort" />
       </div>
     );
   }
 
-  const displayName = itemData?.docsort_item.display_name || "Document";
+  const displayName = itemData?.document_inbox.display_name || "Document";
   const isCalibrated = pageScale?.calibrated || false;
 
   return (

@@ -744,26 +744,18 @@ module Api
           content_type: "application/pdf"
         )
 
-        # Get or create DocumentType for Purchase Orders
-        document_type = DocumentType.find_by(name: "Purchase Order")
-
-        # Create WarehouseDocument
-        warehouse_doc = WarehouseDocument.create!(
-          ui_name: "#{po_number} - #{task_name}",
-          download_name: filename,
+        # SSoT: WarehouseDocumentCreator handles metadata + callbacks
+        warehouse_doc = WarehouseDocumentCreator.create!(
+          filename: "#{po_number} - #{task_name}",
           source_type: "job",
           storage_blob: storage_blob,
           linkable: job,
-          tenant_id: current_tenant&.id,
           metadata: {
-            document_type_id: document_type&.id,
-            document_type: "Purchase Order",
-            purchase_order_id: @purchase_order.id,
-            purchase_order_number: po_number,
-            job_code: job&.job_code,
-            supplier_id: @purchase_order.supplier_id,
-            supplier_name: @purchase_order.supplier&.display_name,
-            generated_at: Time.current.iso8601
+            "purchase_order_id" => @purchase_order.id,
+            "purchase_order_number" => po_number,
+            "supplier_id" => @purchase_order.supplier_id,
+            "supplier_name" => @purchase_order.supplier&.display_name,
+            "generated_at" => Time.current.iso8601
           }
         )
 
@@ -853,26 +845,20 @@ module Api
           content_type: "application/pdf"
         )
 
-        document_type = DocumentType.find_by(name: "Purchase Order")
-
-        warehouse_doc = WarehouseDocument.create!(
-          ui_name: "#{po_number} - #{task_name} (Sent)",
-          download_name: filename,
+        # SSoT: WarehouseDocumentCreator handles metadata + callbacks
+        warehouse_doc = WarehouseDocumentCreator.create!(
+          filename: "#{po_number} - #{task_name} (Sent)",
           source_type: "job",
           storage_blob: storage_blob,
           linkable: job,
-          tenant_id: current_tenant&.id,
           metadata: {
-            document_type_id: document_type&.id,
-            document_type: "Purchase Order",
-            purchase_order_id: @purchase_order.id,
-            purchase_order_number: po_number,
-            job_code: job&.job_code,
-            supplier_id: @purchase_order.supplier_id,
-            supplier_name: @purchase_order.supplier&.display_name,
-            sent_to: supplier_email,
-            sent_at: Time.current.iso8601,
-            generated_at: Time.current.iso8601
+            "purchase_order_id" => @purchase_order.id,
+            "purchase_order_number" => po_number,
+            "supplier_id" => @purchase_order.supplier_id,
+            "supplier_name" => @purchase_order.supplier&.display_name,
+            "sent_to" => supplier_email,
+            "sent_at" => Time.current.iso8601,
+            "generated_at" => Time.current.iso8601
           }
         )
 

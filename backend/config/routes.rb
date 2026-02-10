@@ -46,7 +46,8 @@ Rails.application.routes.draw do
       get "documents/authorize", to: "document_storage#authorize"
       get "documents/callback", to: "document_storage#callback"
       delete "documents/disconnect", to: "document_storage#disconnect"
-      get "documents/browse_folders", to: "document_storage#browse_folders"
+      # browse_folders is handled by documents#browse_folders (Phase 3 virtual folders, line ~466)
+      # Removed duplicate route that pointed to document_storage#browse_folders (SharePoint-only)
       post "documents/create_root_folder", to: "document_storage#create_root_folder"
       get "documents/validate_folder", to: "document_storage#validate_folder"
       patch "documents/change_root_folder", to: "document_storage#change_root_folder"
@@ -66,7 +67,6 @@ Rails.application.routes.draw do
       get "documents/search", to: "document_storage#search"
       get "documents/preview_private_folders", to: "document_storage#preview_private_folders"
       patch "documents/mark_as_preferred", to: "document_storage#mark_as_preferred"
-      get "documents/legacy_files", to: "document_storage#legacy_files"
       post "documents/migrate_job_folder", to: "document_storage#migrate_job_folder"
       get "documents/job_all_files", to: "document_storage#job_all_files"
       get "documents/job_document_download", to: "document_storage#job_document_download"
@@ -75,15 +75,11 @@ Rails.application.routes.draw do
       post "documents/copy_file", to: "document_storage#copy_file"
       post "documents/create_folder", to: "document_storage#create_folder"
       get "documents/documents_needing_review", to: "document_storage#documents_needing_review"
-      post "documents/sync_job_documents", to: "document_storage#sync_job_documents"
-      post "documents/import_legacy", to: "document_storage#import_legacy"
-      post "documents/analyze_job_documents", to: "document_storage#analyze_job_documents"
       post "documents/bulk_categorize_job_documents", to: "document_storage#bulk_categorize_job_documents"
       post "documents/approve_document_rename", to: "document_storage#approve_document_rename"
       post "documents/bulk_approve_renames", to: "document_storage#bulk_approve_renames"
       post "documents/create_private_folders", to: "document_storage#create_private_folders"
       post "documents/copy_files", to: "document_storage#copy_files"
-      post "documents/run_migration", to: "document_storage#run_migration"
       post "documents/upload_signed_version", to: "document_storage#upload_signed_version"
 
       # Viewer Context Storage (for document viewer with Q&A sidebar)
@@ -466,14 +462,14 @@ Rails.application.routes.draw do
       # SSoT: Folder hierarchy matching WarehouseProvider.SCOPE_TEMPLATES
       # Used by File Warehouse to build tree structure that mirrors storage paths
       get "documents/scope_hierarchy", to: "documents#scope_hierarchy"
-      # SSoT: OneDrive-like S3 folder browser - lists actual S3/Wasabi folders
-      # Used by Documents page to mirror exact storage structure for desktop sync
-      get "documents/s3_folders", to: "documents#s3_folders"
+      # SSoT: Virtual folder browser - builds tree from WarehouseDocument.folder_path
+      # Used by File Warehouse tree views to browse document folder structure
+      get "documents/browse_folders", to: "documents#browse_folders"
       # Phase 3: Universal warehouse documents endpoint (SSoT for all document types)
       # Queries WarehouseDocument table with filters: source_type, folder, search
       get "documents/warehouse", to: "documents#warehouse"
       # Phase 4: Virtual File Warehouse - Database-driven folder tree
-      # Returns folder tree from WarehouseDocument.folder instead of S3
+      # Returns folder tree from WarehouseDocument.folder_path instead of S3
       # Params: scope (email, task, etc.), path (optional filter)
       get "documents/virtual_tree", to: "documents#virtual_tree"
       # Phase 5: Universal Live Folder Tree - computed from DB relationships
@@ -712,13 +708,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Master Schedule - Projects
-      # Note: Project tasks removed in Phase 6 Tier 4 - SmTask is THE ONE task system
-      resources :projects do
-        member do
-          get :gantt
-        end
-      end
+      # Project routes removed (Feb 2026) - legacy model deleted
+      # SmTask + Job are THE ONE systems for tasks and project tracking
 
       # Meetings (non-nested routes)
       resources :meetings, only: [ :index, :show, :update, :destroy ] do
@@ -823,6 +814,18 @@ Rails.application.routes.draw do
         post ":token/fields/:field_id/complete", to: "signing_ceremony#complete_field"
       end
 
+      # PO Template Packs - template collections for stamping POs onto jobs
+      resources :po_template_packs do
+        collection do
+          post :create_from_job
+        end
+        member do
+          post :apply
+          get :preview
+          post :duplicate
+        end
+      end
+
       # Purchase Orders management
       resources :purchase_orders do
         collection do
@@ -890,6 +893,9 @@ Rails.application.routes.draw do
           get :all_price_histories
         end
       end
+
+      # Colour Swatches (WarehouseDocuments classified as colour swatches)
+      resources :colour_swatches, only: [:index]
 
       # Gold Standard Table (Demo/Reference Price Book)
       resources :gold_standard_table, only: [ :index, :create, :update, :destroy ] do
@@ -1593,8 +1599,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Designs library
-      resources :designs
+      # Job Designs library
+      resources :job_designs
 
       # Company Settings
       resource :company_settings, only: [ :show, :update ] do
@@ -2337,8 +2343,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # DocSort - Universal Document Inbox
-      resources :docsort, only: [:index, :show, :create, :destroy] do
+      # Document Inbox (was DocSort)
+      resources :document_inboxes, only: [:index, :show, :create, :destroy] do
         collection do
           get :stats
         end
@@ -2361,16 +2367,16 @@ Rails.application.routes.draw do
         get "plans/:job_plan_id/measurements", action: :measurements
         post "plans/:job_plan_id/measurements", action: :create_measurement
 
-        # DocSort standalone takeoff (for plans not yet assigned to a job)
-        get "docsort/:docsort_item_id", action: :show_docsort
-        post "docsort/:docsort_item_id/calibrate", action: :calibrate_docsort
-        delete "docsort/:docsort_item_id/calibrate", action: :clear_calibration_docsort
-        post "docsort/:docsort_item_id/detect_scale", action: :detect_scale_docsort
-        post "docsort/:docsort_item_id/detect_elements", action: :detect_elements_docsort
-        get "docsort/:docsort_item_id/measurements", action: :measurements_docsort
-        post "docsort/:docsort_item_id/measurements", action: :create_measurement_docsort
-        get "docsort/:docsort_item_id/layers", action: :layers_docsort
-        post "docsort/:docsort_item_id/layers", action: :create_layer_docsort
+        # Document Inbox standalone takeoff (for plans not yet assigned to a job)
+        get "document_inbox/:document_inbox_id", action: :show_docsort
+        post "document_inbox/:document_inbox_id/calibrate", action: :calibrate_docsort
+        delete "document_inbox/:document_inbox_id/calibrate", action: :clear_calibration_docsort
+        post "document_inbox/:document_inbox_id/detect_scale", action: :detect_scale_docsort
+        post "document_inbox/:document_inbox_id/detect_elements", action: :detect_elements_docsort
+        get "document_inbox/:document_inbox_id/measurements", action: :measurements_docsort
+        post "document_inbox/:document_inbox_id/measurements", action: :create_measurement_docsort
+        get "document_inbox/:document_inbox_id/layers", action: :layers_docsort
+        post "document_inbox/:document_inbox_id/layers", action: :create_layer_docsort
 
         # Measurement operations
         patch "measurements/:id", action: :update_measurement
@@ -2391,11 +2397,11 @@ Rails.application.routes.draw do
 
       # Room Takeoff Instances (template-based measurement checklists)
       scope "pdf_takeoff", controller: :takeoff_room_instances do
-        # Room instances scoped to plan or docsort
+        # Room instances scoped to plan or document inbox
         get "plans/:job_plan_id/rooms", action: :index_for_plan
         post "plans/:job_plan_id/rooms", action: :create_for_plan
-        get "docsort/:docsort_item_id/rooms", action: :index_for_docsort
-        post "docsort/:docsort_item_id/rooms", action: :create_for_docsort
+        get "document_inbox/:document_inbox_id/rooms", action: :index_for_docsort
+        post "document_inbox/:document_inbox_id/rooms", action: :create_for_docsort
 
         # Room instance operations
         get "rooms/:id", action: :show
@@ -3137,7 +3143,9 @@ Rails.application.routes.draw do
           get :options  # For select dropdowns
           get :tree     # For File Warehouse page tree view
           get :tree_children  # Materialized path: lazy-load tree children
-          get :scoped_tree    # Materialized path: sub-tree for Job/Contact/Corporate tabs
+          get :scoped_tree          # FK-driven: folder counts for Job/Contact/Corporate tabs
+          get :scoped_folder_files  # FK-driven: files + sub-folders for a specific folder
+          get :context_records      # Returns related record IDs across warehouse types for an entity
         end
         member do
           patch :update_warehouse_folders  # Batch update warehouse folder assignments
