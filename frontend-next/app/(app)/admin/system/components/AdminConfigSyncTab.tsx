@@ -15,6 +15,7 @@ import {
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import {
   Table,
   TableBody,
@@ -499,11 +500,7 @@ export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps
   const selectedTenantItem = tenantComboItems.find((t) => t.id === selectedTenant);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="h-8 w-8" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   // For non-TEEEM staff users, silently hide this admin-only section

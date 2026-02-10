@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePathTabs } from "@/hooks/usePathTabs";
 
 // Import document-related tab components from admin
 import { DocumentTypesTab } from "@/app/(app)/admin/system/components/DocumentTypesTab";
@@ -29,30 +28,18 @@ const DOCUMENT_TABS = [
 const DEFAULT_TAB = "types";
 
 export default function DocumentsSettingsPage() {
-  const pathname = usePathname();
-  const router = useRouter();
-
   // URL is SSoT for tab state (path-based navigation)
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/documents to work
-  const { activeTab, subTab } = useMemo(() => {
-    const parts = (pathname ?? "").replace("/settings/documents", "").split("/").filter(Boolean);
-    const tab = parts[0] || DEFAULT_TAB;
-    const sub = parts[1] || undefined;
-    // Validate tab exists
-    return {
-      activeTab: DOCUMENT_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB,
-      subTab: sub,
-    };
-  }, [pathname]);
-
-  const handleTabChange = useCallback((tabId: string) => {
-    router.push(`/settings/documents/${tabId}`, { scroll: false });
-  }, [router]);
+  const [activeTab, setActiveTab, subTab] = usePathTabs(
+    "/settings/documents",
+    DEFAULT_TAB,
+    DOCUMENT_TABS.map(t => t.id)
+  );
 
   return (
     <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           {DOCUMENT_TABS.map((tab) => (
             <TabsTrigger

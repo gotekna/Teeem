@@ -8,11 +8,10 @@ import {
   ChevronUpDownIcon,
   PhotoIcon,
 } from "@heroicons/react/24/outline";
-import axios from "axios";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/utils/formatters";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { portalApi } from "@/lib/portal-api";
 
 interface PurchaseOrder {
   id: number;
@@ -72,11 +71,7 @@ export default function RequestPaymentModal({
 
   const loadEligiblePOs = async () => {
     try {
-      // SSoT: storage-utils.ts for localStorage access
-      const token = getStorageItem<string>(STORAGE_KEYS.PORTAL_TOKEN, '');
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      const response = await axios.get(
+      const response = await portalApi.get(
         "/api/v1/portal/pay_now_requests/eligible_purchase_orders"
       );
 
@@ -167,10 +162,6 @@ export default function RequestPaymentModal({
     setErrors({});
 
     try {
-      // SSoT: storage-utils.ts for localStorage access
-      const token = getStorageItem<string>(STORAGE_KEYS.PORTAL_TOKEN, '');
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
       // Create FormData for file upload
       const submitData = new FormData();
       submitData.append("purchase_order_id", selectedPO.id.toString());
@@ -190,7 +181,7 @@ export default function RequestPaymentModal({
         submitData.append("proof_photos[]", photo);
       });
 
-      const response = await axios.post(
+      const response = await portalApi.post(
         "/api/v1/portal/pay_now_requests",
         submitData,
         {

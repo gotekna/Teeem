@@ -87,6 +87,7 @@ import { isWorkingDay, skipToPreviousWorkingDay, type GanttTask, type SmSchedule
 import { useToast } from "@/components/ui/use-toast";
 import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/components/schedule/EditRowDialog";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch, Search, Phone, MessageSquare, Mail } from "lucide-react";
 import { useAtom, useStore } from "jotai";
 import { smDataViewTemplateIdAtom } from "@/lib/table-atoms";
@@ -2414,11 +2415,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   }, [showAllPOTasks, showClaims, ganttTemplateId]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (

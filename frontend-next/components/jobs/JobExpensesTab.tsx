@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -110,9 +111,7 @@ export function JobExpensesTab({ jobId }: JobExpensesTabProps) {
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="h-8 w-8" />
-      </div>
+      <LoadingOverlay />
     );
   }
 

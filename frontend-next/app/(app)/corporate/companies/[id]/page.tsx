@@ -53,6 +53,7 @@ import { OverviewTabRenderer } from "@/components/corporate/OverviewTabRenderer"
 import { XeroTabRenderer } from "@/components/xero/XeroTabRenderer";
 // ActivityTab is used for main "activity-main" tab (not overview sub-tab)
 import { ActivityTab } from "@/components/tabs";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { WarehouseTree } from "@/components/warehouse/WarehouseTree";
 // Shared types for corporate entities (SSoT for Company type)
@@ -332,9 +333,7 @@ export default function CompanyDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 

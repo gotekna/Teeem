@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Users,
@@ -19,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Calculate director compliance score
 const calculateDirectorCompliance = (director: Director) => {
@@ -118,9 +120,7 @@ export default function DirectorsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 
@@ -154,13 +154,11 @@ export default function DirectorsPage() {
 
       {/* Directors Grid */}
       {filteredDirectors.length === 0 ? (
-        <div className="text-center py-12">
-          <Users className="mx-auto h-12 w-12 text-muted-foreground" />
-          <h3 className="mt-2 text-sm font-semibold">No directors found</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {searchQuery ? "Try adjusting your search." : "No directors have been added yet."}
-          </p>
-        </div>
+        <EmptyState
+          title="No directors found"
+          description={searchQuery ? "Try adjusting your search." : "No directors have been added yet."}
+          icon={<Users className="h-12 w-12" />}
+        />
       ) : (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filteredDirectors.map((director) => {

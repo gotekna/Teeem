@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import axios from "axios";
 import { formatDate } from "@/utils/formatters";
 import {
   Table,
@@ -22,8 +21,10 @@ import {
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import { useToast } from "@/components/ui/use-toast";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { EmptyState } from "@/components/ui/empty-state";
+import { portalApi } from "@/lib/portal-api";
 
 interface Invoice {
   id: number;
@@ -97,10 +98,7 @@ export default function PortalInvoices() {
 
   const loadInvoices = async () => {
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      const response = await axios.get("/api/v1/portal/invoices");
+      const response = await portalApi.get("/api/v1/portal/invoices");
 
       if (response?.data.success) {
         setInvoices(response.data.data);
@@ -114,10 +112,7 @@ export default function PortalInvoices() {
 
   const handleRetrySync = async (invoiceId: number) => {
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      const response = await axios.post(
+      const response = await portalApi.post(
         `/api/v1/portal/invoices/${invoiceId}/retry_sync`
       );
 
@@ -314,12 +309,12 @@ export default function PortalInvoices() {
 
       {/* Invoice List */}
       {currentInvoices.length === 0 ? (
-        <div className="text-center py-12 bg-card rounded-lg shadow">
-          <DocumentDuplicateIcon className="mx-auto h-12 w-12 text-muted-foreground dark:text-muted-foreground" />
-          <h3 className="mt-2 text-sm font-medium text-foreground dark:text-white">No invoices</h3>
-          <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
-            Get started by creating your first invoice.
-          </p>
+        <div className="bg-card rounded-lg shadow">
+          <EmptyState
+            title="No invoices"
+            description="Get started by creating your first invoice."
+            icon={<DocumentDuplicateIcon className="h-12 w-12" />}
+          />
         </div>
       ) : (
         <div className="bg-card shadow rounded-lg overflow-hidden">

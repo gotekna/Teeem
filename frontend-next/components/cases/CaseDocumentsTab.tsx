@@ -33,6 +33,7 @@ import {
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { formatFileSize } from "@/utils/formatters";
 

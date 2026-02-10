@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   RefreshCw,
@@ -18,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const HEALTH_STATUS_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
   excellent: { bg: "bg-green-100 dark:bg-green-900/30", text: "text-green-800 dark:text-green-300", border: "border-green-200 dark:border-green-800", dot: "bg-green-500" },
@@ -107,9 +109,7 @@ export default function HealthReportPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 
@@ -222,9 +222,10 @@ export default function HealthReportPage() {
           </div>
           <div className="divide-y">
             {filteredCompanies.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                {searchQuery ? "No companies match your search." : "No companies found."}
-              </div>
+              <EmptyState
+                title={searchQuery ? "No companies match your search" : "No companies found"}
+                size="sm"
+              />
             ) : (
               filteredCompanies.map((company) => {
                 const colors = HEALTH_STATUS_COLORS[company.health_status] || HEALTH_STATUS_COLORS.critical;

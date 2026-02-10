@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Plus, Pencil, Trash2, Lock, Folder, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -456,11 +457,7 @@ export function WarehouseTypesTab() {
 
   // Early returns AFTER all hooks (React Rules of Hooks)
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="h-8 w-8" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   if (error) {
@@ -592,7 +589,18 @@ export function WarehouseTypesTab() {
                   </div>
                 </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground align-top py-2">
-                  {type.folder_path_template || "-"}
+                  {(() => {
+                    const tpl = type.folder_path_template;
+                    if (!tpl) return "-";
+                    const slashIdx = tpl.indexOf('/');
+                    if (slashIdx === -1) return tpl;
+                    return (
+                      <>
+                        <span className="opacity-50">{tpl.slice(0, slashIdx)}</span>
+                        {tpl.slice(slashIdx)}
+                      </>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="align-top py-2">
                   {(() => {

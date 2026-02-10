@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   ChevronRight,
@@ -453,9 +454,7 @@ export default function CompanyGroupsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 
@@ -556,9 +555,7 @@ export default function CompanyGroupsPage() {
           {/* Tree */}
           <div className="flex-1 overflow-y-auto">
             {loadingStructure ? (
-              <div className="flex items-center justify-center h-48">
-                <Spinner size={24} className="text-muted-foreground" />
-              </div>
+              <LoadingOverlay height="h-48" size={24} />
             ) : selectedGroup ? (
               filteredCompanies.length > 0 || (structure?.people && structure.people.length > 0) ? (
                 (() => {

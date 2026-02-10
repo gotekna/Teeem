@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePathTabs } from "@/hooks/usePathTabs";
 
 // Import system-related tab components from admin
 import { NavigationTab } from "@/app/(app)/admin/system/components/NavigationTab";
@@ -43,26 +42,18 @@ const SYSTEM_TABS = [
 const DEFAULT_TAB = "navigation";
 
 export default function SystemSettingsPage() {
-  const pathname = usePathname();
-  const router = useRouter();
-
   // URL is SSoT for tab state (path-based navigation)
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/system to work
-  const activeTab = useMemo(() => {
-    const parts = (pathname ?? "").replace("/settings/system", "").split("/").filter(Boolean);
-    const tab = parts[0] || DEFAULT_TAB;
-    // Validate tab exists
-    return SYSTEM_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
-  }, [pathname]);
-
-  const handleTabChange = useCallback((tabId: string) => {
-    router.push(`/settings/system/${tabId}`, { scroll: false });
-  }, [router]);
+  const [activeTab, setActiveTab] = usePathTabs(
+    "/settings/system",
+    DEFAULT_TAB,
+    SYSTEM_TABS.map(t => t.id)
+  );
 
   return (
     <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           {SYSTEM_TABS.map((tab) => (
             <TabsTrigger

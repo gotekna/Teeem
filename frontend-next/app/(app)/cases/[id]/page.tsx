@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { BackButton } from "@/components/ui/back-button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Play,
   FileText,
@@ -78,6 +79,7 @@ import { CaseEntitiesTab } from "@/components/cases/CaseEntitiesTab";
 import { CaseQATab } from "@/components/cases/CaseQATab";
 import { CaseOverviewTab } from "@/components/cases/CaseOverviewTab";
 import { CaseDocumentsTab } from "@/components/cases/CaseDocumentsTab";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 
 // Tabs for case detail
@@ -610,17 +612,21 @@ export default function CaseDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 
   if (!caseData) {
     return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">Case not found</p>
-        <BackButton fallbackHref="/cases" label="Back to Cases" variant="outline" className="mt-4" />
+      <div className="py-12">
+        <EmptyState
+          title="Case not found"
+          action={{
+            label: "Back to Cases",
+            onClick: () => router.push("/cases"),
+            variant: "outline"
+          }}
+        />
       </div>
     );
   }
@@ -820,15 +826,15 @@ export default function CaseDetailPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <FolderTree className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No sub-cases yet</p>
-                    <p className="text-sm mt-1">Create a sub-case to track related issues</p>
-                    <Button className="mt-4" onClick={() => setShowCreateSubCase(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create First Sub-case
-                    </Button>
-                  </div>
+                  <EmptyState
+                    title="No sub-cases yet"
+                    description="Create a sub-case to track related issues"
+                    icon={<FolderTree className="h-12 w-12" />}
+                    action={{
+                      label: "Create First Sub-case",
+                      onClick: () => setShowCreateSubCase(true),
+                    }}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -958,7 +964,7 @@ export default function CaseDetailPage() {
                           </div>
                         ))}
                         {contacts.filter(c => c.is_primary && c.alignment === 'friendly').length === 0 && (
-                          <p className="text-center py-6 text-xs text-muted-foreground">No client</p>
+                          <EmptyState title="No client" size="sm" />
                         )}
                       </div>
                     </CardContent>
@@ -1020,7 +1026,7 @@ export default function CaseDetailPage() {
                           </div>
                         ))}
                         {contacts.filter(c => c.alignment === 'friendly' && !c.is_primary).length === 0 && (
-                          <p className="text-center py-6 text-xs text-muted-foreground">No advisors</p>
+                          <EmptyState title="No advisors" size="sm" />
                         )}
                       </div>
                     </CardContent>
@@ -1070,7 +1076,7 @@ export default function CaseDetailPage() {
                           </div>
                         ))}
                         {contacts.filter(c => !c.alignment || c.alignment === 'neutral').length === 0 && (
-                          <p className="text-center py-6 text-xs text-muted-foreground">No contacts</p>
+                          <EmptyState title="No contacts" size="sm" />
                         )}
                       </div>
                     </CardContent>
@@ -1120,7 +1126,7 @@ export default function CaseDetailPage() {
                           </div>
                         ))}
                         {contacts.filter(c => c.alignment === 'opposing').length === 0 && (
-                          <p className="text-center py-6 text-xs text-muted-foreground">No contacts</p>
+                          <EmptyState title="No contacts" size="sm" />
                         )}
                       </div>
                     </CardContent>
@@ -1166,11 +1172,12 @@ export default function CaseDetailPage() {
                   <Spinner size={24} className="text-muted-foreground" />
                 </div>
               ) : actions.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Play className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No actions have been run yet</p>
-                  <p className="text-sm mt-1">Run an action to search the data warehouse</p>
-                </div>
+                <EmptyState
+                  title="No actions have been run yet"
+                  description="Run an action to search the data warehouse"
+                  icon={<Play className="h-8 w-8" />}
+                  size="sm"
+                />
               ) : (
                 <div className="space-y-4">
                   {actions.map((action) => (
@@ -1245,11 +1252,12 @@ export default function CaseDetailPage() {
                   <Spinner size={24} className="text-muted-foreground" />
                 </div>
               ) : emails.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Mail className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No emails linked to this case</p>
-                  <p className="text-sm mt-1">Run an email search action to find relevant emails</p>
-                </div>
+                <EmptyState
+                  title="No emails linked to this case"
+                  description="Run an email search action to find relevant emails"
+                  icon={<Mail className="h-8 w-8" />}
+                  size="sm"
+                />
               ) : (
                 <div className="divide-y">
                   {emails.map((email) => (

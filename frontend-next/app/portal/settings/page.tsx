@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
 import {
   UserCircleIcon,
   BuildingOfficeIcon,
@@ -13,8 +12,10 @@ import {
 } from "@heroicons/react/24/outline";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/contexts/ConfirmationContext";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { portalApi } from "@/lib/portal-api";
 
 interface PortalUser {
   contact_name?: string;
@@ -49,15 +50,12 @@ export default function PortalSettings() {
 
   const loadSettings = async () => {
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
       // Load user from localStorage
       const user = getStorageItem<PortalUser | null>(STORAGE_KEYS.PORTAL_USER, null);
       setPortalUser(user);
 
       // Load accounting integrations
-      const response = await axios.get("/api/v1/portal/accounting_integrations");
+      const response = await portalApi.get("/api/v1/portal/accounting_integrations");
 
       if (response?.data.success) {
         setAccountingIntegrations(response.data.data.all_integrations || []);
@@ -71,10 +69,7 @@ export default function PortalSettings() {
 
   const handleConnectAccounting = async (systemType: string) => {
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      const response = await axios.get(
+      const response = await portalApi.get(
         "/api/v1/portal/accounting_integrations/oauth_url",
         {
           params: { system_type: systemType },
@@ -103,10 +98,7 @@ export default function PortalSettings() {
     }
 
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      const response = await axios.delete(
+      const response = await portalApi.delete(
         `/api/v1/portal/accounting_integrations/${integrationId}`
       );
 

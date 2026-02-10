@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { usePathTabs } from "@/hooks/usePathTabs";
 
 // Import operations-related tab components from admin
 import { ScheduleMasterTab } from "@/app/(app)/admin/system/components/ScheduleMasterTab";
@@ -38,29 +37,21 @@ const OPERATIONS_TABS = [
 const DEFAULT_TAB = "schedule-master";
 
 export default function OperationsSettingsPage() {
-  const pathname = usePathname();
-  const router = useRouter();
-
   // Tab panels use absolute inset-0 positioning, which requires full-height layout
   useSetLayoutMode("full-height");
 
   // URL is SSoT for tab state (path-based navigation)
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/operations to work
-  const activeTab = useMemo(() => {
-    const parts = (pathname ?? "").replace("/settings/operations", "").split("/").filter(Boolean);
-    const tab = parts[0] || DEFAULT_TAB;
-    // Validate tab exists
-    return OPERATIONS_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
-  }, [pathname]);
-
-  const handleTabChange = useCallback((tabId: string) => {
-    router.push(`/settings/operations/${tabId}`, { scroll: false });
-  }, [router]);
+  const [activeTab, setActiveTab] = usePathTabs(
+    "/settings/operations",
+    DEFAULT_TAB,
+    OPERATIONS_TABS.map(t => t.id)
+  );
 
   return (
     <div className="flex flex-col h-full">
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col h-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
         <TabsList className="flex-wrap h-auto gap-1 shrink-0">
           {OPERATIONS_TABS.map((tab) => (
             <TabsTrigger
