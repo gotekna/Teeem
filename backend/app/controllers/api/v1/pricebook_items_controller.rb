@@ -725,9 +725,24 @@ module Api
       # GET /api/v1/pricebook/:id/proxy_image/:file_type
       # Proxies images through our backend to avoid CORS and expiration issues
       # SSoT: Uses DocumentProviderAware for provider-agnostic storage
+      # Fast path: If StorageBlob exists, redirect to presigned URL (no SharePoint needed)
       def proxy_image
         file_type = params[:file_type] # 'image', 'spec', or 'qr_code'
 
+        # Fast path: Serve from StorageBlob if available (S3/Wasabi presigned URL)
+        blob = case file_type
+        when "image" then @item.image_storage_blob
+        when "spec" then @item.spec_storage_blob
+        when "qr_code" then @item.qr_code_storage_blob
+        end
+
+        if blob.present?
+          url = blob.presigned_url(expires_in: 3600, disposition: :inline)
+          redirect_to url, allow_other_host: true
+          return
+        end
+
+        # Fallback: Legacy SharePoint proxy for unmigrated items
         # Get the file ID and path based on the file type
         file_id = case file_type
         when "image"
@@ -831,7 +846,9 @@ module Api
         # Eager load associations for show/history actions to avoid N+1 queries
         # This reduces the show action from ~300ms to ~50ms
         base_query = if %w[show history].include?(action_name)
-          PricebookItem.includes(:supplier, :default_supplier, { price_histories: :supplier })
+          PricebookItem.includes(:supplier, :default_supplier, :image_storage_blob, { price_histories: :supplier })
+        elsif action_name == "proxy_image"
+          PricebookItem.includes(:image_storage_blob, :spec_storage_blob, :qr_code_storage_blob)
         else
           PricebookItem
         end
@@ -939,6 +956,7 @@ module Api
           supplier_reliability: item.supplier_reliability_score,
           price_volatility: item.price_volatility,
           image_url: item.image_url,
+          image_presigned_url: item.image_storage_blob&.presigned_url(expires_in: 3600, disposition: :inline),
           qr_code_url: item.qr_code_url,
           image_fetch_status: item.image_fetch_status
         )
@@ -954,6 +972,7 @@ module Api
 
         item_json.merge(
           image_url: item.image_url,
+          image_presigned_url: item.image_storage_blob&.presigned_url(expires_in: 3600, disposition: :inline),
           qr_code_url: item.qr_code_url,
           image_source: item.image_source,
           image_fetched_at: item.image_fetched_at,

@@ -122,6 +122,7 @@ interface PriceBookItem {
   price_last_updated_at: string | null;
   image_url: string | null;
   image_file_id: string | null;
+  image_presigned_url?: string | null;
   qr_code_url: string | null;
   qr_code_file_id: string | null;
   default_supplier_id: number | null;
@@ -315,6 +316,12 @@ export default function PriceBookItemDetailPage() {
   const getImageUrl = (fileType: string) => {
     if (!item) return null;
 
+    // Prefer presigned URL from S3/Wasabi blob (fastest, no proxy needed)
+    if (fileType === "image" && item.image_presigned_url) {
+      return item.image_presigned_url;
+    }
+
+    // Fallback: proxy through backend (handles SharePoint + blob redirect)
     const fileIdField = `${fileType}_file_id` as keyof PriceBookItem;
     const urlField = `${fileType}_url` as keyof PriceBookItem;
 
