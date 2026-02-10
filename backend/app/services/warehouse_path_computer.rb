@@ -187,6 +187,14 @@ class WarehousePathComputer
       return doc.warehouse_folder_document_type.warehouse_folder
     end
 
+    # 1b. Respect existing warehouse_folder_id if already set
+    # FRC (Feb 2026): Pricebook photos and colour swatches were created with correct
+    # warehouse_folder_id, but migrations that recompute paths ignored this FK and
+    # fell through to heuristic lookup, wrongly assigning them to TeeemXL.
+    if doc.warehouse_folder_id.present? && doc.warehouse_folder.present?
+      return doc.warehouse_folder
+    end
+
     # 2. Derive from document_type_id (backfill recovery for existing docs without FK)
     #    Same logic as WarehouseDocument#set_warehouse_folder_document_type callback
     #    but works during backfill when the FK wasn't set on creation.
@@ -257,6 +265,7 @@ class WarehousePathComputer
     when "Contact" then "contact"
     when "CorporateCompany" then "corporate"
     when "SmTask" then "task"
+    when "PricebookItem" then "warehouse"
     else nil
     end
   end
