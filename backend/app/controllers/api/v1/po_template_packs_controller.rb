@@ -118,10 +118,13 @@ module Api
           )
 
           pos = PurchaseOrder.where(job_id: job.id)
-            .includes(:supplier, :sm_task, :line_items)
-            .order(:id)
+            .includes(:supplier, sm_task: :sm_schedule_master)
+            .includes(:line_items)
 
-          pos.each_with_index do |po, idx|
+          # Sort by SM sequence_order so position reflects Schedule Master order
+          sorted_pos = pos.sort_by { |po| po.sm_task&.sm_schedule_master&.sequence_order || Float::INFINITY }
+
+          sorted_pos.each_with_index do |po, idx|
             item = pack.po_template_items.create!(
               name: po.sm_task&.name || po.description || "PO #{po.purchase_order_number}",
               sm_schedule_master_id: po.sm_task&.sm_schedule_master_id,
@@ -221,7 +224,9 @@ module Api
           estimatedTotal: pack.estimated_total,
           createdAt: pack.created_at&.iso8601,
           updatedAt: pack.updated_at&.iso8601,
-          items: pack.po_template_items.map { |item| item_json(item, include_line_items: include_line_items) }
+          items: pack.po_template_items
+            .sort_by { |item| item.sm_schedule_master&.sequence_order || Float::INFINITY }
+            .map { |item| item_json(item, include_line_items: include_line_items) }
         }
         json
       end

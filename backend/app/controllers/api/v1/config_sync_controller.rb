@@ -196,6 +196,67 @@ module Api
         }
       end
 
+      # POST /api/v1/config_sync/pull_all
+      # Fresh pull of ALL records from ALL tables from master tenant
+      def pull_all
+        service = TenantConfigSyncService.new(current_tenant)
+        results = {}
+        total_imported = 0
+        total_updated = 0
+        total_skipped = 0
+        errors = []
+
+        TenantConfigSyncService::CONFIG_TABLES.each_key do |table|
+          table_config = TenantConfigSyncService::CONFIG_TABLES[table]
+
+          # Get ALL master record IDs for this table
+          all_ids = ActsAsTenant.with_tenant(master_tenant) do
+            table_config[:model].constantize.pluck(:id)
+          end
+
+          next if all_ids.empty?
+
+          begin
+            result = service.pull_from_master(
+              table: table.to_s,
+              record_ids: all_ids,
+              mode: :replace_existing
+            )
+
+            imported_count = result[:imported]&.length || 0
+            updated_count = result[:updated]&.length || 0
+            skipped_count = result[:skipped]&.length || 0
+
+            results[table.to_s] = {
+              imported: imported_count,
+              updated: updated_count,
+              skipped: skipped_count,
+              total: all_ids.length
+            }
+
+            total_imported += imported_count
+            total_updated += updated_count
+            total_skipped += skipped_count
+          rescue => e
+            errors << "#{table}: #{e.message}"
+            results[table.to_s] = { error: e.message }
+          end
+        end
+
+        render json: {
+          success: errors.empty?,
+          message: "Pull all completed: #{total_imported} added, #{total_updated} updated, #{total_skipped} skipped",
+          results: results,
+          totals: {
+            imported: total_imported,
+            updated: total_updated,
+            skipped: total_skipped,
+            tables_processed: results.keys.length
+          },
+          errors: errors.presence
+        }
+      end
+
       # Helper to generate match key
       def match_key(record, match_fields)
         match_fields.map { |f| record.send(f).to_s.downcase.strip }.join("|")
