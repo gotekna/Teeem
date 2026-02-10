@@ -84,10 +84,13 @@ module Api
       end
 
       # POST /api/v1/auth/login
+      # Multi-tenant: Same email may exist on multiple tenants with different passwords.
+      # Try all matching users until one authenticates successfully.
       def login
-        user = User.find_by(email: login_params[:email])
+        users = User.where(email: login_params[:email]).to_a
+        user = users.find { |u| u.authenticate(login_params[:password]) }
 
-        if user&.authenticate(login_params[:password])
+        if user
           # Update last login timestamp
           user.update_column(:last_login_at, Time.current)
 
