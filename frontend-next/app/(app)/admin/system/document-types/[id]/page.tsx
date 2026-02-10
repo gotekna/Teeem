@@ -62,6 +62,7 @@ import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 // Placeholder Components - SSoT for placeholder handling
 import { PlaceholderBadge } from "@/components/ui/placeholders";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import {
   type PlaceholderToken,
   type PlaceholderScope,

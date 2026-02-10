@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Shield,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { ScrollablePage } from "@/components/ui/page-wrappers";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface WHSStats {
   active_swms: number;
@@ -120,9 +122,7 @@ export default function WHSPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 
@@ -323,10 +323,11 @@ export default function WHSPage() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8">
-                <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 dark:text-green-400 mb-2" />
-                <p className="text-muted-foreground">No incidents reported</p>
-              </div>
+              <EmptyState
+                title="No incidents reported"
+                icon={<CheckCircle2 className="h-12 w-12 text-green-500 dark:text-green-400" />}
+                size="sm"
+              />
             )}
           </CardContent>
         </Card>
@@ -372,13 +373,16 @@ export default function WHSPage() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8">
-                <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-                <p className="text-muted-foreground">No SWMS found</p>
-                <Button className="mt-2" variant="outline" size="sm">
-                  Create SWMS
-                </Button>
-              </div>
+              <EmptyState
+                title="No SWMS found"
+                icon={<ClipboardCheck className="h-12 w-12" />}
+                action={{
+                  label: "Create SWMS",
+                  onClick: () => router.push("/whs/swms/new"),
+                  variant: "outline",
+                }}
+                size="sm"
+              />
             )}
           </CardContent>
         </Card>

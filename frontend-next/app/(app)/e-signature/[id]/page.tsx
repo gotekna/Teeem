@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { BackButton } from "@/components/ui/back-button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Send,
@@ -135,9 +136,7 @@ export default function ESignatureDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay />
     );
   }
 

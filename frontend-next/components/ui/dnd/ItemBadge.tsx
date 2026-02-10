@@ -272,6 +272,3 @@ export function ItemBadge({
   );
 }
 
-// Re-export for backwards compatibility
-export { ItemBadge as PositionBadge };
-export type { ItemBadgeProps as PositionBadgeProps };

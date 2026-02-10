@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 
 interface XeroBillsCardProps {
@@ -105,9 +106,7 @@ export function XeroBillsCard({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-48">
-        <Spinner size={24} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-48" size={24} />
     );
   }
 

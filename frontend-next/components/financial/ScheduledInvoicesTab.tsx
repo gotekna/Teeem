@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import {
   Table,
   TableBody,
@@ -175,11 +175,7 @@ export default function ScheduledInvoicesTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="h-8 w-8" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (

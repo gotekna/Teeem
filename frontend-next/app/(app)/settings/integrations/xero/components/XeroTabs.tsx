@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { XeroLinkToContactSheet } from "./XeroLinkToContactSheet";
@@ -266,9 +267,7 @@ export function XeroFieldMapping() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay />
     );
   }
 

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { WAREHOUSE_PAGE_SIZE } from "@/lib/constants/pagination-constants";
 import {
   Table,
@@ -616,11 +617,7 @@ export function DataWarehouseTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   if (!stats) {

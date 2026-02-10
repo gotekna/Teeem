@@ -25,7 +25,8 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
 import { WorkflowProgress } from '@/components/workflows/WorkflowProgress';
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface WorkflowStats {
   active_instances: number;
@@ -144,11 +145,7 @@ export default function WorkflowsDashboardPage() {
   }, [loadData]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay height="h-96" />;
   }
 
   return (
@@ -242,11 +239,11 @@ export default function WorkflowsDashboardPage() {
             </CardHeader>
             <CardContent>
               {myTasks.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <CheckCircle className="h-12 w-12 text-green-500 dark:text-green-400 mb-3" />
-                  <p className="font-medium">All caught up!</p>
-                  <p className="text-sm text-muted-foreground">No pending workflow tasks</p>
-                </div>
+                <EmptyState
+                  title="All caught up!"
+                  description="No pending workflow tasks"
+                  icon={<CheckCircle className="h-12 w-12 text-green-500 dark:text-green-400" />}
+                />
               ) : (
                 <div className="space-y-3">
                   {myTasks.map((task) => (
@@ -310,11 +307,11 @@ export default function WorkflowsDashboardPage() {
             </CardHeader>
             <CardContent>
               {activeInstances.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <Pause className="h-12 w-12 text-muted-foreground mb-3" />
-                  <p className="font-medium">No active workflows</p>
-                  <p className="text-sm text-muted-foreground">Start a workflow from a Job page</p>
-                </div>
+                <EmptyState
+                  title="No active workflows"
+                  description="Start a workflow from a Job page"
+                  icon={<Pause className="h-12 w-12" />}
+                />
               ) : (
                 <div className="space-y-3">
                   {activeInstances.map((instance) => (
@@ -384,17 +381,15 @@ export default function WorkflowsDashboardPage() {
             </CardHeader>
             <CardContent>
               {processes.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <Workflow className="h-12 w-12 text-muted-foreground mb-3" />
-                  <p className="font-medium">No published processes</p>
-                  <p className="text-sm text-muted-foreground">Create and publish a workflow process</p>
-                  <Link href="/workflows/processes" className="mt-4">
-                    <Button>
-                      <Workflow className="h-4 w-4 mr-2" />
-                      Manage Processes
-                    </Button>
-                  </Link>
-                </div>
+                <EmptyState
+                  title="No published processes"
+                  description="Create and publish a workflow process"
+                  icon={<Workflow className="h-12 w-12" />}
+                  action={{
+                    label: "Manage Processes",
+                    onClick: () => router.push("/workflows/processes"),
+                  }}
+                />
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {processes.map((process) => (

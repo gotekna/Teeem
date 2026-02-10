@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { TemplateEditor } from "./TemplateEditor";
 
 // SSoT Templates from TeknaDocumentGenerator (the source of truth)
@@ -218,11 +219,7 @@ export function DocumentTemplatesContent({ basePath = DEFAULT_BASE_PATH, subTab 
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (

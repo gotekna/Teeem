@@ -32,8 +32,6 @@ import {
   FileText,
   Calendar,
   BarChart3,
-  ArrowUpRight,
-  ArrowDownRight,
   RefreshCw,
   Building2,
   Briefcase,
@@ -66,9 +64,10 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
+import { StatCard } from "@/components/ui/stat-card";
 import { api } from "@/lib/api";
 import { cn, safePercent } from "@/lib/utils";
-import { formatDate, formatPercentChange } from "@/utils/formatters";
+import { formatDate } from "@/utils/formatters";
 
 // ============================================================================
 // Types
@@ -342,63 +341,6 @@ function formatCurrency(amount: number, compact = false): string {
 // ============================================================================
 // Sub-Components
 // ============================================================================
-
-function StatCard({
-  title,
-  value,
-  change,
-  changeLabel,
-  icon: Icon,
-  iconBg,
-  iconColor,
-  trend,
-  subValue,
-  subLabel,
-  onClick,
-}: {
-  title: string;
-  value: string;
-  change?: number;
-  changeLabel?: string;
-  icon: React.ElementType;
-  iconBg: string;
-  iconColor: string;
-  trend?: "up" | "down" | "neutral";
-  subValue?: string;
-  subLabel?: string;
-  onClick?: () => void;
-}) {
-  return (
-    <Card className={cn("transition-all", onClick && "cursor-pointer hover:shadow-md hover:border-primary/50")} onClick={onClick}>
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-2xl font-bold font-mono tracking-tight">{value}</p>
-            {change !== undefined && (
-              <div className={cn(
-                "flex items-center gap-1 text-sm",
-                trend === "up" ? "text-green-600 dark:text-green-400" : trend === "down" ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
-              )}>
-                {trend === "up" ? <ArrowUpRight className="h-4 w-4" /> :
-                 trend === "down" ? <ArrowDownRight className="h-4 w-4" /> : null}
-                {formatPercentChange(change)} {changeLabel}
-              </div>
-            )}
-            {subValue && (
-              <p className="text-xs text-muted-foreground">
-                {subLabel}: <span className="font-mono">{subValue}</span>
-              </p>
-            )}
-          </div>
-          <div className={cn("p-3 rounded-xl", iconBg)}>
-            <Icon className={cn("h-6 w-6", iconColor)} />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 function AgingBar({ aging, colorClass }: { aging: AgedBucket[]; colorClass: string }) {
   const colors = {

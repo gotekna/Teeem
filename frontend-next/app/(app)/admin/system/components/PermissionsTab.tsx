@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 
 interface UserType {
   id: number;
@@ -143,11 +144,7 @@ export function PermissionsTab() {
   );
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (
@@ -244,10 +241,8 @@ export function PermissionsTab() {
               <p>Select a user from the list to manage their permissions</p>
             </div>
           ) : loadingPermissions ? (
-            <div className="flex items-center justify-center h-64">
-              <Spinner size={32} className="text-muted-foreground" />
-            </div>
-          ) : (
+          <LoadingOverlay />
+        ) : (
             <ScrollArea className="h-[500px]">
               <div className="space-y-6">
                 {Object.entries(permissions).map(([category, perms]) => (

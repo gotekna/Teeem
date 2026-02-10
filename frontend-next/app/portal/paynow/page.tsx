@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import axios from "axios";
 import {
   BanknotesIcon,
   ClockIcon,
@@ -15,8 +14,9 @@ import {
 import RequestPaymentModal from "@/components/portal/RequestPaymentModal";
 import PayNowRequestDetailModal from "@/components/portal/PayNowRequestDetailModal";
 import { useToast } from "@/components/ui/use-toast";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { portalApi } from "@/lib/portal-api";
 
 interface PayNowRequest {
   id: number;
@@ -117,10 +117,7 @@ export default function PortalPayNow() {
 
   const loadRequests = async () => {
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      const response = await axios.get("/api/v1/portal/pay_now_requests");
+      const response = await portalApi.get("/api/v1/portal/pay_now_requests");
 
       if (response?.data.success) {
         setRequests(response.data.data.requests);
@@ -150,10 +147,7 @@ export default function PortalPayNow() {
     }
 
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      const response = await axios.delete(
+      const response = await portalApi.delete(
         `/api/v1/portal/pay_now_requests/${requestId}`
       );
 

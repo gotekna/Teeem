@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   ChevronDown,
@@ -362,9 +363,7 @@ export function XeroContactsTable({
   // Loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-48">
-        <Spinner size={24} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-48" size={24} />
     );
   }
 

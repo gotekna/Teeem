@@ -33,6 +33,7 @@ import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { format } from "date-fns";
 import { CaseProposalsTab } from "@/components/cases/case-proposals-tab";
 import { useToast } from "@/components/ui/use-toast";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 
 interface CaseItem {
@@ -350,9 +351,7 @@ export default function CasesPage() {
           <Card>
             <CardContent className="p-0">
               {loading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Spinner size={32} className="text-muted-foreground" />
-                </div>
+                <LoadingOverlay />
               ) : cases.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />

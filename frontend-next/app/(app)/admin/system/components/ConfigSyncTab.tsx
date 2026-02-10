@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import {
   Accordion,
   AccordionContent,
@@ -414,11 +415,7 @@ export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="h-8 w-8" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   if (!masterTenant) {

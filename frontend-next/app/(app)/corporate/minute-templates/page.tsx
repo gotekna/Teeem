@@ -35,7 +35,9 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
 import { useToast } from "@/components/ui/use-toast";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface MinuteTemplate {
   id: number;
@@ -275,9 +277,7 @@ export default function MinuteTemplatesPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 
@@ -333,17 +333,15 @@ export default function MinuteTemplatesPage() {
 
       {/* Templates Grid */}
       {templates.length === 0 ? (
-        <div className="text-center py-12">
-          <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-          <h3 className="mt-2 text-sm font-medium">No templates found</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {selectedType !== "all" ? "Try selecting a different type." : "Create your first template to get started."}
-          </p>
-          <Button onClick={openNewForm} variant="link" className="mt-4">
-            <Plus className="h-4 w-4 mr-2" />
-            Create your first template
-          </Button>
-        </div>
+        <EmptyState
+          title="No templates found"
+          description={selectedType !== "all" ? "Try selecting a different type." : "Create your first template to get started."}
+          icon={<FileText className="h-12 w-12" />}
+          action={{
+            label: "Create your first template",
+            onClick: openNewForm
+          }}
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((template) => {

@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePathTabs } from "@/hooks/usePathTabs";
 
 // Import developer-related tab components from admin
 // SSoT: Entity Config moved to Company settings
@@ -35,28 +34,18 @@ const DEVELOPER_TABS = [
 const DEFAULT_TAB = "components";
 
 export default function DeveloperSettingsPage() {
-  const pathname = usePathname();
-  const router = useRouter();
-
   // URL is SSoT for tab state (path-based navigation)
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/developer to work
-  const { activeTab, subtab } = useMemo(() => {
-    const parts = (pathname ?? "").replace("/settings/developer", "").split("/").filter(Boolean);
-    const tab = parts[0] || DEFAULT_TAB;
-    const sub = parts[1] || undefined;  // e.g., "document-types" from /settings/developer/components/document-types
-    // Validate tab exists
-    const validTab = DEVELOPER_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
-    return { activeTab: validTab, subtab: sub };
-  }, [pathname]);
-
-  const handleTabChange = useCallback((tabId: string) => {
-    router.push(`/settings/developer/${tabId}`, { scroll: false });
-  }, [router]);
+  const [activeTab, setActiveTab, subtab] = usePathTabs(
+    "/settings/developer",
+    DEFAULT_TAB,
+    DEVELOPER_TABS.map(t => t.id)
+  );
 
   return (
     <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           {DEVELOPER_TABS.map((tab) => (
             <TabsTrigger

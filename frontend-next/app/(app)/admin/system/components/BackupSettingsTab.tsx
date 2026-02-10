@@ -37,6 +37,7 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { formatDistanceToNow, format } from "date-fns";
 
 // Types
@@ -209,11 +210,7 @@ export function BackupSettingsTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   const primaryCred = credentials.find((c) => c.id === formState.primaryCredentialId);

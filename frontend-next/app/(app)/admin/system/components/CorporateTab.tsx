@@ -57,6 +57,7 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 
@@ -228,11 +229,7 @@ function GroupsSubTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (
@@ -784,9 +781,7 @@ function CompaniesSubTab() {
 
       <Card>
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <Spinner size={32} className="text-muted-foreground" />
-          </div>
+          <LoadingOverlay />
         ) : (
           <Table>
             <TableHeader>

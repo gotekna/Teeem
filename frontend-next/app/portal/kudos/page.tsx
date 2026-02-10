@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
 import {
   Table,
   TableBody,
@@ -18,8 +17,11 @@ import {
   CheckCircleIcon,
   StarIcon,
 } from "@heroicons/react/24/outline";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { EmptyState } from "@/components/ui/empty-state";
+import { portalApi } from "@/lib/portal-api";
 
 interface KudosStatistics {
   total_jobs_completed: number;
@@ -119,8 +121,7 @@ export default function PortalKudos() {
         return;
       }
 
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      const response = await axios.get("/api/v1/portal/kudos");
+      const response = await portalApi.get("/api/v1/portal/kudos");
 
       if (response?.data.success) {
         setKudosData(response.data.data);
@@ -365,9 +366,11 @@ export default function PortalKudos() {
         </div>
         <div className="px-6 py-4">
           {kudosData.recent_events.length === 0 ? (
-            <p className="text-center text-muted-foreground dark:text-muted-foreground py-8">
-              No recent events yet. Complete jobs to start earning kudos!
-            </p>
+            <EmptyState
+              title="No recent events yet"
+              description="Complete jobs to start earning kudos!"
+              size="sm"
+            />
           ) : (
             <div className="flow-root">
               <ul className="-mb-8">

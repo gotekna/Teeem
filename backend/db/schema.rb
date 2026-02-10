@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_10_200001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_10_210001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7428,6 +7428,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_200001) do
     t.integer "call_time_days"
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.bigint "image_storage_blob_id"
+    t.bigint "spec_storage_blob_id"
+    t.bigint "qr_code_storage_blob_id"
     t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
     t.index ["category"], name: "index_pricebooks_on_category"
     t.index ["category_id"], name: "index_pricebooks_on_category_id"
@@ -7435,12 +7438,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_200001) do
     t.index ["default_supplier_id"], name: "index_pricebooks_on_default_supplier_id"
     t.index ["image_fetch_status"], name: "index_pricebooks_on_image_fetch_status"
     t.index ["image_file_id"], name: "index_pricebooks_on_image_file_id"
+    t.index ["image_storage_blob_id"], name: "index_pricebooks_on_image_storage_blob_id"
     t.index ["is_active"], name: "index_pricebooks_on_is_active"
     t.index ["needs_pricing_review"], name: "index_pricebooks_on_needs_pricing_review"
     t.index ["price_last_updated_at"], name: "index_pricebooks_on_price_last_updated_at"
     t.index ["qr_code_file_id"], name: "index_pricebooks_on_qr_code_file_id"
+    t.index ["qr_code_storage_blob_id"], name: "index_pricebooks_on_qr_code_storage_blob_id"
     t.index ["searchable_text"], name: "idx_pricebook_search", using: :gin
     t.index ["spec_file_id"], name: "index_pricebooks_on_spec_file_id"
+    t.index ["spec_storage_blob_id"], name: "index_pricebooks_on_spec_storage_blob_id"
     t.index ["supplier_id"], name: "index_pricebooks_on_supplier_id"
     t.index ["tenant_id", "sync_key"], name: "idx_pricebooks_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_pricebooks_on_tenant_id"
@@ -11511,6 +11517,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_200001) do
   add_foreign_key "pricebooks", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
   add_foreign_key "pricebooks", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
   add_foreign_key "pricebooks", "pricebook_categories", column: "category_id"
+  add_foreign_key "pricebooks", "storage_blobs", column: "image_storage_blob_id"
+  add_foreign_key "pricebooks", "storage_blobs", column: "qr_code_storage_blob_id"
+  add_foreign_key "pricebooks", "storage_blobs", column: "spec_storage_blob_id"
   add_foreign_key "pricebooks", "tenants"
   add_foreign_key "profit_loss_reports", "corporates", column: "company_id"
   add_foreign_key "profit_loss_reports", "document_types"

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
@@ -45,6 +46,7 @@ import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
 import { format } from "date-fns";
 import { formatCurrencyWhole } from "@/utils/formatters";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Tab definitions
 const TABS = [
@@ -516,9 +518,7 @@ export default function AssetReportsPage() {
 
       {/* Loading State */}
       {loading && (
-        <div className="flex items-center justify-center h-64">
-          <Spinner size={32} className="text-muted-foreground" />
-        </div>
+        <LoadingOverlay />
       )}
 
       {/* Summary Tab */}
@@ -585,7 +585,7 @@ export default function AssetReportsPage() {
                     </div>
                   ))}
                   {Object.keys(summary.by_type).length === 0 && (
-                    <p className="text-sm text-muted-foreground">No assets</p>
+                    <EmptyState title="No assets" size="sm" />
                   )}
                 </div>
               </CardContent>
@@ -607,7 +607,7 @@ export default function AssetReportsPage() {
                     </div>
                   ))}
                   {Object.keys(summary.by_entity_type || {}).length === 0 && (
-                    <p className="text-sm text-muted-foreground">No entity types</p>
+                    <EmptyState title="No entity types" size="sm" />
                   )}
                 </div>
               </CardContent>
@@ -726,10 +726,10 @@ export default function AssetReportsPage() {
                 </Table>
               </div>
             ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No assets found matching the criteria</p>
-              </div>
+              <EmptyState
+                title="No assets found matching the criteria"
+                icon={<FileSpreadsheet className="h-12 w-12" />}
+              />
             )}
           </CardContent>
         </Card>
@@ -817,10 +817,10 @@ export default function AssetReportsPage() {
                 </Table>
               </div>
             ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <TrendingDown className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No depreciation schedules found</p>
-              </div>
+              <EmptyState
+                title="No depreciation schedules found"
+                icon={<TrendingDown className="h-12 w-12" />}
+              />
             )}
           </CardContent>
         </Card>
@@ -882,10 +882,10 @@ export default function AssetReportsPage() {
                 </Table>
               </div>
             ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No insured assets found</p>
-              </div>
+              <EmptyState
+                title="No insured assets found"
+                icon={<Shield className="h-12 w-12" />}
+              />
             )}
           </CardContent>
         </Card>

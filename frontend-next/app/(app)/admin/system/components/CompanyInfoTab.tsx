@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { api } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { cn } from "@/lib/utils";
@@ -300,11 +301,7 @@ export default function CompanyInfoTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (
