@@ -186,11 +186,12 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
       }
     } catch (error: unknown) {
       console.error("Failed to create user:", error);
-      const apiError = error as { response?: { data?: { error?: string; errors?: string[] } } };
-      const errorMessage = apiError.response?.data?.error ||
-                          apiError.response?.data?.errors?.join(", ") ||
-                          "Failed to create user";
-      setErrors([errorMessage]);
+      // API utility throws Error with .message (formatted) and .data (raw response)
+      const apiError = error as { message?: string; data?: { error?: string; errors?: string[] } };
+      const errorMessages = apiError.data?.errors ||
+                          (apiError.data?.error ? [apiError.data.error] : null) ||
+                          (apiError.message ? [apiError.message] : ["Failed to create user"]);
+      setErrors(errorMessages);
     } finally {
       setLoading(false);
     }

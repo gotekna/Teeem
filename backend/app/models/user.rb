@@ -63,7 +63,7 @@ class User < ApplicationRecord
   # SSoT: Assignable roles come from Role model (see Role.for_select)
   # No hardcoded ASSIGNABLE_ROLES constant - database is the source of truth
 
-  validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }
+  validates :email, presence: true, uniqueness: { scope: :tenant_id }, format: { with: URI::MailTo::EMAIL_REGEXP }
   validates :name, presence: true
   validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
