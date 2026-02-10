@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -175,9 +176,7 @@ export function EmailResellerSettings() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="h-8 w-8" />
-      </div>
+      <LoadingOverlay />
     );
   }
 

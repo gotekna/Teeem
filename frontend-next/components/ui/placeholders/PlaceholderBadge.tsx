@@ -120,7 +120,3 @@ export function PlaceholderBadge({
     </span>
   );
 }
-
-// Backwards compatibility aliases (DEPRECATED - use PlaceholderBadge)
-export type TokenBadgeProps = PlaceholderBadgeProps;
-export const TokenBadge = PlaceholderBadge;

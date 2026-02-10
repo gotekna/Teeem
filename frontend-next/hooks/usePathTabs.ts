@@ -28,29 +28,30 @@ import { useCallback, useMemo } from "react";
  */
 export function usePathTabs(
   basePath: string,
-  defaultTab: string
-): [string, (tab: string) => void] {
+  defaultTab: string,
+  /** Optional list of valid tab IDs - invalid tabs fall back to defaultTab */
+  validTabs?: string[]
+): [string, (tab: string) => void, string | undefined] {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Parse active tab from path: /basePath/tab → "tab"
-  const activeTab = useMemo(() => {
-    const remaining = pathname.replace(basePath, "").split("/").filter(Boolean);
-    return remaining[0] || defaultTab;
-  }, [pathname, basePath, defaultTab]);
+  // Parse active tab and sub-tab from path: /basePath/tab/sub → ["tab", "sub"]
+  const { activeTab, subTab } = useMemo(() => {
+    const parts = (pathname ?? "").replace(basePath, "").split("/").filter(Boolean);
+    const rawTab = parts[0] || defaultTab;
+    const tab = validTabs ? (validTabs.includes(rawTab) ? rawTab : defaultTab) : rawTab;
+    return { activeTab: tab, subTab: parts[1] as string | undefined };
+  }, [pathname, basePath, defaultTab, validTabs]);
 
   // Navigate to new tab via path
   const setActiveTab = useCallback(
     (newTab: string) => {
-      const url = newTab === defaultTab
-        ? basePath  // Clean URL for default tab
-        : `${basePath}/${newTab}`;
-      router.push(url, { scroll: false });
+      router.push(`${basePath}/${newTab}`, { scroll: false });
     },
-    [router, basePath, defaultTab]
+    [router, basePath]
   );
 
-  return [activeTab, setActiveTab];
+  return [activeTab, setActiveTab, subTab];
 }
 
 /**
@@ -70,7 +71,8 @@ export function usePathSubTabs(
   basePath: string,
   defaultSubTab: string
 ): [string, (subtab: string) => void] {
-  return usePathTabs(basePath, defaultSubTab);
+  const [tab, setTab] = usePathTabs(basePath, defaultSubTab);
+  return [tab, setTab];
 }
 
 export default usePathTabs;

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   AlertTriangle,
@@ -249,9 +250,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
         </SheetHeader>
 
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <Spinner size={32} className="text-muted-foreground" />
-          </div>
+          <LoadingOverlay />
         ) : (
           <div className="flex flex-col h-full">
             {/* Actions Bar */}

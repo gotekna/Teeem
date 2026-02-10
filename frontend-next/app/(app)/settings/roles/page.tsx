@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useConfirm } from "@/contexts/ConfirmationContext";
-import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePathTabs } from "@/hooks/usePathTabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   UserGroupIcon,
   ShieldCheckIcon,
@@ -248,11 +250,7 @@ function PermissionsSubTab() {
   );
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay height="py-12" />;
   }
 
   if (error) {
@@ -315,11 +313,11 @@ function PermissionsSubTab() {
       {/* Permissions Panel */}
       <div className="col-span-8 bg-card rounded-lg border border-border">
         {!selectedUser ? (
-          <div className="p-12 text-center text-muted-foreground">
-            <UserGroupIcon className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-lg">
-              Select a user to manage their permissions
-            </p>
+          <div className="p-12">
+            <EmptyState
+              title="Select a user to manage their permissions"
+              icon={<UserGroupIcon className="h-16 w-16" />}
+            />
           </div>
         ) : (
           <div>
@@ -586,11 +584,7 @@ function UserRolesSubTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (
@@ -814,9 +808,7 @@ function UserRolesSubTab() {
                 <Spinner size={24} className="text-muted-foreground" />
               </div>
             ) : roleUsers.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No users assigned to this role
-              </div>
+              <EmptyState title="No users assigned to this role" size="sm" />
             ) : (
               <div className="space-y-2">
                 {roleUsers.map((user) => (
@@ -901,11 +893,7 @@ function GroupsSubTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (
@@ -1012,22 +1000,14 @@ function GroupsSubTab() {
 // ============================================
 
 export default function RolesSettingsPage() {
-  const pathname = usePathname();
-  const router = useRouter();
-
   // URL is SSoT for tab state (path-based navigation)
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/roles to work
-  const activeTab = useMemo(() => {
-    const parts = (pathname ?? "").replace("/settings/roles", "").split("/").filter(Boolean);
-    const tab = parts[0] || DEFAULT_TAB;
-    // Validate tab exists
-    return ROLES_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
-  }, [pathname]);
-
-  const handleTabChange = useCallback((tabId: string) => {
-    router.push(`/settings/roles/${tabId}`, { scroll: false });
-  }, [router]);
+  const [activeTab, setActiveTab] = usePathTabs(
+    "/settings/roles",
+    DEFAULT_TAB,
+    ROLES_TABS.map(t => t.id)
+  );
 
   return (
     <div className="space-y-6">
@@ -1041,7 +1021,7 @@ export default function RolesSettingsPage() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           {ROLES_TABS.map((tab) => {
             const Icon = tab.icon;

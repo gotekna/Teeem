@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import {
   DndContext,
   closestCenter,
@@ -457,11 +458,7 @@ export function WorkflowConfigTab() {
   const sortedStages = [...statusStages].sort((a, b) => a.position - b.position);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (

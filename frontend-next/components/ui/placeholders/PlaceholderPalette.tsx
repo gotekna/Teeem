@@ -374,7 +374,3 @@ function TokenPaletteItem({
     />
   );
 }
-
-// Backwards compatibility aliases (DEPRECATED - use PlaceholderPalette)
-export type TokenPaletteProps = PlaceholderPaletteProps;
-export const TokenPalette = PlaceholderPalette;

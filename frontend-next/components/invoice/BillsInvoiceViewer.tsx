@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -376,9 +377,7 @@ export function BillsInvoiceViewer({
   // Loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay />
     );
   }
 

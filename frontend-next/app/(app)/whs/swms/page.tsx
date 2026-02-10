@@ -35,7 +35,9 @@ import {
   Edit,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
+import { EmptyState } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
 
 interface SWMS {
@@ -200,9 +202,7 @@ export default function WHSSWMSPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 
@@ -347,13 +347,15 @@ export default function WHSSWMSPage() {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12">
-                  <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No SWMS found</p>
-                  <Button className="mt-4">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create First SWMS
-                  </Button>
+                <TableCell colSpan={6}>
+                  <EmptyState
+                    title="No SWMS found"
+                    icon={<ClipboardCheck className="h-12 w-12" />}
+                    action={{
+                      label: "Create First SWMS",
+                      onClick: () => {},
+                    }}
+                  />
                 </TableCell>
               </TableRow>
             )}

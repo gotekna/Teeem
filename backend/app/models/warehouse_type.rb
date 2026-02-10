@@ -82,14 +82,10 @@ class WarehouseType < ApplicationRecord
   # @return [Array<Hash>] Array of {value:, label:, code:, base_path:} hashes
   def self.options_for_select
     enabled.ordered.map do |wt|
-      # Build base_path: display_name is the root folder, then folder_path_template adds tokens
-      # e.g., display_name="Compliance" + template="" → "Compliance"
-      # e.g., display_name="Job" + template="{{JobCode}}/{{JobName}}" → "Job/{{JobCode}}/{{JobName}}"
-      base_path = if wt.folder_path_template.present?
-        "#{wt.display_name}/#{wt.folder_path_template}"
-      else
-        wt.display_name
-      end
+      # Build base_path from folder_path_template (which already includes the type root segment)
+      # e.g., template="Task/{{JobName}}/{{Status}}/{{TaskId}}/{{TaskName}}" → use as-is
+      # e.g., template="" → fall back to display_name (e.g., "Compliance")
+      base_path = wt.folder_path_template.present? ? wt.folder_path_template : wt.display_name
 
       { value: wt.id, label: wt.display_name, code: wt.code, base_path: base_path }
     end

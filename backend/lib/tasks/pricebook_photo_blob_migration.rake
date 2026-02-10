@@ -53,13 +53,26 @@ namespace :pricebook do
         puts "=" * 60
         puts
 
-        # 1. Look up WarehouseFolder (SSoT for folder_path)
+        # 1. Look up or create WarehouseFolder (SSoT for folder_path)
         pricebook_wf = WarehouseFolder.for_warehouse_type("warehouse")
                                       .find_by("LOWER(name) LIKE ?", "%pricebook%photo%")
         unless pricebook_wf
-          puts "ERROR: Pricebook Photos warehouse folder not found!"
-          puts "Create it at /settings/company/warehouse-config → Warehouse Folders"
-          exit 1
+          wt = WarehouseType.find_by_code("warehouse")
+          unless wt
+            puts "ERROR: 'warehouse' WarehouseType not found!"
+            exit 1
+          end
+          pricebook_wf = WarehouseFolder.create!(
+            warehouse_type: wt,
+            name: "Pricebook Photos",
+            folder_segment: "Pricebook Photos",
+            tab_type: "photo",
+            tab_group: "documents",
+            is_photo_category: true,
+            enabled: true,
+            description: "Product photos for pricebook items"
+          )
+          puts "Created WarehouseFolder: #{pricebook_wf.name} (ID: #{pricebook_wf.id})"
         end
         puts "WarehouseFolder: #{pricebook_wf.name} (ID: #{pricebook_wf.id})"
         puts

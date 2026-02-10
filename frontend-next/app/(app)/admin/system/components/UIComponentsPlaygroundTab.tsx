@@ -104,7 +104,7 @@ import { StatusIndicator, StatusBadge, ActiveIndicator } from "@/components/ui/s
 import { TruncatedText, ClampedText } from "@/components/ui/truncated-text";
 
 // Pattern Components
-import { DragHandle, PositionBadge, ItemBadge, SortableList, SortableItem } from "@/components/ui/dnd";
+import { DragHandle, ItemBadge, SortableList, SortableItem } from "@/components/ui/dnd";
 import {
   KanbanBoard,
   KanbanCard,
@@ -943,27 +943,6 @@ function DragHandleDemo() {
   );
 }
 
-function PositionBadgeDemo() {
-  const [position, setPosition] = React.useState(1);
-  return (
-    <div className="flex items-center gap-4">
-      <div className="flex items-center gap-2">
-        <PositionBadge position={1} />
-        <span className="text-sm text-muted-foreground">Read-only</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <PositionBadge
-          position={position}
-          editable
-          onPositionChange={setPosition}
-          maxPosition={10}
-        />
-        <span className="text-sm text-muted-foreground">Editable</span>
-      </div>
-    </div>
-  );
-}
-
 function ItemBadgeDemo() {
   const [position, setPosition] = React.useState(1);
   const [label, setLabel] = React.useState("02a");
@@ -1476,7 +1455,6 @@ const COMPONENT_DEMOS: Record<string, () => React.ReactNode> = {
   accordion: AccordionDemo,
   tooltip: TooltipDemo,
   "drag-handle": DragHandleDemo,
-  "position-badge": PositionBadgeDemo,
   "item-badge": ItemBadgeDemo,
   "placeholder-badge": PlaceholderBadgeDemo,
   "placeholder-palette": PlaceholderPaletteDemo,

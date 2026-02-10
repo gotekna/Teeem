@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Building2,
@@ -16,6 +17,7 @@ import {
 import { api } from "@/lib/api";
 import { copyToClipboard } from "@/utils/formatters";
 import { BackButton } from "@/components/ui/back-button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -118,9 +120,7 @@ export default function AsicLoginsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 
@@ -284,12 +284,12 @@ export default function AsicLoginsPage() {
               ))}
               {companies.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="px-6 py-12 text-center">
-                    <Key className="mx-auto h-12 w-12 text-muted-foreground" />
-                    <h3 className="mt-2 text-sm font-medium">No ASIC logins found</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {selectedGroup ? "No companies with ASIC credentials in this group." : "No companies with ASIC credentials found."}
-                    </p>
+                  <TableCell colSpan={7} className="px-6 py-12">
+                    <EmptyState
+                      title="No ASIC logins found"
+                      description={selectedGroup ? "No companies with ASIC credentials in this group." : "No companies with ASIC credentials found."}
+                      icon={<Key className="h-12 w-12" />}
+                    />
                   </TableCell>
                 </TableRow>
               )}

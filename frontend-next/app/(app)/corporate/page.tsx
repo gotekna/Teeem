@@ -59,6 +59,7 @@ import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { FullHeightContainer, ScrollContent } from "@/components/ui/layout-containers";
 import dynamic from "next/dynamic";
 import { CorporateStructureTab } from "@/components/corporate/CorporateStructureTab";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 
 const PersonStructureChart = dynamic(
@@ -1310,9 +1311,7 @@ export default function CorporateDashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 
@@ -1586,9 +1585,7 @@ export default function CorporateDashboardPage() {
         {/* People Tab */}
         <TabsContent value="people" className="mt-4">
           {loadingPeople ? (
-            <div className="flex items-center justify-center h-64">
-              <Spinner size={32} className="text-muted-foreground" />
-            </div>
+            <LoadingOverlay />
           ) : (
             <Card>
               <CardHeader>

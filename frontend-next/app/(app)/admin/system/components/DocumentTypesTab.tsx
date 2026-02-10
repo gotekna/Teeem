@@ -26,6 +26,7 @@ import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
 
 // SSoT: Use slug for Foundation lookup - numeric IDs differ per environment

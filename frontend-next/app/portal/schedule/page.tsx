@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useUrlState } from "@/hooks/useUrlState";
-import axios from "axios";
 import { TASK_STATUS } from "@/lib/constants/task-status";
 import {
   CalendarDaysIcon,
@@ -24,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { portalApi } from "@/lib/portal-api";
 
 interface Construction {
   id: number;
@@ -192,10 +192,7 @@ const TaskDetailModal = ({
   useEffect(() => {
     const fetchDetail = async () => {
       try {
-        const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-        const res = await axios.get(`/api/v1/portal/sm_tasks/${task.id}`);
+        const res = await portalApi.get(`/api/v1/portal/sm_tasks/${task.id}`);
         setDetail(res.data.data);
       } catch (err) {
         console.error("Failed to fetch task detail:", err);
@@ -208,10 +205,7 @@ const TaskDetailModal = ({
 
   const handleConfirm = async () => {
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      await axios.patch(`/api/v1/portal/sm_tasks/${task.id}`, {
+      await portalApi.patch(`/api/v1/portal/sm_tasks/${task.id}`, {
         confirm_schedule: true,
       });
       setDetail((prev) =>
@@ -227,15 +221,12 @@ const TaskDetailModal = ({
     if (!newComment.trim()) return;
     setSubmitting(true);
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      await axios.post(`/api/v1/portal/sm_tasks/${task.id}/add_comment`, {
+      await portalApi.post(`/api/v1/portal/sm_tasks/${task.id}/add_comment`, {
         body: newComment,
       });
       setNewComment("");
       // Refresh comments
-      const res = await axios.get(`/api/v1/portal/sm_tasks/${task.id}`);
+      const res = await portalApi.get(`/api/v1/portal/sm_tasks/${task.id}`);
       setDetail(res.data.data);
     } catch (err) {
       console.error("Failed to add comment:", err);
@@ -464,13 +455,10 @@ export default function PortalSchedule() {
 
   const fetchTasks = useCallback(async () => {
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
       const params: any = {};
       if (filter !== "all") params.status = filter;
 
-      const res = await axios.get("/api/v1/portal/sm_tasks", { params });
+      const res = await portalApi.get("/api/v1/portal/sm_tasks", { params });
       setTasks(res.data.data);
       setSummary(res.data.summary);
     } catch (err: any) {

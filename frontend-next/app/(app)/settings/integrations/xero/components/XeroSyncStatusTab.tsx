@@ -4,6 +4,7 @@ import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   RefreshCw,
@@ -330,9 +331,7 @@ export function XeroSyncStatusTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay />
     );
   }
 

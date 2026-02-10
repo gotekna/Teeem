@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
@@ -173,9 +174,7 @@ export default function ESignaturePage() {
       {/* Table */}
       <div className="flex-1 overflow-auto px-6 py-4">
         {isLoading ? (
-          <div className="flex items-center justify-center h-64">
-            <Spinner size={32} className="text-muted-foreground" />
-          </div>
+          <LoadingOverlay />
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <AlertCircle className="h-8 w-8 mb-2" />

@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import dynamic from "next/dynamic";
 import { isTrust } from "@/lib/entity-types";
@@ -334,9 +335,7 @@ export function CorporateStructureTab({
           </CardContent>
         </Card>
       ) : loadingStructure ? (
-        <div className="flex items-center justify-center h-64">
-          <Spinner size={32} className="text-muted-foreground" />
-        </div>
+        <LoadingOverlay />
       ) : structureData ? (
         <>
           {/* Stats Cards */}

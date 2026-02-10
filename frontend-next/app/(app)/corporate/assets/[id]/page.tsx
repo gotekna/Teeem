@@ -26,6 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { BackButton } from "@/components/ui/back-button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Package,
@@ -519,9 +520,7 @@ export default function AssetDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 

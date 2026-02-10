@@ -406,7 +406,7 @@ export function PlaceholderBuilder({
   separator = " ",
   prefixValue,
   defaultValue,
-}: TokenBuilderProps) {
+}: PlaceholderBuilderProps) {
   const [customText, setCustomText] = React.useState("");
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [overId, setOverId] = React.useState<string | null>(null);
@@ -893,7 +893,3 @@ export function PlaceholderBuilder({
     </div>
   );
 }
-
-// Backwards compatibility aliases (DEPRECATED - use PlaceholderBuilder)
-export type TokenBuilderProps = PlaceholderBuilderProps;
-export const TokenBuilder = PlaceholderBuilder;

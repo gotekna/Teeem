@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Calendar,
@@ -20,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -178,9 +180,7 @@ export default function ComplianceCalendarPage() {
 
   if (loading && !calendarData) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 
@@ -378,8 +378,8 @@ export default function ComplianceCalendarPage() {
               <TableBody className="divide-y divide-border">
                 {calendarData?.items?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                      No compliance items found
+                    <TableCell colSpan={5} className="px-4 py-8">
+                      <EmptyState title="No compliance items found" size="sm" />
                     </TableCell>
                   </TableRow>
                 ) : (

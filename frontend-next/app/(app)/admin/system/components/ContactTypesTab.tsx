@@ -55,6 +55,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { Spinner } from "@/components/ui/spinner";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { fetchEntityTypes, EntityTypeMetadata } from "@/lib/entity-types";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 
@@ -578,11 +579,7 @@ export function ContactTypesTab() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
+    return <LoadingOverlay />;
   }
 
   return (

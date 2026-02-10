@@ -3,15 +3,16 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import axios from "axios";
 import {
   ClockIcon,
   CheckCircleIcon,
   XCircleIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { EmptyState } from "@/components/ui/empty-state";
+import { portalApi } from "@/lib/portal-api";
 
 interface Construction {
   id: number;
@@ -86,10 +87,7 @@ export default function PortalQuotes() {
 
   const loadQuotes = async () => {
     try {
-      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-      const response = await axios.get("/api/v1/portal/quote_requests");
+      const response = await portalApi.get("/api/v1/portal/quote_requests");
 
       if (response?.data.success) {
         setQuotes(response.data.data);
@@ -219,16 +217,14 @@ export default function PortalQuotes() {
 
       {/* Quote List */}
       {currentQuotes.length === 0 ? (
-        <div className="text-center py-12 bg-card rounded-lg shadow">
-          <DocumentTextIcon className="mx-auto h-12 w-12 text-muted-foreground dark:text-muted-foreground" />
-          <h3 className="mt-2 text-sm font-medium text-foreground dark:text-white">
-            No {activeTab} quotes
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground dark:text-muted-foreground">
-            {activeTab === "pending"
+        <div className="bg-card rounded-lg shadow">
+          <EmptyState
+            title={`No ${activeTab} quotes`}
+            description={activeTab === "pending"
               ? "You don't have any pending quote requests at the moment."
               : `No quotes in ${activeTab} status.`}
-          </p>
+            icon={<DocumentTextIcon className="h-12 w-12" />}
+          />
         </div>
       ) : (
         <div className="bg-card shadow rounded-lg overflow-hidden">

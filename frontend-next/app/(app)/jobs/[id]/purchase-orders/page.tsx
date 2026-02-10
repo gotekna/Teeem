@@ -4,6 +4,7 @@ import * as React from "react";
 import { useParams } from "next/navigation";
 import { BackButton } from "@/components/ui/back-button";
 import { JobPurchaseOrdersTab } from "@/components/jobs/JobPurchaseOrdersTab";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
@@ -37,9 +38,7 @@ export default function PurchaseOrdersFullscreenPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
+      <LoadingOverlay height="h-96" />
     );
   }
 
