@@ -1,4 +1,4 @@
-class PeopleDocument < ApplicationRecord
+class ContactDocument < ApplicationRecord
   include StorableDocument
   include DocumentStorageConstants
   include WarehouseDocumentable
@@ -119,8 +119,8 @@ class PeopleDocument < ApplicationRecord
 
   # Find all documents with matching content (duplicates)
   def find_duplicates
-    return PeopleDocument.none if content_hash.blank?
-    PeopleDocument.by_content_hash(content_hash).where.not(id: id)
+    return ContactDocument.none if content_hash.blank?
+    ContactDocument.by_content_hash(content_hash).where.not(id: id)
   end
 
   def has_duplicates?

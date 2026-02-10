@@ -708,13 +708,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Master Schedule - Projects
-      # Note: Project tasks removed in Phase 6 Tier 4 - SmTask is THE ONE task system
-      resources :projects do
-        member do
-          get :gantt
-        end
-      end
+      # Project routes removed (Feb 2026) - legacy model deleted
+      # SmTask + Job are THE ONE systems for tasks and project tracking
 
       # Meetings (non-nested routes)
       resources :meetings, only: [ :index, :show, :update, :destroy ] do
@@ -1601,8 +1596,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Designs library
-      resources :designs
+      # Job Designs library
+      resources :job_designs
 
       # Company Settings
       resource :company_settings, only: [ :show, :update ] do
@@ -2345,8 +2340,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # DocSort - Universal Document Inbox
-      resources :docsort, only: [:index, :show, :create, :destroy] do
+      # Document Inbox (was DocSort)
+      resources :document_inboxes, only: [:index, :show, :create, :destroy] do
         collection do
           get :stats
         end
@@ -2369,16 +2364,16 @@ Rails.application.routes.draw do
         get "plans/:job_plan_id/measurements", action: :measurements
         post "plans/:job_plan_id/measurements", action: :create_measurement
 
-        # DocSort standalone takeoff (for plans not yet assigned to a job)
-        get "docsort/:docsort_item_id", action: :show_docsort
-        post "docsort/:docsort_item_id/calibrate", action: :calibrate_docsort
-        delete "docsort/:docsort_item_id/calibrate", action: :clear_calibration_docsort
-        post "docsort/:docsort_item_id/detect_scale", action: :detect_scale_docsort
-        post "docsort/:docsort_item_id/detect_elements", action: :detect_elements_docsort
-        get "docsort/:docsort_item_id/measurements", action: :measurements_docsort
-        post "docsort/:docsort_item_id/measurements", action: :create_measurement_docsort
-        get "docsort/:docsort_item_id/layers", action: :layers_docsort
-        post "docsort/:docsort_item_id/layers", action: :create_layer_docsort
+        # Document Inbox standalone takeoff (for plans not yet assigned to a job)
+        get "document_inbox/:document_inbox_id", action: :show_docsort
+        post "document_inbox/:document_inbox_id/calibrate", action: :calibrate_docsort
+        delete "document_inbox/:document_inbox_id/calibrate", action: :clear_calibration_docsort
+        post "document_inbox/:document_inbox_id/detect_scale", action: :detect_scale_docsort
+        post "document_inbox/:document_inbox_id/detect_elements", action: :detect_elements_docsort
+        get "document_inbox/:document_inbox_id/measurements", action: :measurements_docsort
+        post "document_inbox/:document_inbox_id/measurements", action: :create_measurement_docsort
+        get "document_inbox/:document_inbox_id/layers", action: :layers_docsort
+        post "document_inbox/:document_inbox_id/layers", action: :create_layer_docsort
 
         # Measurement operations
         patch "measurements/:id", action: :update_measurement
@@ -2399,11 +2394,11 @@ Rails.application.routes.draw do
 
       # Room Takeoff Instances (template-based measurement checklists)
       scope "pdf_takeoff", controller: :takeoff_room_instances do
-        # Room instances scoped to plan or docsort
+        # Room instances scoped to plan or document inbox
         get "plans/:job_plan_id/rooms", action: :index_for_plan
         post "plans/:job_plan_id/rooms", action: :create_for_plan
-        get "docsort/:docsort_item_id/rooms", action: :index_for_docsort
-        post "docsort/:docsort_item_id/rooms", action: :create_for_docsort
+        get "document_inbox/:document_inbox_id/rooms", action: :index_for_docsort
+        post "document_inbox/:document_inbox_id/rooms", action: :create_for_docsort
 
         # Room instance operations
         get "rooms/:id", action: :show

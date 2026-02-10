@@ -93,7 +93,7 @@ module Api
           data: {
             job_documents: [],
             corporate_documents: [],
-            people_documents: [],
+            contact_documents: [],
             task_documents: task_documents
           },
           counts: {
@@ -808,7 +808,7 @@ module Api
                 when "corporate", "corporate_entity", "corp"
                   fetch_corporate_documents(warehouse_folder)
                 when "contact", "people"
-                  fetch_people_documents(warehouse_folder)
+                  fetch_contact_documents(warehouse_folder)
                 else
                   []
                 end
@@ -1867,7 +1867,7 @@ module Api
           # SSoT: WarehouseDocument with source_type='contact' stores contact documents
           build_contact_hierarchy
         when "people"
-          # SSoT: PeopleDocument stores people/employee documents
+          # SSoT: ContactDocument stores people/employee documents
           build_people_hierarchy
         else
           []  # Other scopes return empty - can be extended as needed
@@ -2049,7 +2049,7 @@ module Api
                         .ordered
 
         # Get contacts with documents (limit for performance)
-        Contact.joins(:people_documents)
+        Contact.joins(:contact_documents)
                .distinct
                .order(:name)
                .limit(100)
@@ -2062,7 +2062,7 @@ module Api
             contactId: contact.id,
             children: tabs.map do |tab|
               doc_count = if tab.document_type_ids.present?
-                PeopleDocument
+                ContactDocument
                   .where(contact_id: contact.id, document_type_id: tab.document_type_ids)
                   .count
               else
@@ -2227,16 +2227,16 @@ module Api
       end
 
       # SSoT (Feb 2026): Fetch people documents by WarehouseFolder.document_type_ids
-      def fetch_people_documents(warehouse_folder)
+      def fetch_contact_documents(warehouse_folder)
         return [] if warehouse_folder.document_type_ids.empty?
 
-        PeopleDocument
+        ContactDocument
           .where(document_type_id: warehouse_folder.document_type_ids)
           .includes(:contact)
           .order(created_at: :desc)
           .limit(500)
           .map do |doc|
-            # PeopleDocument uses Active Storage, so get URL from file attachment or storage_url
+            # ContactDocument uses Active Storage, so get URL from file attachment or storage_url
             url = if doc.respond_to?(:storage_url) && doc.storage_url.present?
                     doc.storage_url
                   elsif doc.file.attached?
@@ -2569,7 +2569,7 @@ module Api
           displayName: doc.title,
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
-          fileUrl: nil,  # PeopleDocument doesn't have file_url - use download endpoint
+          fileUrl: nil,  # ContactDocument doesn't have file_url - use download endpoint
           folderPath: nil,
           storagePath: doc.storage_path,  # Full S3 key - SSoT for rename/download
           storageProvider: doc.storage_provider,

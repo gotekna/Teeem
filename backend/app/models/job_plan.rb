@@ -19,7 +19,7 @@ class JobPlan < ApplicationRecord
 
   # PDF Takeoff (Feb 2026)
   has_many :page_scales, dependent: :destroy
-  has_many :measurements, class_name: 'UnrealMeasurement', dependent: :nullify
+  has_many :measurements, class_name: 'TakeoffMeasurement', dependent: :nullify
 
   # Track whether plan_type was set via the service
   attr_accessor :identified_via_service

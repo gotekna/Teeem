@@ -10,7 +10,7 @@ module Api
     #
     class TakeoffRoomInstancesController < ApplicationController
       before_action :set_job_plan, only: [:index_for_plan, :create_for_plan]
-      before_action :set_docsort_item, only: [:index_for_docsort, :create_for_docsort]
+      before_action :set_document_inbox, only: [:index_for_docsort, :create_for_docsort]
       before_action :set_room, only: [:show, :update, :destroy, :fill_slot, :clear_slot, :update_slot, :generate_po]
       before_action :set_slot, only: [:fill_slot, :clear_slot, :update_slot]
 
@@ -21,9 +21,9 @@ module Api
         render json: { success: true, data: rooms.map(&:as_json) }
       end
 
-      # GET /api/v1/pdf_takeoff/docsort/:docsort_item_id/rooms
+      # GET /api/v1/pdf_takeoff/docsort/:document_inbox_id/rooms
       def index_for_docsort
-        rooms = TakeoffRoomInstance.for_docsort_item(@docsort_item).ordered
+        rooms = TakeoffRoomInstance.for_docsort_item(@document_inbox).ordered
                                    .includes(slots: :pricebook_item)
         render json: { success: true, data: rooms.map(&:as_json) }
       end
@@ -50,7 +50,7 @@ module Api
         end
       end
 
-      # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/rooms
+      # POST /api/v1/pdf_takeoff/docsort/:document_inbox_id/rooms
       def create_for_docsort
         template = TakeoffTemplate.find(params[:template_id])
         name = params[:name] || auto_name(template, :docsort)
@@ -58,7 +58,7 @@ module Api
         room = TakeoffRoomInstance.new(
           tenant: current_tenant,
           takeoff_template: template,
-          docsort_item: @docsort_item,
+          document_inbox: @document_inbox,
           name: name,
           created_by: current_user
         )
@@ -97,7 +97,7 @@ module Api
 
       # POST /api/v1/pdf_takeoff/rooms/:id/slots/:slot_id/fill
       def fill_slot
-        measurement = UnrealMeasurement.find(params[:measurement_id])
+        measurement = TakeoffMeasurement.find(params[:measurement_id])
 
         # Clear any previous slot this measurement was linked to
         if measurement.takeoff_room_slot_id.present? && measurement.takeoff_room_slot_id != @slot.id
@@ -162,9 +162,9 @@ module Api
         @job_plan = JobPlan.find(params[:job_plan_id])
       end
 
-      def set_docsort_item
-        @docsort_item = DocsortItem.find(params[:docsort_item_id])
-        unless @docsort_item.tenant_id == current_tenant.id
+      def set_document_inbox
+        @document_inbox = DocumentInbox.find(params[:document_inbox_id])
+        unless @document_inbox.tenant_id == current_tenant.id
           render json: { success: false, error: "Access denied" }, status: :forbidden
         end
       end
@@ -190,7 +190,7 @@ module Api
         existing = if scope_type == :job_plan
                      TakeoffRoomInstance.where(job_plan: @job_plan, takeoff_template: template)
                    else
-                     TakeoffRoomInstance.where(docsort_item: @docsort_item, takeoff_template: template)
+                     TakeoffRoomInstance.where(document_inbox: @document_inbox, takeoff_template: template)
                    end
 
         count = existing.count + 1

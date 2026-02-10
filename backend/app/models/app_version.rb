@@ -1,4 +1,4 @@
-class Version < ApplicationRecord
+class AppVersion < ApplicationRecord
   validates :current_version, presence: true, numericality: { only_integer: true, greater_than: 0 }
 
   def self.current

@@ -243,8 +243,51 @@ function SortableToken({
     );
   }
 
+  const isTextToken = item.type === "text";
   const color = item.type === "placeholder" ? getPlaceholderColor(item.value) : "gray";
   const colorClasses = PLACEHOLDER_COLOR_CLASSES[color];
+
+  // Text tokens (static display names like "Warehousing") render greyed out
+  // to visually distinguish them from dynamic {Placeholder} tokens
+  if (isTextToken) {
+    return (
+      <span
+        ref={setNodeRef}
+        style={style}
+        className={cn(
+          "inline-flex items-center font-mono text-xs px-2 py-1 gap-1.5 rounded-none border",
+          "bg-muted/50 text-muted-foreground border-muted-foreground/30 opacity-70",
+          isDragging && "!opacity-0 h-0 !p-0 !m-0 overflow-hidden !border-0 !w-0",
+          !disabled && "cursor-grab active:cursor-grabbing"
+        )}
+      >
+        {!disabled && (
+          <span
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing touch-none"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="h-3 w-3 opacity-50" />
+          </span>
+        )}
+        <span className="truncate">{item.value}</span>
+        {!disabled && (
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            className="hover:opacity-100 opacity-60 transition-opacity"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
+      </span>
+    );
+  }
 
   return (
     <span
@@ -335,6 +378,7 @@ function DragOverlayToken({ item, order }: { item: TokenItem; order?: number }) 
     return <span className="text-sm font-mono text-muted-foreground px-1">/</span>;
   }
 
+  const isTextToken = item.type === "text";
   const color = item.type === "placeholder" ? getPlaceholderColor(item.value) : "gray";
   const colorClasses = PLACEHOLDER_COLOR_CLASSES[color];
 
@@ -343,12 +387,12 @@ function DragOverlayToken({ item, order }: { item: TokenItem; order?: number }) 
       className={cn(
         "inline-flex items-center font-mono text-xs px-2 py-1 gap-1.5 rounded-none border",
         "shadow-xl ring-2 ring-foreground/40 scale-110",
-        colorClasses.bg,
-        colorClasses.text,
-        colorClasses.border
+        isTextToken
+          ? "bg-muted/50 text-muted-foreground border-muted-foreground/30"
+          : cn(colorClasses.bg, colorClasses.text, colorClasses.border)
       )}
     >
-      {order !== undefined && (
+      {order !== undefined && !isTextToken && (
         <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm bg-foreground/15 text-[10px] font-bold leading-none">
           {order}
         </span>
@@ -714,12 +758,11 @@ export function PlaceholderBuilder({
               {(() => {
                 const activeIdx = activeId ? tokens.findIndex(t => t.id === activeId) : -1;
                 const overIdx = overId ? tokens.findIndex(t => t.id === overId) : -1;
-                // Compute order numbers (only for non-separator tokens)
+                // Compute order numbers (only for placeholder tokens, not text/separator)
                 let orderCounter = 0;
                 const orderMap = new Map<string, number>();
                 tokens.forEach(t => {
-                  const isSep = t.type === "text" && /^[\s/]+$/.test(t.value);
-                  if (!isSep) {
+                  if (t.type === "placeholder") {
                     orderCounter++;
                     orderMap.set(t.id, orderCounter);
                   }

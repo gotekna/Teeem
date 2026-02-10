@@ -91,7 +91,7 @@ export function ScaleDetector({
     try {
       const endpoint = planId
         ? `/api/v1/pdf_takeoff/plans/${planId}/detect_scale`
-        : `/api/v1/pdf_takeoff/docsort/${docsortItemId}/detect_scale`;
+        : `/api/v1/pdf_takeoff/document_inbox/${docsortItemId}/detect_scale`;
 
       const response = await api.post<{
         success: boolean;

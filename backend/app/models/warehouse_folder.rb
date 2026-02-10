@@ -122,8 +122,9 @@ class WarehouseFolder < ApplicationRecord
   def full_folder_path
     parts = []
 
-    # 1. Warehouse type base template (REQUIRED)
-    parts << warehouse_type.folder_path_template if warehouse_type&.folder_path_template.present?
+    # 1. Warehouse type base template (falls back to display_name for SSoT)
+    wt_base = warehouse_type&.folder_path_template.presence || warehouse_type&.display_name
+    parts << wt_base if wt_base.present?
 
     # 2. Walk up parent chain to collect segments
     ancestors = ancestor_segment_chain
@@ -396,8 +397,8 @@ class WarehouseFolder < ApplicationRecord
   def self.warehouse_folders_mapping
     result = {}
     WarehouseType.enabled.each do |wt|
-      next if wt.folder_path_template.blank?
-      result[wt.code] = wt.folder_path_template
+      template = wt.folder_path_template.presence || wt.display_name
+      result[wt.code] = template
     end
     result
   end

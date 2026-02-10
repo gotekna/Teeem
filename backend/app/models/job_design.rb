@@ -1,4 +1,4 @@
-class Design < ApplicationRecord
+class JobDesign < ApplicationRecord
   # Associations
   has_many :jobs, dependent: :nullify
 

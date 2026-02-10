@@ -7,22 +7,22 @@ namespace :release do
       git_version = parse_version_from_commits
 
       if git_version
-        version = Version.current
+        version = AppVersion.current
         old_version = version.current_version
 
         if git_version > old_version
           version.update!(current_version: git_version)
-          puts "Version synced from git: v#{old_version} → v#{git_version}"
+          puts "AppVersion synced from git: v#{old_version} → v#{git_version}"
         elsif git_version == old_version
-          puts "Version already in sync: v#{git_version}"
+          puts "AppVersion already in sync: v#{git_version}"
         else
           # Git version is lower - unusual, but respect git as SSoT
           version.update!(current_version: git_version)
-          puts "Version synced from git (rollback): v#{old_version} → v#{git_version}"
+          puts "AppVersion synced from git (rollback): v#{old_version} → v#{git_version}"
         end
       else
         # Fallback: increment if no version found in commits
-        new_version = Version.increment!
+        new_version = AppVersion.increment!
         puts "No version in commits, incremented to v#{new_version}"
       end
     rescue => e
@@ -40,14 +40,14 @@ namespace :release do
 
     version_num = args[:version_number].to_i
     if version_num <= 0
-      puts "Error: Version must be a positive integer"
+      puts "Error: AppVersion must be a positive integer"
       exit 1
     end
 
-    version = Version.current
+    version = AppVersion.current
     old_version = version.current_version
     version.update!(current_version: version_num)
-    puts "Version updated: v#{old_version} → v#{version_num}"
+    puts "AppVersion updated: v#{old_version} → v#{version_num}"
   end
 
   # Parse the highest version number from recent commit messages

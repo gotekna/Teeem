@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# DocsortItem - Universal document inbox item
+# DocumentInbox - Universal document inbox item
 #
 # SSoT: THE ONE table for documents entering TEEEM through any channel
 #
@@ -18,7 +18,7 @@
 #   2. DocumentTypeMatcher (SSoT pattern matching)
 #   3. AI (Claude Haiku) for uncertain cases
 #
-class DocsortItem < ApplicationRecord
+class DocumentInbox < ApplicationRecord
   include TenantResolvable
 
   # Multi-tenancy (SSoT)
@@ -36,7 +36,7 @@ class DocsortItem < ApplicationRecord
   belongs_to :routed_to, polymorphic: true, optional: true
 
   # Standalone takeoff associations (Feb 2026)
-  has_many :unreal_measurements, dependent: :destroy
+  has_many :takeoff_measurements, dependent: :destroy
   has_many :page_scales, dependent: :destroy
   has_many :takeoff_layers, dependent: :destroy
 
@@ -175,7 +175,7 @@ class DocsortItem < ApplicationRecord
 
     update!(status: 'processing')
 
-    result = DocsortRoutingService.new(self).route!
+    result = DocumentInboxRoutingService.new(self).route!
 
     if result[:success]
       update!(
@@ -283,6 +283,6 @@ class DocsortItem < ApplicationRecord
   end
 
   def enqueue_classification
-    DocsortClassificationJob.perform_later(id)
+    DocumentInboxClassificationJob.perform_later(id)
   end
 end

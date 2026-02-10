@@ -367,7 +367,7 @@ class DocumentClassificationService
     empty_result('ai')
   end
 
-  # Map DocumentType model to DocsortItem document_type
+  # Map DocumentType model to DocumentInbox document_type
   def map_document_type_to_docsort_type(document_type)
     name = document_type.name.downcase
 
