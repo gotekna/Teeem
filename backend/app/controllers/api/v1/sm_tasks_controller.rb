@@ -23,13 +23,18 @@ module Api
       # Performance: includes all associations to avoid N+1
       # WARNING: Do not use linked_purchase_order - it bypasses eager loading (see model alias issue)
       def index
+        # FRC (Feb 2026): Index mode = lightweight serialization for board/list view.
+        # Full data (email bodies, attachment details) fetched via show action on demand.
+        @index_mode = true
+
         @tasks = SmTask.ordered.includes(
           :job, :hold_reason, :purchase_order, :assigned_user, :supplier,
           :start_workflow, :complete_workflow, :completion_document_type,
           :created_by, :task_followers, :source_action_item, :parent_task, :case_record,
-          # N+1 fix: action_items needs checked_by, responded_by, and delegated_task with children/counts for action_item_to_json
-          action_items: [:checked_by, :responded_by, { delegated_task: [:action_items, :sm_task_attachments, { children: :assigned_user }] }],
-          # N+1 fix: sm_task_attachments needs added_by for attachment_to_json
+          # Index mode: skip delegated_task hierarchy (heavy nested load not needed for cards)
+          action_items: [:checked_by, :responded_by],
+          # Index mode: skip :attachable - we only need counts + unread_email_count
+          # which uses preloaded SyncedEmail data (not the full attachable chain)
           sm_task_attachments: [:added_by, :attachable],
           # N+1 fix: children (subtasks) with assigned_user for SubtaskList display
           children: [:assigned_user]
@@ -83,15 +88,8 @@ module Api
               .map(&:attachable_id)
         end.uniq
         if synced_email_ids.any?
-          # Preload in batch, then the attachment_to_json will use cached data
-          # Note: Email attachments now in WarehouseDocument (Jan 2026 - email_attachments dropped)
+          # Preload SyncedEmail records (needed for unread_email_count even in index mode)
           preloaded_emails = SyncedEmail.where(id: synced_email_ids).index_by(&:id)
-          # Preload attachment documents for these emails
-          @attachment_docs_cache = WarehouseDocument
-            .includes(:storage_blob)
-            .where(source_type: 'email_attachment')
-            .where("metadata->>'synced_email_id' IN (?)", synced_email_ids.map(&:to_s))
-            .group_by { |d| d.metadata['synced_email_id'].to_i }
           # Inject preloaded emails into attachables to avoid re-query
           tasks_to_render.each do |task|
             task.sm_task_attachments.each do |att|
@@ -100,22 +98,35 @@ module Api
               end
             end
           end
+
+          # FRC (Feb 2026): Only preload email attachment docs in full mode (show action).
+          # Index mode skips email_attachments file list in serialization.
+          unless @index_mode
+            @attachment_docs_cache = WarehouseDocument
+              .includes(:storage_blob)
+              .where(source_type: 'email_attachment')
+              .where("metadata->>'synced_email_id' IN (?)", synced_email_ids.map(&:to_s))
+              .group_by { |d| d.metadata['synced_email_id'].to_i }
+          end
         end
 
-        # N+1 fix: Preload storage_blob for WarehouseDocument attachables
-        doc_ids = tasks_to_render.flat_map do |task|
-          task.sm_task_attachments
-              .select { |a| a.attachable_type == "WarehouseDocument" }
-              .map(&:attachable_id)
-        end.uniq
-        if doc_ids.any?
-          preloaded_docs = WarehouseDocument.where(id: doc_ids)
-                                            .includes(:storage_blob)
-                                            .index_by(&:id)
-          tasks_to_render.each do |task|
-            task.sm_task_attachments.each do |att|
-              if att.attachable_type == "WarehouseDocument" && preloaded_docs[att.attachable_id]
-                att.attachable = preloaded_docs[att.attachable_id]
+        # FRC (Feb 2026): Only preload WarehouseDocument attachables in full mode.
+        # Index mode sends attachments: [] (count only via attachments_count).
+        unless @index_mode
+          doc_ids = tasks_to_render.flat_map do |task|
+            task.sm_task_attachments
+                .select { |a| a.attachable_type == "WarehouseDocument" }
+                .map(&:attachable_id)
+          end.uniq
+          if doc_ids.any?
+            preloaded_docs = WarehouseDocument.where(id: doc_ids)
+                                              .includes(:storage_blob)
+                                              .index_by(&:id)
+            tasks_to_render.each do |task|
+              task.sm_task_attachments.each do |att|
+                if att.attachable_type == "WarehouseDocument" && preloaded_docs[att.attachable_id]
+                  att.attachable = preloaded_docs[att.attachable_id]
+                end
               end
             end
           end
@@ -2862,38 +2873,35 @@ module Api
           email = attachment.attachable
           # Defensive: attachable may be nil if email was deleted
           return base unless email
-          base.merge(
-            email: {
-              id: email.id,
-              subject: email.subject,
-              from_email: email.from_email,
-              from_name: email.from_name,
+
+          # FRC (Feb 2026): Index mode sends lightweight email data for board/list cards.
+          # Full email data (bodies, attachment files) fetched via show action on demand.
+          email_data = {
+            id: email.id,
+            subject: email.subject,
+            from_email: email.from_email,
+            from_name: email.from_name,
+            received_at: email.received_at,
+            is_read: email.is_read,
+            folder_name: email.folder_name,
+            has_attachments: email.document_attachments_count > 0,
+            document_attachments_count: email.document_attachments_count,
+            conversation_id: email.conversation_id,
+            thread_count: email.thread_count,
+            mailbox_owner_email: email.mailbox_owner_email,
+            email_id: email.id
+          }
+
+          # Full mode (show action): include bodies, attachment files, eml data
+          unless @index_mode
+            email_data.merge!(
               to_emails: email.to_emails,
               cc_emails: email.cc_emails,
-              received_at: email.received_at,
-              is_read: email.is_read, # SSoT: Read status synced with inbox
-              folder_name: email.folder_name, # SSoT: "Sent Items" = sent email (never show as unread)
-              has_attachments: email.document_attachments_count > 0,
-              document_attachments_count: email.document_attachments_count,
-              conversation_id: email.conversation_id,
-              thread_count: email.thread_count,
               body_preview: email.body_preview || email.body_text&.truncate(200),
-              body_text: email.body_text, # Full plain text body
-              body_html: email.body_html, # Full HTML body for quoted replies (preserves formatting)
-              mailbox_owner_email: email.mailbox_owner_email, # SSoT: Which mailbox this email belongs to (for sent detection)
-              # SSoT: Download entire email as .eml file
-              # Endpoint: GET /api/v1/synced_emails/:id/download_eml
+              body_text: email.body_text,
+              body_html: email.body_html,
               download_eml_url: "/api/v1/synced_emails/#{email.id}/download_eml",
-              # SSoT: eml_storage_key for emails already stored - pass directly to send_email API
-              # Ultra fix (Jan 2026): Avoids re-download and re-upload of .eml files
               eml_storage_key: email.eml_stored? ? email.email_storage_path : nil,
-              # SSoT: Return attachment metadata for display
-              # Download URL: /api/v1/synced_emails/:email_id/attachment_documents/:doc_id/download
-              # Frontend constructs download URL from email_id + doc.id (never expose storage_path)
-              email_id: email.id,
-              # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
-              # FRC (Feb 2026): Use batch-preloaded cache when available (index action)
-              # to avoid N+1 JSONB queries. Falls back to per-email query (show/detail action).
               email_attachments: (@attachment_docs_cache&.dig(email.id) || email.attachment_documents).map do |doc|
                 {
                   id: doc.id,
@@ -2902,8 +2910,10 @@ module Api
                   file_size: doc.file_size || doc.storage_blob&.file_size
                 }
               end
-            }
-          )
+            )
+          end
+
+          base.merge(email: email_data)
         when "WarehouseDocument"
           doc = attachment.attachable
           # Defensive: attachable may be nil if document was deleted
@@ -3400,9 +3410,9 @@ module Api
               true
             }
           end,
-          # Include full attachments for task detail view (uses preloaded association)
-          # Note: has_many_attached :files was removed (Jan 2026) - all files now via SmTaskAttachment
-          attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) },
+          # FRC (Feb 2026): Index mode skips full attachment/action_item serialization.
+          # Board/list only needs counts. Full data fetched via show action.
+          attachments: @index_mode ? [] : task.sm_task_attachments.map { |a| attachment_to_json(a) },
           # Privacy
           is_private: task.is_private,
           created_by_id: task.created_by_id,
@@ -3414,8 +3424,10 @@ module Api
           last_assigner_name: (@last_assigner_cache ? @last_assigner_cache[task.id]&.name : task.last_assigner&.name),
           # Following status (for current user) - defensive nil check
           is_following: current_user ? task.followed_by?(current_user) : false,
-          # Action items (checkable checklist items)
-          action_items: task.action_items.map { |item| action_item_to_json(item) },
+          # Action items: index mode sends basic list, show mode sends full with delegated tasks
+          action_items: @index_mode ?
+            task.action_items.map { |item| { id: item.id, text: item.text, item_type: item.item_type, checked: item.checked } } :
+            task.action_items.map { |item| action_item_to_json(item) },
           # Email keywords for auto-matching
           email_keywords: task.email_keywords,
           # Delegation fields
