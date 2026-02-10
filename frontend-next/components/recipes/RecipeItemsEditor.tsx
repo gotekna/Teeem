@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { SearchInput } from "@/components/ui/search-input";
 import { Badge } from "@/components/ui/badge";
 import { SortableList, SortableItem } from "@/components/ui/dnd";
 import { api } from "@/lib/api";
@@ -388,16 +389,11 @@ export function RecipeItemsEditor({
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={pricebookSearch}
-                onChange={(e) => setPricebookSearch(e.target.value)}
-                placeholder="Search pricebook items..."
-                className="pl-10"
-                autoFocus
-              />
-            </div>
+            <SearchInput
+              value={pricebookSearch}
+              onChange={setPricebookSearch}
+              placeholder="Search pricebook items..."
+            />
             <div className="max-h-64 overflow-y-auto space-y-1">
               {isSearchingPricebook ? (
                 <div className="flex items-center justify-center py-8">

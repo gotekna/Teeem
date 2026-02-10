@@ -12,10 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   RefreshCw,
-  Search,
   Download,
   ArrowUpRight,
   ArrowDownLeft,
@@ -539,15 +538,12 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
             </SelectContent>
           </Select>
 
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search description, contact, reference..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              className="pl-9"
-            />
-          </div>
+          <SearchInput
+            value={searchQuery}
+            onChange={(value) => { setSearchQuery(value); setPage(1); }}
+            placeholder="Search description, contact, reference..."
+            className="flex-1 min-w-[200px]"
+          />
         </div>
 
         {/* Month Tabs */}

@@ -5,11 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Plus,
-  Search,
   RefreshCw,
   MoreVertical,
   Mail,
@@ -136,15 +135,12 @@ export default function SubscriptionsPage() {
             <Plus className="h-4 w-4 mr-2" />
             New Subscription
           </Button>
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or domain..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by name or domain..."
+            className="flex-1 max-w-sm"
+          />
         </div>
         <Button
           variant="outline"
