@@ -357,12 +357,18 @@ export function TenantSyncPullTab() {
           totalUpdated += result.updated;
           totalSkipped += result.skipped;
 
+          const hasErrors = result.error || result.skipped > 0
+            || (result.errors && result.errors.length > 0)
+            || (result.skipped_reasons && result.skipped_reasons.length > 0);
+
           if (result.error) {
+            setTableSyncStatus((prev) => ({ ...prev, [table.key]: "error" }));
+          } else if (hasErrors && (result.imported > 0 || result.updated > 0)) {
+            // Some succeeded but some failed - show as error so user sees the failures
             setTableSyncStatus((prev) => ({ ...prev, [table.key]: "error" }));
           } else if (result.imported > 0 || result.updated > 0) {
             setTableSyncStatus((prev) => ({ ...prev, [table.key]: "done" }));
           } else if (result.skipped > 0) {
-            // Records were attempted but all skipped/failed - show as error not "no changes"
             setTableSyncStatus((prev) => ({ ...prev, [table.key]: "error" }));
           } else {
             setTableSyncStatus((prev) => ({ ...prev, [table.key]: "skipped" }));
@@ -607,24 +613,36 @@ export function TenantSyncPullTab() {
                           {result?.message || "no changes"}
                         </span>
                       )}
-                      {status === "error" && result && (result.skipped > 0 || result.error) && (
+                      {status === "error" && (
                         <div className="flex flex-col items-end gap-0.5">
-                          <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            {result.skipped > 0 ? `${result.skipped} failed` : "Error"}
-                          </span>
-                          {syncErrors && syncErrors.length > 0 && (
-                            <span className="text-[10px] text-muted-foreground max-w-[300px] truncate" title={syncErrors.join("\n")}>
-                              {syncErrors[0]}
+                          <span className="text-xs flex items-center gap-1.5">
+                            <AlertCircle className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                            {result && (result.imported > 0 || result.updated > 0) && (
+                              <span className="text-green-600">{result.imported + result.updated} ok</span>
+                            )}
+                            <span className="text-amber-600 dark:text-amber-400">
+                              {result?.skipped ? `${result.skipped} failed` : result?.error || "Error"}
                             </span>
-                          )}
+                          </span>
+                          {/* Show first error detail from syncErrors, result.errors, result.skipped_reasons, or result.error */}
+                          {(() => {
+                            const firstError = syncErrors?.[0]
+                              || result?.errors?.[0]
+                              || result?.skipped_reasons?.[0]
+                              || (result?.error && !result?.skipped ? result.error : null)
+                              || null;
+                            const allErrorText = [
+                              ...(syncErrors || []),
+                              ...(result?.errors || []),
+                              ...(result?.skipped_reasons || []),
+                            ].join("\n");
+                            return firstError ? (
+                              <span className="text-[10px] text-muted-foreground max-w-[300px] truncate" title={allErrorText}>
+                                {firstError}
+                              </span>
+                            ) : null;
+                          })()}
                         </div>
-                      )}
-                      {status === "error" && (!result || (!result.skipped && !result.error)) && (
-                        <span className="text-xs text-destructive flex items-center justify-end gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          Error
-                        </span>
                       )}
                       {!status && (
                         <span className="text-xs text-muted-foreground">-</span>
