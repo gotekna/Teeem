@@ -13,14 +13,13 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import {
   CheckCircle2,
   ArrowRight,
   AlertTriangle,
   RefreshCw,
-  Search,
   ArrowRightLeft,
   Plus,
   Building2,
@@ -338,16 +337,13 @@ export function FuzzyMatchReviewSheet({
                       {/* Change mode - show search */}
                       {isChanging ? (
                         <div className="space-y-2">
-                          <div className="relative">
-                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                              placeholder="Search for correct contact..."
-                              value={searchQuery}
-                              onChange={(e) => setSearchQuery(e.target.value)}
-                              className="pl-8 h-9"
-                              autoFocus
-                            />
-                          </div>
+                          <SearchInput
+                            placeholder="Search for correct contact..."
+                            value={searchQuery}
+                            onChange={setSearchQuery}
+                            inputClassName="h-9"
+                            autoFocus
+                          />
 
                           {searching && (
                             <div className="flex items-center justify-center py-2">

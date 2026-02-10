@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Accordion,
   AccordionContent,
@@ -938,15 +939,13 @@ export function CreateRecordDialog({
           <div className="border rounded-md p-4 mb-4 bg-muted/30">
             {/* Search and Actions Row */}
             <div className="flex items-center gap-3 mb-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search fields..."
-                  value={fieldSearch}
-                  onChange={(e) => setFieldSearch(e.target.value)}
-                  className="pl-8 h-8 text-sm"
-                />
-              </div>
+              <SearchInput
+                className="flex-1"
+                placeholder="Search fields..."
+                value={fieldSearch}
+                onChange={setFieldSearch}
+                inputClassName="h-8 text-sm"
+              />
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={showAllFields} className="text-xs h-7">
                   Show All

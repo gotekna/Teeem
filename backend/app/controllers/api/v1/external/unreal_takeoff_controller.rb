@@ -119,10 +119,7 @@ module Api
             }, status: :not_found
           end
 
-          # TODO: Implement PDF to PNG conversion service
-          # For now, return the PDF download URL
-          # Future: PlanImageConverterService.convert(revision)
-
+          # TODO: Implement PDF to PNG conversion service (returns PDF URL for now)
           render json: {
             success: true,
             plan_id: plan.id,

@@ -53,14 +53,14 @@ namespace :setup do
         if user.new_record?
           user.name = row[:name]
           user.password = row[:password] || "changeme123"
-          user.role = row[:role] || "user"
           user.save!
+          # Assign role via user_roles join table (role column removed from users)
+          role_name = row[:role] || "user"
+          role = Role.find_by(name: role_name)
+          user.roles << role if role && !user.roles.exists?(id: role.id)
           user_count += 1
         else
-          user.update!(
-            name: row[:name],
-            role: row[:role] || "user"
-          )
+          user.update!(name: row[:name])
           updated_count += 1
         end
       end
@@ -221,7 +221,7 @@ namespace :setup do
         csv << [
           user.email,
           user.name,
-          user.role,
+          user.primary_role_name,
           "changeme123"  # Default password - users should reset on first login
         ]
       end

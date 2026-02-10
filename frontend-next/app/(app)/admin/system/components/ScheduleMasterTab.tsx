@@ -89,7 +89,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/components/schedule/EditRowDialog";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch, Search, Phone, MessageSquare, Mail } from "lucide-react";
+import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch, Phone, MessageSquare, Mail } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { useAtom, useStore } from "jotai";
 import { smDataViewTemplateIdAtom } from "@/lib/table-atoms";
 
@@ -3068,18 +3069,17 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
               </div>
               <div className="flex items-center gap-4 mb-4">
                 <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
+                  <SearchInput
                     placeholder="Search columns..."
                     value={columnSearch}
-                    onChange={(e) => setColumnSearch(e.target.value)}
-                    className="pl-9"
+                    onChange={setColumnSearch}
+                    inputClassName="pr-8"
                   />
                   {columnSearch && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0 z-10"
                       onClick={() => setColumnSearch("")}
                     >
                       <X className="h-3 w-3" />

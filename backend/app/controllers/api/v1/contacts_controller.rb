@@ -1485,8 +1485,7 @@ module Api
       # GET /api/v1/contacts/:id/internal_messages
 
       def internal_messages
-        # TODO: Implement internal messages functionality
-        # For now, return an empty array to prevent frontend errors
+        # TODO: Implement internal messages functionality (returns empty array for now)
         render json: {
           success: true,
           messages: []

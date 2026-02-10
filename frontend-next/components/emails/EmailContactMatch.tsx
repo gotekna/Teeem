@@ -10,18 +10,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Input } from "@/components/ui/input";
 import {
   UserPlus,
   User,
   X,
-  Search,
   Building2,
   Mail,
   Phone,
   Star,
   ChevronRight,
+  Search,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -261,15 +261,12 @@ function ContactSearchContent({
     <div className="flex flex-col">
       {/* Search input */}
       <div className="p-2 border-b">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search contacts..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-9"
-          />
-        </div>
+        <SearchInput
+          placeholder="Search contacts..."
+          value={searchQuery}
+          onChange={setSearchQuery}
+          inputClassName="h-9"
+        />
       </div>
 
       {/* Results */}

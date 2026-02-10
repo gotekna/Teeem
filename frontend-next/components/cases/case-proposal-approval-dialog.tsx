@@ -38,6 +38,7 @@ import {
 import { ChevronsUpDown, Check } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { SearchInput } from "@/components/ui/search-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   CheckCircle,
@@ -964,12 +965,10 @@ export function CaseProposalApprovalDialog({
                   <div className="relative">
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
+                        <SearchInput
                           value={jobSearch}
-                          onChange={(e) => setJobSearch(e.target.value)}
+                          onChange={setJobSearch}
                           placeholder="Search jobs by name or address..."
-                          className="pl-8"
                         />
                         {searchingJobs && (
                           <Spinner size={16} className="absolute right-2 top-1/2 -translate-y-1/2" />
@@ -1049,12 +1048,10 @@ export function CaseProposalApprovalDialog({
                   <div className="relative">
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
+                        <SearchInput
                           value={companySearch}
-                          onChange={(e) => setCompanySearch(e.target.value)}
+                          onChange={setCompanySearch}
                           placeholder="Search companies, trusts by name or ABN..."
-                          className="pl-8"
                         />
                         {searchingCompanies && (
                           <Spinner size={16} className="absolute right-2 top-1/2 -translate-y-1/2" />

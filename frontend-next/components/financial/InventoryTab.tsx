@@ -48,13 +48,13 @@ import {
   Clock,
   DollarSign,
   BarChart3,
-  Search,
   Filter,
   PackageOpen,
   PackageX,
   Boxes,
   History,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 
@@ -488,17 +488,13 @@ export default function InventoryTab() {
           <Card>
             <CardContent className="pt-4">
               <div className="flex flex-wrap gap-4">
-                <div className="flex-1 min-w-[200px]">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search by SKU or name..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
+                <SearchInput
+                  className="flex-1 min-w-[200px]"
+                  placeholder="Search by SKU or name..."
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  inputClassName="pl-10"
+                />
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[150px]">
                     <SelectValue placeholder="Status" />

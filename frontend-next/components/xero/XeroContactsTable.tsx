@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
@@ -33,7 +33,6 @@ import {
   Building2,
   Pencil,
   Plus,
-  Search,
   Globe,
   Download,
   AlertCircle,
@@ -445,15 +444,13 @@ export function XeroContactsTable({
         </Badge>
 
         {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-[300px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search across all fields..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-8 text-sm"
-          />
-        </div>
+        <SearchInput
+          className="flex-1 min-w-[200px] max-w-[300px]"
+          placeholder="Search across all fields..."
+          value={searchQuery}
+          onChange={setSearchQuery}
+          inputClassName="h-8 text-sm"
+        />
 
         {/* Export Button */}
         {onExport && (

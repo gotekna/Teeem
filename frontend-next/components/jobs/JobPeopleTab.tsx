@@ -4,14 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
   Trash2,
   Star,
   X,
-  Search,
   Users,
   User,
   Building2,
@@ -407,16 +406,12 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                ref={searchInputRef}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search contacts by name, email, or company..."
-                className="pl-9"
-              />
-            </div>
+            <SearchInput
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search contacts by name, email, or company..."
+            />
 
             {searching && (
               <div className="mt-2 text-sm text-muted-foreground text-center py-2">

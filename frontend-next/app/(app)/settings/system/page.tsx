@@ -13,7 +13,6 @@ import { XeroHealthTab } from "@/app/(app)/admin/system/components/XeroHealthTab
 import { EmailAccountsTab } from "@/app/(app)/admin/system/components/EmailAccountsTab";
 import { UserManualTab } from "@/app/(app)/admin/system/components/UserManualTab";
 import { InspiringQuotesTab } from "@/app/(app)/admin/system/components/InspiringQuotesTab";
-import { BackupSettingsTab } from "@/app/(app)/admin/system/components/BackupSettingsTab";
 import { ConfigSyncTab } from "@/app/(app)/admin/system/components/ConfigSyncTab";
 
 /**
@@ -32,7 +31,6 @@ const SYSTEM_TABS = [
   { id: "scheduled-jobs", label: "Scheduled Jobs" },
   { id: "email-accounts", label: "Email Accounts" },
   { id: "ai-processing", label: "AI Processing" },
-  { id: "backups", label: "Backups" },
   { id: "config-sync", label: "Config Sync" },
   { id: "health", label: "System Health" },
   { id: "user-manual", label: "User Manual" },
@@ -81,9 +79,6 @@ export default function SystemSettingsPage() {
           </TabsContent>
           <TabsContent value="ai-processing">
             <AiProcessingTab />
-          </TabsContent>
-          <TabsContent value="backups">
-            <BackupSettingsTab />
           </TabsContent>
           <TabsContent value="config-sync">
             <ConfigSyncTab />

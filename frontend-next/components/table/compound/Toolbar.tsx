@@ -23,14 +23,13 @@ import React from 'react';
 import { useTableContext } from './TableContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
   Plus,
   Filter,
   RefreshCw,
-  Search as SearchIcon,
   X,
 } from 'lucide-react';
+import { SearchInput } from '@/components/ui/search-input';
 import { cn } from '@/lib/utils';
 
 // ============================================================================
@@ -174,13 +173,12 @@ export function ToolbarSearch({
 
   return (
     <div className={cn('relative', className)}>
-      <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-      <Input
+      <SearchInput
         type="text"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={setQuery}
         placeholder={placeholder}
-        className="h-9 pl-9 pr-9"
+        inputClassName="h-9 pr-9"
         aria-label="Search table"
       />
       {query && (

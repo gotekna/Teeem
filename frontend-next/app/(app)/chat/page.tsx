@@ -13,7 +13,6 @@ import { copyToClipboard } from "@/utils/formatters";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import {
-  Search,
   Send,
   MessageSquare,
   Users,
@@ -805,15 +804,12 @@ export default function ChatPage() {
         {/* Conversations List */}
         <Card className="col-span-3 flex flex-col min-h-0">
           <CardHeader className="py-2 px-3 shrink-0">
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-              <Input
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-7 h-8 text-sm"
-              />
-            </div>
+            <SearchInput
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={setSearchQuery}
+              inputClassName="h-8 text-sm"
+            />
           </CardHeader>
           <CardContent className="p-0 flex-1 min-h-0">
             <ScrollArea className="h-full">

@@ -279,7 +279,6 @@ class SmRecurringTaskDefinition < ApplicationRecord
 
   def notify_assignee(task)
     # TODO: Implement notification logic
-    # Could use existing notification system or create a new one
     Rails.logger.info "Recurring task generated: #{task.name} (ID: #{task.id}) for #{assignee_name}"
   end
 
