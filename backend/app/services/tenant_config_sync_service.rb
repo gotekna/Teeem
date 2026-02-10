@@ -39,8 +39,7 @@ class TenantConfigSyncService
       model: "JobStatus",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :color, :icon, :description, :is_active, :position,
-                    :is_complete, :is_default, :order_index, :status_category],
+      sync_fields: [:name, :color, :is_active, :position],
       description: "Job status workflow states",
       group: "jobs"
     },
@@ -48,8 +47,7 @@ class TenantConfigSyncService
       model: "JobStage",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :color, :icon, :description, :is_active, :position,
-                    :stage_order, :is_milestone],
+      sync_fields: [:name, :color, :is_active, :position],
       description: "Job stage progression",
       group: "jobs"
     },
@@ -59,7 +57,11 @@ class TenantConfigSyncService
       match_fields: [:job_type_id, :job_status_id],
       sync_fields: [:job_type_id, :job_status_id, :position],
       description: "Job type to status mappings",
-      group: "jobs"
+      group: "jobs",
+      remap_fks: {
+        job_type_id: { model: "JobType", match_field: :name },
+        job_status_id: { model: "JobStatus", match_field: :name }
+      }
     },
     job_status_stages: {
       model: "JobStatusStage",
@@ -67,7 +69,12 @@ class TenantConfigSyncService
       match_fields: [:job_type_id, :job_status_id, :job_stage_id],
       sync_fields: [:job_type_id, :job_status_id, :job_stage_id, :position, :is_required],
       description: "Job status to stage mappings",
-      group: "jobs"
+      group: "jobs",
+      remap_fks: {
+        job_type_id: { model: "JobType", match_field: :name },
+        job_status_id: { model: "JobStatus", match_field: :name },
+        job_stage_id: { model: "JobStage", match_field: :name }
+      }
     },
     job_tabs: {
       model: "JobTab",
@@ -85,10 +92,11 @@ class TenantConfigSyncService
       model: "DocumentType",
       name_field: :name,
       match_fields: [:name, :scope],
-      sync_fields: [:name, :scope, :file_name, :display_name, :abbreviation, :category,
-                    :folder, :primary_tab, :aliases, :requires_filing, :supports_versioning,
+      sync_fields: [:name, :scope, :download_name, :ui_name, :abbreviation,
+                    :folder, :target_folder, :aliases, :requires_filing, :supports_versioning,
                     :generates_certificate, :certificate_template, :form_number_mapping,
-                    :description, :active],
+                    :description, :active, :file_extensions, :skip_rename,
+                    :filename_patterns, :signature_field_config, :retention_years],
       description: "Document type definitions and naming templates",
       group: "documents"
     },
@@ -170,24 +178,9 @@ class TenantConfigSyncService
                     :default_purchase_account, :default_sales_account, :payment_terms,
                     :is_active, :entity_type, :notes, :contact_code],
       description: "Contacts (suppliers, customers)",
-      group: "contacts",
-      # Auto-include related price_histories when syncing price_only contacts
-      auto_include_related: :price_histories
+      group: "contacts"
     },
-    price_histories: {
-      model: "PriceHistory",
-      name_field: :id,
-      match_fields: [:pricebook_item_id, :supplier_id],
-      sync_fields: [:pricebook_item_id, :supplier_id, :old_price, :new_price, :change_reason,
-                    :quote_reference, :lga, :date_effective, :user_name],
-      description: "Latest supplier price per pricebook item",
-      group: "contacts",
-      # FK remapping needed during sync
-      remap_fks: {
-        supplier_id: { model: "Contact", match_field: :display_name },
-        pricebook_item_id: { model: "PricebookItem", match_field: :item_code }
-      }
-    },
+    # NOTE: price_histories moved to after pricebook_items (depends on both contacts + pricebook_items existing)
 
     # ============================================================================
     # Schedule Master Group
@@ -278,7 +271,7 @@ class TenantConfigSyncService
       model: "PricebookCategory",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :description, :parent_id, :position, :icon, :color],
+      sync_fields: [:name, :display_name, :position, :icon, :color, :is_active],
       description: "Pricebook organization categories",
       group: "operations"
     },
@@ -293,11 +286,25 @@ class TenantConfigSyncService
       description: "Pricebook products and pricing",
       group: "operations"
     },
+    # price_histories MUST come after contacts + pricebook_items (FK dependencies)
+    price_histories: {
+      model: "PriceHistory",
+      name_field: :id,
+      match_fields: [:pricebook_item_id, :supplier_id],
+      sync_fields: [:pricebook_item_id, :supplier_id, :old_price, :new_price, :change_reason,
+                    :quote_reference, :lga, :date_effective, :user_name],
+      description: "Latest supplier price per pricebook item",
+      group: "operations",
+      remap_fks: {
+        supplier_id: { model: "Contact", match_field: :display_name },
+        pricebook_item_id: { model: "PricebookItem", match_field: :item_code }
+      }
+    },
     public_holidays: {
       model: "PublicHoliday",
       name_field: :name,
       match_fields: [:name, :date],
-      sync_fields: [:name, :date, :region, :description, :recurring],
+      sync_fields: [:name, :date, :region],
       description: "Regional public holidays",
       group: "operations"
     },
@@ -308,7 +315,10 @@ class TenantConfigSyncService
       sync_fields: [:code, :name, :description, :centre_type, :parent_id,
                     :overhead_allocation_percent, :budget_amount, :active, :metadata],
       description: "Cost centre definitions",
-      group: "operations"
+      group: "operations",
+      remap_fks: {
+        parent_id: { model: "CostCentre", match_field: :code }
+      }
     },
     supervisor_checklist_templates: {
       model: "SupervisorChecklistTemplate",
