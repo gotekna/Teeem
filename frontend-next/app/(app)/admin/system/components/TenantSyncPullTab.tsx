@@ -357,7 +357,6 @@ export function TenantSyncPullTab() {
   const handlePullAll = async () => {
     try {
       setPullingAll(true);
-      setShowSyncDialog(true);
       setError(null);
       setPullAllResult(null);
       setPullResult(null);
@@ -533,38 +532,20 @@ export function TenantSyncPullTab() {
               <span className="text-muted-foreground">Your tenant:</span>
               <Badge variant="outline">{tenantInfo?.name || "Unknown"}</Badge>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <Button
-                onClick={handlePullAll}
-                disabled={pullingAll}
-                variant="default"
-              >
-                {pullingAll ? (
-                  <>
-                    <Spinner className="h-4 w-4 mr-2" />
-                    Syncing...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Fresh Pull All Tables
-                  </>
-                )}
-              </Button>
-              {pullAllProgress && (
-                <div className="flex flex-col items-end gap-1">
-                  <div className="text-xs text-muted-foreground">
-                    {pullAllProgress.current}/{pullAllProgress.total}: {pullAllProgress.currentTable}
-                  </div>
-                  <div className="w-48 h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full transition-all duration-300"
-                      style={{ width: `${(pullAllProgress.current / pullAllProgress.total) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
+            <Button
+              onClick={() => {
+                setPullAllResult(null);
+                setTableSyncStatus({});
+                setTableSyncErrors({});
+                setTableBatchProgress({});
+                setShowSyncDialog(true);
+              }}
+              disabled={pullingAll}
+              variant="default"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Sync Tables
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -585,7 +566,7 @@ export function TenantSyncPullTab() {
                   Sync Complete
                 </>
               ) : (
-                "Configuration Sync"
+                "Configure Sync"
               )}
               {pullAllResult && (
                 <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 ml-auto">
@@ -626,7 +607,7 @@ export function TenantSyncPullTab() {
                     {t.name}
                   </TableHead>
                 ))}
-                <TableHead className="w-[160px] text-right">Status</TableHead>
+                <TableHead className="w-[160px] text-right">{pullAllResult || pullingAll ? "Status" : "Include"}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -804,30 +785,22 @@ export function TenantSyncPullTab() {
                         </div>
                       )}
                       {!status && (
-                        isSkipped ? (
-                          <span className="text-xs text-muted-foreground flex items-center justify-end gap-1">
-                            <SkipForward className="h-3 w-3" />
-                            <span>Skipped</span>
-                            <button
-                              onClick={() => setSkippedTables((prev) => { const next = new Set(prev); next.delete(table.key); return next; })}
-                              className="hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted"
-                              title="Undo skip"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
+                        <label className="inline-flex items-center justify-end gap-1.5 text-xs cursor-pointer">
+                          <Checkbox
+                            checked={!isSkipped}
+                            onCheckedChange={(checked) => {
+                              setSkippedTables((prev) => {
+                                const next = new Set(prev);
+                                if (checked) next.delete(table.key); else next.add(table.key);
+                                return next;
+                              });
+                            }}
+                            className="h-3.5 w-3.5"
+                          />
+                          <span className={cn("text-muted-foreground", isSkipped && "line-through")}>
+                            {isSkipped ? "Skipped" : "Include"}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
-                            -
-                            <button
-                              onClick={() => setSkippedTables((prev) => { const next = new Set(prev); next.add(table.key); return next; })}
-                              className="hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted"
-                              title="Skip this table"
-                            >
-                              <SkipForward className="h-3 w-3" />
-                            </button>
-                          </span>
-                        )
+                        </label>
                       )}
                     </TableCell>
                   </TableRow>
@@ -836,14 +809,25 @@ export function TenantSyncPullTab() {
             </TableBody>
           </Table>
 
-          {/* Close button when done */}
-          {!pullingAll && pullAllResult && (
-            <div className="flex justify-end pt-2">
+          {/* Action buttons */}
+          <div className="flex justify-end gap-2 pt-2">
+            {!pullingAll && !pullAllResult && (
+              <>
+                <Button variant="outline" onClick={() => setShowSyncDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handlePullAll}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Start Sync
+                </Button>
+              </>
+            )}
+            {!pullingAll && pullAllResult && (
               <Button variant="outline" onClick={() => setShowSyncDialog(false)}>
                 Close
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
