@@ -1198,6 +1198,27 @@ class TenantConfigSyncService
         { imported: true, record: new_record }
       end
     end
+  rescue ActiveRecord::RecordInvalid => e
+    # FRC (Feb 2026): Uniqueness collision — match didn't find the record but it exists.
+    # This happens when sync_key diverged and match_fields differ slightly (e.g., contact
+    # matched by sync_key to wrong record, but contact_code belongs to a different record).
+    # Fallback: find by each match_field directly and update that record instead.
+    if e.message.include?("already been taken") || e.message.include?("has already been")
+      fallback = ActsAsTenant.with_tenant(tenant) do
+        config[:match_fields].each do |field|
+          value = source_record.send(field)
+          next if value.blank?
+          found = model.find_by(field => value)
+          break found if found
+        end
+      end
+
+      if fallback.is_a?(ActiveRecord::Base)
+        ActsAsTenant.with_tenant(tenant) { fallback.update!(attrs) }
+        return { imported: true, record: fallback }
+      end
+    end
+    { imported: false, reason: e.message }
   rescue => e
     { imported: false, reason: e.message }
   end
