@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ArrowRightLeft, Search, User } from "lucide-react";
+import { ArrowRightLeft, User } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import type { XeroLink } from "@/types/xero";
@@ -137,16 +137,11 @@ export function TransferXeroLinkModal({
 
         <div className="space-y-4 py-4">
           {/* Search Input */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search for a contact..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-              autoFocus
-            />
-          </div>
+          <SearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search for a contact..."
+          />
 
           {/* Search Results */}
           <div className="max-h-60 overflow-y-auto space-y-1">
