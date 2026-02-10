@@ -252,7 +252,11 @@ class TenantConfigSyncService
       match_fields: [:sm_schedule_master_id, :document_type_id],
       sync_fields: [:sm_schedule_master_id, :document_type_id, :lag_days],
       description: "Schedule Master document type assignments",
-      group: "schedule"
+      group: "schedule",
+      remap_fks: {
+        sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key },
+        document_type_id: { model: "DocumentType", match_field: :name }
+      }
     },
 
     # ============================================================================
@@ -418,15 +422,20 @@ class TenantConfigSyncService
     warehouse_folders: {
       model: "WarehouseFolder",
       name_field: :display_name,
-      match_fields: [:warehouse_type, :tab_key],
-      sync_fields: [:warehouse_type, :tab_key, :display_name, :description, :tab_group,
-                    :parent_id, :entity_filters, :order_position, :enabled, :icon_name,
-                    :component_name, :is_system, :warehouse_enabled, :display_code,
+      match_fields: [:warehouse_type_code, :tab_key],
+      sync_fields: [:warehouse_type_id, :tab_key, :name, :display_name, :description, :tab_group,
+                    :folder_segment, :parent_id, :entity_filters, :order_position, :enabled,
+                    :icon_name, :component_name, :is_system, :warehouse_enabled, :display_code,
                     :uses_custom_path, :warehouse_type_override, :is_photo_category,
                     :display_mode, :hidden_by_default, :is_cad_category, :xero_scope,
-                    :visibility_rule, :download_name, :folder_path, :ui_name, :warehouse_folder],
+                    :visibility_rule, :ui_name_template, :download_name_template,
+                    :tab_type, :is_mailbox],
       description: "Warehouse folder tabs and structure",
-      group: "warehouse"
+      group: "warehouse",
+      remap_fks: {
+        warehouse_type_id: { model: "WarehouseType", match_field: :code },
+        parent_id: { model: "WarehouseFolder", match_field: :sync_key }
+      }
     },
     warehouse_folder_document_types: {
       model: "WarehouseFolderDocumentType",
@@ -435,6 +444,10 @@ class TenantConfigSyncService
       sync_fields: [:warehouse_folder_id, :document_type_id, :is_primary,
                     :ui_name_template, :download_name_template],
       description: "Warehouse folder to document type mappings",
+      remap_fks: {
+        warehouse_folder_id: { model: "WarehouseFolder", match_field: :sync_key },
+        document_type_id: { model: "DocumentType", match_field: :name }
+      },
       group: "warehouse"
     },
 
