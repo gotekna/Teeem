@@ -157,16 +157,20 @@ class RenameModelsCleanup < ActiveRecord::Migration[7.1]
       SET documentable_type = 'PeopleDocument'
       WHERE documentable_type = 'ContactDocument'
     SQL
-    execute <<-SQL
-      UPDATE document_duplicate_reviews
-      SET existing_document_type = 'PeopleDocument'
-      WHERE existing_document_type = 'ContactDocument'
-    SQL
-    execute <<-SQL
-      UPDATE document_duplicate_reviews
-      SET new_document_type = 'PeopleDocument'
-      WHERE new_document_type = 'ContactDocument'
-    SQL
+    if column_exists?(:document_duplicate_reviews, :existing_document_type)
+      execute <<-SQL
+        UPDATE document_duplicate_reviews
+        SET existing_document_type = 'PeopleDocument'
+        WHERE existing_document_type = 'ContactDocument'
+      SQL
+    end
+    if column_exists?(:document_duplicate_reviews, :new_document_type)
+      execute <<-SQL
+        UPDATE document_duplicate_reviews
+        SET new_document_type = 'PeopleDocument'
+        WHERE new_document_type = 'ContactDocument'
+      SQL
+    end
     rename_table :contact_documents, :people_documents
 
     # =========================================================================
