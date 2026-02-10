@@ -292,6 +292,7 @@ Rails.application.routes.draw do
       get "auth/dev_login", to: "authentication#dev_login"  # Dev mode only
       get "auth/users", to: "authentication#users"  # Admin: list users for impersonation
       post "auth/impersonate/:user_id", to: "authentication#impersonate"  # Admin: impersonate user
+      post "auth/change_password", to: "authentication#change_password"  # Forced password change
 
       # Import routes
       post "imports/upload", to: "imports#upload"
@@ -1228,6 +1229,7 @@ Rails.application.routes.draw do
         end
         member do
           get :signature_usages, to: "signature_usages#user_history"
+          post :send_invite
         end
       end
 

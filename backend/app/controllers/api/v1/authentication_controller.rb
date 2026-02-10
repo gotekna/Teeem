@@ -122,7 +122,9 @@ module Api
               # Primary role settings (Jan 2026)
               primary_role_id: user.primary_role_id,
               default_task_view: user.default_task_view,
-              default_theme_from_role: user.default_theme_from_role
+              default_theme_from_role: user.default_theme_from_role,
+              # Force password change (Feb 2026) - set when admin sends login invite
+              force_password_change: user.force_password_change || false
             }
           }
         else
@@ -130,6 +132,34 @@ module Api
             success: false,
             error: "Invalid email or password"
           }, status: :unauthorized
+        end
+      end
+
+      # POST /api/v1/auth/change_password
+      # Authenticated endpoint for changing password (used after forced password change)
+      def change_password
+        user = @current_user
+
+        unless user.authenticate(change_password_params[:current_password])
+          return render json: { success: false, error: "Current password is incorrect" }, status: :unprocessable_entity
+        end
+
+        user.password = change_password_params[:new_password]
+        user.force_password_change = false
+
+        if user.save
+          # Issue a new token after password change
+          token = JsonWebToken.encode(user_id: user.id)
+          render json: {
+            success: true,
+            token: token,
+            message: "Password changed successfully"
+          }
+        else
+          render json: {
+            success: false,
+            errors: user.errors.full_messages
+          }, status: :unprocessable_entity
         end
       end
 
@@ -231,6 +261,8 @@ module Api
             default_task_view: @current_user.default_task_view,
             default_theme_from_role: @current_user.default_theme_from_role,
             sidebar_collapsed_by_default: @current_user.sidebar_collapsed_by_default?,
+            # Force password change (Feb 2026)
+            force_password_change: @current_user.force_password_change || false,
             # Email signature style preference (Jan 2026)
             # If company forces a signature, use it; otherwise fallback chain
             email_signature_style: resolve_email_signature_style,
@@ -274,6 +306,10 @@ module Api
 
       def login_params
         params.require(:user).permit(:email, :password, :remember_me)
+      end
+
+      def change_password_params
+        params.permit(:current_password, :new_password)
       end
     end
   end

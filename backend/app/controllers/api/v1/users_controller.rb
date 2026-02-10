@@ -227,6 +227,27 @@ class Api::V1::UsersController < ApplicationController
 
   private
 
+  # Generate a temporary password that meets User model complexity rules:
+  # 8+ chars, uppercase, lowercase, digit, special char
+  def generate_temp_password
+    chars = ('a'..'z').to_a + ('A'..'Z').to_a + ('0'..'9').to_a
+    specials = %w[! @ # $ % ^ & * _ + -]
+
+    # Guarantee at least one of each required type
+    password = [
+      ('A'..'Z').to_a.sample,
+      ('a'..'z').to_a.sample,
+      ('0'..'9').to_a.sample,
+      specials.sample
+    ]
+
+    # Fill remaining 8 chars randomly
+    8.times { password << (chars + specials).sample }
+
+    # Shuffle to avoid predictable pattern
+    password.shuffle.join
+  end
+
   # Regular user params that anyone can edit
   def user_params
     params.require(:user).permit(
