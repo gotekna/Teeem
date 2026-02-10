@@ -319,8 +319,9 @@ function SidebarContent({
                   disabled={tenantInfo.isLoading}
                   placeholder="Select tenant..."
                   searchPlaceholder="Search tenants..."
+                  searchInTrigger={false}
                   className="h-7 text-xs flex-1 min-w-0"
-                  popoverProps={{ className: "w-[200px]" }}
+                  popoverProps={{ className: "w-[220px]" }}
                 />
               ) : (
                 <span className="text-xs font-medium truncate flex-1 min-w-0">
