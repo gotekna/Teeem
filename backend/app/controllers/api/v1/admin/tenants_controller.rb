@@ -64,12 +64,18 @@ module Api
         # Switch to a different tenant (TEEEM staff only)
         # SSoT: Uses Tenant model (not CorporateGroup)
         def switch
+          Rails.logger.info "[TenantSwitch] =========================================="
           Rails.logger.info "[TenantSwitch] Switch called with id=#{params[:id]}"
+          Rails.logger.info "[TenantSwitch] Origin: #{request.headers['Origin']} | Host: #{request.host}"
           tenant = Tenant.find(params[:id])
 
           unless current_user.teeem_staff?
             return render json: { success: false, error: "Access denied to this tenant" }, status: :forbidden
           end
+
+          Rails.logger.info "[TenantSwitch] Target: #{tenant.name} (id=#{tenant.id}, master=#{tenant.master_tenant?})"
+          Rails.logger.info "[TenantSwitch] User: #{current_user.email} (teeem_staff=#{current_user.teeem_staff?})"
+          Rails.logger.info "[TenantSwitch] User's own tenant: #{current_user.tenant&.name} (id=#{current_user.tenant_id})"
 
           # Store in signed cookie for tenant override (API doesn't have sessions)
           # Cross-origin (frontend:3000 → backend:3001) requires SameSite=None + Secure
@@ -82,9 +88,8 @@ module Api
             domain: Rails.env.development? ? 'localhost' : nil  # Share across ports in dev
           }
 
-          Rails.logger.info "[TenantSwitch] Cookie set for tenant #{tenant.id}"
-
-          Rails.logger.info "[TenantSwitch] User #{current_user.id} (#{current_user.email}) switched to tenant #{tenant.id} (#{tenant.name})"
+          Rails.logger.info "[TenantSwitch] ✅ Cookie SET: admin_tenant_id=#{tenant.id} (domain=#{Rails.env.development? ? 'localhost' : 'nil'})"
+          Rails.logger.info "[TenantSwitch] =========================================="
 
           render json: {
             success: true,

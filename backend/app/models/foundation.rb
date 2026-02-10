@@ -163,7 +163,7 @@ class Foundation < ApplicationRecord
     ]
 
     system_columns.each do |attrs|
-      columns.create(attrs)
+      columns.create(attrs) unless columns.exists?(column_name: attrs[:column_name])
     end
 
     Rails.logger.info "Added system columns to Foundation ##{id} (#{name})"

@@ -936,7 +936,9 @@ module Api
             json[:columns] = system_columns + user_columns_filtered
           elsif foundation.table_type == "system"
             # Fallback: auto-detect columns from model schema for system foundations without defined columns
-            json[:columns] = system_columns + system_foundation_columns
+            # Filter out system columns (id, created_at, updated_at) - they're already in system_columns with proper types
+            auto_columns = system_foundation_columns.reject { |col| system_column_names.include?(col[:column_name]) }
+            json[:columns] = system_columns + auto_columns
           else
             # No user columns defined - just return system columns
             json[:columns] = system_columns
