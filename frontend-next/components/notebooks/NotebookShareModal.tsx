@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, UserPlus, Trash2, Crown, Shield, Eye } from "lucide-react";
+import { UserPlus, Trash2, Crown, Shield, Eye } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   notebookActions,
