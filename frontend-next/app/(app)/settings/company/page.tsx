@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePathTabs } from "@/hooks/usePathTabs";
 
@@ -64,12 +64,13 @@ export default function CompanySettingsPage() {
     COMPANY_TABS.map(t => t.id)
   );
 
-  // Parse deepTab from URL manually for warehouse-config (third level)
+  // Parse deepTab from URL for warehouse-config (third level)
+  // Must use usePathname() for reactivity - window.location doesn't trigger re-renders
+  const pathname = usePathname();
   const deepTab = useMemo(() => {
-    if (typeof window === "undefined") return undefined;
-    const parts = window.location.pathname.replace("/settings/company", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/settings/company", "").split("/").filter(Boolean);
     return parts[2] || undefined;
-  }, []);
+  }, [pathname]);
 
   // Apply default sub-tab for warehouse-config
   const effectiveSubTab = useMemo(() => {
@@ -80,10 +81,8 @@ export default function CompanySettingsPage() {
 
   // Redirect to include default sub-tab in URL for breadcrumb visibility
   // This keeps URL as SSoT for current tab state
-  // SSoT (Jan 2026): Connections redirect removed - now at /settings/connections
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const parts = window.location.pathname.replace("/settings/company", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/settings/company", "").split("/").filter(Boolean);
     const urlHasSubTab = parts.length >= 2;
 
     // Redirect tabs with default sub-tabs to full URL
@@ -92,7 +91,7 @@ export default function CompanySettingsPage() {
         router.replace(`/settings/company/warehouse-config/warehouse_folders`, { scroll: false });
       }
     }
-  }, [activeTab, router]);
+  }, [activeTab, router, pathname]);
 
   return (
     <div className="flex flex-col gap-6 pb-8">
