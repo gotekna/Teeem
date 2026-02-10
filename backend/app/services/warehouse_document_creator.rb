@@ -72,7 +72,7 @@ class WarehouseDocumentCreator
   #
   # @param filename [String] Required. The original filename.
   # @param source_type [String] Required. e.g., "job", "corporate", "email", "task"
-  # @param linkable [ActiveRecord::Base, nil] Job, Contact, CorporateCompany, SmTask
+  # @param linkable [ActiveRecord::Base, nil] Job, Contact, Corporate, SmTask
   # @param storage_blob [StorageBlob, nil] Pre-created blob (for S3/Wasabi)
   # @param warehouse_folder_id [Integer, nil] WarehouseFolder ID → looks up primary WFDT
   # @param documentable [ActiveRecord::Base, nil] Legacy polymorphic link
@@ -266,7 +266,7 @@ class WarehouseDocumentCreator
       result["job_code"] ||= linkable.job_code
     when Contact
       result["contact_name"] ||= linkable.display_name
-    when CorporateCompany
+    when Corporate
       result["company_code"] ||= linkable.company_code
     end
 
