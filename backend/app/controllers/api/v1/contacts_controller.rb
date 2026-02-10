@@ -1890,6 +1890,7 @@ module Api
           :place_of_birth,
           :birth_state,
           :birth_country,
+          :residential_address,
           :is_family_member,
           :is_potential_director,
           :company_group_id,

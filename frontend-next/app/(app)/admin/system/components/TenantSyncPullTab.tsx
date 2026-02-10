@@ -608,10 +608,17 @@ export function TenantSyncPullTab() {
                         </span>
                       )}
                       {status === "error" && result && (result.skipped > 0 || result.error) && (
-                        <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center justify-end gap-1" title={errorTooltip}>
-                          <AlertCircle className="h-3 w-3" />
-                          {result.skipped > 0 ? `${result.skipped} failed` : "Error"}
-                        </span>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            {result.skipped > 0 ? `${result.skipped} failed` : "Error"}
+                          </span>
+                          {syncErrors && syncErrors.length > 0 && (
+                            <span className="text-[10px] text-muted-foreground max-w-[300px] truncate" title={syncErrors.join("\n")}>
+                              {syncErrors[0]}
+                            </span>
+                          )}
+                        </div>
                       )}
                       {status === "error" && (!result || (!result.skipped && !result.error)) && (
                         <span className="text-xs text-destructive flex items-center justify-end gap-1">
