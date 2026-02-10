@@ -1,4 +1,4 @@
-# UnrealMeasurement - Stores quantity measurements from takeoff tools
+# TakeoffMeasurement - Stores quantity measurements from takeoff tools
 #
 # SSoT: This is THE source for measurements taken in either:
 # - Unreal Engine 3D takeoff app (source: "unreal")
@@ -10,20 +10,20 @@
 # measurement_type: "area" (m2), "length" (m), "count" (ea), "perimeter" (m)
 # geometry_data: JSON blob containing polygon points, line endpoints, or marker positions
 #
-class UnrealMeasurement < ApplicationRecord
+class TakeoffMeasurement < ApplicationRecord
   # Associations
   belongs_to :job, optional: true  # Optional for DocSort standalone takeoff
   belongs_to :job_plan, optional: true
-  belongs_to :docsort_item, optional: true  # For standalone takeoff from DocSort
+  belongs_to :document_inbox, optional: true  # For standalone takeoff from Document Inbox
   belongs_to :pricebook_item, class_name: "PricebookItem", optional: true
   belongs_to :job_colour_selection, optional: true
   belongs_to :synced_to_po, class_name: "PurchaseOrder", optional: true
 
   # PDF Takeoff associations (Feb 2026)
   belongs_to :takeoff_layer, optional: true
-  belongs_to :parent_measurement, class_name: "UnrealMeasurement", optional: true
+  belongs_to :parent_measurement, class_name: "TakeoffMeasurement", optional: true
   belongs_to :takeoff_room_slot, optional: true
-  has_many :deductions, class_name: "UnrealMeasurement", foreign_key: :parent_measurement_id, dependent: :nullify
+  has_many :deductions, class_name: "TakeoffMeasurement", foreign_key: :parent_measurement_id, dependent: :nullify
 
   # Validations
   validates :session_id, presence: true
@@ -31,12 +31,12 @@ class UnrealMeasurement < ApplicationRecord
   validates :value, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validates :unit, presence: true
   validates :source, inclusion: { in: %w[unreal pdf_takeoff manual] }, allow_nil: true
-  validate :job_or_docsort_present
+  validate :job_or_document_inbox_present
 
-  # Custom validation: must belong to either a job or a docsort_item
-  def job_or_docsort_present
-    return if job_id.present? || docsort_item_id.present?
-    errors.add(:base, "Measurement must belong to either a job or a docsort_item")
+  # Custom validation: must belong to either a job or a document_inbox
+  def job_or_document_inbox_present
+    return if job_id.present? || document_inbox_id.present?
+    errors.add(:base, "Measurement must belong to either a job or a document inbox")
   end
 
   # Scopes
@@ -54,8 +54,8 @@ class UnrealMeasurement < ApplicationRecord
   scope :non_deductions, -> { where(is_deduction: [false, nil]) }
   scope :for_page, ->(page_num) { where(page_number: page_num) }
   scope :for_layer, ->(layer) { where(takeoff_layer: layer) }
-  scope :for_docsort, ->(docsort_item) { where(docsort_item: docsort_item) }
-  scope :standalone, -> { where.not(docsort_item_id: nil).where(job_id: nil) }
+  scope :for_document_inbox, ->(document_inbox) { where(document_inbox: document_inbox) }
+  scope :standalone, -> { where.not(document_inbox_id: nil).where(job_id: nil) }
 
   # Callbacks
   before_validation :set_default_unit, on: :create

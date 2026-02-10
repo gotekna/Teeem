@@ -672,7 +672,7 @@ module Api
             # Example: Corporate type has "Corporate/{{CompanyGroup}}/{{CompanyCode}}"
             #          Statement has parent Balance Sheet, which has parent Xero
             #          Full path = "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Balance Sheet/Statement"
-            wt_template = warehouse_type.folder_path_template.presence
+            wt_template = warehouse_type.folder_path_template.presence || warehouse_type.display_name
 
             # Build path from parent hierarchy
             ancestor_path = build_ancestor_path(wf)
@@ -851,8 +851,8 @@ module Api
           displayName: warehouse_type.display_name,
           iconName: warehouse_type.icon_name,
           orderPosition: warehouse_type.order_position,
-          folderPathTemplate: warehouse_type.folder_path_template,
-          pathPreview: resolve_template_tokens(warehouse_type.folder_path_template),
+          folderPathTemplate: warehouse_type.folder_path_template.presence || warehouse_type.display_name,
+          pathPreview: resolve_template_tokens(warehouse_type.folder_path_template.presence || warehouse_type.display_name),
           fileCount: file_count,
           warehouseFolders: warehouse_folders.map { |wf| warehouse_folder_tree_node(wf, warehouse_type) }
         }
@@ -862,7 +862,7 @@ module Api
       # SSoT (Feb 2026): WarehouseFolder is THE ONE
       def warehouse_folder_tree_node(warehouse_folder, warehouse_type)
         # Build full path template
-        wt_template = warehouse_type.folder_path_template.presence
+        wt_template = warehouse_type.folder_path_template.presence || warehouse_type.display_name
         ancestor_path = build_ancestor_path(warehouse_folder)
 
         full_template = if wt_template.blank?

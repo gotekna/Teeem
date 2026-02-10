@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# DocsortRoutingService - Routes classified documents to appropriate handlers
+# DocumentInboxRoutingService - Routes classified documents to appropriate handlers
 #
 # SSoT: THE ONE service for document routing in DocSort
 #
@@ -15,9 +15,9 @@
 #   email → Email processing
 #   general → Manual routing required
 #
-class DocsortRoutingService
-  def initialize(docsort_item)
-    @item = docsort_item
+class DocumentInboxRoutingService
+  def initialize(document_inbox)
+    @item = document_inbox
   end
 
   # Route document based on classification
@@ -49,7 +49,7 @@ class DocsortRoutingService
       }
     end
   rescue StandardError => e
-    Rails.logger.error "[DocsortRoutingService] Routing failed for #{@item.id}: #{e.message}"
+    Rails.logger.error "[DocumentInboxRoutingService] Routing failed for #{@item.id}: #{e.message}"
     {
       success: false,
       error: e.message
@@ -69,7 +69,7 @@ class DocsortRoutingService
       original_filename: @item.original_filename,
       synced_email: @item.synced_email,
       metadata: {
-        docsort_item_id: @item.id,
+        document_inbox_id: @item.id,
         classification_confidence: @item.classification_confidence
       }
     )
@@ -105,7 +105,7 @@ class DocsortRoutingService
       description: "Imported from DocSort",
       status: 'pending',
       metadata: {
-        docsort_item_id: @item.id,
+        document_inbox_id: @item.id,
         source: 'docsort'
       }
     )
@@ -128,7 +128,7 @@ class DocsortRoutingService
       routed_to_type: 'JobPlan',
       routed_to_id: job_plan.id,
       message: "Routed to Job #{job.job_code}",
-      measurements_transferred: @item.unreal_measurements.count,
+      measurements_transferred: @item.takeoff_measurements.count,
       page_scales_transferred: @item.page_scales.count
     }
   end
@@ -150,7 +150,7 @@ class DocsortRoutingService
       from_email: @item.from_email,
       subject: @item.subject,
       metadata: {
-        docsort_item_id: @item.id,
+        document_inbox_id: @item.id,
         classification_confidence: @item.classification_confidence
       }
     )
@@ -301,16 +301,16 @@ class DocsortRoutingService
       )
     end
 
-    # Transfer measurements - update to link to job and job_plan instead of docsort_item
-    @item.unreal_measurements.each do |measurement|
+    # Transfer measurements - update to link to job and job_plan instead of document_inbox
+    @item.takeoff_measurements.each do |measurement|
       measurement.update!(
         job: job,
         job_plan: job_plan
-        # Keep docsort_item_id for audit trail
+        # Keep document_inbox_id for audit trail
       )
     end
 
-    Rails.logger.info "[DocsortRoutingService] Transferred #{@item.page_scales.count} page scales and #{@item.unreal_measurements.count} measurements to JobPlan #{job_plan.id}"
+    Rails.logger.info "[DocumentInboxRoutingService] Transferred #{@item.page_scales.count} page scales and #{@item.takeoff_measurements.count} measurements to JobPlan #{job_plan.id}"
   end
 
   # Try to detect job from various context clues
@@ -369,7 +369,7 @@ class DocsortRoutingService
       source_type: "job",
       documentable: po,
       storage_blob: @item.storage_blob,
-      metadata: { "docsort_item_id" => @item.id }
+      metadata: { "document_inbox_id" => @item.id }
     )
 
     @item.storage_blob.increment!(:reference_count)
@@ -385,7 +385,7 @@ class DocsortRoutingService
       file_size: @item.file_size,
       content_type: @item.content_type,
       metadata: {
-        "docsort_item_id" => @item.id,
+        "document_inbox_id" => @item.id,
         "document_type" => doc_type&.name
       }
     )

@@ -93,7 +93,7 @@ export function OfflineIndicator({
         try {
           const endpoint = scale.plan_id
             ? `/api/v1/pdf_takeoff/plans/${scale.plan_id}/calibrate`
-            : `/api/v1/pdf_takeoff/docsort/${scale.docsort_item_id}/calibrate`;
+            : `/api/v1/pdf_takeoff/document_inbox/${scale.docsort_item_id}/calibrate`;
 
           const response = await api.post<{ success: boolean; data?: { id: number } }>(
             endpoint,
@@ -123,7 +123,7 @@ export function OfflineIndicator({
         try {
           const endpoint = measurement.plan_id
             ? `/api/v1/pdf_takeoff/plans/${measurement.plan_id}/measurements`
-            : `/api/v1/pdf_takeoff/docsort/${measurement.docsort_item_id}/measurements`;
+            : `/api/v1/pdf_takeoff/document_inbox/${measurement.docsort_item_id}/measurements`;
 
           const response = await api.post<{ success: boolean; data?: { id: number } }>(
             endpoint,

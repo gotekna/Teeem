@@ -249,7 +249,7 @@ module StorableDocument
   # Different models use different column names:
   #   - storage_item_id (ContactDocument)
   #   - storage_file_id (BillInbox)
-  #   - external_id (PeopleDocument)
+  #   - external_id (ContactDocument)
   # This method handles all - ONLY use internally, external code should use storage_reference
   def legacy_storage_id
     if has_attribute?(:storage_item_id) && read_attribute(:storage_item_id).present?

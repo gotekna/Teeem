@@ -11,7 +11,7 @@ module Api
     #
     class PdfTakeoffController < ApplicationController
       before_action :set_job_plan, only: [:show, :calibrate, :measurements, :create_measurement, :generate_po, :detect_scale, :detect_elements]
-      before_action :set_docsort_item, only: [:show_docsort, :calibrate_docsort, :measurements_docsort, :create_measurement_docsort, :detect_scale_docsort, :detect_elements_docsort, :layers_docsort, :create_layer_docsort]
+      before_action :set_document_inbox, only: [:show_docsort, :calibrate_docsort, :measurements_docsort, :create_measurement_docsort, :detect_scale_docsort, :detect_elements_docsort, :layers_docsort, :create_layer_docsort]
       before_action :set_job, only: [:layers, :create_layer]
 
       # GET /api/v1/pdf_takeoff/plans/:job_plan_id
@@ -165,7 +165,7 @@ module Api
       # GET /api/v1/pdf_takeoff/plans/:job_plan_id/measurements
       # Get measurements for a plan (optionally filtered by page)
       def measurements
-        scope = UnrealMeasurement.where(job_plan: @job_plan).from_pdf_takeoff
+        scope = TakeoffMeasurement.where(job_plan: @job_plan).from_pdf_takeoff
 
         scope = scope.for_page(params[:page_number].to_i) if params[:page_number].present?
         scope = scope.non_deductions unless params[:include_deductions] == "true"
@@ -186,7 +186,7 @@ module Api
       # POST /api/v1/pdf_takeoff/plans/:job_plan_id/measurements
       # Create a new measurement
       def create_measurement
-        measurement = UnrealMeasurement.new(measurement_params)
+        measurement = TakeoffMeasurement.new(measurement_params)
         measurement.job = @job_plan.job
         measurement.job_plan = @job_plan
         measurement.source = "pdf_takeoff"
@@ -218,7 +218,7 @@ module Api
 
         # Set display label for counts
         if measurement.measurement_type == "count" && measurement.display_label.blank?
-          max_label = UnrealMeasurement.where(job_plan: @job_plan, measurement_type: "count")
+          max_label = TakeoffMeasurement.where(job_plan: @job_plan, measurement_type: "count")
                                        .from_pdf_takeoff
                                        .maximum(:display_label)&.to_i || 0
           measurement.display_label = (max_label + 1).to_s
@@ -237,15 +237,15 @@ module Api
       # DELETE /api/v1/pdf_takeoff/measurements/:id
       # Delete a measurement
       def delete_measurement
-        measurement = UnrealMeasurement.find(params[:id])
+        measurement = TakeoffMeasurement.find(params[:id])
 
         # Verify user has access (measurement belongs to their job or docsort_item)
         if measurement.job.present?
           unless measurement.job.accessible_by?(current_user)
             return render json: { success: false, error: "Access denied" }, status: :forbidden
           end
-        elsif measurement.docsort_item.present?
-          unless measurement.docsort_item.tenant_id == current_tenant.id
+        elsif measurement.document_inbox.present?
+          unless measurement.document_inbox.tenant_id == current_tenant.id
             return render json: { success: false, error: "Access denied" }, status: :forbidden
           end
         end
@@ -257,15 +257,15 @@ module Api
       # PATCH /api/v1/pdf_takeoff/measurements/:id
       # Update a measurement (primarily for pricebook assignment)
       def update_measurement
-        measurement = UnrealMeasurement.find(params[:id])
+        measurement = TakeoffMeasurement.find(params[:id])
 
         # Verify user has access
         if measurement.job.present?
           unless measurement.job.accessible_by?(current_user)
             return render json: { success: false, error: "Access denied" }, status: :forbidden
           end
-        elsif measurement.docsort_item.present?
-          unless measurement.docsort_item.tenant_id == current_tenant.id
+        elsif measurement.document_inbox.present?
+          unless measurement.document_inbox.tenant_id == current_tenant.id
             return render json: { success: false, error: "Access denied" }, status: :forbidden
           end
         end
@@ -288,15 +288,15 @@ module Api
       # POST /api/v1/pdf_takeoff/measurements/:id/count_point
       # Add a point to an existing count measurement (accumulate clicks)
       def add_count_point
-        measurement = UnrealMeasurement.find(params[:id])
+        measurement = TakeoffMeasurement.find(params[:id])
 
         # Verify access
         if measurement.job.present?
           unless measurement.job.accessible_by?(current_user)
             return render json: { success: false, error: "Access denied" }, status: :forbidden
           end
-        elsif measurement.docsort_item.present?
-          unless measurement.docsort_item.tenant_id == current_tenant.id
+        elsif measurement.document_inbox.present?
+          unless measurement.document_inbox.tenant_id == current_tenant.id
             return render json: { success: false, error: "Access denied" }, status: :forbidden
           end
         end
@@ -328,15 +328,15 @@ module Api
       # DELETE /api/v1/pdf_takeoff/measurements/:id/remove_point
       # Remove a single point from a count measurement (or delete measurement if last point)
       def remove_point
-        measurement = UnrealMeasurement.find(params[:id])
+        measurement = TakeoffMeasurement.find(params[:id])
 
         # Verify access
         if measurement.job.present?
           unless measurement.job.accessible_by?(current_user)
             return render json: { success: false, error: "Access denied" }, status: :forbidden
           end
-        elsif measurement.docsort_item.present?
-          unless measurement.docsort_item.tenant_id == current_tenant.id
+        elsif measurement.document_inbox.present?
+          unless measurement.document_inbox.tenant_id == current_tenant.id
             return render json: { success: false, error: "Access denied" }, status: :forbidden
           end
         end
@@ -378,15 +378,15 @@ module Api
       # PATCH /api/v1/pdf_takeoff/measurements/:id/move_point
       # Move a specific point in a measurement's geometry_data
       def move_point
-        measurement = UnrealMeasurement.find(params[:id])
+        measurement = TakeoffMeasurement.find(params[:id])
 
         # Verify access
         if measurement.job.present?
           unless measurement.job.accessible_by?(current_user)
             return render json: { success: false, error: "Access denied" }, status: :forbidden
           end
-        elsif measurement.docsort_item.present?
-          unless measurement.docsort_item.tenant_id == current_tenant.id
+        elsif measurement.document_inbox.present?
+          unless measurement.document_inbox.tenant_id == current_tenant.id
             return render json: { success: false, error: "Access denied" }, status: :forbidden
           end
         end
@@ -407,8 +407,8 @@ module Api
         if measurement.measurement_type.in?(%w[area length perimeter]) && points.length >= 2
           page_scale = if measurement.job_plan.present?
                          PageScale.find_by(job_plan: measurement.job_plan, page_number: measurement.page_number)
-                       elsif measurement.docsort_item.present?
-                         PageScale.find_by(docsort_item: measurement.docsort_item, page_number: measurement.page_number)
+                       elsif measurement.document_inbox.present?
+                         PageScale.find_by(document_inbox: measurement.document_inbox, page_number: measurement.page_number)
                        end
           pixel_value = case geo["type"]
                         when "polygon"
@@ -454,7 +454,7 @@ module Api
       def generate_po
         job = @job_plan.job
 
-        measurements = @job_plan.unreal_measurements
+        measurements = @job_plan.takeoff_measurements
                                 .from_pdf_takeoff
                                 .where.not(pricebook_item_id: nil)
                                 .includes(:pricebook_item)
@@ -539,10 +539,10 @@ module Api
       # DocSort Standalone Takeoff (Feb 2026)
       # =============================================================================
 
-      # GET /api/v1/pdf_takeoff/docsort/:docsort_item_id
+      # GET /api/v1/pdf_takeoff/docsort/:document_inbox_id
       # Get docsort item details with page scales for standalone takeoff
       def show_docsort
-        page_scales = @docsort_item.page_scales.map do |ps|
+        page_scales = @document_inbox.page_scales.map do |ps|
           {
             id: ps.id,
             page_number: ps.page_number,
@@ -556,9 +556,9 @@ module Api
 
         # Get download URL with graceful error handling for storage provider issues
         download_url = begin
-          @docsort_item.download_url
+          @document_inbox.download_url
         rescue StandardError => e
-          Rails.logger.error "[PdfTakeoff] Failed to get download_url for DocsortItem #{@docsort_item.id}: #{e.message}"
+          Rails.logger.error "[PdfTakeoff] Failed to get download_url for DocumentInbox #{@document_inbox.id}: #{e.message}"
           nil
         end
 
@@ -568,11 +568,11 @@ module Api
         render json: {
           success: true,
           data: {
-            docsort_item: {
-              id: @docsort_item.id,
-              display_name: @docsort_item.display_name,
-              document_type: @docsort_item.document_type,
-              original_filename: @docsort_item.original_filename
+            document_inbox: {
+              id: @document_inbox.id,
+              display_name: @document_inbox.display_name,
+              document_type: @document_inbox.document_type,
+              original_filename: @document_inbox.original_filename
             },
             download_url: download_url,
             page_scales: page_scales
@@ -580,13 +580,13 @@ module Api
         }
       end
 
-      # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/calibrate
+      # POST /api/v1/pdf_takeoff/docsort/:document_inbox_id/calibrate
       # Set scale calibration for a page on a docsort item
       def calibrate_docsort
         page_number = params[:page_number]&.to_i || 1
 
         page_scale = PageScale.find_or_initialize_by(
-          docsort_item: @docsort_item,
+          document_inbox: @document_inbox,
           page_number: page_number
         )
         page_scale.tenant = current_tenant
@@ -620,10 +620,10 @@ module Api
         end
       end
 
-      # DELETE /api/v1/pdf_takeoff/docsort/:docsort_item_id/calibrate
+      # DELETE /api/v1/pdf_takeoff/docsort/:document_inbox_id/calibrate
       def clear_calibration_docsort
         page_number = params[:page_number]&.to_i || 1
-        page_scale = PageScale.find_by(docsort_item: @docsort_item, page_number: page_number)
+        page_scale = PageScale.find_by(document_inbox: @document_inbox, page_number: page_number)
         if page_scale
           page_scale.update!(
             scale_factor: nil,
@@ -637,7 +637,7 @@ module Api
         render json: { success: true }
       end
 
-      # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/detect_scale
+      # POST /api/v1/pdf_takeoff/docsort/:document_inbox_id/detect_scale
       # AI-powered scale detection from page image (docsort)
       def detect_scale_docsort
         unless params[:image_base64].present?
@@ -653,7 +653,7 @@ module Api
         # Store AI detection result on the page scale if detected
         if result[:detected] && params[:page_number].present?
           page_scale = PageScale.find_or_initialize_by(
-            docsort_item: @docsort_item,
+            document_inbox: @document_inbox,
             page_number: params[:page_number].to_i
           )
           page_scale.tenant = current_tenant
@@ -668,7 +668,7 @@ module Api
         }
       end
 
-      # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/detect_elements
+      # POST /api/v1/pdf_takeoff/docsort/:document_inbox_id/detect_elements
       # AI-powered detection of walls, doors, windows and other architectural elements (docsort)
       def detect_elements_docsort
         unless params[:image_base64].present?
@@ -688,17 +688,17 @@ module Api
         }
       end
 
-      # GET /api/v1/pdf_takeoff/docsort/:docsort_item_id/measurements
+      # GET /api/v1/pdf_takeoff/docsort/:document_inbox_id/measurements
       # Get measurements for a docsort item
       def measurements_docsort
         # Auto-assign unassigned measurements to default layer
-        unassigned = @docsort_item.unreal_measurements.from_pdf_takeoff.where(takeoff_layer_id: nil)
+        unassigned = @document_inbox.takeoff_measurements.from_pdf_takeoff.where(takeoff_layer_id: nil)
         if unassigned.any?
-          default_layer = TakeoffLayer.default_layer_for_docsort(@docsort_item)
+          default_layer = TakeoffLayer.default_layer_for_docsort(@document_inbox)
           unassigned.update_all(takeoff_layer_id: default_layer.id)
         end
 
-        scope = @docsort_item.unreal_measurements.from_pdf_takeoff
+        scope = @document_inbox.takeoff_measurements.from_pdf_takeoff
 
         scope = scope.for_page(params[:page_number].to_i) if params[:page_number].present?
         scope = scope.non_deductions unless params[:include_deductions] == "true"
@@ -716,11 +716,11 @@ module Api
         }
       end
 
-      # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/measurements
+      # POST /api/v1/pdf_takeoff/docsort/:document_inbox_id/measurements
       # Create a new measurement on a docsort item
       def create_measurement_docsort
-        measurement = UnrealMeasurement.new(measurement_params)
-        measurement.docsort_item = @docsort_item
+        measurement = TakeoffMeasurement.new(measurement_params)
+        measurement.document_inbox = @document_inbox
         measurement.source = "pdf_takeoff"
         measurement.session_id ||= SecureRandom.uuid
 
@@ -732,7 +732,7 @@ module Api
             # Count doesn't need calibration — value is always the raw count
             measurement.value = m_params[:pixel_value].to_f
           else
-            page_scale = PageScale.find_by(docsort_item: @docsort_item, page_number: m_params[:page_number])
+            page_scale = PageScale.find_by(document_inbox: @document_inbox, page_number: m_params[:page_number])
             if page_scale&.calibrated?
               measurement.value = convert_measurement(
                 m_params[:pixel_value].to_f,
@@ -745,13 +745,13 @@ module Api
 
         # Auto-assign to default layer if none specified
         if measurement.takeoff_layer_id.blank?
-          default_layer = TakeoffLayer.default_layer_for_docsort(@docsort_item)
+          default_layer = TakeoffLayer.default_layer_for_docsort(@document_inbox)
           measurement.takeoff_layer_id = default_layer.id
         end
 
         # Set display label for counts
         if measurement.measurement_type == "count" && measurement.display_label.blank?
-          max_label = @docsort_item.unreal_measurements
+          max_label = @document_inbox.takeoff_measurements
                                    .where(measurement_type: "count")
                                    .from_pdf_takeoff
                                    .maximum(:display_label)&.to_i || 0
@@ -763,7 +763,7 @@ module Api
             success: true,
             data: {
               measurement: measurement_json(measurement),
-              summary: calculate_summary(@docsort_item.unreal_measurements.from_pdf_takeoff)
+              summary: calculate_summary(@document_inbox.takeoff_measurements.from_pdf_takeoff)
             }
           }, status: :created
         else
@@ -841,7 +841,7 @@ module Api
           default_layer = if layer.job
             TakeoffLayer.default_layer_for(layer.job)
           else
-            TakeoffLayer.default_layer_for_docsort(layer.docsort_item)
+            TakeoffLayer.default_layer_for_docsort(layer.document_inbox)
           end
           layer.measurements.update_all(takeoff_layer_id: default_layer.id)
         end
@@ -854,9 +854,9 @@ module Api
       # DocSort Layer Management
       # =============================================================================
 
-      # GET /api/v1/pdf_takeoff/docsort/:docsort_item_id/layers
+      # GET /api/v1/pdf_takeoff/docsort/:document_inbox_id/layers
       def layers_docsort
-        layers = @docsort_item.takeoff_layers.ordered.map do |layer|
+        layers = @document_inbox.takeoff_layers.ordered.map do |layer|
           {
             id: layer.id,
             name: layer.name,
@@ -870,8 +870,8 @@ module Api
 
         # Create default layers if none exist
         if layers.empty?
-          TakeoffLayer.create_defaults_for_docsort(@docsort_item)
-          layers = @docsort_item.takeoff_layers.reload.ordered.map do |layer|
+          TakeoffLayer.create_defaults_for_docsort(@document_inbox)
+          layers = @document_inbox.takeoff_layers.reload.ordered.map do |layer|
             {
               id: layer.id,
               name: layer.name,
@@ -887,9 +887,9 @@ module Api
         render json: { success: true, data: { layers: layers } }
       end
 
-      # POST /api/v1/pdf_takeoff/docsort/:docsort_item_id/layers
+      # POST /api/v1/pdf_takeoff/docsort/:document_inbox_id/layers
       def create_layer_docsort
-        layer = @docsort_item.takeoff_layers.build(layer_params)
+        layer = @document_inbox.takeoff_layers.build(layer_params)
         layer.tenant = current_tenant
 
         if layer.save
@@ -916,10 +916,10 @@ module Api
         @job_plan = JobPlan.find(params[:job_plan_id] || params[:id])
       end
 
-      def set_docsort_item
-        @docsort_item = DocsortItem.find(params[:docsort_item_id])
+      def set_document_inbox
+        @document_inbox = DocumentInbox.find(params[:document_inbox_id])
         # Verify tenant access
-        unless @docsort_item.tenant_id == current_tenant.id
+        unless @document_inbox.tenant_id == current_tenant.id
           render json: { success: false, error: "Access denied" }, status: :forbidden
         end
       end

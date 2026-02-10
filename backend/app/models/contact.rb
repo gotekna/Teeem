@@ -111,8 +111,8 @@ class Contact < ApplicationRecord
   has_many :shareholding_companies, through: :corporate_shareholdings, source: :corporate
   has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy
 
-  # SSoT: People documents (ID, licenses, personal documents for people scope)
-  has_many :people_documents, dependent: :destroy
+  # SSoT: Contact documents (ID, licenses, personal documents for people scope)
+  has_many :contact_documents, dependent: :destroy
 
   # Company Group memberships (SSoT - links contact to company groups with permissions)
   has_many :company_group_memberships, class_name: "ContactCompanyGroupMembership", dependent: :destroy

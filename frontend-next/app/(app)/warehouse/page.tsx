@@ -76,7 +76,7 @@ interface AllDocumentsResponse {
   data: {
     job_documents: DocumentItem[];
     corporate_documents: DocumentItem[];
-    people_documents: DocumentItem[];
+    contact_documents: DocumentItem[];
     task_documents: DocumentItem[];
   };
   // Counts for all scopes - dynamic, extends as new scopes are added
@@ -274,7 +274,7 @@ export default function AllDocumentsPage() {
         setDocuments({
           jobs: response.data.job_documents || [],
           corporate: response.data.corporate_documents || [],
-          people: response.data.people_documents || [],
+          people: response.data.contact_documents || [],
           tasks: response.data.task_documents || [],
         });
         // Merge API counts with defaults - API now returns all scope counts

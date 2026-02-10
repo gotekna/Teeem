@@ -132,7 +132,7 @@ const KNOWN_LOOKUP_MAPPINGS: Record<string, { foundationSlug: string; displayCol
   job_type: { foundationSlug: 'job_types', displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
   job_status_id: { foundationSlug: 'job_status', displayColumn: 'name', apiEndpoint: '/api/v1/job_status', responseKey: 'job_statuses' },
   job_status: { foundationSlug: 'job_status', displayColumn: 'name', apiEndpoint: '/api/v1/job_status', responseKey: 'job_statuses' },
-  design_id: { foundationSlug: 'designs', displayColumn: 'name' },
+  job_design_id: { foundationSlug: 'job_designs', displayColumn: 'name' },
   contact_id: { foundationSlug: 'contacts', displayColumn: 'display_name' },
 };
 
@@ -175,7 +175,7 @@ export function ViewManagerSheet({
 
   // Numeric column types that can have totals
   const NUMERIC_TYPES = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
-  const SKIP_COLUMNS = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'design_id', 'user_id'];
+  const SKIP_COLUMNS = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'job_design_id', 'user_id'];
 
   // Get columns that can have totals (numeric types, not skipped)
   const numericColumns = React.useMemo(() => {

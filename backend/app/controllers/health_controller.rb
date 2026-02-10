@@ -6,7 +6,7 @@ class HealthController < ApplicationController
       status: "ok",
       timestamp: Time.current,
       environment: Rails.env,
-      version: Version.current_version_string
+      version: AppVersion.current_version_string
     }
   end
 
@@ -16,7 +16,7 @@ class HealthController < ApplicationController
       Time.parse(ENV["HEROKU_RELEASE_CREATED_AT"]) : Time.current
 
     response = {
-      version: Version.current_version_string,
+      version: AppVersion.current_version_string,
       timestamp: deploy_time
     }
     # Include heroku_release if available (requires dyno metadata feature)
@@ -26,10 +26,10 @@ class HealthController < ApplicationController
   end
 
   def increment_version
-    new_version = Version.increment!
+    new_version = AppVersion.increment!
     render json: {
       version: "v#{new_version}",
-      message: "Version incremented successfully"
+      message: "AppVersion incremented successfully"
     }
   end
 end

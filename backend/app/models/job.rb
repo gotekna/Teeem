@@ -28,9 +28,8 @@ class Job < ApplicationRecord
   has_many :job_claims, dependent: :destroy
   has_many :job_claim_stages, dependent: :destroy
   # Note: schedule_tasks association removed in Phase 6 - SmTask is THE ONE task system (see sm_tasks)
-  has_one :project, dependent: :destroy
   # REMOVED: has_one :one_drive_credential - legacy per-job SharePoint system (cleaned up Jan 2026)
-  belongs_to :design, optional: true
+  belongs_to :job_design, optional: true
   belongs_to :job_type, optional: true
   belongs_to :job_status, optional: true
   belongs_to :job_stage, optional: true
@@ -42,7 +41,7 @@ class Job < ApplicationRecord
   has_many :contacts, through: :job_contacts
   has_many :job_specifications, dependent: :destroy
   has_many :job_colour_selections, dependent: :destroy
-  has_many :unreal_measurements, dependent: :destroy
+  has_many :takeoff_measurements, dependent: :destroy
   has_many :rain_logs, dependent: :destroy
   has_many :external_invoices, dependent: :nullify
   # Note: job_documents association REMOVED (Jan 2026) - table dropped

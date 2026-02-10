@@ -4089,7 +4089,7 @@ export default function TeeemTableView({
   // Respects totalsColumns setting - empty array means ALL numeric columns
   const columnTotals = useMemo(() => {
     const numericTypes = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
-    const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'design_id', 'user_id']; // Never show totals for these
+    const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'job_design_id', 'user_id']; // Never show totals for these
     const totals: Record<string, { value: number; type: string; label: string; isAverage: boolean }> = {};
 
     // Check if specific columns are selected (empty = all, '__none__' marker = none)
