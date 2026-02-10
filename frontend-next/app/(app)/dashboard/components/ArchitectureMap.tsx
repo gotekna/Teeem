@@ -60,6 +60,7 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import EnvironmentsMap from "./EnvironmentsMap";
 
 // Tooltip wrapper for technical terms
 function TechTerm({ term, definition, children }: { term: string; definition: string; children: React.ReactNode }) {
@@ -218,7 +219,7 @@ export default function ArchitectureMap() {
 
       {/* View Tabs */}
       <Tabs value={activeView} onValueChange={setActiveView}>
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="beginner" className="gap-2">
             <BookOpen className="h-4 w-4" />
             <span className="hidden sm:inline">Beginner</span>
@@ -230,6 +231,10 @@ export default function ArchitectureMap() {
           <TabsTrigger value="architect" className="gap-2">
             <Layers className="h-4 w-4" />
             <span className="hidden sm:inline">Architect</span>
+          </TabsTrigger>
+          <TabsTrigger value="environments" className="gap-2">
+            <Server className="h-4 w-4" />
+            <span className="hidden sm:inline">Environments</span>
           </TabsTrigger>
           <TabsTrigger value="warehouse" className="gap-2">
             <HardDrive className="h-4 w-4" />
@@ -1026,6 +1031,11 @@ export default function JobsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Environments Tab */}
+        <TabsContent value="environments" className="space-y-6 mt-6">
+          <EnvironmentsMap />
         </TabsContent>
 
         {/* Warehouse Architecture */}

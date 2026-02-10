@@ -919,7 +919,10 @@ class TenantConfigSyncService
         attrs = build_sync_attrs(master_record, config)
         deferred = {}
         if self_ref_fks.any?
-          self_ref_fks.each_key { |field| deferred[field] = attrs.delete(field) if attrs.key?(field) }
+          self_ref_fks.each_key do |field|
+            deferred[field] = attrs.delete(field) if attrs.key?(field)
+            attrs[field] = nil  # Clear stale parent_id to avoid validation on existing records
+          end
         end
 
         if existing
@@ -1284,10 +1287,14 @@ class TenantConfigSyncService
     # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
     # defer those fields to a second pass. First pass sets all other fields (including
     # warehouse_type_id) so the parent validation can pass in the second pass.
+    # ⚠️ MUST also nil-out the field on existing records — otherwise the old parent_id
+    # remains and validation fires because parent.warehouse_type_id no longer matches
+    # the newly-remapped warehouse_type_id.
     deferred = {}
     if defer_fields.any?
       defer_fields.each do |field|
         deferred[field] = attrs.delete(field) if attrs.key?(field)
+        attrs[field] = nil  # Clear stale parent_id to avoid validation on existing records
       end
     end
 
