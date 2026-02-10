@@ -15,7 +15,6 @@ class ApplicationController < ActionController::API
   rescue_from ActiveRecord::RecordInvalid, with: :handle_validation_error
   rescue_from ActionController::ParameterMissing, with: :handle_parameter_missing
   rescue_from ActiveRecord::DeleteRestrictionError, with: :handle_delete_restriction
-  # REMOVED (Jan 2026): rescue_from ActiveStorage::FileNotFoundError - SSoT is now StorageBlob
 
   private
 
@@ -194,7 +193,4 @@ class ApplicationController < ActionController::API
       error_code: "HAS_DEPENDENCIES"
     }, status: :unprocessable_entity
   end
-
-  # REMOVED (Jan 2026): handle_file_not_found - ActiveStorage no longer used
-  # StorageBlob handles file-not-found via standard exception handling
 end

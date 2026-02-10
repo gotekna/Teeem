@@ -6,29 +6,21 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # GET /api/v1/synced_emails
   # List synced emails with filtering
   def index
-    # FRC (Feb 2026): For cross-tenant email sharing, we need to bypass acts_as_tenant
-    # for IMAP credentials that are shared. The accessible_by scope handles authorization,
-    # so we use unscoped to avoid the tenant filter blocking shared credential emails.
-
-    # Capture tenant ID BEFORE entering without_tenant block (where current_tenant is nil)
-    user_tenant_id = current_tenant&.id
+    # FRC (Feb 2026): IMAP credentials are user-level, not tenant-level.
+    # A user's IMAP emails may have been synced under ANY tenant they belong to.
+    # If we let acts_as_tenant filter, emails synced under Tenant A disappear when
+    # the user switches to Tenant B - even though they're the same user's emails.
+    # The credential_id filter (in my_emails block below) provides proper authorization.
+    #
+    # Root cause of Feb 10 bug: cross-tenant check only detected SHARED credentials
+    # from other tenants, missing the case where the user's OWN IMAP emails were
+    # synced under a different tenant context.
 
     # SSoT: Use accessible_by scope which includes owned AND shared credentials
     user_imap_ids = ActsAsTenant.without_tenant { ImapCredential.accessible_by(current_user).pluck(:id) }
 
-    # Check if any IMAP credentials are cross-tenant shared (owned by a different tenant)
-    # If so, we need to bypass acts_as_tenant for the entire email query
-    has_cross_tenant_imap = ActsAsTenant.without_tenant {
-      ImapCredential.where(id: user_imap_ids)
-                    .where.not(user_id: current_user.id)
-                    .joins(:user)
-                    .where.not(users: { tenant_id: user_tenant_id })
-                    .exists?
-    }
-
-    # Start with appropriate scope based on whether cross-tenant access is needed
-    if has_cross_tenant_imap
-      # Bypass tenant scoping - we'll filter explicitly by accessible credential IDs
+    # Bypass tenant scoping when user has IMAP credentials (IMAP is user-level)
+    if user_imap_ids.any?
       emails = SyncedEmail.unscoped
     else
       emails = SyncedEmail.all
@@ -677,25 +669,13 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Get unread email counts for the sidebar badge
   def unread_counts
     begin
-      # FRC (Feb 2026): Capture tenant ID BEFORE entering without_tenant block
-      user_tenant_id = current_tenant&.id
-
-      # SSoT: Use accessible_by scope which includes owned AND shared credentials
-      # FRC (Feb 2026): Must bypass acts_as_tenant for cross-tenant IMAP credentials
+      # FRC (Feb 2026): IMAP is user-level, not tenant-level. Always unscope when
+      # user has IMAP credentials so emails synced under other tenants are visible.
       user_imap_credentials = ActsAsTenant.without_tenant { ImapCredential.accessible_by(current_user) }
       user_imap_ids = user_imap_credentials.pluck(:id)
 
-      # Check if any IMAP credentials are cross-tenant shared
-      has_cross_tenant_imap = ActsAsTenant.without_tenant {
-        ImapCredential.where(id: user_imap_ids)
-                      .where.not(user_id: current_user.id)
-                      .joins(:user)
-                      .where.not(users: { tenant_id: user_tenant_id })
-                      .exists?
-      }
-
-      # Get emails user has access to - bypass tenant for cross-tenant sharing
-      emails = has_cross_tenant_imap ? SyncedEmail.unscoped : SyncedEmail.all
+      # Bypass tenant scoping when user has IMAP credentials
+      emails = user_imap_ids.any? ? SyncedEmail.unscoped : SyncedEmail.all
 
       # Build list of all email accounts user has access to
       all_accounts = []

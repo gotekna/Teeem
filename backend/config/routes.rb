@@ -8,6 +8,7 @@ Rails.application.routes.draw do
   # API health check
   get "/health", to: "health#index"
   get "/version", to: "health#version"
+  get "/worker_health", to: "health#worker_status"
   post "/version/increment", to: "health#increment_version"
 
   # ActionCable WebSocket endpoint

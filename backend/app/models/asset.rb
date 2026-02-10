@@ -21,7 +21,6 @@ class Asset < ApplicationRecord
 
   # SSoT: Multiple photo storage via StorageBlob IDs (Jan 2026)
   # photo_blob_ids is JSONB array of StorageBlob IDs
-  # ActiveStorage has_many_attached :photos was REMOVED - it violated SSoT.
 
   # Allowed content types for photos
   ALLOWED_PHOTO_TYPES = %w[image/jpeg image/png image/heic image/webp image/gif].freeze

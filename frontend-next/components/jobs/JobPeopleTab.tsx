@@ -32,6 +32,7 @@ import { api } from "@/lib/api";
 import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { INTERNAL_ROLE_KEYS } from "@/lib/constants/job-roles";
 
 interface Contact {
   id: number;
@@ -129,7 +130,7 @@ const ROLE_GROUPS = [
 ];
 
 const ROLE_TYPES = ROLE_GROUPS.flatMap((g) => g.roles);
-const INTERNAL_ROLES = ["supervisor", "site_coordinator", "estimator", "internal_sales", "coordinator"];
+const INTERNAL_ROLES = INTERNAL_ROLE_KEYS;
 
 const getRoleConfig = (roleKey: string) => {
   return ROLE_TYPES.find((r) => r.key === roleKey) || { label: roleKey || "Contact", icon: User, color: "gray" };
@@ -167,7 +168,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [expandedContacts, setExpandedContacts] = useState<Set<number>>(new Set());
 
-  const isInternalRole = (role: string) => INTERNAL_ROLES.includes(role);
+  const isInternalRole = (role: string) => (INTERNAL_ROLES as readonly string[]).includes(role);
 
   useEffect(() => {
     loadContacts();

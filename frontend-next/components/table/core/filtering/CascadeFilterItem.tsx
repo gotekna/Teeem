@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { isLookupColumn as checkIsLookup, isChoiceColumn as checkIsChoice } from "@/lib/constants/column-types";
+import { isLookupColumn as checkIsLookup, isChoiceColumn as checkIsChoice, isBooleanColumn as checkIsBoolean } from "@/lib/constants/column-types";
 import type { CascadeFilter, TableColumn } from "../../types";
 
 interface CascadeFilterItemProps {
@@ -48,7 +48,7 @@ export const CascadeFilterItem = memo(function CascadeFilterItem({
   // Determine if this column should show a dropdown for values
   const isLookupColumn = checkIsLookup(colType);
   const isChoiceColumn = checkIsChoice(colType);
-  const isBooleanColumn = colType === 'boolean';
+  const isBooleanColumn = checkIsBoolean(colType);
   const options = lookupOptions?.[filter.column] || [];
   const isLoading = lookupLoading?.[filter.column] || false;
 

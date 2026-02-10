@@ -71,6 +71,7 @@ class XeroContactSyncJob < ApplicationJob
   # Remove after new architecture is validated
 
   def legacy_sync(options)
+    Rails.logger.warn("[DEPRECATED] XeroContactSyncJob#legacy_sync invoked - should use orchestrator architecture")
     if options[:tenant_id]
       sync_tenant_with_rate_limiting(options[:tenant_id], options)
     else

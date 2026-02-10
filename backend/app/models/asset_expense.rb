@@ -10,8 +10,6 @@ class AssetExpense < ApplicationRecord
   # SSoT: Link to deduplicated file storage (Jan 2026)
   belongs_to :storage_blob, optional: true
 
-  # ActiveStorage has_one_attached :receipt was REMOVED (Jan 2026) - it violated SSoT.
-
   # Expense types
   EXPENSE_TYPES = %w[fuel repair registration toll parking insurance service parts cleaning other].freeze
 

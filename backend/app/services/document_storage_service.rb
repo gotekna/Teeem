@@ -231,8 +231,6 @@ class DocumentStorageService
   #   1. WarehouseDocument.storage_blob (Phase 3 SSoT - Blobs/ path)
   #   2. record.storage_blob (legacy fallback)
   #
-  # ActiveStorage REMOVED (Jan 2026) - all files now use StorageBlob
-  #
   # @param record [ActiveRecord::Base] Document with storage_blob or warehouse_document
   # @return [Hash] { success: true, content: binary, content_type: "...", filename: "..." }
   #                or { success: false, error: "...", status: :symbol }

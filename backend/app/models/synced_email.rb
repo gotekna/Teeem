@@ -15,8 +15,6 @@ class SyncedEmail < ApplicationRecord
   searchable_columns :subject, :from_email, :body_text
 
   # SSoT: Email attachments use WarehouseDocument with source_type='email_attachment' (Jan 2026)
-  # ActiveStorage has_many_attached :files was REMOVED - it violated SSoT.
-  # EmailAttachment table was DROPPED - all attachments now in WarehouseDocument (Ultra Design).
   # Use attachment_documents method to query attachments for this email.
 
   # Associations

@@ -19,8 +19,6 @@ class SmTask < ApplicationRecord
   attr_accessor :delegation_response
 
   # SSoT: Task attachments use SmTaskAttachment → SyncedEmail → attachment_documents (WarehouseDocument)
-  # ActiveStorage has_many_attached :files was REMOVED (Jan 2026) - it violated SSoT.
-  # email_attachments table DROPPED (Jan 2026) - all attachments now in WarehouseDocument.
 
   # Status enum
   enum :status, {

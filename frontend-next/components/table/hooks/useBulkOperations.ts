@@ -27,7 +27,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { clearCachedRecords } from '@/lib/records-cache';
-import { isLookupColumn } from '@/lib/constants/column-types';
+import { isLookupColumn, isBooleanColumn } from '@/lib/constants/column-types';
 import type { TableColumn, TableRow } from '../types';
 
 // ============================================================================
@@ -136,7 +136,7 @@ function convertValueForColumn(
   }
 
   // Boolean: convert to boolean
-  if (colType === 'boolean') {
+  if (isBooleanColumn(colType)) {
     return value === 'true';
   }
 
