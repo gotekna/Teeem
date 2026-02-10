@@ -2,10 +2,11 @@
 
 # DirectorChangeService generates ASIC Form 484 director change packages.
 #
-# Generates 3 documents:
-# 1. Director Resignation Letter (for outgoing director to sign)
-# 2. Consent to Act as Director (for incoming director to sign)
-# 3. Form 484 Record Copy (internal record for ASIC filing)
+# Generates 4 documents:
+# 1. Minutes of Meeting of Directors (board resolution)
+# 2. Director Resignation Letter (for outgoing director to sign)
+# 3. Consent to Act as Director (for incoming director to sign)
+# 4. Form 484 Record Copy (internal record for ASIC filing)
 #
 # All three are combined into a single PDF package and optionally sent
 # for e-signature via TEEEM's e-signature system.
@@ -121,6 +122,8 @@ class DirectorChangeService
   # Preview HTML for a specific document type
   def preview(document_type)
     case document_type.to_s
+    when "minutes"
+      render_minutes[:html]
     when "resignation"
       raise GenerationError, "No ceasing directors to preview" if ceasing_directors.empty?
       render_resignation(ceasing_directors.first)[:html]
@@ -160,6 +163,9 @@ class DirectorChangeService
 
   def generate_all_documents
     documents = []
+
+    # Generate minutes of directors' meeting (first - it's the board resolution)
+    documents << render_minutes
 
     # Generate resignation letters
     ceasing_directors.each do |cd|
@@ -229,6 +235,54 @@ class DirectorChangeService
       signer_email: contact.primary_email,
       signer_contact: contact,
       signer_role: "director"
+    }
+  end
+
+  def render_minutes
+    meeting_date = determine_meeting_date
+
+    # Build list of remaining directors (those not ceasing) for "Present" section
+    ceasing_contact_ids = ceasing_directors.map { |cd| cd[:corporate_director].contact_id }
+    remaining = company.corporate_directors.where(is_current: true).where.not(contact_id: ceasing_contact_ids).includes(:contact)
+    remaining_directors = remaining.group_by(&:contact_id).map do |_cid, dirs|
+      {
+        full_name: dirs.first.contact.display_name,
+        positions: dirs.map(&:position)
+      }
+    end
+
+    context = {
+      company: build_company_context,
+      ceasing_directors: ceasing_directors.map do |cd|
+        contact = cd[:corporate_director].contact
+        {
+          full_name: contact.display_name,
+          positions: cd[:positions],
+          cessation_date_formatted: cd[:cessation_date].strftime("%d/%m/%Y")
+        }
+      end,
+      new_appointments: new_appointments.map do |appt|
+        contact = appt[:contact]
+        {
+          full_name: contact.display_name,
+          address: contact.full_address,
+          positions: appt[:positions],
+          appointment_date_formatted: appt[:appointment_date].strftime("%d/%m/%Y")
+        }
+      end,
+      remaining_directors: remaining_directors,
+      meeting_date: meeting_date,
+      meeting_date_formatted: meeting_date.strftime("%d/%m/%Y")
+    }
+
+    html = render_template("directors_minutes", context)
+    pdf = convert_to_pdf(html)
+
+    {
+      type: :minutes,
+      name: "Minutes of Meeting of Directors",
+      html: html,
+      pdf_content: pdf
     }
   end
 
@@ -399,6 +453,14 @@ class DirectorChangeService
     date = Date.current.strftime("%Y-%m-%d")
     company_code = company.code.presence || company.name.parameterize
     "Form484_#{company_code}_#{date}.pdf"
+  end
+
+  def determine_meeting_date
+    # Meeting date = earliest change date (resignation or appointment)
+    dates = []
+    ceasing_directors.each { |cd| dates << cd[:cessation_date] }
+    new_appointments.each { |appt| dates << appt[:appointment_date] }
+    dates.compact.min || Date.current
   end
 
   def log_activity(activity_type, description)

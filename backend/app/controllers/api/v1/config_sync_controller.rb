@@ -217,16 +217,6 @@ module Api
         offset = params[:offset]&.to_i || 0
 
         if is_master
-          # Master tenant: skip contacts and contact_types
-          if table.in?([:contacts, :contact_types])
-            return render json: {
-              success: true, table: table.to_s,
-              imported: 0, updated: 0, skipped: 0, total: 0, total_records: 0,
-              has_more: false,
-              message: "Skipped (master imports contacts via price_histories)"
-            }
-          end
-
           # Find the tenant with the most records for this table
           source_tenants = Tenant.where(is_master_tenant: false).to_a
           best_source = nil
@@ -249,7 +239,18 @@ module Api
             }
           end
 
-          all_ids = ActsAsTenant.with_tenant(best_source) { model.pluck(:id) }
+          all_ids = ActsAsTenant.with_tenant(best_source) do
+            if table == :price_histories
+              # Only sync latest price per pricebook_item + supplier combo (one per pricebook)
+              PriceHistory
+                .where("pricebook_item_id IS NOT NULL AND supplier_id IS NOT NULL")
+                .select("DISTINCT ON (pricebook_item_id, supplier_id) price_histories.id")
+                .order(:pricebook_item_id, :supplier_id, "date_effective DESC NULLS LAST", "created_at DESC")
+                .map(&:id)
+            else
+              model.pluck(:id)
+            end
+          end
 
           if table_config[:remap_fks].present?
             all_ids = filter_ids_by_existing_fks(

@@ -573,10 +573,16 @@ export function DirectorChangeWizard({
 
                   {/* Warnings */}
                   {(!appt.has_dob || !appt.has_address) && (
-                    <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                    <a
+                      href={`/contacts/${appt.contact_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                    >
                       <AlertCircle className="w-3.5 h-3.5" />
                       Missing: {[!appt.has_dob && "Date of Birth", !appt.has_address && "Address"].filter(Boolean).join(", ")}
-                    </div>
+                      <span className="text-[10px] opacity-70">(click to update)</span>
+                    </a>
                   )}
 
                   <div className="space-y-2">
