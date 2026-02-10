@@ -197,49 +197,99 @@ module Api
       end
 
       # POST /api/v1/config_sync/pull_all
-      # Fresh pull of ALL records from ALL tables from master tenant
+      # Fresh pull of ALL records from ALL tables
+      #
+      # For non-master tenants: pulls FROM master (standard flow)
+      # For master tenant: pulls from the largest non-master tenant per table
+      #   (aggregates tenant config data into master)
       def pull_all
         service = TenantConfigSyncService.new(current_tenant)
+        is_master = current_tenant&.is_master_tenant? || false
         results = {}
         total_imported = 0
         total_updated = 0
         total_skipped = 0
         errors = []
 
+        # For master tenant, find source tenants to import from
+        source_tenants = is_master ? Tenant.where(is_master_tenant: false).to_a : []
+
         TenantConfigSyncService::CONFIG_TABLES.each_key do |table|
           table_config = TenantConfigSyncService::CONFIG_TABLES[table]
+          model = table_config[:model].constantize
 
-          # Get ALL master record IDs for this table
-          all_ids = ActsAsTenant.with_tenant(master_tenant) do
-            table_config[:model].constantize.pluck(:id)
-          end
+          if is_master
+            # Master tenant: import from the tenant with the most records for this table
+            best_source = nil
+            best_count = 0
 
-          next if all_ids.empty?
+            source_tenants.each do |t|
+              count = ActsAsTenant.with_tenant(t) { model.count }
+              if count > best_count
+                best_count = count
+                best_source = t
+              end
+            end
 
-          begin
-            result = service.pull_from_master(
-              table: table.to_s,
-              record_ids: all_ids,
-              mode: :replace_existing
-            )
+            next unless best_source && best_count > 0
 
-            imported_count = result[:imported]&.length || 0
-            updated_count = result[:updated]&.length || 0
-            skipped_count = result[:skipped]&.length || 0
+            begin
+              all_ids = ActsAsTenant.with_tenant(best_source) { model.pluck(:id) }
 
-            results[table.to_s] = {
-              imported: imported_count,
-              updated: updated_count,
-              skipped: skipped_count,
-              total: all_ids.length
-            }
+              result = service.import_from_tenant(
+                source_tenant: best_source,
+                table: table.to_s,
+                record_ids: all_ids
+              )
 
-            total_imported += imported_count
-            total_updated += updated_count
-            total_skipped += skipped_count
-          rescue => e
-            errors << "#{table}: #{e.message}"
-            results[table.to_s] = { error: e.message }
+              imported_count = result[:imported]&.length || 0
+              skipped_count = result[:skipped]&.length || 0
+
+              results[table.to_s] = {
+                imported: imported_count,
+                updated: 0,
+                skipped: skipped_count,
+                total: all_ids.length,
+                source: best_source.name
+              }
+
+              total_imported += imported_count
+              total_skipped += skipped_count
+            rescue => e
+              errors << "#{table}: #{e.message}"
+              results[table.to_s] = { error: e.message }
+            end
+          else
+            # Non-master tenant: pull from master (standard flow)
+            all_ids = ActsAsTenant.with_tenant(master_tenant) { model.pluck(:id) }
+
+            next if all_ids.empty?
+
+            begin
+              result = service.pull_from_master(
+                table: table.to_s,
+                record_ids: all_ids,
+                mode: :replace_existing
+              )
+
+              imported_count = result[:imported]&.length || 0
+              updated_count = result[:updated]&.length || 0
+              skipped_count = result[:skipped]&.length || 0
+
+              results[table.to_s] = {
+                imported: imported_count,
+                updated: updated_count,
+                skipped: skipped_count,
+                total: all_ids.length
+              }
+
+              total_imported += imported_count
+              total_updated += updated_count
+              total_skipped += skipped_count
+            rescue => e
+              errors << "#{table}: #{e.message}"
+              results[table.to_s] = { error: e.message }
+            end
           end
         end
 
