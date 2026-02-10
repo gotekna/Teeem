@@ -303,7 +303,7 @@ function SidebarContent({
           >
             <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
             {(isExpanded || mobile) ? (
-              tenantInfo.isTeeemStaff && tenantInfo.canSwitchTenants ? (
+              tenantInfo.canSwitchTenants ? (
                 <ComboboxDropdown
                   items={tenantInfo.tenants.map((t) => ({
                     id: t.id.toString(),

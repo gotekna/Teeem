@@ -7,13 +7,14 @@ module Api
         before_action :require_teeem_staff!, except: [:index, :current, :update_environment]
 
         # GET /api/v1/admin/tenants
-        # Returns all tenants (for TEEEM staff) or just user's tenant
+        # Returns all tenants (for TEEEM staff), multi-tenant user's tenants, or just user's tenant
         # SSoT: Uses Tenant model (not CorporateGroup) for multi-tenancy
         def index
           tenants = if current_user.teeem_staff?
                       Tenant.active.order(:name)
                     else
-                      [current_user.tenant].compact
+                      # Returns tenants where user has an account (same email)
+                      current_user.available_tenants.active.order(:name)
                     end
 
           render json: {
@@ -24,7 +25,8 @@ module Api
               id: current_user.id,
               email: current_user.email,
               name: current_user.name,
-              isTeeemStaff: current_user.teeem_staff?
+              isTeeemStaff: current_user.teeem_staff?,
+              canSwitchTenants: current_user.teeem_staff? || current_user.multi_tenant?
             }
           }
         end
@@ -61,13 +63,13 @@ module Api
         end
 
         # POST /api/v1/admin/tenants/:id/switch
-        # Switch to a different tenant (TEEEM staff only)
+        # Switch to a different tenant (TEEEM staff or multi-tenant users)
         # SSoT: Uses Tenant model (not CorporateGroup)
         def switch
           Rails.logger.info "[TenantSwitch] Switch called with id=#{params[:id]}"
           tenant = Tenant.find(params[:id])
 
-          unless current_user.teeem_staff?
+          unless current_user.can_access_tenant?(tenant)
             return render json: { success: false, error: "Access denied to this tenant" }, status: :forbidden
           end
 
