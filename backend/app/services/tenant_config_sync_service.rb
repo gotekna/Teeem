@@ -177,10 +177,10 @@ class TenantConfigSyncService
     price_histories: {
       model: "PriceHistory",
       name_field: :id,
-      match_fields: [:pricebook_item_id, :supplier_id, :new_price],
+      match_fields: [:pricebook_item_id, :supplier_id],
       sync_fields: [:pricebook_item_id, :supplier_id, :old_price, :new_price, :change_reason,
                     :quote_reference, :lga, :date_effective, :user_name],
-      description: "Supplier price history records",
+      description: "Latest supplier price per pricebook item",
       group: "contacts",
       # FK remapping needed during sync
       remap_fks: {
@@ -1273,9 +1273,13 @@ class TenantConfigSyncService
     skipped = []
     errors = []
 
-    # Get all price histories for these contacts from source tenant
+    # Get only the latest price per pricebook_item + supplier combo (one per pricebook)
     source_records = ActsAsTenant.with_tenant(source_tenant) do
-      PriceHistory.where(supplier_id: contact_ids)
+      PriceHistory
+        .where(supplier_id: contact_ids)
+        .where("pricebook_item_id IS NOT NULL AND supplier_id IS NOT NULL")
+        .select("DISTINCT ON (pricebook_item_id, supplier_id) price_histories.*")
+        .order(:pricebook_item_id, :supplier_id, date_effective: :desc, created_at: :desc)
     end
 
     source_records.each do |source_record|
