@@ -34,6 +34,51 @@
 #   # => [{ id: 1, folder_path: "...", warehouse_folder_id: 123, path_template_version: 1 }, ...]
 #
 class WarehousePathComputer
+  # ════════════════════════════════════════════════════════════════════
+  # Rematerialize folder_path on WarehouseDocuments when config changes.
+  #
+  # Call this from ANY controller that modifies path-affecting config:
+  #   - WarehouseType.folder_path_template or display_name changed
+  #   - WarehouseFolder.folder_segment renamed
+  #   - WarehouseFolder.parent_id changed (moved)
+  #   - WarehouseFolder.warehouse_type_id changed (reassigned)
+  #   - WarehouseFolder.folder_path_suffix changed
+  #
+  # @param folder_ids [Array<Integer>] WarehouseFolder IDs whose paths changed
+  # @return [Integer] Number of documents updated
+  # ════════════════════════════════════════════════════════════════════
+  def self.rematerialize_for_folders(folder_ids)
+    return 0 if folder_ids.blank?
+
+    computer = new
+    updated = 0
+
+    # Process in batches to avoid memory issues
+    WarehouseDocument.where(warehouse_folder_id: folder_ids).find_in_batches(batch_size: 500) do |batch|
+      # Pre-load associations
+      ActiveRecord::Associations::Preloader.new(
+        records: batch,
+        associations: [:storage_blob, :tenant, :warehouse_folder_document_type, :warehouse_folder, :linkable]
+      ).call
+
+      batch.each do |doc|
+        begin
+          result = computer.compute(doc)
+          new_path = result[:folder_path]
+          if new_path.present? && new_path != doc.folder_path
+            doc.update_columns(folder_path: new_path, path_template_version: result[:path_template_version])
+            updated += 1
+          end
+        rescue => e
+          Rails.logger.warn("[WarehousePathComputer] Failed to rematerialize doc #{doc.id}: #{e.message}")
+        end
+      end
+    end
+
+    Rails.logger.info("[WarehousePathComputer] Rematerialized #{updated} documents for folder_ids: #{folder_ids.first(10).inspect}#{folder_ids.size > 10 ? '...' : ''}")
+    updated
+  end
+
   # The resolved WarehouseFolderDocumentType from the last compute() call.
   # Used by backfill to persist the FK on documents that were missing it.
   attr_reader :resolved_wfdt

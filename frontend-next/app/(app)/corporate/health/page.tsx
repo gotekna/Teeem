@@ -4,18 +4,17 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import {
   RefreshCw,
   Building2,
-  Search,
   AlertTriangle,
   XCircle,
   BarChart3,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
@@ -202,15 +201,7 @@ export default function HealthReportPage() {
           </div>
         )}
         <div className="flex-1" />
-        <div className="relative w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search companies..."
-            className="pl-9"
-          />
-        </div>
+        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search companies..." className="w-72" />
       </div>
 
       {/* Companies List */}

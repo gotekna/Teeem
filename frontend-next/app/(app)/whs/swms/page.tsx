@@ -4,7 +4,6 @@ import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -24,7 +23,6 @@ import {
 import {
   ClipboardCheck,
   Plus,
-  Search,
   Calendar,
   CheckCircle,
   Clock,
@@ -34,6 +32,7 @@ import {
   Eye,
   Edit,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { BackButton } from "@/components/ui/back-button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
@@ -227,15 +226,7 @@ export default function WHSSWMSPage() {
 
       {/* Filters */}
       <div className="flex items-center gap-4 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search SWMS..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search SWMS..." className="flex-1 max-w-sm" />
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="Status" />

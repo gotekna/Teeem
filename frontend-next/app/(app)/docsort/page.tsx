@@ -11,7 +11,6 @@ import {
   ExclamationTriangleIcon,
   XMarkIcon,
   FunnelIcon,
-  MagnifyingGlassIcon,
   ChevronRightIcon,
   DocumentTextIcon,
   DocumentChartBarIcon,
@@ -22,7 +21,7 @@ import { Ruler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Select,
   SelectContent,
@@ -442,15 +441,7 @@ export default function DocsortPage() {
           {/* Filters */}
           <div className="flex flex-col gap-2 p-4 border-b bg-muted/30">
             <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-xs">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+              <SearchInput value={searchQuery} onChange={setSearchQuery} className="flex-1 max-w-xs" />
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[140px]">
                   <FunnelIcon className="h-4 w-4 mr-2" />

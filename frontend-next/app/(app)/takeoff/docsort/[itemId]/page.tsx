@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/ui/back-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -57,7 +58,6 @@ interface DocsortTakeoffResponse {
 
 export default function DocsortTakeoffPage() {
   const params = useParams();
-  const router = useRouter();
   const { toast } = useToast();
 
   const itemId = params.itemId as string;
@@ -1049,7 +1049,7 @@ export default function DocsortTakeoffPage() {
       <div className="flex flex-col items-center justify-center h-screen gap-4">
         <p className="text-lg font-medium text-destructive">Failed to load document</p>
         <p className="text-sm text-muted-foreground">{itemError}</p>
-        <Button onClick={() => router.back()}>Go Back</Button>
+        <BackButton fallbackHref="/takeoff/docsort" />
       </div>
     );
   }
