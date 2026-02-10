@@ -26,6 +26,12 @@ interface AuthContextType {
   isAuthenticated: boolean;
   /** Get current API environment ('production', 'beta', 'staging') */
   getEnvironment: () => string;
+  /** True when user must change their temporary password before continuing */
+  forcePasswordChange: boolean;
+  /** The temp password used to login (needed for change_password API) */
+  tempPassword: string;
+  /** Called after successful password change to clear the force flag */
+  onPasswordChanged: (newToken: string) => void;
 }
 
 interface AuthResponse {
@@ -87,6 +93,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [tokenChecked, setTokenChecked] = useState(false);
+  const [forcePasswordChange, setForcePasswordChange] = useState(false);
+  const [tempPassword, setTempPassword] = useState("");
 
   // Prevent duplicate auth checks (React StrictMode double-mount)
   const authCheckingRef = useRef(false);
@@ -189,6 +197,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Theme is applied on login, so checkAuth (which runs on page refresh) should not re-apply
         // This allows users to temporarily toggle theme without it reverting on every modal open
         // applyUserTheme(response.user); // REMOVED - only apply on login, not on auth check
+
+        // Check force_password_change on session restore (Feb 2026)
+        if (response.user.force_password_change) {
+          setForcePasswordChange(true);
+        }
+
         // Load column type definitions from SSoT (fires in background)
         loadTypeDefinitions();
       } else {
@@ -253,6 +267,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
         if (response.environment) {
           setEnvironment(response.environment);
+        }
+
+        // Check if user must change their temporary password (Feb 2026)
+        if (response.user.force_password_change) {
+          setForcePasswordChange(true);
+          setTempPassword(password);
         }
 
         // Load column type definitions from SSoT (fires in background)
@@ -322,6 +342,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Get the current API environment
   const getEnvironment = () => getCurrentEnvironment();
 
+  // Called after user successfully changes their forced temp password
+  const onPasswordChanged = (newToken: string) => {
+    setForcePasswordChange(false);
+    setTempPassword("");
+    setAuthToken(newToken);
+    setToken(newToken);
+  };
+
   const refreshUser = async () => {
     if (devModeBypass) {
       // In dev mode, just keep the mock user
@@ -379,7 +407,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     handleTokenFromRedirect,
     loading,
     isAuthenticated: !!user,
-    getEnvironment
+    getEnvironment,
+    forcePasswordChange,
+    tempPassword,
+    onPasswordChanged,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
