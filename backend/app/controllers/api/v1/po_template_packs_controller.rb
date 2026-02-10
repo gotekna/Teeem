@@ -187,6 +187,11 @@ module Api
         end
       end
 
+      # SSoT: Cost Centres lookup (ID => name)
+      def cost_centres_map
+        @cost_centres_map ||= CostCentre.pluck(:id, :name).to_h
+      end
+
       # SSoT: Stage ordering from Job Stages (user-configured position)
       # Maps stage_name => position, used to sort BOQ cascade sections
       def stage_order_map
@@ -241,6 +246,7 @@ module Api
           tradeName: sm&.trade.present? ? trades_map[sm.trade.to_i] : nil,
           stageName: sm&.stage.present? ? stages_map[sm.stage.to_i] : nil,
           stagePosition: sm&.stage.present? ? stage_order_map[sm.stage.to_i] : nil,
+          costCentreName: sm&.cost_centre.present? ? cost_centres_map[sm.cost_centre] : nil,
           supplierId: item.supplier_id,
           supplierName: item.supplier&.display_name,
           supplierSyncKey: item.supplier_sync_key,
