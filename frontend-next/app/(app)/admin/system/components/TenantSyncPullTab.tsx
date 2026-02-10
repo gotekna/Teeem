@@ -17,7 +17,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { Download, Check, Star, CircleDot, AlertCircle, RefreshCw } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Download, Check, Star, CircleDot, AlertCircle, RefreshCw, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +96,7 @@ export function TenantSyncPullTab() {
   const [tableCounts, setTableCounts] = useState<Record<string, Record<string, number>>>({});
   const [isMasterTenant, setIsMasterTenant] = useState(false);
   const [tableSyncStatus, setTableSyncStatus] = useState<Record<string, TableSyncStatus>>({});
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
 
   // Fetch available tables on mount
   useEffect(() => {
@@ -302,6 +309,7 @@ export function TenantSyncPullTab() {
   const handlePullAll = async () => {
     try {
       setPullingAll(true);
+      setShowSyncDialog(true);
       setError(null);
       setPullAllResult(null);
       setPullResult(null);
@@ -466,98 +474,144 @@ export function TenantSyncPullTab() {
         </CardContent>
       </Card>
 
-      {/* Counts Table with Live Sync Progress */}
-      {tables.length > 0 && Object.keys(tableCounts).length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              Configuration Counts
+      {/* Sync Progress Dialog */}
+      <Dialog open={showSyncDialog} onOpenChange={(open) => { if (!pullingAll) setShowSyncDialog(open); }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              {pullingAll ? (
+                <>
+                  <Spinner className="h-5 w-5" />
+                  Syncing Configuration
+                </>
+              ) : pullAllResult ? (
+                <>
+                  <Check className="h-5 w-5 text-green-600" />
+                  Sync Complete
+                </>
+              ) : (
+                "Configuration Sync"
+              )}
               {pullAllResult && (
-                <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 ml-auto">
                   {pullAllResult.totals.imported} added, {pullAllResult.totals.updated} updated
                 </Badge>
               )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[200px]">Table</TableHead>
-                  {tenants.map((t) => (
-                    <TableHead key={t.slug} className="text-right w-[100px]">
-                      {t.name}
-                    </TableHead>
-                  ))}
-                  {(pullingAll || pullAllResult) && (
-                    <TableHead className="w-[180px] text-right">Sync Status</TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tables.map((table) => {
-                  const counts = tableCounts[table.key] || {};
-                  const status = tableSyncStatus[table.key];
-                  const result = pullAllResult?.results[table.key];
+            </DialogTitle>
+          </DialogHeader>
 
-                  return (
-                    <TableRow
-                      key={table.key}
-                      className={cn(
-                        status === "syncing" && "bg-blue-50/50 dark:bg-blue-950/20",
-                        status === "done" && "bg-green-50/30 dark:bg-green-950/10",
-                      )}
-                    >
-                      <TableCell className="font-medium py-1.5">
-                        {table.model.replace(/([A-Z])/g, " $1").trim()}
+          {/* Progress bar */}
+          {pullAllProgress && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {pullAllProgress.current}/{pullAllProgress.total}: {pullAllProgress.currentTable}
+                </span>
+                <span className="text-muted-foreground tabular-nums">
+                  {Math.round((pullAllProgress.current / pullAllProgress.total) * 100)}%
+                </span>
+              </div>
+              <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-300"
+                  style={{ width: `${(pullAllProgress.current / pullAllProgress.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Counts table */}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Table</TableHead>
+                {tenants.map((t) => (
+                  <TableHead key={t.slug} className="text-right w-[80px]">
+                    {t.name}
+                  </TableHead>
+                ))}
+                <TableHead className="w-[160px] text-right">Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tables.map((table) => {
+                const counts = tableCounts[table.key] || {};
+                const status = tableSyncStatus[table.key];
+                const result = pullAllResult?.results[table.key];
+
+                return (
+                  <TableRow
+                    key={table.key}
+                    className={cn(
+                      status === "syncing" && "bg-blue-50/50 dark:bg-blue-950/20",
+                      status === "done" && "bg-green-50/30 dark:bg-green-950/10",
+                    )}
+                  >
+                    <TableCell className="font-medium py-1.5 text-sm">
+                      {table.model.replace(/([A-Z])/g, " $1").trim()}
+                    </TableCell>
+                    {tenants.map((t) => (
+                      <TableCell key={t.slug} className="text-right tabular-nums py-1.5 text-sm">
+                        {(counts[t.slug] ?? counts[t.is_master ? "master" : "tenant"] ?? 0).toLocaleString()}
                       </TableCell>
-                      {tenants.map((t) => (
-                        <TableCell key={t.slug} className="text-right tabular-nums py-1.5">
-                          {(counts[t.slug] ?? counts[t.is_master ? "master" : "tenant"] ?? 0).toLocaleString()}
-                        </TableCell>
-                      ))}
-                      {(pullingAll || pullAllResult) && (
-                        <TableCell className="text-right py-1.5">
-                          {status === "syncing" && (
-                            <span className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 text-xs">
-                              <Spinner className="h-3 w-3" />
-                              Syncing...
-                            </span>
-                          )}
-                          {status === "pending" && (
-                            <span className="text-xs text-muted-foreground">Waiting</span>
-                          )}
-                          {status === "done" && result && (
-                            <span className="text-xs flex items-center justify-end gap-1.5">
-                              <Check className="h-3 w-3 text-green-600" />
-                              {result.total > 0 && <span className="text-muted-foreground">{result.total.toLocaleString()} synced</span>}
-                              {result.imported > 0 && <span className="text-green-600">+{result.imported}</span>}
-                              {result.updated > 0 && <span className="text-blue-600">{result.updated} upd</span>}
-                              {result.total === 0 && <span className="text-muted-foreground">no records</span>}
-                            </span>
-                          )}
-                          {status === "skipped" && (
-                            <span className="text-xs text-muted-foreground flex items-center justify-end gap-1">
-                              <Check className="h-3 w-3" />
-                              no changes
-                            </span>
-                          )}
-                          {status === "error" && (
-                            <span className="text-xs text-destructive flex items-center justify-end gap-1">
-                              <AlertCircle className="h-3 w-3" />
-                              Error
-                            </span>
-                          )}
-                        </TableCell>
+                    ))}
+                    <TableCell className="text-right py-1.5">
+                      {status === "syncing" && (
+                        <span className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 text-xs">
+                          <Spinner className="h-3 w-3" />
+                          Syncing...
+                        </span>
                       )}
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+                      {status === "pending" && (
+                        <span className="text-xs text-muted-foreground">Waiting</span>
+                      )}
+                      {status === "done" && result && (
+                        <span className="text-xs flex items-center justify-end gap-1.5">
+                          <Check className="h-3 w-3 text-green-600" />
+                          {result.total > 0 && <span className="text-muted-foreground">{result.total.toLocaleString()} synced</span>}
+                          {result.imported > 0 && <span className="text-green-600">+{result.imported}</span>}
+                          {result.updated > 0 && <span className="text-blue-600">{result.updated} upd</span>}
+                          {result.total === 0 && <span className="text-muted-foreground">no records</span>}
+                        </span>
+                      )}
+                      {status === "skipped" && (
+                        <span className="text-xs text-muted-foreground flex items-center justify-end gap-1">
+                          <Check className="h-3 w-3" />
+                          no changes
+                        </span>
+                      )}
+                      {status === "error" && result?.error && (
+                        <span className="text-xs text-destructive flex items-center justify-end gap-1" title={result.error}>
+                          <AlertCircle className="h-3 w-3" />
+                          Error
+                        </span>
+                      )}
+                      {status === "error" && !result?.error && (
+                        <span className="text-xs text-destructive flex items-center justify-end gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          Error
+                        </span>
+                      )}
+                      {!status && (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+
+          {/* Close button when done */}
+          {!pullingAll && pullAllResult && (
+            <div className="flex justify-end pt-2">
+              <Button variant="outline" onClick={() => setShowSyncDialog(false)}>
+                Close
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Table Selection */}
       <Card>
