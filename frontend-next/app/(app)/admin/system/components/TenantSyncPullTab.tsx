@@ -39,6 +39,15 @@ interface ConfigTable {
   group: string;
 }
 
+interface TenantCount {
+  id: number;
+  name: string;
+  slug: string;
+  is_master: boolean;
+}
+
+type TableSyncStatus = "pending" | "syncing" | "done" | "error" | "skipped";
+
 interface MasterRecord {
   id: number;
   name: string;
@@ -68,10 +77,19 @@ export function TenantSyncPullTab() {
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
   const [priceMarkupPercent, setPriceMarkupPercent] = useState<number>(5); // Default 5% markup
   const [pullingAll, setPullingAll] = useState(false);
+  const [pullAllProgress, setPullAllProgress] = useState<{
+    current: number;
+    total: number;
+    currentTable: string;
+  } | null>(null);
   const [pullAllResult, setPullAllResult] = useState<{
     totals: { imported: number; updated: number; skipped: number; tables_processed: number };
     results: Record<string, { imported: number; updated: number; skipped: number; total: number; error?: string; source?: string }>;
   } | null>(null);
+  const [tenants, setTenants] = useState<TenantCount[]>([]);
+  const [tableCounts, setTableCounts] = useState<Record<string, Record<string, number>>>({});
+  const [isMasterTenant, setIsMasterTenant] = useState(false);
+  const [tableSyncStatus, setTableSyncStatus] = useState<Record<string, TableSyncStatus>>({});
 
   // Fetch available tables on mount
   useEffect(() => {
@@ -82,12 +100,34 @@ export function TenantSyncPullTab() {
           success: boolean;
           tables: ConfigTable[];
           tenant: TenantInfo | null;
+          counts?: Record<string, { master: number; tenant: number }>;
+          is_master_tenant?: boolean;
+          all_tenant_counts?: Record<string, Record<string, number>>;
+          all_tenants?: TenantCount[];
         }>("/api/v1/config_sync/tables");
 
         if (response?.success) {
           setTables(response.tables);
           if (response.tenant) {
             setTenantInfo(response.tenant);
+          }
+          setIsMasterTenant(response.is_master_tenant || false);
+          if (response.all_tenants && response.all_tenant_counts) {
+            setTenants(response.all_tenants);
+            setTableCounts(response.all_tenant_counts);
+          } else if (response.counts) {
+            // Non-master: build a simple 2-column view
+            const masterName = "TEEEM";
+            const tenantName = response.tenant?.name || "Your Tenant";
+            setTenants([
+              { id: 0, name: masterName, slug: "master", is_master: true },
+              { id: 1, name: tenantName, slug: "tenant", is_master: false },
+            ]);
+            const counts: Record<string, Record<string, number>> = {};
+            for (const [key, val] of Object.entries(response.counts)) {
+              counts[key] = { master: val.master, tenant: val.tenant };
+            }
+            setTableCounts(counts);
           }
         }
       } catch (err) {
@@ -204,7 +244,7 @@ export function TenantSyncPullTab() {
     }
   };
 
-  // Handle pull ALL tables at once
+  // Handle pull ALL tables one-by-one with live progress
   const handlePullAll = async () => {
     try {
       setPullingAll(true);
@@ -212,32 +252,91 @@ export function TenantSyncPullTab() {
       setPullAllResult(null);
       setPullResult(null);
 
-      const response = await api.post<{
-        success: boolean;
-        message?: string;
-        totals?: { imported: number; updated: number; skipped: number; tables_processed: number };
-        results?: Record<string, { imported: number; updated: number; skipped: number; total: number; error?: string }>;
-        errors?: string[];
-        error?: string;
-      }>("/api/v1/config_sync/pull_all");
+      // Initialize all tables as pending
+      const initialStatus: Record<string, TableSyncStatus> = {};
+      tables.forEach((t) => { initialStatus[t.key] = "pending"; });
+      setTableSyncStatus(initialStatus);
 
-      if (response?.totals && response?.results) {
-        setPullAllResult({
-          totals: response.totals,
-          results: response.results,
-        });
-        // Refresh current table view if one is selected
-        if (selectedTable) {
-          await fetchRecords();
+      setPullAllProgress({ current: 0, total: tables.length, currentTable: "Starting..." });
+
+      const allResults: Record<string, { imported: number; updated: number; skipped: number; total: number; error?: string; source?: string }> = {};
+      let totalImported = 0;
+      let totalUpdated = 0;
+      let totalSkipped = 0;
+
+      for (let i = 0; i < tables.length; i++) {
+        const table = tables[i];
+        const displayName = table.model.replace(/([A-Z])/g, " $1").trim();
+        setPullAllProgress({ current: i + 1, total: tables.length, currentTable: displayName });
+        setTableSyncStatus((prev) => ({ ...prev, [table.key]: "syncing" }));
+
+        try {
+          const response = await api.post<{
+            success: boolean;
+            table: string;
+            imported: number;
+            updated: number;
+            skipped: number;
+            total: number;
+            source?: string;
+            error?: string;
+            message?: string;
+          }>("/api/v1/config_sync/pull_one_table", { table: table.key });
+
+          if (response?.success) {
+            const imported = response.imported || 0;
+            const updated = response.updated || 0;
+            const skipped = response.skipped || 0;
+
+            allResults[table.key] = {
+              imported, updated, skipped,
+              total: response.total || 0,
+              source: response.source,
+            };
+            totalImported += imported;
+            totalUpdated += updated;
+            totalSkipped += skipped;
+
+            setTableSyncStatus((prev) => ({
+              ...prev,
+              [table.key]: (imported > 0 || updated > 0) ? "done" : "skipped",
+            }));
+          } else {
+            allResults[table.key] = {
+              imported: 0, updated: 0, skipped: 0, total: 0,
+              error: response?.error || "Unknown error",
+            };
+            setTableSyncStatus((prev) => ({ ...prev, [table.key]: "error" }));
+          }
+        } catch (tableErr) {
+          allResults[table.key] = {
+            imported: 0, updated: 0, skipped: 0, total: 0,
+            error: tableErr instanceof Error ? tableErr.message : "Request failed",
+          };
+          setTableSyncStatus((prev) => ({ ...prev, [table.key]: "error" }));
         }
-      } else {
-        setError(response?.error || "Pull all failed");
+      }
+
+      setPullAllResult({
+        totals: {
+          imported: totalImported,
+          updated: totalUpdated,
+          skipped: totalSkipped,
+          tables_processed: tables.length,
+        },
+        results: allResults,
+      });
+
+      // Refresh current table view if one is selected
+      if (selectedTable) {
+        await fetchRecords();
       }
     } catch (err) {
       console.error("Pull all failed:", err);
       setError("Pull all failed. Please try again.");
     } finally {
       setPullingAll(false);
+      setPullAllProgress(null);
     }
   };
 
@@ -299,56 +398,131 @@ export function TenantSyncPullTab() {
               <span className="text-muted-foreground">Your tenant:</span>
               <Badge variant="outline">{tenantInfo?.name || "Unknown"}</Badge>
             </div>
-            <Button
-              onClick={handlePullAll}
-              disabled={pullingAll}
-              variant="default"
-            >
-              {pullingAll ? (
-                <>
-                  <Spinner className="h-4 w-4 mr-2" />
-                  Pulling all tables...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Fresh Pull All Tables
-                </>
+            <div className="flex flex-col items-end gap-2">
+              <Button
+                onClick={handlePullAll}
+                disabled={pullingAll}
+                variant="default"
+              >
+                {pullingAll ? (
+                  <>
+                    <Spinner className="h-4 w-4 mr-2" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Fresh Pull All Tables
+                  </>
+                )}
+              </Button>
+              {pullAllProgress && (
+                <div className="flex flex-col items-end gap-1">
+                  <div className="text-xs text-muted-foreground">
+                    {pullAllProgress.current}/{pullAllProgress.total}: {pullAllProgress.currentTable}
+                  </div>
+                  <div className="w-48 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full transition-all duration-300"
+                      style={{ width: `${(pullAllProgress.current / pullAllProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
               )}
-            </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Pull All Results */}
-      {pullAllResult && (
-        <Card className="border-green-500 bg-green-50 dark:bg-green-950/20">
-          <CardContent className="pt-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                <Check className="h-5 w-5" />
-                <span className="font-medium">
-                  All tables synced: {pullAllResult.totals.imported} added, {pullAllResult.totals.updated} updated, {pullAllResult.totals.skipped} unchanged ({pullAllResult.totals.tables_processed} tables)
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {Object.entries(pullAllResult.results).map(([table, result]) => (
-                  <div key={table} className="flex items-center justify-between px-3 py-1.5 rounded bg-white/50 dark:bg-black/20">
-                    <span className="text-muted-foreground">{table.replace(/_/g, " ")}</span>
-                    {result.error ? (
-                      <Badge variant="destructive" className="text-xs">Error</Badge>
-                    ) : (
-                      <span className="text-xs flex items-center gap-2">
-                        {result.source && <span className="text-muted-foreground">from {result.source}</span>}
-                        {result.imported > 0 && <span className="text-green-600">+{result.imported}</span>}
-                        {result.updated > 0 && <span className="text-blue-600">{result.updated} updated</span>}
-                        {result.imported === 0 && result.updated === 0 && <span className="text-muted-foreground">no changes</span>}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* Counts Table with Live Sync Progress */}
+      {tables.length > 0 && Object.keys(tableCounts).length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              Configuration Counts
+              {pullAllResult && (
+                <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  {pullAllResult.totals.imported} added, {pullAllResult.totals.updated} updated
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[200px]">Table</TableHead>
+                  {tenants.map((t) => (
+                    <TableHead key={t.slug} className="text-right w-[100px]">
+                      {t.name}
+                    </TableHead>
+                  ))}
+                  {(pullingAll || pullAllResult) && (
+                    <TableHead className="w-[180px] text-right">Sync Status</TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tables.map((table) => {
+                  const counts = tableCounts[table.key] || {};
+                  const status = tableSyncStatus[table.key];
+                  const result = pullAllResult?.results[table.key];
+
+                  return (
+                    <TableRow
+                      key={table.key}
+                      className={cn(
+                        status === "syncing" && "bg-blue-50/50 dark:bg-blue-950/20",
+                        status === "done" && "bg-green-50/30 dark:bg-green-950/10",
+                      )}
+                    >
+                      <TableCell className="font-medium py-1.5">
+                        {table.model.replace(/([A-Z])/g, " $1").trim()}
+                      </TableCell>
+                      {tenants.map((t) => (
+                        <TableCell key={t.slug} className="text-right tabular-nums py-1.5">
+                          {(counts[t.slug] ?? counts[t.is_master ? "master" : "tenant"] ?? 0).toLocaleString()}
+                        </TableCell>
+                      ))}
+                      {(pullingAll || pullAllResult) && (
+                        <TableCell className="text-right py-1.5">
+                          {status === "syncing" && (
+                            <span className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 text-xs">
+                              <Spinner className="h-3 w-3" />
+                              Syncing...
+                            </span>
+                          )}
+                          {status === "pending" && (
+                            <span className="text-xs text-muted-foreground">Waiting</span>
+                          )}
+                          {status === "done" && result && (
+                            <span className="text-xs flex items-center justify-end gap-1.5">
+                              <Check className="h-3 w-3 text-green-600" />
+                              {result.total > 0 && <span className="text-muted-foreground">{result.total.toLocaleString()} synced</span>}
+                              {result.imported > 0 && <span className="text-green-600">+{result.imported}</span>}
+                              {result.updated > 0 && <span className="text-blue-600">{result.updated} upd</span>}
+                              {result.total === 0 && <span className="text-muted-foreground">no records</span>}
+                            </span>
+                          )}
+                          {status === "skipped" && (
+                            <span className="text-xs text-muted-foreground flex items-center justify-end gap-1">
+                              <Check className="h-3 w-3" />
+                              no changes
+                            </span>
+                          )}
+                          {status === "error" && (
+                            <span className="text-xs text-destructive flex items-center justify-end gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              Error
+                            </span>
+                          )}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
