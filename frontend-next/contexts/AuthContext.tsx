@@ -21,7 +21,7 @@ interface AuthContextType {
   logout: () => void;
   refreshUser: () => Promise<void>;
   /** Handle token received from cross-domain redirect (stores token and verifies with API) */
-  handleTokenFromRedirect: (token: string, apiUrl?: string, environment?: string) => Promise<boolean>;
+  handleTokenFromRedirect: (token: string, apiUrl?: string, environment?: string, rememberMe?: boolean) => Promise<boolean>;
   loading: boolean;
   isAuthenticated: boolean;
   /** Get current API environment ('production', 'beta', 'staging') */
@@ -175,20 +175,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       const response = await api.get<AuthResponse>('/api/v1/auth/me');
       if (response.success && response.user) {
-        // ⚠️ DO NOT REDIRECT based on frontend_url (Jan 2026)
+        // ⚠️ DO NOT REDIRECT in checkAuth (Feb 2026)
         // ════════════════════════════════════════════════════════════════════
-        // Why: Developers need to work on ANY environment (production, beta,
-        // staging, local, sam-dev, rob-dev) without being forced to one.
-        //
-        // Root cause of "hard refresh logs me out" bug:
-        // 1. Hard refresh clears localStorage
-        // 2. Cookie recovery restores token ✅
-        // 3. checkAuth() was redirecting to different domain based on tenant's api_environment
-        // 4. On new domain, cookie doesn't exist (cookies are domain-specific!)
-        // 5. User appears logged out
-        //
-        // Fix: Stay on current frontend. The stored api_url determines which
-        // backend to use - frontend_url redirect is unnecessary and harmful.
+        // Environment redirect happens ONLY at login time (with token passthrough).
+        // checkAuth runs on page refresh - the user is already on the correct
+        // frontend, so redirecting here would cause the cross-domain cookie loss
+        // bug (Jan 2026). Stay on current frontend; stored api_url determines
+        // which backend to use.
         // ════════════════════════════════════════════════════════════════════
 
         setUser(response.user);
@@ -249,11 +242,39 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       if (response?.success && response.token && response.user) {
-        // ⚠️ DO NOT REDIRECT based on frontend_url (Jan 2026)
-        // Same reason as checkAuth - developers need to work on any environment.
-        // The api_url from response will be stored and used for all API calls,
-        // so the user will talk to the correct backend regardless of which
-        // frontend they're on.
+        // ⚠️ DO NOT SIMPLIFY - Cross-domain redirect with token passthrough (Feb 2026)
+        // ════════════════════════════════════════════════════════════════════
+        // Why: When a user's tenant is configured for staging/beta, the login
+        // happens on the production frontend but should redirect to the correct
+        // frontend (e.g., teeem-staging.vercel.app).
+        //
+        // History: Jan 2026 disabled redirects because cookies are domain-specific -
+        // redirecting to a new domain lost the auth cookie, causing "hard refresh
+        // logs me out" bug.
+        //
+        // Fix: Pass the token via URL params during redirect. The target frontend's
+        // login page picks it up and sets its own cookie on the correct domain.
+        // ════════════════════════════════════════════════════════════════════
+        if (response.frontend_url && typeof window !== 'undefined') {
+          const currentOrigin = window.location.origin;
+          const targetUrl = new URL(response.frontend_url);
+          const targetOrigin = targetUrl.origin;
+
+          if (currentOrigin !== targetOrigin) {
+            // Redirect to target frontend with token in URL params
+            // The login page on the target handles ?token=xxx via handleTokenFromRedirect
+            const params = new URLSearchParams({
+              token: response.token,
+              redirect: '/dashboard',
+            });
+            if (response.api_url) params.set('api_url', response.api_url);
+            if (response.environment) params.set('environment', response.environment);
+            if (rememberMe) params.set('remember', '1');
+
+            window.location.href = `${targetOrigin}/login?${params.toString()}`;
+            return { success: true };
+          }
+        }
 
         setAuthToken(response.token, rememberMe);
         setToken(response.token);
@@ -363,10 +384,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const handleTokenFromRedirect = async (
     tokenFromUrl: string,
     apiUrl?: string,
-    environment?: string
+    environment?: string,
+    rememberMe?: boolean
   ): Promise<boolean> => {
-    // Store the token
-    setAuthToken(tokenFromUrl);
+    // Store the token (with rememberMe for correct cookie expiry)
+    setAuthToken(tokenFromUrl, rememberMe);
     setToken(tokenFromUrl);
 
     // Store api_url and environment if provided
