@@ -14,7 +14,17 @@ import { Badge } from "@/components/ui/badge";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { User, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2, PenLine, Lock } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { User, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2, PenLine, Lock, Send } from "lucide-react";
 import { SIGNATURE_STYLES, type SignatureStyleId, DEFAULT_SIGNATURE_STYLE, CUSTOM_SIGNATURE_ID } from "@/lib/email-signature";
 import {
   Select,
@@ -67,6 +77,8 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
   const [roles, setRoles] = useState<Role[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [showInviteConfirm, setShowInviteConfirm] = useState(false);
   const { toast } = useToast();
 
   // Signature force mode state (Jan 2026)
@@ -194,6 +206,41 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendInvite = async () => {
+    if (!user) return;
+
+    setSendingInvite(true);
+    try {
+      const response = await api.post<{ success: boolean; message?: string; error?: string }>(
+        `/api/v1/users/${user.id}/send_invite`,
+        {}
+      );
+
+      if (response?.success) {
+        toast({
+          title: "Login email sent",
+          description: response.message || `Login credentials sent to ${user.email}`,
+        });
+        setShowInviteConfirm(false);
+      } else {
+        toast({
+          title: "Error",
+          description: response?.error || "Failed to send login email",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Send invite error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send login email",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingInvite(false);
     }
   };
 
@@ -442,6 +489,23 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             </span>
           </div>
 
+          {/* Send Login Email - only for users who have never logged in */}
+          {!displayUser?.last_login_at && (
+            <Button
+              variant="outline"
+              onClick={() => setShowInviteConfirm(true)}
+              disabled={sendingInvite}
+              className="w-full h-9 gap-2"
+            >
+              {sendingInvite ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              {sendingInvite ? "Sending..." : "Send Login Email"}
+            </Button>
+          )}
+
           {/* Actions */}
           <div className="flex gap-2 pt-2">
             <Button onClick={handleSave} disabled={saving} className="flex-1 h-9">
@@ -452,6 +516,26 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             </Button>
           </div>
         </div>
+
+        {/* Send Login Email Confirmation Dialog */}
+        <AlertDialog open={showInviteConfirm} onOpenChange={setShowInviteConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Send Login Email</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will generate a temporary password and send login credentials to{" "}
+                <span className="font-medium text-foreground">{displayUser?.email}</span>.
+                The user will be required to change their password on first login.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={sendingInvite}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleSendInvite} disabled={sendingInvite}>
+                {sendingInvite ? "Sending..." : "Send Email"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );
