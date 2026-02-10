@@ -588,8 +588,7 @@ module Api
       def boq
         purchase_orders = @job.purchase_orders
                               .where.not(status: "cancelled")
-                              .includes(:supplier, :line_items, :sm_task)
-                              .order(:id)
+                              .includes(:supplier, :line_items, sm_task: :sm_schedule_master)
 
         # Group PO line items by category (using PO description as category)
         # Build a hierarchical structure: Category -> PO -> Line Items
@@ -614,6 +613,7 @@ module Api
             status: po.status,
             budget: (po.budget || 0).to_f,
             total: (po.total || 0).to_f,
+            _seq: po.sm_task&.sm_schedule_master&.sequence_order,
             line_items: po.line_items.map do |item|
               {
                 id: item.id,
@@ -630,8 +630,18 @@ module Api
           categories[category_name][:po_total] += po_data[:total]
         end
 
-        # Convert to array and sort by name
-        boq_categories = categories.values.sort_by { |c| c[:name] }
+        # Sort POs within each category by SM sequence_order, then sort categories
+        # by the lowest sequence_order of their POs (matching Schedule Master order)
+        categories.each_value do |cat|
+          cat[:purchase_orders].sort_by! { |po| po[:_seq] || Float::INFINITY }
+          cat[:_min_seq] = cat[:purchase_orders].map { |po| po[:_seq] || Float::INFINITY }.min
+        end
+        boq_categories = categories.values.sort_by { |c| c[:_min_seq] || Float::INFINITY }
+        # Clean up internal sort keys
+        boq_categories.each do |cat|
+          cat.delete(:_min_seq)
+          cat[:purchase_orders].each { |po| po.delete(:_seq) }
+        end
 
         # Calculate variance for each category
         boq_categories.each do |cat|
