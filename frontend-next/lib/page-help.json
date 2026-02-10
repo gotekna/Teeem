@@ -258,6 +258,12 @@
       "tips": ["Use categories to organize items", "Set markup percentages for cost-to-price calculation", "Import from supplier price lists"],
       "tasks": ["Add new pricebook item", "Update prices", "Import supplier prices", "Export price list"]
     },
+    "/pricebook/colour-swatches": {
+      "title": "Colour Swatches",
+      "description": "Browse colour swatches from Colorbond, Austral, Roof Profiles, Polytec and other brands.",
+      "tips": ["Swatches are grouped by brand", "Click a swatch to view full-size in the lightbox", "Navigate between swatches with arrow keys"],
+      "tasks": ["Browse colour options by brand", "View swatch details", "Download swatch images"]
+    },
     "/pricebook/health": {
       "title": "Pricebook Health",
       "description": "Review pricebook data quality and identify issues.",

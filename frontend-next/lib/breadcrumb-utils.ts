@@ -23,6 +23,7 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/purchase_orders": "Purchase Orders",
   "/purchase_orders/new": "New PO",
   "/pricebook": "Pricebook",
+  "/pricebook/colour-swatches": "Colour Swatches",
   "/estimates": "Estimates",
   "/leads": "Leads",
   "/leads/new": "New Lead",

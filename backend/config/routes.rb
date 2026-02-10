@@ -894,6 +894,9 @@ Rails.application.routes.draw do
         end
       end
 
+      # Colour Swatches (WarehouseDocuments classified as colour swatches)
+      resources :colour_swatches, only: [:index]
+
       # Gold Standard Table (Demo/Reference Price Book)
       resources :gold_standard_table, only: [ :index, :create, :update, :destroy ] do
         collection do
