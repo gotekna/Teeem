@@ -7,6 +7,9 @@
 # On Heroku, requires the puppeteer-heroku-buildpack:
 #   heroku buildpacks:add --index 1 https://github.com/jontewks/puppeteer-heroku-buildpack
 #
+# Grover is in the :worker Gemfile group and may not be loaded on web dynos
+return unless defined?(Grover)
+
 Grover.configure do |config|
   config.options = {
     format: "A4",
