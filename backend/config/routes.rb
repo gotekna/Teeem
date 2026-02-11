@@ -296,6 +296,8 @@ Rails.application.routes.draw do
       # Authentication routes
       post "auth/signup", to: "authentication#signup"
       post "auth/login", to: "authentication#login"
+      post "auth/forgot_password", to: "authentication#forgot_password"
+      post "auth/reset_password", to: "authentication#reset_password"
       get "auth/me", to: "authentication#me"
       get "auth/dev_login", to: "authentication#dev_login"  # Dev mode only
       get "auth/users", to: "authentication#users"  # Admin: list users for impersonation
