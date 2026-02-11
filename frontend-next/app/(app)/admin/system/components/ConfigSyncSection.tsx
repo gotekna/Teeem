@@ -12,22 +12,29 @@ import { api } from "@/lib/api";
  * Used in both:
  * - /settings/connections/sync
  * - /settings/company/warehouse-config/sync
+ *
+ * Layout:
+ * - Master tenant (TEEEM): AdminConfigSyncTab + TenantSyncPullTab + ConfigSyncTab
+ * - Regular tenants: TenantSyncPullTab + ConfigSyncTab only
  */
 export function ConfigSyncSection() {
   const [syncRefreshKey, setSyncRefreshKey] = React.useState(0);
+  const [isMasterTenant, setIsMasterTenant] = React.useState(false);
   const [lastSyncAt, setLastSyncAt] = React.useState<string | null>(null);
   const [lastSyncBy, setLastSyncBy] = React.useState<string | null>(null);
 
-  // Fetch last sync info on mount
+  // Fetch tenant info + last sync on mount
   React.useEffect(() => {
     const fetchSyncInfo = async () => {
       try {
         const res = await api.get<{
           success: boolean;
+          is_master_tenant?: boolean;
           last_config_sync_at?: string | null;
           last_config_sync_by?: string | null;
         }>("/api/v1/config_sync/tables");
         if (res?.success) {
+          setIsMasterTenant(res.is_master_tenant || false);
           setLastSyncAt(res.last_config_sync_at || null);
           setLastSyncBy(res.last_config_sync_by || null);
         }
@@ -51,14 +58,18 @@ export function ConfigSyncSection() {
 
   return (
     <div className="space-y-8">
-      <AdminConfigSyncTab onImportComplete={() => setSyncRefreshKey(k => k + 1)} />
+      {/* Master Tenant Config Import - only visible to TEEEM */}
+      {isMasterTenant && (
+        <AdminConfigSyncTab onImportComplete={() => setSyncRefreshKey(k => k + 1)} />
+      )}
 
-      <div className="border-t pt-8">
+      {/* Sync from TEEEM - visible to all tenants */}
+      <div className={isMasterTenant ? "border-t pt-8" : ""}>
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold">Sync from TEEEM</h2>
             <p className="text-sm text-muted-foreground">
-              Pull configuration records marked as compulsory or optional from TEEEM master tenant
+              Pull configuration records from TEEEM master tenant to keep your settings in sync
             </p>
           </div>
           <div className="text-sm text-muted-foreground text-right">
@@ -75,6 +86,7 @@ export function ConfigSyncSection() {
         <TenantSyncPullTab onSyncComplete={handleSyncComplete} />
       </div>
 
+      {/* Tenant Configuration Overview */}
       <div className="border-t pt-8">
         <h2 className="text-lg font-semibold mb-4">Tenant Configuration Overview</h2>
         <ConfigSyncTab refreshKey={syncRefreshKey} />

@@ -730,8 +730,8 @@ export default function MicrosoftIntegrationPage() {
                     }}
                     disabled={!newOrgName.trim() || connectingOrg !== null}
                   >
-                    <Shield className="h-4 w-4 mr-1" />
-                    Connect
+                    <Link className="h-4 w-4 mr-1" />
+                    Create Link
                   </Button>
                 )}
               </div>

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
@@ -529,53 +529,42 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            Sync from TEEEM
-          </CardTitle>
-          <CardDescription>
-            Pull configuration records from TEEEM master tenant to keep your settings in sync
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 p-3">
-            <div className="flex gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-              <div className="text-sm text-amber-800 dark:text-amber-200">
-                <p className="font-medium">This is typically used for initial tenant setup</p>
-                <p className="text-xs mt-1 text-amber-700 dark:text-amber-300">
-                  Syncing will overwrite existing records with the source tenant&apos;s data. Any custom changes you&apos;ve made
-                  (renamed statuses, modified templates, etc.) will be replaced. Use &quot;Skip&quot; to exclude tables with custom data,
-                  or sync only the specific tables you need.
-                </p>
-              </div>
+      {/* Warning + Actions */}
+      <div className="space-y-3">
+        <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 p-3">
+          <div className="flex gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-800 dark:text-amber-200">
+              <p className="font-medium">This is typically used for initial tenant setup</p>
+              <p className="text-xs mt-1 text-amber-700 dark:text-amber-300">
+                Syncing will overwrite existing records with the source tenant&apos;s data. Any custom changes you&apos;ve made
+                (renamed statuses, modified templates, etc.) will be replaced. Use &quot;Skip&quot; to exclude tables with custom data,
+                or sync only the specific tables you need.
+              </p>
             </div>
           </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 text-sm">
-              <span className="text-muted-foreground">Your tenant:</span>
-              <Badge variant="outline">{tenantInfo?.name || "Unknown"}</Badge>
-            </div>
-            <Button
-              onClick={() => {
-                setPullAllResult(null);
-                setTableSyncStatus({});
-                setTableSyncErrors({});
-                setTableBatchProgress({});
-                setShowSyncDialog(true);
-              }}
-              disabled={pullingAll}
-              variant="default"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Sync Tables
-            </Button>
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 text-sm">
+            <span className="text-muted-foreground">Your tenant:</span>
+            <Badge variant="outline">{tenantInfo?.name || "Unknown"}</Badge>
           </div>
-        </CardContent>
-      </Card>
+          <Button
+            onClick={() => {
+              setPullAllResult(null);
+              setTableSyncStatus({});
+              setTableSyncErrors({});
+              setTableBatchProgress({});
+              setShowSyncDialog(true);
+            }}
+            disabled={pullingAll}
+            variant="default"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Sync Tables
+          </Button>
+        </div>
+      </div>
 
       {/* Sync Progress Dialog */}
       <Dialog open={showSyncDialog} onOpenChange={(open) => { if (!pullingAll) setShowSyncDialog(open); }}>
