@@ -138,6 +138,56 @@ module Api
         }
       end
 
+      # GET /api/v1/system/queue_status
+      # Lightweight endpoint for header bar worker queue health indicator
+      def queue_status
+        worker_health = WorkerWatchdog.last_status
+        pending = get_pending_jobs_count
+        failed = get_failed_jobs_count
+        workers = get_active_workers
+
+        status = if worker_health[:status] == "dead" || workers == 0
+                   "error"
+                 elsif failed > 50 || pending > 500
+                   "degraded"
+                 elsif failed > 10 || pending > 100
+                   "degraded"
+                 else
+                   "connected"
+                 end
+
+        top_failed = SolidQueue::FailedExecution
+          .joins(:job)
+          .select("solid_queue_jobs.class_name, COUNT(*) as count")
+          .group("solid_queue_jobs.class_name")
+          .order("count DESC")
+          .limit(5)
+          .map { |r| { class_name: r.class_name, count: r.count } }
+
+        queue_depth = SolidQueue::ReadyExecution
+          .joins(:job)
+          .select("solid_queue_jobs.queue_name, COUNT(*) as count")
+          .group("solid_queue_jobs.queue_name")
+          .map { |r| { queue: r.queue_name, count: r.count } }
+
+        render json: {
+          success: true,
+          data: {
+            status: status,
+            workers: workers,
+            pending: pending,
+            failed: failed,
+            lastHeartbeat: worker_health[:last_heartbeat],
+            stalenessSeconds: worker_health[:staleness_seconds],
+            topFailed: top_failed,
+            queueDepth: queue_depth,
+            message: build_queue_message(status, workers, pending, failed)
+          }
+        }
+      rescue StandardError => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       # GET /api/v1/system/metrics
       def metrics
         render json: {
@@ -260,6 +310,21 @@ module Api
       def get_recent_requests
         # Recent requests tracking would need middleware
         []
+      end
+
+      def get_active_workers
+        SolidQueue::Process.where("last_heartbeat_at > ?", 5.minutes.ago).count
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] get_active_workers unavailable: #{e.message}"
+        0
+      end
+
+      def build_queue_message(status, workers, pending, failed)
+        case status
+        when "error" then "Workers down - #{workers} active"
+        when "degraded" then "Queue backed up - #{pending} pending, #{failed} failed"
+        else "#{workers} workers | #{pending} pending | #{failed} failed"
+        end
       end
 
       def get_pending_jobs_count
