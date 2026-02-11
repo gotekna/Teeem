@@ -786,6 +786,14 @@ class TenantConfigSyncService
           next unless record
           begin
             deferred_attrs.each do |field, value|
+              # FRC (Feb 2026): If the remap returned nil during pass 1 (parent processed
+              # after child), re-compute now that all records exist in the target tenant.
+              if value.nil? && self_ref_fks.key?(field)
+                source_record = source_records.find { |sr| sr.send(config[:name_field]) == record.send(config[:name_field]) }
+                if source_record && source_record.send(field).present?
+                  value = remap_foreign_key(field, source_record.send(field), self_ref_fks[field])
+                end
+              end
               record.update_column(field, value) if value.present?
             end
           rescue => e
@@ -999,6 +1007,14 @@ class TenantConfigSyncService
           next unless record
           begin
             deferred_attrs.each do |field, value|
+              # FRC (Feb 2026): If the remap returned nil during pass 1 (parent processed
+              # after child), re-compute now that all records exist in the target tenant.
+              if value.nil? && self_ref_fks.key?(field)
+                master_record = master_records.find { |mr| mr.send(config[:name_field]) == record.send(config[:name_field]) }
+                if master_record && master_record.send(field).present?
+                  value = remap_foreign_key(field, master_record.send(field), self_ref_fks[field])
+                end
+              end
               record.update_column(field, value) if value.present?
             end
           rescue => e
