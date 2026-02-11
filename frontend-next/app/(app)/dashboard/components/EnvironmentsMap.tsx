@@ -70,22 +70,13 @@ const ENVIRONMENTS: EnvironmentStatus[] = [
     status: "checking",
   },
   {
-    name: "Staging Worker",
+    name: "Shared Worker",
     type: "worker",
     herokuApp: "teeem-staging-worker",
     branch: "Staging",
     backendUrl: "https://teeem-staging-worker-6569c4d9c62f.herokuapp.com",
-    description: "Background jobs: PDF generation, email sync, document processing",
+    description: "Background jobs for ALL environments (shared DB = shared queue). Standard-2X dyno.",
     status: "checking",
-  },
-  {
-    name: "Production Worker",
-    type: "worker",
-    herokuApp: "teeem-production-worker",
-    branch: "Live",
-    backendUrl: "",
-    description: "Background jobs for production (pending: create app at heroku.com/verify)",
-    status: "unknown",
   },
 ];
 
@@ -422,7 +413,7 @@ export default function EnvironmentsMap() {
               </div>
               <p className="text-xs text-muted-foreground">
                 Staging, Beta, and Production all share the <strong>same production database</strong>.
-                Only local development uses a separate database.
+                One shared worker processes jobs for all environments. Only local dev uses a separate database.
               </p>
               <Badge variant="outline" className="text-[10px]">Heroku Postgres</Badge>
             </div>
