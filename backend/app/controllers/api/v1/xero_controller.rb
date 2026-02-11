@@ -3757,28 +3757,24 @@ module Api
         matches.sort_by { |m| -m[:score] }.first(5)
       end
 
-      # Infer entity type from Xero contact name and details
+      # Infer entity type from Xero contact name
       # Used to show what type the contact would be if imported
-      def infer_entity_type(name, xero_details = nil)
+      #
+      # FRC (Feb 2026): Xero splits ALL names into first_name/last_name - even
+      # "Bunnings Trade" becomes first="Bunnings" last="Trade". So those fields
+      # are NOT a reliable person signal. Only use name pattern analysis.
+      def infer_entity_type(name, _xero_details = nil)
         return nil if name.blank?
 
-        # Check if Xero has first_name/last_name (strong person signal)
-        if xero_details.is_a?(Hash)
-          has_person_fields = xero_details[:first_name].present? || xero_details[:last_name].present?
-          return 'person' if has_person_fields
-        end
+        # Legal/structural suffixes (high confidence company)
+        legal_pattern = /\b(pty|ltd|limited|inc|corp|llc|plc|trust|fund|super|association|council|government|dept|department)\b/i
+        return 'company' if name.match?(legal_pattern)
 
-        # Company patterns
-        company_pattern = /\b(pty|ltd|limited|inc|corp|company|co\b|trust|trading|holdings|group|services|solutions|industries|enterprises|super|fund|association|council|government|dept|department)\b/i
-        return 'company' if name.match?(company_pattern)
+        # Business activity words (strong company signal)
+        business_pattern = /\b(trade|trading|holdings|group|services|solutions|industries|enterprises|company|contractors|constructions?|electrical|plumbing|carpentry|scaffolding|roofing|painting|flooring|tiling|fencing|landscaping|excavation|demolition|concrete|steel|timber|glass|building|supplies|materials|hardware|hire|hires|rental|rentals|transport|logistics|freight|waste|management|consulting|engineering|designs?|projects|developments?|investments|properties|real\s*estate|insurance|finance|accounting|recruitment|training|security|cleaning|maintenance|catering|hospitality|medical|dental|pharmacy|legal|automotive|mechanical|fabrication|manufacturing|wholesale|retail|distributors?|imports?|exports?|concepts|creations?|innovations?|technologies|tech|digital|systems|communications?|media|print|signs?|graphics|agencies?|partners|ventures|capital|advisory|strategy|global|national|australian|pacific)\b/i
+        return 'company' if name.match?(business_pattern)
 
-        # Name looks like a person (2-3 words, no business suffixes)
-        words = name.strip.split(/\s+/)
-        if words.length.between?(2, 3) && words.all? { |w| w.match?(/\A[A-Z][a-z]+\z/) }
-          return 'person'
-        end
-
-        # Single word or ambiguous - can't determine
+        # Ambiguous - don't guess
         nil
       end
 
