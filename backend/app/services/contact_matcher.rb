@@ -184,7 +184,7 @@ class ContactMatcher
     # This is indexed if pg_trgm extension is installed with appropriate index
     result = Contact.where(tenant_id: @teeem_tenant_id, is_active: true)
                     .where("entity_type IN (?) OR entity_type IS NULL OR display_name ~* ?",
-                           %w[company trust sole_trader],
+                           %w[company trust sole_trader price_only],
                            '(pty|ltd|limited|inc|corp|trust|trading|holdings|group|services|solutions|industries|enterprises)\\b')
                     .where("similarity(display_name, ?) > ?", xero_name, SIMILARITY_THRESHOLD)
                     .order(Arel.sql("similarity(display_name, #{Contact.connection.quote(xero_name)}) DESC"))
