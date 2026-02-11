@@ -242,7 +242,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         const to = encodeURIComponent(response.user_email || user.email);
         setShowInviteConfirm(false);
         onClose();
-        router.push(`/email?compose_to=${to}&compose_subject=${subject}&compose_body=${body}`);
+        router.push(`/email?compose_to=${to}&compose_subject=${subject}&compose_body=${body}&compose_from=${encodeURIComponent("setup@teeem.com.au")}`);
       } else if (response?.success) {
         toast({
           title: "Login email sent",
