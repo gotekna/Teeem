@@ -254,12 +254,14 @@ class XeroAttachmentSyncJob < ApplicationJob
   # ════════════════════════════════════════════════════════════════════════════
 
   def find_invoices_needing_pdfs(limit, xero_tenant_id = nil, invoice_type = nil)
-    already_synced_ids = WarehouseDocument
+    # ⚠️ DO NOT use .pluck() here - it loads ALL synced IDs into Ruby memory (Feb 2026)
+    # Use a SQL subquery instead to keep filtering in PostgreSQL
+    already_synced_subquery = WarehouseDocument
       .where(source_type: "xero")
       .where(documentable_type: "ExternalInvoice")
       .where("metadata->>'is_primary' = ?", "true")
       .where.not(storage_blob_id: nil)
-      .pluck(:documentable_id)
+      .select(:documentable_id)
 
     # FRC (Feb 2026): Invoice types and their PDF availability:
     # - sales_invoice: Xero auto-generates PDF when approved/sent/paid
@@ -276,7 +278,7 @@ class XeroAttachmentSyncJob < ApplicationJob
       .where.not(external_id: nil)
       .where.not(tenant_id: nil)
       .where.not(contact_id: nil)
-      .where.not(id: already_synced_ids)
+      .where("external_invoices.id NOT IN (?)", already_synced_subquery)
       .limit(limit)
 
     if xero_tenant_id.present?
@@ -294,27 +296,28 @@ class XeroAttachmentSyncJob < ApplicationJob
   def count_remaining_invoices_for_tenant(xero_tenant_id)
     return 0 unless xero_tenant_id.present?
 
-    already_synced_ids = WarehouseDocument
+    # ⚠️ DO NOT use .pluck() here - keeps all IDs in Ruby memory (Feb 2026)
+    already_synced_subquery = WarehouseDocument
       .where(source_type: "xero")
       .where(documentable_type: "ExternalInvoice")
       .where("metadata->>'is_primary' = ?", "true")
       .where.not(storage_blob_id: nil)
-      .pluck(:documentable_id)
+      .select(:documentable_id)
 
-    contact_ids_for_xero_org = ContactExternalLink
+    contact_ids_subquery = ContactExternalLink
       .where(source: "xero", xero_org_id: xero_tenant_id)
-      .pluck(:contact_id)
+      .select(:contact_id)
 
     # FRC (Feb 2026): Must match find_invoices_needing_pdfs filters
     # Bills included - no auto-PDF but can have supplier attachments
     ExternalInvoice
       .active
       .where.not(status: "draft")       # Draft invoices have no PDF
-      .where(contact_id: contact_ids_for_xero_org)
+      .where("external_invoices.contact_id IN (?)", contact_ids_subquery)
       .where.not(external_id: nil)
       .where.not(tenant_id: nil)
       .where.not(contact_id: nil)
-      .where.not(id: already_synced_ids)
+      .where("external_invoices.id NOT IN (?)", already_synced_subquery)
       .count
   end
 

@@ -278,7 +278,7 @@ xero_invoice_data_sync:
 warehouse_xero_attachments:
   class: XeroAttachmentSyncJob
   queue: low
-  args: [null, { limit: 200 }]
+  args: [null, { limit: 50 }]
   schedule: every 10 minutes
 
 # NOTE: XeroStorageUploadBackfillJob was removed in Jan 2026 refactor
