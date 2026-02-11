@@ -2,12 +2,11 @@
 
 # TenantDatabaseBackupJob - Database backup for a specific tenant
 #
-# Downloads the Heroku backup and uploads to the tenant's configured
-# primary storage provider.
+# Downloads the Heroku backup and uploads directly to B2 (Tier 2).
+# Database dumps go straight to the off-site provider — Heroku already
+# manages its own backups, so Tier 1 (Wasabi) doesn't need a copy.
 #
-# Note: Currently Teeem uses a single Heroku database, so the database
-# backup is the same for all tenants. However, each tenant's backup
-# goes to their own configured storage bucket for data isolation.
+# Uses secondary_credential (B2) for upload and retention_count for cleanup.
 #
 class TenantDatabaseBackupJob < ApplicationJob
   queue_as :low
@@ -27,8 +26,8 @@ class TenantDatabaseBackupJob < ApplicationJob
         return
       end
 
-      unless @config.primary_credential
-        Rails.logger.warn "[TenantDatabaseBackup] Skipped - no primary credential for tenant #{@tenant.id}"
+      unless @config.secondary_credential
+        Rails.logger.warn "[TenantDatabaseBackup] Skipped - no secondary (B2) credential for tenant #{@tenant.id}"
         return
       end
 
@@ -39,7 +38,7 @@ class TenantDatabaseBackupJob < ApplicationJob
   private
 
   def run_backup
-    log = BackupLog.start!(@config, type: "database", provider: @config.primary_credential.provider_name)
+    log = BackupLog.start!(@config, type: "database", provider: @config.secondary_credential.provider_name)
     start_time = Time.current
 
     begin
@@ -50,10 +49,9 @@ class TenantDatabaseBackupJob < ApplicationJob
         return
       end
 
-      # Initialize tenant backup service
-      service = TenantBackupService.new(@config.primary_credential)
+      # Upload directly to B2 (secondary credential)
+      service = TenantBackupService.new(@config.secondary_credential)
 
-      # Upload to tenant's storage
       filename = "db-backup-#{Date.current.strftime('%Y%m%d')}.dump"
       key = "#{@tenant_slug}/database/#{filename}"
 
@@ -79,17 +77,12 @@ class TenantDatabaseBackupJob < ApplicationJob
       # Update config
       @config.record_backup_completed!(:database)
 
-      # Cleanup old backups
-      retention = @config.retention_count.presence || (@config.retention_days / 7.0).ceil
+      # Cleanup old DB dumps in B2 using retention_count
+      retention = @config.retention_count.presence || 5
       deleted = service.cleanup_old_backups("#{@tenant_slug}/database/", keep: retention)
-      Rails.logger.info "[TenantDatabaseBackup] Cleanup: deleted #{deleted} old backups" if deleted > 0
+      Rails.logger.info "[TenantDatabaseBackup] Cleanup: deleted #{deleted} old backups in B2" if deleted > 0
 
-      # Queue Tier 2 mirror (backup bucket → B2) if enabled
-      if @config.mirror_enabled? && @config.secondary_credential
-        BackupMirrorJob.perform_later(@tenant.id, "database", { key: key })
-      end
-
-      Rails.logger.info "[TenantDatabaseBackup] Complete for tenant #{@tenant.id}: #{key}"
+      Rails.logger.info "[TenantDatabaseBackup] Complete for tenant #{@tenant.id}: #{key} (B2)"
     rescue => e
       log.fail!(error_message: e.message, duration_seconds: elapsed(start_time))
       Rails.logger.error "[TenantDatabaseBackup] Failed for tenant #{@tenant.id}: #{e.message}"

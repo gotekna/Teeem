@@ -455,27 +455,15 @@ class Api::V1::ImapCredentialsController < ApplicationController
       # SSoT: Auto-include user's own email if it matches the org credential's known domain
       # PERFORMANCE FIX: Don't call list_tenant_users (Graph API call was causing 30+ second delays)
       # Instead, use a simple domain check based on the credential's name/known domains
+      # FRC (Feb 2026): Auto-include user's own email if their domain matches
+      # the tenant's internal domains. Uses TenantSetting (auto-scoped to current tenant)
+      # instead of hardcoded domain mapping per org name.
       auto_emails = []
       if current_user.email.present?
         user_domain = current_user.email.split("@").last&.downcase
+        tenant_domains = TenantSetting.internal_email_domains
 
-        # Known domains per org name
-        # TODO: Move to MicrosoftCredential.metadata[:email_domains] for SSoT
-        # These are hardcoded because:
-        # 1. Graph API call to get domains was too slow (30+ sec)
-        # 2. Multiple tenants exist with different domains
-        known_domains = {
-          "Tekna" => TenantSetting.internal_email_domains,
-          "100xBestLife" => ["100xbestlife.com"],
-          "Homes of Hope" => ["homesofhope.org.au"],
-          "Love Your World" => ["loveyourworld.org"]
-        }
-
-        # Get domains for this org
-        org_domains = known_domains[org_cred.name] || []
-
-        # Include user's email if their domain matches this tenant
-        if org_domains.any? { |d| d.casecmp?(user_domain) }
+        if tenant_domains.any? { |d| d.casecmp?(user_domain) }
           auto_emails = [current_user.email]
         end
       end
