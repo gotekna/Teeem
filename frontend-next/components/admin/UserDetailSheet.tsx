@@ -217,26 +217,23 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
 
     setSendingInvite(true);
     try {
-      const response = await api.post<{ success: boolean; compose?: boolean; user_email?: string; user_name?: string; temp_password?: string; message?: string; error?: string }>(
+      const response = await api.post<{ success: boolean; compose?: boolean; user_email?: string; user_name?: string; reset_token?: string; message?: string; error?: string }>(
         `/api/v1/users/${user.id}/send_invite`,
         { compose_mode: true }
       );
 
       if (response?.success && response?.compose) {
         // SSoT: Production URL is always teeem.vercel.app (3 e's)
-        // Login link pre-fills email so user just enters temp password
-        const loginUrl = "https://teeem.vercel.app/login?email=" + encodeURIComponent(response.user_email || "") + "&p=" + encodeURIComponent(response.temp_password || "");
+        // Link goes directly to password reset page - user sets their own password
+        const resetUrl = "https://teeem.vercel.app/reset-password?token=" + encodeURIComponent(response.reset_token || "");
         const firstName = (response.user_name || "").split(" ")[0] || "there";
 
         const subject = encodeURIComponent("Welcome to Teeem - Your Account is Ready");
-        // HTML body so login link is clickable with friendly text
         const body = encodeURIComponent(
           `<p>Hi ${firstName},</p>` +
           `<p>Welcome to Teeem - your complete business management system.</p>` +
           `<p>Your account has been created and is ready to go:</p>` +
-          `<p><strong><a href="${loginUrl}">Click here to login</a></strong></p>` +
-          `<p>You'll be prompted to set a new password on your first login.</p>` +
-          `<p><strong>Bookmark the login page</strong> for easy access: <a href="https://teeem.vercel.app/login">teeem.vercel.app/login</a></p>` +
+          `<p><strong><a href="${resetUrl}">Click here to set your password and login</a></strong></p>` +
           `<p>Teeem brings together your jobs, contacts, documents, emails, scheduling, and finances in one place. If you need any help getting started, just reply to this email.</p>` +
           `<p>Best regards</p>`
         );
