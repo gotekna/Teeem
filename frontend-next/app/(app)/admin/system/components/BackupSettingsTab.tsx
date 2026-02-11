@@ -316,9 +316,8 @@ export function BackupSettingsTab() {
           <div className="rounded-lg border bg-muted/30 dark:bg-muted/10 p-3 space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">How it works</p>
             <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-              <li><strong>Document Backup</strong> — Copies all documents changed since last backup from the live bucket to the backup bucket. Run on a schedule or manually.</li>
+              <li><strong>Document Backup</strong> — Incrementally copies only documents changed since last backup from the live bucket to the backup bucket.</li>
               <li><strong>Database Dump</strong> — Downloads the latest Heroku database backup and stores it in the backup bucket.</li>
-              <li><strong>Incremental</strong> — Only changed files are copied each run, keeping it fast and cheap.</li>
             </ul>
             <div className="flex items-center gap-2 text-sm pt-1">
               <Badge variant="outline" className="font-mono text-xs">
@@ -381,70 +380,27 @@ export function BackupSettingsTab() {
 
           {/* Settings + Actions */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Backup Storage Credential</Label>
-                <Select
-                  value={formState.primaryCredentialId?.toString() ?? "none"}
-                  onValueChange={handlePrimaryChange}
-                  disabled={!formState.enabled}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Not configured</SelectItem>
-                    {credentials
-                      .filter((c) => c.id !== formState.secondaryCredentialId)
-                      .map((cred) => (
-                        <SelectItem key={cred.id} value={cred.id.toString()}>
-                          {cred.name} {cred.bucket ? `(${cred.bucket})` : ""}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Schedule</Label>
-                  <Select
-                    value={currentSchedule}
-                    onValueChange={handleScheduleChange}
-                    disabled={!formState.enabled}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {presets.map((preset) => (
-                        <SelectItem key={preset.value} value={preset.value}>
-                          {preset.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Keep Last</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={formState.retentionCount ?? 5}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        if (val >= 1 && val <= 100) {
-                          handleChange("retentionCount", val);
-                        }
-                      }}
-                      disabled={!formState.enabled}
-                      className="h-9 w-20"
-                    />
-                    <span className="text-xs text-muted-foreground">backups</span>
-                  </div>
-                </div>
-              </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Backup Storage Credential</Label>
+              <Select
+                value={formState.primaryCredentialId?.toString() ?? "none"}
+                onValueChange={handlePrimaryChange}
+                disabled={!formState.enabled}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not configured</SelectItem>
+                  {credentials
+                    .filter((c) => c.id !== formState.secondaryCredentialId)
+                    .map((cred) => (
+                      <SelectItem key={cred.id} value={cred.id.toString()}>
+                        {cred.name} {cred.bucket ? `(${cred.bucket})` : ""}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex flex-col justify-end gap-2">
@@ -508,8 +464,8 @@ export function BackupSettingsTab() {
               <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
                 <li><strong>Document Sync</strong> — Downloads documents directly from the live Wasabi bucket and uploads them to B2. Does NOT depend on Tier 1.</li>
                 <li><strong>Database Sync</strong> — Copies database dumps from the Wasabi backup bucket to B2.</li>
-                <li><strong>Incremental</strong> — Uses a watermark timestamp. Only documents changed since the last sync are copied. &quot;Full Re-sync&quot; ignores the watermark and copies everything.</li>
-                <li><strong>Triggered</strong> — Runs automatically after each Tier 1 backup, or manually from the buttons below.</li>
+                <li><strong>Incremental</strong> — Only documents changed since the last sync are copied. &quot;Full Re-sync&quot; copies everything.</li>
+                <li><strong>Scheduled</strong> — Runs on the schedule below, or manually from the buttons.</li>
               </ul>
               <div className="flex items-center gap-2 text-sm pt-1">
                 <Badge variant="outline" className="font-mono text-xs">
@@ -563,31 +519,76 @@ export function BackupSettingsTab() {
 
           {/* Settings + Actions */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
-            <div className="space-y-1.5">
-              <Label className="text-xs">B2 Storage Credential</Label>
-              <Select
-                value={formState.secondaryCredentialId?.toString() ?? "none"}
-                onValueChange={handleSecondaryChange}
-                disabled={!formState.enabled}
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None — no off-site mirror</SelectItem>
-                  {credentials
-                    .filter((c) => c.id !== formState.primaryCredentialId)
-                    .map((cred) => (
-                      <SelectItem key={cred.id} value={cred.id.toString()}>
-                        {cred.name} {cred.bucket ? `(${cred.bucket})` : ""}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              {!hasTier2 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 pt-1">
-                  Without B2, there is no off-site disaster recovery copy.
-                </p>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">B2 Storage Credential</Label>
+                <Select
+                  value={formState.secondaryCredentialId?.toString() ?? "none"}
+                  onValueChange={handleSecondaryChange}
+                  disabled={!formState.enabled}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None — no off-site mirror</SelectItem>
+                    {credentials
+                      .filter((c) => c.id !== formState.primaryCredentialId)
+                      .map((cred) => (
+                        <SelectItem key={cred.id} value={cred.id.toString()}>
+                          {cred.name} {cred.bucket ? `(${cred.bucket})` : ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {!hasTier2 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 pt-1">
+                    Without B2, there is no off-site disaster recovery copy.
+                  </p>
+                )}
+              </div>
+              {hasTier2 && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Schedule</Label>
+                    <Select
+                      value={currentSchedule}
+                      onValueChange={handleScheduleChange}
+                      disabled={!formState.enabled}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {presets.map((preset) => (
+                          <SelectItem key={preset.value} value={preset.value}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Keep Last</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={formState.retentionCount ?? 5}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (val >= 1 && val <= 100) {
+                            handleChange("retentionCount", val);
+                          }
+                        }}
+                        disabled={!formState.enabled}
+                        className="h-9 w-20"
+                      />
+                      <span className="text-xs text-muted-foreground">backups</span>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
 

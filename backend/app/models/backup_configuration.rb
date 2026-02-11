@@ -42,6 +42,7 @@ class BackupConfiguration < ApplicationRecord
   # Validations
   validates :database_schedule, inclusion: { in: SCHEDULE_PRESETS.keys }
   validates :document_schedule, inclusion: { in: SCHEDULE_PRESETS.keys }
+  validates :mirror_schedule, inclusion: { in: SCHEDULE_PRESETS.keys }
   validates :retention_days, numericality: { greater_than: 0, less_than_or_equal_to: 365 }
   validates :retention_count, numericality: { greater_than: 0, less_than_or_equal_to: 100 }
   validates :tenant_id, uniqueness: true
@@ -78,6 +79,11 @@ class BackupConfiguration < ApplicationRecord
     SCHEDULE_PRESETS.dig(document_schedule, :cron)
   end
 
+  # Get cron expression for mirror (Tier 2) backups
+  def mirror_cron
+    SCHEDULE_PRESETS.dig(mirror_schedule, :cron)
+  end
+
   # Get human-readable label for database schedule
   def database_schedule_label
     SCHEDULE_PRESETS.dig(database_schedule, :label)
@@ -88,8 +94,13 @@ class BackupConfiguration < ApplicationRecord
     SCHEDULE_PRESETS.dig(document_schedule, :label)
   end
 
+  # Get human-readable label for mirror schedule
+  def mirror_schedule_label
+    SCHEDULE_PRESETS.dig(mirror_schedule, :label)
+  end
+
   # Check if a backup is due based on schedule and last run time
-  # @param type [Symbol] :database or :documents
+  # @param type [Symbol] :database, :documents, or :mirror
   # @return [Boolean]
   def backup_due?(type)
     return false unless enabled?
@@ -101,6 +112,10 @@ class BackupConfiguration < ApplicationRecord
     when :documents
       return false if document_schedule == "disabled"
       check_schedule_due(document_schedule, last_document_backup_at)
+    when :mirror
+      return false if mirror_schedule == "disabled"
+      return false unless mirror_enabled? && secondary_credential_id.present?
+      check_schedule_due(mirror_schedule, last_mirror_sync_at)
     else
       false
     end
@@ -127,10 +142,15 @@ class BackupConfiguration < ApplicationRecord
   end
 
   # Get next scheduled backup time for a type
-  # @param type [Symbol] :database or :documents
+  # @param type [Symbol] :database, :documents, or :mirror
   # @return [Time, nil]
   def next_scheduled_backup(type)
-    schedule = type == :database ? database_schedule : document_schedule
+    schedule = case type
+               when :database then database_schedule
+               when :documents then document_schedule
+               when :mirror then mirror_schedule
+               else return nil
+               end
     return nil if schedule == "disabled"
 
     cron = SCHEDULE_PRESETS.dig(schedule, :cron)
