@@ -218,6 +218,11 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "backups": "Backups",
   "sync": "Sync",
 
+  // Settings > Connections > Email Accounts sub-tabs
+  "configuration": "Configuration",
+  "sync-dashboard": "Sync Dashboard",
+  "email-setup": "Email Setup",
+
   // Settings > Operations sub-tabs (slugs from page.tsx tab IDs)
   "schedule-master": "Schedule Master",
   "sm-tasks": "SM Tasks",
@@ -434,6 +439,7 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "warehouse-config": ["warehouse_folders", "warehouse_tables", "document_types", "corporate", "job", "contact", "email_config", "sync"],
   "documents": ["types", "document-templates", "bank-statements", "invoice-templates", "email-signatures", "pdf-fields"],
   "job-setup": ["lists", "workflow"],
+  "email-accounts": ["configuration", "sync-dashboard", "email-setup"],
 };
 
 /**
