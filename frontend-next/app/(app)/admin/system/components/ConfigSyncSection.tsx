@@ -88,7 +88,7 @@ export function ConfigSyncSection() {
 
       {/* Tenant Configuration Overview */}
       <div className="border-t pt-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="sticky top-0 z-10 bg-background py-3 -mt-3 flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Tenant Configuration Overview</h2>
           <div className="text-sm text-muted-foreground text-right">
             {lastSyncAt ? (
