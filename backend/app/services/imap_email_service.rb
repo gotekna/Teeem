@@ -192,6 +192,9 @@ class ImapEmailService
     # Send
     mail.deliver!
 
+    # Append to IMAP Sent folder so it appears in other mail clients (e.g., Group Office)
+    append_to_sent_folder(mail)
+
     # Save sent email to warehouse
     save_sent_email_to_warehouse(mail)
 
@@ -683,6 +686,25 @@ class ImapEmailService
   rescue => e
     Rails.logger.warn "[ImapEmailService] Error applying rules to email #{email.id}: #{e.message}"
     # Don't raise - rules failing shouldn't stop sync
+  end
+
+  def append_to_sent_folder(mail)
+    with_imap_connection do |imap|
+      # Find which Sent folder exists on this server
+      sent_folder = SYNC_FOLDERS.drop(1).find do |folder|
+        imap.list("", folder)&.any?
+      end
+
+      unless sent_folder
+        # Try to create "Sent" as fallback
+        sent_folder = "Sent"
+        imap.create(sent_folder) rescue nil
+      end
+
+      imap.append(sent_folder, mail.to_s, [:Seen], Time.current)
+    end
+  rescue => e
+    Rails.logger.warn "[ImapEmailService] Could not append to Sent folder: #{e.message}"
   end
 
   def save_sent_email_to_warehouse(mail)
