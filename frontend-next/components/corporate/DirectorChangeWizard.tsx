@@ -35,6 +35,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Clock,
   Download,
   FileText,
   Pencil,
@@ -84,6 +85,20 @@ interface ContactSearchResult {
   entity_type?: string;
 }
 
+interface PendingGeneration {
+  id: number;
+  status: string;
+  generatorType: string;
+  filename: string | null;
+  downloadUrl?: string | null;
+  createdAt: string;
+  companyName?: string;
+  companyId?: string;
+  userName?: string;
+  error?: string;
+  result?: Record<string, unknown>;
+}
+
 const POSITION_OPTIONS = [
   { value: "director", label: "Director" },
   { value: "secretary", label: "Secretary" },
@@ -129,6 +144,10 @@ export function DirectorChangeWizard({
   const [sent, setSent] = React.useState(false);
   const [requestNumber, setRequestNumber] = React.useState<string>("");
 
+  // Pending generations (cross-tenant)
+  const [pendingGenerations, setPendingGenerations] = React.useState<PendingGeneration[]>([]);
+  const [loadingPending, setLoadingPending] = React.useState(false);
+
   // Contact search
   const [contactSearch, setContactSearch] = React.useState("");
   const [contactResults, setContactResults] = React.useState<ContactSearchResult[]>([]);
@@ -137,7 +156,7 @@ export function DirectorChangeWizard({
   // Current officers (for ceasing selection)
   const currentOfficers = officers.filter((o) => o.is_current);
 
-  // Reset state when wizard opens/closes
+  // Reset state when wizard opens/closes - check for unprocessed PDF generations
   React.useEffect(() => {
     if (open) {
       setStep(1);
@@ -153,8 +172,111 @@ export function DirectorChangeWizard({
       setSent(false);
       setRequestNumber("");
       setError(null);
+      setPendingGenerations([]);
+
+      // Check for ALL unprocessed PDF generations across the tenant
+      checkPendingGenerations();
     }
   }, [open]);
+
+  // Check for unprocessed PDF generations across the entire tenant
+  const checkPendingGenerations = async () => {
+    setLoadingPending(true);
+    try {
+      const response = await api.get<{ success: boolean; data: PendingGeneration[] }>(
+        `/api/v1/pdf_generations?status=pending,processing,completed&limit=20`
+      );
+      if (response?.success && response.data?.length) {
+        // Only show recent ones (within last 24 hours)
+        const recentCutoff = Date.now() - 24 * 60 * 60 * 1000;
+        const recent = response.data.filter(
+          (pg) => new Date(pg.createdAt || "").getTime() > recentCutoff
+        );
+        setPendingGenerations(recent);
+      }
+    } catch {
+      // Silently fail - not critical
+    } finally {
+      setLoadingPending(false);
+    }
+  };
+
+  // Cancel a pending/processing PDF generation
+  const cancelGeneration = async (id: number) => {
+    try {
+      await api.patch(`/api/v1/pdf_generations/${id}/cancel`, {});
+      setPendingGenerations((prev) => prev.filter((pg) => pg.id !== id));
+    } catch {
+      setError("Failed to cancel generation");
+    }
+  };
+
+  // Continue/resume a pending, processing, or completed PDF generation
+  const continueGeneration = async (gen: PendingGeneration) => {
+    setPendingGenerations([]); // Dismiss the list
+
+    if (gen.status === "completed" && gen.downloadUrl) {
+      // Already done - skip to preview
+      setPdfGenerationId(gen.id);
+      setLoadingMessage("Loading completed preview...");
+      setLoading(true);
+      try {
+        const baseUrl = getApiBaseUrl();
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        const pdfResp = await fetch(`${baseUrl}${gen.downloadUrl}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          redirect: "follow",
+        });
+        if (pdfResp.ok) {
+          const blob = await pdfResp.blob();
+          setPdfDownloadUrl(URL.createObjectURL(blob));
+        }
+        setGeneratedFilename(gen.filename || "");
+        const docs = gen.result?.documents as Array<{ type: string; name: string }> | undefined;
+        if (docs) setGeneratedDocuments(docs);
+        setStep(3);
+      } finally {
+        setLoading(false);
+      }
+    } else if (gen.status === "pending" || gen.status === "processing") {
+      // Still in progress - resume polling
+      setPdfGenerationId(gen.id);
+      setLoading(true);
+      setLoadingMessage(gen.status === "processing" ? "Generating PDF documents..." : "Queued — waiting for worker...");
+      setStep(2);
+      try {
+        const result = await pollPdfGeneration(gen.id, {
+          intervalMs: 1500,
+          maxWaitMs: 120_000,
+          onProgress: (status) => {
+            if (status.status === "processing") setLoadingMessage("Generating PDF documents...");
+            else if (status.status === "pending") setLoadingMessage("Queued — waiting for worker...");
+          },
+        });
+        if (result.status === "completed" && result.downloadUrl) {
+          setLoadingMessage("Downloading preview...");
+          const baseUrl = getApiBaseUrl();
+          const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+          const pdfResp = await fetch(`${baseUrl}${result.downloadUrl}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            redirect: "follow",
+          });
+          if (pdfResp.ok) {
+            const blob = await pdfResp.blob();
+            setPdfDownloadUrl(URL.createObjectURL(blob));
+          }
+          setGeneratedFilename(result.filename || "");
+          const docs = result.result?.documents as Array<{ type: string; name: string }> | undefined;
+          if (docs) setGeneratedDocuments(docs);
+          setStep(3);
+        } else {
+          setError(result.error || "PDF generation failed — please try again");
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
 
   // Contact search debounce
   React.useEffect(() => {
@@ -521,6 +643,94 @@ export function DirectorChangeWizard({
             <button onClick={() => setError(null)} className="ml-auto">
               <X className="w-4 h-4" />
             </button>
+          </div>
+        )}
+
+        {/* Pending Generations List (cross-tenant) */}
+        {step === 1 && pendingGenerations.length > 0 && (
+          <div className="mb-4 space-y-3">
+            <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                {pendingGenerations.length} unfinished PDF generation{pendingGenerations.length > 1 ? "s" : ""} found. Continue or cancel before starting a new one.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {pendingGenerations.map((gen) => (
+                <div key={gen.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium truncate">
+                        {gen.companyName || "Unknown Company"}
+                      </p>
+                      <Badge
+                        variant={gen.status === "completed" ? "default" : "secondary"}
+                        className={`text-xs shrink-0 ${
+                          gen.status === "completed"
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                            : gen.status === "processing"
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                              : ""
+                        }`}
+                      >
+                        {gen.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {gen.generatorType?.replace(/_/g, " ")} &middot;{" "}
+                      {gen.createdAt ? format(new Date(gen.createdAt), "dd/MM HH:mm") : "Unknown time"}
+                      {gen.userName ? ` · by ${gen.userName}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => continueGeneration(gen)}
+                    >
+                      {gen.status === "completed" ? "View" : "Continue"}
+                    </Button>
+                    {gen.status !== "completed" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-destructive hover:text-destructive"
+                        onClick={() => cancelGeneration(gen.id)}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    {gen.status === "completed" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-muted-foreground"
+                        onClick={() => setPendingGenerations((prev) => prev.filter((p) => p.id !== gen.id))}
+                      >
+                        Dismiss
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-xs text-muted-foreground"
+              onClick={() => setPendingGenerations([])}
+            >
+              Dismiss all — start new generation
+            </Button>
+          </div>
+        )}
+
+        {loadingPending && step === 1 && (
+          <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
+            <Spinner size={16} /> Checking for unfinished generations...
           </div>
         )}
 
