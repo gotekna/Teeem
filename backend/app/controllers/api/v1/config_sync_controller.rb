@@ -29,7 +29,8 @@ module Api
           master_tenant: master_tenant ? tenant_info(master_tenant) : nil,
           is_master_tenant: current_tenant&.is_master_tenant? || false,
           last_config_sync_at: tenant_setting&.last_config_sync_at&.iso8601,
-          last_config_sync_by: tenant_setting&.last_config_sync_by
+          last_config_sync_by: tenant_setting&.last_config_sync_by,
+          config_sync_table_timestamps: tenant_setting&.config_sync_table_timestamps || {}
         }
 
         # Only TEEEM (master tenant) can see all tenant data
@@ -341,6 +342,9 @@ module Api
             result[:errors]&.first(3)&.each { |e| Rails.logger.warn "  Error: #{e}" }
           end
 
+          # Record per-table sync timestamp (only on last batch or single batch)
+          record_table_sync(table, imported: imported_count, updated: 0, skipped: skipped_count) unless has_more
+
           render json: {
             success: true, table: table.to_s,
             imported: imported_count,
@@ -418,6 +422,9 @@ module Api
             result[:skipped]&.first(3)&.each { |s| Rails.logger.warn "  Skipped: #{s[:name]} - #{s[:reason]}" }
             result[:errors]&.first(3)&.each { |e| Rails.logger.warn "  Error: #{e}" }
           end
+
+          # Record per-table sync timestamp (only on last batch or single batch)
+          record_table_sync(table, imported: imported_count, updated: updated_count, skipped: skipped_count) unless has_more
 
           render json: {
             success: true, table: table.to_s,
@@ -534,6 +541,8 @@ module Api
 
               total_imported += imported_count
               total_skipped += skipped_count
+
+              record_table_sync(table, imported: imported_count, updated: 0, skipped: skipped_count)
             rescue => e
               errors << "#{table}: #{e.message}"
               results[table.to_s] = { error: e.message }
@@ -573,6 +582,8 @@ module Api
               total_imported += imported_count
               total_updated += updated_count
               total_skipped += skipped_count
+
+              record_table_sync(table, imported: imported_count, updated: updated_count, skipped: skipped_count)
             rescue => e
               errors << "#{table}: #{e.message}"
               results[table.to_s] = { error: e.message }
@@ -701,6 +712,22 @@ module Api
           slug: tenant.slug,
           is_master_tenant: tenant.is_master_tenant?
         }
+      end
+
+      # Record per-table sync timestamp for audit trail
+      def record_table_sync(table_key, imported: 0, updated: 0, skipped: 0)
+        return unless current_tenant&.tenant_setting
+
+        ts = current_tenant.tenant_setting
+        timestamps = (ts.config_sync_table_timestamps || {}).dup
+        timestamps[table_key.to_s] = {
+          "at" => Time.current.iso8601,
+          "by" => current_user&.email,
+          "imported" => imported,
+          "updated" => updated,
+          "skipped" => skipped
+        }
+        ts.update_columns(config_sync_table_timestamps: timestamps)
       end
 
       def pull_params
