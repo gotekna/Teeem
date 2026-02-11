@@ -70,7 +70,11 @@ interface TenantInfo {
   slug: string;
 }
 
-export function TenantSyncPullTab() {
+interface TenantSyncPullTabProps {
+  onSyncComplete?: (syncAt: string | null, syncBy: string | null) => void;
+}
+
+export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
   const [tables, setTables] = useState<ConfigTable[]>([]);
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [records, setRecords] = useState<MasterRecord[]>([]);
@@ -443,6 +447,7 @@ export function TenantSyncPullTab() {
         if (syncRecord?.success) {
           setLastSyncAt(syncRecord.last_config_sync_at || null);
           setLastSyncBy(syncRecord.last_config_sync_by || null);
+          onSyncComplete?.(syncRecord.last_config_sync_at || null, syncRecord.last_config_sync_by || null);
         }
       } catch {
         // Non-critical - timestamp just won't update
@@ -553,14 +558,6 @@ export function TenantSyncPullTab() {
             <div className="flex items-center gap-4 text-sm">
               <span className="text-muted-foreground">Your tenant:</span>
               <Badge variant="outline">{tenantInfo?.name || "Unknown"}</Badge>
-              <span className="text-muted-foreground">|</span>
-              {lastSyncAt ? (
-                <span className="text-muted-foreground">
-                  Last sync: {new Date(lastSyncAt).toLocaleString()}{lastSyncBy ? ` by ${lastSyncBy}` : ""}
-                </span>
-              ) : (
-                <span className="text-muted-foreground italic">Never synced</span>
-              )}
             </div>
             <Button
               onClick={() => {
