@@ -227,7 +227,7 @@ export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
         // Records only in TEEEM (new to tenant)
         response.new_records.forEach((record) => {
           rows.push({
-            name: record.name,
+            name: String(record.name ?? record.id),
             teeemRecord: record,
             tenantRecord: null,
             status: "only_teeem",
@@ -237,7 +237,7 @@ export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
         // Records only in tenant (not in TEEEM)
         response.deleted_records.forEach((record) => {
           rows.push({
-            name: record.name,
+            name: String(record.name ?? record.id),
             teeemRecord: null,
             tenantRecord: record,
             status: "only_tenant",
@@ -247,7 +247,7 @@ export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
         // Records that differ
         response.modified_records.forEach((mod) => {
           rows.push({
-            name: mod.master.name,
+            name: String(mod.master.name ?? mod.master.id),
             teeemRecord: mod.master,
             tenantRecord: mod.tenant,
             status: "different",
@@ -258,7 +258,7 @@ export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
         // Records that match
         response.unchanged_records.forEach((record) => {
           rows.push({
-            name: record.name,
+            name: String(record.name ?? record.id),
             teeemRecord: record,
             tenantRecord: record,
             status: "same",
@@ -270,7 +270,7 @@ export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
           const statusOrder = { only_teeem: 0, only_tenant: 1, different: 2, same: 3 };
           const statusDiff = statusOrder[a.status] - statusOrder[b.status];
           if (statusDiff !== 0) return statusDiff;
-          return a.name.localeCompare(b.name);
+          return String(a.name ?? "").localeCompare(String(b.name ?? ""));
         });
 
         setComparison(rows);
@@ -636,7 +636,7 @@ export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
                       <div>
                         <div className="font-medium">{row.teeemRecord.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {new Date(row.teeemRecord.updated_at).toLocaleDateString()}
+                          {new Date(row.teeemRecord.updated_at).toLocaleString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })}
                         </div>
                       </div>
                     ) : (
@@ -673,7 +673,7 @@ export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
                       <div>
                         <div className="font-medium">{row.tenantRecord.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {new Date(row.tenantRecord.updated_at).toLocaleDateString()}
+                          {new Date(row.tenantRecord.updated_at).toLocaleString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })}
                         </div>
                       </div>
                     ) : (

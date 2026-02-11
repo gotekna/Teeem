@@ -177,13 +177,25 @@ class Api::V1::UsersController < ApplicationController
     @user.force_password_change = true
 
     if @user.save
-      # Send the welcome email with temp credentials
-      UserMailer.welcome_email(@user, temp_password).deliver_later
+      if params[:compose_mode]
+        # Return temp password so frontend can compose the email via TEEEM email
+        render json: {
+          success: true,
+          compose: true,
+          user_email: @user.email,
+          user_name: @user.name,
+          temp_password: temp_password,
+          message: "Temporary password generated. Compose email to send credentials."
+        }
+      else
+        # Send the welcome email with temp credentials via Rails mailer
+        UserMailer.welcome_email(@user, temp_password).deliver_later
 
-      render json: {
-        success: true,
-        message: "Login email sent to #{@user.email}"
-      }
+        render json: {
+          success: true,
+          message: "Login email sent to #{@user.email}"
+        }
+      end
     else
       render json: {
         success: false,
