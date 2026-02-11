@@ -10,10 +10,8 @@ import { AgentsTab } from "@/app/(app)/admin/system/components/AgentsTab";
 import { ScheduledJobsTab } from "@/app/(app)/admin/system/components/ScheduledJobsTab";
 import { AiProcessingTab } from "@/app/(app)/admin/system/components/AiProcessingTab";
 import { XeroHealthTab } from "@/app/(app)/admin/system/components/XeroHealthTab";
-import { EmailAccountsTab } from "@/app/(app)/admin/system/components/EmailAccountsTab";
 import { UserManualTab } from "@/app/(app)/admin/system/components/UserManualTab";
 import { InspiringQuotesTab } from "@/app/(app)/admin/system/components/InspiringQuotesTab";
-import { ConfigSyncTab } from "@/app/(app)/admin/system/components/ConfigSyncTab";
 
 /**
  * System Settings Page - Organization Settings
@@ -29,9 +27,7 @@ const SYSTEM_TABS = [
   { id: "navigation", label: "Navigation" },
   { id: "agents", label: "AI Agents" },
   { id: "scheduled-jobs", label: "Scheduled Jobs" },
-  { id: "email-accounts", label: "Email Accounts" },
   { id: "ai-processing", label: "AI Processing" },
-  { id: "config-sync", label: "Config Sync" },
   { id: "health", label: "System Health" },
   { id: "user-manual", label: "User Manual" },
   { id: "inspiring-quotes", label: "Inspiring Quotes" },
@@ -74,14 +70,8 @@ export default function SystemSettingsPage() {
           <TabsContent value="scheduled-jobs">
             <ScheduledJobsTab />
           </TabsContent>
-          <TabsContent value="email-accounts">
-            <EmailAccountsTab />
-          </TabsContent>
           <TabsContent value="ai-processing">
             <AiProcessingTab />
-          </TabsContent>
-          <TabsContent value="config-sync">
-            <ConfigSyncTab />
           </TabsContent>
           <TabsContent value="health">
             <XeroHealthTab />
