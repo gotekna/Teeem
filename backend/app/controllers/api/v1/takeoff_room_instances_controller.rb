@@ -23,7 +23,7 @@ module Api
 
       # GET /api/v1/pdf_takeoff/docsort/:document_inbox_id/rooms
       def index_for_docsort
-        rooms = TakeoffRoomInstance.for_docsort_item(@document_inbox).ordered
+        rooms = TakeoffRoomInstance.for_document_inbox(@document_inbox).ordered
                                    .includes(slots: :pricebook_item)
         render json: { success: true, data: rooms.map(&:as_json) }
       end
