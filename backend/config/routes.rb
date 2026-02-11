@@ -336,6 +336,7 @@ Rails.application.routes.draw do
       get "system/performance", to: "system#performance"
       get "system/metrics", to: "system#metrics"
       get "system/scheduled_jobs", to: "system#scheduled_jobs"
+      get "system/queue_status", to: "system#queue_status"
 
       # Navigation (sidebar menu - SSoT is NavigationItem, user stores collapse only)
       get "navigation", to: "navigation#index"
