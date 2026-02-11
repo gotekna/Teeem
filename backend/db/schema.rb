@@ -460,6 +460,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_100001) do
     t.string "database_schedule", default: "weekly_sunday", null: false
     t.string "document_schedule", default: "daily_2am", null: false
     t.integer "retention_days", default: 90, null: false
+    t.integer "retention_count", default: 5, null: false
+    t.string "mirror_schedule", default: "daily_2am", null: false
     t.boolean "mirror_enabled", default: false, null: false
     t.bigint "primary_credential_id"
     t.bigint "secondary_credential_id"
