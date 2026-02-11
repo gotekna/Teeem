@@ -514,22 +514,20 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             </span>
           </div>
 
-          {/* Send Login Email - only for users who have never logged in */}
-          {!displayUser?.last_login_at && (
-            <Button
-              variant="outline"
-              onClick={() => setShowInviteConfirm(true)}
-              disabled={sendingInvite}
-              className="w-full h-9 gap-2"
-            >
-              {sendingInvite ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-              {sendingInvite ? "Sending..." : "Send Login Email"}
-            </Button>
-          )}
+          {/* Send Login/Welcome Email */}
+          <Button
+            variant="outline"
+            onClick={() => setShowInviteConfirm(true)}
+            disabled={sendingInvite}
+            className="w-full h-9 gap-2"
+          >
+            {sendingInvite ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            {sendingInvite ? "Sending..." : displayUser?.last_login_at ? "Resend Welcome Email" : "Send Login Email"}
+          </Button>
 
           {/* Actions */}
           <div className="flex gap-2 pt-2">
