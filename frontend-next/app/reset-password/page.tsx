@@ -1,24 +1,28 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { getApiBaseUrl } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle } from "lucide-react";
+import { ArrowLeft, Bookmark } from "lucide-react";
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const { handleTokenFromRedirect } = useAuth();
   const token = searchParams.get("token");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,8 +45,11 @@ function ResetPasswordForm() {
         body: JSON.stringify({ token, password }),
       });
       const data = await res.json();
-      if (data.success) {
-        setSuccess(true);
+      if (data.success && data.token) {
+        const loginSuccess = await handleTokenFromRedirect(data.token);
+        router.push(loginSuccess ? "/dashboard" : "/login");
+      } else if (data.success) {
+        router.push("/login");
       } else {
         setError(data.error || "Something went wrong");
       }
@@ -80,69 +87,67 @@ function ResetPasswordForm() {
               <span className="text-primary-foreground font-bold text-lg">t</span>
             </div>
           </div>
-          <CardTitle className="text-2xl">{success ? "Password reset" : "Set new password"}</CardTitle>
-          <CardDescription>
-            {success ? "Your password has been updated." : "Enter your new password below."}
-          </CardDescription>
+          <CardTitle className="text-2xl">Set new password</CardTitle>
+          <CardDescription>Enter your new password below.</CardDescription>
         </CardHeader>
-        <CardContent>
-          {success ? (
-            <div className="space-y-4 text-center">
-              <div className="flex justify-center">
-                <CheckCircle className="h-12 w-12 text-green-500" />
-              </div>
-              <Link href="/login">
-                <Button className="w-full mt-4">Go to login</Button>
-              </Link>
+        <CardContent className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="text-sm text-destructive text-center">{error}</div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="password">New password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={isLoading}
+                autoFocus
+                minLength={6}
+              />
             </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="text-sm text-destructive text-center">{error}</div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm">Confirm password</Label>
+              <Input
+                id="confirm"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                disabled={isLoading}
+                minLength={6}
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Spinner size={16} className="mr-2" />
+                  Setting password...
+                </>
+              ) : (
+                "Set password & login"
               )}
-              <div className="space-y-2">
-                <Label htmlFor="password">New password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  autoFocus
-                  minLength={6}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm">Confirm password</Label>
-                <Input
-                  id="confirm"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  minLength={6}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Spinner size={16} className="mr-2" />
-                    Resetting...
-                  </>
-                ) : (
-                  "Reset password"
-                )}
-              </Button>
-              <Link href="/login" className="block text-center">
-                <Button variant="link" className="text-sm" type="button">
-                  <ArrowLeft className="mr-1 h-3 w-3" />
-                  Back to login
-                </Button>
-              </Link>
-            </form>
-          )}
+            </Button>
+          </form>
+
+          <div className="bg-muted/50 border rounded-lg p-3 text-center space-y-1">
+            <div className="flex items-center justify-center gap-1.5 text-xs font-medium">
+              <Bookmark className="h-3.5 w-3.5" />
+              Bookmark the login page for easy access
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Press <kbd className="px-1 py-0.5 bg-background border rounded text-[10px] font-mono">{isMac ? "\u2318D" : "Ctrl+D"}</kbd> now, or save <span className="font-medium">teeem.vercel.app/login</span>
+            </p>
+          </div>
+
+          <Link href="/login" className="block text-center">
+            <Button variant="link" className="text-sm" type="button">
+              <ArrowLeft className="mr-1 h-3 w-3" />
+              Back to login
+            </Button>
+          </Link>
         </CardContent>
       </Card>
     </div>

@@ -58,9 +58,11 @@ import {
   Download,
   Copy,
   Users,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import EnvironmentsMap from "./EnvironmentsMap";
+import CostsMap from "./CostsMap";
 
 // Tooltip wrapper for technical terms
 function TechTerm({ term, definition, children }: { term: string; definition: string; children: React.ReactNode }) {
@@ -219,7 +221,7 @@ export default function ArchitectureMap() {
 
       {/* View Tabs */}
       <Tabs value={activeView} onValueChange={setActiveView}>
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="beginner" className="gap-2">
             <BookOpen className="h-4 w-4" />
             <span className="hidden sm:inline">Beginner</span>
@@ -251,6 +253,10 @@ export default function ArchitectureMap() {
           <TabsTrigger value="tenancy" className="gap-2">
             <Building className="h-4 w-4" />
             <span className="hidden sm:inline">Tenancy</span>
+          </TabsTrigger>
+          <TabsTrigger value="costs" className="gap-2">
+            <DollarSign className="h-4 w-4" />
+            <span className="hidden sm:inline">Costs</span>
           </TabsTrigger>
         </TabsList>
 
@@ -2050,6 +2056,11 @@ export default function JobsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Costs View */}
+        <TabsContent value="costs" className="space-y-6 mt-6">
+          <CostsMap />
         </TabsContent>
       </Tabs>
     </div>

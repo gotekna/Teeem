@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_11_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_12_060000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2514,6 +2514,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_120000) do
     t.jsonb "folder_paths", default: []
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["case_record_id"], name: "idx_email_case_proposals_case"
+    t.index ["created_by_id"], name: "idx_email_case_proposals_created_by"
+    t.index ["email_warehouse_id", "status"], name: "idx_email_case_proposals_warehouse_status"
+    t.index ["email_warehouse_id"], name: "idx_email_case_proposals_warehouse"
+    t.index ["status"], name: "idx_email_case_proposals_status"
   end
 
   create_table "email_dns_records", force: :cascade do |t|
@@ -2587,6 +2592,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_120000) do
     t.datetime "approved_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["created_by_user_id"], name: "idx_email_job_proposals_created_by"
+    t.index ["email_warehouse_id", "status"], name: "idx_email_job_proposals_warehouse_status"
+    t.index ["email_warehouse_id"], name: "idx_email_job_proposals_warehouse"
+    t.index ["job_id"], name: "idx_email_job_proposals_job"
+    t.index ["status"], name: "idx_email_job_proposals_status"
   end
 
   create_table "email_label_assignments", force: :cascade do |t|
