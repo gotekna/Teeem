@@ -140,6 +140,9 @@ class ImapEmailService
   def send_email(to:, subject:, body:, cc: [], bcc: [], attachments: [], reply_to_message_id: nil, from_address: nil)
     # Use from_address if provided (for aliases), otherwise use credential's email
     sender_address = from_address.presence || credential.email_address
+    # SMTP envelope sender must be the authenticated user (credential email)
+    # The From header can be an alias - recipients see the alias, SMTP server sees the real auth
+    envelope_sender = credential.email_address
 
     mail = Mail.new do |m|
       m.from    sender_address
@@ -147,6 +150,8 @@ class ImapEmailService
       m.cc      Array(cc) if cc.present?
       m.bcc     Array(bcc) if bcc.present?
       m.subject subject
+      # Sender header tells SMTP: "authenticated as this user, sending on behalf of From"
+      m.sender  envelope_sender if sender_address != envelope_sender
 
       # Set reply headers if replying
       if reply_to_message_id.present?
@@ -176,8 +181,13 @@ class ImapEmailService
       )
     end
 
-    # Configure SMTP delivery
-    mail.delivery_method :smtp, smtp_settings
+    # Configure SMTP delivery with envelope sender for auth
+    smtp_opts = smtp_settings
+    mail.delivery_method :smtp, smtp_opts
+
+    # Use SMTP envelope sender (MAIL FROM) as the authenticated credential email
+    # This prevents "550 can't send as this user" when From header is an alias
+    mail.smtp_envelope_from = envelope_sender
 
     # Send
     mail.deliver!

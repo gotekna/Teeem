@@ -239,10 +239,11 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
           `Teeem brings together your jobs, contacts, documents, emails, scheduling, and finances in one place. If you need any help getting started, just reply to this email.\n\n` +
           `Best regards`
         );
+        const from = encodeURIComponent("setup@teeem.com.au");
         const to = encodeURIComponent(response.user_email || user.email);
         setShowInviteConfirm(false);
         onClose();
-        router.push(`/email?compose_to=${to}&compose_subject=${subject}&compose_body=${body}`);
+        router.push(`/email?compose_to=${to}&compose_subject=${subject}&compose_body=${body}&compose_from=${from}`);
       } else if (response?.success) {
         toast({
           title: "Login email sent",
