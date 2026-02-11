@@ -55,6 +55,8 @@ import {
   Palette,
   ChevronDown,
   ChevronUp,
+  Link,
+  Shield,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
@@ -338,19 +340,185 @@ function MS365MailboxAccessConfig() {
     );
   }
 
+  // State for inline "Create Link" to add MS365 org
+  const [ms365OrgName, setMs365OrgName] = React.useState("");
+  const [ms365Connecting, setMs365Connecting] = React.useState(false);
+  const [ms365ConsentUrl, setMs365ConsentUrl] = React.useState<string | null>(null);
+  const [ms365ConsentOrg, setMs365ConsentOrg] = React.useState("");
+  const [ms365Copied, setMs365Copied] = React.useState(false);
+  const [ms365Waiting, setMs365Waiting] = React.useState(false);
+  const [ms365Error, setMs365Error] = React.useState<string | null>(null);
+
+  const handleCreateMs365Link = async (orgName: string) => {
+    setMs365Connecting(true);
+    setMs365Error(null);
+    try {
+      const response = await api.post<{ success: boolean; admin_consent_url?: string; message?: string; configured?: boolean }>(
+        "/api/v1/microsoft_app/setup_from_env",
+        { name: orgName }
+      );
+      if (response?.configured === false) {
+        setMs365Error(response.message || "Microsoft 365 credentials not configured");
+        setMs365Connecting(false);
+        return;
+      }
+      if (response?.admin_consent_url) {
+        setMs365ConsentUrl(response.admin_consent_url);
+        setMs365ConsentOrg(orgName);
+        setMs365Copied(false);
+      }
+    } catch (err: unknown) {
+      const error = err as { data?: { error?: string }; message?: string };
+      setMs365Error(error.data?.error || error.message || "Failed to create link");
+    }
+    setMs365Connecting(false);
+  };
+
+  // Poll for consent completion
+  React.useEffect(() => {
+    if (!ms365Waiting || !ms365ConsentOrg) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get<{ configured: boolean; organizations: Array<{ name: string; status: string }> }>(
+          "/api/v1/microsoft_app/status"
+        );
+        const org = res.organizations?.find(o => o.name === ms365ConsentOrg);
+        if (org?.status === "connected") {
+          setMs365Waiting(false);
+          setMs365ConsentUrl(null);
+          window.location.reload();
+        }
+      } catch { /* ignore polling errors */ }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [ms365Waiting, ms365ConsentOrg]);
+
   if (organizations.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center">
-          <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">
-            No Microsoft 365 organizations connected.
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Connect an organization in Admin → System → Connections
-          </p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="py-8 text-center">
+            <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">
+              No Microsoft 365 organizations connected.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Consent URL card */}
+        {ms365ConsentUrl && (
+          <Card className="border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20">
+            <CardHeader className="py-4">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <Link className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <CardTitle className="text-base">Admin Consent Link for {ms365ConsentOrg}</CardTitle>
+                </div>
+                <CardDescription className="text-sm">
+                  Send this link to {ms365ConsentOrg}&apos;s Microsoft 365 Global Admin. They click it, sign in, and approve.
+                </CardDescription>
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={ms365ConsentUrl}
+                    className="text-xs font-mono flex-1 bg-white dark:bg-card"
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                  />
+                  <Button
+                    size="sm"
+                    variant={ms365Copied ? "default" : "outline"}
+                    onClick={() => {
+                      navigator.clipboard.writeText(ms365ConsentUrl);
+                      setMs365Copied(true);
+                      setMs365Waiting(true);
+                      setTimeout(() => setMs365Copied(false), 3000);
+                    }}
+                    className="shrink-0"
+                  >
+                    {ms365Copied ? "Copied!" : "Copy Link"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setMs365ConsentUrl(null);
+                      setMs365Waiting(false);
+                    }}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+                {ms365Waiting && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Spinner size={14} />
+                    <span>Waiting for {ms365ConsentOrg}&apos;s admin to approve... (checking every 5s)</span>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+          </Card>
+        )}
+
+        {ms365Error && (
+          <Card className="border-red-300 dark:border-red-700">
+            <CardContent className="py-3 text-sm text-red-600 dark:text-red-400">
+              {ms365Error}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Add Organization - Create Link */}
+        <Card className="border-dashed">
+          <CardHeader className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-muted dark:bg-card">
+                  <Plus className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Add Microsoft 365 Organization</CardTitle>
+                  <CardDescription className="text-xs">Generate a consent link for an organization&apos;s Global Admin</CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Organization name"
+                  value={ms365OrgName}
+                  onChange={(e) => setMs365OrgName(e.target.value)}
+                  className="w-48 h-8 text-sm"
+                  disabled={ms365Connecting}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && ms365OrgName.trim()) {
+                      handleCreateMs365Link(ms365OrgName.trim());
+                      setMs365OrgName("");
+                    }
+                  }}
+                />
+                {ms365Connecting ? (
+                  <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                    <Spinner size={12} className="mr-1" />
+                    Creating...
+                  </Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (ms365OrgName.trim()) {
+                        handleCreateMs365Link(ms365OrgName.trim());
+                        setMs365OrgName("");
+                      }
+                    }}
+                    disabled={!ms365OrgName.trim() || ms365Connecting}
+                  >
+                    <Link className="h-4 w-4 mr-1" />
+                    Create Link
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+      </div>
     );
   }
 
