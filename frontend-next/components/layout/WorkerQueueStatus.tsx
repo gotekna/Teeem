@@ -9,6 +9,7 @@ import {
   Minus,
   ArrowRight,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import {
   Popover,
@@ -128,6 +129,7 @@ function timeAgo(iso: string | null): string {
 export function WorkerQueueStatus() {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const [data, setData] = useState<QueueStatusData | null>(null);
   const [status, setStatus] = useState<QueueStatusLevel>("unknown");
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
@@ -151,6 +153,18 @@ export function WorkerQueueStatus() {
       setIsLoading(false);
     }
   }, []);
+
+  const clearFailedJobs = useCallback(async () => {
+    setIsClearing(true);
+    try {
+      await api.delete("/api/v1/system/clear_failed_jobs");
+      await fetchQueueStatus();
+    } catch (error) {
+      console.debug("Failed to clear failed jobs:", error);
+    } finally {
+      setIsClearing(false);
+    }
+  }, [fetchQueueStatus]);
 
   // Fetch on mount (for the status dot)
   useEffect(() => {
@@ -312,9 +326,19 @@ export function WorkerQueueStatus() {
             {/* Top failed */}
             {data.failed > 0 && data.topFailed.length > 0 && (
               <div className="p-3 border-b border-border">
-                <p className="text-[10px] font-medium text-red-500 uppercase tracking-wider mb-1.5">
-                  Failed ({data.failed})
-                </p>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] font-medium text-red-500 uppercase tracking-wider">
+                    Failed ({data.failed})
+                  </p>
+                  <button
+                    onClick={() => clearFailedJobs()}
+                    disabled={isClearing}
+                    className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                  >
+                    <Trash2 className={cn("h-3 w-3", isClearing && "animate-pulse")} />
+                    {isClearing ? "Clearing..." : "Clear All"}
+                  </button>
+                </div>
                 {data.topFailed.map((f) => (
                   <div
                     key={f.className}
