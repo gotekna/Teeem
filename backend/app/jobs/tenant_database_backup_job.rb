@@ -79,7 +79,7 @@ class TenantDatabaseBackupJob < ApplicationJob
       @config.record_backup_completed!(:database)
 
       # Cleanup old backups
-      retention = (@config.retention_days / 7.0).ceil  # Convert days to weekly backups
+      retention = @config.retention_count.presence || (@config.retention_days / 7.0).ceil
       deleted = service.cleanup_old_backups("database/#{@tenant.id}/", keep: retention)
       Rails.logger.info "[TenantDatabaseBackup] Cleanup: deleted #{deleted} old backups" if deleted > 0
 

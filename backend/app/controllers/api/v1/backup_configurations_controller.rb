@@ -141,6 +141,7 @@ module Api
           :database_schedule,
           :document_schedule,
           :retention_days,
+          :retention_count,
           :mirror_enabled,
           :primary_credential_id,
           :secondary_credential_id
@@ -156,6 +157,7 @@ module Api
           documentSchedule: config.document_schedule,
           documentScheduleLabel: config.document_schedule_label,
           retentionDays: config.retention_days,
+          retentionCount: config.retention_count,
           mirrorEnabled: config.mirror_enabled,
           primaryCredentialId: config.primary_credential_id,
           primaryCredential: credential_json(config.primary_credential),
