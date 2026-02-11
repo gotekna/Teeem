@@ -69,10 +69,10 @@ module Api
         # Queue the appropriate job
         case backup_type
         when "database"
-          unless config.primary_credential
+          unless config.secondary_credential
             return render json: {
               success: false,
-              error: "Primary storage credential not configured."
+              error: "B2 (secondary) storage credential not configured. Database dumps go directly to B2."
             }, status: :unprocessable_entity
           end
           TenantDatabaseBackupJob.perform_later(config.tenant_id)
@@ -141,6 +141,7 @@ module Api
           :enabled,
           :database_schedule,
           :document_schedule,
+          :mirror_schedule,
           :retention_days,
           :retention_count,
           :mirror_enabled,
@@ -157,6 +158,8 @@ module Api
           databaseScheduleLabel: config.database_schedule_label,
           documentSchedule: config.document_schedule,
           documentScheduleLabel: config.document_schedule_label,
+          mirrorSchedule: config.mirror_schedule,
+          mirrorScheduleLabel: config.mirror_schedule_label,
           retentionDays: config.retention_days,
           retentionCount: config.retention_count,
           mirrorEnabled: config.mirror_enabled,
@@ -169,6 +172,7 @@ module Api
           lastMirrorSyncAt: config.last_mirror_sync_at,
           nextDatabaseBackup: config.next_scheduled_backup(:database),
           nextDocumentBackup: config.next_scheduled_backup(:documents),
+          nextMirrorSync: config.next_scheduled_backup(:mirror),
           createdAt: config.created_at,
           updatedAt: config.updated_at
         }
