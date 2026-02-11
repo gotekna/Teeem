@@ -299,6 +299,7 @@ Rails.application.routes.draw do
       post "auth/login", to: "authentication#login"
       post "auth/forgot_password", to: "authentication#forgot_password"
       post "auth/reset_password", to: "authentication#reset_password"
+      post "auth/validate_reset_token", to: "authentication#validate_reset_token"
       get "auth/me", to: "authentication#me"
       get "auth/dev_login", to: "authentication#dev_login"  # Dev mode only
       get "auth/users", to: "authentication#users"  # Admin: list users for impersonation
@@ -4234,6 +4235,7 @@ Rails.application.routes.draw do
         post "auth/signup", to: "authentication#signup"
         post "auth/forgot_password", to: "authentication#forgot_password"
         post "auth/reset_password", to: "authentication#reset_password"
+        post "auth/validate_reset_token", to: "authentication#validate_reset_token"
         get "auth/me", to: "authentication#me"
 
         # Quote requests (subcontractor view)
