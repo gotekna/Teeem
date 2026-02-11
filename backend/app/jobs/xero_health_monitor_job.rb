@@ -13,6 +13,8 @@
 #
 # Run via solid_queue recurring schedule
 class XeroHealthMonitorJob < ApplicationJob
+  include DeduplicatableJob
+
   queue_as :default
 
   # Expected sync intervals (if no sync in this time, it's stale)

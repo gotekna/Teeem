@@ -10,6 +10,8 @@
 # SSoT: Mailbox address configured in TenantSetting.monitored_mailbox_newtask
 #
 class ProcessNewTaskEmailsJob < ApplicationJob
+  include DeduplicatableJob
+
   queue_as :default
 
   def perform

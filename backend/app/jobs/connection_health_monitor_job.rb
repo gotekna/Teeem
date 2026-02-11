@@ -19,6 +19,8 @@
 #   end
 #
 class ConnectionHealthMonitorJob < ApplicationJob
+  include DeduplicatableJob
+
   queue_as :low
 
   # Don't retry on failure - this is a monitoring job, next scheduled run will try again

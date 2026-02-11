@@ -17,22 +17,22 @@ clear_solid_queue_finished_jobs:
 
 # Monitor database connection pool usage (Option C refactor)
 # Detects exhaustion BEFORE failures - other jobs check cache to skip if critical
+# FRC (Feb 2026): Reduced from 5 to 15 min - pool check doesn't need high frequency
 connection_health_monitor:
   class: ConnectionHealthMonitorJob
   queue: low
-  schedule: every 5 minutes
+  schedule: every 15 minutes
 
 # ============================================
 # PERFORMANCE OBSERVATORY
 # Zero-impact performance monitoring for API requests and Web Vitals
 # ============================================
 # Flush performance metrics from memory buffer to database
-# Runs every 5 minutes (was: 30 seconds - caused queue congestion)
-# Buffer auto-flushes at 80% capacity as additional safety
+# FRC (Feb 2026): Reduced from 5 to 15 min - buffer auto-flushes at 80% capacity
 flush_performance_buffer:
   class: FlushPerformanceBufferJob
   queue: low
-  schedule: every 5 minutes
+  schedule: every 15 minutes
 
 # Cleanup old performance data (90+ days retention)
 # Runs daily at 4am Brisbane time (off-peak)
@@ -43,11 +43,11 @@ cleanup_performance_data:
 
 # Refresh materialized views and run anomaly detection
 # Views pre-aggregate metrics for fast dashboard queries
-# Anomaly detector uses z-score analysis to find issues
+# FRC (Feb 2026): Reduced from 5 to 15 min - dashboard stats not time-critical
 refresh_performance_mv:
   class: RefreshPerformanceMvJob
   queue: low
-  schedule: every 5 minutes
+  schedule: every 15 minutes
 
 # Calculate SLO snapshots and error budgets daily
 # Runs at 1am to ensure previous day's data is complete
@@ -140,19 +140,19 @@ gl_sync_backup:
 
 # Pre-warm Xero sync stats cache for dashboard performance
 # Part of "Scale Xero Sync to 15k" plan (Phase 3)
-# Runs every 5 minutes to keep cache fresh for instant page loads
+# FRC (Feb 2026): Reduced from 5 to 15 min - cache prewarm, not urgent
 refresh_xero_stats_cache:
   class: RefreshXeroStatsCacheJob
   queue: low
-  schedule: every 5 minutes
+  schedule: every 15 minutes
 
 # Refresh mv_xero_sync_stats materialized view for O(1) queries
 # Part of "Scale Xero Sync to 15k" plan (Phase 4)
-# Uses CONCURRENTLY to avoid locking during refresh
+# FRC (Feb 2026): Reduced from 5 to 15 min - MV refresh not urgent
 refresh_xero_stats_mv:
   class: RefreshXeroStatsMvJob
   queue: low
-  schedule: every 5 minutes
+  schedule: every 15 minutes
 
 # ============================================
 # CORPORATE FINANCIAL REPORTS
@@ -341,11 +341,11 @@ cleanup_unavailable_emails:
   schedule: at 3:30am every day
 
 # Sync IMAP email accounts (unified inbox)
-# Reduced from 15min to 2min for faster email delivery
+# FRC (Feb 2026): Increased from 2 to 5 min - IMAP doesn't need 2-min polling
 imap_email_sync:
   class: ImapSyncJob
   queue: default
-  schedule: every 2 minutes
+  schedule: every 5 minutes
 
 # SELF-HEALING: Email health monitor
 # Detects stale syncs, cleans orphaned jobs, triggers recovery
@@ -369,18 +369,18 @@ email_storage_upload:
 # Email attachments now stored directly in WarehouseDocument with source_type='email_attachment'
 
 # Wake up snoozed emails that have reached their snooze time
-# Runs every 5 minutes (was: 1 minute - caused queue congestion)
+# FRC (Feb 2026): Reduced from 5 to 15 min - 15-min snooze granularity is fine
 email_snooze_wakeup:
   class: EmailSnoozeWakeupJob
   queue: default
-  schedule: every 5 minutes
+  schedule: every 15 minutes
 
 # Process email reminders that are due
-# Runs every 5 minutes (was: 1 minute - caused queue congestion)
+# FRC (Feb 2026): Reduced from 5 to 15 min - email reminder granularity is fine
 email_reminders:
   class: EmailReminderJob
   queue: default
-  schedule: every 5 minutes
+  schedule: every 15 minutes
 
 # ============================================
 # DOCSORT - Universal Document Inbox

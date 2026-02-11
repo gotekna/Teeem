@@ -13,6 +13,8 @@
 # After refresh, runs anomaly detection to identify performance issues.
 #
 class RefreshPerformanceMvJob < ApplicationJob
+  include DeduplicatableJob
+
   queue_as :default
 
   # Concurrently refresh views to avoid blocking

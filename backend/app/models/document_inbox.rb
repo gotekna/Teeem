@@ -59,7 +59,6 @@ class DocumentInbox < ApplicationRecord
 
   # Callbacks
   before_validation :set_defaults, on: :create
-  after_create_commit :enqueue_classification
 
   # Scopes
   scope :pending, -> { where(status: 'pending') }
@@ -87,6 +86,10 @@ class DocumentInbox < ApplicationRecord
   # ========================================
 
   # Create from uploaded file
+  # FRC (Feb 2026): Classification is now synchronous. For 90%+ of uploads,
+  # filename-pattern + DocumentTypeMatcher resolves in <50ms. AI path (500-2000ms)
+  # only fires if confidence < 0.6 AND AI is enabled. This eliminates the queue
+  # bottleneck where DocSort items sat at "pending" forever when workers fell behind.
   def self.create_from_upload!(file:, user:, metadata: {})
     content = file.read
     blob = StorageBlob.find_or_create_for_content!(
@@ -96,7 +99,7 @@ class DocumentInbox < ApplicationRecord
     )
     blob.increment!(:reference_count)
 
-    create!(
+    item = create!(
       source: 'upload',
       uploaded_by: user,
       storage_blob: blob,
@@ -106,6 +109,15 @@ class DocumentInbox < ApplicationRecord
       metadata: metadata,
       tenant: ActsAsTenant.current_tenant
     )
+
+    # Classify inline - upload still succeeds if classification fails
+    begin
+      item.classify!
+    rescue StandardError => e
+      Rails.logger.error "[DocumentInbox] Inline classification failed for #{item.id}: #{e.message}"
+    end
+
+    item
   end
 
   # Create from SyncedEmail (email or forward)
@@ -280,9 +292,5 @@ class DocumentInbox < ApplicationRecord
   def set_defaults
     self.status ||= 'pending'
     self.source ||= 'upload'
-  end
-
-  def enqueue_classification
-    DocumentInboxClassificationJob.perform_later(id)
   end
 end

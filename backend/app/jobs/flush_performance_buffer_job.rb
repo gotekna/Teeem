@@ -12,6 +12,8 @@
 # - Non-blocking (uses bulk insert)
 #
 class FlushPerformanceBufferJob < ApplicationJob
+  include DeduplicatableJob
+
   queue_as :low  # Low priority - metrics can wait
 
   # Don't retry on failure - next scheduled run will pick up
