@@ -448,10 +448,23 @@ class Api::V1::MicrosoftAppController < ApplicationController
     # SSoT (Jan 2026): Filter MS365 credentials by current tenant's organizations
     # MicrosoftCredential belongs_to Organization, which belongs_to Tenant (indirect relationship)
     tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
+
+    # FRC (Feb 2026): Filter mailboxes by tenant's email domains to prevent
+    # cross-tenant leakage. Multiple TEEEM tenants may share the same Azure AD,
+    # so Graph API returns ALL users. Without filtering, Tenant B sees Tenant A's mailboxes.
+    # Primary: TenantSetting.internal_email_domains (admin-configured)
+    # Fallback: Derive domains from tenant users' email addresses
+    tenant_domains = TenantSetting.internal_email_domains
+    if tenant_domains.blank?
+      tenant_domains = current_tenant&.users&.pluck(:email)&.compact
+                         &.map { |e| e.split("@").last&.downcase }
+                         &.uniq&.compact || []
+    end
+
     organizations = MicrosoftCredential.app_credentials.active
                                         .where(organization_id: tenant_org_ids)
                                         .order(:name).map do |org|
-      # Get mailboxes from tenant
+      # Get mailboxes from Microsoft 365 tenant
       all_mailboxes = if org.status == "connected"
         begin
           org.list_tenant_users.map { |u| u[:email] }.compact
@@ -463,10 +476,14 @@ class Api::V1::MicrosoftAppController < ApplicationController
         []
       end
 
-      # Show all mailboxes from the tenant for each org
-      # Since all orgs may share the same Microsoft tenant, we don't filter by domain
-      # Admins configure which users can access which mailboxes per org
-      mailboxes = all_mailboxes.sort
+      mailboxes = if tenant_domains.present?
+        all_mailboxes.select do |email|
+          domain = email.to_s.split("@").last&.downcase
+          tenant_domains.any? { |d| d.casecmp?(domain) }
+        end.sort
+      else
+        all_mailboxes.sort
+      end
 
       # Get current user-mailbox access configuration
       user_mailbox_access = org.sync_config&.dig("user_mailbox_access") || {}

@@ -98,11 +98,6 @@ class TenantDocumentBackupJob < ApplicationJob
 
       @config.record_backup_completed!(:documents)
 
-      # Queue Tier 2 mirror (live → B2) if enabled
-      if @config.mirror_enabled? && @config.secondary_credential
-        BackupMirrorJob.perform_later(@tenant.id, "documents")
-      end
-
       Rails.logger.info "[TenantDocumentBackup] Complete for tenant #{@tenant.id}: #{files_count} files, #{total_size} bytes"
     rescue => e
       log.fail!(error_message: e.message, duration_seconds: elapsed(start_time))
