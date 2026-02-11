@@ -328,6 +328,30 @@ module Api
         }
       end
 
+      # POST /api/v1/auth/validate_reset_token
+      def validate_reset_token
+        token = params[:token]
+
+        unless token.present?
+          render json: { success: false, error: "Token is required" }, status: :bad_request
+          return
+        end
+
+        user = User.find_by(reset_password_token: token)
+
+        unless user
+          render json: { success: false, error: "Invalid or expired reset link" }, status: :unprocessable_entity
+          return
+        end
+
+        if user.reset_password_sent_at && user.reset_password_sent_at < 48.hours.ago
+          render json: { success: false, error: "Reset link has expired. Please request a new one." }, status: :unprocessable_entity
+          return
+        end
+
+        render json: { success: true, name: user.name, email: user.email }
+      end
+
       # POST /api/v1/auth/reset_password
       def reset_password
         token = params[:token]
@@ -360,6 +384,7 @@ module Api
         user.reset_password_token = nil
         user.reset_password_sent_at = nil
         user.force_password_change = false
+        user.name = params[:name] if params[:name].present?
 
         if user.save
           # Auto-login: return JWT token so frontend can log them straight in

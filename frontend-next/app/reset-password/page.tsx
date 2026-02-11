@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,12 +17,45 @@ function ResetPasswordForm() {
   const router = useRouter();
   const { handleTokenFromRedirect } = useAuth();
   const token = searchParams.get("token");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isValidating, setIsValidating] = useState(true);
+  const [tokenValid, setTokenValid] = useState(true);
+  const [tokenError, setTokenError] = useState("");
   const [error, setError] = useState("");
 
   const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent);
+
+  // Validate token and fetch user info on mount
+  useEffect(() => {
+    if (!token) {
+      setIsValidating(false);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/validate_reset_token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setName(data.name || "");
+        } else {
+          setTokenValid(false);
+          setTokenError(data.error || "Invalid or expired reset link");
+        }
+      } catch {
+        setTokenValid(false);
+        setTokenError("Unable to connect. Please try again.");
+      } finally {
+        setIsValidating(false);
+      }
+    })();
+  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +75,7 @@ function ResetPasswordForm() {
       const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/reset_password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ token, password, name: name.trim() || undefined }),
       });
       const data = await res.json();
       if (data.success && data.token) {
@@ -60,13 +93,13 @@ function ResetPasswordForm() {
     }
   };
 
-  if (!token) {
+  if (!token || (!isValidating && !tokenValid)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Invalid link</CardTitle>
-            <CardDescription>This password reset link is invalid or has expired.</CardDescription>
+            <CardDescription>{tokenError || "This password reset link is invalid or has expired."}</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Link href="/forgot-password">
@@ -74,6 +107,14 @@ function ResetPasswordForm() {
             </Link>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  if (isValidating) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Spinner size={32} />
       </div>
     );
   }
@@ -87,14 +128,25 @@ function ResetPasswordForm() {
               <span className="text-primary-foreground font-bold text-lg">t</span>
             </div>
           </div>
-          <CardTitle className="text-2xl">Set new password</CardTitle>
-          <CardDescription>Enter your new password below.</CardDescription>
+          <CardTitle className="text-2xl">Welcome to Teeem</CardTitle>
+          <CardDescription>Set up your account to get started.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="text-sm text-destructive text-center">{error}</div>
             )}
+            <div className="space-y-2">
+              <Label htmlFor="name">Your name</Label>
+              <Input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={isLoading}
+                placeholder="Full name"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="password">New password</Label>
               <Input
