@@ -222,12 +222,18 @@ class BackupMirrorJob < ApplicationJob
     docs.order(:updated_at)
   end
 
-  # Build an S3 client that reads from the LIVE Wasabi bucket
+  # Build an S3 client that reads from the LIVE Wasabi bucket.
+  # Uses WarehouseProvider.storage_credential_id (SSoT) when set,
+  # falls back to .active.first only if credential_id not yet consolidated.
   def build_live_storage_client
     storage_config = WarehouseProvider.instance
     return nil unless storage_config.s3_compatible?
 
-    credential = S3CompatibleCredential.active.first
+    credential = if storage_config.storage_credential_id.present?
+                   S3CompatibleCredential.find_by(id: storage_config.storage_credential_id)
+                 else
+                   S3CompatibleCredential.active.first
+                 end
     return nil unless credential
 
     @live_bucket = storage_config.bucket

@@ -31,6 +31,8 @@ class BackupConfiguration < ApplicationRecord
   # Schedule presets with human-readable labels and cron expressions
   SCHEDULE_PRESETS = {
     "disabled" => { label: "Disabled", cron: nil },
+    "every_15m" => { label: "Every 15 minutes", cron: "*/15 * * * *" },
+    "every_30m" => { label: "Every 30 minutes", cron: "*/30 * * * *" },
     "hourly" => { label: "Every hour", cron: "0 * * * *" },
     "every_6h" => { label: "Every 6 hours", cron: "0 */6 * * *" },
     "every_12h" => { label: "Every 12 hours", cron: "0 0,12 * * *" },

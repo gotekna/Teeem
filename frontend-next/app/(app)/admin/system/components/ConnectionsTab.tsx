@@ -2444,6 +2444,15 @@ export function ConnectionsTab({ subTab, basePath = DEFAULT_CONNECTIONS_BASE_PAT
   // Validate and default the sub-tab
   const activeSubTab = CONNECTIONS_SUB_TABS.some((t) => t.id === subTab) ? subTab : "provider";
 
+  // Track visited tabs so we keep them mounted (no remount/refetch on return visit)
+  const [visitedTabs, setVisitedTabs] = React.useState<Set<string>>(new Set([activeSubTab || "provider"]));
+
+  React.useEffect(() => {
+    if (activeSubTab && !visitedTabs.has(activeSubTab)) {
+      setVisitedTabs((prev) => new Set([...prev, activeSubTab]));
+    }
+  }, [activeSubTab]);
+
   const handleSubTabChange = (tabId: string) => {
     // Navigate to sub-tab URL
     router.push(`${basePath}/${tabId}`, { scroll: false });
@@ -2459,30 +2468,32 @@ export function ConnectionsTab({ subTab, basePath = DEFAULT_CONNECTIONS_BASE_PAT
         ))}
       </TabsList>
 
-      <TabsContent value="provider">
-        <DocumentStorageProvider />
+      <TabsContent value="provider" forceMount className={activeSubTab !== "provider" ? "hidden" : ""}>
+        {visitedTabs.has("provider") && <DocumentStorageProvider />}
       </TabsContent>
-      <TabsContent value="integrations">
-        <IntegrationsSubTab />
+      <TabsContent value="integrations" forceMount className={activeSubTab !== "integrations" ? "hidden" : ""}>
+        {visitedTabs.has("integrations") && <IntegrationsSubTab />}
       </TabsContent>
-      <TabsContent value="email-accounts">
-        <EmailAccountsTab />
+      <TabsContent value="email-accounts" forceMount className={activeSubTab !== "email-accounts" ? "hidden" : ""}>
+        {visitedTabs.has("email-accounts") && <EmailAccountsTab />}
       </TabsContent>
-      <TabsContent value="migration">
-        <div className="space-y-4">
-          <EmailMigrationCard />
-          <AttachmentDeduplicationCard />
-          <DocumentMigrationCard />
-        </div>
+      <TabsContent value="migration" forceMount className={activeSubTab !== "migration" ? "hidden" : ""}>
+        {visitedTabs.has("migration") && (
+          <div className="space-y-4">
+            <EmailMigrationCard />
+            <AttachmentDeduplicationCard />
+            <DocumentMigrationCard />
+          </div>
+        )}
       </TabsContent>
-      <TabsContent value="costs">
-        <StorageCostTab />
+      <TabsContent value="costs" forceMount className={activeSubTab !== "costs" ? "hidden" : ""}>
+        {visitedTabs.has("costs") && <StorageCostTab />}
       </TabsContent>
-      <TabsContent value="backups">
-        <BackupSettingsTab />
+      <TabsContent value="backups" forceMount className={activeSubTab !== "backups" ? "hidden" : ""}>
+        {visitedTabs.has("backups") && <BackupSettingsTab />}
       </TabsContent>
-      <TabsContent value="sync">
-        <ConfigSyncSection />
+      <TabsContent value="sync" forceMount className={activeSubTab !== "sync" ? "hidden" : ""}>
+        {visitedTabs.has("sync") && <ConfigSyncSection />}
       </TabsContent>
     </Tabs>
   );
