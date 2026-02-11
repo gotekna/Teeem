@@ -578,6 +578,12 @@ class WarehouseProvider < ApplicationRecord
     connection_config["region"]
   end
 
+  # SSoT (Feb 2026): Explicit credential link for S3-compatible storage.
+  # When set, DocumentProviders::S3Compatible uses this exact credential - no guessing.
+  def storage_credential_id
+    connection_config["credential_id"]
+  end
+
   # Update connection config
   def update_connection(new_config)
     update!(connection_config: connection_config.merge(new_config))
@@ -604,11 +610,14 @@ class WarehouseProvider < ApplicationRecord
     when S3CompatibleCredential
       # SSoT (Jan 2026): bucket is stored in WarehouseProvider only, NOT synced from credential
       # Credential stores auth only (endpoint, region for client init)
+      # SSoT (Feb 2026): credential_id explicitly links THE ONE credential for this provider.
+      # This prevents backup credentials from being picked over primary storage credentials.
       update!(
         provider_type: "s3_compatible",
         connection_config: connection_config.merge(
           "endpoint" => credential.endpoint,
-          "region" => credential.region
+          "region" => credential.region,
+          "credential_id" => credential.id
           # bucket intentionally NOT synced - WarehouseProvider.connection_config['bucket'] is SSoT
         ).compact,
         status: credential.status == "connected" ? "connected" : "disconnected"
