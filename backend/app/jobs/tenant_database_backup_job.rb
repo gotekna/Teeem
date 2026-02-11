@@ -17,6 +17,7 @@ class TenantDatabaseBackupJob < ApplicationJob
 
   def perform(tenant_id)
     @tenant = Tenant.find(tenant_id)
+    @tenant_slug = @tenant.slug
 
     ActsAsTenant.with_tenant(@tenant) do
       @config = BackupConfiguration.for_tenant
@@ -54,7 +55,7 @@ class TenantDatabaseBackupJob < ApplicationJob
 
       # Upload to tenant's storage
       filename = "db-backup-#{Date.current.strftime('%Y%m%d')}.dump"
-      key = "database/#{@tenant.id}/#{filename}"
+      key = "#{@tenant_slug}/database/#{filename}"
 
       result = service.upload_from_url(
         key: key,
@@ -80,12 +81,12 @@ class TenantDatabaseBackupJob < ApplicationJob
 
       # Cleanup old backups
       retention = @config.retention_count.presence || (@config.retention_days / 7.0).ceil
-      deleted = service.cleanup_old_backups("database/#{@tenant.id}/", keep: retention)
+      deleted = service.cleanup_old_backups("#{@tenant_slug}/database/", keep: retention)
       Rails.logger.info "[TenantDatabaseBackup] Cleanup: deleted #{deleted} old backups" if deleted > 0
 
-      # Queue mirror job if enabled
+      # Queue Tier 2 mirror (backup bucket → B2) if enabled
       if @config.mirror_enabled? && @config.secondary_credential
-        BackupMirrorJob.perform_later(@tenant.id, "database", key)
+        BackupMirrorJob.perform_later(@tenant.id, "database", { key: key })
       end
 
       Rails.logger.info "[TenantDatabaseBackup] Complete for tenant #{@tenant.id}: #{key}"

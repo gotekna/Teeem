@@ -1535,9 +1535,9 @@ export default function EmailPage() {
         const account = accounts.find(a => String(a.id) === selectedAccount);
         if (account) {
           if (account.type === "imap") {
-            // Sync specific IMAP account
+            // Sync specific IMAP account (account.id IS the credential ID for IMAP)
             const imapResult = await api.post<{ total_synced?: number; message?: string }>(
-              `/api/v1/imap_credentials/${account.org_credential_id}/sync`
+              `/api/v1/imap_credentials/${account.id}/sync`
             ).catch(() => ({}));
             if (imapResult) results.push(imapResult);
           } else if (account.type === "outlook" || account.type === "ms365") {

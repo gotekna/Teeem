@@ -4,7 +4,7 @@ import * as React from "react";
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
-import { X, Building2, Briefcase, Mail, ExternalLink, UserPlus } from "lucide-react";
+import { X, Building2, Briefcase, Mail, ExternalLink } from "lucide-react";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import type { EmailContact, ContactEmail } from "@/lib/email-types";
 import { api } from "@/lib/api";
@@ -474,25 +474,6 @@ export function EmailContactAutocomplete({
                   openContact(chip.contactId!);
                 }}
               />
-            )}
-            {/* Create contact icon for unknown emails */}
-            {chip.resolved && !chip.contactId && (
-              <span
-                title="Create contact"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Extract name guess from email (before @)
-                  const localPart = chip.email.split("@")[0] || "";
-                  const nameGuess = localPart
-                    .replace(/[._-]/g, " ")
-                    .replace(/\b\w/g, c => c.toUpperCase());
-                  const params = new URLSearchParams({ email: chip.email });
-                  if (nameGuess) params.set("name", nameGuess);
-                  window.open(`/contacts/new?${params.toString()}`, '_blank');
-                }}
-              >
-                <UserPlus className="h-3 w-3 text-amber-500 opacity-70 group-hover:opacity-100 cursor-pointer" />
-              </span>
             )}
             {/* Delete button */}
             <button

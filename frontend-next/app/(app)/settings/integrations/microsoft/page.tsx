@@ -375,10 +375,13 @@ export default function MicrosoftIntegrationPage() {
         return;
       }
 
-      // Redirect to Microsoft login
+      // Show consent URL for copying (so admin can send to external org's Global Admin)
       if (response?.admin_consent_url) {
-        window.location.href = response.admin_consent_url;
+        setConsentUrl(response.admin_consent_url);
+        setConsentOrgName(orgName);
+        setCopied(false);
       }
+      setConnectingOrg(null);
     } catch (err: unknown) {
       const error = err as { data?: { error?: string }; message?: string };
       setError(error.data?.error || error.message || "Failed to start connection");
@@ -395,6 +398,30 @@ export default function MicrosoftIntegrationPage() {
 
   // State for adding new organization
   const [newOrgName, setNewOrgName] = React.useState("");
+  const [consentUrl, setConsentUrl] = React.useState<string | null>(null);
+  const [consentOrgName, setConsentOrgName] = React.useState<string>("");
+  const [copied, setCopied] = React.useState(false);
+  const [waitingForConsent, setWaitingForConsent] = React.useState(false);
+
+  // Poll for consent completion when waiting
+  React.useEffect(() => {
+    if (!waitingForConsent || !consentOrgName) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get<{ configured: boolean; organizations: Array<{ name: string; status: string }> }>(
+          "/api/v1/microsoft_app/status"
+        );
+        const org = res.organizations?.find(o => o.name === consentOrgName);
+        if (org?.status === "connected") {
+          setWaitingForConsent(false);
+          setConsentUrl(null);
+          // Refresh the page data
+          window.location.reload();
+        }
+      } catch { /* ignore polling errors */ }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [waitingForConsent, consentOrgName]);
 
   if (loading) {
     return (
@@ -605,6 +632,60 @@ export default function MicrosoftIntegrationPage() {
             />
           );
         })}
+
+        {/* Consent URL Card - shown after generating link for external admin */}
+        {consentUrl && (
+          <Card className="border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20">
+            <CardHeader className="py-4">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <Link className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <CardTitle className="text-base">Admin Consent Link for {consentOrgName}</CardTitle>
+                </div>
+                <CardDescription className="text-sm">
+                  Send this link to {consentOrgName}&apos;s Microsoft 365 Global Admin. They click it, sign in, and approve.
+                </CardDescription>
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={consentUrl}
+                    className="text-xs font-mono flex-1 bg-white dark:bg-card"
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                  />
+                  <Button
+                    size="sm"
+                    variant={copied ? "default" : "outline"}
+                    onClick={() => {
+                      navigator.clipboard.writeText(consentUrl);
+                      setCopied(true);
+                      setWaitingForConsent(true);
+                      setTimeout(() => setCopied(false), 3000);
+                    }}
+                    className="shrink-0"
+                  >
+                    {copied ? "Copied!" : "Copy Link"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setConsentUrl(null);
+                      setWaitingForConsent(false);
+                    }}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+                {waitingForConsent && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Spinner size={14} />
+                    <span>Waiting for {consentOrgName}&apos;s admin to approve... (checking every 5s)</span>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+          </Card>
+        )}
 
         {/* Add New Organization */}
         <Card className="border-dashed">
