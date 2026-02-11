@@ -428,7 +428,7 @@ export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps
       if (quoteRef) parts.push(quoteRef);
       if (lga) parts.push(lga);
       if (price !== undefined && price !== null) parts.push(`$${Number(price).toFixed(2)}`);
-      if (dateEffective) parts.push(new Date(dateEffective).toLocaleDateString());
+      if (dateEffective) parts.push(new Date(dateEffective).toLocaleDateString("en-AU"));
 
       return parts.length > 0 ? parts.join(" - ") : `Record #${record.id}`;
     }
@@ -452,7 +452,7 @@ export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps
     if (selectedTable === "public_holidays") {
       const name = record.name as string | undefined;
       const date = record.date as string | undefined;
-      const dateStr = date ? new Date(date).toLocaleDateString() : "";
+      const dateStr = date ? new Date(date).toLocaleDateString("en-AU") : "";
       return name ? `${name} (${dateStr})` : `Record #${record.id}`;
     }
 
@@ -808,7 +808,7 @@ export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps
                             </TableCell>
                           )}
                           <TableCell className="text-muted-foreground">
-                            {new Date(record.updated_at).toLocaleDateString()}
+                            {new Date(record.updated_at).toLocaleString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })}
                           </TableCell>
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             <Dialog>
@@ -998,7 +998,7 @@ export function AdminConfigSyncTab({ onImportComplete }: AdminConfigSyncTabProps
                               </TableCell>
                             )}
                             <TableCell className="text-muted-foreground">
-                              {new Date(record.updated_at).toLocaleDateString()}
+                              {new Date(record.updated_at).toLocaleString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })}
                             </TableCell>
                           </TableRow>
                         );

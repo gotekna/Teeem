@@ -200,7 +200,7 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
         success: boolean;
         records: MasterRecord[];
         table: string;
-      }>(`/api/v1/config_sync/master_records/${selectedTable}`);
+      }>(`/api/v1/config_sync/master_records/${selectedTable}?show_all=true`);
 
       if (response?.success) {
         setRecords(response.records);
@@ -498,7 +498,7 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
     if (selectedTable === "public_holidays") {
       const name = record.name as string | undefined;
       const date = record.date as string | undefined;
-      const dateStr = date ? new Date(date).toLocaleDateString() : "";
+      const dateStr = date ? new Date(date).toLocaleDateString("en-AU") : "";
       return name ? `${name} (${dateStr})` : `Record #${record.id}`;
     }
 
@@ -1050,7 +1050,10 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(record.updated_at).toLocaleDateString()}
+                        {new Date(record.updated_at).toLocaleString("en-AU", {
+                          day: "2-digit", month: "2-digit", year: "numeric",
+                          hour: "2-digit", minute: "2-digit", hour12: true,
+                        })}
                       </TableCell>
                     </TableRow>
                   ))}

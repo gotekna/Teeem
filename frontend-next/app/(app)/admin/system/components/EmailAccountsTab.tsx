@@ -58,6 +58,7 @@ import {
   Link,
   Shield,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
@@ -80,6 +81,7 @@ import {
   type SignatureCompanyData,
 } from "@/lib/email-signature";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTenant } from "@/contexts/TenantContext";
 
 interface ImapCredential {
   id: number;
@@ -186,6 +188,8 @@ interface TenantOption {
 // Component for configuring MS365 mailbox access
 function MS365MailboxAccessConfig() {
   const { toast } = useToast();
+  const router = useRouter();
+  const { currentTenant } = useTenant();
   const [organizations, setOrganizations] = useState<MS365Organization[]>([]);
   const [teeemUsers, setTeeemUsers] = useState<TeeemUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -332,6 +336,35 @@ function MS365MailboxAccessConfig() {
     return userEmail?.toLowerCase() === mailbox?.toLowerCase();
   };
 
+  // State for inline "Create Link" to add MS365 org
+  // ⚠️ All hooks MUST be before any early returns (React rules of hooks)
+  const [ms365OrgName, setMs365OrgName] = React.useState(currentTenant?.name || "");
+  const [ms365Connecting, setMs365Connecting] = React.useState(false);
+  const [ms365ConsentUrl, setMs365ConsentUrl] = React.useState<string | null>(null);
+  const [ms365ConsentOrg, setMs365ConsentOrg] = React.useState("");
+  const [ms365Copied, setMs365Copied] = React.useState(false);
+  const [ms365Waiting, setMs365Waiting] = React.useState(false);
+  const [ms365Error, setMs365Error] = React.useState<string | null>(null);
+
+  // Poll for consent completion
+  React.useEffect(() => {
+    if (!ms365Waiting || !ms365ConsentOrg) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get<{ configured: boolean; organizations: Array<{ name: string; status: string }> }>(
+          "/api/v1/microsoft_app/status"
+        );
+        const org = res.organizations?.find(o => o.name === ms365ConsentOrg);
+        if (org?.status === "connected") {
+          setMs365Waiting(false);
+          setMs365ConsentUrl(null);
+          window.location.reload();
+        }
+      } catch { /* ignore polling errors */ }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [ms365Waiting, ms365ConsentOrg]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -339,15 +372,6 @@ function MS365MailboxAccessConfig() {
       </div>
     );
   }
-
-  // State for inline "Create Link" to add MS365 org
-  const [ms365OrgName, setMs365OrgName] = React.useState("");
-  const [ms365Connecting, setMs365Connecting] = React.useState(false);
-  const [ms365ConsentUrl, setMs365ConsentUrl] = React.useState<string | null>(null);
-  const [ms365ConsentOrg, setMs365ConsentOrg] = React.useState("");
-  const [ms365Copied, setMs365Copied] = React.useState(false);
-  const [ms365Waiting, setMs365Waiting] = React.useState(false);
-  const [ms365Error, setMs365Error] = React.useState<string | null>(null);
 
   const handleCreateMs365Link = async (orgName: string) => {
     setMs365Connecting(true);
@@ -373,25 +397,6 @@ function MS365MailboxAccessConfig() {
     }
     setMs365Connecting(false);
   };
-
-  // Poll for consent completion
-  React.useEffect(() => {
-    if (!ms365Waiting || !ms365ConsentOrg) return;
-    const interval = setInterval(async () => {
-      try {
-        const res = await api.get<{ configured: boolean; organizations: Array<{ name: string; status: string }> }>(
-          "/api/v1/microsoft_app/status"
-        );
-        const org = res.organizations?.find(o => o.name === ms365ConsentOrg);
-        if (org?.status === "connected") {
-          setMs365Waiting(false);
-          setMs365ConsentUrl(null);
-          window.location.reload();
-        }
-      } catch { /* ignore polling errors */ }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [ms365Waiting, ms365ConsentOrg]);
 
   if (organizations.length === 0) {
     return (
@@ -436,6 +441,19 @@ function MS365MailboxAccessConfig() {
                     className="shrink-0"
                   >
                     {ms365Copied ? "Copied!" : "Copy Link"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const subject = encodeURIComponent(`Link to Connect ${ms365ConsentOrg} to Teeem`);
+                      const body = encodeURIComponent(`Hi,\n\nPlease find the link to connect ${ms365ConsentOrg} to Teeem's Microsoft 365 integration.\n\nClick the link below, sign in with your Global Admin account, and approve:\n\n${ms365ConsentUrl}\n\nOnce approved, we'll be able to access your organization's emails and SharePoint.\n\nBest regards`);
+                      router.push(`/email?compose_to=&compose_subject=${subject}&compose_body=${body}&compose_from=${encodeURIComponent("setup@teeem.com.au")}`);
+                      setMs365Waiting(true);
+                    }}
+                    className="shrink-0"
+                  >
+                    <Mail className="h-4 w-4 mr-1" />
+                    Send Email
                   </Button>
                   <Button
                     size="sm"
@@ -822,8 +840,10 @@ function TeamEmailDomainsConfig() {
 }
 
 export function EmailAccountsTab() {
+  const router = useRouter();
   const { toast } = useToast();
   const { confirm } = useConfirm();
+  const { currentTenant } = useTenant();
   const [credentials, setCredentials] = useState<ImapCredential[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);

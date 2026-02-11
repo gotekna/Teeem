@@ -88,7 +88,19 @@ export function ConfigSyncSection() {
 
       {/* Tenant Configuration Overview */}
       <div className="border-t pt-8">
-        <h2 className="text-lg font-semibold mb-4">Tenant Configuration Overview</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Tenant Configuration Overview</h2>
+          <div className="text-sm text-muted-foreground text-right">
+            {lastSyncAt ? (
+              <>
+                <span>Last synced: {formatSyncDate(lastSyncAt)}</span>
+                {lastSyncBy && <span className="block text-xs">by {lastSyncBy}</span>}
+              </>
+            ) : (
+              <span className="italic">Never synced</span>
+            )}
+          </div>
+        </div>
         <ConfigSyncTab refreshKey={syncRefreshKey} />
       </div>
     </div>
