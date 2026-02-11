@@ -151,6 +151,7 @@ export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [applyPriceMarkup, setApplyPriceMarkup] = useState(false);
+  const [tableSyncTimestamps, setTableSyncTimestamps] = useState<Record<string, { at: string; by: string; imported: number; updated: number; skipped: number }>>({});
 
 
   // Fetch available tables on mount and when refreshKey changes (e.g., after import)
@@ -167,6 +168,7 @@ export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
         master_tenant: TenantInfo | null;
         tenant: TenantInfo | null;
         is_master_tenant: boolean;
+        config_sync_table_timestamps?: Record<string, { at: string; by: string; imported: number; updated: number; skipped: number }>;
       }>("/api/v1/config_sync/tables");
 
       if (response?.success) {
@@ -178,6 +180,7 @@ export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
         setMasterTenant(response.master_tenant);
         setCurrentTenant(response.tenant);
         setIsMasterTenant(response.is_master_tenant);
+        setTableSyncTimestamps(response.config_sync_table_timestamps || {});
       }
     } catch (err) {
       console.error("Failed to fetch config tables:", err);
@@ -814,6 +817,14 @@ export function ConfigSyncTab({ refreshKey }: ConfigSyncTabProps = {}) {
                             <td className="p-2 pl-10">
                               <div className="font-medium">{table.model.replace(/([A-Z])/g, " $1").trim()}</div>
                               <div className="text-xs text-muted-foreground">{table.description}</div>
+                              {tableSyncTimestamps[table.key] ? (
+                                <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+                                  Synced {new Date(tableSyncTimestamps[table.key].at).toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                                  {" "}{new Date(tableSyncTimestamps[table.key].at).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                                </div>
+                              ) : (
+                                <div className="text-[10px] text-muted-foreground/50 mt-0.5 italic">Never synced</div>
+                              )}
                             </td>
                             {showAllTenants ? (
                               // Master tenant: show all tenant counts
