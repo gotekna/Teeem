@@ -298,14 +298,20 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
                 Email addresses monitored for automated processing (bills, tasks, jobs, cases)
               </CardDescription>
             </div>
-            {connectedDomains && connectedDomains.length > 0 && (
-              <div className="flex gap-2 shrink-0">
+            <div className="flex gap-2 shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
                   className="gap-1.5"
                   onClick={() => {
-                    const domain = connectedDomains[0];
+                    // Use internal domains if set, otherwise prompt
+                    const internalDomains = formData.internal_email_domains
+                      .split(",").map((d) => d.trim()).filter(Boolean);
+                    const domain = window.prompt(
+                      "Enter your company email domain (e.g. bypilgrim.co):",
+                      internalDomains[0] || connectedDomains?.[0] || ""
+                    );
+                    if (!domain) return;
                     const updates: Record<string, string> = {};
                     for (const m of MAILBOX_PREFIXES) {
                       const key = `monitored_mailbox_${m.prefix}` as keyof typeof formData;
@@ -332,7 +338,13 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
                   size="sm"
                   className="gap-1.5"
                   onClick={() => {
-                    const domain = connectedDomains[0];
+                    const internalDomains = formData.internal_email_domains
+                      .split(",").map((d) => d.trim()).filter(Boolean);
+                    const domain = window.prompt(
+                      "Enter your company email domain (e.g. bypilgrim.co):",
+                      internalDomains[0] || connectedDomains?.[0] || ""
+                    );
+                    if (!domain) return;
                     const mailboxList = MAILBOX_PREFIXES.map(
                       (m) => `  - ${m.prefix}@${domain}  (${m.label} - ${m.description})`
                     ).join("\n");
@@ -357,7 +369,6 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
                   Email IT to Create
                 </Button>
               </div>
-            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
