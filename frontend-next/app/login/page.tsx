@@ -45,6 +45,14 @@ function LoginForm() {
     }
   }, [searchParams, router, handleTokenFromRedirect]);
 
+  // Pre-fill email from URL param (e.g., /login?email=user@example.com)
+  useEffect(() => {
+    const emailParam = searchParams.get('email');
+    if (emailParam && !email) {
+      setEmail(emailParam);
+    }
+  }, [searchParams]);
+
   // Check for session expired redirect
   useEffect(() => {
     if (searchParams.get('expired') === 'true') {
