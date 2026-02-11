@@ -228,16 +228,17 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         const firstName = (response.user_name || "").split(" ")[0] || "there";
 
         const subject = encodeURIComponent("Welcome to Teeem - Your Account is Ready");
+        // HTML body so login link is clickable with friendly text
         const body = encodeURIComponent(
-          `Hi ${firstName},\n\n` +
-          `Welcome to Teeem - your complete business management system.\n\n` +
-          `Your account has been created and is ready to go. Here are your login details:\n\n` +
-          `Login: ${loginUrl}\n` +
-          `Email: ${response.user_email}\n` +
-          `Temporary Password: ${response.temp_password}\n\n` +
-          `Click the login link above - your email will be pre-filled. Just enter your temporary password and you'll be prompted to set a new one.\n\n` +
-          `Teeem brings together your jobs, contacts, documents, emails, scheduling, and finances in one place. If you need any help getting started, just reply to this email.\n\n` +
-          `Best regards`
+          `<p>Hi ${firstName},</p>` +
+          `<p>Welcome to Teeem - your complete business management system.</p>` +
+          `<p>Your account has been created and is ready to go. Here are your login details:</p>` +
+          `<p><strong><a href="${loginUrl}">Login to Teeem</a></strong><br>` +
+          `Email: ${response.user_email}<br>` +
+          `Temporary Password: ${response.temp_password}</p>` +
+          `<p>Click the login link - your email will be pre-filled. Just enter your temporary password and you'll be prompted to set a new one.</p>` +
+          `<p>Teeem brings together your jobs, contacts, documents, emails, scheduling, and finances in one place. If you need any help getting started, just reply to this email.</p>` +
+          `<p>Best regards</p>`
         );
         const from = encodeURIComponent("setup@teeem.com.au");
         const to = encodeURIComponent(response.user_email || user.email);

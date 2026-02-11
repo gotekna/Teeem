@@ -1436,10 +1436,12 @@ export function htmlToPlainText(html: string): string {
 // Helper to convert plain text to simple HTML (for initial content)
 export function plainTextToHtml(text: string): string {
   if (!text) return "";
-  // Preserve line breaks as <br> and wrap in paragraph
+  // Auto-link URLs then preserve line breaks as <br> and wrap in paragraph
+  const linkify = (str: string) =>
+    str.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>');
   return text
     .split("\n\n")
-    .map(para => `<p>${para.replace(/\n/g, "<br>")}</p>`)
+    .map(para => `<p>${linkify(para.replace(/\n/g, "<br>"))}</p>`)
     .join("");
 }
 

@@ -1077,25 +1077,38 @@ export default function EmailPage() {
     setComposeOpen(true);
   }, []);
 
-  // Auto-open compose from query params (e.g., ?compose=true&to=email&subject=text&body=text&from=alias)
-  const composeParamHandled = React.useRef(false);
+  // Auto-open compose from query params (e.g., ?compose_to=email&compose_subject=text&compose_body=text)
+  // ⚠️ DO NOT SIMPLIFY - Uses param fingerprint, not boolean ref (2026-02-11)
+  // ════════════════════════════════════════════
+  // Why: composeOpen comes from a Jotai atom that persists across navigations.
+  //   A boolean ref + !composeOpen guard would fail when navigating back to /email
+  //   with new compose params if the modal was previously open.
+  // ❌ WRONG: useRef(false) + if (!ref.current && !composeOpen)
+  // ✅ CORRECT: Track param fingerprint so new navigations always trigger
+  // ════════════════════════════════════════════
+  const lastComposeParams = React.useRef<string | null>(null);
   useEffect(() => {
-    if (composeParamHandled.current) return;
     const composeTo = searchParams.get("compose_to");
-    const hasComposeParams = composeTo !== null || searchParams.has("compose_subject") || searchParams.has("compose_body");
-    if (hasComposeParams && !composeOpen) {
-      composeParamHandled.current = true;
-      setReplyTo({
-        to: composeTo || "",
-        cc: searchParams.get("compose_cc") || "",
-        subject: searchParams.get("compose_subject") || "",
-        body: searchParams.get("compose_body") || "",
-        fromEmail: searchParams.get("compose_from") || undefined,
-        replyToMessageId: undefined,
-      });
-      setComposeOpen(true);
-    }
-  }, [searchParams, composeOpen, setReplyTo, setComposeOpen]);
+    const composeSubject = searchParams.get("compose_subject");
+    const composeBody = searchParams.get("compose_body");
+    const hasComposeParams = composeTo !== null || composeSubject !== null || composeBody !== null;
+    if (!hasComposeParams) return;
+
+    // Fingerprint current params - only process if they changed
+    const paramKey = `${composeTo}|${composeSubject?.slice(0, 50)}|${composeBody?.slice(0, 50)}`;
+    if (paramKey === lastComposeParams.current) return;
+    lastComposeParams.current = paramKey;
+
+    setReplyTo({
+      to: composeTo || "",
+      cc: searchParams.get("compose_cc") || "",
+      subject: composeSubject || "",
+      body: composeBody || "",
+      fromEmail: searchParams.get("compose_from") || undefined,
+      replyToMessageId: undefined,
+    });
+    setComposeOpen(true);
+  }, [searchParams, setReplyTo, setComposeOpen]);
 
   // Initialize keyboard shortcuts
   useEmailKeyboardShortcuts({

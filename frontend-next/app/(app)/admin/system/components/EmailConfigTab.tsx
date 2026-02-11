@@ -299,38 +299,64 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
               </CardDescription>
             </div>
             {connectedDomains && connectedDomains.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 shrink-0"
-                onClick={() => {
-                  // Use first connected domain (tenant's primary domain)
-                  const domain = connectedDomains[0];
-                  const mailboxList = MAILBOX_PREFIXES.map(
-                    (m) => `  - ${m.prefix}@${domain}  (${m.label} - ${m.description})`
-                  ).join("\n");
+              <div className="flex gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    const domain = connectedDomains[0];
+                    const updates: Record<string, string> = {};
+                    for (const m of MAILBOX_PREFIXES) {
+                      const key = `monitored_mailbox_${m.prefix}` as keyof typeof formData;
+                      if (!formData[key]) {
+                        updates[key] = `${m.prefix}@${domain}`;
+                      }
+                    }
+                    if (Object.keys(updates).length === 0) {
+                      toast({ title: "All mailbox fields already filled" });
+                      return;
+                    }
+                    setFormData((prev) => ({ ...prev, ...updates }));
+                    toast({
+                      title: "Mailboxes auto-filled",
+                      description: `Set ${Object.keys(updates).length} mailbox addresses using ${domain}`,
+                    });
+                  }}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Auto-fill All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    const domain = connectedDomains[0];
+                    const mailboxList = MAILBOX_PREFIXES.map(
+                      (m) => `  - ${m.prefix}@${domain}  (${m.label} - ${m.description})`
+                    ).join("\n");
 
-                  const subject = encodeURIComponent(
-                    `Request: Create Shared Mailboxes for Teeem`
-                  );
-                  const body = encodeURIComponent(
-                    `Hi IT Team,\n\n` +
-                    `We're setting up Teeem (our business management system) and need the following shared mailboxes created on our ${domain} domain:\n\n` +
-                    `${mailboxList}\n\n` +
-                    `Requirements:\n` +
-                    `  - Each mailbox needs to be a shared mailbox (accessible by multiple users)\n` +
-                    `  - IMAP access enabled for each mailbox\n` +
-                    `  - No license required (shared mailboxes in Microsoft 365 are free)\n\n` +
-                    `These mailboxes will be connected to Teeem for automated email processing. Once created, please send us the access credentials.\n\n` +
-                    `Thanks`
-                  );
-                  const from = encodeURIComponent("setup@teeem.com.au");
-                  router.push(`/email?compose_to=&compose_subject=${subject}&compose_body=${body}&compose_from=${from}`);
-                }}
-              >
-                <Send className="h-3.5 w-3.5" />
-                Email IT to Create Mailboxes
-              </Button>
+                    const subject = encodeURIComponent(
+                      `Request: Create Shared Mailboxes in Microsoft 365`
+                    );
+                    const body = encodeURIComponent(
+                      `Hi,\n\n` +
+                      `We need the following shared mailboxes created in our Microsoft 365 Admin Centre for the ${domain} domain:\n\n` +
+                      `${mailboxList}\n\n` +
+                      `These are shared mailboxes (no license required) and will be used by Teeem for automated email processing.\n\n` +
+                      `Please create them in Microsoft 365 Admin Centre > Teams & groups > Shared mailboxes.\n\n` +
+                      `Let us know once they're set up.\n\n` +
+                      `Thanks`
+                    );
+                    const from = encodeURIComponent("setup@teeem.com.au");
+                    router.push(`/email?compose_to=&compose_subject=${subject}&compose_body=${body}&compose_from=${from}`);
+                  }}
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  Email IT to Create
+                </Button>
+              </div>
             )}
           </div>
         </CardHeader>
