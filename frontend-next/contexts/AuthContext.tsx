@@ -16,7 +16,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string; forcePasswordChange?: boolean }>;
   signup: (name: string, email: string, password: string, passwordConfirmation: string) => Promise<{ success: boolean; errors?: string[] }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -233,7 +233,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setLoading(false);
   };
 
-  const login = async (email: string, password: string, rememberMe?: boolean): Promise<{ success: boolean; error?: string }> => {
+  const login = async (email: string, password: string, rememberMe?: boolean): Promise<{ success: boolean; error?: string; forcePasswordChange?: boolean }> => {
     try {
       // Use loginToProduction - production backend is the "router" that returns api_url
       // for the company's chosen environment
