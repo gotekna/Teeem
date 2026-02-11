@@ -26,6 +26,11 @@ class PurchaseOrderLineItem < ApplicationRecord
   after_save :update_purchase_order_totals
   after_destroy :update_purchase_order_totals
 
+  # Eager loading: nested sm_task needed for po_task_name display via lookup_display_column
+  def self.safe_eager_load_associations
+    [{ purchase_order: :sm_task }, :pricebook_item]
+  end
+
   # Scopes
   scope :ordered, -> { order(:line_number) }
 

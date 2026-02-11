@@ -370,7 +370,7 @@ class GanttDataService
       started: record.try(:started) || false,
       hold: record.try(:hold) || false,
       hold_date: format_date(record.try(:hold_date)),
-      is_completed: record.try(:is_completed) || false,
+      is_completed: record.try(:completed) || false,
       completed_at: format_date(record.try(:completed_at)),
       dependency_broken: record.try(:dependency_broken) || false,
       # Broken dependency tracking - for restore in dependency editor

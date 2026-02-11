@@ -1,30 +1,5 @@
 {
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit(**/frontend-next/**/*.tsx)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd frontend-next && npx tsc --noEmit 2>&1 | tail -10 || true",
-            "statusMessage": "Type checking..."
-          }
-        ]
-      },
-      {
-        "matcher": "Edit(**/backend/**/*.rb)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd backend && bundle exec rubocop --format simple $FILE 2>&1 | tail -5 || true",
-            "statusMessage": "Linting Ruby..."
-          }
-        ]
-      }
-    ]
-  },
   "permissions": {
-    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash(gh auth status:*)",
       "Bash(heroku auth:whoami:*)",
@@ -191,9 +166,35 @@
       "Bash(touch:*)",
       "Bash(wc:*)",
       "Bash(bin/spring status:*)",
-      "Bash(/Users/robertharder/.rbenv/shims/bundle install)"
+      "Bash(/Users/robertharder/.rbenv/shims/bundle install)",
+      "Bash(sed:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "defaultMode": "bypassPermissions"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit(**/frontend-next/**/*.tsx)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd frontend-next && npx tsc --noEmit 2>&1 | tail -10 || true",
+            "statusMessage": "Type checking..."
+          }
+        ]
+      },
+      {
+        "matcher": "Edit(**/backend/**/*.rb)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd backend && bundle exec rubocop --format simple $FILE 2>&1 | tail -5 || true",
+            "statusMessage": "Linting Ruby..."
+          }
+        ]
+      }
+    ]
   }
 }

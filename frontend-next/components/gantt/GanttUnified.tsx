@@ -46,7 +46,7 @@ export interface GanttUnifiedProps {
   className?: string;
 
   // Callbacks
-  onTaskClick?: (task: GanttTask) => void;
+  onTaskClick?: (task: GanttTask, event: MouseEvent) => void;
   onTaskDoubleClick?: (task: GanttTask) => void;
   onTaskDrag?: (task: GanttTask, newStartDate: Date) => void;
   onTaskResize?: (task: GanttTask, newStartDate: Date, newEndDate: Date) => void;
@@ -266,8 +266,8 @@ export function GanttUnified({
         onSelectionChange: (ids) => {
           setSelectedTaskIds(ids);
         },
-        onTaskClick: (task) => {
-          onTaskClickRef.current?.(task);
+        onTaskClick: (task, event) => {
+          onTaskClickRef.current?.(task, event);
         },
         onTaskDoubleClick: (task) => {
           console.log('[GanttUnified] onTaskDoubleClick callback:', task.id, task.name);

@@ -934,8 +934,8 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
 
       // Date range
       if (filters.dateRange) {
-        const taskStart = new Date(task.start_date);
-        const taskEnd = new Date(task.end_date);
+        const taskStart = new Date(task.start_date + 'T00:00:00');
+        const taskEnd = new Date(task.end_date + 'T00:00:00');
         if (taskEnd < filters.dateRange.start || taskStart > filters.dateRange.end) {
           return false;
         }
@@ -970,7 +970,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     return filteredTasks.filter(task => {
-      const startDate = new Date(task.start_date);
+      const startDate = new Date(task.start_date + 'T00:00:00');
       startDate.setHours(0, 0, 0, 0);
       return startDate >= today && startDate < tomorrow && task.status !== TASK_STATUS.COMPLETED;
     });
@@ -984,7 +984,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     nextWeek.setDate(nextWeek.getDate() + 7);
 
     return filteredTasks.filter(task => {
-      const startDate = new Date(task.start_date);
+      const startDate = new Date(task.start_date + 'T00:00:00');
       startDate.setHours(0, 0, 0, 0);
       return startDate >= today && startDate < nextWeek && task.status !== TASK_STATUS.COMPLETED;
     });
