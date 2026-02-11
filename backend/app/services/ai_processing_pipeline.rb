@@ -148,21 +148,18 @@ class AiProcessingPipeline
   # Document Verification: Pattern Matching
   def run_document_pattern_matching(text)
     # TODO: Implement document type pattern matching
-    # For now, return no match - AI will handle it
     { matched: false, confidence: 0 }
   end
 
   # Document Verification: AI Validation
   def run_document_ai_validation(pdf_content)
     # TODO: Integrate with DocumentVerificationService
-    # For now, return nil to skip AI
     nil
   end
 
   # Invoice Parsing: AI Validation
   def run_invoice_ai_validation(pdf_content)
     # TODO: Integrate with InvoiceParsingService
-    # For now, return nil to skip AI
     nil
   end
 

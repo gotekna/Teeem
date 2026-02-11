@@ -7,6 +7,7 @@ import { BackButton } from "@/components/ui/back-button";
 import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
 import type { ViewData } from "@/lib/server/foundation-api";
 import { usePOInvoiceModal } from "@/hooks/use-po-invoice-modal";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 
 interface PurchaseOrdersPageClientProps {
   // SSR data from server component
@@ -46,7 +47,7 @@ export default function PurchaseOrdersPageClient({
   return (
     <TablePage>
       <TeeemTableView
-        foundationId="purchase-orders"
+        foundationId={FOUNDATION_SLUGS.PURCHASE_ORDERS}
         tableName="Purchase Orders"
         enableExport
         onRowClick={handleRowClick}

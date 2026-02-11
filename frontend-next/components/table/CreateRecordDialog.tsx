@@ -40,10 +40,10 @@ import {
   Eye,
   EyeOff,
   GripVertical,
-  Search,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Accordion,
   AccordionContent,
@@ -64,6 +64,8 @@ interface CreateRecordDialogProps {
   tableName: string;
   columns: TableColumn[];
   onSuccess?: () => void;
+  renderExtraContent?: () => React.ReactNode;
+  onAfterSave?: (record: Record<string, unknown>) => Promise<void>;
 }
 
 // Columns to exclude from the form (system-managed or UI-only)
@@ -184,6 +186,8 @@ export function CreateRecordDialog({
   tableName,
   columns,
   onSuccess,
+  renderExtraContent,
+  onAfterSave,
 }: CreateRecordDialogProps) {
   const { toast } = useToast();
   const [formData, setFormData] = useState<Record<string, unknown>>({});
@@ -874,7 +878,12 @@ export function CreateRecordDialog({
         record: recordData,
       };
 
-      await api.post(`/api/v1/foundations/${foundationId}/records`, payload);
+      const result = await api.post<{ success: boolean; record?: Record<string, unknown> }>(`/api/v1/foundations/${foundationId}/records`, payload);
+
+      // Call onAfterSave with the created record data (if available)
+      if (onAfterSave && result?.record) {
+        await onAfterSave(result.record);
+      }
 
       toast({
         title: "Success",
@@ -929,15 +938,13 @@ export function CreateRecordDialog({
           <div className="border rounded-md p-4 mb-4 bg-muted/30">
             {/* Search and Actions Row */}
             <div className="flex items-center gap-3 mb-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search fields..."
-                  value={fieldSearch}
-                  onChange={(e) => setFieldSearch(e.target.value)}
-                  className="pl-8 h-8 text-sm"
-                />
-              </div>
+              <SearchInput
+                className="flex-1"
+                placeholder="Search fields..."
+                value={fieldSearch}
+                onChange={setFieldSearch}
+                inputClassName="h-8 text-sm"
+              />
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={showAllFields} className="text-xs h-7">
                   Show All
@@ -1089,6 +1096,9 @@ export function CreateRecordDialog({
             <p>No fields visible. Click &quot;Fields&quot; to configure which fields to show.</p>
           </div>
         )}
+
+        {/* Extra content from parent (e.g., PO Task picker for Cost Centres) */}
+        {renderExtraContent?.()}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

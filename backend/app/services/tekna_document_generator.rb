@@ -601,6 +601,7 @@ class TeknaDocumentGenerator
   end
 
   def convert_to_pdf(html)
+    raise "Grover (PDF generation) is only available on the worker dyno. Use GeneratePdfJob." unless defined?(Grover)
     Grover.new(html, **grover_options).to_pdf
   end
 

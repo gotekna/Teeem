@@ -139,7 +139,7 @@ sleep 1
 # Create SINGLE temp directory (reused for all 3 environments)
 DEPLOY_DIR=$(mktemp -d)
 # FIX (Feb 2026): Use rsync to copy ALL files including hidden (.slugignore)
-rsync -a --exclude='.git' backend/ "$DEPLOY_DIR/"
+rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
 
 cd "$DEPLOY_DIR"
 git init
@@ -176,6 +176,15 @@ wait $BETA_PID
 BETA_EXIT=$?
 wait $PROD_PID
 PROD_EXIT=$?
+
+# STEP 3: Deploy to Worker apps (separate slugs)
+echo "📦 Deploying → Worker apps..."
+git remote add staging-worker https://git.heroku.com/teeem-staging-worker.git
+git push staging-worker HEAD:main --force
+
+git remote add beta-worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null && git push beta-worker HEAD:main --force || echo "⚠️ Beta worker app not yet created"
+
+git remote add prod-worker https://git.heroku.com/teeem-production-worker.git 2>/dev/null && git push prod-worker HEAD:main --force || echo "⚠️ Production worker app not yet created"
 
 # Cleanup
 cd /Users/robertharder/GitHub/teeem

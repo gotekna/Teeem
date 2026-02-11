@@ -4,14 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
   Trash2,
   Star,
   X,
-  Search,
   Users,
   User,
   Building2,
@@ -32,6 +31,7 @@ import { api } from "@/lib/api";
 import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { INTERNAL_ROLE_KEYS } from "@/lib/constants/job-roles";
 
 interface Contact {
   id: number;
@@ -129,7 +129,7 @@ const ROLE_GROUPS = [
 ];
 
 const ROLE_TYPES = ROLE_GROUPS.flatMap((g) => g.roles);
-const INTERNAL_ROLES = ["supervisor", "site_coordinator", "estimator", "internal_sales", "coordinator"];
+const INTERNAL_ROLES = INTERNAL_ROLE_KEYS;
 
 const getRoleConfig = (roleKey: string) => {
   return ROLE_TYPES.find((r) => r.key === roleKey) || { label: roleKey || "Contact", icon: User, color: "gray" };
@@ -167,7 +167,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [expandedContacts, setExpandedContacts] = useState<Set<number>>(new Set());
 
-  const isInternalRole = (role: string) => INTERNAL_ROLES.includes(role);
+  const isInternalRole = (role: string) => (INTERNAL_ROLES as readonly string[]).includes(role);
 
   useEffect(() => {
     loadContacts();
@@ -406,16 +406,12 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                ref={searchInputRef}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search contacts by name, email, or company..."
-                className="pl-9"
-              />
-            </div>
+            <SearchInput
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search contacts by name, email, or company..."
+            />
 
             {searching && (
               <div className="mt-2 text-sm text-muted-foreground text-center py-2">

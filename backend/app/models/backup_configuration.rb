@@ -43,6 +43,7 @@ class BackupConfiguration < ApplicationRecord
   validates :database_schedule, inclusion: { in: SCHEDULE_PRESETS.keys }
   validates :document_schedule, inclusion: { in: SCHEDULE_PRESETS.keys }
   validates :retention_days, numericality: { greater_than: 0, less_than_or_equal_to: 365 }
+  validates :retention_count, numericality: { greater_than: 0, less_than_or_equal_to: 100 }
   validates :tenant_id, uniqueness: true
 
   # Validate that mirror requires both credentials

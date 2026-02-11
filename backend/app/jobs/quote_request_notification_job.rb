@@ -48,11 +48,8 @@ class QuoteRequestNotificationJob < ApplicationJob
               "Trade: #{quote_request.trade_category}\n" \
               "Login to view details: #{portal_url}"
 
-    # TODO: Implement Twilio SMS sending
-    # TwilioService.send_sms(
-    #   to: contact.phone,
-    #   body: message
-    # )
+    # TODO: Uncomment TwilioService.send_sms call (service exists and works)
+    # TwilioService.send_sms(to: contact.phone, body: message, contact: contact)
 
     Rails.logger.info("SMS notification sent to #{contact.phone} for quote request ##{quote_request.id}")
   end

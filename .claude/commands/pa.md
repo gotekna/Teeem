@@ -168,7 +168,7 @@ sleep 1
 
 # Build and push to Staging (this is the ONLY slug build)
 DEPLOY_DIR=$(mktemp -d)
-rsync -a --exclude='.git' backend/ "$DEPLOY_DIR/"
+rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
 
 cd "$DEPLOY_DIR"
 git init
@@ -179,6 +179,14 @@ git remote add staging https://git.heroku.com/teeem-staging.git
 echo "📦 Building slug on Staging..."
 git push staging HEAD:main --force
 STAGING_EXIT=$?
+
+# Deploy to worker apps (separate slugs - not part of pipeline promotion)
+git remote add staging-worker https://git.heroku.com/teeem-staging-worker.git
+git push staging-worker HEAD:main --force
+
+git remote add beta-worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null && git push beta-worker HEAD:main --force || echo "⚠️ Beta worker app not yet created"
+
+git remote add prod-worker https://git.heroku.com/teeem-production-worker.git 2>/dev/null && git push prod-worker HEAD:main --force || echo "⚠️ Production worker app not yet created"
 
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"

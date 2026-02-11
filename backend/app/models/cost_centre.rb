@@ -31,6 +31,7 @@ class CostCentre < ApplicationRecord
   has_many :labour_cost_entries, dependent: :nullify
   has_many :job_cost_budgets, dependent: :nullify
   has_many :jobs, dependent: :nullify
+  has_many :sm_schedule_masters, foreign_key: :cost_centre, dependent: :nullify
 
   # Validations
   validates :code, presence: true, uniqueness: { scope: :tenant_id }, length: { maximum: 20 }

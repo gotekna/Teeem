@@ -44,7 +44,6 @@ import {
   UsersRound,
   MoreHorizontal,
   Plus,
-  Search,
   Pencil,
   Trash2,
   Mail,
@@ -52,6 +51,7 @@ import {
   Moon,
   Monitor,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -187,15 +187,12 @@ function UsersManagementTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="relative w-64">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search users..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8"
-          />
-        </div>
+        <SearchInput
+          className="w-64"
+          placeholder="Search users..."
+          value={searchTerm}
+          onChange={setSearchTerm}
+        />
         <Button onClick={() => setShowInviteDialog(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Invite User

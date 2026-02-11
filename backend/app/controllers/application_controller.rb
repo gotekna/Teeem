@@ -15,7 +15,6 @@ class ApplicationController < ActionController::API
   rescue_from ActiveRecord::RecordInvalid, with: :handle_validation_error
   rescue_from ActionController::ParameterMissing, with: :handle_parameter_missing
   rescue_from ActiveRecord::DeleteRestrictionError, with: :handle_delete_restriction
-  # REMOVED (Jan 2026): rescue_from ActiveStorage::FileNotFoundError - SSoT is now StorageBlob
 
   private
 
@@ -30,17 +29,21 @@ class ApplicationController < ActionController::API
   end
 
   def determine_tenant
-    # Priority 1: Admin override via header (for TEEEM staff switching tenants)
-    # X-Tenant-Override header replaces cookies which fail cross-origin (Vercel → Heroku)
-    if current_user&.teeem_staff? && request.headers["X-Tenant-Override"].present?
-      tenant = Tenant.find_by(id: request.headers["X-Tenant-Override"])
-      return tenant if tenant
+    # Priority 1: Tenant override via header
+    # Allowed for: TEEEM staff (all tenants) OR multi-tenant users (same email on target tenant)
+    if request.headers["X-Tenant-Override"].present?
+      override_tenant = Tenant.find_by(id: request.headers["X-Tenant-Override"])
+      if override_tenant && current_user&.can_access_tenant?(override_tenant)
+        return override_tenant
+      end
     end
 
-    # Priority 1b: Admin override via cookie (legacy/local dev fallback)
-    if current_user&.teeem_staff? && cookies.signed[:admin_tenant_id]
-      tenant = Tenant.find_by(id: cookies.signed[:admin_tenant_id])
-      return tenant if tenant
+    # Priority 1b: Tenant override via cookie (legacy/local dev fallback)
+    if cookies.signed[:admin_tenant_id]
+      override_tenant = Tenant.find_by(id: cookies.signed[:admin_tenant_id])
+      if override_tenant && current_user&.can_access_tenant?(override_tenant)
+        return override_tenant
+      end
     end
 
     # Priority 2: Subdomain
@@ -190,7 +193,4 @@ class ApplicationController < ActionController::API
       error_code: "HAS_DEPENDENCIES"
     }, status: :unprocessable_entity
   end
-
-  # REMOVED (Jan 2026): handle_file_not_found - ActiveStorage no longer used
-  # StorageBlob handles file-not-found via standard exception handling
 end

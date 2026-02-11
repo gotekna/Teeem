@@ -175,9 +175,6 @@ module Api
             overwrite: true
           )
 
-          # TODO: Add migration to track storage_path on teeem_spreadsheets
-          # @spreadsheet.update_columns(storage_path: "#{folder_path}/#{filename}")
-
           render json: {
             success: true,
             message: "Saved to File Warehouse",

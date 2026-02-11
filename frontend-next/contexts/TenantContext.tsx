@@ -31,6 +31,7 @@ interface TenantUser {
   email: string;
   name: string;
   isTeeemStaff: boolean;
+  canSwitchTenants?: boolean;
 }
 
 interface TenantContextType {
@@ -196,7 +197,8 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
 
   // Derived state
   const isTeeemStaff = user?.isTeeemStaff ?? false;
-  const canSwitchTenants = isTeeemStaff && tenants.length > 1;
+  // canSwitchTenants: TEEEM staff OR user has accounts on multiple tenants (same email)
+  const canSwitchTenants = (user?.canSwitchTenants ?? isTeeemStaff) && tenants.length > 1;
 
   const value: TenantContextType = {
     tenants,

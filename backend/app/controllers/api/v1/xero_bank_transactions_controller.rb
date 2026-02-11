@@ -2,6 +2,7 @@ module Api
   module V1
     # Renamed from XeroBankTransactionsController (Jan 2026)
     class XeroBankTransactionsController < ApplicationController
+      include AsyncPdfGeneration
       # GET /api/v1/xero_bank_transactions
       # List bank transactions with filtering
       def index
@@ -176,36 +177,21 @@ module Api
       end
 
       # GET /api/v1/xero_bank_transactions/download_report
-      # Generate and download a PDF transaction report
+      # Enqueues async PDF transaction report generation
       def download_report
-        service = BankTransactionReportService.new(
-          bank_account_id: params[:bank_account_id],
-          financial_year: params[:financial_year],
-          month: params[:month].present? ? params[:month].to_i : nil,
-          start_date: params[:start_date].present? ? Date.parse(params[:start_date]) : nil,
-          end_date: params[:end_date].present? ? Date.parse(params[:end_date]) : nil
+        enqueue_pdf_and_respond(
+          generator_type: "bank_report",
+          generator_params: {
+            bank_account_id: params[:bank_account_id],
+            financial_year: params[:financial_year],
+            month: params[:month],
+            start_date: params[:start_date],
+            end_date: params[:end_date]
+          }
         )
-
-        result = service.generate
-
-        if result[:success]
-          send_data result[:pdf],
-                    filename: result[:filename],
-                    type: "application/pdf",
-                    disposition: "attachment"
-        else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
-        end
       rescue StandardError => e
         Rails.logger.error("PDF report generation failed: #{e.message}")
-        Rails.logger.error(e.backtrace.first(10).join("\n"))
-        render json: {
-          success: false,
-          error: "Failed to generate report: #{e.message}"
-        }, status: :internal_server_error
+        render json: { success: false, error: "Failed to generate report: #{e.message}" }, status: :internal_server_error
       end
 
       private

@@ -28,7 +28,8 @@
  */
 
 import * as React from "react";
-import { Plus, GripVertical, X, Search, ChevronDown, ChevronUp, Briefcase, Mail, Building2, Calendar, FileText, FolderTree, ListFilter, Wrench } from "lucide-react";
+import { Plus, GripVertical, X, ChevronDown, ChevronUp, Briefcase, Mail, Building2, Calendar, FileText, FolderTree, ListFilter, Wrench } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -856,15 +857,13 @@ export function PlaceholderBuilder({
 
               {/* Search and Custom Text */}
               <div className="p-2 border-b bg-background flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                  <Input
-                    placeholder="Search tokens..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="h-7 pl-7 text-xs"
-                  />
-                </div>
+                <SearchInput
+                  className="flex-1"
+                  placeholder="Search tokens..."
+                  value={search}
+                  onChange={setSearch}
+                  inputClassName="h-7 pl-7 text-xs"
+                />
                 <Input
                   ref={inputRef}
                   placeholder="Custom text..."

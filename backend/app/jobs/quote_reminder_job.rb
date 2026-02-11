@@ -114,11 +114,8 @@ class QuoteReminderJob < ApplicationJob
               "Job: #{quote_request.job.job_name}\n" \
               "Login to respond: #{portal_url}"
 
-    # TODO: Implement Twilio SMS sending
-    # TwilioService.send_sms(
-    #   to: contact.phone,
-    #   body: message
-    # )
+    # TODO: Uncomment TwilioService.send_sms call (service exists and works)
+    # TwilioService.send_sms(to: contact.phone, body: message, contact: contact)
 
     Rails.logger.info("Reminder SMS sent to #{contact.phone} for quote request ##{quote_request.id}")
   end

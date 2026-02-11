@@ -7,6 +7,7 @@ import { WarehouseFoldersTable } from "./WarehouseFoldersTable";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -720,15 +721,12 @@ function CompaniesSubTab() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-4">
-          <div className="relative w-64">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search companies..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
-          </div>
+          <SearchInput
+            className="w-64"
+            placeholder="Search companies..."
+            value={searchTerm}
+            onChange={setSearchTerm}
+          />
           <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Group" />
@@ -1072,15 +1070,11 @@ function CompaniesSubTab() {
             {/* Search Input */}
             <div className="grid gap-2">
               <Label>Search Contacts</Label>
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Type to search companies/trusts..."
-                  value={contactSearchQuery}
-                  onChange={(e) => setContactSearchQuery(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
+              <SearchInput
+                placeholder="Type to search companies/trusts..."
+                value={contactSearchQuery}
+                onChange={setContactSearchQuery}
+              />
             </div>
 
             {/* Search Results */}

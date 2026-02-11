@@ -1217,7 +1217,6 @@ module Api
       # All uploads now go through upload_standard_file which uses StorageBlob
 
       # Standard file upload using StorageBlob (SSoT for file storage)
-      # ActiveStorage was REMOVED (Jan 2026) - use StorageBlob for deduplication
       def upload_standard_file(file, category)
         # Read file content for StorageBlob
         content = file.read

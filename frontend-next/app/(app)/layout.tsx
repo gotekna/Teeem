@@ -19,6 +19,7 @@ import { initVitals } from "@/lib/performance/vitals";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import consoleCapture from "@/utils/consoleCapture";
 import { POInvoiceModal } from "@/components/purchase-orders/POInvoiceModal";
+import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
 
 // Initialize console capture immediately to catch ALL errors from the start
 // This ensures the error count badge in the sidebar matches DevTools
@@ -27,7 +28,7 @@ if (typeof window !== "undefined") {
 }
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, forcePasswordChange, tempPassword, onPasswordChanged } = useAuth();
   const { sidebarWidth } = useSidebar();
   const { containerClassName, contentClassName, shouldHideSidebar } = useLayoutMode();
   const router = useRouter();
@@ -130,6 +131,13 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Global PO vs Invoice Modal - accessible from any page via usePOInvoiceModal() */}
       <POInvoiceModal />
+
+      {/* Force Password Change Dialog (Feb 2026) - shown when admin sends login invite */}
+      <ChangePasswordDialog
+        open={forcePasswordChange}
+        currentPassword={tempPassword}
+        onSuccess={onPasswordChanged}
+      />
     </div>
   );
 }

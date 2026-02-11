@@ -19,8 +19,8 @@
  */
 
 import * as React from "react";
-import { Search, Briefcase, Mail, Building2, Calendar, FileText, FolderTree, ListFilter, Wrench, ChevronDown, ChevronRight } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Briefcase, Mail, Building2, Calendar, FileText, FolderTree, ListFilter, Wrench, ChevronDown, ChevronRight } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -257,13 +257,12 @@ export function PlaceholderPalette({
         )}
       </div>
       {showSearch && isOpen && (
-        <div className="relative w-32" onClick={(e) => e.stopPropagation()}>
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-          <Input
+        <div className="w-32" onClick={(e) => e.stopPropagation()}>
+          <SearchInput
             placeholder="Search..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-7 pl-7 text-xs"
+            onChange={setSearch}
+            inputClassName="h-7 pl-7 text-xs"
           />
         </div>
       )}

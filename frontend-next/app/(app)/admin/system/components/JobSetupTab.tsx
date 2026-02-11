@@ -41,9 +41,9 @@ import {
   ListChecks,
   Layers,
   MapPin,
-  Search,
   GitBranch,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { WorkflowConfigTab } from "./WorkflowConfigTab";
 
 // DnD Primitives - SSoT for drag and drop UI
@@ -573,15 +573,11 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search suburb or postcode..."
-                  value={suburbSearch}
-                  onChange={(e) => setSuburbSearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+              <SearchInput
+                placeholder="Search suburb or postcode..."
+                value={suburbSearch}
+                onChange={setSuburbSearch}
+              />
             </div>
             <div className="w-full sm:w-32">
               <Select value={suburbStateFilter} onValueChange={setSuburbStateFilter}>

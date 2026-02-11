@@ -149,15 +149,7 @@ class ConsolidationReconciliationService
     client = XeroApiClient.new
     group_company_names = company_group.corporate_companies.where.not(id: company.id).pluck(:name)
 
-    # Fetch aged receivables and payables from Xero
-    # This would require implementing aged_receivables and aged_payables endpoints in XeroApiClient
-    # For now, we'll skip this as it requires additional Xero API work
-
-    # TODO: Implement Xero aged receivables/payables sync
-    # The flow would be:
-    # 1. Get contacts from Xero that match company names in group
-    # 2. Get aged receivables/payables for those contacts
-    # 3. Create IntercompanyBalance records with source='xero'
+    # TODO: Implement Xero aged receivables/payables sync (requires new XeroApiClient endpoints)
   end
 
   def calculate_discrepancies

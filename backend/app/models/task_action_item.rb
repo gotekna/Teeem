@@ -217,7 +217,6 @@ class TaskActionItem < ApplicationRecord
     )
 
     # Copy attachments from sub-task to parent task
-    # Note: has_many_attached :files was removed (Jan 2026) - use sm_task_attachments instead
     if delegated_task.sm_task_attachments.any?
       delegated_task.sm_task_attachments.each do |attachment|
         # Create a new attachment linking to the same attachable (email/document)

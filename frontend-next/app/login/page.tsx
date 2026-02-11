@@ -31,11 +31,12 @@ function LoginForm() {
     if (tokenParam) {
       const apiUrlParam = searchParams.get('api_url') || undefined;
       const envParam = searchParams.get('environment') || undefined;
+      const rememberParam = searchParams.get('remember') === '1';
       const redirectPath = searchParams.get('redirect') || '/dashboard';
 
       // Use AuthContext to handle the token - this stores it, sets up API URL,
       // and verifies with the backend before redirecting
-      handleTokenFromRedirect(tokenParam, apiUrlParam, envParam).then((success) => {
+      handleTokenFromRedirect(tokenParam, apiUrlParam, envParam, rememberParam).then((success) => {
         if (success) {
           router.push(redirectPath);
         }

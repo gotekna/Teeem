@@ -65,6 +65,7 @@ interface TemplateItem {
   tradeName: string | null;
   stageName: string | null;
   stagePosition: number | null;
+  costCentreName: string | null;
   supplierId: number | null;
   supplierName: string | null;
   supplierSyncKey: string | null;
@@ -341,6 +342,7 @@ export function PoTemplatesTab() {
         tradeName: item.tradeName,
         stageName: item.stageName,
         stagePosition: item.stagePosition,
+        costCentreName: item.costCentreName,
         items: (item.lineItems || []).map((li) => ({
           id: li.id,
           description: li.description,

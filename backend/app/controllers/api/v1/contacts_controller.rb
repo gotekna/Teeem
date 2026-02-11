@@ -1485,8 +1485,7 @@ module Api
       # GET /api/v1/contacts/:id/internal_messages
 
       def internal_messages
-        # TODO: Implement internal messages functionality
-        # For now, return an empty array to prevent frontend errors
+        # TODO: Implement internal messages functionality (returns empty array for now)
         render json: {
           success: true,
           messages: []
@@ -1885,7 +1884,12 @@ module Api
           :notes,
           :entity_type,
           :company_name_or_trust, # SSoT for company/trust names
-          # Family/Director fields
+          # Personal/Director fields
+          :date_of_birth,
+          :place_of_birth,
+          :birth_state,
+          :birth_country,
+          :residential_address,
           :is_family_member,
           :is_potential_director,
           :company_group_id,

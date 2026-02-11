@@ -152,6 +152,12 @@ export interface EditRecordModalProps {
 
   /** Callback after successful save */
   onSuccess?: () => void;
+
+  /** Extra content rendered below form fields (e.g., PO Task picker) */
+  renderExtraContent?: (record: TableRowType) => React.ReactNode;
+
+  /** Called after successful save with the record data */
+  onAfterSave?: (record: Record<string, unknown>) => Promise<void>;
 }
 
 /**
@@ -165,6 +171,8 @@ export function EditRecordModal({
   columns,
   record,
   onSuccess,
+  renderExtraContent,
+  onAfterSave,
 }: EditRecordModalProps) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
@@ -336,6 +344,11 @@ export function EditRecordModal({
         record: formData,
       });
 
+      // Call onAfterSave with the record data (includes the record ID for API calls)
+      if (onAfterSave) {
+        await onAfterSave({ ...formData, id: record.id });
+      }
+
       toast({
         title: "Success",
         description: "Record updated successfully",
@@ -493,6 +506,9 @@ export function EditRecordModal({
             <p>No fields visible. Click &quot;Fields&quot; to configure which fields to show.</p>
           </div>
         )}
+
+        {/* Extra content from parent (e.g., PO Task picker for Cost Centres) */}
+        {record && renderExtraContent?.(record)}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

@@ -806,10 +806,26 @@ export default function PurchaseOrderDetailPage() {
   const hasLineItems = lineItems.filter((item) => !item._destroy && (item.description || item.pricebook_item_id)).length > 0;
   const canSendEmail = hasLineItems && selectedSupplier?.email;
 
-  const handlePrint = () => {
+  const [printingPdf, setPrintingPdf] = useState(false);
+  const handlePrint = async () => {
     if (!purchaseOrder) return;
-    // Open PDF in new tab (browser's native print dialog)
-    window.open(`/api/v1/purchase_orders/${recordId}/generate_pdf`, "_blank");
+    setPrintingPdf(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: { pdfGenerationId: number; downloadUrl: string };
+      }>(`/api/v1/purchase_orders/${recordId}/generate_pdf`);
+
+      if (response?.success && response.data?.pdfGenerationId) {
+        const baseUrl = getApiBaseUrl();
+        window.open(`${baseUrl}/api/v1/pdf_generations/${response.data.pdfGenerationId}/download`, "_blank");
+      }
+    } catch (err) {
+      console.error("Failed to generate PDF:", err);
+      toast({ variant: "destructive", title: "Failed to generate PDF" });
+    } finally {
+      setPrintingPdf(false);
+    }
   };
 
   const handlePreview = async () => {
@@ -1199,7 +1215,7 @@ export default function PurchaseOrderDetailPage() {
             onClick={handlePrint}
             variant="outline"
             size="sm"
-            disabled={!hasLineItems || saving}
+            disabled={!hasLineItems || saving || printingPdf}
             title={hasLineItems ? "Print PDF" : "Add line items to enable print"}
           >
             <Printer className="h-4 w-4 mr-1.5" />

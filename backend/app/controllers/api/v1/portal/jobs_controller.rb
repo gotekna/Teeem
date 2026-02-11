@@ -114,8 +114,7 @@ module Api
         def upload_photos
           purchase_order = current_contact.purchase_orders.find(params[:id])
 
-          # TODO: Implement file upload handling with ActiveStorage or similar
-          # For now, just acknowledge the request
+          # TODO: Implement file upload via StorageBlob/WarehouseDocument
 
           render json: {
             success: true,

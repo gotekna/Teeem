@@ -124,7 +124,7 @@ class XeroDocumentMatcher
 
         # Progress logging
         if results[:processed] % 100 == 0
-          puts "Progress: #{results[:processed]} processed, #{results[:matched]} matched"
+          Rails.logger.info "Progress: #{results[:processed]} processed, #{results[:matched]} matched"
         end
 
       rescue => e

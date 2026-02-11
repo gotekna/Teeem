@@ -8,7 +8,7 @@ class User < ApplicationRecord
   # User.email is the login email, synced to Contact.contact_emails with label='login'
   belongs_to :contact  # REQUIRED - User must have a Contact (Jan 2026 consolidation)
   belongs_to :tenant, optional: true  # Multi-tenancy: User's assigned tenant (SSoT)
-  belongs_to :company_group, optional: true  # DEPRECATED: Use tenant instead for multi-tenancy
+  # company_group_id column removed from users table - use tenant for multi-tenancy
   has_many :grok_plans, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
   has_many :foundation_views, dependent: :destroy
@@ -36,8 +36,6 @@ class User < ApplicationRecord
   belongs_to :signature_blob, class_name: "StorageBlob", optional: true
   belongs_to :photo_blob, class_name: "StorageBlob", optional: true
 
-  # ActiveStorage has_one_attached :signature/:photo was REMOVED (Jan 2026) - it violated SSoT.
-
   # Signature usage register - tracks every time signature is used
   has_many :signature_usages, dependent: :destroy
 
@@ -63,7 +61,7 @@ class User < ApplicationRecord
   # SSoT: Assignable roles come from Role model (see Role.for_select)
   # No hardcoded ASSIGNABLE_ROLES constant - database is the source of truth
 
-  validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }
+  validates :email, presence: true, uniqueness: { scope: :tenant_id }, format: { with: URI::MailTo::EMAIL_REGEXP }
   validates :name, presence: true
   validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
@@ -115,21 +113,28 @@ class User < ApplicationRecord
   end
 
   # Check if user can access a specific tenant
+  # Access granted if: teeem_staff, assigned tenant, OR same email exists on that tenant
   def can_access_tenant?(tenant)
     return false unless tenant
 
-    teeem_staff? || company_group_id == tenant.id
+    teeem_staff? || tenant_id == tenant.id ||
+      User.unscoped.exists?(email: email, tenant_id: tenant.id)
   end
 
   # Get all tenants this user can access
+  # SSoT: Same email on multiple tenants = access to all those tenants
   def available_tenants
     if teeem_staff?
-      CompanyGroup.all
-    elsif company_group_id.present?
-      CompanyGroup.where(id: company_group_id)
+      Tenant.all
     else
-      CompanyGroup.none
+      tenant_ids = User.unscoped.where(email: email).pluck(:tenant_id).compact.uniq
+      Tenant.where(id: tenant_ids)
     end
+  end
+
+  # Whether this user has accounts on multiple tenants
+  def multi_tenant?
+    available_tenants.count > 1
   end
 
   # Get user initials from name (e.g., "Robert Harder" -> "RH")
@@ -346,7 +351,6 @@ class User < ApplicationRecord
       uid: auth.uid,
       email: auth.info.email,
       name: auth.info.name,
-      role: "user",  # Legacy column (still required by validation)
       password: SecureRandom.hex(32)
     )
 
@@ -418,7 +422,7 @@ class User < ApplicationRecord
 
   # Get the name of the primary role
   def primary_role_name
-    primary_role&.name || role
+    primary_role&.name || "user"
   end
 
   # Get the ID of the primary role

@@ -39,8 +39,7 @@ class TenantConfigSyncService
       model: "JobStatus",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :color, :icon, :description, :is_active, :position,
-                    :is_complete, :is_default, :order_index, :status_category],
+      sync_fields: [:name, :color, :is_active, :position],
       description: "Job status workflow states",
       group: "jobs"
     },
@@ -48,8 +47,7 @@ class TenantConfigSyncService
       model: "JobStage",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :color, :icon, :description, :is_active, :position,
-                    :stage_order, :is_milestone],
+      sync_fields: [:name, :color, :is_active, :position],
       description: "Job stage progression",
       group: "jobs"
     },
@@ -59,7 +57,11 @@ class TenantConfigSyncService
       match_fields: [:job_type_id, :job_status_id],
       sync_fields: [:job_type_id, :job_status_id, :position],
       description: "Job type to status mappings",
-      group: "jobs"
+      group: "jobs",
+      remap_fks: {
+        job_type_id: { model: "JobType", match_field: :name },
+        job_status_id: { model: "JobStatus", match_field: :name }
+      }
     },
     job_status_stages: {
       model: "JobStatusStage",
@@ -67,7 +69,12 @@ class TenantConfigSyncService
       match_fields: [:job_type_id, :job_status_id, :job_stage_id],
       sync_fields: [:job_type_id, :job_status_id, :job_stage_id, :position, :is_required],
       description: "Job status to stage mappings",
-      group: "jobs"
+      group: "jobs",
+      remap_fks: {
+        job_type_id: { model: "JobType", match_field: :name },
+        job_status_id: { model: "JobStatus", match_field: :name },
+        job_stage_id: { model: "JobStage", match_field: :name }
+      }
     },
     job_tabs: {
       model: "JobTab",
@@ -84,11 +91,12 @@ class TenantConfigSyncService
     document_types: {
       model: "DocumentType",
       name_field: :name,
-      match_fields: [:name],
-      sync_fields: [:name, :scope, :file_name, :display_name, :abbreviation, :category,
-                    :folder, :primary_tab, :aliases, :requires_filing, :supports_versioning,
+      match_fields: [:name, :scope],
+      sync_fields: [:name, :scope, :download_name, :ui_name, :abbreviation,
+                    :folder, :target_folder, :aliases, :requires_filing, :supports_versioning,
                     :generates_certificate, :certificate_template, :form_number_mapping,
-                    :description, :active],
+                    :description, :active, :file_extensions, :skip_rename,
+                    :filename_patterns, :signature_field_config, :retention_years],
       description: "Document type definitions and naming templates",
       group: "documents"
     },
@@ -163,31 +171,17 @@ class TenantConfigSyncService
     contacts: {
       model: "Contact",
       name_field: :display_name,
-      match_fields: [:display_name],
+      match_fields: [:contact_code],
       sync_fields: [:display_name, :company_name_or_trust, :first_name, :last_name,
                     :abn, :acn, :website, :email_domains, :address, :city, :state, :postcode,
                     :bank_bsb, :bank_account_number, :bank_account_name,
                     :default_purchase_account, :default_sales_account, :payment_terms,
                     :is_active, :entity_type, :notes, :contact_code],
-      description: "Contacts (suppliers, customers)",
-      group: "contacts",
-      # Auto-include related price_histories when syncing price_only contacts
-      auto_include_related: :price_histories
+      scope: -> { where(entity_type: "price_only") },  # SSoT: Only sync price_only supplier stubs
+      description: "Contacts (price_only suppliers for pricebook)",
+      group: "contacts"
     },
-    price_histories: {
-      model: "PriceHistory",
-      name_field: :id,
-      match_fields: [:pricebook_item_id, :supplier_id, :new_price],
-      sync_fields: [:pricebook_item_id, :supplier_id, :old_price, :new_price, :change_reason,
-                    :quote_reference, :lga, :date_effective, :user_name],
-      description: "Supplier price history records",
-      group: "contacts",
-      # FK remapping needed during sync
-      remap_fks: {
-        supplier_id: { model: "Contact", match_field: :display_name },
-        pricebook_item_id: { model: "PricebookItem", match_field: :item_code }
-      }
-    },
+    # NOTE: price_histories moved to after pricebook_items (depends on both contacts + pricebook_items existing)
 
     # ============================================================================
     # Schedule Master Group
@@ -252,7 +246,11 @@ class TenantConfigSyncService
       match_fields: [:sm_schedule_master_id, :document_type_id],
       sync_fields: [:sm_schedule_master_id, :document_type_id, :lag_days],
       description: "Schedule Master document type assignments",
-      group: "schedule"
+      group: "schedule",
+      remap_fks: {
+        sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key },
+        document_type_id: { model: "DocumentType", match_field: :name }
+      }
     },
 
     # ============================================================================
@@ -274,7 +272,7 @@ class TenantConfigSyncService
       model: "PricebookCategory",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :description, :parent_id, :position, :icon, :color],
+      sync_fields: [:name, :display_name, :position, :icon, :color, :is_active],
       description: "Pricebook organization categories",
       group: "operations"
     },
@@ -289,11 +287,26 @@ class TenantConfigSyncService
       description: "Pricebook products and pricing",
       group: "operations"
     },
+    # price_histories MUST come after contacts + pricebook_items (FK dependencies)
+    price_histories: {
+      model: "PriceHistory",
+      name_field: :id,
+      match_fields: [:pricebook_item_id, :supplier_id],
+      sync_fields: [:pricebook_item_id, :supplier_id, :old_price, :new_price, :change_reason,
+                    :quote_reference, :lga, :date_effective, :user_name],
+      scope: -> { where(supplier_id: Contact.where(entity_type: "price_only").select(:id)) },  # SSoT: Only sync prices from price_only suppliers
+      description: "Price histories (price_only suppliers only)",
+      group: "operations",
+      remap_fks: {
+        supplier_id: { model: "Contact", match_field: :display_name },
+        pricebook_item_id: { model: "PricebookItem", match_field: :item_code }
+      }
+    },
     public_holidays: {
       model: "PublicHoliday",
       name_field: :name,
       match_fields: [:name, :date],
-      sync_fields: [:name, :date, :region, :description, :recurring],
+      sync_fields: [:name, :date, :region],
       description: "Regional public holidays",
       group: "operations"
     },
@@ -304,7 +317,10 @@ class TenantConfigSyncService
       sync_fields: [:code, :name, :description, :centre_type, :parent_id,
                     :overhead_allocation_percent, :budget_amount, :active, :metadata],
       description: "Cost centre definitions",
-      group: "operations"
+      group: "operations",
+      remap_fks: {
+        parent_id: { model: "CostCentre", match_field: :code }
+      }
     },
     supervisor_checklist_templates: {
       model: "SupervisorChecklistTemplate",
@@ -326,7 +342,7 @@ class TenantConfigSyncService
       model: "PoTemplateItem",
       name_field: :name,
       match_fields: [:po_template_pack_id, :name],
-      sync_fields: [:name, :sm_schedule_master_id, :supplier_sync_key,
+      sync_fields: [:po_template_pack_id, :name, :sm_schedule_master_id, :supplier_sync_key,
                     :position, :budget, :notes, :status_on_create],
       description: "PO template pack items (individual PO definitions)",
       group: "operations",
@@ -339,7 +355,7 @@ class TenantConfigSyncService
       model: "PoTemplateLineItem",
       name_field: :description,
       match_fields: [:po_template_item_id, :line_number],
-      sync_fields: [:pricebook_item_code, :description, :quantity,
+      sync_fields: [:po_template_item_id, :pricebook_item_code, :description, :quantity,
                     :unit_price, :gst_code, :line_number],
       description: "PO template line item details",
       group: "operations",
@@ -418,15 +434,20 @@ class TenantConfigSyncService
     warehouse_folders: {
       model: "WarehouseFolder",
       name_field: :display_name,
-      match_fields: [:warehouse_type, :tab_key],
-      sync_fields: [:warehouse_type, :tab_key, :display_name, :description, :tab_group,
-                    :parent_id, :entity_filters, :order_position, :enabled, :icon_name,
-                    :component_name, :is_system, :warehouse_enabled, :display_code,
+      match_fields: [:warehouse_type_code, :tab_key],
+      sync_fields: [:warehouse_type_id, :tab_key, :name, :display_name, :description, :tab_group,
+                    :folder_segment, :parent_id, :entity_filters, :order_position, :enabled,
+                    :icon_name, :component_name, :is_system, :warehouse_enabled, :display_code,
                     :uses_custom_path, :warehouse_type_override, :is_photo_category,
                     :display_mode, :hidden_by_default, :is_cad_category, :xero_scope,
-                    :visibility_rule, :download_name, :folder_path, :ui_name, :warehouse_folder],
+                    :visibility_rule, :ui_name_template, :download_name_template,
+                    :tab_type, :is_mailbox],
       description: "Warehouse folder tabs and structure",
-      group: "warehouse"
+      group: "warehouse",
+      remap_fks: {
+        warehouse_type_id: { model: "WarehouseType", match_field: :code },
+        parent_id: { model: "WarehouseFolder", match_field: :sync_key }
+      }
     },
     warehouse_folder_document_types: {
       model: "WarehouseFolderDocumentType",
@@ -435,6 +456,10 @@ class TenantConfigSyncService
       sync_fields: [:warehouse_folder_id, :document_type_id, :is_primary,
                     :ui_name_template, :download_name_template],
       description: "Warehouse folder to document type mappings",
+      remap_fks: {
+        warehouse_folder_id: { model: "WarehouseFolder", match_field: :sync_key },
+        document_type_id: { model: "DocumentType", match_field: :name }
+      },
       group: "warehouse"
     },
 
@@ -549,12 +574,12 @@ class TenantConfigSyncService
       model = config[:model].constantize
 
       master_count = if master
-        ActsAsTenant.with_tenant(master) { model.count }
+        ActsAsTenant.with_tenant(master) { scoped_query(model, config).count }
       else
         0
       end
 
-      tenant_count = ActsAsTenant.with_tenant(tenant) { model.count }
+      tenant_count = ActsAsTenant.with_tenant(tenant) { scoped_query(model, config).count }
 
       counts[key.to_s] = {
         master: master_count,
@@ -577,7 +602,7 @@ class TenantConfigSyncService
       counts[key.to_s] = {}
 
       tenants.each do |t|
-        count = ActsAsTenant.with_tenant(t) { model.count }
+        count = ActsAsTenant.with_tenant(t) { scoped_query(model, config).count }
         counts[key.to_s][t.slug || t.id.to_s] = count
       end
 
@@ -599,7 +624,7 @@ class TenantConfigSyncService
 
     # Temporarily switch tenant context to read from source
     ActsAsTenant.with_tenant(source_tenant) do
-      model.all.order(config[:name_field]).map do |record|
+      scoped_query(model, config).order(config[:name_field]).map do |record|
         record_to_json(record, config)
       end
     end
@@ -615,13 +640,14 @@ class TenantConfigSyncService
     model = config[:model].constantize
     match_fields = config[:match_fields]
 
-    # Get all records from both tenants
-    master_all = ActsAsTenant.with_tenant(master) { model.all.to_a }
-    tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
+    # Get all records from both tenants (respecting scope filters)
+    master_all = ActsAsTenant.with_tenant(master) { scoped_query(model, config).to_a }
+    tenant_all = ActsAsTenant.with_tenant(tenant) { scoped_query(model, config).to_a }
 
     # Build indexes (sync_key primary, legacy match_key fallback)
-    master_index = build_record_index(master_all, match_fields)
-    tenant_index = build_record_index(tenant_all, match_fields)
+    remap_fks = config[:remap_fks]
+    master_index = build_record_index(master_all, match_fields, remap_fks)
+    tenant_index = build_record_index(tenant_all, match_fields, remap_fks)
 
     result = {
       new_records: [],      # In master but not in tenant
@@ -634,10 +660,10 @@ class TenantConfigSyncService
 
     # Find new and modified
     master_all.each do |master_record|
-      tenant_record = find_match(master_record, tenant_index, match_fields)
+      tenant_record = find_match(master_record, tenant_index, match_fields, remap_fks)
 
       if tenant_record
-        key = record_sync_key(tenant_record) || legacy_match_key(tenant_record, match_fields)
+        key = record_sync_key(tenant_record) || legacy_match_key(tenant_record, match_fields, remap_fks)
         matched_tenant_keys << key
 
         if records_differ?(master_record, tenant_record, config[:sync_fields])
@@ -656,7 +682,7 @@ class TenantConfigSyncService
 
     # Find deleted (in tenant but not in master)
     tenant_all.each do |tenant_record|
-      key = record_sync_key(tenant_record) || legacy_match_key(tenant_record, match_fields)
+      key = record_sync_key(tenant_record) || legacy_match_key(tenant_record, match_fields, remap_fks)
       unless matched_tenant_keys.include?(key)
         result[:deleted_records] << record_to_json(tenant_record, config)
       end
@@ -714,22 +740,55 @@ class TenantConfigSyncService
     # Previously import_single_record called model.all.to_a + build_record_index
     # on every iteration — loading the entire table N times (5,163x for price histories).
     existing_records = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
-    existing_index = build_record_index(existing_records, config[:match_fields])
+    existing_index = build_record_index(existing_records, config[:match_fields], config[:remap_fks])
+
+    # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
+    # use two-pass import: first import all records WITHOUT the self-ref FK so all
+    # warehouse_type_ids are correct, then set parent_id in a second pass.
+    self_ref_fks = (config[:remap_fks] || {}).select { |_f, c| c[:model] == config[:model] }
+    deferred_parents = {} # record_id => { field => value } for second pass
 
     # Import each record
     source_records.each do |source_record|
       begin
-        result = import_single_record(source_record, config, model, existing_index)
+        # For self-referential FKs: defer parent_id to second pass
+        result = import_single_record(source_record, config, model, existing_index,
+                                       defer_fields: self_ref_fks.keys)
         if result[:imported]
           imported << result[:record]
+          # Store deferred parent values for second pass
+          if self_ref_fks.any? && result[:deferred].present?
+            deferred_parents[result[:record].id] = result[:deferred]
+          end
           # Update index with newly imported record so subsequent matches work
-          key = record_sync_key(result[:record]) || legacy_match_key(result[:record], config[:match_fields])
+          key = record_sync_key(result[:record]) || legacy_match_key(result[:record], config[:match_fields], config[:remap_fks])
           existing_index[key] = result[:record] if key.present?
         else
           skipped << { name: source_record.send(config[:name_field]), reason: result[:reason] }
         end
       rescue => e
         @errors << "Failed to import #{source_record.send(config[:name_field])}: #{e.message}"
+      end
+    end
+
+    # Second pass: set deferred self-referential FKs (parent_id) now that all
+    # records have correct warehouse_type_ids.
+    # ⚠️ Uses update_column to bypass parent_same_warehouse_type validation
+    # which fails due to Rails association cache returning stale parent data.
+    # Safe because pass 1 already set correct warehouse_type_ids on all records.
+    if deferred_parents.any?
+      ActsAsTenant.with_tenant(tenant) do
+        deferred_parents.each do |record_id, deferred_attrs|
+          record = model.find_by(id: record_id)
+          next unless record
+          begin
+            deferred_attrs.each do |field, value|
+              record.update_column(field, value) if value.present?
+            end
+          rescue => e
+            @errors << "Failed to set parent for #{record.send(config[:name_field])}: #{e.message}"
+          end
+        end
       end
     end
 
@@ -844,35 +903,84 @@ class TenantConfigSyncService
 
     # Get existing tenant records for matching (sync_key primary, legacy fallback)
     tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
-    existing_index = build_record_index(tenant_all, config[:match_fields])
+    existing_index = build_record_index(tenant_all, config[:match_fields], config[:remap_fks])
+
+    # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
+    # use two-pass: first pass without self-ref FK, second pass sets parent_id.
+    self_ref_fks = (config[:remap_fks] || {}).select { |_f, c| c[:model] == config[:model] }
+    deferred_parents = {} # record_id => { field => value } for second pass
 
     # Process each master record
     master_records.each do |master_record|
       begin
-        existing = find_match(master_record, existing_index, config[:match_fields])
+        existing = find_match(master_record, existing_index, config[:match_fields], config[:remap_fks])
+
+        # Build attrs with FK remapping, deferring self-referential FKs
+        attrs = build_sync_attrs(master_record, config)
+        deferred = {}
+        if self_ref_fks.any?
+          self_ref_fks.each_key do |field|
+            deferred[field] = attrs.delete(field) if attrs.key?(field)
+            attrs[field] = nil  # Clear stale parent_id to avoid validation on existing records
+          end
+        end
 
         if existing
           case mode.to_sym
           when :replace_existing
-            result = update_existing_record(existing, master_record, config)
-            if result[:updated]
-              updated << result[:record]
-            else
-              skipped << { name: master_record.send(config[:name_field]), reason: result[:reason] }
+            begin
+              ActsAsTenant.with_tenant(tenant) { existing.update!(attrs) }
+              updated << existing
+              deferred_parents[existing.id] = deferred if deferred.any?
+            rescue => e
+              skipped << { name: master_record.send(config[:name_field]), reason: e.message }
             end
           when :add_new, :skip_existing
             skipped << { name: master_record.send(config[:name_field]), reason: "Already exists" }
           end
         else
-          result = create_new_record(master_record, config, model)
-          if result[:created]
-            imported << result[:record]
-          else
-            skipped << { name: master_record.send(config[:name_field]), reason: result[:reason] }
+          begin
+            ActsAsTenant.with_tenant(tenant) do
+              new_record = model.new
+              attrs.each do |field, value|
+                new_record.send("#{field}=", value) if new_record.respond_to?("#{field}=")
+              end
+              if master_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
+                new_record.sync_key = master_record.sync_key.presence || master_record.class.build_sync_key(
+                  *Array(master_record.class.try(:sync_key_source) || :name).map { |f| master_record.send(f).to_s }
+                )
+              end
+              new_record.save!
+              imported << new_record
+              deferred_parents[new_record.id] = deferred if deferred.any?
+            end
+          rescue => e
+            skipped << { name: master_record.send(config[:name_field]), reason: e.message }
           end
         end
       rescue => e
         @errors << "Failed to process #{master_record.send(config[:name_field])}: #{e.message}"
+      end
+    end
+
+    # Second pass: set deferred self-referential FKs (parent_id) now that all
+    # records have correct warehouse_type_ids.
+    # ⚠️ Uses update_column to bypass parent_same_warehouse_type validation
+    # which fails due to Rails association cache returning stale parent data.
+    # Safe because pass 1 already set correct warehouse_type_ids on all records.
+    if deferred_parents.any?
+      ActsAsTenant.with_tenant(tenant) do
+        deferred_parents.each do |record_id, deferred_attrs|
+          record = model.find_by(id: record_id)
+          next unless record
+          begin
+            deferred_attrs.each do |field, value|
+              record.update_column(field, value) if value.present?
+            end
+          rescue => e
+            @errors << "Failed to set parent for #{record.send(config[:name_field])}: #{e.message}"
+          end
+        end
       end
     end
 
@@ -1008,36 +1116,110 @@ class TenantConfigSyncService
     end
   end
 
+  # Sort records so parents are processed before children for self-referential FKs.
+  # Without this, a child's parent might not yet be updated when the child's validation
+  # checks parent.warehouse_type_id (warehouse_folders parent_same_warehouse_type).
+  def sort_parents_first(records, config)
+    self_ref_fks = (config[:remap_fks] || {}).select { |_field, cfg| cfg[:model] == config[:model] }
+    return records if self_ref_fks.empty?
+
+    fk_field = self_ref_fks.keys.first # e.g. :parent_id
+    records_arr = records.respond_to?(:to_a) ? records.to_a : records
+
+    # Topological sort: nil parent first, then by parent chain depth
+    id_set = Set.new(records_arr.map(&:id))
+    records_arr.sort_by do |r|
+      depth = 0
+      current = r
+      seen = Set.new
+      while current.respond_to?(fk_field) && (pid = current.send(fk_field)).present? && id_set.include?(pid) && !seen.include?(pid)
+        seen << pid
+        depth += 1
+        current = records_arr.find { |rec| rec.id == pid }
+        break unless current
+      end
+      depth
+    end
+  end
+
+  # Apply config[:scope] lambda if present, otherwise return model.all
+  def scoped_query(model, config)
+    if config[:scope]
+      model.instance_exec(&config[:scope])
+    else
+      model.all
+    end
+  end
+
   # Primary matching: use sync_key (immutable, survives renames).
   # Fallback: legacy match_key from match_fields (for records without sync_key yet).
   def record_sync_key(record)
     record.respond_to?(:sync_key) ? record.sync_key.presence : nil
   end
 
-  # Build index of records keyed by sync_key (primary) or legacy match_key (fallback).
+  # Build index of records keyed by BOTH sync_key AND legacy match_key.
   # Returns hash: { key => record }
-  def build_record_index(records, match_fields)
+  #
+  # ⚠️ DO NOT SIMPLIFY - Index must contain BOTH keys per record (Feb 2026)
+  # ════════════════════════════════════════════════════════════════════════
+  # Why: find_match() tries sync_key first, then falls back to legacy_match_key.
+  #      If we only index by sync_key (when present), the legacy fallback can
+  #      never find the record — causing duplicates when sync_keys diverge
+  #      (e.g., source tenant renumbers task_numbers → new sync_keys).
+  # ❌ WRONG: key = sync_key || legacy_key (only one key per record)
+  # ✅ CORRECT: Index by both keys so fallback matching works
+  # ════════════════════════════════════════════════════════════════════════
+  def build_record_index(records, match_fields, remap_fks = nil)
     index = {}
     records.each do |r|
-      key = record_sync_key(r) || legacy_match_key(r, match_fields)
-      index[key] = r if key.present?
+      sk = record_sync_key(r)
+      lk = legacy_match_key(r, match_fields, remap_fks)
+      index[sk] = r if sk.present?
+      index[lk] = r if lk.present?
     end
     index
   end
 
-  # Find matching record: first try sync_key, then fall back to legacy match_key.
-  def find_match(record, target_index, match_fields)
+  # Find matching record: sync_key first, then legacy match_key.
+  def find_match(record, target_index, match_fields, remap_fks = nil)
     # Try sync_key first
     sk = record_sync_key(record)
     return target_index[sk] if sk && target_index[sk]
 
-    # Fallback to legacy match_key
-    lk = legacy_match_key(record, match_fields)
+    # Legacy match_key (resolves FK IDs to names for cross-tenant matching)
+    lk = legacy_match_key(record, match_fields, remap_fks)
     target_index[lk]
   end
 
-  def legacy_match_key(record, match_fields)
-    match_fields.map { |f| record.send(f).to_s.downcase.strip }.join("|")
+  # Build a match key from a record's match_fields.
+  # When remap_fks is provided and a match_field is an FK, resolve it to the
+  # FK target's match_field value (e.g., job_type_id → "Residential" instead of "45").
+  # This makes the key tenant-independent, so records from different tenants can match.
+  def legacy_match_key(record, match_fields, remap_fks = nil)
+    match_fields.map { |f|
+      value = record.send(f)
+      # If this field is an FK with remap config, resolve to the target's match value
+      if remap_fks&.key?(f) && value.present?
+        resolved = resolve_fk_to_match_value(value, remap_fks[f])
+        resolved.to_s.downcase.strip
+      else
+        value.to_s.downcase.strip
+      end
+    }.join("|")
+  end
+
+  # Resolve an FK ID to its target record's match_field value.
+  # Uses without_tenant to find the record regardless of which tenant owns it.
+  # Cached per (model, id) to avoid N+1 queries when building indexes.
+  def resolve_fk_to_match_value(fk_id, remap_config)
+    @fk_resolve_cache ||= {}
+    cache_key = "#{remap_config[:model]}:#{fk_id}"
+    return @fk_resolve_cache[cache_key] if @fk_resolve_cache.key?(cache_key)
+
+    target_model = remap_config[:model].constantize
+    match_field = remap_config[:match_field]
+    record = ActsAsTenant.without_tenant { target_model.find_by(id: fk_id) }
+    @fk_resolve_cache[cache_key] = record&.send(match_field)
   end
 
   def records_differ?(record1, record2, sync_fields)
@@ -1088,22 +1270,37 @@ class TenantConfigSyncService
     json
   end
 
-  def import_single_record(source_record, config, model, existing_index = nil)
+  def import_single_record(source_record, config, model, existing_index = nil, defer_fields: [])
     # Check if already exists in tenant (master) - sync_key primary, legacy fallback
     # FRC (Feb 2026): Accept pre-built index to avoid N+1 (loading entire table per record).
     # Callers in import_from_tenant build the index once before the loop.
     unless existing_index
       tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
-      existing_index = build_record_index(tenant_all, config[:match_fields])
+      existing_index = build_record_index(tenant_all, config[:match_fields], config[:remap_fks])
     end
-    existing = find_match(source_record, existing_index, config[:match_fields])
+    existing = find_match(source_record, existing_index, config[:match_fields], config[:remap_fks])
 
-    if existing
+    # FRC (Feb 2026): Use build_sync_attrs for FK remapping (was missing - raw FK IDs
+    # from source tenant were copied directly, causing constraint violations)
+    attrs = build_sync_attrs(source_record, config)
+
+    # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
+    # defer those fields to a second pass. First pass sets all other fields (including
+    # warehouse_type_id) so the parent validation can pass in the second pass.
+    # ⚠️ MUST also nil-out the field on existing records — otherwise the old parent_id
+    # remains and validation fires because parent.warehouse_type_id no longer matches
+    # the newly-remapped warehouse_type_id.
+    deferred = {}
+    if defer_fields.any?
+      defer_fields.each do |field|
+        deferred[field] = attrs.delete(field) if attrs.key?(field)
+        attrs[field] = nil  # Clear stale parent_id to avoid validation on existing records
+      end
+    end
+
+    result = if existing
       # Update existing
       ActsAsTenant.with_tenant(tenant) do
-        attrs = config[:sync_fields].each_with_object({}) do |field, hash|
-          hash[field] = source_record.send(field) if source_record.respond_to?(field)
-        end
         existing.update!(attrs)
       end
       { imported: true, record: existing }
@@ -1111,8 +1308,8 @@ class TenantConfigSyncService
       # Create new - copy sync_key to establish link
       ActsAsTenant.with_tenant(tenant) do
         new_record = model.new
-        config[:sync_fields].each do |field|
-          new_record.send("#{field}=", source_record.send(field)) if source_record.respond_to?(field)
+        attrs.each do |field, value|
+          new_record.send("#{field}=", value) if new_record.respond_to?("#{field}=")
         end
         if source_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
           new_record.sync_key = source_record.sync_key.presence || source_record.class.build_sync_key(
@@ -1123,6 +1320,34 @@ class TenantConfigSyncService
         { imported: true, record: new_record }
       end
     end
+
+    # Attach deferred fields to result for second pass
+    result[:deferred] = deferred if deferred.any?
+    result
+  rescue ActiveRecord::RecordInvalid => e
+    # FRC (Feb 2026): Uniqueness collision — match didn't find the record but it exists.
+    # This happens when sync_key diverged and match_fields differ slightly (e.g., contact
+    # matched by sync_key to wrong record, but contact_code belongs to a different record).
+    # Fallback: find by each match_field directly and update that record instead.
+    if e.message.include?("already been taken") || e.message.include?("has already been")
+      fallback = ActsAsTenant.with_tenant(tenant) do
+        config[:match_fields].each do |field|
+          value = source_record.send(field)
+          next if value.blank?
+          # Try exact match first, then case-insensitive (DB unique index may be CI)
+          found = model.find_by(field => value) ||
+                  model.where("LOWER(#{model.connection.quote_column_name(field)}) = ?",
+                              value.to_s.downcase.strip).first
+          break found if found
+        end
+      end
+
+      if fallback.is_a?(ActiveRecord::Base)
+        ActsAsTenant.with_tenant(tenant) { fallback.update!(attrs) }
+        return { imported: true, record: fallback }
+      end
+    end
+    { imported: false, reason: e.message }
   rescue => e
     { imported: false, reason: e.message }
   end
@@ -1201,25 +1426,39 @@ class TenantConfigSyncService
   end
 
   # Remap a foreign key from source tenant to target tenant
+  #
+  # FRC (Feb 2026): Uses case-insensitive matching to align with filter_ids_by_existing_fks
+  # in the controller. Without this, records could pass the FK filter but fail during remap
+  # if there's a case mismatch between source and target values.
   def remap_foreign_key(field, source_id, remap_config)
     source_model = remap_config[:model].constantize
     match_field = remap_config[:match_field]
 
     # Find the source record to get the match value
-    source_record = source_model.unscoped.find_by(id: source_id)
-    return nil unless source_record
+    # Use without_tenant to bypass acts_as_tenant scoping completely
+    source_record = ActsAsTenant.without_tenant do
+      source_model.find_by(id: source_id)
+    end
+
+    unless source_record
+      Rails.logger.warn "[ConfigSync] Could not remap #{field}=#{source_id}: source #{source_model} not found (unscoped)"
+      return nil
+    end
 
     match_value = source_record.send(match_field)
 
     # Find the target record in the current tenant
+    # Try exact match first, fall back to case-insensitive
     target_record = ActsAsTenant.with_tenant(tenant) do
-      source_model.find_by(match_field => match_value)
+      source_model.find_by(match_field => match_value) ||
+        source_model.where("LOWER(#{source_model.connection.quote_column_name(match_field)}) = ?",
+                           match_value.to_s.downcase.strip).first
     end
 
     if target_record
       target_record.id
     else
-      Rails.logger.warn "[ConfigSync] Could not remap #{field}=#{source_id}: no matching #{source_model} found with #{match_field}=#{match_value}"
+      Rails.logger.warn "[ConfigSync] Could not remap #{field}=#{source_id}: no matching #{source_model} with #{match_field}=#{match_value.inspect} in tenant #{tenant.name} (#{tenant.id})"
       nil
     end
   end
@@ -1248,9 +1487,13 @@ class TenantConfigSyncService
     skipped = []
     errors = []
 
-    # Get all price histories for these contacts from source tenant
+    # Get only the latest price per pricebook_item + supplier combo (one per pricebook)
     source_records = ActsAsTenant.with_tenant(source_tenant) do
-      PriceHistory.where(supplier_id: contact_ids)
+      PriceHistory
+        .where(supplier_id: contact_ids)
+        .where("pricebook_item_id IS NOT NULL AND supplier_id IS NOT NULL")
+        .select("DISTINCT ON (pricebook_item_id, supplier_id) price_histories.*")
+        .order(:pricebook_item_id, :supplier_id, date_effective: :desc, created_at: :desc)
     end
 
     source_records.each do |source_record|

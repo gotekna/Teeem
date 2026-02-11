@@ -720,7 +720,7 @@ export const api = {
   xero: {
     getAuthUrl: () => api.get<{ success: boolean; auth_url: string; url?: string }>('/api/v1/xero/auth_url'),
     callback: (code: string) => api.post('/api/v1/xero/callback', { code }),
-    getStatus: () => api.get<{ success: boolean; data: { connected: boolean; organization_name?: string; tenant_name?: string; tenant_id?: string; connected_at?: string; expires_at?: string; expired?: boolean } }>('/api/v1/xero/status'),
+    getStatus: () => api.get<{ success: boolean; data: { connected: boolean; organization_name?: string; tenant_name?: string; tenant_id?: string; connected_at?: string; expires_at?: string; expired?: boolean; total?: number; needs_attention?: number } }>('/api/v1/xero/status'),
     disconnect: () => api.delete('/api/v1/xero/disconnect'),
   },
 

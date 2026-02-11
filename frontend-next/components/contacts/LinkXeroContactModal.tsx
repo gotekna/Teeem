@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import {
-  Search,
   Link as LinkIcon,
   CheckCircle,
   Building2,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
@@ -244,17 +243,14 @@ export function LinkXeroContactModal({
         {/* Search Form - only show after tenant selected */}
         {selectedTenant && (
           <form onSubmit={handleSearch} className="flex gap-2">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder={`Search contacts in ${selectedTenantName}...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-                disabled={searching}
-              />
-            </div>
+            <SearchInput
+              className="flex-1"
+              type="text"
+              placeholder={`Search contacts in ${selectedTenantName}...`}
+              value={searchQuery}
+              onChange={setSearchQuery}
+              disabled={searching}
+            />
             <Button type="submit" disabled={searching || !searchQuery.trim()}>
               {searching ? (
                 <>

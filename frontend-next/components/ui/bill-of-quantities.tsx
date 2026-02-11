@@ -14,7 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Save, Undo2, Search, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, Check, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp } from "lucide-react";
+import { Save, Undo2, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, Check, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -57,6 +58,7 @@ export interface BOQGroup {
   tradeName?: string | null;
   stageName?: string | null;
   stagePosition?: number | null;
+  costCentreName?: string | null;
   items: BOQLineItem[];
 }
 
@@ -123,12 +125,13 @@ function nextTempId(): string {
   return `new_${++tempIdCounter}`;
 }
 
-type GroupSortBy = "supplier" | "stage" | "trade";
+type GroupSortBy = "supplier" | "stage" | "trade" | "costCentre";
 
 const GROUP_SORT_LABELS: Record<GroupSortBy, string> = {
   supplier: "Supplier",
   stage: "Stage",
   trade: "Trade",
+  costCentre: "Cost Centre",
 };
 
 export function BillOfQuantities({
@@ -171,9 +174,14 @@ export function BillOfQuantities({
     [...new Set(groups.map((g) => g.tradeName).filter(Boolean) as string[])].sort(),
     [groups]
   );
+  const uniqueCostCentres = useMemo(() =>
+    [...new Set(groups.map((g) => g.costCentreName).filter(Boolean) as string[])].sort(),
+    [groups]
+  );
   const hasStages = uniqueStages.length > 0;
   const hasTrades = uniqueTrades.length > 0;
   const hasSuppliers = uniqueSuppliers.length > 0;
+  const hasCostCentres = uniqueCostCentres.length > 0;
 
   // Sort + column filter state
   const [sortState, setSortState] = useState<{ column: SortColumn; direction: SortDirection } | null>(null);
@@ -182,6 +190,7 @@ export function BillOfQuantities({
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
   const [selectedStages, setSelectedStages] = useState<Set<string>>(new Set());
   const [selectedTrades, setSelectedTrades] = useState<Set<string>>(new Set());
+  const [selectedCostCentres, setSelectedCostCentres] = useState<Set<string>>(new Set());
 
   const toggleSort = useCallback((column: SortColumn) => {
     setSortState((prev) => {
@@ -209,8 +218,9 @@ export function BillOfQuantities({
       Object.values(columnFilters).some((v) => v.trim()) ||
       selectedSuppliers.size > 0 ||
       selectedStages.size > 0 ||
-      selectedTrades.size > 0,
-    [columnFilters, selectedSuppliers, selectedStages, selectedTrades]
+      selectedTrades.size > 0 ||
+      selectedCostCentres.size > 0,
+    [columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres]
   );
 
   const clearAllFilters = useCallback(() => {
@@ -218,6 +228,7 @@ export function BillOfQuantities({
     setSelectedSuppliers(new Set());
     setSelectedStages(new Set());
     setSelectedTrades(new Set());
+    setSelectedCostCentres(new Set());
     setSortState(null);
   }, []);
 
@@ -247,8 +258,12 @@ export function BillOfQuantities({
         if (aPos !== bPos) return aPos - bPos;
         return (a.stageName || "").localeCompare(b.stageName || "");
       }
-      const aVal = groupSortBy === "supplier" ? (a.supplierName || "") : (a.tradeName || "");
-      const bVal = groupSortBy === "supplier" ? (b.supplierName || "") : (b.tradeName || "");
+      const aVal = groupSortBy === "supplier" ? (a.supplierName || "")
+        : groupSortBy === "costCentre" ? (a.costCentreName || "")
+        : (a.tradeName || "");
+      const bVal = groupSortBy === "supplier" ? (b.supplierName || "")
+        : groupSortBy === "costCentre" ? (b.costCentreName || "")
+        : (b.tradeName || "");
       return aVal.localeCompare(bVal);
     });
   }, [groups, groupSortBy]);
@@ -405,6 +420,9 @@ export function BillOfQuantities({
     if (selectedTrades.size > 0) {
       result = result.filter((g) => g.tradeName && selectedTrades.has(g.tradeName));
     }
+    if (selectedCostCentres.size > 0) {
+      result = result.filter((g) => g.costCentreName && selectedCostCentres.has(g.costCentreName));
+    }
     const hasItemFilters =
       columnFilters.description.trim() || columnFilters.code.trim() || columnFilters.gst.trim();
     if (hasItemFilters) {
@@ -475,7 +493,7 @@ export function BillOfQuantities({
     }
 
     return result;
-  }, [displayGroups, searchTerm, columnFilters, selectedSuppliers, selectedStages, selectedTrades, sortState, getQty]);
+  }, [displayGroups, searchTerm, columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, sortState, getQty]);
 
   // Cascade sections: group POs under Stage/Supplier/Trade headers
   const cascadeSections = useMemo(() => {
@@ -485,7 +503,8 @@ export function BillOfQuantities({
       const key =
         groupSortBy === "supplier" ? (group.supplierName || "No Supplier")
           : groupSortBy === "stage" ? (group.stageName || "No Stage")
-            : (group.tradeName || "No Trade");
+            : groupSortBy === "costCentre" ? (group.costCentreName || "No Cost Centre")
+              : (group.tradeName || "No Trade");
       if (!buckets.has(key)) buckets.set(key, { groups: [], total: 0, sortOrder: Infinity });
       const bucket = buckets.get(key)!;
       bucket.groups.push(group);
@@ -549,15 +568,12 @@ export function BillOfQuantities({
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 px-2 pb-3 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search items..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 h-8 w-64 text-sm"
-            />
-          </div>
+          <SearchInput
+            placeholder="Search items..."
+            value={searchTerm}
+            onChange={setSearchTerm}
+            inputClassName="h-8 w-64 text-sm"
+          />
           <Badge variant="secondary" className="text-xs whitespace-nowrap">
             {totals.totalLines} lines
           </Badge>
@@ -571,10 +587,11 @@ export function BillOfQuantities({
               <span className="px-2.5 py-1 text-xs bg-primary text-primary-foreground rounded-l-md">
                 PO / Task
               </span>
-              {(["supplier", "stage", "trade"] as GroupSortBy[]).map((dim) => {
+              {(["supplier", "stage", "trade", "costCentre"] as GroupSortBy[]).map((dim) => {
                 if (dim === "stage" && !hasStages) return null;
                 if (dim === "trade" && !hasTrades) return null;
                 if (dim === "supplier" && !hasSuppliers) return null;
+                if (dim === "costCentre" && !hasCostCentres) return null;
                 return (
                   <button
                     key={dim}
@@ -631,6 +648,15 @@ export function BillOfQuantities({
               onToggle={(v) => toggleSetFilter(selectedTrades, v, setSelectedTrades)}
               placeholder="Trade..."
               label="Trade"
+            />
+          )}
+          {hasCostCentres && (
+            <MultiSelectFilter
+              values={uniqueCostCentres}
+              selected={selectedCostCentres}
+              onToggle={(v) => toggleSetFilter(selectedCostCentres, v, setSelectedCostCentres)}
+              placeholder="Cost Centre..."
+              label="Cost Centre"
             />
           )}
           {(hasActiveFilters || sortState) && (

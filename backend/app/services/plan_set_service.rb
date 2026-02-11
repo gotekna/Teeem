@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "hexapdf"
-
 # Service for processing multi-page PDF plan sets
 # Uploads to storage and extracts individual pages with AI-named files
 #
@@ -172,6 +170,7 @@ class PlanSetService
     @uploaded_file.rewind
 
     # Parse with HexaPDF
+    require "hexapdf"
     doc = HexaPDF::Document.new(io: StringIO.new(content))
     page_count = doc.pages.count
 

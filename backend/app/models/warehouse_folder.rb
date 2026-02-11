@@ -26,7 +26,7 @@ class WarehouseFolder < ApplicationRecord
   # Multi-tenancy - REQUIRED for all warehouse_folders
   acts_as_tenant :tenant
   include ConfigSyncable
-  self.sync_key_source = [:warehouse_type, :tab_key]
+  self.sync_key_source = [:warehouse_type_code, :tab_key]
 
   # Dynamic tokens that generate virtual folder structure from database
   DYNAMIC_TOKENS = {
@@ -98,7 +98,7 @@ class WarehouseFolder < ApplicationRecord
   scope :with_document_types, -> { where(warehouse_enabled: true) }
   scope :for_tab_group, ->(group) { where(tab_group: group) }
   scope :for_entity_type, ->(entity_type) {
-    where("entity_filters @> ARRAY[?]::varchar[] OR entity_filters = '{}'", entity_type)
+    where("warehouse_folders.entity_filters @> ARRAY[?]::varchar[] OR warehouse_folders.entity_filters = '{}'", entity_type)
   }
 
   # Convenience scopes for common warehouse types (backwards compatibility)

@@ -17,11 +17,9 @@ class Contact < ApplicationRecord
   end
 
   # Searchable columns for full-text search (GIN index)
-  # Note: email/mobile_phone columns removed - data now in contact_emails/contact_phones tables
   searchable_columns :first_name, :last_name, :company_name_or_trust, :display_name, :abn
 
   # Exclude soft-deleted contacts by default
-  # Note: deleted column was removed in migration 20251210093313
   # All contacts are now considered active unless is_active=false
   # default_scope { where(deleted: [ false, nil ]) }
 
@@ -74,7 +72,7 @@ class Contact < ApplicationRecord
   # For new code, use:
   #   - employers method (reads from relationships)
   #   - outgoing_relationships.where(relationship_type: "employee_of")
-  # See: lib/tasks/ensure_contact_relationships.rake for audit/backfill tools
+
   belongs_to :primary_company, class_name: "Contact", optional: true, counter_cache: :employees_count
   has_many :employees, class_name: "Contact", foreign_key: :primary_company_id, dependent: :nullify
 
@@ -161,10 +159,7 @@ class Contact < ApplicationRecord
   has_many :saas_labour_cost_entries, class_name: "LabourCostEntry", foreign_key: :saas_customer_id
   has_many :saas_site_presence_sessions, class_name: "SitePresenceSession", foreign_key: :saas_customer_id
 
-  # Encrypted TFN for directors
-  # NOTE: tfn column was removed in migration 20251210093313
-  # TFN is now stored in Corporate.tfn instead
-  # encrypts :tfn, deterministic: true
+  # TFN for directors is stored in Corporate.tfn (not on Contact)
 
   # Constants
   ROLES = %w[Employee sales land_agent Director Company_Secretary Public_Officer CEO GM Owner].freeze
@@ -209,7 +204,6 @@ class Contact < ApplicationRecord
   # contact_addresses table is the SSoT for all address data.
   # These helper methods read from the SSoT table and provide
   # a uniform interface for document templates and display.
-  # Legacy columns (address, city, state, postcode) have been removed.
 
   # Primary address lookup (cached per request)
   def primary_street_address
@@ -501,10 +495,7 @@ class Contact < ApplicationRecord
   ].freeze
 
   # Validations
-  # NOTE: Email validation removed - now handled at SSoT level (ContactEmail model)
-  # The :email getter returns data from contact_emails table, not a column
   validate :roles_must_be_valid
-  # Note: primary_contact_type column removed - use roles[0] instead
 
   # Entity type validation
   validates :entity_type, presence: { message: "must be selected" },

@@ -164,7 +164,7 @@ sleep 1
 
 DEPLOY_DIR=$(mktemp -d)
 # FIX (Feb 2026): Use rsync to copy ALL files including hidden (.slugignore)
-rsync -a --exclude='.git' backend/ "$DEPLOY_DIR/"
+rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
 
 # VERIFICATION: Check that latest changes are in copied directory
 # Compare git HEAD with copied files to ensure Edit tool changes are included
@@ -183,8 +183,15 @@ cd "$DEPLOY_DIR"
 git init
 git add .
 git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
+
+# Deploy to web app
 git remote add heroku https://git.heroku.com/teeem-staging.git
 git push heroku HEAD:main --force
+
+# Deploy to worker app (same code, separate slug with heavy gems)
+git remote add worker https://git.heroku.com/teeem-staging-worker.git
+git push worker HEAD:main --force
+
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 ```

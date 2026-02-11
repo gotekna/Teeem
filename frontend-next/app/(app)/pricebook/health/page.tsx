@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Accordion,
@@ -26,7 +26,6 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
-  Search,
   Package,
   Users,
   AlertTriangle,
@@ -240,19 +239,16 @@ function HealthCheckSection({
               </div>
             </button>
             {count > 0 && (
-              <div className="relative flex-1 max-w-xs ml-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search..."
-                  value={searchValue}
-                  onChange={(e) => onSearchChange(e.target.value)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isExpanded) onToggle();
-                  }}
-                  className="pl-9"
-                />
-              </div>
+              <SearchInput
+                className="flex-1 max-w-xs ml-4"
+                placeholder="Search..."
+                value={searchValue}
+                onChange={onSearchChange}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isExpanded) onToggle();
+                }}
+              />
             )}
           </div>
           {isExpanded && children && <div className="mt-4 ml-15">{children}</div>}

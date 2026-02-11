@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { AVAILABLE_ICONS, getIcon, ICON_MAP } from "@/lib/icon-map";
-import { Search, X, Check, Globe } from "lucide-react";
+import { X, Check, Globe } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 
 interface UsedIcon {
@@ -197,15 +197,12 @@ export function IconPicker({
         <PopoverContent className="w-[400px] p-0" align="start">
           {/* Search */}
           <div className="p-3 border-b">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search icons..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 h-9"
-              />
-            </div>
+            <SearchInput
+              placeholder="Search icons..."
+              value={search}
+              onChange={setSearch}
+              inputClassName="h-9"
+            />
           </div>
 
           {/* Icon grid by category */}

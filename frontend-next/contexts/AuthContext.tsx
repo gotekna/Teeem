@@ -21,11 +21,17 @@ interface AuthContextType {
   logout: () => void;
   refreshUser: () => Promise<void>;
   /** Handle token received from cross-domain redirect (stores token and verifies with API) */
-  handleTokenFromRedirect: (token: string, apiUrl?: string, environment?: string) => Promise<boolean>;
+  handleTokenFromRedirect: (token: string, apiUrl?: string, environment?: string, rememberMe?: boolean) => Promise<boolean>;
   loading: boolean;
   isAuthenticated: boolean;
   /** Get current API environment ('production', 'beta', 'staging') */
   getEnvironment: () => string;
+  /** True when user must change their temporary password before continuing */
+  forcePasswordChange: boolean;
+  /** The temp password used to login (needed for change_password API) */
+  tempPassword: string;
+  /** Called after successful password change to clear the force flag */
+  onPasswordChanged: (newToken: string) => void;
 }
 
 interface AuthResponse {
@@ -87,6 +93,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [tokenChecked, setTokenChecked] = useState(false);
+  const [forcePasswordChange, setForcePasswordChange] = useState(false);
+  const [tempPassword, setTempPassword] = useState("");
 
   // Prevent duplicate auth checks (React StrictMode double-mount)
   const authCheckingRef = useRef(false);
@@ -167,20 +175,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       const response = await api.get<AuthResponse>('/api/v1/auth/me');
       if (response.success && response.user) {
-        // ⚠️ DO NOT REDIRECT based on frontend_url (Jan 2026)
+        // ⚠️ DO NOT REDIRECT in checkAuth (Feb 2026)
         // ════════════════════════════════════════════════════════════════════
-        // Why: Developers need to work on ANY environment (production, beta,
-        // staging, local, sam-dev, rob-dev) without being forced to one.
-        //
-        // Root cause of "hard refresh logs me out" bug:
-        // 1. Hard refresh clears localStorage
-        // 2. Cookie recovery restores token ✅
-        // 3. checkAuth() was redirecting to different domain based on tenant's api_environment
-        // 4. On new domain, cookie doesn't exist (cookies are domain-specific!)
-        // 5. User appears logged out
-        //
-        // Fix: Stay on current frontend. The stored api_url determines which
-        // backend to use - frontend_url redirect is unnecessary and harmful.
+        // Environment redirect happens ONLY at login time (with token passthrough).
+        // checkAuth runs on page refresh - the user is already on the correct
+        // frontend, so redirecting here would cause the cross-domain cookie loss
+        // bug (Jan 2026). Stay on current frontend; stored api_url determines
+        // which backend to use.
         // ════════════════════════════════════════════════════════════════════
 
         setUser(response.user);
@@ -189,6 +190,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Theme is applied on login, so checkAuth (which runs on page refresh) should not re-apply
         // This allows users to temporarily toggle theme without it reverting on every modal open
         // applyUserTheme(response.user); // REMOVED - only apply on login, not on auth check
+
+        // Check force_password_change on session restore (Feb 2026)
+        if (response.user.force_password_change) {
+          setForcePasswordChange(true);
+        }
+
         // Load column type definitions from SSoT (fires in background)
         loadTypeDefinitions();
       } else {
@@ -235,11 +242,39 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       if (response?.success && response.token && response.user) {
-        // ⚠️ DO NOT REDIRECT based on frontend_url (Jan 2026)
-        // Same reason as checkAuth - developers need to work on any environment.
-        // The api_url from response will be stored and used for all API calls,
-        // so the user will talk to the correct backend regardless of which
-        // frontend they're on.
+        // ⚠️ DO NOT SIMPLIFY - Cross-domain redirect with token passthrough (Feb 2026)
+        // ════════════════════════════════════════════════════════════════════
+        // Why: When a user's tenant is configured for staging/beta, the login
+        // happens on the production frontend but should redirect to the correct
+        // frontend (e.g., teeem-staging.vercel.app).
+        //
+        // History: Jan 2026 disabled redirects because cookies are domain-specific -
+        // redirecting to a new domain lost the auth cookie, causing "hard refresh
+        // logs me out" bug.
+        //
+        // Fix: Pass the token via URL params during redirect. The target frontend's
+        // login page picks it up and sets its own cookie on the correct domain.
+        // ════════════════════════════════════════════════════════════════════
+        if (response.frontend_url && typeof window !== 'undefined') {
+          const currentOrigin = window.location.origin;
+          const targetUrl = new URL(response.frontend_url);
+          const targetOrigin = targetUrl.origin;
+
+          if (currentOrigin !== targetOrigin) {
+            // Redirect to target frontend with token in URL params
+            // The login page on the target handles ?token=xxx via handleTokenFromRedirect
+            const params = new URLSearchParams({
+              token: response.token,
+              redirect: '/dashboard',
+            });
+            if (response.api_url) params.set('api_url', response.api_url);
+            if (response.environment) params.set('environment', response.environment);
+            if (rememberMe) params.set('remember', '1');
+
+            window.location.href = `${targetOrigin}/login?${params.toString()}`;
+            return { success: true };
+          }
+        }
 
         setAuthToken(response.token, rememberMe);
         setToken(response.token);
@@ -253,6 +288,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
         if (response.environment) {
           setEnvironment(response.environment);
+        }
+
+        // Check if user must change their temporary password (Feb 2026)
+        if (response.user.force_password_change) {
+          setForcePasswordChange(true);
+          setTempPassword(password);
         }
 
         // Load column type definitions from SSoT (fires in background)
@@ -322,6 +363,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Get the current API environment
   const getEnvironment = () => getCurrentEnvironment();
 
+  // Called after user successfully changes their forced temp password
+  const onPasswordChanged = (newToken: string) => {
+    setForcePasswordChange(false);
+    setTempPassword("");
+    setAuthToken(newToken);
+    setToken(newToken);
+  };
+
   const refreshUser = async () => {
     if (devModeBypass) {
       // In dev mode, just keep the mock user
@@ -335,10 +384,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const handleTokenFromRedirect = async (
     tokenFromUrl: string,
     apiUrl?: string,
-    environment?: string
+    environment?: string,
+    rememberMe?: boolean
   ): Promise<boolean> => {
-    // Store the token
-    setAuthToken(tokenFromUrl);
+    // Store the token (with rememberMe for correct cookie expiry)
+    setAuthToken(tokenFromUrl, rememberMe);
     setToken(tokenFromUrl);
 
     // Store api_url and environment if provided
@@ -379,7 +429,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     handleTokenFromRedirect,
     loading,
     isAuthenticated: !!user,
-    getEnvironment
+    getEnvironment,
+    forcePasswordChange,
+    tempPassword,
+    onPasswordChanged,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

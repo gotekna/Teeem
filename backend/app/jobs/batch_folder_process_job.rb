@@ -27,8 +27,7 @@ class BatchFolderProcessJob < ApplicationJob
 
     Rails.logger.info "[BatchFolderProcessJob] Starting folder processing"
 
-    # TODO: Get pending files from PendingScanFile model
-    # For now, this is a placeholder
+    # TODO: Get pending files from PendingScanFile model (not yet created)
     pending_files = []
 
     @operation.start_processing!(total: pending_files.count)

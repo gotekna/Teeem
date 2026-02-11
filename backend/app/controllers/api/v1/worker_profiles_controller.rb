@@ -145,8 +145,7 @@ class Api::V1::WorkerProfilesController < ApplicationController
       }, status: :unprocessable_entity
     end
 
-    # TODO: Call AWS Rekognition for face comparison
-    # For now, return placeholder response
+    # TODO: Call AWS Rekognition for face comparison (returns placeholder for now)
     render json: {
       success: true,
       data: {
@@ -254,9 +253,7 @@ class Api::V1::WorkerProfilesController < ApplicationController
   end
 
   def upload_photo(photo)
-    # TODO: Implement actual upload to S3/Cloudinary
-    # For now, return nil to indicate failure
-    # In production, this would upload the photo and return the URL
+    # TODO: Implement upload to S3/Cloudinary
     nil
   end
 end

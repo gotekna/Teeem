@@ -33,7 +33,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { Plus, Pencil, Trash2, Lock, FolderOpen, Search, ArrowUpDown, ArrowUp, ArrowDown, Mail, Zap, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, FolderOpen, ArrowUpDown, ArrowUp, ArrowDown, Mail, Zap, ChevronRight, ChevronDown } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { TabTypeBadge } from "@/components/ui/tab-type-badge";
 import { deriveTabType } from "@/lib/constants/tab-types";
 import { toast } from "sonner";
@@ -552,15 +553,12 @@ export function WarehouseFoldersTab() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search folders..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 w-[180px]"
-            />
-          </div>
+          <SearchInput
+            placeholder="Search folders..."
+            value={searchQuery}
+            onChange={setSearchQuery}
+            inputClassName="w-[180px]"
+          />
           <div className="flex items-center gap-2">
             <Label htmlFor="filter-type" className="text-sm whitespace-nowrap">
               Type:

@@ -6,7 +6,7 @@
 # See: .claude/plans/piped-orbiting-whisper.md
 #
 class Api::V1::CostCentresController < ApplicationController
-  before_action :set_cost_centre, only: [:show, :update, :destroy, :report, :pnl]
+  before_action :set_cost_centre, only: [:show, :update, :destroy, :report, :pnl, :assign_po_tasks]
 
   # GET /api/v1/cost_centres
   def index
@@ -146,6 +146,50 @@ class Api::V1::CostCentresController < ApplicationController
       success: true,
       data: pnl_data
     }
+  end
+
+  # GET /api/v1/cost_centres/po_tasks
+  # Returns all SmScheduleMaster records where po_required=true, with current cost centre assignment
+  def po_tasks
+    tasks = SmScheduleMaster.where(po_required: true).order(:task_number, :name)
+
+    # Build a lookup of cost centre names for display
+    cost_centre_ids = tasks.pluck(:cost_centre).compact.uniq
+    cost_centre_names = CostCentre.where(id: cost_centre_ids).pluck(:id, :name).to_h
+
+    render json: {
+      success: true,
+      data: tasks.map { |t|
+        {
+          id: t.id,
+          name: t.name,
+          taskNumber: t.task_number,
+          costCentreId: t.cost_centre,
+          costCentreName: t.cost_centre.present? ? cost_centre_names[t.cost_centre] : nil
+        }
+      }
+    }
+  end
+
+  # POST /api/v1/cost_centres/:id/assign_po_tasks
+  # Accepts { po_task_ids: [1, 2, 3] } and updates SmScheduleMaster.cost_centre
+  def assign_po_tasks
+    po_task_ids = params[:po_task_ids] || []
+
+    ActiveRecord::Base.transaction do
+      # Clear tasks previously assigned to this cost centre but no longer in the list
+      SmScheduleMaster.where(cost_centre: @cost_centre.id)
+                      .where.not(id: po_task_ids)
+                      .update_all(cost_centre: nil)
+
+      # Assign the specified tasks to this cost centre
+      if po_task_ids.present?
+        SmScheduleMaster.where(id: po_task_ids)
+                        .update_all(cost_centre: @cost_centre.id)
+      end
+    end
+
+    render json: { success: true, message: "PO tasks updated" }
   end
 
   private

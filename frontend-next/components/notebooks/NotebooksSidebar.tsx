@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
 import {
   ChevronDown,
@@ -18,7 +19,6 @@ import {
   Pencil,
   Trash2,
   FolderPlus,
-  Search,
   X,
   GripVertical,
   MoveRight,
@@ -415,18 +415,20 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
       {/* Search */}
       <div className="px-3 py-2 border-b">
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
+          <SearchInput
             value={searchQuery}
-            onChange={handleSearchChange}
+            onChange={(val) => {
+              setSearchQuery(val);
+              debouncedSetQuery(val);
+            }}
             placeholder="Search notes..."
-            className="h-8 pl-8 pr-8 text-sm"
+            inputClassName="h-8 pr-8 text-sm"
           />
           {searchQuery && (
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 z-10"
               onClick={clearSearch}
             >
               <X className="h-3.5 w-3.5" />

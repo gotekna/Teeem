@@ -42,8 +42,6 @@ class PayNowRequest < ApplicationRecord
   belongs_to :invoice_blob, class_name: "StorageBlob", optional: true
   # proof_photo_blob_ids is a JSONB array of StorageBlob IDs
 
-  # ActiveStorage attachments REMOVED (Jan 2026) - violated SSoT.
-
   # Validations
   validates :original_amount, presence: true, numericality: { greater_than: 0 }
   validates :discount_percentage, presence: true, numericality: {

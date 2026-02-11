@@ -49,6 +49,8 @@ interface XeroStatus {
   connected_at?: string;
   expires_at?: string;
   expired?: boolean;
+  total?: number;
+  needs_attention?: number;
 }
 
 interface XeroTenant {
@@ -139,8 +141,9 @@ export default function XeroIntegrationPage() {
         const statusResponse = await api.xero.getStatus();
         setStatus(statusResponse.data || { connected: false });
 
-        // Fetch all tenants, PDF sync status, and company connections if connected
-        if (statusResponse.data?.connected) {
+        // Fetch tenants, PDF sync status, and company connections if connected OR has existing credentials
+        const hasCredentials = statusResponse.data?.connected || (statusResponse.data?.total && statusResponse.data.total > 0);
+        if (hasCredentials) {
           const [tenantsResponse, pdfSyncResponse, connectionsResponse] = await Promise.all([
             api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants"),
             api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"),
@@ -232,7 +235,7 @@ export default function XeroIntegrationPage() {
               const statusResponse = await api.xero.getStatus();
               setStatus(statusResponse.data || { connected: false });
 
-              if (statusResponse.data?.connected) {
+              if (statusResponse.data?.connected || (statusResponse.data?.total && statusResponse.data.total > 0)) {
                 const [tenantsResponse, connectionsResponse] = await Promise.all([
                   api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants"),
                   api.get<{ success: boolean; companies: CompanyXeroConnection[] }>("/api/v1/company_xero_connections"),
@@ -444,6 +447,11 @@ export default function XeroIntegrationPage() {
                       Connected
                     </Badge>
                   )
+                ) : tenants.length > 0 ? (
+                  <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 hover:bg-orange-100">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Needs Re-auth
+                  </Badge>
                 ) : (
                   <Badge variant="secondary">
                     <XCircle className="h-3 w-3 mr-1" />
@@ -453,7 +461,7 @@ export default function XeroIntegrationPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {status?.connected ? (
+              {status?.connected || tenants.length > 0 ? (
                 <div className="flex items-center gap-2">
                   {/* Only show Manage Company Connections for master tenant (admin) */}
                   {isMasterTenant && (
@@ -502,7 +510,7 @@ export default function XeroIntegrationPage() {
           </Card>
 
           {/* Connected Xero Organizations - Collapsible Section */}
-          {status?.connected && tenants.length > 0 && (
+          {tenants.length > 0 && (
             <div className="border rounded-lg bg-card">
               <button
                 onClick={() => setOrganizationsExpanded(!organizationsExpanded)}

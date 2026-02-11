@@ -73,9 +73,9 @@ import {
   Globe,
   User,
   Check,
-  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { useFoundationColumns } from "@/lib/column-state-atoms";
@@ -93,7 +93,7 @@ import { SortableSortByItem } from "./SortableSortByItem";
 import { SortableGroupByItem } from "./SortableGroupByItem";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import { useContactChoices } from "@/hooks/useContactChoices";
-import { isLookupColumn as checkIsLookup, isChoiceColumn as checkIsChoice } from "@/lib/constants/column-types";
+import { isLookupColumn as checkIsLookup, isChoiceColumn as checkIsChoice, isNumericColumn, isBooleanColumn } from "@/lib/constants/column-types";
 
 // Column interface for view manager
 interface Column {
@@ -173,15 +173,12 @@ export function ViewManagerSheet({
   const safeColumns = Array.isArray(columns) ? columns : [];
   const effectiveColumns = safeAllFoundationColumns.length > 0 ? safeAllFoundationColumns : safeColumns;
 
-  // Numeric column types that can have totals
-  const NUMERIC_TYPES = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
   const SKIP_COLUMNS = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'job_design_id', 'user_id'];
 
   // Get columns that can have totals (numeric types, not skipped)
   const numericColumns = React.useMemo(() => {
     return effectiveColumns.filter(col =>
-      col.column_type &&
-      NUMERIC_TYPES.includes(col.column_type) &&
+      isNumericColumn(col.column_type) &&
       !SKIP_COLUMNS.includes(col.column_name)
     );
   }, [effectiveColumns]);
@@ -815,9 +812,7 @@ export function ViewManagerSheet({
     const columnType = column.column_type?.toLowerCase() || '';
     const isLookup = checkIsLookup(columnType);
     const isChoice = checkIsChoice(columnType);
-    const isBooleanColumn = columnType === 'boolean';
-
-    if (isBooleanColumn) {
+    if (isBooleanColumn(columnType)) {
       return (
         <Select
           value={filter.value === true ? "true" : filter.value === false ? "false" : ""}
@@ -1807,12 +1802,11 @@ export function ViewManagerSheet({
                         </div>
                         {columnsExpanded && (
                           <div className="relative mb-3 shrink-0">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                            <Input
+                            <SearchInput
                               placeholder="Search columns..."
                               value={columnSearch}
-                              onChange={(e) => setColumnSearch(e.target.value)}
-                              className="h-8 pl-8 pr-8 text-sm"
+                              onChange={setColumnSearch}
+                              inputClassName="h-8 pr-8 text-sm"
                             />
                             {columnSearch && (
                               <button

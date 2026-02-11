@@ -58,6 +58,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { StorageCostTab } from "./StorageCostTab";
+import { BackupSettingsTab } from "./BackupSettingsTab";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1757,7 +1758,7 @@ function EmailMigrationCard() {
   }
 
   if (!storageUpload || storageUpload.uploadable === 0) {
-    return null; // Don't show card if no emails to migrate
+    return <></>; // No emails to migrate - render empty to maintain consistent component tree
   }
 
   const isComplete = storageUpload.upload_rate >= 100;
@@ -1942,7 +1943,7 @@ function AttachmentDeduplicationCard() {
   }
 
   if (!attachments || attachments.total === 0) {
-    return null;
+    return <></>; // No attachments to process - render empty to maintain consistent component tree
   }
 
   const isComplete = attachments.migration_rate >= 100;
@@ -2421,6 +2422,7 @@ const CONNECTIONS_SUB_TABS = [
   { id: "integrations", label: "Integrations" },
   { id: "migration", label: "Migration" },
   { id: "costs", label: "Cost Comparison" },
+  { id: "backups", label: "Backups" },
 ];
 
 // SSoT: Connections is now top-level in Settings (Jan 2026)
@@ -2468,6 +2470,9 @@ export function ConnectionsTab({ subTab, basePath = DEFAULT_CONNECTIONS_BASE_PAT
       </TabsContent>
       <TabsContent value="costs">
         <StorageCostTab />
+      </TabsContent>
+      <TabsContent value="backups">
+        <BackupSettingsTab />
       </TabsContent>
     </Tabs>
   );

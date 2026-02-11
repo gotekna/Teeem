@@ -10,6 +10,7 @@ import {
   SYSTEM_GENERATED_TYPES as _SYSTEM_GENERATED_TYPES,
   SYSTEM_VISIBLE_COLUMNS,
 } from "@/lib/constants/system-columns";
+import { isNumericColumn } from '@/lib/constants/column-types';
 
 // ============================================================================
 // CONSTANTS (SSoT: Re-exported from @/lib/constants/system-columns)
@@ -452,7 +453,7 @@ export function calculateColumnStats(
     count: data.length,
   };
 
-  if (['number', 'whole_number', 'currency', 'percentage'].includes(columnType)) {
+  if (isNumericColumn(columnType)) {
     const values = data
       .map(row => row[columnKey])
       .filter(v => typeof v === 'number' || !isNaN(Number(v)))

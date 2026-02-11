@@ -46,6 +46,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { parseISO } from "date-fns";
 import { clearCachedRecords } from "@/lib/records-cache";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 
 interface Job {
   id: number;
@@ -1432,7 +1433,7 @@ export default function SchedulePage() {
       <div className="flex-1 -mx-4">
         <TeeemTableView
           key={refreshKey}
-          foundationId="sm-tasks"
+          foundationId={FOUNDATION_SLUGS.SM_TASKS}
           autoFetchRecords={true}
           initialFilters={[
             { id: "job-filter", column: "job_id", operator: "=", value: String(jobId) }

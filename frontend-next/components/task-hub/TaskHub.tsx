@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTaskHub, ViewType } from '@/contexts/TaskHubContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { SearchInput } from '@/components/ui/search-input';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import {
@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Search,
   LayoutGrid,
   List,
   User,
@@ -134,15 +133,13 @@ export function TaskHub() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative w-48">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Search..."
-              value={filters.search}
-              onChange={(e) => setFilters({ search: e.target.value })}
-              className="pl-7 h-8 text-sm"
-            />
-          </div>
+          <SearchInput
+            className="w-48"
+            placeholder="Search..."
+            value={filters.search}
+            onChange={(value) => setFilters({ search: value })}
+            inputClassName="h-8 text-sm"
+          />
           <TaskColorSettingsDialog onSettingsChange={handleColorSettingsChange} />
           <Button variant="ghost" size="sm" onClick={refresh} className="h-8 w-8 p-0">
             <RefreshCw className="h-3.5 w-3.5" />

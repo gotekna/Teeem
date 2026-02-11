@@ -18,7 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 import { ComboboxDropdown } from '@/components/ui/combobox-dropdown';
 import { Spinner } from "@/components/ui/spinner";
-import { isLookupColumn, isChoiceColumn } from '@/lib/constants/column-types';
+import { isLookupColumn, isChoiceColumn, isBooleanColumn } from '@/lib/constants/column-types';
 import type { TableColumn } from '../types';
 
 export interface BulkUpdateModalProps {
@@ -209,7 +209,7 @@ export function BulkUpdateModal({
                       emptyResults="No options available"
                     />
                   );
-                } else if (selectedCol?.column_type === 'boolean') {
+                } else if (isBooleanColumn(selectedCol?.column_type)) {
                   // Dropdown for boolean (only 2 options, no search needed)
                   return (
                     <Select

@@ -462,6 +462,7 @@ Use `[id]` pattern for dynamic routes:
 | Integrations | `/settings/connections/integrations` | Xero, Cloudflare |
 | Migration | `/settings/connections/migration` | Email migration, attachment deduplication, document migration |
 | Cost Comparison | `/settings/connections/costs` | Storage cost comparison |
+| Backups | `/settings/connections/backups` | Backup configuration, scheduling, mirroring (e.g., Wasabi → Backblaze B2) |
 
 ### Company Sub-tabs Detail
 | Sub-tab | URL | Contains |
@@ -644,7 +645,7 @@ staging → beta → production
 cd /Users/robertharder/GitHub/teeem
 DEPLOY_DIR=$(mktemp -d)
 # Use rsync to include hidden files like .slugignore
-rsync -a --exclude='.git' backend/ "$DEPLOY_DIR/"
+rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
 cd "$DEPLOY_DIR" && git init && git add . && git commit -m "Fix deploy"
 git remote add heroku https://git.heroku.com/teeem-production.git
 git push heroku HEAD:main --force

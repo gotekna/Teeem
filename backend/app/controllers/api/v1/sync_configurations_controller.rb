@@ -161,7 +161,6 @@ module Api
 
       def calculate_pending_changes(links)
         # TODO: Compare TEEEM data with cached Xero data to determine pending changes
-        # For now, return placeholder counts
         {
           will_import: 0,
           will_export: 0,

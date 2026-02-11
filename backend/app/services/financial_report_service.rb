@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "hexapdf"
-
 # Generates PDF financial reports (P&L, Balance Sheet) from Xero data
 # SSoT: Single service for all financial report types
 class FinancialReportService
@@ -41,6 +39,7 @@ class FinancialReportService
   private
 
   def build_pdf
+    require "hexapdf"
     doc = HexaPDF::Document.new
     canvas = doc.pages.add(:A4).canvas
     draw_header(canvas)

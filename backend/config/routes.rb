@@ -8,6 +8,7 @@ Rails.application.routes.draw do
   # API health check
   get "/health", to: "health#index"
   get "/version", to: "health#version"
+  get "/worker_health", to: "health#worker_status"
   post "/version/increment", to: "health#increment_version"
 
   # ActionCable WebSocket endpoint
@@ -23,6 +24,13 @@ Rails.application.routes.draw do
       resources :search, only: [:index, :show] do
         collection do
           get :types
+        end
+      end
+
+      # Async PDF Generation
+      resources :pdf_generations, only: [:create, :show] do
+        member do
+          get :download
         end
       end
 
@@ -292,6 +300,7 @@ Rails.application.routes.draw do
       get "auth/dev_login", to: "authentication#dev_login"  # Dev mode only
       get "auth/users", to: "authentication#users"  # Admin: list users for impersonation
       post "auth/impersonate/:user_id", to: "authentication#impersonate"  # Admin: impersonate user
+      post "auth/change_password", to: "authentication#change_password"  # Forced password change
 
       # Import routes
       post "imports/upload", to: "imports#upload"
@@ -447,6 +456,8 @@ Rails.application.routes.draw do
           post :pull
           post :push  # TEEEM staff only - push records to master
           post :auto_sync_compulsory  # Auto-sync all compulsory records from master
+          post :pull_all  # Fresh pull of ALL records from ALL tables
+          post :pull_one_table  # Pull a single table (for live progress)
         end
       end
       delete "job_status_stages/:id", to: "job_status_stages#destroy"
@@ -1228,6 +1239,7 @@ Rails.application.routes.draw do
         end
         member do
           get :signature_usages, to: "signature_usages#user_history"
+          post :send_invite
         end
       end
 
@@ -2084,10 +2096,12 @@ Rails.application.routes.draw do
       resources :cost_centres, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           get :tree
+          get :po_tasks
         end
         member do
           get :report
           get :pnl
+          post :assign_po_tasks
         end
       end
 
@@ -2871,6 +2885,7 @@ Rails.application.routes.draw do
           get :shareholders
           get :investments
           get :trust_roles  # SSoT: Trustee, Beneficiaries, Appointor for Trust/Superfund entities
+          post :director_changes  # ASIC Form 484 director change package generation + e-signature
           get :data_stats   # Data warehouse statistics for this company
           get :warehouse_health   # Data warehouse health checks for this company
           get :health   # Single company health score (fast - loads only this company)
@@ -4385,9 +4400,6 @@ Rails.application.routes.draw do
       # Admin API (TEEEM staff internal tools)
       # =============================================================
       namespace :admin do
-        # TEMPORARY: Task #2236 file re-upload (delete after use)
-        # POST /api/v1/admin/task2236_upload -> Upload missing file for Task #2236
-        post "task2236_upload", to: "task2236_upload#create"
 
         # Tenant Management (multi-tenancy)
         # GET    /api/v1/admin/tenants          -> List all tenants (TEEEM staff only)

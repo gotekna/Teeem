@@ -20,10 +20,13 @@ interface TenantSwitcherProps {
 }
 
 /**
- * TenantSwitcher - Admin component for switching between tenants
+ * TenantSwitcher - Component for switching between tenants
  *
- * Only visible to TEEEM staff (users with @teeem.com.au email or super_admin role).
- * Displays a yellow banner/dropdown to indicate admin is viewing as a different tenant.
+ * Visible to:
+ * - TEEEM staff (users with @teeem.com.au email or super_admin role) - access all tenants
+ * - Multi-tenant users (same email exists on multiple tenants) - access only those tenants
+ *
+ * Displays a yellow banner/dropdown to indicate user is viewing as a different tenant.
  */
 export function TenantSwitcher({ className, compact = false }: TenantSwitcherProps) {
   const {
@@ -36,8 +39,8 @@ export function TenantSwitcher({ className, compact = false }: TenantSwitcherPro
     clearTenantOverride,
   } = useTenant();
 
-  // Only show for TEEEM staff
-  if (!isTeeemStaff) {
+  // Only show if user can switch tenants (TEEEM staff or multi-tenant user)
+  if (!canSwitchTenants) {
     return null;
   }
 

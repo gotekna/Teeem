@@ -1,0 +1,117 @@
+<% # Consent to Act as Director - ASIC Form 484 Package %>
+<% # Template variables: company, director, positions, appointment_date, appointment_date_formatted %>
+
+<div class="page">
+  <div style="text-align: center; margin-bottom: 30px;">
+    <h1 style="font-size: 18pt; margin-bottom: 5px;">CONSENT TO ACT AS DIRECTOR</h1>
+    <p class="small-text">Section 201D, Corporations Act 2001</p>
+  </div>
+
+  <div class="section">
+    <h3 style="margin-bottom: 10px;">Company Details</h3>
+    <table style="border: none;">
+      <tr>
+        <td style="border: none; width: 180px; padding: 4px 8px;"><strong>Company Name:</strong></td>
+        <td style="border: none; padding: 4px 8px;"><%= company[:name] %></td>
+      </tr>
+      <% if company[:acn].present? %>
+      <tr>
+        <td style="border: none; padding: 4px 8px;"><strong>ACN:</strong></td>
+        <td style="border: none; padding: 4px 8px;"><%= company[:formatted_acn] %></td>
+      </tr>
+      <% end %>
+      <% if company[:abn].present? %>
+      <tr>
+        <td style="border: none; padding: 4px 8px;"><strong>ABN:</strong></td>
+        <td style="border: none; padding: 4px 8px;"><%= company[:formatted_abn] %></td>
+      </tr>
+      <% end %>
+    </table>
+  </div>
+
+  <div class="section">
+    <h3 style="margin-bottom: 10px;">Appointee Details</h3>
+    <table style="border: none;">
+      <tr>
+        <td style="border: none; width: 180px; padding: 4px 8px;"><strong>Full Name:</strong></td>
+        <td style="border: none; padding: 4px 8px;"><%= director[:full_name] %></td>
+      </tr>
+      <% if director[:date_of_birth].present? %>
+      <tr>
+        <td style="border: none; padding: 4px 8px;"><strong>Date of Birth:</strong></td>
+        <td style="border: none; padding: 4px 8px;"><%= director[:date_of_birth] %></td>
+      </tr>
+      <% end %>
+      <% if director[:address].present? %>
+      <tr>
+        <td style="border: none; padding: 4px 8px;"><strong>Residential Address:</strong></td>
+        <td style="border: none; padding: 4px 8px;"><%= director[:address] %></td>
+      </tr>
+      <% end %>
+    </table>
+  </div>
+
+  <div class="section">
+    <h3 style="margin-bottom: 10px;">Positions</h3>
+    <p style="margin-bottom: 10px;">I consent to act in the following position<%= positions.length > 1 ? "s" : "" %>:</p>
+    <ul style="margin: 10px 0 10px 30px;">
+      <% positions.each do |position| %>
+        <li style="margin-bottom: 5px;"><%= position.titleize.gsub("_", " / ") %></li>
+      <% end %>
+    </ul>
+    <p><strong>Effective from:</strong> <%= appointment_date_formatted %></p>
+  </div>
+
+  <div class="section">
+    <h3 style="margin-bottom: 10px;">Declaration</h3>
+    <p style="margin-bottom: 10px;">
+      I, <strong><%= director[:full_name] %></strong>, consent to act as
+      <%= positions.map { |p| p.titleize.gsub("_", " / ") }.join(" and ") %>
+      of <strong><%= company[:name] %></strong>
+      <% if company[:acn].present? %>(ACN <%= company[:formatted_acn] %>)<% end %>.
+    </p>
+
+    <p style="margin-bottom: 10px;">
+      In giving my consent, I confirm that:
+    </p>
+
+    <ol style="margin: 10px 0 10px 30px;">
+      <li style="margin-bottom: 8px;">
+        I am not disqualified from managing corporations under Part 2D.6 of the
+        Corporations Act 2001.
+      </li>
+      <li style="margin-bottom: 8px;">
+        I have not been disqualified from managing an Aboriginal and Torres Strait
+        Islander corporation under the Corporations (Aboriginal and Torres Strait
+        Islander) Act 2006.
+      </li>
+      <li style="margin-bottom: 8px;">
+        I understand the obligations and duties of a director under the Corporations
+        Act 2001 and general law.
+      </li>
+    </ol>
+  </div>
+
+  <!-- Signature Block -->
+  <div style="margin-top: 40px;">
+    <table style="width: 100%; border: none;">
+      <tr>
+        <td style="width: 50%; border: none; padding: 0;">
+          <div class="field-label">Signature:</div>
+          <div class="signature-box" style="margin-top: 5px;"></div>
+        </td>
+        <td style="width: 50%; border: none; padding: 0;">
+          <div class="field-label">Date:</div>
+          <div style="border-bottom: 1px solid #000; min-width: 200px; min-height: 30px; margin-top: 5px; padding: 5px;">
+            <%= appointment_date_formatted %>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <div style="margin-top: 20px;">
+      <div class="field-label">Full Name:</div>
+      <div class="field-value"><%= director[:full_name] %></div>
+    </div>
+  </div>
+</div>
