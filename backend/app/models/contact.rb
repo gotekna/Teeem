@@ -512,7 +512,8 @@ class Contact < ApplicationRecord
   # SSoT: contact_code is a database column (user-editable)
   # Default format: "C" + id (e.g., "C1310")
   # Auto-generated on create, can be customized by user
-  validates :contact_code, presence: true, uniqueness: true, on: :update
+  # FRC: Scope to active contacts only — inactive/deleted contacts must not block code reuse
+  validates :contact_code, presence: true, uniqueness: { conditions: -> { where(is_active: true) } }, on: :update
   after_create :generate_contact_code_if_blank
 
   # Entity-type specific name validations
