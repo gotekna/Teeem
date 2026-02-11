@@ -2282,6 +2282,7 @@ module Api
             {
               xero_contact_name: name,
               xero_contact_id: record.external_contact_id,
+              xero_inferred_type: infer_entity_type(name, xero_details),
               invoice_count: record.invoice_count,
               total_amount: record.total_amount&.to_f || 0,
               potential_matches: potential_matches,
@@ -3693,13 +3694,13 @@ module Api
         # Priority 1: Exact display_name match (with TRIM for whitespace normalization)
         exact = base_scope.where("LOWER(TRIM(display_name)) = ?", name_lower).first
         if exact
-          matches << { id: exact.id, name: exact.display_name, match_type: "exact", score: 100 }
+          matches << { id: exact.id, name: exact.display_name, entity_type: exact.entity_type, match_type: "exact", score: 100 }
         end
 
         # Priority 2: Exact company_name_or_trust match
         company_exact = base_scope.where("LOWER(TRIM(company_name_or_trust)) = ?", name_lower).first
         if company_exact && company_exact.id != exact&.id
-          matches << { id: company_exact.id, name: company_exact.display_name, match_type: "company_exact", score: 95 }
+          matches << { id: company_exact.id, name: company_exact.display_name, entity_type: company_exact.entity_type, match_type: "company_exact", score: 95 }
         end
 
         # Priority 3: Partial name match (TEEEM contains Xero name)
@@ -3709,7 +3710,7 @@ module Api
 
         partial.each do |p|
           score = calculate_name_similarity(name_lower, p.display_name&.downcase || "")
-          matches << { id: p.id, name: p.display_name, match_type: "partial", score: score }
+          matches << { id: p.id, name: p.display_name, entity_type: p.entity_type, match_type: "partial", score: score }
         end
 
         # Priority 3b: Reverse partial match (Xero name contains TEEEM name)
@@ -3727,7 +3728,7 @@ module Api
             teeem_name = p.display_name&.downcase || ""
             base_score = ((teeem_name.length.to_f / name_lower.length) * 100).round
             score = [base_score, 90].min # Cap at 90 since it's not exact
-            matches << { id: p.id, name: p.display_name, match_type: "partial", score: score }
+            matches << { id: p.id, name: p.display_name, entity_type: p.entity_type, match_type: "partial", score: score }
           end
         end
 
@@ -3748,12 +3749,37 @@ module Api
           end.sort_by { |m| -m[:score] }.first(5 - matches.size)
 
           scored_word_matches.each do |m|
-            matches << { id: m[:contact].id, name: m[:contact].display_name, match_type: "word", score: m[:score] }
+            matches << { id: m[:contact].id, name: m[:contact].display_name, entity_type: m[:contact].entity_type, match_type: "word", score: m[:score] }
           end
         end
 
         # Sort by score descending and return top 5
         matches.sort_by { |m| -m[:score] }.first(5)
+      end
+
+      # Infer entity type from Xero contact name and details
+      # Used to show what type the contact would be if imported
+      def infer_entity_type(name, xero_details = nil)
+        return nil if name.blank?
+
+        # Check if Xero has first_name/last_name (strong person signal)
+        if xero_details.is_a?(Hash)
+          has_person_fields = xero_details[:first_name].present? || xero_details[:last_name].present?
+          return 'person' if has_person_fields
+        end
+
+        # Company patterns
+        company_pattern = /\b(pty|ltd|limited|inc|corp|company|co\b|trust|trading|holdings|group|services|solutions|industries|enterprises|super|fund|association|council|government|dept|department)\b/i
+        return 'company' if name.match?(company_pattern)
+
+        # Name looks like a person (2-3 words, no business suffixes)
+        words = name.strip.split(/\s+/)
+        if words.length.between?(2, 3) && words.all? { |w| w.match?(/\A[A-Z][a-z]+\z/) }
+          return 'person'
+        end
+
+        # Single word or ambiguous - can't determine
+        nil
       end
 
       # Calculate simple similarity score between two names
