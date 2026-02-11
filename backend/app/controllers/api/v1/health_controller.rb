@@ -956,13 +956,13 @@ module Api
       end
 
       def get_pending_jobs_count
-        SolidQueue::Job.pending.count
+        SolidQueue::ReadyExecution.count
       rescue StandardError
         0
       end
 
       def get_failed_jobs_count
-        SolidQueue::Job.failed.count
+        SolidQueue::FailedExecution.count
       rescue StandardError
         0
       end

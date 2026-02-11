@@ -139,49 +139,89 @@ module Api
       end
 
       # GET /api/v1/system/queue_status
-      # Lightweight endpoint for header bar worker queue health indicator
+      # Throughput-aware endpoint for header bar worker queue health indicator
       def queue_status
-        worker_health = WorkerWatchdog.last_status
-        pending = get_pending_jobs_count
-        failed = get_failed_jobs_count
-        workers = get_active_workers
+        alive_cutoff = 5.minutes.ago
 
-        status = if worker_health[:status] == "dead" || workers == 0
-                   "error"
-                 elsif failed > 50 || pending > 500
-                   "degraded"
-                 elsif failed > 10 || pending > 100
-                   "degraded"
-                 else
-                   "connected"
-                 end
+        # 1. Process breakdown by kind (Worker/Dispatcher/Scheduler)
+        processes_raw = SolidQueue::Process
+          .where("last_heartbeat_at > ?", alive_cutoff)
+          .pluck(:kind, :last_heartbeat_at, :hostname)
 
-        top_failed = SolidQueue::FailedExecution
-          .joins(:job)
-          .select("solid_queue_jobs.class_name, COUNT(*) as count")
-          .group("solid_queue_jobs.class_name")
-          .order("count DESC")
-          .limit(5)
-          .map { |r| { class_name: r.class_name, count: r.count } }
+        processes = processes_raw
+          .group_by { |kind, _, _| kind }
+          .transform_values { |rows| { count: rows.size, latestHeartbeat: rows.map { |_, hb, _| hb }.max&.iso8601 } }
 
+        worker_count = processes.dig("Worker", :count) || 0
+
+        # 2. Execution counts (all indexed COUNTs on small tables)
+        pending = SolidQueue::ReadyExecution.count
+        running = SolidQueue::ClaimedExecution.count
+        failed = SolidQueue::FailedExecution.count
+        scheduled = SolidQueue::ScheduledExecution.count
+        blocked = SolidQueue::BlockedExecution.count
+
+        # 3. Throughput (last 5 min)
+        recent_completed = SolidQueue::Job.where("finished_at > ?", 5.minutes.ago).count
+        completed_per_min = (recent_completed / 5.0).round(1)
+
+        trend = if running == 0 && pending == 0
+                  "idle"
+                elsif running > 0 && (pending < 50 || completed_per_min > 0)
+                  pending > 100 ? "draining" : "idle"
+                elsif pending > 50 && running == 0
+                  "stuck"
+                else
+                  "stable"
+                end
+
+        # 4. Smart status
+        status_result = compute_queue_status(
+          worker_count: worker_count, pending: pending, running: running,
+          failed: failed, trend: trend
+        )
+
+        # 5. Queue depth by queue
         queue_depth = SolidQueue::ReadyExecution
           .joins(:job)
-          .select("solid_queue_jobs.queue_name, COUNT(*) as count")
           .group("solid_queue_jobs.queue_name")
-          .map { |r| { queue: r.queue_name, count: r.count } }
+          .count
+          .map { |queue, count| { queue: queue, count: count } }
+          .sort_by { |q| -q[:count] }
+
+        # 6. Paused queues
+        paused_queues = SolidQueue::Pause.pluck(:queue_name)
+
+        # 7. Top failed (only if failed > 0)
+        top_failed = if failed > 0
+          SolidQueue::FailedExecution
+            .joins(:job)
+            .select("solid_queue_jobs.class_name, COUNT(*) as count")
+            .group("solid_queue_jobs.class_name")
+            .order("count DESC")
+            .limit(5)
+            .map { |r| { className: r.class_name.delete_suffix("Job"), count: r.count } }
+        else
+          []
+        end
 
         render json: {
           success: true,
           data: {
-            status: status,
-            workers: workers,
+            status: status_result[:level],
+            statusMessage: status_result[:message],
+            processes: processes,
             pending: pending,
+            running: running,
             failed: failed,
-            lastHeartbeat: worker_health[:last_heartbeat],
-            stalenessSeconds: worker_health[:staleness_seconds],
-            topFailed: top_failed,
+            scheduled: scheduled,
+            blocked: blocked,
+            completedPerMin: completed_per_min,
+            trend: trend,
             queueDepth: queue_depth,
-            message: build_queue_message(status, workers, pending, failed)
+            pausedQueues: paused_queues,
+            topFailed: top_failed,
+            watchdog: WorkerWatchdog.last_status.slice(:status, :last_heartbeat, :staleness_seconds)
           }
         }
       rescue StandardError => e
@@ -312,19 +352,35 @@ module Api
         []
       end
 
-      def get_active_workers
-        SolidQueue::Process.where("last_heartbeat_at > ?", 5.minutes.ago).count
-      rescue StandardError => e
-        Rails.logger.debug "[SystemController] get_active_workers unavailable: #{e.message}"
-        0
-      end
-
-      def build_queue_message(status, workers, pending, failed)
-        case status
-        when "error" then "Workers down - #{workers} active"
-        when "degraded" then "Queue backed up - #{pending} pending, #{failed} failed"
-        else "#{workers} workers | #{pending} pending | #{failed} failed"
+      def compute_queue_status(worker_count:, pending:, running:, failed:, trend:)
+        # Error: no workers at all
+        if worker_count == 0
+          return { level: "error", message: "No workers running" }
         end
+
+        # Error: stuck - lots pending but nothing running
+        if trend == "stuck"
+          return { level: "error", message: "Queue stuck - #{pending} pending, none running" }
+        end
+
+        # Degraded: high failure count
+        if failed > 50
+          return { level: "degraded", message: "#{failed} failed jobs need attention" }
+        end
+
+        # Busy: actively processing a backlog
+        if pending > 50 && running > 0
+          return { level: "busy", message: "Processing - #{running} running, #{pending} queued" }
+        end
+
+        # Minor failures worth noting
+        if failed > 10
+          return { level: "busy", message: "#{failed} failed jobs" }
+        end
+
+        # Healthy
+        msg = running > 0 ? "#{worker_count} workers, #{running} running" : "#{worker_count} workers, idle"
+        { level: "healthy", message: msg }
       end
 
       def get_pending_jobs_count
