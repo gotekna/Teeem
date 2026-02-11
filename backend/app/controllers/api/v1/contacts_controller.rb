@@ -73,6 +73,18 @@ module Api
                                     .where(search_sql, q: search_term)
                                     .distinct
 
+          # Multi-word search: "robert harder" should match "Robert John Harder"
+          # Split into words and require ALL words match display_name (skips middle names)
+          search_words = params[:search].to_s.strip.split(/\s+/)
+          if search_mode == 'contains' && search_words.size > 1
+            multi_word_scope = @contacts.left_outer_joins(:primary_company, :contact_emails)
+            search_words.each_with_index do |word, i|
+              multi_word_scope = multi_word_scope.where("contacts.display_name ILIKE :w#{i}", "w#{i}": "%#{word}%")
+            end
+            multi_word_ids = multi_word_scope.distinct.pluck(:id)
+            direct_matches = @contacts.where(id: (direct_matches.pluck(:id) + multi_word_ids).uniq)
+          end
+
           direct_match_ids = direct_matches.pluck(:id)
 
           # Find companies that match the search term

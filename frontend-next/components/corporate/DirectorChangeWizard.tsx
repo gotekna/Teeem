@@ -111,6 +111,7 @@ export function DirectorChangeWizard({
 }: DirectorChangeWizardProps) {
   const [step, setStep] = React.useState(1);
   const [loading, setLoading] = React.useState(false);
+  const [loadingMessage, setLoadingMessage] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
 
   // Step 2 state
@@ -313,6 +314,7 @@ export function DirectorChangeWizard({
 
   const generatePreview = async () => {
     setLoading(true);
+    setLoadingMessage("Submitting request...");
     setError(null);
     try {
       // Enqueue async PDF generation on worker dyno
@@ -344,11 +346,23 @@ export function DirectorChangeWizard({
 
       const genId = response.data.pdfGenerationId;
       setPdfGenerationId(genId);
+      setLoadingMessage("Queued — waiting for worker...");
 
       // Poll until complete
-      const result = await pollPdfGeneration(genId, { intervalMs: 1500, maxWaitMs: 120_000 });
+      const result = await pollPdfGeneration(genId, {
+        intervalMs: 1500,
+        maxWaitMs: 120_000,
+        onProgress: (status) => {
+          if (status.status === "processing") {
+            setLoadingMessage("Generating PDF documents...");
+          } else if (status.status === "pending") {
+            setLoadingMessage("Queued — waiting for worker...");
+          }
+        },
+      });
 
       if (result.status === "completed" && result.downloadUrl) {
+        setLoadingMessage("Downloading preview...");
         // Fetch PDF with auth and create blob URL for iframe preview
         const baseUrl = getApiBaseUrl();
         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -392,6 +406,7 @@ export function DirectorChangeWizard({
 
   const sendForSigning = async () => {
     setSending(true);
+    setLoadingMessage("Submitting request...");
     setError(null);
     try {
       // Enqueue async PDF generation + send on worker dyno
@@ -420,8 +435,20 @@ export function DirectorChangeWizard({
         return;
       }
 
+      setLoadingMessage("Queued — waiting for worker...");
+
       // Poll until complete
-      const result = await pollPdfGeneration(response.data.pdfGenerationId, { intervalMs: 1500, maxWaitMs: 120_000 });
+      const result = await pollPdfGeneration(response.data.pdfGenerationId, {
+        intervalMs: 1500,
+        maxWaitMs: 120_000,
+        onProgress: (status) => {
+          if (status.status === "processing") {
+            setLoadingMessage("Generating & sending documents...");
+          } else if (status.status === "pending") {
+            setLoadingMessage("Queued — waiting for worker...");
+          }
+        },
+      });
 
       if (result.status === "completed") {
         setSent(true);
@@ -845,7 +872,7 @@ export function DirectorChangeWizard({
               <Button onClick={generatePreview} disabled={!canProceedToPreview || loading}>
                 {loading ? (
                   <>
-                    <Spinner size={16} className="mr-1" /> Generating...
+                    <Spinner size={16} className="mr-1" /> {loadingMessage || "Generating..."}
                   </>
                 ) : (
                   <>
@@ -972,7 +999,7 @@ export function DirectorChangeWizard({
               >
                 {sending ? (
                   <>
-                    <Spinner size={16} className="mr-1" /> Sending...
+                    <Spinner size={16} className="mr-1" /> {loadingMessage || "Sending..."}
                   </>
                 ) : (
                   <>
