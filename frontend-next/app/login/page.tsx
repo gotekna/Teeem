@@ -82,7 +82,9 @@ function LoginForm() {
     try {
       const result = await login(email, password, rememberMe);
       if (result.success) {
-        router.push("/dashboard");
+        // Force password change shows dialog immediately via layout
+        // Push to dashboard - the ChangePasswordDialog will block interaction
+        router.push(result.forcePasswordChange ? "/settings/security" : "/dashboard");
       } else {
         setError(result.error || "Login failed. Please try again.");
       }
