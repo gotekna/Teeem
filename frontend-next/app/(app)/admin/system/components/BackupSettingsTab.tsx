@@ -50,9 +50,10 @@ interface SchedulePreset {
 interface S3Credential {
   id: number;
   name: string;
+  providerType: string;
   providerName: string;
   endpoint: string;
-  bucket: string;
+  bucket: string | null;
   isConnected: boolean;
 }
 
@@ -114,6 +115,7 @@ export function BackupSettingsTab() {
   // Track dirty state for save button
   const [isDirty, setIsDirty] = React.useState(false);
   const [formState, setFormState] = React.useState<Partial<BackupConfig>>({});
+  const [warehouseBucket, setWarehouseBucket] = React.useState<string | null>(null);
 
   // Load initial data
   React.useEffect(() => {
@@ -124,11 +126,12 @@ export function BackupSettingsTab() {
     setLoading(true);
     try {
       // Load in parallel
-      const [configRes, historyRes, presetsRes, credsRes] = await Promise.all([
+      const [configRes, historyRes, presetsRes, credsRes, wpRes] = await Promise.all([
         api.get<{ data: BackupConfig }>("/api/v1/backup_configuration"),
         api.get<{ data: BackupLog[] }>("/api/v1/backup_configuration/history"),
         api.get<{ data: SchedulePreset[] }>("/api/v1/backup_configuration/schedule_presets"),
         api.get<{ data: S3Credential[] }>("/api/v1/s3_compatible_credentials"),
+        api.get<{ data: { bucket: string } }>("/api/v1/warehouse_provider"),
       ]);
 
       setConfig(configRes.data);
@@ -136,6 +139,21 @@ export function BackupSettingsTab() {
       setHistory(historyRes.data);
       setPresets(presetsRes.data);
       setCredentials(credsRes.data);
+      setWarehouseBucket(wpRes.data?.bucket ?? null);
+
+      // Auto-set primary credential to the WarehouseProvider's storage credential.
+      // Primary = the credential that matches the WarehouseProvider (not a backup provider).
+      // Backup providers (backblaze_b2) are only shown in the mirror dropdown.
+      const bucket = wpRes.data?.bucket;
+      if (bucket && credsRes.data?.length) {
+        const storageCred = credsRes.data.find(
+          (c: S3Credential) => c.providerType !== "backblaze_b2"
+        );
+        if (storageCred && configRes.data.primaryCredentialId !== storageCred.id) {
+          setFormState((prev) => ({ ...prev, primaryCredentialId: storageCred.id }));
+          setIsDirty(true);
+        }
+      }
     } catch (error) {
       console.error("Failed to load backup configuration:", error);
       toast({
@@ -348,38 +366,30 @@ export function BackupSettingsTab() {
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Primary Storage - auto-detected from WarehouseProvider, not user-selectable */}
               <div className="space-y-2">
                 <Label>Primary Storage</Label>
-                <Select
-                  value={formState.primaryCredentialId?.toString() ?? ""}
-                  onValueChange={(value) =>
-                    handleChange("primaryCredentialId", value ? parseInt(value) : null)
-                  }
-                  disabled={!formState.enabled}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select storage provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {credentials.map((cred) => (
-                      <SelectItem key={cred.id} value={cred.id.toString()}>
-                        {cred.name} ({cred.providerName})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {primaryCred && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    {primaryCred.isConnected ? (
-                      <Check className="h-3 w-3 text-green-500 dark:text-green-400" />
-                    ) : (
-                      <X className="h-3 w-3 text-red-500 dark:text-red-400" />
-                    )}
-                    {primaryCred.bucket} @ {primaryCred.endpoint}
-                  </p>
-                )}
+                <div className="flex items-center gap-2 h-10 px-3 rounded-md border bg-muted/50 text-sm">
+                  {primaryCred ? (
+                    <>
+                      <HardDrive className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span>{primaryCred.name} ({primaryCred.providerName})</span>
+                      {primaryCred.isConnected ? (
+                        <Check className="h-3 w-3 text-green-500 dark:text-green-400 ml-auto shrink-0" />
+                      ) : (
+                        <X className="h-3 w-3 text-red-500 dark:text-red-400 ml-auto shrink-0" />
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">No storage provider configured</span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {warehouseBucket ? `Bucket: ${warehouseBucket}` : "Configure in Storage Provider tab"}
+                </p>
               </div>
 
+              {/* Mirror Storage - user selects from non-primary credentials */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Mirror Storage</Label>
@@ -410,7 +420,7 @@ export function BackupSettingsTab() {
                       .filter((c) => c.id !== formState.primaryCredentialId)
                       .map((cred) => (
                         <SelectItem key={cred.id} value={cred.id.toString()}>
-                          {cred.name} ({cred.providerName})
+                          {cred.name} → {cred.bucket || "no bucket"}
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -422,7 +432,7 @@ export function BackupSettingsTab() {
                     ) : (
                       <X className="h-3 w-3 text-red-500 dark:text-red-400" />
                     )}
-                    {secondaryCred.bucket} @ {secondaryCred.endpoint}
+                    Bucket: {secondaryCred.bucket || "not set"}
                   </p>
                 )}
               </div>
