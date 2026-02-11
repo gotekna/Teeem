@@ -241,7 +241,7 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
               id="internal_domains"
               value={formData.internal_email_domains}
               onChange={(e) => handleChange("internal_email_domains", e.target.value)}
-              placeholder="teeem.com.au, company.com.au"
+              placeholder="yourcompany.com.au, otherdomain.com"
             />
             {connectedDomains && connectedDomains.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
@@ -361,8 +361,7 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
                       `Let us know once they're set up.\n\n` +
                       `Thanks`
                     );
-                    const from = encodeURIComponent("setup@teeem.com.au");
-                    router.push(`/email?compose_to=&compose_subject=${subject}&compose_body=${body}&compose_from=${from}`);
+                    router.push(`/email?compose_to=&compose_subject=${subject}&compose_body=${body}`);
                   }}
                 >
                   <Send className="h-3.5 w-3.5" />
