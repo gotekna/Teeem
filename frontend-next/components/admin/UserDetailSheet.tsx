@@ -222,16 +222,21 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
       );
 
       if (response?.success && response?.compose) {
-        // Open TEEEM email compose with login credentials
-        const loginUrl = typeof window !== "undefined" ? window.location.origin : "https://teeem.vercel.app";
-        const subject = encodeURIComponent(`Your Teeem Login Details`);
+        // SSoT: Production URL is always teeem.vercel.app (3 e's)
+        // Login link pre-fills email so user just enters temp password
+        const loginUrl = "https://teeem.vercel.app/login?email=" + encodeURIComponent(response.user_email || "");
+        const firstName = (response.user_name || "").split(" ")[0] || "there";
+
+        const subject = encodeURIComponent("Welcome to Teeem - Your Account is Ready");
         const body = encodeURIComponent(
-          `Hi ${response.user_name || ""},\n\n` +
-          `Your Teeem account has been set up. Here are your login details:\n\n` +
-          `Login URL: ${loginUrl}\n` +
+          `Hi ${firstName},\n\n` +
+          `Welcome to Teeem - your complete business management system.\n\n` +
+          `Your account has been created and is ready to go. Here are your login details:\n\n` +
+          `Login: ${loginUrl}\n` +
           `Email: ${response.user_email}\n` +
           `Temporary Password: ${response.temp_password}\n\n` +
-          `You will be asked to change your password on first login.\n\n` +
+          `Click the login link above - your email will be pre-filled. Just enter your temporary password and you'll be prompted to set a new one.\n\n` +
+          `Teeem brings together your jobs, contacts, documents, emails, scheduling, and finances in one place. If you need any help getting started, just reply to this email.\n\n` +
           `Best regards`
         );
         const from = encodeURIComponent("setup@teeem.com.au");
