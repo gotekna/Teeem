@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils";
 import { StorageCostTab } from "./StorageCostTab";
 import { BackupSettingsTab } from "./BackupSettingsTab";
 import { ConfigSyncSection } from "./ConfigSyncSection";
+import { EmailAccountsTab } from "./EmailAccountsTab";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -2421,6 +2422,7 @@ function IntegrationsSubTab() {
 const CONNECTIONS_SUB_TABS = [
   { id: "provider", label: "Storage Provider" },
   { id: "integrations", label: "Integrations" },
+  { id: "email-accounts", label: "Email Accounts" },
   { id: "migration", label: "Migration" },
   { id: "costs", label: "Cost Comparison" },
   { id: "backups", label: "Backups" },
@@ -2462,6 +2464,9 @@ export function ConnectionsTab({ subTab, basePath = DEFAULT_CONNECTIONS_BASE_PAT
       </TabsContent>
       <TabsContent value="integrations">
         <IntegrationsSubTab />
+      </TabsContent>
+      <TabsContent value="email-accounts">
+        <EmailAccountsTab />
       </TabsContent>
       <TabsContent value="migration">
         <div className="space-y-4">
