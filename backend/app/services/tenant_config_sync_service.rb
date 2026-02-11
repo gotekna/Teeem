@@ -954,6 +954,27 @@ class TenantConfigSyncService
               imported << new_record
               deferred_parents[new_record.id] = deferred if deferred.any?
             end
+          rescue ActiveRecord::RecordInvalid => e
+            # FRC (Feb 2026): Uniqueness collision — find_match didn't find the record
+            # but it exists (sync_key diverged). Fall back to finding the colliding record
+            # using the sync attrs (actual DB columns), then update it instead.
+            if e.message.include?("already been taken") || e.message.include?("has already been") || e.message.include?("already exists")
+              fallback = find_uniqueness_collision(model, attrs, config[:match_fields], master_record)
+
+              if fallback
+                begin
+                  ActsAsTenant.with_tenant(tenant) { fallback.update!(attrs) }
+                  updated << fallback
+                  deferred_parents[fallback.id] = deferred if deferred.any?
+                rescue => update_err
+                  skipped << { name: master_record.send(config[:name_field]), reason: update_err.message }
+                end
+              else
+                skipped << { name: master_record.send(config[:name_field]), reason: e.message }
+              end
+            else
+              skipped << { name: master_record.send(config[:name_field]), reason: e.message }
+            end
           rescue => e
             skipped << { name: master_record.send(config[:name_field]), reason: e.message }
           end
@@ -1151,6 +1172,41 @@ class TenantConfigSyncService
     end
   end
 
+  # FRC (Feb 2026): Find the record causing a uniqueness collision during sync.
+  # Uses two strategies:
+  # 1. Try match_fields as DB columns (works for simple fields like contact_code)
+  # 2. Try sync attrs from build_sync_attrs (works for scoped uniqueness like
+  #    warehouse_folders where name + warehouse_type_id + parent_id must be unique)
+  def find_uniqueness_collision(model, attrs, match_fields, source_record)
+    ActsAsTenant.with_tenant(tenant) do
+      # Strategy 1: match_fields as DB columns (fast, covers most cases)
+      db_columns = model.column_names
+      match_fields.each do |field|
+        next unless db_columns.include?(field.to_s)
+        value = source_record.send(field)
+        next if value.blank?
+        found = model.find_by(field => value) ||
+                model.where("LOWER(#{model.connection.quote_column_name(field)}) = ?",
+                            value.to_s.downcase.strip).first
+        return found if found
+      end
+
+      # Strategy 2: Use the remapped sync attrs (actual DB column values)
+      # Extract unique-looking column combinations from attrs
+      # Try name-based lookups since most uniqueness validations include name
+      if attrs[:name].present?
+        # Build progressively narrower queries using available FK columns
+        query = model.where(name: attrs[:name])
+        query = query.where(warehouse_type_id: attrs[:warehouse_type_id]) if attrs.key?(:warehouse_type_id)
+        query = query.where(parent_id: attrs[:parent_id]) if attrs.key?(:parent_id)
+        found = query.first
+        return found if found
+      end
+
+      nil
+    end
+  end
+
   # Primary matching: use sync_key (immutable, survives renames).
   # Fallback: legacy match_key from match_fields (for records without sync_key yet).
   def record_sync_key(record)
@@ -1326,23 +1382,12 @@ class TenantConfigSyncService
     result
   rescue ActiveRecord::RecordInvalid => e
     # FRC (Feb 2026): Uniqueness collision — match didn't find the record but it exists.
-    # This happens when sync_key diverged and match_fields differ slightly (e.g., contact
-    # matched by sync_key to wrong record, but contact_code belongs to a different record).
-    # Fallback: find by each match_field directly and update that record instead.
-    if e.message.include?("already been taken") || e.message.include?("has already been")
-      fallback = ActsAsTenant.with_tenant(tenant) do
-        config[:match_fields].each do |field|
-          value = source_record.send(field)
-          next if value.blank?
-          # Try exact match first, then case-insensitive (DB unique index may be CI)
-          found = model.find_by(field => value) ||
-                  model.where("LOWER(#{model.connection.quote_column_name(field)}) = ?",
-                              value.to_s.downcase.strip).first
-          break found if found
-        end
-      end
+    # This happens when sync_key diverged and match_fields differ slightly.
+    # Fallback: find the colliding record using sync attrs (actual DB columns) and update it.
+    if e.message.include?("already been taken") || e.message.include?("has already been") || e.message.include?("already exists")
+      fallback = find_uniqueness_collision(model, attrs, config[:match_fields], source_record)
 
-      if fallback.is_a?(ActiveRecord::Base)
+      if fallback
         ActsAsTenant.with_tenant(tenant) { fallback.update!(attrs) }
         return { imported: true, record: fallback }
       end
