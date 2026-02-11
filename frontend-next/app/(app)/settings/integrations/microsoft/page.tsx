@@ -401,6 +401,27 @@ export default function MicrosoftIntegrationPage() {
   const [consentUrl, setConsentUrl] = React.useState<string | null>(null);
   const [consentOrgName, setConsentOrgName] = React.useState<string>("");
   const [copied, setCopied] = React.useState(false);
+  const [waitingForConsent, setWaitingForConsent] = React.useState(false);
+
+  // Poll for consent completion when waiting
+  React.useEffect(() => {
+    if (!waitingForConsent || !consentOrgName) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get<{ configured: boolean; organizations: Array<{ name: string; status: string }> }>(
+          "/api/v1/microsoft_app/status"
+        );
+        const org = res.organizations?.find(o => o.name === consentOrgName);
+        if (org?.status === "connected") {
+          setWaitingForConsent(false);
+          setConsentUrl(null);
+          // Refresh the page data
+          window.location.reload();
+        }
+      } catch { /* ignore polling errors */ }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [waitingForConsent, consentOrgName]);
 
   if (loading) {
     return (
