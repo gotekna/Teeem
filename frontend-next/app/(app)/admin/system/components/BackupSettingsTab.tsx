@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -27,7 +27,6 @@ import {
   Database,
   FileArchive,
   RefreshCw,
-  Play,
   Check,
   X,
   Clock,
@@ -38,7 +37,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 
 // Types
 interface SchedulePreset {
@@ -61,10 +60,9 @@ interface BackupConfig {
   id: number;
   enabled: boolean;
   databaseSchedule: string;
-  databaseScheduleLabel: string;
   documentSchedule: string;
-  documentScheduleLabel: string;
   retentionDays: number;
+  retentionCount: number;
   mirrorEnabled: boolean;
   primaryCredentialId: number | null;
   primaryCredential: S3Credential | null;
@@ -73,8 +71,6 @@ interface BackupConfig {
   lastDatabaseBackupAt: string | null;
   lastDocumentBackupAt: string | null;
   lastMirrorSyncAt: string | null;
-  nextDatabaseBackup: string | null;
-  nextDocumentBackup: string | null;
 }
 
 interface BackupLog {
@@ -93,14 +89,9 @@ interface BackupLog {
 }
 
 /**
- * BackupSettingsTab - Per-tenant backup configuration UI
+ * BackupSettingsTab - Simplified per-tenant backup configuration
  *
- * Allows admins to configure:
- * - Backup schedules (database & documents)
- * - Storage providers (primary & secondary/mirror)
- * - Retention policies
- * - View backup history
- * - Trigger manual backups
+ * Single schedule, "Keep last N backups" retention, clear history display.
  */
 export function BackupSettingsTab() {
   const { toast } = useToast();
@@ -111,13 +102,10 @@ export function BackupSettingsTab() {
   const [history, setHistory] = React.useState<BackupLog[]>([]);
   const [presets, setPresets] = React.useState<SchedulePreset[]>([]);
   const [credentials, setCredentials] = React.useState<S3Credential[]>([]);
-
-  // Track dirty state for save button
   const [isDirty, setIsDirty] = React.useState(false);
   const [formState, setFormState] = React.useState<Partial<BackupConfig>>({});
   const [warehouseBucket, setWarehouseBucket] = React.useState<string | null>(null);
 
-  // Load initial data
   React.useEffect(() => {
     loadData();
   }, []);
@@ -125,7 +113,6 @@ export function BackupSettingsTab() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Load in parallel
       const [configRes, historyRes, presetsRes, credsRes, wpRes] = await Promise.all([
         api.get<{ data: BackupConfig }>("/api/v1/backup_configuration"),
         api.get<{ data: BackupLog[] }>("/api/v1/backup_configuration/history"),
@@ -141,9 +128,7 @@ export function BackupSettingsTab() {
       setCredentials(credsRes.data);
       setWarehouseBucket(wpRes.data?.bucket ?? null);
 
-      // Auto-set primary credential to the WarehouseProvider's storage credential.
-      // Primary = the credential that matches the WarehouseProvider (not a backup provider).
-      // Backup providers (backblaze_b2) are only shown in the mirror dropdown.
+      // Auto-set primary credential to the WarehouseProvider's storage credential
       const bucket = wpRes.data?.bucket;
       if (bucket && credsRes.data?.length) {
         const storageCred = credsRes.data.find(
@@ -171,6 +156,16 @@ export function BackupSettingsTab() {
     setIsDirty(true);
   };
 
+  // Single schedule sets both DB and doc schedules
+  const handleScheduleChange = (value: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      databaseSchedule: value,
+      documentSchedule: value,
+    }));
+    setIsDirty(true);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -179,7 +174,8 @@ export function BackupSettingsTab() {
           enabled: formState.enabled,
           database_schedule: formState.databaseSchedule,
           document_schedule: formState.documentSchedule,
-          retention_days: formState.retentionDays,
+          retention_count: formState.retentionCount,
+          retention_days: (formState.retentionCount ?? 5) * 30, // Keep retention_days in sync
           mirror_enabled: formState.mirrorEnabled,
           primary_credential_id: formState.primaryCredentialId,
           secondary_credential_id: formState.secondaryCredentialId,
@@ -190,7 +186,7 @@ export function BackupSettingsTab() {
       setIsDirty(false);
       toast({
         title: "Success",
-        description: "Backup settings saved successfully",
+        description: "Backup settings saved",
       });
     } catch (error) {
       console.error("Failed to save backup configuration:", error);
@@ -209,13 +205,11 @@ export function BackupSettingsTab() {
     try {
       await api.post("/api/v1/backup_configuration/run_now", { type });
       toast({
-        title: "Success",
-        description: `${type.charAt(0).toUpperCase() + type.slice(1)} backup started`,
+        title: "Backup started",
+        description: `${type.charAt(0).toUpperCase() + type.slice(1)} backup queued`,
       });
-      // Refresh history after a delay
-      setTimeout(loadData, 2000);
+      setTimeout(loadData, 3000);
     } catch (error: unknown) {
-      console.error("Failed to run backup:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to start backup";
       toast({
         title: "Error",
@@ -233,10 +227,16 @@ export function BackupSettingsTab() {
 
   const primaryCred = credentials.find((c) => c.id === formState.primaryCredentialId);
   const secondaryCred = credentials.find((c) => c.id === formState.secondaryCredentialId);
+  const currentSchedule = formState.databaseSchedule ?? "disabled";
+
+  // Compute total backup size from history
+  const completedBackups = history.filter((h) => h.status === "completed");
+  const totalSizeBytes = completedBackups.reduce((sum, h) => sum + (h.sizeBytes ?? 0), 0);
+  const totalSizeDisplay = formatBytes(totalSizeBytes);
 
   return (
     <div className="space-y-6">
-      {/* Main Settings Card */}
+      {/* Settings Card */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -246,134 +246,78 @@ export function BackupSettingsTab() {
               </div>
               <div>
                 <CardTitle className="text-base">Backup Settings</CardTitle>
-                <CardDescription>Configure backup schedules and storage providers</CardDescription>
+                <CardDescription>
+                  Database backups are full dumps. Document backups are incremental (changes only).
+                </CardDescription>
               </div>
             </div>
-            <Badge variant={formState.enabled ? "default" : "secondary"}>
-              {formState.enabled ? (
-                <>
-                  <Check className="h-3 w-3 mr-1" />
-                  Enabled
-                </>
-              ) : (
-                <>
-                  <X className="h-3 w-3 mr-1" />
-                  Disabled
-                </>
-              )}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Enable Toggle */}
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="enabled" className="text-base">
-                Backups Enabled
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                Enable automatic backups for this organization
-              </p>
-            </div>
             <Switch
-              id="enabled"
               checked={formState.enabled ?? false}
               onCheckedChange={(checked) => handleChange("enabled", checked)}
             />
           </div>
-
-          {/* Schedule Section */}
-          <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-medium flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Schedule
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Database Backups</Label>
-                <Select
-                  value={formState.databaseSchedule ?? "disabled"}
-                  onValueChange={(value) => handleChange("databaseSchedule", value)}
-                  disabled={!formState.enabled}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {presets.map((preset) => (
-                      <SelectItem key={preset.value} value={preset.value}>
-                        {preset.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {config?.lastDatabaseBackupAt && (
-                  <p className="text-xs text-muted-foreground">
-                    Last: {formatDistanceToNow(new Date(config.lastDatabaseBackupAt))} ago
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Document Backups</Label>
-                <Select
-                  value={formState.documentSchedule ?? "disabled"}
-                  onValueChange={(value) => handleChange("documentSchedule", value)}
-                  disabled={!formState.enabled}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {presets.map((preset) => (
-                      <SelectItem key={preset.value} value={preset.value}>
-                        {preset.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {config?.lastDocumentBackupAt && (
-                  <p className="text-xs text-muted-foreground">
-                    Last: {formatDistanceToNow(new Date(config.lastDocumentBackupAt))} ago
-                  </p>
-                )}
-              </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Schedule + Retention Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label>Backup Schedule</Label>
+              <Select
+                value={currentSchedule}
+                onValueChange={handleScheduleChange}
+                disabled={!formState.enabled}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {presets.map((preset) => (
+                    <SelectItem key={preset.value} value={preset.value}>
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
-              <Label>Retention Period: {formState.retentionDays ?? 90} days</Label>
-              <Slider
-                value={[formState.retentionDays ?? 90]}
-                onValueChange={([value]) => handleChange("retentionDays", value)}
-                min={7}
-                max={365}
-                step={7}
-                disabled={!formState.enabled}
-                className="w-full max-w-md"
-              />
-              <p className="text-xs text-muted-foreground">
-                Backups older than {formState.retentionDays ?? 90} days will be automatically deleted
-              </p>
+              <Label>Keep Last</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={formState.retentionCount ?? 5}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (val >= 1 && val <= 100) {
+                      handleChange("retentionCount", val);
+                    }
+                  }}
+                  disabled={!formState.enabled}
+                  className="w-20"
+                />
+                <span className="text-sm text-muted-foreground">successful backups</span>
+              </div>
             </div>
           </div>
 
-          {/* Storage Providers Section */}
+          {/* Storage Providers */}
           <div className="space-y-4 pt-4 border-t">
             <h3 className="text-sm font-medium flex items-center gap-2">
               <HardDrive className="h-4 w-4" />
-              Storage Providers
+              Storage
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Primary Storage - auto-detected from WarehouseProvider, not user-selectable */}
-              <div className="space-y-2">
-                <Label>Primary Storage</Label>
-                <div className="flex items-center gap-2 h-10 px-3 rounded-md border bg-muted/50 text-sm">
+              {/* Primary - read-only */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Primary</Label>
+                <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50 text-sm">
                   {primaryCred ? (
                     <>
-                      <HardDrive className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span>{primaryCred.name} ({primaryCred.providerName})</span>
+                      <HardDrive className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="truncate">{primaryCred.name}</span>
                       {primaryCred.isConnected ? (
                         <Check className="h-3 w-3 text-green-500 dark:text-green-400 ml-auto shrink-0" />
                       ) : (
@@ -381,29 +325,23 @@ export function BackupSettingsTab() {
                       )}
                     </>
                   ) : (
-                    <span className="text-muted-foreground">No storage provider configured</span>
+                    <span className="text-muted-foreground">Not configured</span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {warehouseBucket ? `Bucket: ${warehouseBucket}` : "Configure in Storage Provider tab"}
-                </p>
+                {warehouseBucket && (
+                  <p className="text-xs text-muted-foreground">Bucket: {warehouseBucket}</p>
+                )}
               </div>
 
-              {/* Mirror Storage - user selects from non-primary credentials */}
-              <div className="space-y-2">
+              {/* Mirror */}
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label>Mirror Storage</Label>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="mirror" className="text-sm text-muted-foreground">
-                      Enable Mirror
-                    </Label>
-                    <Switch
-                      id="mirror"
-                      checked={formState.mirrorEnabled ?? false}
-                      onCheckedChange={(checked) => handleChange("mirrorEnabled", checked)}
-                      disabled={!formState.enabled}
-                    />
-                  </div>
+                  <Label className="text-xs text-muted-foreground">Mirror</Label>
+                  <Switch
+                    checked={formState.mirrorEnabled ?? false}
+                    onCheckedChange={(checked) => handleChange("mirrorEnabled", checked)}
+                    disabled={!formState.enabled}
+                  />
                 </div>
                 <Select
                   value={formState.secondaryCredentialId?.toString() ?? ""}
@@ -412,7 +350,7 @@ export function BackupSettingsTab() {
                   }
                   disabled={!formState.enabled || !formState.mirrorEnabled}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9">
                     <SelectValue placeholder="Select mirror storage" />
                   </SelectTrigger>
                   <SelectContent>
@@ -439,80 +377,77 @@ export function BackupSettingsTab() {
             </div>
           </div>
 
-          {/* Actions Section */}
-          <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-medium flex items-center gap-2">
-              <Play className="h-4 w-4" />
-              Manual Backup
-            </h3>
-
-            <div className="flex flex-wrap gap-2">
+          {/* Manual Backup + Save */}
+          <div className="flex items-center justify-between pt-4 border-t">
+            <div className="flex gap-2">
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => handleRunNow("database")}
                 disabled={!formState.enabled || !formState.primaryCredentialId || runningBackup !== null}
               >
                 {runningBackup === "database" ? (
-                  <Spinner size={16} className="mr-2" />
+                  <Spinner size={14} className="mr-1.5" />
                 ) : (
-                  <Database className="h-4 w-4 mr-2" />
+                  <Database className="h-3.5 w-3.5 mr-1.5" />
                 )}
-                Run Database Backup Now
+                Database
               </Button>
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => handleRunNow("documents")}
                 disabled={!formState.enabled || !formState.primaryCredentialId || runningBackup !== null}
               >
                 {runningBackup === "documents" ? (
-                  <Spinner size={16} className="mr-2" />
+                  <Spinner size={14} className="mr-1.5" />
                 ) : (
-                  <FileArchive className="h-4 w-4 mr-2" />
+                  <FileArchive className="h-3.5 w-3.5 mr-1.5" />
                 )}
-                Run Document Backup Now
+                Documents
               </Button>
               {formState.mirrorEnabled && formState.secondaryCredentialId && (
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => handleRunNow("mirror")}
                   disabled={!formState.enabled || runningBackup !== null}
                 >
                   {runningBackup === "mirror" ? (
-                    <Spinner size={16} className="mr-2" />
+                    <Spinner size={14} className="mr-1.5" />
                   ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
+                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
                   )}
-                  Run Mirror Sync Now
+                  Mirror
                 </Button>
               )}
             </div>
-          </div>
-
-          {/* Save Button */}
-          <div className="flex justify-end pt-4 border-t">
-            <Button onClick={handleSave} disabled={!isDirty || saving}>
-              {saving ? <Spinner size={16} className="mr-2" /> : null}
-              Save Changes
+            <Button onClick={handleSave} disabled={!isDirty || saving} size="sm">
+              {saving ? <Spinner size={14} className="mr-1.5" /> : null}
+              Save
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Backup History Card */}
+      {/* Backup History */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900">
                 <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <CardTitle className="text-base">Recent Backups</CardTitle>
-                <CardDescription>View backup history and status</CardDescription>
+                <CardTitle className="text-base">Backup History</CardTitle>
+                <CardDescription>
+                  {completedBackups.length} successful backup{completedBackups.length !== 1 ? "s" : ""}
+                  {totalSizeBytes > 0 && ` · ${totalSizeDisplay} total`}
+                </CardDescription>
               </div>
             </div>
             <Button variant="outline" size="sm" onClick={loadData}>
-              <RefreshCw className="h-4 w-4 mr-2" />
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
               Refresh
             </Button>
           </div>
@@ -520,9 +455,8 @@ export function BackupSettingsTab() {
         <CardContent>
           {history.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <FileArchive className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>No backups yet</p>
-              <p className="text-sm">Backups will appear here once they run</p>
+              <FileArchive className="h-10 w-10 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">No backups yet</p>
             </div>
           ) : (
             <Table>
@@ -533,18 +467,18 @@ export function BackupSettingsTab() {
                   <TableHead>Size</TableHead>
                   <TableHead>Duration</TableHead>
                   <TableHead>Provider</TableHead>
-                  <TableHead>Time</TableHead>
+                  <TableHead className="text-right">Time</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {history.map((log) => (
                   <TableRow key={log.id}>
-                    <TableCell className="font-medium capitalize">
-                      <div className="flex items-center gap-2">
-                        {log.backupType === "database" && <Database className="h-4 w-4" />}
-                        {log.backupType === "documents" && <FileArchive className="h-4 w-4" />}
-                        {log.backupType === "mirror" && <RefreshCw className="h-4 w-4" />}
-                        {log.backupType}
+                    <TableCell>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        {log.backupType === "database" && <Database className="h-3.5 w-3.5 text-muted-foreground" />}
+                        {log.backupType === "documents" && <FileArchive className="h-3.5 w-3.5 text-muted-foreground" />}
+                        {log.backupType === "mirror" && <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />}
+                        <span className="capitalize">{log.backupType}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -556,18 +490,19 @@ export function BackupSettingsTab() {
                               ? "secondary"
                               : "destructive"
                         }
+                        className="text-xs"
                       >
-                        {log.status === "completed" && <Check className="h-3 w-3 mr-1" />}
-                        {log.status === "started" && <Clock className="h-3 w-3 mr-1" />}
-                        {log.status === "failed" && <AlertCircle className="h-3 w-3 mr-1" />}
+                        {log.status === "completed" && <Check className="h-3 w-3 mr-0.5" />}
+                        {log.status === "started" && <Clock className="h-3 w-3 mr-0.5" />}
+                        {log.status === "failed" && <AlertCircle className="h-3 w-3 mr-0.5" />}
                         {log.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>{log.sizeDisplay || "-"}</TableCell>
-                    <TableCell>{log.durationDisplay || "-"}</TableCell>
-                    <TableCell className="text-muted-foreground">{log.providerName || "-"}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {format(new Date(log.createdAt), "MMM d, yyyy HH:mm")}
+                    <TableCell className="text-sm">{log.sizeDisplay || "-"}</TableCell>
+                    <TableCell className="text-sm">{log.durationDisplay || "-"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{log.providerName || "-"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground text-right">
+                      {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -578,4 +513,12 @@ export function BackupSettingsTab() {
       </Card>
     </div>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
+  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
 }

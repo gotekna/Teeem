@@ -13,16 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   Building2,
   Check,
@@ -583,27 +574,16 @@ export function XeroLinkToContactSheet({
       </Sheet>
 
       {/* Unlink Confirmation Dialog */}
-      <AlertDialog open={showUnlinkConfirm} onOpenChange={setShowUnlinkConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Unlink Xero Contact?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove the link between "{xeroName}" and "{localContactName}".
-              You can then link to a different TEEEM contact.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleUnlink}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {unlinking ? <Spinner size={14} className="mr-1" /> : null}
-              Unlink
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmationDialog
+        open={showUnlinkConfirm}
+        onOpenChange={setShowUnlinkConfirm}
+        title="Unlink Xero Contact?"
+        description={`This will remove the link between "${xeroName}" and "${localContactName}". You can then link to a different TEEEM contact.`}
+        variant="destructive"
+        confirmLabel="Unlink"
+        loading={unlinking}
+        onConfirm={handleUnlink}
+      />
     </>
   );
 }
