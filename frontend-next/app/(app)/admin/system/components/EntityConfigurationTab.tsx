@@ -7,9 +7,7 @@ import { DocumentTypesTab } from "./DocumentTypesTab";
 import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { WarehouseTablesTab } from "./WarehouseTablesTab";
 import { EmailConfigTab } from "./EmailConfigTab";
-import { ConfigSyncTab } from "./ConfigSyncTab";
-import { AdminConfigSyncTab } from "./AdminConfigSyncTab";
-import { TenantSyncPullTab } from "./TenantSyncPullTab";
+import { ConfigSyncSection } from "./ConfigSyncSection";
 import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw, Database } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
@@ -171,9 +169,6 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
   const { sidebarWidth } = useSidebar();
   // Support both scope and subTab props (subTab for consistency with other tabs)
   const activeScope = scope || subTab || "warehouse_folders";
-  // Refresh key for ConfigSyncTab — incremented after AdminConfigSyncTab imports
-  const [syncRefreshKey, setSyncRefreshKey] = React.useState(0);
-
   // Build breadcrumbs from basePath, active scope, and deep tab (path-based)
   const breadcrumbs = React.useMemo(() => buildBreadcrumbs(basePath, activeScope, deepTab), [basePath, activeScope, deepTab]);
 
@@ -253,25 +248,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
               ) : "isEmailConfig" in scope && scope.isEmailConfig ? (
                 <EmailConfigTab />
               ) : "isConfigSync" in scope && scope.isConfigSync ? (
-                <div className="space-y-8">
-                  {/* Admin Import UI - Pull data FROM other tenants INTO TEEEM */}
-                  <AdminConfigSyncTab onImportComplete={() => setSyncRefreshKey(k => k + 1)} />
-
-                  {/* Divider */}
-                  <div className="border-t pt-8">
-                    <h2 className="text-lg font-semibold mb-4">Sync from TEEEM</h2>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Pull configuration records marked as compulsory or optional from TEEEM master tenant
-                    </p>
-                    <TenantSyncPullTab />
-                  </div>
-
-                  {/* Divider */}
-                  <div className="border-t pt-8">
-                    <h2 className="text-lg font-semibold mb-4">Tenant Configuration Overview</h2>
-                    <ConfigSyncTab refreshKey={syncRefreshKey} />
-                  </div>
-                </div>
+                <ConfigSyncSection />
               ) : (
                 <DocumentTypesTab basePath={`${basePath}/document_types`} />
               )}

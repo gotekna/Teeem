@@ -59,6 +59,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { StorageCostTab } from "./StorageCostTab";
 import { BackupSettingsTab } from "./BackupSettingsTab";
+import { ConfigSyncSection } from "./ConfigSyncSection";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -2423,6 +2424,7 @@ const CONNECTIONS_SUB_TABS = [
   { id: "migration", label: "Migration" },
   { id: "costs", label: "Cost Comparison" },
   { id: "backups", label: "Backups" },
+  { id: "sync", label: "Config Sync" },
 ];
 
 // SSoT: Connections is now top-level in Settings (Jan 2026)
@@ -2473,6 +2475,9 @@ export function ConnectionsTab({ subTab, basePath = DEFAULT_CONNECTIONS_BASE_PAT
       </TabsContent>
       <TabsContent value="backups">
         <BackupSettingsTab />
+      </TabsContent>
+      <TabsContent value="sync">
+        <ConfigSyncSection />
       </TabsContent>
     </Tabs>
   );

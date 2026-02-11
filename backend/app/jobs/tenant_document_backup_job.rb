@@ -18,6 +18,7 @@ class TenantDocumentBackupJob < ApplicationJob
 
   def perform(tenant_id, options = {})
     @tenant = Tenant.find(tenant_id)
+    @tenant_slug = @tenant.slug
     @incremental = options.fetch(:incremental, true)
     @since = options[:since]
 
@@ -70,7 +71,7 @@ class TenantDocumentBackupJob < ApplicationJob
           content = download_document(doc)
           next unless content
 
-          key = "documents/#{@tenant.id}/#{doc.storage_path}"
+          key = "#{@tenant_slug}/documents/#{doc.storage_path}"
 
           service.upload(
             key: key,
@@ -97,13 +98,9 @@ class TenantDocumentBackupJob < ApplicationJob
 
       @config.record_backup_completed!(:documents)
 
-      # Queue mirror job if enabled
+      # Queue Tier 2 mirror (live → B2) if enabled
       if @config.mirror_enabled? && @config.secondary_credential
-        BackupMirrorJob.perform_later(
-          @tenant.id,
-          "documents",
-          "documents/#{@tenant.id}/"
-        )
+        BackupMirrorJob.perform_later(@tenant.id, "documents")
       end
 
       Rails.logger.info "[TenantDocumentBackup] Complete for tenant #{@tenant.id}: #{files_count} files, #{total_size} bytes"
