@@ -150,8 +150,27 @@ class TenantDocumentBackupJob < ApplicationJob
 
   def download_from_s3(doc)
     storage_config = WarehouseProvider.instance
-    client = S3StorageClient.new(storage_config)
-    client.download(doc.storage_path)
+
+    credential = if storage_config.storage_credential_id.present?
+                   S3CompatibleCredential.find_by(id: storage_config.storage_credential_id)
+                 else
+                   S3CompatibleCredential.active.first
+                 end
+    return nil unless credential
+
+    bucket = storage_config.bucket
+    return nil unless bucket.present?
+
+    client = Aws::S3::Client.new(
+      access_key_id: credential.access_key_id,
+      secret_access_key: credential.secret_access_key,
+      region: credential.region || "us-east-1",
+      endpoint: credential.endpoint,
+      force_path_style: true
+    )
+
+    response = client.get_object(bucket: bucket, key: doc.storage_path)
+    response.body.read
   end
 
   def elapsed(start_time)
