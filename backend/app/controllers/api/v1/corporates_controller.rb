@@ -1,6 +1,8 @@
 module Api
   module V1
     class CorporatesController < ApplicationController
+      include AsyncPdfGeneration
+
       before_action :set_company, only: [ :show, :update, :destroy, :directors, :add_director,
                                          :update_director, :remove_director, :compliance_items,
                                          :activities, :documents, :assets, :hierarchy, :shareholders,
@@ -944,57 +946,33 @@ module Api
       end
 
       # POST /api/v1/companies/:id/director_changes
-      # Generates a director change package (Form 484) with resignation letters,
-      # consent forms, and record copy. Optionally sends for e-signature.
+      # Enqueues async PDF generation for director change package (Form 484).
+      # Frontend polls /api/v1/pdf_generations/:id for completion.
       def director_changes
-        ceasing = (params[:ceasing_directors] || []).map do |cd|
-          director = @company.corporate_directors.find(cd[:corporate_director_id])
-          {
-            corporate_director: director,
-            positions: cd[:positions] || [director.position],
-            cessation_date: Date.parse(cd[:cessation_date])
-          }
-        end
+        generator_params = {
+          company_id: @company.id,
+          user_id: current_user.id,
+          ceasing_directors: (params[:ceasing_directors] || []).map { |cd|
+            {
+              corporate_director_id: cd[:corporate_director_id].to_i,
+              positions: cd[:positions],
+              cessation_date: cd[:cessation_date]
+            }
+          },
+          new_appointments: (params[:new_appointments] || []).map { |appt|
+            {
+              contact_id: appt[:contact_id].to_i,
+              positions: appt[:positions],
+              appointment_date: appt[:appointment_date]
+            }
+          },
+          send_for_signing: params[:send_for_signing].present?
+        }
 
-        appointments = (params[:new_appointments] || []).map do |appt|
-          contact = Contact.find(appt[:contact_id])
-          {
-            contact: contact,
-            positions: appt[:positions],
-            appointment_date: Date.parse(appt[:appointment_date])
-          }
-        end
-
-        service = DirectorChangeService.new(
-          company: @company,
-          ceasing_directors: ceasing,
-          new_appointments: appointments,
-          user: current_user
+        enqueue_pdf_and_respond(
+          generator_type: "director_change",
+          generator_params: generator_params
         )
-
-        if params[:send_for_signing]
-          result = service.generate_and_send!
-          render json: {
-            success: true,
-            message: "Director change package sent for signing",
-            e_signature_request_id: result[:e_signature_request].id,
-            request_number: result[:e_signature_request].request_number,
-            filename: result[:filename],
-            documents: result[:documents]
-          }
-        else
-          result = service.generate_package
-          # Return PDF as base64 for preview/download
-          render json: {
-            success: true,
-            message: "Director change package generated",
-            filename: result[:filename],
-            pdf_base64: Base64.strict_encode64(result[:pdf_content]),
-            documents: result[:documents]
-          }
-        end
-      rescue DirectorChangeService::GenerationError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
       rescue ActiveRecord::RecordNotFound => e
         render json: { success: false, error: "Record not found: #{e.message}" }, status: :not_found
       rescue Date::Error => e

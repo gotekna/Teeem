@@ -8,7 +8,7 @@ module Api
       # FRC (Feb 2026): Sidebar was fetching full proposal objects just to count them,
       # adding 3-5 seconds to every page load. This returns only the count.
       def pending_count
-        tenant_synced_email_ids = SyncedEmail.pluck(:id)
+        tenant_synced_email_ids = SyncedEmail.select(:id)
         count = EmailCaseProposal
           .where(email_warehouse_id: tenant_synced_email_ids, status: "pending")
           .count
@@ -22,7 +22,7 @@ module Api
       def index
         # EmailCaseProposal doesn't have acts_as_tenant, so we scope via SyncedEmail
         # SyncedEmail has acts_as_tenant which auto-filters to current_tenant
-        tenant_synced_email_ids = SyncedEmail.pluck(:id)
+        tenant_synced_email_ids = SyncedEmail.select(:id)
         proposals = EmailCaseProposal
           .where(email_warehouse_id: tenant_synced_email_ids)
           .includes(:synced_email, :created_by, :approved_by, :case_record)
@@ -44,12 +44,16 @@ module Api
 
         proposals = proposals.recent.offset((page - 1) * per_page).limit(per_page)
 
-        # Get stats (scoped to tenant)
+        # Get stats in a single query using GROUP BY instead of 4 separate counts
+        status_counts = EmailCaseProposal
+          .where(email_warehouse_id: tenant_synced_email_ids)
+          .group(:status)
+          .count
         stats = {
-          total: EmailCaseProposal.where(email_warehouse_id: tenant_synced_email_ids).count,
-          pending: EmailCaseProposal.where(email_warehouse_id: tenant_synced_email_ids).pending.count,
-          approved: EmailCaseProposal.where(email_warehouse_id: tenant_synced_email_ids).approved.count,
-          rejected: EmailCaseProposal.where(email_warehouse_id: tenant_synced_email_ids).rejected.count
+          total: status_counts.values.sum,
+          pending: status_counts["pending"] || 0,
+          approved: status_counts["approved"] || 0,
+          rejected: status_counts["rejected"] || 0
         }
 
         render json: {
@@ -272,7 +276,7 @@ module Api
 
       def set_proposal
         # SSoT (Jan 2026): Tenant scoping via SyncedEmail join
-        tenant_synced_email_ids = SyncedEmail.pluck(:id)
+        tenant_synced_email_ids = SyncedEmail.select(:id)
         @proposal = EmailCaseProposal.where(email_warehouse_id: tenant_synced_email_ids).find(params[:id])
       end
 

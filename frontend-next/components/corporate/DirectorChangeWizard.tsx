@@ -44,7 +44,8 @@ import {
   X,
 } from "lucide-react";
 import { format } from "date-fns";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
+import { pollPdfGeneration, type PdfGenerationStatus } from "@/lib/pdf-generation";
 import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
 
 // --- Types ---
@@ -112,7 +113,8 @@ export function DirectorChangeWizard({
   const [newAppointments, setNewAppointments] = React.useState<NewAppointment[]>([]);
 
   // Step 3 state
-  const [pdfBase64, setPdfBase64] = React.useState<string | null>(null);
+  const [pdfGenerationId, setPdfGenerationId] = React.useState<number | null>(null);
+  const [pdfDownloadUrl, setPdfDownloadUrl] = React.useState<string | null>(null);
   const [generatedFilename, setGeneratedFilename] = React.useState<string>("");
   const [generatedDocuments, setGeneratedDocuments] = React.useState<Array<{ type: string; name: string }>>([]);
 
@@ -135,7 +137,11 @@ export function DirectorChangeWizard({
       setStep(1);
       setCeasingDirectors([]);
       setNewAppointments([]);
-      setPdfBase64(null);
+      setPdfGenerationId(null);
+      if (pdfDownloadUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(pdfDownloadUrl);
+      }
+      setPdfDownloadUrl(null);
       setGeneratedFilename("");
       setGeneratedDocuments([]);
       setSent(false);
@@ -284,11 +290,14 @@ export function DirectorChangeWizard({
     setLoading(true);
     setError(null);
     try {
+      // Enqueue async PDF generation on worker dyno
       const response = await api.post<{
         success: boolean;
-        pdf_base64: string;
-        filename: string;
-        documents: Array<{ type: string; name: string }>;
+        data: {
+          pdfGenerationId: number;
+          statusUrl: string;
+          downloadUrl: string;
+        };
         error?: string;
       }>(`/api/v1/companies/${companyId}/director_changes`, {
         ceasing_directors: ceasingDirectors.map((cd) => ({
@@ -301,16 +310,43 @@ export function DirectorChangeWizard({
           positions: a.positions,
           appointment_date: a.appointment_date,
         })),
-        send_for_signing: false,
       });
 
-      if (response?.success) {
-        setPdfBase64(response.pdf_base64);
-        setGeneratedFilename(response.filename);
-        setGeneratedDocuments(response.documents);
+      if (!response?.success || !response.data?.pdfGenerationId) {
+        setError("Failed to start PDF generation");
+        return;
+      }
+
+      const genId = response.data.pdfGenerationId;
+      setPdfGenerationId(genId);
+
+      // Poll until complete
+      const result = await pollPdfGeneration(genId, { intervalMs: 1500, maxWaitMs: 120_000 });
+
+      if (result.status === "completed" && result.downloadUrl) {
+        // Fetch PDF with auth and create blob URL for iframe preview
+        const baseUrl = getApiBaseUrl();
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        const pdfResp = await fetch(`${baseUrl}${result.downloadUrl}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          redirect: "follow",
+        });
+        if (pdfResp.ok) {
+          const blob = await pdfResp.blob();
+          setPdfDownloadUrl(URL.createObjectURL(blob));
+        } else {
+          // Fallback: try opening URL directly (works if presigned URL redirect)
+          setPdfDownloadUrl(`${baseUrl}${result.downloadUrl}`);
+        }
+        setGeneratedFilename(result.filename || "");
+        // Get documents list from result data
+        const docs = result.result?.documents as Array<{ type: string; name: string }> | undefined;
+        if (docs) {
+          setGeneratedDocuments(docs);
+        }
         setStep(3);
       } else {
-        setError(response?.error || "Failed to generate package");
+        setError(result.error || "PDF generation failed");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate package");
@@ -320,33 +356,25 @@ export function DirectorChangeWizard({
   };
 
   const downloadPdf = () => {
-    if (!pdfBase64) return;
-
-    const byteCharacters = atob(pdfBase64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: "application/pdf" });
-
-    const url = URL.createObjectURL(blob);
+    if (!pdfDownloadUrl) return;
     const link = document.createElement("a");
-    link.href = url;
-    link.download = generatedFilename;
+    link.href = pdfDownloadUrl;
+    link.download = generatedFilename || "director-change-package.pdf";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   const sendForSigning = async () => {
     setSending(true);
     setError(null);
     try {
+      // Enqueue async PDF generation + send on worker dyno
       const response = await api.post<{
         success: boolean;
-        request_number: string;
+        data: {
+          pdfGenerationId: number;
+        };
         error?: string;
       }>(`/api/v1/companies/${companyId}/director_changes`, {
         ceasing_directors: ceasingDirectors.map((cd) => ({
@@ -362,12 +390,20 @@ export function DirectorChangeWizard({
         send_for_signing: true,
       });
 
-      if (response?.success) {
+      if (!response?.success || !response.data?.pdfGenerationId) {
+        setError("Failed to start send process");
+        return;
+      }
+
+      // Poll until complete
+      const result = await pollPdfGeneration(response.data.pdfGenerationId, { intervalMs: 1500, maxWaitMs: 120_000 });
+
+      if (result.status === "completed") {
         setSent(true);
-        setRequestNumber(response.request_number);
+        setRequestNumber((result.result?.request_number as string) || "");
         onComplete?.();
       } else {
-        setError(response?.error || "Failed to send for signing");
+        setError(result.error || "Failed to send for signing");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send for signing");
@@ -748,10 +784,10 @@ export function DirectorChangeWizard({
             </div>
 
             {/* PDF Preview */}
-            {pdfBase64 && (
+            {pdfDownloadUrl && (
               <div className="border rounded-lg overflow-hidden" style={{ height: "400px" }}>
                 <iframe
-                  src={`data:application/pdf;base64,${pdfBase64}`}
+                  src={pdfDownloadUrl}
                   className="w-full h-full"
                   title="Director Change Package Preview"
                 />

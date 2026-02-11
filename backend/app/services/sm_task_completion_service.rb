@@ -252,60 +252,26 @@ class SmTaskCompletionService
   end
 
   # Generate a single certificate for a document type
+  # Enqueues via GeneratePdfJob (Grover/HexaPDF only available on worker dyno)
   def generate_certificate_for_document_type(job, document_type, supervisor)
-    # Select the appropriate generator based on template
-    generator = case document_type.certificate_template
-                when "form_43"
-                  Form43CertificateGenerator.new(
-                    job: job,
-                    document_type: document_type,
-                    supervisor: supervisor
-                  )
-                else
-                  Rails.logger.warn("[SmTaskCompletionService] Unknown certificate template: #{document_type.certificate_template}")
-                  return
-                end
+    unless %w[form_43].include?(document_type.certificate_template)
+      Rails.logger.warn("[SmTaskCompletionService] Unknown certificate template: #{document_type.certificate_template}")
+      return
+    end
 
-    result = generator.generate
-
-    # Create StorageBlob with deduplicated PDF content
-    blob = StorageBlob.find_or_create_for_content!(
-      result[:pdf_content],
-      filename: result[:filename],
-      content_type: "application/pdf"
-    )
-
-    # Create WarehouseDocument via standard service
-    warehouse_doc = WarehouseDocumentCreator.create!(
-      filename: result[:filename],
-      source_type: "job",
-      linkable: job,
-      storage_blob: blob,
-      file_size: result[:pdf_content].bytesize,
-      content_type: "application/pdf",
-      metadata: {
+    pdf_gen = PdfGeneration.create!(
+      generator_type: "form43_certificate",
+      generator_params: {
+        "job_id" => job.id,
         "document_type_id" => document_type.id,
-        "document_type" => document_type.name,
-        "version_status" => "signed",
-        "signed_by_id" => supervisor.id,
-        "signed_at" => result[:generated_at]&.iso8601,
-        "source" => "generated",
-        "certificate_template" => document_type.certificate_template
-      }
+        "supervisor_id" => supervisor.id
+      },
+      tenant_id: task.tenant_id,
+      status: "pending"
     )
+    GeneratePdfJob.perform_later(pdf_gen.id)
 
-    # Record signature usage in digital register
-    SignatureUsage.record!(
-      user: supervisor,
-      certificate_type: document_type.certificate_template,
-      document_name: result[:filename],
-      purpose: "#{document_type.certificate_template_display} - #{document_type.name}",
-      document_type: document_type,
-      job: job,
-      job_document: job_document
-    )
-
-    Rails.logger.info("[SmTaskCompletionService] Generated certificate: #{result[:filename]} for job #{job.id} (document #{job_document.id})")
+    Rails.logger.info("[SmTaskCompletionService] Enqueued certificate generation for #{document_type.name} on job #{job.id} (pdf_generation=#{pdf_gen.id})")
   end
 
   def spawn_scan_task
