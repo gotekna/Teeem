@@ -202,6 +202,7 @@ export interface TeeemTableViewProps {
   autoFetchRecords?: boolean; // Enable auto-fetch from Foundation API (default: false). Only set true if NOT passing entries prop.
   autoFetchLimit?: number; // Maximum records to auto-fetch before stopping (default: unlimited). Search still searches ALL records via server API.
   initialFilters?: CascadeFilter[]; // Initial cascade filters to apply (e.g., for template-specific views)
+  extraQueryParams?: Record<string, string>; // Extra query params to include in all auto-fetch API requests (e.g., { job_id: "123" })
 
   /**
    * Documents why this table uses `entries` instead of `autoFetchRecords`.
@@ -299,6 +300,9 @@ export interface TeeemTableViewProps {
   forceCardView?: boolean;
   /** Maximum key fields to show on cards (default: 3) */
   cardViewMaxFields?: number;
+
+  /** Make cells always clickable to edit without entering full edit mode UI. Auto-saves on blur. */
+  alwaysEditable?: boolean;
 }
 
 // Column visibility state

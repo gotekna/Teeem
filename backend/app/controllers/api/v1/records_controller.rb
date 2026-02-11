@@ -52,6 +52,13 @@ module Api
                        .where(contact_external_links: { source: "xero", xero_org_id: params[:xero_tenant_id] })
         end
 
+        # Filter PO line items by job_id through parent purchase_order
+        # PurchaseOrderLineItem has no direct job_id - scoped via PurchaseOrder (acts_as_tenant)
+        if @foundation.slug == "purchase_order_line_items" && params[:job_id].present?
+          po_ids = PurchaseOrder.where(job_id: params[:job_id]).pluck(:id)
+          query = query.where(purchase_order_id: po_ids)
+        end
+
         # Apply search filter with multiple search modes
         # SSoT: Foundation column `searchable: true` is the source of truth for ALL tables
         # Search modes: contains (default), exact, starts_with, fuzzy, regex
@@ -1032,6 +1039,8 @@ module Api
           # Expand _id columns to include display value for lookup columns
           # e.g., job_type_id => { id: 1, display: "Residential" }
           # IMPORTANT: Only expand _id columns that were actually loaded
+          # Build column config lookup for _id columns that have lookup_display_column configured
+          foundation_columns_by_name = @foundation.columns.where(column_type: %w[lookup multiple_lookups]).index_by(&:column_name)
           loaded_id_columns = loaded_columns.select { |k| k.to_s.end_with?("_id") && k != "id" }
           loaded_id_columns.each do |id_column|
             # Skip if the _id column wasn't loaded or has no value
@@ -1047,14 +1056,25 @@ module Api
                 if assoc_ref && record.association(association_name.to_sym).loaded?
                   related = record.send(association_name)
                   if related
-                    display_value = DisplayValueResolver.resolve(related)
+                    # Use resolve_lookup when Column has lookup_display_column configured (e.g., po_task_name)
+                    foundation_col = foundation_columns_by_name[id_column]
+                    display_value = if foundation_col&.lookup_display_column.present?
+                      DisplayValueResolver.resolve_lookup(related, foundation_col)
+                    else
+                      DisplayValueResolver.resolve(related)
+                    end
                     json[id_column] = { id: json[id_column], display: display_value }
                   end
                 elsif assoc_ref.nil?
                   # No association defined - try direct access (computed method)
                   related = record.send(association_name)
                   if related.is_a?(ActiveRecord::Base)
-                    display_value = DisplayValueResolver.resolve(related)
+                    foundation_col = foundation_columns_by_name[id_column]
+                    display_value = if foundation_col&.lookup_display_column.present?
+                      DisplayValueResolver.resolve_lookup(related, foundation_col)
+                    else
+                      DisplayValueResolver.resolve(related)
+                    end
                     json[id_column] = { id: json[id_column], display: display_value }
                   end
                 end

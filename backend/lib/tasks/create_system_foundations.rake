@@ -12,6 +12,7 @@ namespace :teeem do
       { model: "Contact", icon: "👤", feature: "Contacts" },
       { model: "Supplier", icon: "🏭", feature: "Suppliers" },
       { model: "PurchaseOrder", icon: "📦", feature: "Purchase Orders" },
+      { model: "PurchaseOrderLineItem", icon: "📋", feature: "Purchase Orders", name: "Purchase Order Line Items" },
       { model: "Estimate", icon: "📊", feature: "Estimates" },
       { model: "PricebookItem", icon: "💰", feature: "Pricebook" },
       { model: "PriceHistory", icon: "📈", feature: "Pricebook" },

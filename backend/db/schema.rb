@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_10_250001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_11_090846) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1461,7 +1461,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_10_250001) do
     t.index ["storage_provider", "migration_status"], name: "idx_people_docs_provider_migration"
     t.index ["storage_provider"], name: "index_contact_documents_on_storage_provider"
   end
-
 
   create_table "contact_emails", force: :cascade do |t|
     t.bigint "contact_id", null: false
