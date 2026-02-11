@@ -299,6 +299,90 @@ module Api
         end
       end
 
+      # POST /api/v1/auth/forgot_password
+      def forgot_password
+        email = params[:email]&.strip&.downcase
+        unless email.present?
+          render json: { success: false, error: "Email is required" }, status: :bad_request
+          return
+        end
+
+        user = User.find_by("LOWER(email) = ?", email)
+        if user
+          token = SecureRandom.urlsafe_base64(32)
+          user.update_columns(
+            reset_password_token: token,
+            reset_password_sent_at: Time.current
+          )
+
+          # Send reset email via IMAP (uses first active credential)
+          begin
+            credential = ImapCredential.where(is_active: true).first
+            if credential
+              reset_url = "https://teeem.vercel.app/reset-password?token=#{token}"
+              service = ImapEmailService.new(credential)
+              service.send_email(
+                to: [ user.email ],
+                subject: "Reset your Teeem password",
+                body: "<p>Hi #{user.name&.split(' ')&.first || 'there'},</p>" \
+                      "<p>We received a request to reset your password.</p>" \
+                      "<p><strong><a href=\"#{reset_url}\">Click here to reset your password</a></strong></p>" \
+                      "<p>This link expires in 2 hours. If you didn't request this, you can safely ignore this email.</p>" \
+                      "<p>Best regards</p>"
+              )
+            end
+          rescue => e
+            Rails.logger.error("Failed to send password reset email: #{e.message}")
+          end
+        end
+
+        # Always return success (don't reveal if email exists)
+        render json: {
+          success: true,
+          message: "If an account exists with that email, you'll receive password reset instructions."
+        }
+      end
+
+      # POST /api/v1/auth/reset_password
+      def reset_password
+        token = params[:token]
+        new_password = params[:password]
+
+        unless token.present? && new_password.present?
+          render json: { success: false, error: "Token and new password are required" }, status: :bad_request
+          return
+        end
+
+        user = User.find_by(reset_password_token: token)
+
+        unless user
+          render json: { success: false, error: "Invalid or expired reset link" }, status: :unprocessable_entity
+          return
+        end
+
+        # Check token expiry (2 hours)
+        if user.reset_password_sent_at && user.reset_password_sent_at < 2.hours.ago
+          render json: { success: false, error: "Reset link has expired. Please request a new one." }, status: :unprocessable_entity
+          return
+        end
+
+        if new_password.length < 6
+          render json: { success: false, error: "Password must be at least 6 characters" }, status: :unprocessable_entity
+          return
+        end
+
+        user.password = new_password
+        user.reset_password_token = nil
+        user.reset_password_sent_at = nil
+        user.force_password_change = false
+
+        if user.save
+          render json: { success: true, message: "Password has been reset. You can now login." }
+        else
+          render json: { success: false, error: user.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        end
+      end
+
       def dev_mode_enabled?
         ENV["DEV_MODE_AUTH_BYPASS"] == "true"
       end
