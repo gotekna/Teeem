@@ -1,7 +1,7 @@
 module Api
   module V1
     class AuthenticationController < ApplicationController
-      skip_before_action :authorize_request, only: [ :login, :signup, :dev_login, :impersonate, :users ]
+      skip_before_action :authorize_request, only: [ :login, :signup, :dev_login, :impersonate, :users, :forgot_password, :reset_password ]
 
       # GET /api/v1/auth/dev_login
       # Dev mode only: Auto-login as default dev user

@@ -512,8 +512,13 @@ class Contact < ApplicationRecord
   # SSoT: contact_code is a database column (user-editable)
   # Default format: "C" + id (e.g., "C1310")
   # Auto-generated on create, can be customized by user
-  # FRC: Scope to active contacts only — inactive/deleted contacts must not block code reuse
-  validates :contact_code, presence: true, uniqueness: { conditions: -> { where(is_active: true) } }, on: :update
+  # FRC: Only validate uniqueness when contact_code is actually changing.
+  # Rails runs ALL on: :update validations regardless of which attrs changed.
+  # Previous config syncs copied master codes to tenants, creating duplicates.
+  # Without this guard, ANY update to a contact with a duplicate code fails —
+  # even if the update doesn't touch contact_code at all.
+  validates :contact_code, presence: true, on: :update
+  validates :contact_code, uniqueness: { conditions: -> { where(is_active: true) } }, on: :update, if: :contact_code_changed?
   after_create :generate_contact_code_if_blank
 
   # Entity-type specific name validations
