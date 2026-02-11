@@ -32,6 +32,26 @@ import { cn } from "@/lib/utils";
 
 const LAST_UPDATED = "February 2026";
 
+// ── Payment Methods ──
+// Update card descriptions here when cards change.
+// Use null for free services or services billed through another platform.
+const PAYMENT_METHODS = {
+  heroku: "Heroku Account",          // Update: which card pays Heroku?
+  vercel: "Vercel Account",          // Update: which card pays Vercel?
+  wasabi: "Wasabi Account",          // Update: which card pays Wasabi?
+  backblaze: "Backblaze Account",    // Update: which card pays Backblaze?
+  webcentral: "Webcentral Account",  // Update: which card pays Webcentral?
+  anthropic: "Anthropic Account",    // Update: which card pays Anthropic?
+  aws: "AWS Account",               // Update: which card pays AWS?
+  twilio: "Twilio Account",          // Update: which card pays Twilio?
+  stripe: "Stripe Account",          // Stripe collects fees from transactions
+  polaris: "Polaris Account",        // Update: which card pays Polaris?
+  basiq: "Basiq Account",            // Update: which card pays Basiq?
+  free: null,                        // No payment needed
+} as const;
+
+type PaymentMethodKey = keyof typeof PAYMENT_METHODS;
+
 interface DynoCost {
   app: string;
   dyno: string;
@@ -56,6 +76,7 @@ interface ServiceCost {
   purpose: string;
   icon: React.ElementType;
   category: "hosting" | "ai" | "integration" | "payperuse";
+  paidBy: PaymentMethodKey;
   note?: string;
 }
 
@@ -66,13 +87,15 @@ interface SavingsEntry {
 }
 
 const DYNOS: DynoCost[] = [
-  { app: "teeem-production", dyno: "web", size: "Standard-1X", cost: 25, purpose: "Production Rails API", environment: "Production" },
-  { app: "teeem-production", dyno: "worker", size: "Standard-1X", cost: 0, purpose: "Scaled to 0 - shared worker handles jobs", environment: "Production", note: "Scaled to 0" },
-  { app: "teeem-beta", dyno: "web", size: "Standard-1X", cost: 25, purpose: "Beta/UAT Rails API", environment: "Beta" },
-  { app: "teeem-staging", dyno: "web", size: "Standard-1X", cost: 25, purpose: "Staging Rails API", environment: "Staging" },
-  { app: "teeem-staging-worker", dyno: "web + worker", size: "Standard-2X", cost: 50, purpose: "Shared job processing (all envs)", environment: "Shared" },
-  { app: "teeem-sam-dev", dyno: "web + worker", size: "Standard-1X x2", cost: 50, purpose: "Sam's dev environment", environment: "Sam Dev" },
-  { app: "teeem-rob-dev", dyno: "web", size: "Standard-1X", cost: 25, purpose: "Rob's dev environment", environment: "Rob Dev" },
+  { app: "teeem-production", dyno: "web", size: "Basic", cost: 7, purpose: "Production Rails API", environment: "Production" },
+  { app: "teeem-beta", dyno: "web", size: "Basic", cost: 7, purpose: "Beta/UAT Rails API", environment: "Beta" },
+  { app: "teeem-staging", dyno: "web", size: "Basic", cost: 7, purpose: "Staging Rails API", environment: "Staging" },
+  { app: "teeem-staging", dyno: "worker", size: "Basic", cost: 7, purpose: "Staging background jobs", environment: "Staging" },
+  { app: "teeem-shared-worker", dyno: "worker", size: "Standard-2X", cost: 50, purpose: "Shared job processing (all envs)", environment: "Shared" },
+  { app: "teeem-sam-dev", dyno: "web", size: "Standard-2X", cost: 50, purpose: "Sam's dev API", environment: "Sam Dev" },
+  { app: "teeem-sam-dev", dyno: "worker", size: "Standard-2X", cost: 50, purpose: "Sam's dev background jobs", environment: "Sam Dev" },
+  { app: "teeem-rob-dev", dyno: "web", size: "Basic", cost: 7, purpose: "Rob's dev API", environment: "Rob Dev" },
+  { app: "teeem-rob-dev", dyno: "worker", size: "Basic", cost: 7, purpose: "Rob's dev background jobs", environment: "Rob Dev" },
   { app: "teeem-jake-dev", dyno: "web", size: "Basic", cost: 7, purpose: "Jake's dev environment", environment: "Jake Dev" },
 ];
 
@@ -84,29 +107,29 @@ const DATABASES: DatabaseCost[] = [
 
 const SERVICES: ServiceCost[] = [
   // ── Hosting & Storage ──
-  { name: "Vercel (Pro)", cost: 20, purpose: "Next.js frontend hosting + edge CDN for all environments", icon: Globe, category: "hosting" },
-  { name: "Wasabi Storage", cost: 7, purpose: "Primary S3-compatible document warehouse (jobs, emails, corporate docs)", icon: HardDrive, category: "hosting" },
-  { name: "Backblaze B2", cost: "~5-10", purpose: "Disaster recovery backups - weekly mirror from Wasabi", icon: HardDrive, category: "hosting" },
-  { name: "Webcentral", cost: "~15", purpose: "Domain registration & DNS for teeem.com.au", icon: Globe, category: "hosting", note: "Update with actual cost" },
-  { name: "Cloudflare", cost: 0, purpose: "DNS management, email DNS provisioning, wildcard SSL (free tier)", icon: Shield, category: "hosting" },
+  { name: "Vercel (Pro)", cost: 20, purpose: "Next.js frontend hosting + edge CDN for all environments", icon: Globe, category: "hosting", paidBy: "vercel" },
+  { name: "Wasabi Storage", cost: 7, purpose: "Primary S3-compatible document warehouse (jobs, emails, corporate docs)", icon: HardDrive, category: "hosting", paidBy: "wasabi" },
+  { name: "Backblaze B2", cost: "~5-10", purpose: "Disaster recovery backups - weekly mirror from Wasabi", icon: HardDrive, category: "hosting", paidBy: "backblaze" },
+  { name: "Webcentral", cost: "~15", purpose: "Domain registration & DNS for teeem.com.au", icon: Globe, category: "hosting", paidBy: "webcentral", note: "Update with actual cost" },
+  { name: "Cloudflare", cost: 0, purpose: "DNS management, email DNS provisioning, wildcard SSL (free tier)", icon: Shield, category: "hosting", paidBy: "free" },
 
   // ── AI & Machine Learning ──
-  { name: "Anthropic (Claude)", cost: "~50-100", purpose: "AI summaries, email classification, plan review, writing assistant, invoice matching", icon: Bot, category: "ai" },
-  { name: "AWS Rekognition", cost: "~1-5", purpose: "Face verification for site check-in/out (prevents buddy punching)", icon: ScanFace, category: "ai" },
+  { name: "Anthropic (Claude)", cost: "~50-100", purpose: "AI summaries, email classification, plan review, writing assistant, invoice matching", icon: Bot, category: "ai", paidBy: "anthropic" },
+  { name: "AWS Rekognition", cost: "~1-5", purpose: "Face verification for site check-in/out (prevents buddy punching)", icon: ScanFace, category: "ai", paidBy: "aws" },
 
   // ── Integrations (included/free) ──
-  { name: "Xero API", cost: 0, purpose: "Contact/invoice sync via webhooks (included in Xero subscription)", icon: FileSpreadsheet, category: "integration" },
-  { name: "Microsoft Graph", cost: 0, purpose: "Email sync (O365), SharePoint, calendar (included in M365)", icon: Mail, category: "integration" },
-  { name: "Polaris Mail", cost: "TBD", purpose: "White-label email hosting - mailbox provisioning, aliases, billing", icon: Mail, category: "integration", note: "Email reseller" },
-  { name: "Sentry", cost: 0, purpose: "Error tracking & performance monitoring (free tier: 5k errors/mo)", icon: AlertTriangle, category: "integration" },
-  { name: "WeatherAPI", cost: 0, purpose: "Automatic rain log tracking for construction jobs (free tier: 100k calls/mo)", icon: CloudRain, category: "integration" },
-  { name: "Cloudinary", cost: 0, purpose: "Product images, pricebook photos, image optimization (free tier: 25GB)", icon: Image, category: "integration" },
-  { name: "Metabase", cost: 0, purpose: "Business intelligence dashboards (self-hosted on Heroku)", icon: BarChart3, category: "integration", note: "Runs on Heroku" },
+  { name: "Xero API", cost: 0, purpose: "Contact/invoice sync via webhooks (included in Xero subscription)", icon: FileSpreadsheet, category: "integration", paidBy: "free" },
+  { name: "Microsoft Graph", cost: 0, purpose: "Email sync (O365), SharePoint, calendar (included in M365)", icon: Mail, category: "integration", paidBy: "free" },
+  { name: "Polaris Mail", cost: "TBD", purpose: "White-label email hosting - mailbox provisioning, aliases, billing", icon: Mail, category: "integration", paidBy: "polaris", note: "Email reseller" },
+  { name: "Sentry", cost: 0, purpose: "Error tracking & performance monitoring (free tier: 5k errors/mo)", icon: AlertTriangle, category: "integration", paidBy: "free" },
+  { name: "WeatherAPI", cost: 0, purpose: "Automatic rain log tracking for construction jobs (free tier: 100k calls/mo)", icon: CloudRain, category: "integration", paidBy: "free" },
+  { name: "Cloudinary", cost: 0, purpose: "Product images, pricebook photos, image optimization (free tier: 25GB)", icon: Image, category: "integration", paidBy: "free" },
+  { name: "Metabase", cost: 0, purpose: "Business intelligence dashboards (self-hosted on Heroku)", icon: BarChart3, category: "integration", paidBy: "heroku", note: "Runs on Heroku" },
 
   // ── Pay-per-use ──
-  { name: "Stripe", cost: "fees only", purpose: "Payment processing - payment links, subscriptions, customer portal", icon: CreditCard, category: "payperuse" },
-  { name: "Twilio", cost: "per msg", purpose: "SMS notifications - quote reminders, alerts", icon: MessageSquare, category: "payperuse" },
-  { name: "Basiq", cost: "TBD", purpose: "Bank feed aggregation - account linking for financial tracking", icon: Landmark, category: "payperuse" },
+  { name: "Stripe", cost: "fees only", purpose: "Payment processing - payment links, subscriptions, customer portal", icon: CreditCard, category: "payperuse", paidBy: "stripe" },
+  { name: "Twilio", cost: "per msg", purpose: "SMS notifications - quote reminders, alerts", icon: MessageSquare, category: "payperuse", paidBy: "twilio" },
+  { name: "Basiq", cost: "TBD", purpose: "Bank feed aggregation - account linking for financial tracking", icon: Landmark, category: "payperuse", paidBy: "basiq" },
 ];
 
 const SAVINGS_HISTORY: SavingsEntry[] = [
@@ -148,6 +171,17 @@ function CostBadge({ cost }: { cost: number | string }) {
   return (
     <span className={cn("inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border", color)}>
       {label}
+    </span>
+  );
+}
+
+function PaymentBadge({ paidBy }: { paidBy: PaymentMethodKey }) {
+  const method = PAYMENT_METHODS[paidBy];
+  if (!method) return null;
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded border border-border bg-muted/50 text-muted-foreground">
+      <CreditCard className="h-2.5 w-2.5" />
+      {method}
     </span>
   );
 }
@@ -369,6 +403,11 @@ export default function CostsMap() {
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{s.purpose}</p>
+                      {s.paidBy !== "free" && (
+                        <div className="mt-1">
+                          <PaymentBadge paidBy={s.paidBy} />
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -406,6 +445,78 @@ export default function CostsMap() {
                   </div>
                 </div>
               ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Payment Methods Summary */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Payment Methods
+          </CardTitle>
+          <CardDescription>Which account/card pays for what (update in CostsMap.tsx PAYMENT_METHODS)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left">
+                  <th className="pb-2 font-medium">Account</th>
+                  <th className="pb-2 font-medium">Services</th>
+                  <th className="pb-2 font-medium text-right">Est. Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  // Build a map of payment method → services + costs
+                  const methodMap: Record<string, { services: string[]; fixedTotal: number; hasVariable: boolean }> = {};
+
+                  // Add Heroku (dynos + databases)
+                  const herokuLabel = PAYMENT_METHODS.heroku;
+                  methodMap[herokuLabel] = {
+                    services: ["All Heroku Dynos", "All Heroku Databases"],
+                    fixedTotal: totalHeroku,
+                    hasVariable: false,
+                  };
+
+                  // Add external services
+                  SERVICES.forEach((s) => {
+                    const method = PAYMENT_METHODS[s.paidBy];
+                    if (!method) return; // skip free
+                    if (!methodMap[method]) methodMap[method] = { services: [], fixedTotal: 0, hasVariable: false };
+                    methodMap[method].services.push(s.name);
+                    if (typeof s.cost === "number") {
+                      methodMap[method].fixedTotal += s.cost;
+                    } else {
+                      methodMap[method].hasVariable = true;
+                    }
+                  });
+
+                  return Object.entries(methodMap)
+                    .sort((a, b) => b[1].fixedTotal - a[1].fixedTotal)
+                    .map(([method, data], i) => (
+                      <tr key={method} className={cn("border-b border-border last:border-0", i % 2 === 0 && "bg-muted/30")}>
+                        <td className="py-2 pr-4">
+                          <span className="inline-flex items-center gap-1.5 font-medium text-xs">
+                            <CreditCard className="h-3 w-3 text-muted-foreground" />
+                            {method}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-4 text-xs text-muted-foreground">
+                          {data.services.join(", ")}
+                        </td>
+                        <td className="py-2 text-right">
+                          <span className="font-mono text-xs font-medium">
+                            ${data.fixedTotal}{data.hasVariable ? "+" : ""}/mo
+                          </span>
+                        </td>
+                      </tr>
+                    ));
+                })()}
+              </tbody>
+            </table>
           </div>
         </CardContent>
       </Card>
