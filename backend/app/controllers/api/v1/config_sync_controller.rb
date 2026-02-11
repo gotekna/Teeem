@@ -754,6 +754,13 @@ module Api
       def filter_ids_by_existing_fks(source_ids, model, source_tenant, remap_fks)
         return source_ids if remap_fks.blank?
 
+        # FRC (Feb 2026): Skip self-referential FKs (e.g. warehouse_folders.parent_id).
+        # The service handles these with a two-pass import (defer parent_id to pass 2).
+        # Pre-filtering them here creates a chicken-and-egg problem: new child records
+        # get filtered out because their new parent hasn't been synced yet.
+        non_self_ref_fks = remap_fks.reject { |_f, c| c[:model] == model.name }
+        return source_ids if non_self_ref_fks.blank?
+
         # Load source records with their FK values
         source_records = ActsAsTenant.with_tenant(source_tenant) do
           model.where(id: source_ids)
@@ -762,7 +769,7 @@ module Api
         # Build lookup sets for each FK: { match_value => true }
         # These are the values that exist in the current (target) tenant
         target_values = {}
-        remap_fks.each do |fk_field, remap_config|
+        non_self_ref_fks.each do |fk_field, remap_config|
           fk_model = remap_config[:model].constantize
           match_field = remap_config[:match_field]
           target_values[fk_field] = ActsAsTenant.with_tenant(current_tenant) do
@@ -772,7 +779,7 @@ module Api
 
         # Build source FK value lookups (source_id → match_value)
         source_fk_values = {}
-        remap_fks.each do |fk_field, remap_config|
+        non_self_ref_fks.each do |fk_field, remap_config|
           fk_model = remap_config[:model].constantize
           match_field = remap_config[:match_field]
           source_fk_ids = source_records.map { |r| r.send(fk_field) }.compact.uniq
@@ -781,9 +788,9 @@ module Api
           end
         end
 
-        # Filter: keep only records where ALL FKs have a matching target
+        # Filter: keep only records where ALL non-self-ref FKs have a matching target
         kept_ids = source_records.select do |record|
-          remap_fks.all? do |fk_field, _config|
+          non_self_ref_fks.all? do |fk_field, _config|
             fk_id = record.send(fk_field)
             next true if fk_id.blank? # Optional FK, allow nil
 

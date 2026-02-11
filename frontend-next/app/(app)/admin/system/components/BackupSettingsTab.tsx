@@ -268,6 +268,15 @@ export function BackupSettingsTab() {
   const mirrorSchedule = formState.mirrorSchedule ?? "daily_2am";
   const hasTier2 = !!formState.secondaryCredentialId;
 
+  // Tier 1: frequent schedules only (up to every 6h)
+  const tier1Presets = presets.filter((p) =>
+    ["disabled", "every_15m", "every_30m", "hourly", "every_6h"].includes(p.value)
+  );
+  // Tier 2: infrequent schedules only (every 12h and greater)
+  const tier2Presets = presets.filter((p) =>
+    ["disabled", "every_12h", "daily_2am", "daily_6am", "weekly_sunday"].includes(p.value)
+  );
+
   // Compute stats from history
   const completedBackups = history.filter((h) => h.status === "completed");
   const totalSizeBytes = completedBackups.reduce((sum, h) => sum + (h.sizeBytes ?? 0), 0);
@@ -446,7 +455,7 @@ export function BackupSettingsTab() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {presets.map((preset) => (
+                  {tier1Presets.map((preset) => (
                     <SelectItem key={preset.value} value={preset.value}>
                       {preset.label}
                     </SelectItem>
@@ -576,7 +585,7 @@ export function BackupSettingsTab() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {presets.map((preset) => (
+                      {tier2Presets.map((preset) => (
                         <SelectItem key={preset.value} value={preset.value}>
                           {preset.label}
                         </SelectItem>
