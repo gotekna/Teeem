@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { Package, X, Search } from "lucide-react";
+import { Package, X } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/utils/formatters";

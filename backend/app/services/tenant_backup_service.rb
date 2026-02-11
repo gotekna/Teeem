@@ -278,10 +278,11 @@ class TenantBackupService
     )
   end
 
-  # SSoT (Jan 2026): bucket comes from WarehouseProvider, not credential
+  # Bucket resolution: credential's own bucket first (for backup/mirror credentials
+  # that target a different bucket like B2), then WarehouseProvider (for primary storage).
   def bucket
-    @bucket ||= WarehouseProvider.instance&.bucket
-    raise NotConfiguredError, "No bucket configured. Set bucket in Storage Configuration first." unless @bucket.present?
+    @bucket ||= credential.read_attribute(:bucket).presence || WarehouseProvider.instance&.bucket
+    raise NotConfiguredError, "No bucket configured. Set bucket in Storage Configuration or credential." unless @bucket.present?
     @bucket
   end
 end

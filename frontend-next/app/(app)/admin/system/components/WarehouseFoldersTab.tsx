@@ -33,7 +33,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { Plus, Pencil, Trash2, Lock, FolderOpen, ArrowUpDown, ArrowUp, ArrowDown, Mail, Zap, ChevronRight, ChevronDown, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, FolderOpen, ArrowUpDown, ArrowUp, ArrowDown, Mail, Zap, ChevronRight, ChevronDown } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { TabTypeBadge } from "@/components/ui/tab-type-badge";
 import { deriveTabType } from "@/lib/constants/tab-types";

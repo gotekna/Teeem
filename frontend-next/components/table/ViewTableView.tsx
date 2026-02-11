@@ -47,7 +47,6 @@ import {
   ArrowUpDown,
   ChevronUp,
   ChevronDown,
-  Search,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SearchInput } from "@/components/ui/search-input";

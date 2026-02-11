@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Shield, User, Search } from "lucide-react";
+import { Shield, User } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";

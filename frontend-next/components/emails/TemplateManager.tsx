@@ -53,7 +53,6 @@ import {
   Share2,
   Code,
   Eye,
-  Search,
 } from "lucide-react";
 
 // Types

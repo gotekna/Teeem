@@ -50,7 +50,6 @@ import {
   Sun,
   Moon,
   Monitor,
-  Search,
 } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";

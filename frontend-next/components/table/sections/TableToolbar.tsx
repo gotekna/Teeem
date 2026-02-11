@@ -48,7 +48,6 @@ import {
   Expand,
   Minimize2,
   X,
-  Search,
 } from 'lucide-react';
 import { SearchInput } from '@/components/ui/search-input';
 import type { SavedView } from '../types';
