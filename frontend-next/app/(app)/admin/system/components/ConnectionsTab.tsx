@@ -2424,7 +2424,7 @@ const CONNECTIONS_SUB_TABS = [
   { id: "migration", label: "Migration" },
   { id: "costs", label: "Cost Comparison" },
   { id: "backups", label: "Backups" },
-  { id: "sync", label: "Config Sync" },
+  { id: "sync", label: "Sync" },
 ];
 
 // SSoT: Connections is now top-level in Settings (Jan 2026)
