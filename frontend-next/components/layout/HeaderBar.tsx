@@ -29,6 +29,7 @@ import {
   Clock,
   Moon,
   Sun,
+  Activity,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
@@ -103,6 +104,13 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const [office365Tooltip, setOffice365Tooltip] = React.useState('Office 365: Not Connected');
   const [xeroPendingReview, setXeroPendingReview] = React.useState(0);
   const [showCreateTask, setShowCreateTask] = React.useState(false);
+  const [queueStatus, setQueueStatus] = React.useState<ConnectionStatus>('disconnected');
+  const [queueTooltip, setQueueTooltip] = React.useState('Workers: Loading...');
+  const [queueData, setQueueData] = React.useState<{
+    workers: number; pending: number; failed: number;
+    topFailed: Array<{ class_name: string; count: number }>;
+    queueDepth: Array<{ queue: string; count: number }>;
+  } | null>(null);
 
   // Prevent duplicate fetches (React StrictMode double-mount)
   const fetchingRef = React.useRef(false);
@@ -295,6 +303,28 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         setEmailTotalCount(0);
         setEmailConnectedCount(0);
         setEmailAccounts([]);
+      }
+
+      // Fetch worker queue health
+      try {
+        const queueResponse = await api.get<{
+          success: boolean;
+          data: {
+            status: string; workers: number; pending: number; failed: number;
+            topFailed: Array<{ class_name: string; count: number }>;
+            queueDepth: Array<{ queue: string; count: number }>;
+            message: string;
+          };
+        }>("/api/v1/system/queue_status");
+        if (queueResponse?.success && queueResponse?.data) {
+          const qd = queueResponse.data;
+          setQueueStatus(qd.status as ConnectionStatus);
+          setQueueTooltip(qd.message);
+          setQueueData(qd);
+        }
+      } catch (error) {
+        console.debug("Failed to fetch queue status:", error);
+        setQueueStatus('disconnected');
       }
     };
 
@@ -650,6 +680,71 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
               </>
             )}
           </Link>
+
+          {/* Worker Queue Status */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className={cn(
+                  "relative p-1.5 rounded-md transition-colors",
+                  getStatusColors(queueStatus)
+                )}
+                title={queueTooltip}
+              >
+                <Activity className="h-4 w-4" />
+                {queueStatus === 'connected' && (
+                  <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-border" />
+                )}
+                {queueStatus === 'degraded' && (
+                  <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-border" />
+                )}
+                {queueStatus === 'error' && (
+                  <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-border" />
+                )}
+                {queueStatus === 'disconnected' && (
+                  <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-muted-foreground border border-white dark:border-border" />
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 p-0">
+              <div className="p-3 border-b border-border">
+                <h4 className="font-medium text-sm">Worker Queue</h4>
+                <p className="text-xs text-muted-foreground">
+                  {queueData?.workers ?? 0} workers | {queueData?.pending ?? 0} pending | {queueData?.failed ?? 0} failed
+                </p>
+              </div>
+              {(queueData?.queueDepth?.length ?? 0) > 0 && (
+                <div className="p-3 border-b border-border">
+                  <p className="text-xs font-medium mb-1">Queue Depth</p>
+                  {queueData!.queueDepth.map(q => (
+                    <div key={q.queue} className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">{q.queue}</span>
+                      <span>{q.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(queueData?.topFailed?.length ?? 0) > 0 && (
+                <div className="p-3 border-b border-border">
+                  <p className="text-xs font-medium mb-1 text-red-500">Failed Jobs</p>
+                  {queueData!.topFailed.map(f => (
+                    <div key={f.class_name} className="flex justify-between text-xs">
+                      <span className="text-muted-foreground truncate">{f.class_name.replace(/Job$/, '')}</span>
+                      <span className="text-red-500">{f.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="p-2 border-t border-border bg-muted/30">
+                <Link
+                  href="/admin/system?tab=scheduled-jobs"
+                  className="block text-center text-xs text-primary hover:underline"
+                >
+                  View Scheduled Jobs
+                </Link>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           {/* Data Warehouse */}
           <Link prefetch={false}
