@@ -224,7 +224,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
       if (response?.success && response?.compose) {
         // SSoT: Production URL is always teeem.vercel.app (3 e's)
         // Login link pre-fills email so user just enters temp password
-        const loginUrl = "https://teeem.vercel.app/login?email=" + encodeURIComponent(response.user_email || "");
+        const loginUrl = "https://teeem.vercel.app/login?email=" + encodeURIComponent(response.user_email || "") + "&p=" + encodeURIComponent(response.temp_password || "");
         const firstName = (response.user_name || "").split(" ")[0] || "there";
 
         const subject = encodeURIComponent("Welcome to Teeem - Your Account is Ready");
@@ -232,11 +232,10 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         const body = encodeURIComponent(
           `<p>Hi ${firstName},</p>` +
           `<p>Welcome to Teeem - your complete business management system.</p>` +
-          `<p>Your account has been created and is ready to go. Here are your login details:</p>` +
-          `<p><strong><a href="${loginUrl}">Login to Teeem</a></strong><br>` +
-          `Email: ${response.user_email}<br>` +
-          `Temporary Password: ${response.temp_password}</p>` +
-          `<p>Click the login link - your email will be pre-filled. Just enter your temporary password and you'll be prompted to set a new one.</p>` +
+          `<p>Your account has been created and is ready to go:</p>` +
+          `<p><strong><a href="${loginUrl}">Click here to login</a></strong></p>` +
+          `<p>You'll be prompted to set a new password on your first login.</p>` +
+          `<p><strong>Bookmark the login page</strong> for easy access: <a href="https://teeem.vercel.app/login">teeem.vercel.app/login</a></p>` +
           `<p>Teeem brings together your jobs, contacts, documents, emails, scheduling, and finances in one place. If you need any help getting started, just reply to this email.</p>` +
           `<p>Best regards</p>`
         );
