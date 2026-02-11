@@ -307,14 +307,20 @@ export function BackupSettingsTab() {
             </div>
           </div>
           <CardDescription>
-            Incremental backup to a separate Wasabi bucket. Database dumps + changed documents.
+            Copies documents and database dumps from the live bucket to a separate Wasabi backup bucket.
+            If the live bucket is lost or corrupted, restore quickly from this copy.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Data flow */}
+          {/* What it does */}
           <div className="rounded-lg border bg-muted/30 dark:bg-muted/10 p-3 space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Data Flow</p>
-            <div className="flex items-center gap-2 text-sm">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">How it works</p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+              <li><strong>Document Backup</strong> — Copies all documents changed since last backup from the live bucket to the backup bucket. Run on a schedule or manually.</li>
+              <li><strong>Database Dump</strong> — Downloads the latest Heroku database backup and stores it in the backup bucket.</li>
+              <li><strong>Incremental</strong> — Only changed files are copied each run, keeping it fast and cheap.</li>
+            </ul>
+            <div className="flex items-center gap-2 text-sm pt-1">
               <Badge variant="outline" className="font-mono text-xs">
                 {warehouseBucket || "live-bucket"}
               </Badge>
@@ -490,15 +496,22 @@ export function BackupSettingsTab() {
             </div>
           </div>
           <CardDescription>
-            Full sync from live Wasabi storage directly to Backblaze B2. True off-site protection.
+            Completely separate copy of all documents on a different provider.
+            If Wasabi goes down entirely, everything is safe in B2.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Data flow */}
+          {/* What it does */}
           {hasTier2 && (
             <div className="rounded-lg border bg-muted/30 dark:bg-muted/10 p-3 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Data Flow</p>
-              <div className="flex items-center gap-2 text-sm">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">How it works</p>
+              <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                <li><strong>Document Sync</strong> — Downloads documents directly from the live Wasabi bucket and uploads them to B2. Does NOT depend on Tier 1.</li>
+                <li><strong>Database Sync</strong> — Copies database dumps from the Wasabi backup bucket to B2.</li>
+                <li><strong>Incremental</strong> — Uses a watermark timestamp. Only documents changed since the last sync are copied. &quot;Full Re-sync&quot; ignores the watermark and copies everything.</li>
+                <li><strong>Triggered</strong> — Runs automatically after each Tier 1 backup, or manually from the buttons below.</li>
+              </ul>
+              <div className="flex items-center gap-2 text-sm pt-1">
                 <Badge variant="outline" className="font-mono text-xs">
                   {warehouseBucket || "live-bucket"}
                 </Badge>
@@ -509,10 +522,6 @@ export function BackupSettingsTab() {
                 </Badge>
                 <span className="text-xs text-muted-foreground">(B2)</span>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Copies ALL documents directly from the live Wasabi bucket to B2.
-                Incremental — only syncs files changed since last sync.
-              </p>
             </div>
           )}
 
