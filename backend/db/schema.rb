@@ -8735,6 +8735,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_100001) do
     t.string "response_zip_path"
     t.datetime "response_zip_created_at"
     t.boolean "auto_attach_email_files", default: true, null: false
+    t.string "sync_key"
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
@@ -9739,7 +9740,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_100001) do
     t.string "twilio_auth_token"
     t.string "twilio_phone_number"
     t.boolean "twilio_enabled"
-    t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>true, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}
+    t.jsonb "working_days", default: "{\"friday\": true, \"monday\": true, \"sunday\": false, \"tuesday\": true, \"saturday\": false, \"thursday\": true, \"wednesday\": true}"
     t.jsonb "team_email_domains", default: []
     t.bigint "tenant_id"
     t.string "internal_email_domains"

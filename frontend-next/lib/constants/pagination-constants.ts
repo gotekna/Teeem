@@ -20,6 +20,14 @@
 export const TABLE_ROW_LIMIT = 100;
 
 /**
+ * Maximum number of rows to render in the DOM at once.
+ * Prevents browser from choking on large datasets (e.g. Pricebook 5000+ items).
+ * Users can still search/filter to find items beyond this limit.
+ * SSoT for: TeeemTableView.tsx
+ */
+export const MAX_RENDERED_ROWS = 200;
+
+/**
  * Page size for data warehouse views.
  * Used in DataWarehouseTab for paginated data exploration.
  */

@@ -277,6 +277,7 @@ module Api
           :supplier_confirm, :supplier_confirmation_method, :supplier_confirmed_contact_name,
           # Manual positioning and task status
           :hold, :hold_date, :dependency_broken, :dependency_broken_at, :dependency_broken_by_id, :started,
+          :completed, :completed_at,
           # Header and active status
           :allow_header, :is_active,
           # Task group for PO/non-PO grouping

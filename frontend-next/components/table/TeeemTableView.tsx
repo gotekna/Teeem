@@ -124,7 +124,7 @@ import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "
 import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
 import { convertColumnsToTEEEMFormat, SYSTEM_DISPLAY_COLUMNS, type ApiColumn } from "@/lib/corporate/column-utils";
 import { isVisibleSystemColumn } from "@/lib/constants/system-columns";
-import { TABLE_ROW_LIMIT } from "@/lib/constants/pagination-constants";
+import { TABLE_ROW_LIMIT, MAX_RENDERED_ROWS } from "@/lib/constants/pagination-constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -564,6 +564,7 @@ export default function TeeemTableView({
   autoFetchRecords = false,
   autoFetchLimit, // Maximum records to auto-fetch before stopping (search still searches all)
   initialFilters,
+  extraQueryParams,
   legacyDataSource, // Documents why entries is used instead of autoFetchRecords (suppresses deprecation warning)
   showDataHealth = false,
   onDataHealthIssueClick,
@@ -592,6 +593,7 @@ export default function TeeemTableView({
   enableMobileCardView = true,
   forceCardView = false,
   cardViewMaxFields = 3,
+  alwaysEditable = false,
 }: TeeemTableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -625,12 +627,13 @@ export default function TeeemTableView({
   // - Auto-fetch records
   const shouldAutoEnable = !!effectiveFoundationId;
 
-  // SSoT: Embedded context detection - tables with initialFilters are in subtab/filtered view context
+  // SSoT: Embedded context detection - tables with initialFilters or extraQueryParams are in subtab/filtered view context
   // These tables should NOT interact with URL (read or write) because:
   // 1. URL views are from parent page or other tabs (would pollute this table's filter context)
   // 2. initialFilters defines the authoritative filter context for this table instance
-  // Used by: loadViewState (skip URL write), loadSavedViews (skip URL read)
-  const isEmbeddedContext = !!(initialFilters && initialFilters.length > 0);
+  // 3. extraQueryParams (e.g., job_id) means cache is scoped differently than foundationId alone
+  // Used by: loadViewState (skip URL write), loadSavedViews (skip URL read), cache restoration (skip stale data)
+  const isEmbeddedContext = !!(initialFilters && initialFilters.length > 0) || !!extraQueryParams;
 
   // ============================================================================
   // DEPRECATION WARNING: entries prop with Foundation-backed tables
@@ -1083,10 +1086,11 @@ export default function TeeemTableView({
 
     if (!useAutoFetch) return;
 
-    // ULTRA Solution: Wait for base filters to be set if in embedded context
+    // ULTRA Solution: Wait for base filters to be set if in embedded context with initialFilters
     // SSoT: isEmbeddedContext defined at component top
     // This prevents the race condition where we fetch without filters, then re-fetch with filters
-    if (isEmbeddedContext && baseFilters.length === 0) {
+    // Note: Only wait for baseFilters when initialFilters is provided (not for extraQueryParams-only context)
+    if (initialFilters && initialFilters.length > 0 && baseFilters.length === 0) {
       return;
     }
 
@@ -1194,6 +1198,7 @@ export default function TeeemTableView({
             value: f.value,
           })));
         }
+        if (extraQueryParams) Object.assign(params, extraQueryParams);
         const response = await api.get<{ records: TableRowType[], has_more: boolean, total_count?: number }>(
           `/api/v1/foundations/${effectiveFoundationId}/records`,
           { params }
@@ -1272,6 +1277,7 @@ export default function TeeemTableView({
             value: f.value,
           })));
         }
+        if (extraQueryParams) Object.assign(params, extraQueryParams);
         const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
           `/api/v1/foundations/${effectiveFoundationId}/records`,
           { params }
@@ -1338,6 +1344,7 @@ export default function TeeemTableView({
       if (currentGroupByColumns.length > 0) {
         params.group_by = currentGroupByColumns.join(",");
       }
+      if (extraQueryParams) Object.assign(params, extraQueryParams);
       const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
         `/api/v1/foundations/${effectiveFoundationId}/records`,
         { params }
@@ -1715,11 +1722,11 @@ export default function TeeemTableView({
   // SSoT: isEmbeddedContext defined at component top
   const initialFiltersKey = useMemo(() => JSON.stringify(initialFilters), [initialFilters]);
   useEffect(() => {
-    if (isEmbeddedContext) {
+    if (isEmbeddedContext && initialFilters && initialFilters.length > 0) {
       // Clear view filters first to prevent pollution from other tables
       // Base filters are the defining context for this table instance
       setViewFilters([]);
-      setBaseFilters(initialFilters!);  // Safe - isEmbeddedContext guarantees initialFilters exists
+      setBaseFilters(initialFilters);
     }
   }, [initialFiltersKey, setBaseFilters, setViewFilters, isEmbeddedContext]); // Only re-run when initialFilters changes (JSON stringified)
 
@@ -1969,7 +1976,8 @@ export default function TeeemTableView({
     safeFilters, // Pass cascade filters so counts reflect filtered data
     groupByColumns.length > 0 && !!validGroupByColumnForApi, // ULTRA: Hook provides SSR-aware values
     groupByColumns, // ULTRA: Hook provides SSR-aware values on first render
-    ssrGroupCountsData // SSR: Pre-fetched group counts to eliminate CLS
+    ssrGroupCountsData, // SSR: Pre-fetched group counts to eliminate CLS
+    extraQueryParams // Scope group counts to match record filter (e.g., job_id)
   );
 
   // Build a map of group key -> server count for quick lookup
@@ -2889,6 +2897,7 @@ export default function TeeemTableView({
           params.search_mode = propSearchMode;
         }
       }
+      if (extraQueryParams) Object.assign(params, extraQueryParams);
 
       const response = await api.get<{
         success: boolean;
@@ -3709,11 +3718,15 @@ export default function TeeemTableView({
   });
 
   // Limit displayed rows for performance (initial render shows INITIAL_ROW_LIMIT rows)
+  // Cap at MAX_RENDERED_ROWS to prevent browser from choking on large datasets
   const displayedRows = useMemo(() => {
-    if (showAllRows || filteredAndSortedEntries.length <= INITIAL_ROW_LIMIT) {
+    if (filteredAndSortedEntries.length <= INITIAL_ROW_LIMIT) {
       return filteredAndSortedEntries;
     }
-    return filteredAndSortedEntries.slice(0, rowLimit);
+    if (showAllRows) {
+      return filteredAndSortedEntries.slice(0, MAX_RENDERED_ROWS);
+    }
+    return filteredAndSortedEntries.slice(0, Math.min(rowLimit, MAX_RENDERED_ROWS));
   }, [filteredAndSortedEntries, rowLimit, showAllRows, INITIAL_ROW_LIMIT]);
 
   // Reset row limit when filters/sort change
@@ -4396,9 +4409,9 @@ export default function TeeemTableView({
         }
       }
 
-      // Global edit mode - show clickable cells that start row editing on click
+      // Global edit mode OR alwaysEditable - show clickable cells that start row editing on click
       // Cells stay as lightweight text until clicked
-      if (isEditMode && isColumnEditable) {
+      if ((isEditMode || alwaysEditable) && isColumnEditable) {
         return (
           <div
             className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
@@ -5659,8 +5672,8 @@ export default function TeeemTableView({
               </TableRow>
             );
           })}
-          {/* Show "Load More" row if there are more rows to display */}
-          {!showAllRows && displayedRows.length < filteredAndSortedEntries.length && (
+          {/* Show "Load More" row if there are more rows to display (capped at MAX_RENDERED_ROWS) */}
+          {displayedRows.length < filteredAndSortedEntries.length && displayedRows.length < MAX_RENDERED_ROWS && (
             <TableRow>
               <TableCell
                 colSpan={visibleColumnsInOrder.length}
@@ -5669,18 +5682,30 @@ export default function TeeemTableView({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setRowLimit(prev => prev + INITIAL_ROW_LIMIT)}
+                  onClick={() => setRowLimit(prev => Math.min(prev + INITIAL_ROW_LIMIT, MAX_RENDERED_ROWS))}
                 >
-                  Load more ({filteredAndSortedEntries.length - displayedRows.length} remaining)
+                  Load more ({Math.min(filteredAndSortedEntries.length, MAX_RENDERED_ROWS) - displayedRows.length} remaining)
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ml-2"
-                  onClick={() => setShowAllRows(true)}
-                >
-                  Show all {filteredAndSortedEntries.length}
-                </Button>
+                {filteredAndSortedEntries.length <= MAX_RENDERED_ROWS && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-2"
+                    onClick={() => setShowAllRows(true)}
+                  >
+                    Show all {filteredAndSortedEntries.length}
+                  </Button>
+                )}
+              </TableCell>
+            </TableRow>
+          )}
+          {displayedRows.length >= MAX_RENDERED_ROWS && filteredAndSortedEntries.length > MAX_RENDERED_ROWS && (
+            <TableRow>
+              <TableCell
+                colSpan={visibleColumnsInOrder.length}
+                className="h-12 text-center text-muted-foreground text-sm"
+              >
+                Showing {MAX_RENDERED_ROWS} of {filteredAndSortedEntries.length} rows. Use search or filters to find specific items.
               </TableCell>
             </TableRow>
           )}
