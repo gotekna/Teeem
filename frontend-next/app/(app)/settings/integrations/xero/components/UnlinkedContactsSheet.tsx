@@ -38,6 +38,7 @@ import { formatCurrencyWhole } from "@/utils/formatters";
 interface PotentialMatch {
   id: number;
   name: string;
+  entity_type?: string | null;
   match_type: "exact" | "company_exact" | "partial" | "word";
   score: number;
 }
@@ -66,6 +67,7 @@ interface XeroDetails {
 interface UnlinkedContact {
   xero_contact_name: string;
   xero_contact_id: string;
+  xero_inferred_type?: string | null;
   invoice_count: number;
   total_amount: number;
   potential_matches: PotentialMatch[];
@@ -224,6 +226,19 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
     return <Badge variant="secondary" className="text-xs">Possible</Badge>;
   };
 
+  const getEntityTypeBadge = (entityType?: string | null) => {
+    if (!entityType) return null;
+    const labels: Record<string, { label: string; className: string }> = {
+      person: { label: "Person", className: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" },
+      company: { label: "Company", className: "bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300" },
+      trust: { label: "Trust", className: "bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300" },
+      sole_trader: { label: "Sole Trader", className: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300" },
+    };
+    const config = labels[entityType];
+    if (!config) return null;
+    return <Badge className={`${config.className} text-[10px] font-normal px-1.5 py-0`}>{config.label}</Badge>;
+  };
+
   const formatCurrency = (amount: number) => {
     return formatCurrencyWhole(amount);
   };
@@ -303,7 +318,10 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                             <User className="h-4 w-4 text-amber-600" />
                           </div>
                           <div className="text-left">
-                            <div className="font-medium">{contact.xero_contact_name}</div>
+                            <div className="font-medium flex items-center gap-1.5">
+                              {contact.xero_contact_name}
+                              {getEntityTypeBadge(contact.xero_inferred_type)}
+                            </div>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <FileText className="h-3 w-3" />
                               <span>{contact.invoice_count} invoices</span>
@@ -466,6 +484,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                                   <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                                     <span className="shrink-0">{getMatchBadge(match.match_type, match.score)}</span>
                                     <span className="font-medium truncate">{match.name}</span>
+                                    {getEntityTypeBadge(match.entity_type)}
                                   </div>
                                   <Button
                                     size="sm"

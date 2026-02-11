@@ -469,8 +469,15 @@ export function DirectorChangeWizard({
   const stepTitles = ["Company", "Changes", "Preview", "Send"];
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+    <Sheet open={open} onOpenChange={(v) => {
+      // Prevent closing while PDF is generating or sending
+      if (!v && (loading || sending)) return;
+      onOpenChange(v);
+    }}>
+      <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto"
+        onInteractOutside={(e) => { if (loading || sending) e.preventDefault(); }}
+        onEscapeKeyDown={(e) => { if (loading || sending) e.preventDefault(); }}
+      >
         <SheetHeader>
           <SheetTitle>Director Change Package</SheetTitle>
           <SheetDescription>ASIC Form 484 - Change to Company Details</SheetDescription>
