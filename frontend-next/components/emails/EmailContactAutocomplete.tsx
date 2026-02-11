@@ -1,18 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
-import { X, Building2, Briefcase, Mail, ExternalLink } from "lucide-react";
+import { X, Building2, Briefcase, Mail, ExternalLink, UserPlus } from "lucide-react";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import type { EmailContact, ContactEmail } from "@/lib/email-types";
+import { api } from "@/lib/api";
 
 /** Chip data includes contact info for navigation */
 interface EmailChip {
   email: string;
   contactId?: number;
   displayName?: string;
+  resolved?: boolean; // true once contact lookup completed (whether found or not)
 }
 
 interface EmailContactAutocompleteProps {
@@ -82,6 +84,48 @@ export function EmailContactAutocomplete({
       setChips(newChips);
     }
   }, [value]);
+
+  // Resolve contact names for chips that only have an email (typed or pre-populated)
+  const resolvedEmailsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const unresolvedChips = chips.filter(c => !c.resolved && !c.displayName && !resolvedEmailsRef.current.has(c.email));
+    if (unresolvedChips.length === 0) return;
+
+    // Mark as resolving to prevent duplicate lookups
+    unresolvedChips.forEach(c => resolvedEmailsRef.current.add(c.email));
+
+    const resolveContacts = async () => {
+      for (const chip of unresolvedChips) {
+        try {
+          const response = await api.get<{ contacts: Array<{ id: number; display_name: string; email?: string; contact_emails?: Array<{ email: string }> }> }>(
+            `/api/v1/contacts?search=${encodeURIComponent(chip.email)}&with_email=true&per_page=5`
+          );
+          const results = (response as { contacts: Array<{ id: number; display_name: string; email?: string; contact_emails?: Array<{ email: string }> }> }).contacts || [];
+          // Find exact email match
+          const match = results.find(c =>
+            c.email?.toLowerCase() === chip.email.toLowerCase() ||
+            c.contact_emails?.some(ce => ce.email.toLowerCase() === chip.email.toLowerCase())
+          );
+          if (match) {
+            setChips(prev => prev.map(c =>
+              c.email === chip.email ? { ...c, contactId: match.id, displayName: match.display_name, resolved: true } : c
+            ));
+          } else {
+            // No contact found - mark resolved so we can show "create contact" option
+            setChips(prev => prev.map(c =>
+              c.email === chip.email ? { ...c, resolved: true } : c
+            ));
+          }
+        } catch {
+          // Mark resolved even on error so we don't retry endlessly
+          setChips(prev => prev.map(c =>
+            c.email === chip.email ? { ...c, resolved: true } : c
+          ));
+        }
+      }
+    };
+    resolveContacts();
+  }, [chips]);
 
   // Get just emails for filtering (used to skip already-added contacts)
   const emailChips = useMemo(() => chips.map(c => c.email), [chips]);
@@ -405,7 +449,7 @@ export function EmailContactAutocomplete({
             key={`${chip.email}-${index}`}
             className="inline-flex items-center gap-1 px-2 py-0.5 bg-muted text-foreground rounded text-sm max-w-[200px] group"
           >
-            {/* Clickable email - opens contact page */}
+            {/* Clickable name/email - opens contact page */}
             <span
               className={cn(
                 "truncate",
@@ -417,11 +461,11 @@ export function EmailContactAutocomplete({
                   openContact(chip.contactId);
                 }
               }}
-              title={chip.contactId ? `Open ${chip.displayName || 'contact'} in new tab` : chip.email}
+              title={chip.email}
             >
-              {chip.email}
+              {chip.displayName || chip.email}
             </span>
-            {/* Link icon for contacts */}
+            {/* Link icon for known contacts */}
             {chip.contactId && (
               <ExternalLink
                 className="h-3 w-3 opacity-50 group-hover:opacity-100 cursor-pointer"
@@ -430,6 +474,25 @@ export function EmailContactAutocomplete({
                   openContact(chip.contactId!);
                 }}
               />
+            )}
+            {/* Create contact icon for unknown emails */}
+            {chip.resolved && !chip.contactId && (
+              <span
+                title="Create contact"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Extract name guess from email (before @)
+                  const localPart = chip.email.split("@")[0] || "";
+                  const nameGuess = localPart
+                    .replace(/[._-]/g, " ")
+                    .replace(/\b\w/g, c => c.toUpperCase());
+                  const params = new URLSearchParams({ email: chip.email });
+                  if (nameGuess) params.set("name", nameGuess);
+                  window.open(`/contacts/new?${params.toString()}`, '_blank');
+                }}
+              >
+                <UserPlus className="h-3 w-3 text-amber-500 opacity-70 group-hover:opacity-100 cursor-pointer" />
+              </span>
             )}
             {/* Delete button */}
             <button
