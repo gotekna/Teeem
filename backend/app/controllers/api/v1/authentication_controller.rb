@@ -328,7 +328,8 @@ module Api
                       "<p>We received a request to reset your password.</p>" \
                       "<p><strong><a href=\"#{reset_url}\">Click here to reset your password</a></strong></p>" \
                       "<p>This link expires in 2 hours. If you didn't request this, you can safely ignore this email.</p>" \
-                      "<p>Best regards</p>"
+                      "<p>Best regards</p>",
+                from_address: "setup@teeem.com.au"
               )
             end
           rescue => e
