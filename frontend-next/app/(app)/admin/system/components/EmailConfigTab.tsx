@@ -324,7 +324,8 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
                     `These mailboxes will be connected to Teeem for automated email processing. Once created, please send us the access credentials.\n\n` +
                     `Thanks`
                   );
-                  router.push(`/email?compose_to=&compose_subject=${subject}&compose_body=${body}`);
+                  const from = encodeURIComponent("setup@teeem.com.au");
+                  router.push(`/email?compose_to=&compose_subject=${subject}&compose_body=${body}&compose_from=${from}`);
                 }}
               >
                 <Send className="h-3.5 w-3.5" />
