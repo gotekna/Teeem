@@ -28,9 +28,10 @@ Rails.application.routes.draw do
       end
 
       # Async PDF Generation
-      resources :pdf_generations, only: [:create, :show] do
+      resources :pdf_generations, only: [:index, :create, :show] do
         member do
           get :download
+          patch :cancel
         end
       end
 
@@ -337,6 +338,7 @@ Rails.application.routes.draw do
       get "system/metrics", to: "system#metrics"
       get "system/scheduled_jobs", to: "system#scheduled_jobs"
       get "system/queue_status", to: "system#queue_status"
+      delete "system/clear_failed_jobs", to: "system#clear_failed_jobs"
 
       # Navigation (sidebar menu - SSoT is NavigationItem, user stores collapse only)
       get "navigation", to: "navigation#index"
