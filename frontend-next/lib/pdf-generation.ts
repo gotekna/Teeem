@@ -9,6 +9,7 @@ export interface PdfGenerationStatus {
   error: string | null;
   createdAt: string;
   updatedAt: string;
+  result?: Record<string, unknown>;
 }
 
 interface EnqueueResponse {

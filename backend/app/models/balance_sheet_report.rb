@@ -116,21 +116,17 @@ class BalanceSheetReport < ApplicationRecord
         # Store raw data
         update!(report_data: result[:report])
 
-        # Generate PDF and upload to storage
-        pdf_service = FinancialReportService.new(self)
-        pdf_result = pdf_service.generate
+        # Enqueue PDF generation on worker dyno (HexaPDF not available on web)
+        pdf_gen = PdfGeneration.create!(
+          generator_type: "financial_report",
+          generator_params: { "report_type" => self.class.name, "report_id" => id },
+          tenant_id: corporate&.tenant_id,
+          status: "pending"
+        )
+        GeneratePdfJob.perform_later(pdf_gen.id)
 
-        if pdf_result[:success]
-          mark_completed!(
-            url: pdf_result[:storage_url],
-            file_name: pdf_result[:filename],
-            file_size: pdf_result[:pdf]&.bytesize
-          )
-        else
-          # Data fetched successfully but PDF generation failed
-          Rails.logger.warn("Balance Sheet data saved but PDF generation failed: #{pdf_result[:error]}")
-          mark_completed!
-        end
+        # Mark completed with data (PDF URL will be set by the job)
+        mark_completed!
       else
         mark_failed!(result[:error] || "Failed to fetch Balance Sheet from Xero")
       end
