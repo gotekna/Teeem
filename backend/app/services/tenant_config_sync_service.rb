@@ -176,7 +176,10 @@ class TenantConfigSyncService
                     :abn, :acn, :website, :email_domains, :address, :city, :state, :postcode,
                     :bank_bsb, :bank_account_number, :bank_account_name,
                     :default_purchase_account, :default_sales_account, :payment_terms,
-                    :is_active, :entity_type, :notes, :contact_code],
+                    :is_active, :entity_type, :notes],
+      # FRC: contact_code deliberately excluded from sync_fields — each tenant
+      # auto-generates unique codes (C{id}). Syncing master's codes causes collisions
+      # with existing contacts. sync_key (display_name) handles cross-tenant matching.
       scope: -> { where(entity_type: "price_only") },  # SSoT: Only sync price_only supplier stubs
       description: "Contacts (price_only suppliers for pricebook)",
       group: "contacts"
