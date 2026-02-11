@@ -39,8 +39,8 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { formatDistanceToNow } from "date-fns";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Types
 interface SchedulePreset {
@@ -239,7 +239,27 @@ export function BackupSettingsTab() {
   };
 
   if (loading) {
-    return <LoadingOverlay />;
+    return (
+      <div className="space-y-6">
+        <Card><CardContent className="py-4"><Skeleton className="h-10 w-full" /></CardContent></Card>
+        <Card>
+          <CardHeader className="pb-3"><Skeleton className="h-5 w-48" /><Skeleton className="h-4 w-96 mt-2" /></CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-24 w-full" />
+            <div className="grid grid-cols-3 gap-3"><Skeleton className="h-20" /><Skeleton className="h-20" /><Skeleton className="h-20" /></div>
+            <Skeleton className="h-24 w-full" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3"><Skeleton className="h-5 w-48" /><Skeleton className="h-4 w-80 mt-2" /></CardHeader>
+          <CardContent className="space-y-4"><Skeleton className="h-24 w-full" /><Skeleton className="h-20 w-full" /></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3"><Skeleton className="h-5 w-36" /><Skeleton className="h-4 w-48 mt-2" /></CardHeader>
+          <CardContent><Skeleton className="h-32 w-full" /></CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const primaryCred = credentials.find((c) => c.id === formState.primaryCredentialId);
@@ -269,9 +289,9 @@ export function BackupSettingsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Master enable bar */}
+      {/* Master enable + credential config */}
       <Card>
-        <CardContent className="py-4">
+        <CardContent className="py-4 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <FolderArchive className="h-5 w-5 text-muted-foreground" />
@@ -295,6 +315,52 @@ export function BackupSettingsTab() {
               />
             </div>
           </div>
+          {formState.enabled && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Tier 1 — Wasabi Backup Bucket</Label>
+                <Select
+                  value={formState.primaryCredentialId?.toString() ?? "none"}
+                  onValueChange={handlePrimaryChange}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not configured</SelectItem>
+                    {credentials
+                      .filter((c) => c.id !== formState.secondaryCredentialId)
+                      .map((cred) => (
+                        <SelectItem key={cred.id} value={cred.id.toString()}>
+                          {cred.name} {cred.bucket ? `(${cred.bucket})` : ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Tier 2 — B2 Off-site Bucket</Label>
+                <Select
+                  value={formState.secondaryCredentialId?.toString() ?? "none"}
+                  onValueChange={handleSecondaryChange}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None — no off-site mirror</SelectItem>
+                    {credentials
+                      .filter((c) => c.id !== formState.primaryCredentialId)
+                      .map((cred) => (
+                        <SelectItem key={cred.id} value={cred.id.toString()}>
+                          {cred.name} {cred.bucket ? `(${cred.bucket})` : ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -367,68 +433,41 @@ export function BackupSettingsTab() {
             />
           </div>
 
-          {/* Settings + Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Backup Storage Credential</Label>
-                <Select
-                  value={formState.primaryCredentialId?.toString() ?? "none"}
-                  onValueChange={handlePrimaryChange}
-                  disabled={!formState.enabled}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Not configured</SelectItem>
-                    {credentials
-                      .filter((c) => c.id !== formState.secondaryCredentialId)
-                      .map((cred) => (
-                        <SelectItem key={cred.id} value={cred.id.toString()}>
-                          {cred.name} {cred.bucket ? `(${cred.bucket})` : ""}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Document Schedule</Label>
-                <Select
-                  value={documentSchedule}
-                  onValueChange={handleDocumentScheduleChange}
-                  disabled={!formState.enabled}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {presets.map((preset) => (
-                      <SelectItem key={preset.value} value={preset.value}>
-                        {preset.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex flex-col justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleRunNow("documents")}
-                disabled={!formState.enabled || !formState.primaryCredentialId || runningBackup !== null}
-                className="w-full"
+          {/* Schedule + Actions */}
+          <div className="flex items-end gap-4 pt-2 border-t">
+            <div className="space-y-1.5 flex-1 max-w-xs">
+              <Label className="text-xs">Schedule</Label>
+              <Select
+                value={documentSchedule}
+                onValueChange={handleDocumentScheduleChange}
+                disabled={!formState.enabled}
               >
-                {runningBackup === "documents" ? (
-                  <Spinner size={14} className="mr-1.5" />
-                ) : (
-                  <HardDrive className="h-3.5 w-3.5 mr-1.5" />
-                )}
-                Run Document Backup Now
-              </Button>
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {presets.map((preset) => (
+                    <SelectItem key={preset.value} value={preset.value}>
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleRunNow("documents")}
+              disabled={!formState.enabled || !formState.primaryCredentialId || runningBackup !== null}
+              className="h-9"
+            >
+              {runningBackup === "documents" ? (
+                <Spinner size={14} className="mr-1.5" />
+              ) : (
+                <HardDrive className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Run Document Backup Now
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -514,82 +553,59 @@ export function BackupSettingsTab() {
             </div>
           )}
 
-          {/* Settings + Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">B2 Storage Credential</Label>
-                <Select
-                  value={formState.secondaryCredentialId?.toString() ?? "none"}
-                  onValueChange={handleSecondaryChange}
-                  disabled={!formState.enabled}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None — no off-site mirror</SelectItem>
-                    {credentials
-                      .filter((c) => c.id !== formState.primaryCredentialId)
-                      .map((cred) => (
-                        <SelectItem key={cred.id} value={cred.id.toString()}>
-                          {cred.name} {cred.bucket ? `(${cred.bucket})` : ""}
+          {!hasTier2 && (
+            <div className="pt-2 border-t">
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Select a B2 credential above to enable off-site disaster recovery.
+              </p>
+            </div>
+          )}
+
+          {/* Schedule + Retention + Actions */}
+          {hasTier2 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Schedule</Label>
+                  <Select
+                    value={mirrorSchedule}
+                    onValueChange={handleMirrorScheduleChange}
+                    disabled={!formState.enabled}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {presets.map((preset) => (
+                        <SelectItem key={preset.value} value={preset.value}>
+                          {preset.label}
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
-                {!hasTier2 && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 pt-1">
-                    Without B2, there is no off-site disaster recovery copy.
-                  </p>
-                )}
-              </div>
-              {hasTier2 && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Tier 2 Schedule</Label>
-                    <Select
-                      value={mirrorSchedule}
-                      onValueChange={handleMirrorScheduleChange}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Keep Last (DB dumps)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={formState.retentionCount ?? 5}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (val >= 1 && val <= 100) {
+                          handleChange("retentionCount", val);
+                        }
+                      }}
                       disabled={!formState.enabled}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {presets.map((preset) => (
-                          <SelectItem key={preset.value} value={preset.value}>
-                            {preset.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Keep Last (DB dumps)</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={100}
-                        value={formState.retentionCount ?? 5}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          if (val >= 1 && val <= 100) {
-                            handleChange("retentionCount", val);
-                          }
-                        }}
-                        disabled={!formState.enabled}
-                        className="h-9 w-20"
-                      />
-                      <span className="text-xs text-muted-foreground">copies</span>
-                    </div>
+                      className="h-9 w-20"
+                    />
+                    <span className="text-xs text-muted-foreground">copies</span>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
 
-            {hasTier2 && (
               <div className="flex flex-col justify-end gap-2">
                 <Button
                   variant="outline"
@@ -634,8 +650,8 @@ export function BackupSettingsTab() {
                   Full Re-sync to B2
                 </Button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
