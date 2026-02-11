@@ -13,6 +13,8 @@
 # needing individual scheduled jobs for each tenant.
 #
 class TenantBackupDispatcherJob < ApplicationJob
+  include DeduplicatableJob
+
   queue_as :default
 
   def perform

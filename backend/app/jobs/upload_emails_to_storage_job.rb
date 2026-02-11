@@ -18,6 +18,8 @@
 # This prevents silent failures when Tenant.first doesn't have emails (e.g., TEEEM vs Tekna).
 #
 class UploadEmailsToStorageJob < ApplicationJob
+  include DeduplicatableJob
+
   queue_as :low
 
   def perform(batch_size: nil, tenant_id: nil)
