@@ -2434,11 +2434,12 @@ const DEFAULT_CONNECTIONS_BASE_PATH = "/settings/connections";
 
 interface ConnectionsTabProps {
   subTab?: string;
+  deepTab?: string;
   basePath?: string;
 }
 
 // Main Connections Tab
-export function ConnectionsTab({ subTab, basePath = DEFAULT_CONNECTIONS_BASE_PATH }: ConnectionsTabProps) {
+export function ConnectionsTab({ subTab, deepTab, basePath = DEFAULT_CONNECTIONS_BASE_PATH }: ConnectionsTabProps) {
   const router = useRouter();
 
   // Validate and default the sub-tab
@@ -2455,7 +2456,12 @@ export function ConnectionsTab({ subTab, basePath = DEFAULT_CONNECTIONS_BASE_PAT
 
   const handleSubTabChange = (tabId: string) => {
     // Navigate to sub-tab URL
-    router.push(`${basePath}/${tabId}`, { scroll: false });
+    // For email-accounts, include default deep tab so breadcrumb shows it
+    if (tabId === "email-accounts") {
+      router.push(`${basePath}/email-accounts/configuration`, { scroll: false });
+    } else {
+      router.push(`${basePath}/${tabId}`, { scroll: false });
+    }
   };
 
   return (
@@ -2475,7 +2481,7 @@ export function ConnectionsTab({ subTab, basePath = DEFAULT_CONNECTIONS_BASE_PAT
         {visitedTabs.has("integrations") && <IntegrationsSubTab />}
       </TabsContent>
       <TabsContent value="email-accounts" forceMount className={activeSubTab !== "email-accounts" ? "hidden" : ""}>
-        {visitedTabs.has("email-accounts") && <EmailAccountsTab />}
+        {visitedTabs.has("email-accounts") && <EmailAccountsTab subTab={deepTab} basePath={`${basePath}/email-accounts`} />}
       </TabsContent>
       <TabsContent value="migration" forceMount className={activeSubTab !== "migration" ? "hidden" : ""}>
         {visitedTabs.has("migration") && (

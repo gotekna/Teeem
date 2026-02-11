@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { resolveDisplayName } from "@/lib/breadcrumb-utils";
 
 export function DynamicTitle() {
   const pathname = usePathname();
@@ -22,14 +23,10 @@ export function DynamicTitle() {
       envPrefix = "Teeem";
     }
 
-    // Get page name from pathname
-    const pageName = pathname
-      .split("/")
-      .filter(Boolean)
-      .pop();
-
-    const pageTitle = pageName
-      ? `${pageName.charAt(0).toUpperCase() + pageName.slice(1)} | ${envPrefix}`
+    // Use breadcrumb display name resolver (SSoT for route names)
+    const displayName = resolveDisplayName(pathname);
+    const pageTitle = displayName && displayName !== "Home"
+      ? `${displayName} | ${envPrefix}`
       : envPrefix;
 
     // Function to set the title

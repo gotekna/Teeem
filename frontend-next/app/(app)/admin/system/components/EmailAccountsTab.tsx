@@ -840,7 +840,14 @@ function TeamEmailDomainsConfig() {
   );
 }
 
-export function EmailAccountsTab() {
+interface EmailAccountsTabProps {
+  subTab?: string;
+  basePath?: string;
+}
+
+const EMAIL_ACCOUNTS_SUB_TABS = ["configuration", "sync-dashboard", "email-setup"] as const;
+
+export function EmailAccountsTab({ subTab, basePath }: EmailAccountsTabProps = {}) {
   const router = useRouter();
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -1349,7 +1356,16 @@ export function EmailAccountsTab() {
 
   return (
     <div className="space-y-6 pb-8">
-      <Tabs defaultValue="configuration" className="w-full">
+      <Tabs
+        value={(EMAIL_ACCOUNTS_SUB_TABS as readonly string[]).includes(subTab || "") ? subTab : "configuration"}
+        onValueChange={(tabId) => {
+          if (basePath) {
+            // URL-based navigation when basePath is provided
+            router.push(`${basePath}/${tabId}`, { scroll: false });
+          }
+        }}
+        className="w-full"
+      >
         <TabsList>
           <TabsTrigger value="configuration">Configuration</TabsTrigger>
           <TabsTrigger value="sync-dashboard">Sync Dashboard</TabsTrigger>

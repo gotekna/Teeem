@@ -283,22 +283,6 @@ module Api
         }
       end
 
-      private
-
-      # Resolve the email signature style to use
-      # If company forces a signature, use it regardless of user preference
-      # Otherwise: User preference → Company default → 'modern-dark'
-      def resolve_email_signature_style
-        settings = TenantSetting.instance
-        if settings.force_email_signature && settings.forced_signature_style.present?
-          settings.forced_signature_style
-        else
-          @current_user.email_signature_style ||
-            settings.default_email_signature_style ||
-            'modern-dark'
-        end
-      end
-
       # POST /api/v1/auth/forgot_password
       def forgot_password
         email = params[:email]&.strip&.downcase
@@ -381,6 +365,22 @@ module Api
           render json: { success: true, message: "Password has been reset. You can now login." }
         else
           render json: { success: false, error: user.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        end
+      end
+
+      private
+
+      # Resolve the email signature style to use
+      # If company forces a signature, use it regardless of user preference
+      # Otherwise: User preference → Company default → 'modern-dark'
+      def resolve_email_signature_style
+        settings = TenantSetting.instance
+        if settings.force_email_signature && settings.forced_signature_style.present?
+          settings.forced_signature_style
+        else
+          @current_user.email_signature_style ||
+            settings.default_email_signature_style ||
+            'modern-dark'
         end
       end
 

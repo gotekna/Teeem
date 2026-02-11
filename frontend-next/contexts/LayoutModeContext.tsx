@@ -85,23 +85,24 @@ function getContentClassName(mode: LayoutMode): string {
   switch (mode) {
     case "padded":
       // ✅ BLOCK LAYOUT (default) - works with space-y-*, margin-top, etc.
-      // overflow-y-scroll: ALWAYS shows scrollbar track, thumb appears on overflow.
-      // Fixes scroll detection failure after client-side navigation where
-      // overflow-auto fails to detect content overflow during React batched DOM updates.
-      return "pt-6 pb-0 px-4 overflow-y-scroll overflow-x-hidden";
+      // main-scroll-container: custom CSS class with !important overflow rules.
+      // Next.js App Router sets `overflow: initial` as an inline style during
+      // client-side navigation, which beats Tailwind classes. !important is the
+      // only way to override inline styles. See globals.css for details.
+      return "pt-6 pb-0 px-4 main-scroll-container";
     case "full-height":
       // ✅ FLEX LAYOUT - for pages that explicitly need it
       // Used by: TablePage, TabbedDetailPage, FullscreenPage
-      // overflow-hidden: pages handle their own scroll internally
-      return "pt-4 pb-0 px-4 flex flex-col overflow-hidden";
+      // overflow-hidden (!important): pages handle their own scroll internally
+      return "pt-4 pb-0 px-4 flex flex-col main-scroll-container-hidden";
     case "edge-to-edge":
       // ✅ FLEX LAYOUT - for edge-to-edge content
-      return "flex flex-col overflow-hidden";
+      return "flex flex-col main-scroll-container-hidden";
     case "fullscreen":
       // ✅ FLEX LAYOUT - for fullscreen pages (Schedule Master)
-      return "flex flex-col overflow-hidden";
+      return "flex flex-col main-scroll-container-hidden";
     default:
-      return "pt-6 pb-0 px-4 overflow-y-scroll overflow-x-hidden";
+      return "pt-6 pb-0 px-4 main-scroll-container";
   }
 }
 
