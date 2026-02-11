@@ -1082,10 +1082,11 @@ export default function EmailPage() {
   useEffect(() => {
     if (composeParamHandled.current) return;
     const composeTo = searchParams.get("compose_to");
-    if (composeTo && !composeOpen) {
+    const hasComposeParams = composeTo !== null || searchParams.has("compose_subject") || searchParams.has("compose_body");
+    if (hasComposeParams && !composeOpen) {
       composeParamHandled.current = true;
       setReplyTo({
-        to: composeTo,
+        to: composeTo || "",
         cc: searchParams.get("compose_cc") || "",
         subject: searchParams.get("compose_subject") || "",
         body: searchParams.get("compose_body") || "",
