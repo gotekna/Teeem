@@ -265,7 +265,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             // The login page on the target handles ?token=xxx via handleTokenFromRedirect
             const params = new URLSearchParams({
               token: response.token,
-              redirect: '/dashboard',
+              redirect: response.user.force_password_change ? '/settings/security' : '/dashboard',
             });
             if (response.api_url) params.set('api_url', response.api_url);
             if (response.environment) params.set('environment', response.environment);
@@ -291,14 +291,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
 
         // Check if user must change their temporary password (Feb 2026)
-        if (response.user.force_password_change) {
+        const mustChangePassword = !!response.user.force_password_change;
+        if (mustChangePassword) {
           setForcePasswordChange(true);
           setTempPassword(password);
         }
 
         // Load column type definitions from SSoT (fires in background)
         loadTypeDefinitions();
-        return { success: true };
+        return { success: true, forcePasswordChange: mustChangePassword };
       } else {
         return { success: false, error: response?.error || 'Login failed' };
       }
