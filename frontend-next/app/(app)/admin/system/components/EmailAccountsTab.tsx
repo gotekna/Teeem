@@ -73,6 +73,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { EmailSyncDashboardTab } from "./EmailSyncDashboardTab";
+import { EmailConfigTab } from "./EmailConfigTab";
 import {
   SIGNATURE_STYLES,
   generateSignatureByStyle,
@@ -889,6 +890,20 @@ export function EmailAccountsTab() {
   // Get current user for signature preview
   const { user: currentUser } = useAuth();
 
+  // Compute connected domains and aliases from IMAP credentials for Email Config auto-fill
+  const connectedDomains = React.useMemo(() => {
+    return [...new Set(
+      credentials
+        .flatMap((c) => [c.email_address, ...(c.email_aliases || [])])
+        .map((email) => email.split("@")[1])
+        .filter(Boolean)
+    )];
+  }, [credentials]);
+
+  const connectedAliases = React.useMemo(() => {
+    return credentials.flatMap((c) => [c.email_address, ...(c.email_aliases || [])]);
+  }, [credentials]);
+
   // Fetch credentials and providers on mount
   useEffect(() => {
     fetchData();
@@ -1338,6 +1353,7 @@ export function EmailAccountsTab() {
         <TabsList>
           <TabsTrigger value="configuration">Configuration</TabsTrigger>
           <TabsTrigger value="sync-dashboard">Sync Dashboard</TabsTrigger>
+          <TabsTrigger value="email-setup">Email Setup</TabsTrigger>
         </TabsList>
 
         <TabsContent value="configuration" className="mt-6 space-y-6">
@@ -1773,6 +1789,13 @@ export function EmailAccountsTab() {
 
         <TabsContent value="sync-dashboard" className="mt-6">
           <EmailSyncDashboardTab />
+        </TabsContent>
+
+        <TabsContent value="email-setup" className="mt-6">
+          <EmailConfigTab
+            connectedDomains={connectedDomains}
+            connectedAliases={connectedAliases}
+          />
         </TabsContent>
       </Tabs>
 

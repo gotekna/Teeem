@@ -415,12 +415,22 @@ function TabSection({ label, children, className }: TabSectionProps) {
  * - flex-1: Fills remaining space
  * - min-h-0: Allows shrinking for overflow/scroll to work
  * - Parent gap-6 handles spacing (no manual margin needed)
+ *
+ * ⚠️ DO NOT SIMPLIFY - Race condition fix (Feb 2026)
+ * ════════════════════════════════════════════
+ * Why: When navigating from a page that sets layout mode to "full-height"
+ * (e.g., Operations), React's useEffect cleanup is asynchronous. The new
+ * page renders with STALE "full-height" mode before cleanup resets to "padded".
+ * Without overflow-auto, content is clipped with no scrollbar during that frame.
+ * ❌ WRONG: Just "flex-1 min-h-0" (no scroll when parent has h-full)
+ * ✅ CORRECT: Always include overflow-auto so content can scroll regardless of mode
+ * ════════════════════════════════════════════
  */
 function Content({ children, className }: ContentProps) {
   return (
     <div
       className={cn(
-        "flex-1 min-h-0",
+        "flex-1 min-h-0 overflow-auto",
         className
       )}
     >
