@@ -569,15 +569,22 @@ export function convertRowToTask(
   const hasDependencies = taskDateMap && row.predecessor_ids?.length > 0;
 
   if (shouldUseBackendDates && row.start_date && row.end_date) {
-    startDate = new Date(row.start_date);
-    endDate = new Date(row.end_date);
+    // ⚠️ DO NOT SIMPLIFY - Must append T00:00:00 to avoid timezone shift (2026-02-09)
+    // ════════════════════════════════════════════════════════════════
+    // Why: new Date("2026-02-16") parses as UTC midnight, which in
+    //      Brisbane (UTC+10) becomes Feb 15 2pm = wrong day on Gantt
+    // ❌ WRONG: new Date(row.start_date) - shifts date back 1 day
+    // ✅ CORRECT: new Date(row.start_date + 'T00:00:00') - local midnight
+    // ════════════════════════════════════════════════════════════════
+    startDate = new Date(row.start_date + 'T00:00:00');
+    endDate = new Date(row.end_date + 'T00:00:00');
   } else {
     // Calculate dates from dependencies or project start
 
     // If manually positioned OR locked with hold_date, use the manual start date
     // Locked tasks should NEVER move based on predecessor changes
     if ((row.hold || isLocked) && row.hold_date) {
-      startDate = skipToNextWorkingDay(new Date(row.hold_date), holidayDates);
+      startDate = skipToNextWorkingDay(new Date(row.hold_date + 'T00:00:00'), holidayDates);
     } else if (hasDependencies && !isLocked) {
       // Find the latest required start date from all predecessors
       let latestRequiredStart = projectStartDate;

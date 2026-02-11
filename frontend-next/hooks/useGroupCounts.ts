@@ -99,6 +99,7 @@ export interface GroupCountsInitialData {
  * @param enabled - Whether to enable fetching (default: true when groupByColumn is set)
  * @param allGroupByColumns - Optional array of ALL grouping columns to get display values for
  * @param initialData - Optional pre-fetched data from SSR (eliminates CLS)
+ * @param extraQueryParams - Optional extra query params (e.g., { job_id: "201" }) to scope group counts
  */
 export function useGroupCounts(
   foundationId: number | string | null | undefined,
@@ -106,7 +107,8 @@ export function useGroupCounts(
   filters?: CascadeFilter[],
   enabled: boolean = true,
   allGroupByColumns?: string[],
-  initialData?: GroupCountsInitialData
+  initialData?: GroupCountsInitialData,
+  extraQueryParams?: Record<string, string>
 ): UseGroupCountsReturn {
   // SSR: Use initial data if provided to eliminate CLS
   const [groups, setGroups] = useState<GroupCount[]>(initialData?.groups ?? []);
@@ -127,6 +129,8 @@ export function useGroupCounts(
   const filtersKey = filters ? JSON.stringify(filters) : "";
   // Serialize allGroupByColumns for dependency comparison
   const allColumnsKey = allGroupByColumns ? JSON.stringify(allGroupByColumns) : "";
+  // Serialize extraQueryParams for dependency comparison
+  const extraParamsKey = extraQueryParams ? JSON.stringify(extraQueryParams) : "";
 
   const fetchGroupCounts = useCallback(async () => {
     console.log('[useGroupCounts] fetchGroupCounts called:', { enabled, foundationId, groupByColumn, allGroupByColumns });
@@ -165,6 +169,11 @@ export function useGroupCounts(
       const params: Record<string, string> = {
         group_by: columnsToFetch.join(','),  // Backend accepts comma-separated or array
       };
+
+      // Add extra query params (e.g., job_id for scoped tables)
+      if (extraQueryParams) {
+        Object.assign(params, extraQueryParams);
+      }
 
       // Add filters if present
       if (filters && filters.length > 0) {
@@ -215,7 +224,7 @@ export function useGroupCounts(
         setLoading(false);
       }
     }
-  }, [foundationId, groupByColumn, filtersKey, enabled, allColumnsKey]);
+  }, [foundationId, groupByColumn, filtersKey, enabled, allColumnsKey, extraParamsKey]);
 
   // Fetch on mount and when dependencies change
   useEffect(() => {

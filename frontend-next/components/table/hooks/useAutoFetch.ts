@@ -68,6 +68,8 @@ export interface UseAutoFetchOptions {
   urlSearchParam?: string | null;
   /** Initial search term */
   initialSearch?: string;
+  /** Extra query params to include in all API requests (e.g., { job_id: "123" }) */
+  extraQueryParams?: Record<string, string>;
 }
 
 export interface AutoFetchState {
@@ -119,6 +121,7 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
     disableSavedViews = false,
     urlSearchParam,
     initialSearch,
+    extraQueryParams,
   } = options;
 
   // Computed: whether auto-fetch should be active
@@ -178,6 +181,7 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
           value: f.value,
         })));
       }
+      if (extraQueryParams) Object.assign(params, extraQueryParams);
       const response = await api.get<{ records: TableRow[], has_more: boolean }>(
         `/api/v1/foundations/${foundationId}/records`,
         { params }
@@ -189,7 +193,7 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
     } finally {
       setIsSearching(false);
     }
-  }, [isActive, foundationId, baseFilters, cascadeFiltersRef]);
+  }, [isActive, foundationId, baseFilters, cascadeFiltersRef, extraQueryParams]);
 
   // ============================================================================
   // EFFECTS
@@ -270,6 +274,7 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
             value: f.value,
           })));
         }
+        if (extraQueryParams) Object.assign(params, extraQueryParams);
         const response = await api.get<{ records: TableRow[], has_more: boolean }>(
           `/api/v1/foundations/${foundationId}/records`,
           { params }
@@ -313,6 +318,7 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
             value: f.value,
           })));
         }
+        if (extraQueryParams) Object.assign(params, extraQueryParams);
         const response = await api.get<{ records: TableRow[], has_more: boolean }>(
           `/api/v1/foundations/${foundationId}/records`,
           { params }

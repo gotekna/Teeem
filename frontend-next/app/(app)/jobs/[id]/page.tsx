@@ -107,6 +107,10 @@ const JobPurchaseOrdersTab = dynamic(() => import("@/components/jobs/JobPurchase
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const JobPurchaseOrderLinesTab = dynamic(() => import("@/components/jobs/JobPurchaseOrderLinesTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
 const JobEstimatorTab = dynamic(() => import("@/components/jobs/JobEstimatorTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
@@ -252,6 +256,7 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "budget": JobBudgetTab,
   "people": JobPeopleTab,
   "purchase-orders": JobPurchaseOrdersTab,
+  "purchase-order-lines": JobPurchaseOrderLinesTab,
   "estimates": JobEstimatorTab,
   "quote-tracker": JobQuoteTrackerTab,
   "boq": JobBOQTab,
@@ -1547,8 +1552,8 @@ export default function JobDetailPage() {
         </div>
       </div>
 
-      {/* Tab content - scrollable */}
-      <Tabs value={effectiveActiveTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0 px-3 pb-6">
+      {/* Tab content - scrollable (relative z-0 creates stacking context below sticky header z-40) */}
+      <Tabs value={effectiveActiveTab} onValueChange={handleTabChange} className="relative z-0 flex-1 flex flex-col min-h-0 px-3 pb-6">
         <TabsContent value="overview" className="mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Job Details */}

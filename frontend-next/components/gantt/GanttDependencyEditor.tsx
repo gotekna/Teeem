@@ -303,8 +303,8 @@ export function GanttDependencyEditor({
     let requiredStartDate: Date | null = null;
 
     if (predRowData?.end_date && taskRowData?.start_date) {
-      const predEndDate = new Date(predRowData.end_date);
-      const taskStartDate = new Date(taskRowData.start_date);
+      const predEndDate = new Date(predRowData.end_date + 'T00:00:00');
+      const taskStartDate = new Date(taskRowData.start_date + 'T00:00:00');
       const lag = brokenDep.lag || 0;
 
       // Calculate required start date based on dependency type
@@ -312,7 +312,7 @@ export function GanttDependencyEditor({
         requiredStartDate = new Date(predEndDate);
         requiredStartDate.setDate(requiredStartDate.getDate() + lag);
       } else if (brokenDep.type === 'SS') {
-        const predStartDate = new Date(predRowData.start_date || predRowData.end_date);
+        const predStartDate = new Date((predRowData.start_date || predRowData.end_date) + 'T00:00:00');
         requiredStartDate = new Date(predStartDate);
         requiredStartDate.setDate(requiredStartDate.getDate() + lag);
       }
@@ -352,7 +352,7 @@ export function GanttDependencyEditor({
     let requiredPredEndDate: Date | null = null;
     let requiredPredStartDate: Date | null = null;
     if (taskRowData?.start_date) {
-      const taskStartDate = new Date(taskRowData.start_date);
+      const taskStartDate = new Date(taskRowData.start_date + 'T00:00:00');
       const lag = brokenDep.lag || 0;
       if (brokenDep.type === 'FS') {
         requiredPredEndDate = new Date(taskStartDate);

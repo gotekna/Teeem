@@ -84,11 +84,16 @@ class SmCascadeService
         successor = SmTask.find(task_id)
         new_dates = calculate_successor_dates(successor)
 
-        successor.update!(
+        updates = {
           start_date: new_dates[:start_date],
           end_date: new_dates[:end_date],
           updated_by_id: cascade_params[:user_id]
-        )
+        }
+        # If successor has hold, update hold_date too so GanttDateCalculationService
+        # uses the new position on next load
+        updates[:hold_date] = new_dates[:start_date] if successor.hold?
+
+        successor.update!(updates)
         results[:updated_tasks] << successor
 
         # Recursively cascade this task's unlocked successors
@@ -252,18 +257,24 @@ class SmCascadeService
   end
 
   def locked?(task)
+    # ⚠️ DO NOT SIMPLIFY - hold is NOT a lock for cascade (2026-02-06)
+    # ════════════════════════════════════════════════════════════════
+    # Why: hold means "user pinned this position" for GanttDateCalculationService,
+    #      but held tasks SHOULD still cascade when their predecessor moves.
+    # ❌ WRONG: Including task.hold? here - prevents all cascade for held tasks
+    # ✅ CORRECT: Only confirm/supplier_confirm/started/completed block cascade
+    # ════════════════════════════════════════════════════════════════
     task.supplier_confirm? ||
     task.confirm? ||
     task.status_started? ||
-    task.status_completed? ||
-    task.hold?
+    task.status_completed?
   end
 
   def unlockable?(task)
     # Started and completed cannot be unlocked
     return false if task.status_started? || task.status_completed?
     # Others can be cleared
-    task.supplier_confirm? || task.confirm? || task.hold?
+    task.supplier_confirm? || task.confirm?
   end
 
   def get_lock_type(task)
@@ -366,11 +377,16 @@ class SmCascadeService
       next if results[:updated_tasks].include?(successor)
 
       new_dates = calculate_successor_dates(successor)
-      successor.update!(
+      updates = {
         start_date: new_dates[:start_date],
         end_date: new_dates[:end_date],
         updated_by_id: user_id
-      )
+      }
+      # Update hold_date if successor is held, so GanttDateCalculationService
+      # uses the new position on next load
+      updates[:hold_date] = new_dates[:start_date] if successor.hold?
+
+      successor.update!(updates)
       results[:updated_tasks] << successor
 
       # Recursively cascade

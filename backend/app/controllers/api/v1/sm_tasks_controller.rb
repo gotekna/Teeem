@@ -2753,6 +2753,7 @@ module Api
           :progress_percentage,
           :started_at,
           :completed_at,
+          :completed,
 
           # Assignments
           :assigned_user_id,

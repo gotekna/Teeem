@@ -300,6 +300,13 @@ module Api
             end
           end
 
+          # Filter PO line items by job_id through parent purchase_order
+          # SSoT: Same filter as records_controller.rb#index (line 57-60)
+          if @foundation.slug == "purchase_order_line_items" && params[:job_id].present?
+            po_ids = PurchaseOrder.where(job_id: params[:job_id]).pluck(:id)
+            query = query.where(purchase_order_id: po_ids)
+          end
+
           # Apply cascade filters if provided
           if params[:filters].present?
             begin
