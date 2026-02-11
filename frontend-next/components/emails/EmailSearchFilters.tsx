@@ -32,7 +32,6 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   AlertCircle,
-  Search,
 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { format } from "date-fns";

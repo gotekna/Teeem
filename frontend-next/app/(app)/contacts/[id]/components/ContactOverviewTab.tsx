@@ -47,7 +47,6 @@ import {
   ChevronDown,
   ChevronRight,
   X,
-  Search,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";

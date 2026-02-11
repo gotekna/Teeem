@@ -19,7 +19,6 @@ import {
   Phone,
   Star,
   ChevronRight,
-  Search,
 } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";

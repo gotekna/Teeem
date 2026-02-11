@@ -40,7 +40,6 @@ import {
   Eye,
   EyeOff,
   GripVertical,
-  Search,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
