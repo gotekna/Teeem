@@ -745,6 +745,11 @@ class TenantConfigSyncService
     existing_records = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
     existing_index = build_record_index(existing_records, config[:match_fields], config[:remap_fks])
 
+    # FRC (Feb 2026): Fix historical contact_code duplicates before importing
+    if table.to_sym == :contacts
+      fix_duplicate_contact_codes(tenant)
+    end
+
     # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
     # use two-pass import: first import all records WITHOUT the self-ref FK so all
     # warehouse_type_ids are correct, then set parent_id in a second pass.
@@ -915,6 +920,13 @@ class TenantConfigSyncService
     # Get existing tenant records for matching (sync_key primary, legacy fallback)
     tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
     existing_index = build_record_index(tenant_all, config[:match_fields], config[:remap_fks])
+
+    # FRC (Feb 2026): Fix historical contact_code duplicates created by previous syncs
+    # that copied master codes to tenant (now removed from sync_fields).
+    # Regenerate codes as C{id} for any duplicates so update! validations pass.
+    if table.to_sym == :contacts
+      fix_duplicate_contact_codes(tenant)
+    end
 
     # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
     # use two-pass: first pass without self-ref FK, second pass sets parent_id.
@@ -1144,6 +1156,35 @@ class TenantConfigSyncService
   # ============================================================================
   # Helper Methods
   # ============================================================================
+
+  # FRC (Feb 2026): Previous config syncs copied master contact_codes to tenant contacts,
+  # creating duplicates (e.g. master's "C42" overwrote tenant contact, but tenant already
+  # had its own contact with auto-generated "C42"). This blocks ALL updates to those
+  # contacts because the uniqueness validation fires on: :update.
+  # Fix: regenerate codes to C{id} for the second (and beyond) duplicate.
+  def fix_duplicate_contact_codes(target_tenant)
+    ActsAsTenant.with_tenant(target_tenant) do
+      dup_codes = Contact.where(is_active: true)
+                         .group(:contact_code)
+                         .having("COUNT(*) > 1")
+                         .pluck(:contact_code)
+
+      return if dup_codes.empty?
+
+      fixed = 0
+      dup_codes.each do |code|
+        # Keep the first (lowest ID), regenerate the rest
+        dupes = Contact.where(contact_code: code, is_active: true).order(:id).to_a
+        dupes.drop(1).each do |contact|
+          new_code = "C#{contact.id}"
+          contact.update_column(:contact_code, new_code)
+          fixed += 1
+        end
+      end
+
+      Rails.logger.info "[ConfigSync] Fixed #{fixed} duplicate contact_codes across #{dup_codes.length} codes in tenant #{target_tenant.name}"
+    end
+  end
 
   def master_tenant
     # Use Tenant model (new multi-tenancy) instead of CorporateGroup

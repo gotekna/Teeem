@@ -45,11 +45,15 @@ function LoginForm() {
     }
   }, [searchParams, router, handleTokenFromRedirect]);
 
-  // Pre-fill email from URL param (e.g., /login?email=user@example.com)
+  // Pre-fill email and password from URL params (e.g., welcome email link)
   useEffect(() => {
     const emailParam = searchParams.get('email');
     if (emailParam && !email) {
       setEmail(emailParam);
+    }
+    const pwParam = searchParams.get('p');
+    if (pwParam && !password) {
+      setPassword(pwParam);
     }
   }, [searchParams]);
 
@@ -144,12 +148,7 @@ function LoginForm() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <Link
-                  href="/forgot-password"
-                  className="text-xs text-primary underline-offset-4 hover:underline"
-                >
-                  Forgot password?
-                </Link>
+                {/* TODO: Build self-service forgot password (backend endpoint needed) */}
               </div>
               <Input
                 id="password"
@@ -175,31 +174,7 @@ function LoginForm() {
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Signing in..." : "Sign in"}
             </Button>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or continue with
-                </span>
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleMicrosoftLogin}
-              disabled={isLoading}
-            >
-              <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21" fill="none">
-                <rect x="1" y="1" width="9" height="9" fill="#f25022" />
-                <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
-                <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
-                <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
-              </svg>
-              Microsoft 365
-            </Button>
+            {/* Microsoft 365 SSO - hidden until tenant-level SSO config is built */}
             <p className="text-center text-sm text-muted-foreground">
               Don't have an account?{" "}
               <Link
