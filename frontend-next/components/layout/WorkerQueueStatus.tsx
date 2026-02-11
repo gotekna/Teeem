@@ -130,6 +130,7 @@ export function WorkerQueueStatus() {
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<QueueStatusData | null>(null);
   const [status, setStatus] = useState<QueueStatusLevel>("unknown");
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
   const fetchQueueStatus = useCallback(async () => {
     setIsLoading(true);
@@ -141,6 +142,7 @@ export function WorkerQueueStatus() {
       if (response?.success && response?.data) {
         setData(response.data);
         setStatus(response.data.status);
+        setLastFetched(new Date());
       }
     } catch (error) {
       console.debug("Failed to fetch queue status:", error);
@@ -197,16 +199,22 @@ export function WorkerQueueStatus() {
               {data?.statusMessage || "Loading..."}
             </p>
           </div>
-          <button
-            onClick={() => fetchQueueStatus()}
-            disabled={isLoading}
-            className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-            title="Refresh"
-          >
-            <RefreshCw
-              className={cn("h-3.5 w-3.5", isLoading && "animate-spin")}
-            />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {lastFetched && !isLoading && (
+              <span className="text-[10px] text-muted-foreground">
+                {timeAgo(lastFetched.toISOString())}
+              </span>
+            )}
+            <button
+              onClick={() => fetchQueueStatus()}
+              className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              title="Refresh"
+            >
+              <RefreshCw
+                className={cn("h-3.5 w-3.5", isLoading && "animate-spin")}
+              />
+            </button>
+          </div>
         </div>
 
         {data && (
