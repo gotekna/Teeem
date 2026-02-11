@@ -328,16 +328,14 @@ module Api
       end
 
       def get_pending_jobs_count
-        # If using SolidQueue
-        SolidQueue::Job.pending.count
+        SolidQueue::ReadyExecution.count
       rescue StandardError => e
         Rails.logger.debug "[SystemController] get_pending_jobs_count unavailable: #{e.message}"
         0
       end
 
       def get_failed_jobs_count
-        # If using SolidQueue
-        SolidQueue::Job.failed.count
+        SolidQueue::FailedExecution.count
       rescue StandardError => e
         Rails.logger.debug "[SystemController] get_failed_jobs_count unavailable: #{e.message}"
         0
