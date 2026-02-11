@@ -17,7 +17,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { AVAILABLE_ICONS, getIcon, ICON_MAP } from "@/lib/icon-map";
-import { X, Check, Globe, Search } from "lucide-react";
+import { X, Check, Globe } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 

@@ -143,8 +143,8 @@ class S3CompatibleCredential < ApplicationRecord
   def test_connection!(test_bucket = nil)
     client = build_client
 
-    # Use provided bucket, or fall back to WarehouseProvider SSoT
-    bucket_to_test = test_bucket.presence || WarehouseProvider.instance&.bucket
+    # Use provided bucket, credential's own bucket, or WarehouseProvider SSoT
+    bucket_to_test = test_bucket.presence || read_attribute(:bucket).presence || WarehouseProvider.instance&.bucket
     raise "No bucket configured. Set bucket in Storage Configuration first." unless bucket_to_test.present?
 
     client.head_bucket(bucket: bucket_to_test)

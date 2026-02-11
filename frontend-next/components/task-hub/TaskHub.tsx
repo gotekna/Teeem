@@ -26,7 +26,6 @@ import {
   ChevronDown,
   Eye,
   GanttChart,
-  Search,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
