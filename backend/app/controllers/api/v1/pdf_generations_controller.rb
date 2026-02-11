@@ -89,6 +89,11 @@ module Api
 
         data[:error] = pdf_gen.error_message if pdf_gen.failed?
 
+        # Include result data from generator (e.g., e-sig request info, documents list)
+        if pdf_gen.completed? && pdf_gen.generator_params["_result"].present?
+          data[:result] = pdf_gen.generator_params["_result"]
+        end
+
         data
       end
 
