@@ -73,6 +73,16 @@ export function useViewFromPath({
       return parts[foundationIndex + 2];
     }
 
+    // Fallback: Look for /view/ segment anywhere in the path
+    // This handles cases where the URL path segment differs from the foundation slug
+    // (e.g., /settings/users/view/setup-2 with foundationSlug "user-management")
+    if (foundationIndex < 0) {
+      const viewIndex = parts.indexOf("view");
+      if (viewIndex >= 0 && parts[viewIndex + 1]) {
+        return parts[viewIndex + 1];
+      }
+    }
+
     // Legacy: check query param (will be redirected to path by server)
     const queryView = searchParams?.get('view');
     if (queryView) {
