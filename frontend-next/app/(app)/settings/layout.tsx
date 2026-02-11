@@ -18,6 +18,7 @@ import {
   Code,
   Wrench,
   Cable,
+  Rocket,
 } from "lucide-react";
 
 // Personal tabs - visible to all authenticated users
@@ -41,6 +42,7 @@ const ORGANIZATION_TABS = [
   { id: "connections", label: "Connections", icon: Cable },
   { id: "system", label: "System", icon: Server },
   { id: "developer", label: "Developer", icon: Code },
+  { id: "onboarding", label: "Onboarding", icon: Rocket },
 ];
 
 export default function SettingsLayout({

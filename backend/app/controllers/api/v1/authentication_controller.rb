@@ -345,8 +345,8 @@ module Api
           return
         end
 
-        # Check token expiry (2 hours)
-        if user.reset_password_sent_at && user.reset_password_sent_at < 2.hours.ago
+        # Check token expiry (48 hours - allows time for welcome emails to be opened)
+        if user.reset_password_sent_at && user.reset_password_sent_at < 48.hours.ago
           render json: { success: false, error: "Reset link has expired. Please request a new one." }, status: :unprocessable_entity
           return
         end
@@ -362,7 +362,21 @@ module Api
         user.force_password_change = false
 
         if user.save
-          render json: { success: true, message: "Password has been reset. You can now login." }
+          # Auto-login: return JWT token so frontend can log them straight in
+          user.update_column(:last_login_at, Time.current)
+          token = JsonWebToken.encode({ user_id: user.id }, 1.day.from_now)
+
+          render json: {
+            success: true,
+            token: token,
+            user: {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              role_names: user.role_names,
+              permissions: user.permissions
+            }
+          }
         else
           render json: { success: false, error: user.errors.full_messages.join(", ") }, status: :unprocessable_entity
         end

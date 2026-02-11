@@ -177,15 +177,23 @@ class Api::V1::UsersController < ApplicationController
     @user.force_password_change = true
 
     if @user.save
+      # Generate a password reset token so the welcome email can link directly
+      # to the reset-password page (user doesn't need to know temp password)
+      reset_token = SecureRandom.urlsafe_base64(32)
+      @user.update_columns(
+        reset_password_token: reset_token,
+        reset_password_sent_at: Time.current
+      )
+
       if params[:compose_mode]
-        # Return temp password so frontend can compose the email via TEEEM email
+        # Return reset token so frontend can compose email with direct reset link
         render json: {
           success: true,
           compose: true,
           user_email: @user.email,
           user_name: @user.name,
-          temp_password: temp_password,
-          message: "Temporary password generated. Compose email to send credentials."
+          reset_token: reset_token,
+          message: "Reset token generated. Compose email to send welcome."
         }
       else
         # Send the welcome email with temp credentials via Rails mailer
