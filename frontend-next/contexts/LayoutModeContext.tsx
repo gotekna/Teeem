@@ -85,20 +85,23 @@ function getContentClassName(mode: LayoutMode): string {
   switch (mode) {
     case "padded":
       // ✅ BLOCK LAYOUT (default) - works with space-y-*, margin-top, etc.
-      // This is what 99% of pages expect (forms, content, settings)
-      return "pt-6 pb-0 px-4 overflow-auto";
+      // overflow-y-scroll: ALWAYS shows scrollbar track, thumb appears on overflow.
+      // Fixes scroll detection failure after client-side navigation where
+      // overflow-auto fails to detect content overflow during React batched DOM updates.
+      return "pt-6 pb-0 px-4 overflow-y-scroll overflow-x-hidden";
     case "full-height":
       // ✅ FLEX LAYOUT - for pages that explicitly need it
       // Used by: TablePage, TabbedDetailPage, FullscreenPage
-      return "pt-4 pb-0 px-4 flex flex-col overflow-auto";
+      // overflow-hidden: pages handle their own scroll internally
+      return "pt-4 pb-0 px-4 flex flex-col overflow-hidden";
     case "edge-to-edge":
       // ✅ FLEX LAYOUT - for edge-to-edge content
-      return "flex flex-col overflow-auto";
+      return "flex flex-col overflow-hidden";
     case "fullscreen":
       // ✅ FLEX LAYOUT - for fullscreen pages (Schedule Master)
-      return "flex flex-col overflow-auto";
+      return "flex flex-col overflow-hidden";
     default:
-      return "pt-6 pb-0 px-4 overflow-auto";
+      return "pt-6 pb-0 px-4 overflow-y-scroll overflow-x-hidden";
   }
 }
 
