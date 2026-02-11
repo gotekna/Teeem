@@ -18,6 +18,8 @@ module Api
       def tables
         service = TenantConfigSyncService.new(current_tenant)
 
+        tenant_setting = current_tenant&.tenant_setting
+
         response = {
           success: true,
           tables: service.available_tables,
@@ -25,7 +27,9 @@ module Api
           groups: TenantConfigSyncService.groups,
           tenant: current_tenant ? tenant_info(current_tenant) : nil,
           master_tenant: master_tenant ? tenant_info(master_tenant) : nil,
-          is_master_tenant: current_tenant&.is_master_tenant? || false
+          is_master_tenant: current_tenant&.is_master_tenant? || false,
+          last_config_sync_at: tenant_setting&.last_config_sync_at&.iso8601,
+          last_config_sync_by: tenant_setting&.last_config_sync_by
         }
 
         # Only TEEEM (master tenant) can see all tenant data
@@ -576,6 +580,14 @@ module Api
           end
         end
 
+        # Record last sync timestamp for audit trail
+        if errors.empty? && current_tenant&.tenant_setting
+          current_tenant.tenant_setting.update_columns(
+            last_config_sync_at: Time.current,
+            last_config_sync_by: current_user&.email
+          )
+        end
+
         render json: {
           success: errors.empty?,
           message: "Pull all completed: #{total_imported} added, #{total_updated} updated, #{total_skipped} skipped",
@@ -586,8 +598,28 @@ module Api
             skipped: total_skipped,
             tables_processed: results.keys.length
           },
-          errors: errors.presence
+          errors: errors.presence,
+          last_config_sync_at: current_tenant&.tenant_setting&.last_config_sync_at&.iso8601,
+          last_config_sync_by: current_tenant&.tenant_setting&.last_config_sync_by
         }
+      end
+
+      # POST /api/v1/config_sync/record_sync
+      # Record that a full sync was performed (called by frontend after pull_all completes)
+      def record_sync
+        if current_tenant&.tenant_setting
+          current_tenant.tenant_setting.update_columns(
+            last_config_sync_at: Time.current,
+            last_config_sync_by: current_user&.email
+          )
+          render json: {
+            success: true,
+            last_config_sync_at: current_tenant.tenant_setting.last_config_sync_at.iso8601,
+            last_config_sync_by: current_tenant.tenant_setting.last_config_sync_by
+          }
+        else
+          render json: { success: false, error: "No tenant setting found" }, status: :not_found
+        end
       end
 
       # Helper to generate match key

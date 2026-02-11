@@ -28,10 +28,11 @@ import {
   FileArchive,
   RefreshCw,
   Check,
-  X,
   Clock,
   AlertCircle,
   CloudUpload,
+  Shield,
+  ArrowRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -89,9 +90,10 @@ interface BackupLog {
 }
 
 /**
- * BackupSettingsTab - Simplified per-tenant backup configuration
+ * BackupSettingsTab - Two-tier backup configuration
  *
- * Single schedule, "Keep last N backups" retention, clear history display.
+ * Tier 1: Wasabi Backup (teeem-backups bucket) — incremental, quick restores
+ * Tier 2: Backblaze B2 (off-site) — full sync from live storage, disaster recovery
  */
 export function BackupSettingsTab() {
   const { toast } = useToast();
@@ -127,18 +129,6 @@ export function BackupSettingsTab() {
       setPresets(presetsRes.data);
       setCredentials(credsRes.data);
       setWarehouseBucket(wpRes.data?.bucket ?? null);
-
-      // Auto-set primary credential to the WarehouseProvider's storage credential
-      const bucket = wpRes.data?.bucket;
-      if (bucket && credsRes.data?.length) {
-        const storageCred = credsRes.data.find(
-          (c: S3Credential) => c.providerType !== "backblaze_b2"
-        );
-        if (storageCred && configRes.data.primaryCredentialId !== storageCred.id) {
-          setFormState((prev) => ({ ...prev, primaryCredentialId: storageCred.id }));
-          setIsDirty(true);
-        }
-      }
     } catch (error) {
       console.error("Failed to load backup configuration:", error);
       toast({
@@ -156,13 +146,38 @@ export function BackupSettingsTab() {
     setIsDirty(true);
   };
 
-  // Single schedule sets both DB and doc schedules
   const handleScheduleChange = (value: string) => {
     setFormState((prev) => ({
       ...prev,
       databaseSchedule: value,
       documentSchedule: value,
     }));
+    setIsDirty(true);
+  };
+
+  const handlePrimaryChange = (value: string) => {
+    if (value === "none") {
+      setFormState((prev) => ({ ...prev, primaryCredentialId: null }));
+    } else {
+      setFormState((prev) => ({ ...prev, primaryCredentialId: parseInt(value) }));
+    }
+    setIsDirty(true);
+  };
+
+  const handleSecondaryChange = (value: string) => {
+    if (value === "none") {
+      setFormState((prev) => ({
+        ...prev,
+        secondaryCredentialId: null,
+        mirrorEnabled: false,
+      }));
+    } else {
+      setFormState((prev) => ({
+        ...prev,
+        secondaryCredentialId: parseInt(value),
+        mirrorEnabled: true,
+      }));
+    }
     setIsDirty(true);
   };
 
@@ -175,8 +190,8 @@ export function BackupSettingsTab() {
           database_schedule: formState.databaseSchedule,
           document_schedule: formState.documentSchedule,
           retention_count: formState.retentionCount,
-          retention_days: (formState.retentionCount ?? 5) * 30, // Keep retention_days in sync
-          mirror_enabled: formState.mirrorEnabled,
+          retention_days: (formState.retentionCount ?? 5) * 30,
+          mirror_enabled: !!formState.secondaryCredentialId,
           primary_credential_id: formState.primaryCredentialId,
           secondary_credential_id: formState.secondaryCredentialId,
         },
@@ -184,10 +199,7 @@ export function BackupSettingsTab() {
       setConfig(res.data);
       setFormState(res.data);
       setIsDirty(false);
-      toast({
-        title: "Success",
-        description: "Backup settings saved",
-      });
+      toast({ title: "Success", description: "Backup settings saved" });
     } catch (error) {
       console.error("Failed to save backup configuration:", error);
       toast({
@@ -200,10 +212,10 @@ export function BackupSettingsTab() {
     }
   };
 
-  const handleRunNow = async (type: "database" | "documents" | "mirror") => {
+  const handleRunNow = async (type: "database" | "documents" | "mirror", fullSync = false) => {
     setRunningBackup(type);
     try {
-      await api.post("/api/v1/backup_configuration/run_now", { type });
+      await api.post("/api/v1/backup_configuration/run_now", { type, full_sync: fullSync });
       toast({
         title: "Backup started",
         description: `${type.charAt(0).toUpperCase() + type.slice(1)} backup queued`,
@@ -228,17 +240,17 @@ export function BackupSettingsTab() {
   const primaryCred = credentials.find((c) => c.id === formState.primaryCredentialId);
   const secondaryCred = credentials.find((c) => c.id === formState.secondaryCredentialId);
   const currentSchedule = formState.databaseSchedule ?? "disabled";
+  const hasTier2 = !!formState.secondaryCredentialId;
 
-  // Compute total backup size from history
   const completedBackups = history.filter((h) => h.status === "completed");
   const totalSizeBytes = completedBackups.reduce((sum, h) => sum + (h.sizeBytes ?? 0), 0);
   const totalSizeDisplay = formatBytes(totalSizeBytes);
 
   return (
     <div className="space-y-6">
-      {/* Settings Card */}
+      {/* Master enable + schedule */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900">
@@ -247,7 +259,7 @@ export function BackupSettingsTab() {
               <div>
                 <CardTitle className="text-base">Backup Settings</CardTitle>
                 <CardDescription>
-                  Database backups are full dumps. Document backups are incremental (changes only).
+                  Two-tier backup: Wasabi for quick restores, B2 for disaster recovery.
                 </CardDescription>
               </div>
             </div>
@@ -257,10 +269,10 @@ export function BackupSettingsTab() {
             />
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Schedule + Retention Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
+        <CardContent className="space-y-5">
+          {/* Schedule + Retention */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
               <Label>Backup Schedule</Label>
               <Select
                 value={currentSchedule}
@@ -280,7 +292,7 @@ export function BackupSettingsTab() {
               </Select>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>Keep Last</Label>
               <div className="flex items-center gap-2">
                 <Input
@@ -302,84 +314,148 @@ export function BackupSettingsTab() {
             </div>
           </div>
 
-          {/* Storage Providers */}
-          <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-medium flex items-center gap-2">
-              <HardDrive className="h-4 w-4" />
-              Storage
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Primary - read-only */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Primary</Label>
-                <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-muted/50 text-sm">
-                  {primaryCred ? (
-                    <>
-                      <HardDrive className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="truncate">{primaryCred.name}</span>
-                      {primaryCred.isConnected ? (
-                        <Check className="h-3 w-3 text-green-500 dark:text-green-400 ml-auto shrink-0" />
-                      ) : (
-                        <X className="h-3 w-3 text-red-500 dark:text-red-400 ml-auto shrink-0" />
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground">Not configured</span>
-                  )}
+          {/* Two-tier architecture display */}
+          <div className="pt-3 border-t space-y-4">
+            {/* Tier 1: Wasabi Backup */}
+            <div className="rounded-lg border bg-muted/30 dark:bg-muted/10 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <HardDrive className="h-4 w-4 text-orange-500" />
+                  <span className="font-medium text-sm">Tier 1 — Wasabi Backup</span>
+                  <Badge variant="outline" className="text-xs">Quick Restore</Badge>
                 </div>
-                {warehouseBucket && (
-                  <p className="text-xs text-muted-foreground">Bucket: {warehouseBucket}</p>
-                )}
               </div>
 
-              {/* Mirror */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs text-muted-foreground">Mirror</Label>
-                  <Switch
-                    checked={formState.mirrorEnabled ?? false}
-                    onCheckedChange={(checked) => handleChange("mirrorEnabled", checked)}
+              <p className="text-xs text-muted-foreground">
+                Incremental backup to a separate Wasabi bucket. Fast restores, low cost.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Backup credential (Wasabi backup bucket) */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Backup Storage</Label>
+                  <Select
+                    value={formState.primaryCredentialId?.toString() ?? "none"}
+                    onValueChange={handlePrimaryChange}
                     disabled={!formState.enabled}
-                  />
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not configured</SelectItem>
+                      {credentials
+                        .filter((c) => c.id !== formState.secondaryCredentialId)
+                        .map((cred) => (
+                          <SelectItem key={cred.id} value={cred.id.toString()}>
+                            {cred.name} {cred.bucket ? `(${cred.bucket})` : ""}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Select
-                  value={formState.secondaryCredentialId?.toString() ?? ""}
-                  onValueChange={(value) =>
-                    handleChange("secondaryCredentialId", value ? parseInt(value) : null)
-                  }
-                  disabled={!formState.enabled || !formState.mirrorEnabled}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Select mirror storage" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {credentials
-                      .filter((c) => c.id !== formState.primaryCredentialId)
-                      .map((cred) => (
-                        <SelectItem key={cred.id} value={cred.id.toString()}>
-                          {cred.name} → {cred.bucket || "no bucket"}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                {secondaryCred && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    {secondaryCred.isConnected ? (
-                      <Check className="h-3 w-3 text-green-500 dark:text-green-400" />
-                    ) : (
-                      <X className="h-3 w-3 text-red-500 dark:text-red-400" />
-                    )}
-                    Bucket: {secondaryCred.bucket || "not set"}
-                  </p>
+
+                {/* Flow indicator */}
+                <div className="flex items-center text-xs text-muted-foreground pt-5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Database className="h-3.5 w-3.5 shrink-0" />
+                    <span>DB dump</span>
+                    <ArrowRight className="h-3 w-3" />
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {primaryCred?.bucket || "not set"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+                <FileArchive className="h-3.5 w-3.5 shrink-0" />
+                <span>Changed docs</span>
+                <ArrowRight className="h-3 w-3" />
+                <Badge variant="outline" className="font-mono text-xs">
+                  {primaryCred?.bucket || "not set"}
+                </Badge>
+              </div>
+
+              {config?.lastDocumentBackupAt && (
+                <p className="text-xs text-muted-foreground">
+                  Last backup: {formatDistanceToNow(new Date(config.lastDocumentBackupAt), { addSuffix: true })}
+                </p>
+              )}
+            </div>
+
+            {/* Tier 2: B2 (off-site) */}
+            <div className="rounded-lg border bg-muted/30 dark:bg-muted/10 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-blue-500" />
+                  <span className="font-medium text-sm">Tier 2 — Backblaze B2</span>
+                  <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950">
+                    Disaster Recovery
+                  </Badge>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Full sync from live Wasabi storage directly to B2. True off-site protection.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">B2 Storage</Label>
+                  <Select
+                    value={formState.secondaryCredentialId?.toString() ?? "none"}
+                    onValueChange={handleSecondaryChange}
+                    disabled={!formState.enabled}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None — no off-site mirror</SelectItem>
+                      {credentials
+                        .filter((c) => c.id !== formState.primaryCredentialId)
+                        .map((cred) => (
+                          <SelectItem key={cred.id} value={cred.id.toString()}>
+                            {cred.name} {cred.bucket ? `(${cred.bucket})` : ""}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {hasTier2 && (
+                  <div className="flex items-center text-xs text-muted-foreground pt-5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {warehouseBucket || "live"}
+                      </Badge>
+                      <ArrowRight className="h-3 w-3" />
+                      <Badge variant="outline" className="font-mono text-xs bg-blue-50 dark:bg-blue-950">
+                        {secondaryCred?.bucket || "not set"}
+                      </Badge>
+                    </div>
+                  </div>
                 )}
               </div>
+
+              {!hasTier2 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Without B2, there is no off-site disaster recovery copy.
+                </p>
+              )}
+
+              {config?.lastMirrorSyncAt && (
+                <p className="text-xs text-muted-foreground">
+                  Last sync: {formatDistanceToNow(new Date(config.lastMirrorSyncAt), { addSuffix: true })}
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Manual Backup + Save */}
-          <div className="flex items-center justify-between pt-4 border-t">
-            <div className="flex gap-2">
+          {/* Actions row */}
+          <div className="flex items-center justify-between pt-3 border-t">
+            <div className="flex gap-2 flex-wrap">
               <Button
                 variant="outline"
                 size="sm"
@@ -391,7 +467,7 @@ export function BackupSettingsTab() {
                 ) : (
                   <Database className="h-3.5 w-3.5 mr-1.5" />
                 )}
-                Database
+                Database Dump
               </Button>
               <Button
                 variant="outline"
@@ -402,11 +478,11 @@ export function BackupSettingsTab() {
                 {runningBackup === "documents" ? (
                   <Spinner size={14} className="mr-1.5" />
                 ) : (
-                  <FileArchive className="h-3.5 w-3.5 mr-1.5" />
+                  <HardDrive className="h-3.5 w-3.5 mr-1.5" />
                 )}
-                Documents
+                Backup to Wasabi
               </Button>
-              {formState.mirrorEnabled && formState.secondaryCredentialId && (
+              {hasTier2 && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -416,9 +492,9 @@ export function BackupSettingsTab() {
                   {runningBackup === "mirror" ? (
                     <Spinner size={14} className="mr-1.5" />
                   ) : (
-                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                    <Shield className="h-3.5 w-3.5 mr-1.5" />
                   )}
-                  Mirror
+                  Sync to B2
                 </Button>
               )}
             </div>
@@ -454,9 +530,9 @@ export function BackupSettingsTab() {
         </CardHeader>
         <CardContent>
           {history.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileArchive className="h-10 w-10 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No backups yet</p>
+            <div className="text-center py-6 text-muted-foreground">
+              <FileArchive className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">No backups yet. Enable backups and run one to see history.</p>
             </div>
           ) : (
             <Table>
@@ -476,9 +552,11 @@ export function BackupSettingsTab() {
                     <TableCell>
                       <div className="flex items-center gap-1.5 text-sm">
                         {log.backupType === "database" && <Database className="h-3.5 w-3.5 text-muted-foreground" />}
-                        {log.backupType === "documents" && <FileArchive className="h-3.5 w-3.5 text-muted-foreground" />}
-                        {log.backupType === "mirror" && <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />}
-                        <span className="capitalize">{log.backupType}</span>
+                        {log.backupType === "documents" && <HardDrive className="h-3.5 w-3.5 text-orange-500" />}
+                        {log.backupType === "mirror" && <Shield className="h-3.5 w-3.5 text-blue-500" />}
+                        <span className="capitalize">
+                          {log.backupType === "documents" ? "Tier 1" : log.backupType === "mirror" ? "Tier 2" : "DB Dump"}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell>

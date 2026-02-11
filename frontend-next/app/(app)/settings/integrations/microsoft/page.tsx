@@ -375,10 +375,13 @@ export default function MicrosoftIntegrationPage() {
         return;
       }
 
-      // Redirect to Microsoft login
+      // Show consent URL for copying (so admin can send to external org's Global Admin)
       if (response?.admin_consent_url) {
-        window.location.href = response.admin_consent_url;
+        setConsentUrl(response.admin_consent_url);
+        setConsentOrgName(orgName);
+        setCopied(false);
       }
+      setConnectingOrg(null);
     } catch (err: unknown) {
       const error = err as { data?: { error?: string }; message?: string };
       setError(error.data?.error || error.message || "Failed to start connection");
@@ -395,6 +398,9 @@ export default function MicrosoftIntegrationPage() {
 
   // State for adding new organization
   const [newOrgName, setNewOrgName] = React.useState("");
+  const [consentUrl, setConsentUrl] = React.useState<string | null>(null);
+  const [consentOrgName, setConsentOrgName] = React.useState<string>("");
+  const [copied, setCopied] = React.useState(false);
 
   if (loading) {
     return (

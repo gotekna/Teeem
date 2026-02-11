@@ -106,6 +106,9 @@ export function TenantSyncPullTab() {
   const [skippedTables, setSkippedTables] = useState<Set<string>>(new Set());
   // Contacts: price_only filter (checked by default, matching backend scope)
   const [contactsPriceOnly, setContactsPriceOnly] = useState(true);
+  // Last config sync audit trail
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [lastSyncBy, setLastSyncBy] = useState<string | null>(null);
 
   // Fetch available tables on mount
   useEffect(() => {
@@ -120,6 +123,8 @@ export function TenantSyncPullTab() {
           is_master_tenant?: boolean;
           all_tenant_counts?: Record<string, Record<string, number>>;
           all_tenants?: TenantCount[];
+          last_config_sync_at?: string | null;
+          last_config_sync_by?: string | null;
         }>("/api/v1/config_sync/tables");
 
         if (response?.success) {
@@ -127,6 +132,8 @@ export function TenantSyncPullTab() {
           if (response.tenant) {
             setTenantInfo(response.tenant);
           }
+          setLastSyncAt(response.last_config_sync_at || null);
+          setLastSyncBy(response.last_config_sync_by || null);
           setIsMasterTenant(response.is_master_tenant || false);
           if (response.all_tenants && response.all_tenant_counts) {
             setTenants(response.all_tenants);
@@ -426,6 +433,21 @@ export function TenantSyncPullTab() {
         results: allResults,
       });
 
+      // Record sync timestamp (audit trail)
+      try {
+        const syncRecord = await api.post<{
+          success: boolean;
+          last_config_sync_at?: string;
+          last_config_sync_by?: string;
+        }>("/api/v1/config_sync/record_sync", {});
+        if (syncRecord?.success) {
+          setLastSyncAt(syncRecord.last_config_sync_at || null);
+          setLastSyncBy(syncRecord.last_config_sync_by || null);
+        }
+      } catch {
+        // Non-critical - timestamp just won't update
+      }
+
       // Refresh counts so tenant columns show updated numbers
       try {
         const refreshed = await api.get<{
@@ -531,6 +553,14 @@ export function TenantSyncPullTab() {
             <div className="flex items-center gap-4 text-sm">
               <span className="text-muted-foreground">Your tenant:</span>
               <Badge variant="outline">{tenantInfo?.name || "Unknown"}</Badge>
+              <span className="text-muted-foreground">|</span>
+              {lastSyncAt ? (
+                <span className="text-muted-foreground">
+                  Last sync: {new Date(lastSyncAt).toLocaleString()}{lastSyncBy ? ` by ${lastSyncBy}` : ""}
+                </span>
+              ) : (
+                <span className="text-muted-foreground italic">Never synced</span>
+              )}
             </div>
             <Button
               onClick={() => {

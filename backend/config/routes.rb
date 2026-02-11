@@ -458,6 +458,7 @@ Rails.application.routes.draw do
           post :auto_sync_compulsory  # Auto-sync all compulsory records from master
           post :pull_all  # Fresh pull of ALL records from ALL tables
           post :pull_one_table  # Pull a single table (for live progress)
+          post :record_sync  # Record that a full sync was performed
         end
       end
       delete "job_status_stages/:id", to: "job_status_stages#destroy"

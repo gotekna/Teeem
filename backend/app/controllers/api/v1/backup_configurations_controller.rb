@@ -91,7 +91,8 @@ module Api
               error: "Mirror is not enabled or secondary credential not configured."
             }, status: :unprocessable_entity
           end
-          BackupMirrorJob.perform_later(config.tenant_id)
+          full_sync = ActiveModel::Type::Boolean.new.cast(params[:full_sync])
+          BackupMirrorJob.perform_later(config.tenant_id, "documents", { full_sync: full_sync })
         end
 
         render json: {
@@ -173,7 +174,6 @@ module Api
         }
       end
 
-      # SSoT (Jan 2026): bucket removed - WarehouseProvider.bucket is SSoT
       def credential_json(credential)
         return nil unless credential
 
@@ -182,7 +182,7 @@ module Api
           name: credential.name,
           providerName: credential.provider_name,
           endpoint: credential.endpoint,
-          # bucket removed - WarehouseProvider.bucket is SSoT
+          bucket: credential.read_attribute(:bucket),
           isConnected: credential.connected?
         }
       end
