@@ -5,6 +5,8 @@
 # SSoT: Mailbox address configured in TenantSetting.monitored_mailbox_pay
 #
 class BillInboxSyncJob < ApplicationJob
+  include DeduplicatableJob
+
   queue_as :default
 
   def perform(since: nil)

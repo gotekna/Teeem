@@ -1,5 +1,7 @@
 # SSoT: Mailbox address configured in TenantSetting.monitored_mailbox_newjob
 class ProcessNewJobEmailsJob < ApplicationJob
+  include DeduplicatableJob
+
   queue_as :default
 
   # Legacy folder name (kept for backwards compatibility)

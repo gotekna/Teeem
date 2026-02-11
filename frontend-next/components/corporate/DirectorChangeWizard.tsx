@@ -37,6 +37,7 @@ import {
   Check,
   Download,
   FileText,
+  Pencil,
   Plus,
   Send,
   Trash2,
@@ -68,6 +69,10 @@ interface NewAppointment {
   appointment_date: string;
   has_dob: boolean;
   has_address: boolean;
+  dob: string;        // Actual DOB value for display/confirmation
+  address: string;    // Actual residential address for display/confirmation
+  editing_dob: boolean;
+  editing_address: boolean;
 }
 
 interface ContactSearchResult {
@@ -234,18 +239,34 @@ export function DirectorChangeWizard({
     // Default appointment date to the first ceasing director's cessation date (continuity)
     const defaultDate = ceasingDirectors[0]?.cessation_date || format(new Date(), "yyyy-MM-dd");
 
-    // Fetch full contact details to check DOB and residential address (search API doesn't include these)
+    // Fetch full contact details to get DOB and residential address for confirmation
     // ASIC forms require residential_address specifically, not just contact_addresses
     let hasDob = !!contact.date_of_birth;
     let hasAddress = false;
+    let dobValue = "";
+    let addressValue = "";
     try {
-      const detail = await api.get<{ contact: { date_of_birth?: string; residential_address?: string | null; contact_addresses?: Array<{ line1?: string; city?: string }> } }>(
+      const detail = await api.get<{ contact: { date_of_birth?: string; residential_address?: string | null; contact_addresses?: Array<{ line1?: string; line2?: string; city?: string; region?: string; postal_code?: string; country?: string; address_type?: string }> } }>(
         `/api/v1/contacts/${contact.id}`
       );
       const c = detail.contact;
       hasDob = !!c?.date_of_birth && c.date_of_birth !== "[RESTRICTED]";
+      if (hasDob && c?.date_of_birth) {
+        dobValue = c.date_of_birth;
+      }
       // Check residential_address first (ASIC requirement), fall back to contact_addresses
-      hasAddress = (!!c?.residential_address && c.residential_address !== "[RESTRICTED]") || (c?.contact_addresses?.length ?? 0) > 0;
+      if (c?.residential_address && c.residential_address !== "[RESTRICTED]") {
+        hasAddress = true;
+        addressValue = c.residential_address;
+      } else if (c?.contact_addresses?.length) {
+        // Use STREET address if available, otherwise first address
+        const streetAddr = c.contact_addresses.find((a) => a.address_type === "STREET") || c.contact_addresses[0];
+        const parts = [streetAddr.line1, streetAddr.line2, streetAddr.city, streetAddr.region, streetAddr.postal_code].filter(Boolean);
+        if (parts.length > 0) {
+          hasAddress = true;
+          addressValue = parts.join(", ");
+        }
+      }
     } catch {
       // If fetch fails, keep search-level values
     }
@@ -260,6 +281,10 @@ export function DirectorChangeWizard({
         appointment_date: defaultDate,
         has_dob: hasDob,
         has_address: hasAddress,
+        dob: dobValue,
+        address: addressValue,
+        editing_dob: false,
+        editing_address: false,
       },
     ]);
     setContactSearch("");
@@ -623,19 +648,39 @@ export function DirectorChangeWizard({
                     </button>
                   </div>
 
-                  {/* Missing fields - inline entry */}
-                  {(!appt.has_dob || !appt.has_address) && (
-                    <div className="space-y-2 p-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded text-sm">
-                      <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        Required for ASIC forms:
+                  {/* DOB and Address - display values for confirmation or inline entry if missing */}
+                  <div className="space-y-2 p-2 bg-muted/50 border rounded text-sm">
+                    {/* Date of Birth */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Date of Birth</Label>
+                        {appt.has_dob && !appt.editing_dob && (
+                          <button
+                            onClick={() => setNewAppointments((prev) =>
+                              prev.map((a) => a.contact_id === appt.contact_id ? { ...a, editing_dob: true } : a)
+                            )}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            <Pencil className="w-3 h-3" /> Update
+                          </button>
+                        )}
                       </div>
-                      {!appt.has_dob && (
-                        <div>
-                          <Label className="text-xs">Date of Birth</Label>
+                      {appt.has_dob && !appt.editing_dob ? (
+                        <p className="text-sm">
+                          {appt.dob ? format(new Date(appt.dob + "T00:00:00"), "dd/MM/yyyy") : "On file"}
+                        </p>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {!appt.has_dob && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                              <AlertCircle className="w-3 h-3" />
+                              Required
+                            </div>
+                          )}
                           <Input
                             type="date"
-                            className="h-8 text-sm"
+                            defaultValue={appt.editing_dob ? appt.dob : ""}
+                            className="h-8 text-sm flex-1"
                             onChange={async (e) => {
                               if (!e.target.value) return;
                               try {
@@ -643,41 +688,86 @@ export function DirectorChangeWizard({
                                   contact: { date_of_birth: e.target.value },
                                 });
                                 setNewAppointments((prev) =>
-                                  prev.map((a) => a.contact_id === appt.contact_id ? { ...a, has_dob: true } : a)
+                                  prev.map((a) => a.contact_id === appt.contact_id
+                                    ? { ...a, has_dob: true, dob: e.target.value, editing_dob: false }
+                                    : a)
                                 );
                               } catch { /* ignore */ }
                             }}
                           />
+                          {appt.editing_dob && (
+                            <button
+                              onClick={() => setNewAppointments((prev) =>
+                                prev.map((a) => a.contact_id === appt.contact_id ? { ...a, editing_dob: false } : a)
+                              )}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       )}
-                      {!appt.has_address && (
-                        <div>
-                          <Label className="text-xs">Residential Address</Label>
+                    </div>
+
+                    {/* Residential Address */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Residential Address</Label>
+                        {appt.has_address && !appt.editing_address && (
+                          <button
+                            onClick={() => setNewAppointments((prev) =>
+                              prev.map((a) => a.contact_id === appt.contact_id ? { ...a, editing_address: true } : a)
+                            )}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            <Pencil className="w-3 h-3" /> Update
+                          </button>
+                        )}
+                      </div>
+                      {appt.has_address && !appt.editing_address ? (
+                        <p className="text-sm">{appt.address || "On file"}</p>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {!appt.has_address && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                              <AlertCircle className="w-3 h-3" />
+                              Required
+                            </div>
+                          )}
                           <Input
                             type="text"
+                            defaultValue={appt.editing_address ? appt.address : ""}
                             placeholder="e.g. 123 Main St, Brisbane QLD 4000"
-                            className="h-8 text-sm"
+                            className="h-8 text-sm flex-1"
                             onBlur={async (e) => {
                               if (!e.target.value) return;
                               try {
                                 await api.patch(`/api/v1/contacts/${appt.contact_id}`, {
-                                  contact: {
-                                    contact_addresses_attributes: [
-                                      { line1: e.target.value, address_type: "STREET", is_primary: true },
-                                    ],
-                                  },
+                                  contact: { residential_address: e.target.value },
                                 });
                                 setNewAppointments((prev) =>
-                                  prev.map((a) => a.contact_id === appt.contact_id ? { ...a, has_address: true } : a)
+                                  prev.map((a) => a.contact_id === appt.contact_id
+                                    ? { ...a, has_address: true, address: e.target.value, editing_address: false }
+                                    : a)
                                 );
                               } catch { /* ignore */ }
                             }}
                             onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                           />
+                          {appt.editing_address && (
+                            <button
+                              onClick={() => setNewAppointments((prev) =>
+                                prev.map((a) => a.contact_id === appt.contact_id ? { ...a, editing_address: false } : a)
+                              )}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
 
                   <div className="space-y-2">
                     <div>
