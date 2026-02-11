@@ -812,7 +812,7 @@ export default function EmailPage() {
   const [resumeDraft, setResumeDraft] = useAtom(resumeDraftAtom);
   const [replyToAtomValue, setReplyToAtomValue] = useAtom(replyToDataAtom);
   // Backwards compatible type (has extra fields)
-  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; replyToMessageId?: string } | null;
+  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; fromEmail?: string; replyToMessageId?: string } | null;
   const setReplyTo = setReplyToAtomValue as unknown as React.Dispatch<React.SetStateAction<typeof replyTo>>;
 
   const [isPending, startTransition] = useTransition();
@@ -1076,6 +1076,25 @@ export default function EmailPage() {
     setReplyTo(null);
     setComposeOpen(true);
   }, []);
+
+  // Auto-open compose from query params (e.g., ?compose=true&to=email&subject=text&body=text&from=alias)
+  const composeParamHandled = React.useRef(false);
+  useEffect(() => {
+    if (composeParamHandled.current) return;
+    const composeTo = searchParams.get("compose_to");
+    if (composeTo && !composeOpen) {
+      composeParamHandled.current = true;
+      setReplyTo({
+        to: composeTo,
+        cc: searchParams.get("compose_cc") || "",
+        subject: searchParams.get("compose_subject") || "",
+        body: searchParams.get("compose_body") || "",
+        fromEmail: searchParams.get("compose_from") || undefined,
+        replyToMessageId: undefined,
+      });
+      setComposeOpen(true);
+    }
+  }, [searchParams, composeOpen, setReplyTo, setComposeOpen]);
 
   // Initialize keyboard shortcuts
   useEmailKeyboardShortcuts({
@@ -2771,6 +2790,7 @@ To: ${email.to_emails?.join(", ") || ""}
         defaultSubject={replyTo?.subject || ""}
         defaultBody={replyTo?.body || ""}
         defaultFromAccountId={replyTo?.fromAccountId}
+        defaultFromEmail={replyTo?.fromEmail}
         replyToMessageId={replyTo?.replyToMessageId}
         draft={resumeDraft || undefined}
         onSent={() => {

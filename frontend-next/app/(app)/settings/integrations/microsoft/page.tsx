@@ -45,6 +45,7 @@ import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTenant } from "@/contexts/TenantContext";
 
 // ============================================
 // Organization-Wide Access Section (Admin Only)
@@ -300,6 +301,7 @@ function SharePointDelegatedConnection() {
 export default function MicrosoftIntegrationPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { currentTenant } = useTenant();
   const searchParams = useSearchParams();
   const [orgStatus, setOrgStatus] = React.useState<OrgAppStatus | null>(null);
   const [healthData, setHealthData] = React.useState<HealthDashboard | null>(null);
@@ -396,8 +398,8 @@ export default function MicrosoftIntegrationPage() {
   // Count connected orgs
   const connectedCount = configuredOrgs.filter(o => o.status === "connected").length;
 
-  // State for adding new organization
-  const [newOrgName, setNewOrgName] = React.useState("");
+  // State for adding new organization - pre-populate with tenant name
+  const [newOrgName, setNewOrgName] = React.useState(currentTenant?.name || "");
   const [consentUrl, setConsentUrl] = React.useState<string | null>(null);
   const [consentOrgName, setConsentOrgName] = React.useState<string>("");
   const [copied, setCopied] = React.useState(false);
@@ -664,6 +666,19 @@ export default function MicrosoftIntegrationPage() {
                     className="shrink-0"
                   >
                     {copied ? "Copied!" : "Copy Link"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const subject = encodeURIComponent(`Link to Connect ${consentOrgName} to Teeem`);
+                      const body = encodeURIComponent(`Hi,\n\nPlease find the link to connect ${consentOrgName} to Teeem's Microsoft 365 integration.\n\nClick the link below, sign in with your Global Admin account, and approve:\n\n${consentUrl}\n\nOnce approved, we'll be able to access your organization's emails and SharePoint.\n\nBest regards`);
+                      router.push(`/email?compose_to=&compose_subject=${subject}&compose_body=${body}&compose_from=${encodeURIComponent("setup@teeem.com.au")}`);
+                      setWaitingForConsent(true);
+                    }}
+                    className="shrink-0"
+                  >
+                    <Mail className="h-4 w-4 mr-1" />
+                    Send Email
                   </Button>
                   <Button
                     size="sm"

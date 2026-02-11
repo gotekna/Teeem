@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -72,6 +73,7 @@ interface UserDetailSheetProps {
 }
 
 export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailSheetProps) {
+  const router = useRouter();
   const [editData, setEditData] = useState<Partial<UserData>>({});
   const [fullUserData, setFullUserData] = useState<UserData | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -214,12 +216,30 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
 
     setSendingInvite(true);
     try {
-      const response = await api.post<{ success: boolean; message?: string; error?: string }>(
+      const response = await api.post<{ success: boolean; compose?: boolean; user_email?: string; user_name?: string; temp_password?: string; message?: string; error?: string }>(
         `/api/v1/users/${user.id}/send_invite`,
-        {}
+        { compose_mode: true }
       );
 
-      if (response?.success) {
+      if (response?.success && response?.compose) {
+        // Open TEEEM email compose with login credentials
+        const loginUrl = typeof window !== "undefined" ? window.location.origin : "https://teeem.vercel.app";
+        const subject = encodeURIComponent(`Your Teeem Login Details`);
+        const body = encodeURIComponent(
+          `Hi ${response.user_name || ""},\n\n` +
+          `Your Teeem account has been set up. Here are your login details:\n\n` +
+          `Login URL: ${loginUrl}\n` +
+          `Email: ${response.user_email}\n` +
+          `Temporary Password: ${response.temp_password}\n\n` +
+          `You will be asked to change your password on first login.\n\n` +
+          `Best regards`
+        );
+        const from = encodeURIComponent("setup@teeem.com.au");
+        const to = encodeURIComponent(response.user_email || user.email);
+        setShowInviteConfirm(false);
+        onClose();
+        router.push(`/email?compose_to=${to}&compose_subject=${subject}&compose_body=${body}&compose_from=${from}`);
+      } else if (response?.success) {
         toast({
           title: "Login email sent",
           description: response.message || `Login credentials sent to ${user.email}`,

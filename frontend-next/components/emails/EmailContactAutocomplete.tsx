@@ -422,6 +422,27 @@ export function EmailContactAutocomplete({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData("text");
+    // Extract all emails from pasted text (handles comma/semicolon/space/newline separated)
+    const emailRegex = /[^\s,;<>]+@[^\s,;<>]+\.[^\s,;<>]+/g;
+    const emails = pasted.match(emailRegex);
+    if (emails && emails.length > 0) {
+      e.preventDefault();
+      const newChips = [...chips];
+      for (const email of emails) {
+        const cleaned = email.toLowerCase().trim();
+        if (!emailChips.some(e => e.toLowerCase() === cleaned)) {
+          newChips.push({ email: cleaned, contactId: undefined, displayName: undefined });
+        }
+      }
+      updateChips(newChips);
+      setSearchInput("");
+      onSearch("");
+      setIsOpen(false);
+    }
+  };
+
   const handleFocus = () => {
     if (searchInput.trim().length >= minSearchChars && contacts.length > 0) {
       setIsOpen(true);
@@ -496,6 +517,7 @@ export function EmailContactAutocomplete({
           value={searchInput}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           onFocus={handleFocus}
           placeholder={emailChips.length === 0 ? placeholder : ""}
           className="flex-1 min-w-[100px] h-7 bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground"
