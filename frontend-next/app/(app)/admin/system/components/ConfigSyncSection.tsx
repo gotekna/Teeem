@@ -16,6 +16,10 @@ import { api } from "@/lib/api";
  * Layout:
  * - Master tenant (TEEEM): AdminConfigSyncTab + TenantSyncPullTab + ConfigSyncTab
  * - Regular tenants: TenantSyncPullTab + ConfigSyncTab only
+ *
+ * Flow:
+ * - TenantSyncPullTab: "Sync Tables" button for bulk sync (initial setup)
+ * - ConfigSyncTab: Per-table overview with "Compare" for detailed diff + selective sync
  */
 export function ConfigSyncSection() {
   const [syncRefreshKey, setSyncRefreshKey] = React.useState(0);
@@ -86,9 +90,14 @@ export function ConfigSyncSection() {
         <TenantSyncPullTab onSyncComplete={handleSyncComplete} />
       </div>
 
-      {/* Tenant Configuration Overview */}
+      {/* Tenant Configuration Overview - per-table comparison */}
       <div className="border-t pt-8">
-        <h2 className="text-lg font-semibold mb-4">Tenant Configuration Overview</h2>
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold">Tenant Configuration Overview</h2>
+          <p className="text-sm text-muted-foreground">
+            Compare individual tables with TEEEM to see differences and sync selectively
+          </p>
+        </div>
         <ConfigSyncTab refreshKey={syncRefreshKey} />
       </div>
     </div>

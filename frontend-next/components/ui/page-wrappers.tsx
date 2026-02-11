@@ -411,26 +411,35 @@ function TabSection({ label, children, className }: TabSectionProps) {
 /**
  * Content - The main content area
  *
- * Always uses flex-1 min-h-0 to work properly in flex layout:
- * - flex-1: Fills remaining space
- * - min-h-0: Allows shrinking for overflow/scroll to work
- * - Parent gap-6 handles spacing (no manual margin needed)
+ * In full-height mode: Acts as a scroll container (flex-1 min-h-0 overflow-auto)
+ * In padded mode: Regular block element — outer app layout div handles scrolling
  *
- * ⚠️ DO NOT SIMPLIFY - Race condition fix (Feb 2026)
+ * ⚠️ DO NOT SIMPLIFY - Dual scroll container fix (Feb 2026)
  * ════════════════════════════════════════════
- * Why: When navigating from a page that sets layout mode to "full-height"
- * (e.g., Operations), React's useEffect cleanup is asynchronous. The new
- * page renders with STALE "full-height" mode before cleanup resets to "padded".
- * Without overflow-auto, content is clipped with no scrollbar during that frame.
- * ❌ WRONG: Just "flex-1 min-h-0" (no scroll when parent has h-full)
- * ✅ CORRECT: Always include overflow-auto so content can scroll regardless of mode
+ * Why: Having overflow-auto ALWAYS on this element creates two nested scroll
+ * containers (this + app layout inner div). After client-side navigation
+ * (router.push), the browser can fail to recalculate which container owns
+ * scroll, causing scroll to break entirely until a full page refresh.
+ *
+ * The fix: Only be a scroll container when isFullHeight is true (parent has
+ * h-full constraining this element). In padded mode, this element sizes to
+ * its content and the outer app layout div handles all scrolling.
+ *
+ * This also handles the race condition when navigating FROM a full-height page
+ * (e.g., Operations): isFullHeight is briefly true (from stale mode), so
+ * overflow-auto is present during that frame. When mode resets to "padded",
+ * overflow-auto is removed and the outer scroll container takes over.
+ *
+ * ❌ WRONG: Always "flex-1 min-h-0 overflow-auto" (double scroll containers)
+ * ✅ CORRECT: Conditional based on isFullHeight
  * ════════════════════════════════════════════
  */
 function Content({ children, className }: ContentProps) {
+  const { isFullHeight } = React.useContext(TabbedSettingsContext);
   return (
     <div
       className={cn(
-        "flex-1 min-h-0 overflow-auto",
+        isFullHeight ? "flex-1 min-h-0 overflow-auto" : "",
         className
       )}
     >
