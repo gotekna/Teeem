@@ -71,6 +71,7 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/settings/roles": "Access Control",
   "/settings/corporate": "Corporate",
   "/settings/company": "Company",
+  "/settings/connections": "Connections",
   "/settings/integrations": "Integrations",
   "/settings/documents": "Documents",
   "/settings/operations": "Operations",
@@ -189,7 +190,6 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "job": "Jobs",
   "contact": "Contacts",
   "email_config": "Email Config",
-  "config_sync": "Sync",
 
   // Settings > Developer tabs
   "api-keys": "API Keys",
@@ -210,22 +210,43 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "view-table-demo": "ViewTable Demo",
   "setup-table-demo": "SetupTable Demo",
 
-  // Settings > Company > Connections sub-tabs
+  // Settings > Connections sub-tabs
   "provider": "Storage Provider",
   "migration": "Migration",
   "costs": "Cost Comparison",
+  "email-accounts": "Email Accounts",
+  "backups": "Backups",
+  "sync": "Sync",
 
-  // Settings > Company > Security sub-tabs
+  // Settings > Operations sub-tabs (slugs from page.tsx tab IDs)
+  "schedule-master": "Schedule Master",
+  "sm-tasks": "SM Tasks",
+  "meetings": "Meeting Types",
+  "supervisor": "Supervisor Checklist",
+  "cost": "Cost",
+  "po-templates": "PO Templates",
+
+  // Settings > System sub-tabs
+  "agents": "AI Agents",
+  "ai-processing": "AI Processing",
+  "health": "System Health",
+
+  // Settings > Company > Documents sub-tabs
+  "types": "Document Types",
+  "pdf-fields": "PDF Fields",
+
+  // Settings > Access Control sub-tabs
   "users": "Users",
   "roles": "User Roles",
   // "groups" already defined above
+  // "permissions" already defined above
 
-  // Settings > Company > Corporate sub-tabs
+  // Settings > Corporate sub-tabs
   "groups": "Groups",
   "companies": "Companies",
   "company-tabs": "Storage Locations",
 
-  // Settings > Operations tabs
+  // Settings > Operations tabs (legacy)
   "job-types": "Job Types",
   "categories": "Categories",
   "statuses": "Statuses",
@@ -395,6 +416,9 @@ export function isSameRoute(path1: string, path2: string): boolean {
  */
 const SETTINGS_TABBED_SECTIONS = [
   "company",
+  "connections",
+  "corporate",
+  "roles",
   "integrations",
   "documents",
   "operations",
@@ -404,13 +428,12 @@ const SETTINGS_TABBED_SECTIONS = [
 
 /**
  * Settings tabs that have nested sub-tabs
- * e.g., /settings/company/connections has sub-tabs: provider, migration, costs
+ * e.g., /settings/company/warehouse-config has sub-tabs: warehouse_folders, document_types, etc.
  */
 const SETTINGS_NESTED_TABS: Record<string, string[]> = {
-  "connections": ["provider", "migration", "costs"],
-  "security": ["users", "roles", "groups"],
-  "corporate": ["groups", "companies", "company-tabs"],
-  "warehouse-config": ["warehouse_folders", "document_types", "corporate", "job", "contact", "email_config", "config_sync"],
+  "warehouse-config": ["warehouse_folders", "warehouse_tables", "document_types", "corporate", "job", "contact", "email_config", "sync"],
+  "documents": ["types", "document-templates", "bank-statements", "invoice-templates", "email-signatures", "pdf-fields"],
+  "job-setup": ["lists", "workflow"],
 };
 
 /**
