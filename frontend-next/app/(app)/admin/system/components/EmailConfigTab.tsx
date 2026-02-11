@@ -16,10 +16,12 @@ import {
   AlertCircle,
   Info,
   Sparkles,
+  Send,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { useRouter } from "next/navigation";
 
 interface EmailConfig {
   internal_domains: string[];
@@ -113,8 +115,18 @@ interface EmailConfigTabProps {
   connectedAliases?: string[];
 }
 
+// SSoT: Standard mailbox prefixes (same as Tekna's shared mailbox naming)
+const MAILBOX_PREFIXES = [
+  { prefix: "pay", label: "Bills/Invoices", description: "Incoming supplier invoices are routed here for automated processing" },
+  { prefix: "newtask", label: "New Tasks", description: "Emails forwarded here automatically create tasks" },
+  { prefix: "newjob", label: "New Jobs", description: "Emails here trigger AI job extraction and proposal creation" },
+  { prefix: "newcase", label: "New Cases", description: "Emails here trigger case creation proposals" },
+  { prefix: "docsort", label: "Document Sorting", description: "Documents emailed here are AI-classified and routed automatically" },
+];
+
 export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConfigTabProps = {}) {
   const { toast } = useToast();
+  const router = useRouter();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [formData, setFormData] = React.useState({
@@ -276,13 +288,51 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
       {/* Monitored Mailboxes */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Inbox className="h-4 w-4" />
-            Monitored Mailboxes
-          </CardTitle>
-          <CardDescription>
-            Email addresses monitored for automated processing (bills, tasks, jobs, cases)
-          </CardDescription>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Inbox className="h-4 w-4" />
+                Monitored Mailboxes
+              </CardTitle>
+              <CardDescription className="mt-1.5">
+                Email addresses monitored for automated processing (bills, tasks, jobs, cases)
+              </CardDescription>
+            </div>
+            {connectedDomains && connectedDomains.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 shrink-0"
+                onClick={() => {
+                  // Use first connected domain (tenant's primary domain)
+                  const domain = connectedDomains[0];
+                  const mailboxList = MAILBOX_PREFIXES.map(
+                    (m) => `  - ${m.prefix}@${domain}  (${m.label} - ${m.description})`
+                  ).join("\n");
+
+                  const subject = encodeURIComponent(
+                    `Request: Create Shared Mailboxes for Teeem`
+                  );
+                  const body = encodeURIComponent(
+                    `Hi IT Team,\n\n` +
+                    `We're setting up Teeem (our business management system) and need the following shared mailboxes created on our ${domain} domain:\n\n` +
+                    `${mailboxList}\n\n` +
+                    `Requirements:\n` +
+                    `  - Each mailbox needs to be a shared mailbox (accessible by multiple users)\n` +
+                    `  - IMAP access enabled for each mailbox\n` +
+                    `  - No license required (shared mailboxes in Microsoft 365 are free)\n\n` +
+                    `These mailboxes will be connected to Teeem for automated email processing. Once created, please send us the access credentials.\n\n` +
+                    `Thanks`
+                  );
+                  const from = encodeURIComponent("setup@teeem.com.au");
+                  router.push(`/email?compose_to=&compose_subject=${subject}&compose_body=${body}&compose_from=${from}`);
+                }}
+              >
+                <Send className="h-3.5 w-3.5" />
+                Email IT to Create Mailboxes
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
