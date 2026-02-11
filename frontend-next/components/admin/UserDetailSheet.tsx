@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { User, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2, PenLine, Lock, Send } from "lucide-react";
+import { User, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2, PenLine, Lock, Send, KeyRound } from "lucide-react";
 import { SIGNATURE_STYLES, type SignatureStyleId, DEFAULT_SIGNATURE_STYLE, CUSTOM_SIGNATURE_ID } from "@/lib/email-signature";
 import {
   Select,
@@ -81,6 +81,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
   const [loading, setLoading] = useState(false);
   const [sendingInvite, setSendingInvite] = useState(false);
   const [showInviteConfirm, setShowInviteConfirm] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
   const { toast } = useToast();
 
   // Signature force mode state (Jan 2026)
@@ -265,6 +266,26 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
       });
     } finally {
       setSendingInvite(false);
+    }
+  };
+
+  const handleSendResetPassword = async () => {
+    if (!user) return;
+    setSendingReset(true);
+    try {
+      const response = await api.post<{ success: boolean; message?: string }>("/api/v1/auth/forgot_password", { email: user.email });
+      toast({
+        title: "Reset email sent",
+        description: `Password reset link sent to ${user.email}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to send reset password email",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingReset(false);
     }
   };
 
@@ -514,20 +535,35 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             </span>
           </div>
 
-          {/* Send Login/Welcome Email */}
-          <Button
-            variant="outline"
-            onClick={() => setShowInviteConfirm(true)}
-            disabled={sendingInvite}
-            className="w-full h-9 gap-2"
-          >
-            {sendingInvite ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-            {sendingInvite ? "Sending..." : displayUser?.last_login_at ? "Resend Welcome Email" : "Send Login Email"}
-          </Button>
+          {/* Email Actions */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowInviteConfirm(true)}
+              disabled={sendingInvite}
+              className="flex-1 h-9 gap-2"
+            >
+              {sendingInvite ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              {sendingInvite ? "Sending..." : displayUser?.last_login_at ? "Resend Welcome Email" : "Send Login Email"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleSendResetPassword}
+              disabled={sendingReset}
+              className="flex-1 h-9 gap-2"
+            >
+              {sendingReset ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <KeyRound className="h-4 w-4" />
+              )}
+              {sendingReset ? "Sending..." : "Reset Password"}
+            </Button>
+          </div>
 
           {/* Actions */}
           <div className="flex gap-2 pt-2">
