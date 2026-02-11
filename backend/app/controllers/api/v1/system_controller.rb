@@ -228,6 +228,20 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # DELETE /api/v1/system/clear_failed_jobs
+      # Clears all failed job executions (resets the counter)
+      def clear_failed_jobs
+        count = SolidQueue::FailedExecution.count
+        SolidQueue::FailedExecution.delete_all
+
+        render json: {
+          success: true,
+          data: { cleared: count }
+        }
+      rescue StandardError => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       # GET /api/v1/system/metrics
       def metrics
         render json: {
