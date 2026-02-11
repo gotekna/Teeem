@@ -37,7 +37,8 @@ class ContactMatcher
   # Build hash indices for O(1) lookups
   # Called once per batch - amortized O(1) per contact
   def build_indices
-    scope = Contact.where(tenant_id: @teeem_tenant_id, is_active: true)
+    # Exclude price_only contacts - pricebook-only entries, not real business contacts
+    scope = Contact.where(tenant_id: @teeem_tenant_id, is_active: true).where.not(entity_type: 'price_only')
 
     # Index by existing Xero link (external_contact_id -> contact_id)
     @by_external_id = if @xero_org_id
@@ -61,6 +62,7 @@ class ContactMatcher
     # Index by lowercase email (from contact_emails table - SSoT)
     @by_email = ContactEmail.joins(:contact)
                             .where(contacts: { tenant_id: @teeem_tenant_id, is_active: true })
+                            .where.not(contacts: { entity_type: 'price_only' })
                             .pluck('LOWER(contact_emails.email)', :contact_id)
                             .to_h
 
@@ -183,8 +185,9 @@ class ContactMatcher
     # Use pg_trgm similarity() function for DB-side fuzzy matching
     # This is indexed if pg_trgm extension is installed with appropriate index
     result = Contact.where(tenant_id: @teeem_tenant_id, is_active: true)
+                    .where.not(entity_type: 'price_only')
                     .where("entity_type IN (?) OR entity_type IS NULL OR display_name ~* ?",
-                           %w[company trust sole_trader price_only],
+                           %w[company trust sole_trader],
                            '(pty|ltd|limited|inc|corp|trust|trading|holdings|group|services|solutions|industries|enterprises)\\b')
                     .where("similarity(display_name, ?) > ?", xero_name, SIMILARITY_THRESHOLD)
                     .order(Arel.sql("similarity(display_name, #{Contact.connection.quote(xero_name)}) DESC"))

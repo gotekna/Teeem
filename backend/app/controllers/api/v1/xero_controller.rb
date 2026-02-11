@@ -2563,10 +2563,12 @@ module Api
             normalized_name = xero_name.to_s.strip.squish.downcase
 
             # Try to find exact match first (also normalize DB values)
-            teeem_contact = Contact.find_by("LOWER(TRIM(display_name)) = ?", normalized_name)
+            # Exclude price_only contacts - these are pricebook-only entries, not real business contacts
+            match_scope = Contact.where.not(entity_type: 'price_only')
+            teeem_contact = match_scope.find_by("LOWER(TRIM(display_name)) = ?", normalized_name)
 
             # Try company name match
-            teeem_contact ||= Contact.find_by("LOWER(TRIM(company_name_or_trust)) = ?", normalized_name)
+            teeem_contact ||= match_scope.find_by("LOWER(TRIM(company_name_or_trust)) = ?", normalized_name)
 
             if teeem_contact
               # Link all invoices with this name
@@ -3685,20 +3687,23 @@ module Api
         # Normalize name - same logic as auto_match_contacts for consistency
         name_lower = xero_name.to_s.strip.squish.downcase
 
+        # Exclude price_only contacts - these are pricebook-only entries, not real business contacts
+        base_scope = Contact.where.not(entity_type: 'price_only')
+
         # Priority 1: Exact display_name match (with TRIM for whitespace normalization)
-        exact = Contact.where("LOWER(TRIM(display_name)) = ?", name_lower).first
+        exact = base_scope.where("LOWER(TRIM(display_name)) = ?", name_lower).first
         if exact
           matches << { id: exact.id, name: exact.display_name, match_type: "exact", score: 100 }
         end
 
         # Priority 2: Exact company_name_or_trust match
-        company_exact = Contact.where("LOWER(TRIM(company_name_or_trust)) = ?", name_lower).first
+        company_exact = base_scope.where("LOWER(TRIM(company_name_or_trust)) = ?", name_lower).first
         if company_exact && company_exact.id != exact&.id
           matches << { id: company_exact.id, name: company_exact.display_name, match_type: "company_exact", score: 95 }
         end
 
         # Priority 3: Partial name match (TEEEM contains Xero name)
-        partial = Contact.where("LOWER(display_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?", "%#{name_lower}%", "%#{name_lower}%")
+        partial = base_scope.where("LOWER(display_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?", "%#{name_lower}%", "%#{name_lower}%")
           .where.not(id: matches.map { |m| m[:id] })
           .limit(5)
 
@@ -3712,7 +3717,7 @@ module Api
         if matches.size < 5
           # Find contacts where the Xero name contains the TEEEM display_name
           escaped_name = ActiveRecord::Base.connection.quote_string(name_lower)
-          reverse_partial = Contact.where("? LIKE '%' || LOWER(display_name) || '%'", name_lower)
+          reverse_partial = base_scope.where("? LIKE '%' || LOWER(display_name) || '%'", name_lower)
             .where("LENGTH(display_name) >= 5") # Avoid tiny matches
             .where.not(id: matches.map { |m| m[:id] })
             .limit(5)
@@ -3732,7 +3737,7 @@ module Api
         words = name_lower.split(/\s+/).reject { |w| w.length < 3 || common_suffixes.include?(w) }
         if words.any? && matches.size < 5
           word_conditions = words.map { |w| "LOWER(display_name) LIKE '%#{ActiveRecord::Base.connection.quote_string(w)}%'" }.join(" OR ")
-          word_matches = Contact.where(word_conditions)
+          word_matches = base_scope.where(word_conditions)
             .where.not(id: matches.map { |m| m[:id] })
             .limit(20) # Get more candidates for scoring
 
