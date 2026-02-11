@@ -67,9 +67,10 @@ export default function NewContactPage() {
   const { createFormTypes, loading: entityTypesLoading } = useEntityTypes();
   const [loading, setLoading] = React.useState(false);
 
-  // Get prefill values from URL params (e.g., from Xero fuzzy match review)
+  // Get prefill values from URL params (e.g., from Xero fuzzy match review or email compose)
   const prefillName = searchParams.get("name") || "";
   const prefillType = searchParams.get("type") || "";
+  const prefillEmail = searchParams.get("email") || "";
 
   const [formData, setFormData] = React.useState<ContactFormData>(() => {
     // Determine entity type - if name contains "Pty Ltd", "Trust", etc., default to company
@@ -84,7 +85,7 @@ export default function NewContactPage() {
       first_name: defaultType === "person" && prefillName ? prefillName.split(" ")[0] || "" : "",
       last_name: defaultType === "person" && prefillName ? prefillName.split(" ").slice(1).join(" ") || "" : "",
       company_name_or_trust: defaultType !== "person" ? prefillName : "",
-      email: "",
+      email: prefillEmail,
       mobile_phone: "",
       office_phone: "",
       address: "",

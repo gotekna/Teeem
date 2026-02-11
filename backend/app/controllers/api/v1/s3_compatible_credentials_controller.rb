@@ -123,8 +123,8 @@ module Api
         )
       end
 
-      # SSoT (Jan 2026): bucket removed from credential response
-      # Bucket is now in WarehouseProvider only - not credential
+      # SSoT (Jan 2026): Primary storage bucket lives in WarehouseProvider.
+      # Credential bucket is included for backup credentials that target separate buckets.
       def credential_json(credential)
         {
           id: credential.id,
@@ -133,7 +133,7 @@ module Api
           providerName: credential.provider_display_name,
           endpoint: credential.endpoint,
           region: credential.region,
-          # bucket removed - WarehouseProvider.bucket is SSoT
+          bucket: credential.read_attribute(:bucket),
           status: credential.status,
           isActive: credential.is_active,
           isConnected: credential.connected?,
