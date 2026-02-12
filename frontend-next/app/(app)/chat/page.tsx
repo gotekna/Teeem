@@ -190,6 +190,8 @@ export default function ChatPage() {
           const userId2 = parseInt(parts[2], 10);
           apiParams.user_id = userId1 === user.id ? userId2 : userId1;
         }
+      } else if (typeof conversationId === "string" && conversationId.startsWith("guest-")) {
+        apiParams.chat_guest_session_id = conversationId.replace("guest-", "");
       } else if (typeof conversationId === "string" && conversationId.startsWith("group-")) {
         apiParams.chat_conversation_id = conversationId.replace("group-", "");
       } else if (typeof conversationId === "number") {
@@ -488,9 +490,12 @@ export default function ChatPage() {
 
     let recipientId: number | undefined;
     let chatConversationId: number | undefined;
+    let chatGuestSessionId: number | undefined;
 
-    // Determine target: group conversation or DM recipient
-    if (selectedConversation.type === "group" && typeof selectedConversation.id === "string" && selectedConversation.id.startsWith("group-")) {
+    // Determine target: group conversation, guest session, or DM recipient
+    if (selectedConversation.type === "guest" && typeof selectedConversation.id === "string" && selectedConversation.id.startsWith("guest-")) {
+      chatGuestSessionId = parseInt(selectedConversation.id.replace("guest-", ""), 10);
+    } else if (selectedConversation.type === "group" && typeof selectedConversation.id === "string" && selectedConversation.id.startsWith("group-")) {
       chatConversationId = parseInt(selectedConversation.id.replace("group-", ""), 10);
     } else if (typeof selectedConversation.id === "string" && selectedConversation.id.startsWith("dm-")) {
       const parts = selectedConversation.id.split("-");
@@ -539,6 +544,7 @@ export default function ChatPage() {
             storage_key: uploadResult.key,
             recipient_user_id: recipientId,
             chat_conversation_id: chatConversationId,
+            chat_guest_session_id: chatGuestSessionId,
           }
         });
       } catch (error) {
@@ -572,6 +578,7 @@ export default function ChatPage() {
           content: newMessage,
           recipient_user_id: recipientId,
           chat_conversation_id: chatConversationId,
+          chat_guest_session_id: chatGuestSessionId,
         },
       });
     } catch (error) {
