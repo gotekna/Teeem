@@ -179,13 +179,6 @@ module Api
           return render json: { error: 'document_type required' }, status: :unprocessable_entity
         end
 
-        unless DocumentInbox::DOCUMENT_TYPES.include?(params[:document_type])
-          return render json: {
-            error: 'Invalid document_type',
-            valid_types: DocumentInbox::DOCUMENT_TYPES
-          }, status: :unprocessable_entity
-        end
-
         @item.override_classification!(
           user: current_user,
           document_type: params[:document_type]

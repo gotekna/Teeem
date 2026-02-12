@@ -153,18 +153,8 @@ const METHOD_LABELS: Record<string, string> = {
   default: "Default (no match)",
 };
 
-// Document type options
-const DOCUMENT_TYPES = [
-  { value: "invoice", label: "Invoice" },
-  { value: "plan", label: "Plan/Drawing" },
-  { value: "quote", label: "Quote/Estimate" },
-  { value: "contract", label: "Contract" },
-  { value: "purchase_order", label: "Purchase Order" },
-  { value: "work_order", label: "Work Order" },
-  { value: "certificate", label: "Certificate" },
-  { value: "compliance", label: "Compliance" },
-  { value: "correspondence", label: "Correspondence" },
-  { value: "email", label: "Email" },
+// Fallback document type options (used while DB types load)
+const FALLBACK_DOCUMENT_TYPES = [
   { value: "general", label: "General" },
 ];
 
@@ -181,11 +171,40 @@ export default function DocsortPage() {
   const [selectedItem, setSelectedItem] = useState<DocumentInboxItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const [documentTypes, setDocumentTypes] = useState<{ value: string; label: string }[]>(FALLBACK_DOCUMENT_TYPES);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Load document types from database
+  const loadDocumentTypes = useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string }> }>(
+        "/api/v1/document_types"
+      );
+      if (response?.data) {
+        const types = response.data.map((dt) => ({
+          // Match Rails .parameterize(separator: '_')
+          value: dt.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
+          label: dt.name,
+        }));
+        // Add "General" at the end if not already present
+        if (!types.find((t) => t.value === "general")) {
+          types.push({ value: "general", label: "General" });
+        }
+        setDocumentTypes(types);
+      }
+    } catch (error) {
+      console.error("Failed to load document types:", error);
+    }
+  }, []);
+
+  // Load document types once on mount
+  useEffect(() => {
+    loadDocumentTypes();
+  }, [loadDocumentTypes]);
 
   // Load items and stats
   const loadData = useCallback(async () => {
@@ -505,7 +524,7 @@ export default function DocsortPage() {
               >
                 All
               </button>
-              {DOCUMENT_TYPES.map((type) => (
+              {documentTypes.map((type) => (
                 <button
                   key={type.value}
                   onClick={() => setTypeFilter(type.value)}
@@ -621,7 +640,7 @@ export default function DocsortPage() {
                               <SelectValue placeholder="pending" />
                             </SelectTrigger>
                             <SelectContent>
-                              {DOCUMENT_TYPES.map((type) => (
+                              {documentTypes.map((type) => (
                                 <SelectItem key={type.value} value={type.value}>
                                   {type.label}
                                 </SelectItem>
@@ -729,7 +748,7 @@ export default function DocsortPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {DOCUMENT_TYPES.map((type) => (
+                            {documentTypes.map((type) => (
                               <SelectItem key={type.value} value={type.value}>
                                 {type.label}
                               </SelectItem>

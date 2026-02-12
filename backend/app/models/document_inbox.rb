@@ -43,7 +43,8 @@ class DocumentInbox < ApplicationRecord
   # Constants
   SOURCES = %w[upload email api forward].freeze
   STATUSES = %w[pending classifying classified processing completed error archived].freeze
-  DOCUMENT_TYPES = %w[
+  # Legacy routing categories (kept for backward compatibility with existing data)
+  ROUTING_CATEGORIES = %w[
     invoice plan quote contract purchase_order work_order
     email certificate compliance correspondence general
   ].freeze
@@ -51,7 +52,7 @@ class DocumentInbox < ApplicationRecord
   # Validations
   validates :source, presence: true, inclusion: { in: SOURCES }
   validates :status, presence: true, inclusion: { in: STATUSES }
-  validates :document_type, inclusion: { in: DOCUMENT_TYPES }, allow_nil: true
+  validates :document_type, length: { maximum: 255 }, allow_nil: true
   validates :classification_confidence, numericality: {
     greater_than_or_equal_to: 0,
     less_than_or_equal_to: 1

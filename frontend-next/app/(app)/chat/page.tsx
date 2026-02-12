@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { api } from "@/lib/api";
+import { renderMessageContent } from "@/components/chat/SupportChatWidget";
 import { uploadFile } from "@/lib/upload-utils";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
 import { SearchInput } from "@/components/ui/search-input";
@@ -581,7 +583,7 @@ export default function ChatPage() {
           };
         }
 
-        const response = await api.post<SupportResponse>("/api/v1/chat_messages/support", { content });
+        const response = await api.post<SupportResponse>("/api/v1/chat_messages/support", { content, current_page: "/chat" });
         if (response?.data) {
           const { user_message, ai_message } = response.data;
           // Replace temp message with real one and add AI response
@@ -1834,6 +1836,7 @@ function MessageBubble({
 }) {
   const [showSaveMenu, setShowSaveMenu] = useState(false);
   const [showReadReceipts, setShowReadReceipts] = useState(false);
+  const msgRouter = useRouter();
 
   // Compute read receipts from conversation participants
   const readReceipts = useMemo(() => {
@@ -1853,6 +1856,7 @@ function MessageBubble({
   }, [conversation?.participants, message.created_at, message.sender_id, message.is_own]);
 
   const isAiMessage = conversation?.type === "support" && message.sender_name === "Teeem AI";
+  const handleMsgNavigate = useCallback((path: string) => msgRouter.push(path), [msgRouter]);
 
   return (
     <div className={cn("flex", message.is_own ? "justify-end" : "justify-start")}>
@@ -1990,7 +1994,9 @@ function MessageBubble({
                 <span className="text-sm break-words">{message.file_name}</span>
               </div>
             ) : (
-              <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
+              <p className="text-sm break-words whitespace-pre-wrap">
+                {isAiMessage ? renderMessageContent(message.content, handleMsgNavigate) : message.content}
+              </p>
             )}
           </div>
           <div
