@@ -533,53 +533,36 @@ export default function DocsortPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col gap-2 p-4 border-b bg-muted/30">
-            <div className="flex items-center gap-3">
-              <SearchInput value={searchQuery} onChange={setSearchQuery} className="flex-1 max-w-xs" />
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px]">
-                  <FunnelIcon className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="classified">Classified</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="error">Errors</SelectItem>
-                  <SelectItem value="all">All</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {/* Document type filter chips */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-xs text-muted-foreground mr-1">Type:</span>
-              <button
-                onClick={() => setTypeFilter("all")}
-                className={cn(
-                  "px-2 py-0.5 text-xs rounded-full border transition-colors",
-                  typeFilter === "all"
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background hover:bg-muted border-border"
-                )}
-              >
-                All
-              </button>
-              {documentTypes.map((type) => (
-                <button
-                  key={type.value}
-                  onClick={() => setTypeFilter(type.value)}
-                  className={cn(
-                    "px-2 py-0.5 text-xs rounded-full border transition-colors",
-                    typeFilter === type.value
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background hover:bg-muted border-border"
-                  )}
-                >
-                  {type.label}
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center gap-3 p-4 border-b bg-muted/30">
+            <SearchInput value={searchQuery} onChange={setSearchQuery} className="flex-1 max-w-xs" />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]">
+                <FunnelIcon className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="classified">Classified</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="error">Errors</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-[200px]">
+                <DocumentIcon className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Document Type" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                <SelectItem value="all">All Types</SelectItem>
+                {documentTypes.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* List */}
