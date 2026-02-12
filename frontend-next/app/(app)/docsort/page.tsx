@@ -215,7 +215,7 @@ export default function DocsortPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [reclassifyingAll, setReclassifyingAll] = useState(false);
-  const [documentTypes, setDocumentTypes] = useState<{ value: string; label: string; id?: number; folderPath?: string; uiName?: string; downloadName?: string }[]>(FALLBACK_DOCUMENT_TYPES);
+  const [documentTypes, setDocumentTypes] = useState<{ value: string; label: string; id?: number; folderPath?: string; targetFolder?: string; uiName?: string; downloadName?: string }[]>(FALLBACK_DOCUMENT_TYPES);
   const [companies, setCompanies] = useState<ComboboxItem[]>([]);
   const [selectedCorporate, setSelectedCorporate] = useState<ComboboxItem | undefined>();
 
@@ -227,7 +227,7 @@ export default function DocsortPage() {
   // Load document types from database
   const loadDocumentTypes = useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; primary_folder_path?: string; uiName?: string; downloadName?: string }> }>(
+      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; primary_folder_path?: string; target_folder?: string; uiName?: string; downloadName?: string }> }>(
         "/api/v1/document_types"
       );
       if (response?.data) {
@@ -237,12 +237,13 @@ export default function DocsortPage() {
           label: dt.name,
           id: dt.id,
           folderPath: dt.primary_folder_path,
+          targetFolder: dt.target_folder,
           uiName: dt.uiName,
           downloadName: dt.downloadName,
         }));
         // Add "General" at the end if not already present
         if (!types.find((t) => t.value === "general")) {
-          types.push({ value: "general", label: "General", id: 0, folderPath: undefined, uiName: undefined, downloadName: undefined });
+          types.push({ value: "general", label: "General", id: 0, folderPath: undefined, targetFolder: undefined, uiName: undefined, downloadName: undefined });
         }
         setDocumentTypes(types);
       }
@@ -958,16 +959,17 @@ export default function DocsortPage() {
                           return result || null;
                         };
 
+                        const proposedFolder = expandTemplate(matchedType.targetFolder);
                         const proposedUiName = expandTemplate(matchedType.uiName);
                         const proposedDlName = expandTemplate(matchedType.downloadName);
 
                         return (
                           <div className="space-y-1.5">
-                            {matchedType.folderPath && (
+                            {matchedType.targetFolder && (
                               <div className="flex items-start justify-between gap-2">
                                 <span className="text-sm text-muted-foreground shrink-0">Folder Path</span>
-                                <span className="text-sm text-right text-muted-foreground/80 font-mono truncate" title={matchedType.folderPath}>
-                                  {matchedType.folderPath}
+                                <span className="text-sm text-right text-muted-foreground/80 font-mono truncate" title={`Template: ${matchedType.targetFolder}\nResolved: ${proposedFolder}`}>
+                                  {proposedFolder || matchedType.targetFolder}
                                 </span>
                               </div>
                             )}
@@ -990,7 +992,7 @@ export default function DocsortPage() {
                             {matchedType.id && (
                               <div className="flex items-center justify-end">
                                 <button
-                                  onClick={() => router.push('/settings/documents')}
+                                  onClick={() => window.open(`/admin/system/document-types/${matchedType.id}`, '_blank')}
                                   className="text-xs text-primary hover:underline"
                                 >
                                   Open Document Type Settings →

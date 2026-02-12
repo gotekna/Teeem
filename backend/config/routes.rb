@@ -1378,6 +1378,7 @@ Rails.application.routes.draw do
           get :admin_consent_callback
           post :test
           get :users
+          post :import_users
           post :configure_sync
           post :sync_to_storage
           post :sync_to_sharepoint # Legacy alias for sync_to_storage

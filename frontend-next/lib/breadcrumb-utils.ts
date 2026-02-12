@@ -134,6 +134,14 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   // General tabs
   "overview": "Overview",
   "competitor": "Competitor Comparison",
+  "architecture": "Architecture",
+
+  // Dashboard > Architecture sub-tabs
+  "beginner": "Beginner",
+  "teaching": "Teaching",
+  "architect": "Architect",
+  "ssot": "SSoT Reference",
+  "tenancy": "Tenancy",
   "details": "Details",
   "photos": "Photos",
   "documents": "Documents",
