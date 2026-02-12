@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Spinner } from "@/components/ui/spinner";
 import { PropertyRow, PropertySection } from "@/components/contact";
 import { Camera, KeyRound, UserX } from "lucide-react";
+import { ContactIdentityCard } from "./ContactIdentityCard";
 import type { Contact } from "../types";
 
 // Personal details data shape from API
@@ -247,26 +248,11 @@ export function ContactUserTab({
 
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* Identity Section */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Identity</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <PropertyRow
-            label="Display Name"
-            value={details.name}
-            onSave={(value) => saveField("name", value as string)}
-            placeholder="Enter display name"
-          />
-          <PropertyRow
-            label="Username"
-            value={details.username}
-            onSave={(value) => saveField("username", value as string)}
-            placeholder="Enter username"
-          />
-        </CardContent>
-      </Card>
+      {/* Identity Section - SSoT shared component (also used in Overview tab) */}
+      <ContactIdentityCard
+        contact={contact}
+        onContactUpdate={onContactUpdate}
+      />
 
       {/* Account Section */}
       <Card>

@@ -45,7 +45,7 @@ namespace :blob do
       warehouse_blob_ids = WarehouseDocument.where.not(storage_blob_id: nil).distinct.pluck(:storage_blob_id)
 
       # Legacy direct associations (not WarehouseDocument)
-      chat_blob_ids = ChatMessage.where.not(storage_blob_id: nil).distinct.pluck(:storage_blob_id)
+      chat_blob_ids = ChatMessage.unscoped.where.not(storage_blob_id: nil).distinct.pluck(:storage_blob_id)
       bill_blob_ids = BillInbox.where.not(storage_blob_id: nil).distinct.pluck(:storage_blob_id)
 
       # Combine all referenced blob IDs
@@ -155,7 +155,7 @@ namespace :blob do
       StorageBlob.find_each do |blob|
         # Count actual references (SSoT: WarehouseDocument + legacy direct associations)
         warehouse_count = WarehouseDocument.where(storage_blob_id: blob.id).count
-        chat_count = ChatMessage.where(storage_blob_id: blob.id).count
+        chat_count = ChatMessage.unscoped.where(storage_blob_id: blob.id).count
         bill_count = BillInbox.where(storage_blob_id: blob.id).count
 
         actual_count = warehouse_count + chat_count + bill_count
