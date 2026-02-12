@@ -190,7 +190,7 @@ class DirectorChangeService
 
     context = {
       company: build_company_context,
-      director: build_director_context(contact),
+      director: build_director_context(contact, selected_email: cd_data[:email]),
       positions: cd_data[:positions],
       cessation_date: cessation_date,
       cessation_date_formatted: cessation_date.strftime("%d/%m/%Y")
@@ -217,7 +217,7 @@ class DirectorChangeService
 
     context = {
       company: build_company_context,
-      director: build_director_context(contact),
+      director: build_director_context(contact, selected_email: appt_data[:email]),
       positions: appt_data[:positions],
       appointment_date: appointment_date,
       appointment_date_formatted: appointment_date.strftime("%d/%m/%Y")
@@ -384,12 +384,12 @@ class DirectorChangeService
     }
   end
 
-  def build_director_context(contact)
+  def build_director_context(contact, selected_email: nil)
     {
       full_name: contact.display_name,
       date_of_birth: contact.date_of_birth&.strftime("%d/%m/%Y"),
       address: contact.full_address,
-      email: contact.primary_email
+      email: selected_email.presence || contact.primary_email
     }
   end
 
