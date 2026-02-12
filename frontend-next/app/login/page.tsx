@@ -136,11 +136,11 @@ function LoginForm() {
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="identifier">Username or Email</Label>
+              <Label htmlFor="identifier">Username</Label>
               <Input
                 id="identifier"
                 type="text"
-                placeholder="username or email"
+                placeholder="Enter your username"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 required
