@@ -3,8 +3,6 @@
  * Converts Word documents (.docx) to HTML using mammoth
  */
 
-import mammoth from "mammoth";
-
 export interface ImportResult {
   html: string;
   messages: string[];
@@ -16,6 +14,7 @@ export interface ImportResult {
  * @returns Promise with HTML content and any conversion messages
  */
 export async function importDocx(file: File): Promise<ImportResult> {
+  const mammoth = (await import("mammoth")).default;
   const arrayBuffer = await file.arrayBuffer();
 
   const result = await mammoth.convertToHtml(
