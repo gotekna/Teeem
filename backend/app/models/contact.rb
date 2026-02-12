@@ -1266,9 +1266,9 @@ class Contact < ApplicationRecord
     xero_links.enabled.order(:created_at).first&.xero_contact_status
   end
 
-  # All Xero tenant IDs this contact is linked to
+  # All Xero org IDs this contact is linked to
   def xero_tenants
-    xero_links.enabled.pluck(:tenant_id)
+    xero_links.enabled.pluck(:xero_org_id)
   end
 
   # Update cached xero link columns (called by ContactExternalLink callbacks)

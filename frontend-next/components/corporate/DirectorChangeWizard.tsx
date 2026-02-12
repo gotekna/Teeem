@@ -252,6 +252,7 @@ export function DirectorChangeWizard({
   const [sending, setSending] = React.useState(false);
   const [sent, setSent] = React.useState(false);
   const [requestNumber, setRequestNumber] = React.useState<string>("");
+  const [eSignRequestId, setESignRequestId] = React.useState<number | null>(null);
 
   // Pending generations (cross-tenant)
   const [pendingGenerations, setPendingGenerations] = React.useState<PendingGeneration[]>([]);
@@ -413,7 +414,15 @@ export function DirectorChangeWizard({
     const allPositions = currentOfficers
       .filter((o) => o.contact?.id === contactId && o.is_current)
       .map((o) => o.position);
-    const uniquePositions = [...new Set(allPositions)];
+    const deduped = [...new Set(allPositions)];
+    // Remove combined position strings (e.g. "Director Secretary Public Officer")
+    // that are just concatenations of individual positions already in the list
+    const uniquePositions = deduped.filter((pos) => {
+      const others = deduped.filter(
+        (p) => p !== pos && pos.toLowerCase().includes(p.toLowerCase())
+      );
+      return others.length < 2;
+    });
 
     // Collect all officer record IDs for this contact
     const officerIds = currentOfficers
@@ -599,12 +608,14 @@ export function DirectorChangeWizard({
           positions: cd.positions,
           cessation_date: cd.cessation_date,
           email: cd.selected_email,
+          address: cd.address,
         })),
         new_appointments: newAppointments.map((a) => ({
           contact_id: a.contact_id,
           positions: a.positions,
           appointment_date: a.appointment_date,
           email: a.selected_email,
+          address: a.address,
         })),
       });
 
@@ -682,12 +693,14 @@ export function DirectorChangeWizard({
           positions: cd.positions,
           cessation_date: cd.cessation_date,
           email: cd.selected_email,
+          address: cd.address,
         })),
         new_appointments: newAppointments.map((a) => ({
           contact_id: a.contact_id,
           positions: a.positions,
           appointment_date: a.appointment_date,
           email: a.selected_email,
+          address: a.address,
         })),
         send_for_signing: true,
       });
@@ -715,6 +728,7 @@ export function DirectorChangeWizard({
       if (result.status === "completed") {
         setSent(true);
         setRequestNumber((result.result?.request_number as string) || "");
+        setESignRequestId((result.result?.e_signature_request_id as number) || null);
         onComplete?.();
       } else {
         setError(result.error || "Failed to send for signing");
@@ -1519,7 +1533,7 @@ export function DirectorChangeWizard({
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">{cd.name}</p>
-                    <p className="text-xs text-muted-foreground">Resignation Letter</p>
+                    <p className="text-xs text-muted-foreground">Resignation Letter → {cd.selected_email}</p>
                   </div>
                   <Badge variant="secondary" className="text-xs">Resigning</Badge>
                 </div>
@@ -1534,7 +1548,7 @@ export function DirectorChangeWizard({
                   <div className="flex-1">
                     <p className="text-sm font-medium">{appt.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {appt.email || "No email - add email to contact first"}
+                      Consent to Act → {appt.email || "No email - add email to contact first"}
                     </p>
                   </div>
                   <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 text-xs">
@@ -1595,19 +1609,52 @@ export function DirectorChangeWizard({
               <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
             </div>
             <div className="text-center space-y-2">
-              <h3 className="text-lg font-semibold">Package Sent</h3>
+              <h3 className="text-lg font-semibold">Package Sent for Signing</h3>
               <p className="text-sm text-muted-foreground">
-                Director change package has been sent for signing.
+                Signing invitations have been sent to all signers.
               </p>
               {requestNumber && (
-                <p className="text-sm">
+                <p className="text-xs text-muted-foreground">
                   Reference: <span className="font-mono font-medium">{requestNumber}</span>
                 </p>
               )}
             </div>
-            <Button onClick={() => onOpenChange(false)} className="mt-4">
-              Close
-            </Button>
+
+            {/* Show who received emails */}
+            <div className="w-full space-y-2 px-2">
+              <p className="text-xs font-medium text-muted-foreground text-center">Emails sent to:</p>
+              {ceasingDirectors.map((cd) => (
+                <div key={cd.corporate_director_id} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
+                  <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <span className="font-medium">{cd.name}</span>
+                  <span className="text-muted-foreground text-xs ml-auto">{cd.selected_email}</span>
+                </div>
+              ))}
+              {newAppointments.map((appt) => (
+                <div key={appt.contact_id} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
+                  <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <span className="font-medium">{appt.name}</span>
+                  <span className="text-muted-foreground text-xs ml-auto">{appt.email}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              {eSignRequestId && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    onOpenChange(false);
+                    window.location.href = `/e-signature/${eSignRequestId}`;
+                  }}
+                >
+                  <FileText className="w-4 h-4 mr-1" /> View Signing Status
+                </Button>
+              )}
+              <Button onClick={() => onOpenChange(false)}>
+                Close
+              </Button>
+            </div>
           </div>
         )}
       </SheetContent>

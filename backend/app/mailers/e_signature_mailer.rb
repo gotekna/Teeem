@@ -3,7 +3,10 @@
 # ESignatureMailer handles all email notifications for the e-signature system.
 #
 class ESignatureMailer < ApplicationMailer
-  default from: -> { ENV.fetch("ESIGNATURE_FROM_EMAIL", "esign@teeem.com.au") }
+  default from: -> {
+    TenantSetting.monitored_mailbox_esignature.presence ||
+      ENV.fetch("ESIGNATURE_FROM_EMAIL", "robert@teeem.com.au")
+  }
 
   # Sent when a signer is asked to sign a document
   def signing_request(request, signer)
@@ -88,7 +91,16 @@ class ESignatureMailer < ApplicationMailer
 
   def signing_url_for(signer)
     token = signer.generate_access_token!
-    frontend_url = ENV.fetch("FRONTEND_URL", "https://teeem.vercel.app")
+    frontend_url = ENV.fetch("FRONTEND_URL") {
+      app_name = ENV["HEROKU_APP_NAME"].to_s
+      if app_name.include?("staging")
+        "https://teeem-staging.vercel.app"
+      elsif app_name.include?("beta")
+        "https://teeem-beta.vercel.app"
+      else
+        "https://teeem.vercel.app"
+      end
+    }
     "#{frontend_url}/sign/#{token}"
   end
 end

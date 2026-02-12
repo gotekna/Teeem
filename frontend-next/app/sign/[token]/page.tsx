@@ -27,6 +27,7 @@ interface SignerInfo {
   status: string;
   can_sign: boolean;
   email_verified: boolean;
+  email_verification_required: boolean;
 }
 
 interface RequestInfo {
@@ -94,7 +95,7 @@ export default function SigningCeremonyPage() {
         setStep("already_signed");
       } else if (data.signer.status === "declined") {
         setStep("declined");
-      } else if (!data.signer.email_verified) {
+      } else if (data.signer.email_verification_required && !data.signer.email_verified) {
         setStep("verify_email");
       } else if (!data.signer.can_sign) {
         setError("It's not your turn to sign yet. Please wait for other signers.");
