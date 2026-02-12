@@ -251,7 +251,9 @@ class DirectorChangeService
       }
     end
 
-    # Determine chairperson - prefer director with chairperson position, else first remaining
+    # Determine chairperson for signing badge
+    # Priority: 1) remaining director with "chair" position, 2) first remaining director,
+    # 3) first new appointment, 4) first ceasing director
     chairperson_contact = nil
     remaining.each do |dir|
       if dir.position&.downcase&.include?("chair")
@@ -260,6 +262,8 @@ class DirectorChangeService
       end
     end
     chairperson_contact ||= remaining.first&.contact
+    chairperson_contact ||= new_appointments.first&.dig(:contact)
+    chairperson_contact ||= ceasing_directors.first&.dig(:corporate_director)&.contact
 
     context = {
       company: build_company_context,
