@@ -593,6 +593,21 @@ staging → beta → production
 
 **Deploy:** Use `/p` command (SSoT) - deploys to production via pipeline
 
+### 🔴 CRITICAL: Deploy Frequency Policy (Build Minutes Cost Control)
+
+**Vercel charges $101+/mo for build minutes.** To reduce this:
+
+| Environment | Frequency | Rule |
+|-------------|-----------|------|
+| **Staging** | Unlimited | Deploy freely during development |
+| **Beta** | Max 1/day | Batch changes, deploy once per day |
+| **Production** | Max 1/day | Batch changes, deploy once per day |
+
+**Before deploying to beta/production, ask:** "Have we already deployed to beta/production today?"
+If yes, batch the changes and wait until tomorrow unless it's a critical hotfix.
+
+**Why:** Each Vercel deploy triggers a full build. Jan 2026 = 8,610 build minutes ($101). Reducing deploys from ~10/day to 1/day for beta+production can cut build minutes by 60-80%.
+
 **Local:** Frontend port 3000, Backend port 3001
 
 ### 🔴 CRITICAL: Hotfix Deployments (Remote Environments Share Same Database)

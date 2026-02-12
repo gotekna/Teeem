@@ -335,6 +335,7 @@ Rails.application.routes.draw do
 
       # Heroku Infrastructure (admin-only, live from Heroku Platform API)
       get "heroku/infrastructure", to: "heroku#infrastructure"
+      get "heroku/vercel_billing", to: "heroku#vercel_billing"
       patch "heroku/scale", to: "heroku#scale"
       post "heroku/share_dev_database", to: "heroku#share_dev_database"
 
