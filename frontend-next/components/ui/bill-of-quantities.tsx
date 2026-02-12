@@ -503,7 +503,7 @@ export function BillOfQuantities({
       const key =
         groupSortBy === "supplier" ? (group.supplierName || "No Supplier")
           : groupSortBy === "stage" ? (group.stageName || "No Stage")
-            : groupSortBy === "costCentre" ? (group.costCentreName || "No Cost Centre")
+            : groupSortBy === "costCentre" ? (group.costCentreName || "Unallocated")
               : (group.tradeName || "No Trade");
       if (!buckets.has(key)) buckets.set(key, { groups: [], total: 0, sortOrder: Infinity });
       const bucket = buckets.get(key)!;
@@ -591,7 +591,7 @@ export function BillOfQuantities({
                 if (dim === "stage" && !hasStages) return null;
                 if (dim === "trade" && !hasTrades) return null;
                 if (dim === "supplier" && !hasSuppliers) return null;
-                if (dim === "costCentre" && !hasCostCentres) return null;
+                // costCentre always visible (unallocated items grouped under "Unallocated")
                 return (
                   <button
                     key={dim}

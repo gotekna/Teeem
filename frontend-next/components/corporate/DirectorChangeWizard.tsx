@@ -863,7 +863,12 @@ export function DirectorChangeWizard({
               {ceasingDirectors.map((cd) => (
                 <div key={cd.corporate_director_id} className="p-3 border rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-sm">{cd.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm">{cd.name}</p>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        <Pencil className="w-2.5 h-2.5 mr-0.5" /> Signs Resignation
+                      </Badge>
+                    </div>
                     <button
                       onClick={() => removeCeasingDirector(cd.corporate_director_id)}
                       className="text-muted-foreground hover:text-destructive"
@@ -1105,9 +1110,11 @@ export function DirectorChangeWizard({
               {newAppointments.map((appt) => (
                 <div key={appt.contact_id} className="p-3 border rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex items-center gap-2">
                       <p className="font-medium text-sm">{appt.name}</p>
-                      {appt.email && <p className="text-xs text-muted-foreground">{appt.email}</p>}
+                      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 text-[10px] px-1.5 py-0">
+                        <Pencil className="w-2.5 h-2.5 mr-0.5" /> Signs Consent
+                      </Badge>
                     </div>
                     <button
                       onClick={() => removeAppointment(appt.contact_id)}
@@ -1361,20 +1368,48 @@ export function DirectorChangeWizard({
           <div className="space-y-4">
             <div className="space-y-2">
               <h4 className="text-sm font-semibold">Generated Documents</h4>
-              {generatedDocuments.map((doc, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm cursor-pointer hover:bg-muted transition-colors"
-                  onDoubleClick={() => pdfDownloadUrl && window.open(pdfDownloadUrl, "_blank")}
-                  title="Double-click to open in new window"
-                >
-                  <FileText className="w-4 h-4 text-muted-foreground" />
-                  <span className="select-none">{doc.name}</span>
-                  <Badge variant="secondary" className="ml-auto text-xs">
-                    {doc.type}
-                  </Badge>
-                </div>
-              ))}
+              {generatedDocuments.map((doc, i) => {
+                // Determine signer for this document
+                let signerLabel = "";
+                let signerColor = "text-muted-foreground";
+                if (doc.type === "resignation") {
+                  const cd = ceasingDirectors.find((c) => doc.name.includes(c.name));
+                  signerLabel = cd ? `${cd.name} signs → ${cd.selected_email}` : "";
+                  signerColor = "text-red-600 dark:text-red-400";
+                } else if (doc.type === "consent") {
+                  const appt = newAppointments.find((a) => doc.name.includes(a.name));
+                  signerLabel = appt ? `${appt.name} signs → ${appt.selected_email}` : "";
+                  signerColor = "text-green-600 dark:text-green-400";
+                } else if (doc.type === "minutes") {
+                  signerLabel = "Signed by Chairperson at meeting";
+                  signerColor = "text-blue-600 dark:text-blue-400";
+                } else if (doc.type === "form_484") {
+                  signerLabel = "Internal record — no signature required";
+                }
+
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm cursor-pointer hover:bg-muted transition-colors"
+                    onDoubleClick={() => pdfDownloadUrl && window.open(pdfDownloadUrl, "_blank")}
+                    title="Double-click to open in new window"
+                  >
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <span className="select-none">{doc.name}</span>
+                      {signerLabel && (
+                        <div className={`text-xs ${signerColor} flex items-center gap-1`}>
+                          <Pencil className="w-3 h-3" />
+                          {signerLabel}
+                        </div>
+                      )}
+                    </div>
+                    <Badge variant="secondary" className="ml-auto text-xs shrink-0">
+                      {doc.type}
+                    </Badge>
+                  </div>
+                );
+              })}
             </div>
 
             {/* PDF Preview */}
