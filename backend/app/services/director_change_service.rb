@@ -328,11 +328,11 @@ class DirectorChangeService
 
   # --- Template Rendering ---
 
-  def render_template(template_name, assigns)
+  def render_template(template_name, local_vars)
     PdfRenderController.render(
       template: "#{TEMPLATE_BASE}/#{template_name}",
       layout: "pdf",
-      assigns: assigns
+      locals: local_vars
     )
   end
 
