@@ -262,8 +262,8 @@ class DirectorChangeService
       end
     end
     chairperson_contact ||= remaining.first&.contact
-    chairperson_contact ||= new_appointments.first&.dig(:contact)
     chairperson_contact ||= ceasing_directors.first&.dig(:corporate_director)&.contact
+    chairperson_contact ||= new_appointments.first&.dig(:contact)
 
     context = {
       company: build_company_context,
