@@ -50,12 +50,31 @@ function TaskDetailContent() {
     }
   }, [taskId, expandTask]);
 
-  // Update task when context refreshes
+  // Update task when context refreshes (index endpoint data)
+  // ⚠️ DO NOT SIMPLIFY - Index vs Show data mismatch (Feb 2026)
+  // ════════════════════════════════════════════════════════════
+  // Why: Index endpoint returns attachments: [] and simplified action_items
+  //      for performance. Show endpoint returns full data. If we blindly
+  //      overwrite, attachments/emails disappear (shows "Emails 0").
+  // ❌ WRONG: setTask(updatedTask) — overwrites full show data with stripped index data
+  // ✅ CORRECT: Merge scalar fields from index, keep detailed nested data from show
+  // ════════════════════════════════════════════════════════════
   useEffect(() => {
     if (task && !contextLoading) {
       const updatedTask = tasks.find((t: SmTask) => t.id === taskId);
       if (updatedTask) {
-        setTask(updatedTask);
+        setTask(prev => {
+          if (!prev) return updatedTask;
+          return {
+            ...prev,
+            ...updatedTask,
+            // Preserve detailed data from show endpoint when index returns empty/simplified
+            attachments: (updatedTask.attachments?.length ?? 0) > 0 ? updatedTask.attachments : prev.attachments,
+            action_items: (prev.action_items?.length || 0) > (updatedTask.action_items?.length || 0)
+              ? prev.action_items
+              : updatedTask.action_items,
+          };
+        });
       }
     }
   }, [tasks, taskId, task, contextLoading]);

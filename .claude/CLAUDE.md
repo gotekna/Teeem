@@ -675,7 +675,7 @@ cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
 | Backend API | `https://teeem-production-121159e1ff9d.herokuapp.com` | Heroku |
 
 **Chrome DevTools MCP Access:**
-- Vercel team member `robert-8688` has been granted access
+- Vercel team member `robert-2129` (robert@teeem.au) has been granted access
 - This allows Claude to use Chrome DevTools MCP for browser testing on production
 - If access expires, re-approve in Vercel Team Settings → Members
 
