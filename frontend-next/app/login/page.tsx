@@ -13,7 +13,7 @@ import { getApiBaseUrl } from "@/lib/api";
 import Link from "next/link";
 
 function LoginForm() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true); // Default to checked for convenience
   const [error, setError] = useState("");
@@ -48,8 +48,8 @@ function LoginForm() {
   // Pre-fill email and password from URL params (e.g., welcome email link)
   useEffect(() => {
     const emailParam = searchParams.get('email');
-    if (emailParam && !email) {
-      setEmail(emailParam);
+    if (emailParam && !identifier) {
+      setIdentifier(emailParam);
     }
     const pwParam = searchParams.get('p');
     if (pwParam && !password) {
@@ -80,7 +80,7 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      const result = await login(email, password, rememberMe);
+      const result = await login(identifier, password, rememberMe);
       if (result.success) {
         // Force password change shows dialog immediately via layout
         // Push to dashboard - the ChangePasswordDialog will block interaction
@@ -136,13 +136,13 @@ function LoginForm() {
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="identifier">Username or Email</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="identifier"
+                type="text"
+                placeholder="username or email"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
                 disabled={isLoading}
               />

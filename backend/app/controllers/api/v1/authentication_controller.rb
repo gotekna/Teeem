@@ -86,8 +86,14 @@ module Api
       # POST /api/v1/auth/login
       # Multi-tenant: Same email may exist on multiple tenants with different passwords.
       # Try all matching users until one authenticates successfully.
+      # Accepts email OR username as the login identifier.
       def login
-        users = User.where(email: login_params[:email]).to_a
+        identifier = login_params[:email].to_s.strip
+        users = if identifier.include?('@')
+          User.where(email: identifier).to_a
+        else
+          User.where(username: identifier).to_a
+        end
         user = users.find { |u| u.authenticate(login_params[:password]) }
 
         if user
@@ -133,7 +139,7 @@ module Api
         else
           render json: {
             success: false,
-            error: "Invalid email or password"
+            error: "Invalid username/email or password"
           }, status: :unauthorized
         end
       end
