@@ -1107,9 +1107,14 @@ export function DirectorChangeWizard({
             <div className="space-y-2">
               <h4 className="text-sm font-semibold">Generated Documents</h4>
               {generatedDocuments.map((doc, i) => (
-                <div key={i} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
+                <div
+                  key={i}
+                  className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm cursor-pointer hover:bg-muted transition-colors"
+                  onDoubleClick={() => pdfDownloadUrl && window.open(pdfDownloadUrl, "_blank")}
+                  title="Double-click to open in new window"
+                >
                   <FileText className="w-4 h-4 text-muted-foreground" />
-                  <span>{doc.name}</span>
+                  <span className="select-none">{doc.name}</span>
                   <Badge variant="secondary" className="ml-auto text-xs">
                     {doc.type}
                   </Badge>
