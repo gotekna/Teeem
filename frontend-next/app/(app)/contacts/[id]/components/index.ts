@@ -17,6 +17,7 @@ export { ContactBillsTab } from "./ContactBillsTab";
 export { ContactDocumentsTab } from "./ContactDocumentsTab";
 export { ContactTabDocuments } from "./ContactTabDocuments";
 export { ContactTabsRenderer } from "./ContactTabsRenderer";
+export { ContactUserTab } from "./ContactUserTab";
 
 // Re-export types for convenience
 export type {
