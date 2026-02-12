@@ -747,9 +747,9 @@ export default function DocsortPage() {
                       )}
                       {selectedItem.classification_result && (
                         <>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-start justify-between gap-2">
                             <span className="text-sm text-muted-foreground shrink-0">Method</span>
-                            <span className="text-sm text-right truncate">
+                            <span className="text-sm text-right break-words min-w-0">
                               {METHOD_LABELS[selectedItem.classification_result.method] || selectedItem.classification_result.method}
                             </span>
                           </div>
@@ -766,9 +766,9 @@ export default function DocsortPage() {
                             </div>
                           )}
                           {selectedItem.classification_result.matched_document_type && (
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-start justify-between gap-2">
                               <span className="text-sm text-muted-foreground shrink-0">Matched Type</span>
-                              <span className="text-sm text-right truncate">
+                              <span className="text-sm text-right break-words min-w-0">
                                 {selectedItem.classification_result.matched_document_type}
                               </span>
                             </div>
@@ -831,8 +831,9 @@ export default function DocsortPage() {
                     </div>
                   )}
 
-                  {/* No suggestions and classified as general */}
+                  {/* No suggestions and classified as general (only if no matched_document_type either) */}
                   {selectedItem.document_type === "general" &&
+                    !selectedItem.classification_result?.matched_document_type &&
                     (!selectedItem.classification_result?.suggestions ||
                       selectedItem.classification_result.suggestions.length === 0) && (
                     <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400">
@@ -848,7 +849,7 @@ export default function DocsortPage() {
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between gap-2">
                         <span className="text-muted-foreground shrink-0">Filename</span>
-                        <span className="truncate text-right">{selectedItem.original_filename || "—"}</span>
+                        <span className="text-right break-words min-w-0">{selectedItem.original_filename || "—"}</span>
                       </div>
                       <div className="flex justify-between gap-2">
                         <span className="text-muted-foreground shrink-0">Size</span>
@@ -856,7 +857,7 @@ export default function DocsortPage() {
                       </div>
                       <div className="flex justify-between gap-2">
                         <span className="text-muted-foreground shrink-0">Type</span>
-                        <span className="truncate text-right">{selectedItem.content_type || "—"}</span>
+                        <span className="text-right break-words min-w-0">{selectedItem.content_type || "—"}</span>
                       </div>
                       <div className="flex justify-between gap-2">
                         <span className="text-muted-foreground shrink-0">Source</span>
