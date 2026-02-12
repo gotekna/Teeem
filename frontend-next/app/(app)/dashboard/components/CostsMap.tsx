@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Power,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -203,6 +204,7 @@ export default function CostsMap() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scalingDyno, setScalingDyno] = useState<string | null>(null); // "app:dyno" key
+  const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
 
   const fetchData = useCallback(async (refresh = false) => {
     try {
@@ -444,7 +446,7 @@ export default function CostsMap() {
         </CardContent>
       </Card>
 
-      {/* Heroku Dynos */}
+      {/* Heroku Dynos - Grouped by App */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -453,79 +455,120 @@ export default function CostsMap() {
             <Badge variant="outline" className="ml-auto font-mono">${totalDynos}/mo</Badge>
           </CardTitle>
           <CardDescription>
-            Compute instances running the Rails backend
-            {data.dynos.length > 0 && ` (${data.dynos.reduce((sum, d) => sum + d.quantity, 0)} total)`}
+            Compute instances grouped by app (click to expand)
           </CardDescription>
         </CardHeader>
         <CardContent>
           {data.dynos.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No dynos found (HEROKU_API_KEY may not be configured)</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="pb-2 font-medium">App</th>
-                    <th className="pb-2 font-medium">Dyno</th>
-                    <th className="pb-2 font-medium">Size</th>
-                    <th className="pb-2 font-medium">Qty</th>
-                    <th className="pb-2 font-medium">Cost</th>
-                    <th className="pb-2 font-medium">Purpose</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.dynos.map((d, i) => {
-                    const isDevApp = DEV_APPS.includes(d.app);
-                    const isScaling = scalingDyno === `${d.app}:${d.dyno}`;
-                    return (
-                      <tr
-                        key={`${d.app}-${d.dyno}`}
-                        className={cn(
-                          "border-b border-border last:border-0",
-                          i % 2 === 0 && "bg-muted/30",
-                          d.scaledDown && "opacity-50"
-                        )}
+            <div className="space-y-1">
+              {Object.entries(envGroups)
+                .sort((a, b) => b[1].total - a[1].total)
+                .map(([env, group]) => {
+                  const isExpanded = expandedApps.has(env);
+                  const activeDynos = group.dynos.filter((d) => d.quantity > 0);
+                  const isDevApp = group.dynos.some((d) => DEV_APPS.includes(d.app));
+                  const appName = group.dynos[0]?.app;
+                  const toggleExpand = () => {
+                    setExpandedApps((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(env)) next.delete(env);
+                      else next.add(env);
+                      return next;
+                    });
+                  };
+
+                  return (
+                    <div key={env} className="border border-border rounded-lg overflow-hidden">
+                      {/* Collapsed summary row */}
+                      <button
+                        onClick={toggleExpand}
+                        className="flex items-center w-full px-3 py-2.5 text-left hover:bg-muted/50 transition-colors"
                       >
-                        <td className="py-2 pr-4">
-                          <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{d.app}</code>
-                        </td>
-                        <td className="py-2 pr-4 text-xs">{d.dyno}</td>
-                        <td className="py-2 pr-4 text-xs font-mono">{d.size}</td>
-                        <td className="py-2 pr-4 text-xs font-mono">
-                          <span className="inline-flex items-center gap-1.5">
-                            {d.quantity}
-                            {isDevApp && (
-                              <button
-                                onClick={() => handleScaleDyno(d.app, d.dyno, d.quantity)}
-                                disabled={isScaling}
-                                className={cn(
-                                  "inline-flex items-center justify-center rounded p-0.5 transition-colors",
-                                  d.scaledDown
-                                    ? "text-muted-foreground hover:text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30"
-                                    : "text-green-600 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30",
-                                  isScaling && "animate-pulse"
-                                )}
-                                title={d.scaledDown ? "Start dyno" : "Stop dyno"}
-                              >
-                                <Power className="h-3.5 w-3.5" />
-                              </button>
+                        <ChevronRight className={cn("h-4 w-4 mr-2 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />
+                        <span className="font-medium text-sm flex-1">{env}</span>
+                        <span className="text-xs text-muted-foreground mr-3">
+                          {activeDynos.length > 0
+                            ? activeDynos.map((d) => `${d.dyno} (${d.size})`).join(", ")
+                            : "all stopped"}
+                        </span>
+                        {isDevApp && (
+                          <span className="mr-2">
+                            {activeDynos.length > 0 ? (
+                              <Power className="h-3.5 w-3.5 text-green-600" />
+                            ) : (
+                              <Power className="h-3.5 w-3.5 text-muted-foreground" />
                             )}
                           </span>
-                        </td>
-                        <td className="py-2 pr-4">
-                          <CostBadge cost={d.cost} />
-                        </td>
-                        <td className="py-2 text-xs text-muted-foreground">
-                          {d.purpose}
-                          {d.scaledDown && (
-                            <span className="ml-1.5 text-[10px] font-medium text-yellow-600 dark:text-yellow-400">(stopped)</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        )}
+                        <CostBadge cost={group.total} />
+                      </button>
+
+                      {/* Expanded detail */}
+                      {isExpanded && (
+                        <div className="border-t border-border">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-border text-left bg-muted/30">
+                                <th className="py-1.5 px-3 font-medium text-xs">Dyno</th>
+                                <th className="py-1.5 px-3 font-medium text-xs">Size</th>
+                                <th className="py-1.5 px-3 font-medium text-xs">Qty</th>
+                                <th className="py-1.5 px-3 font-medium text-xs">Cost</th>
+                                <th className="py-1.5 px-3 font-medium text-xs">Purpose</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.dynos.map((d) => {
+                                const isDev = DEV_APPS.includes(d.app);
+                                const isScaling = scalingDyno === `${d.app}:${d.dyno}`;
+                                return (
+                                  <tr
+                                    key={`${d.app}-${d.dyno}`}
+                                    className={cn("border-b border-border last:border-0", d.scaledDown && "opacity-50")}
+                                  >
+                                    <td className="py-1.5 px-3 text-xs">{d.dyno}</td>
+                                    <td className="py-1.5 px-3 text-xs font-mono">{d.size}</td>
+                                    <td className="py-1.5 px-3 text-xs font-mono">
+                                      <span className="inline-flex items-center gap-1.5">
+                                        {d.quantity}
+                                        {isDev && d.dyno === "web" && (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); handleScaleDyno(d.app, d.dyno, d.quantity); }}
+                                            disabled={isScaling}
+                                            className={cn(
+                                              "inline-flex items-center justify-center rounded p-0.5 transition-colors",
+                                              d.scaledDown
+                                                ? "text-muted-foreground hover:text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30"
+                                                : "text-green-600 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30",
+                                              isScaling && "animate-pulse"
+                                            )}
+                                            title={d.scaledDown ? "Start dyno" : "Stop dyno"}
+                                          >
+                                            <Power className="h-3.5 w-3.5" />
+                                          </button>
+                                        )}
+                                      </span>
+                                    </td>
+                                    <td className="py-1.5 px-3">
+                                      <CostBadge cost={d.cost} />
+                                    </td>
+                                    <td className="py-1.5 px-3 text-xs text-muted-foreground">
+                                      {d.purpose}
+                                      {d.scaledDown && (
+                                        <span className="ml-1.5 text-[10px] font-medium text-yellow-600 dark:text-yellow-400">(stopped)</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           )}
         </CardContent>
@@ -728,40 +771,6 @@ export default function CostsMap() {
           </Card>
         );
       })}
-
-      {/* Cost by Environment */}
-      {Object.keys(envGroups).length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Server className="h-4 w-4" />
-              Cost by Environment
-            </CardTitle>
-            <CardDescription>Heroku dyno costs grouped by environment</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {Object.entries(envGroups)
-                .sort((a, b) => b[1].total - a[1].total)
-                .map(([env, group]) => (
-                  <div key={env} className="p-3 rounded-lg border border-border">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium text-sm">{env}</span>
-                      <CostBadge cost={group.total} />
-                    </div>
-                    <div className="space-y-0.5">
-                      {group.dynos.map((d) => (
-                        <div key={`${d.app}-${d.dyno}`} className="text-[11px] text-muted-foreground">
-                          {d.dyno} ({d.size}){d.quantity > 1 ? ` x${d.quantity}` : ""}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Payment Methods Summary */}
       <Card>

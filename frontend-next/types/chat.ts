@@ -39,9 +39,10 @@ export interface Participant {
   avatar_url: string | null;
   is_online: boolean;
   is_admin?: boolean;
+  last_read_at?: string | null;
 }
 
-export type ConversationType = "direct" | "group" | "guest" | "job" | "contact" | "case" | "channel";
+export type ConversationType = "direct" | "group" | "guest" | "support" | "job" | "contact" | "case" | "channel";
 
 export interface Conversation {
   id: number | string;
@@ -69,6 +70,9 @@ export interface Conversation {
   is_guest?: boolean;
   guest_token?: string;
   share_url?: string;
+
+  // AI support chat
+  is_support?: boolean;
 }
 
 

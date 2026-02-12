@@ -35,6 +35,8 @@ import {
   Maximize2,
   ChevronDown,
   Link,
+  Bot,
+  Sparkles,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -50,6 +52,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
@@ -182,6 +189,46 @@ export default function ChatPage() {
     }
 
     try {
+      // Support conversation uses a different endpoint
+      if (conversationId === "support") {
+        interface SupportMessage {
+          id: number;
+          content: string;
+          user_id: number | null;
+          sender_name: string;
+          is_ai: boolean;
+          created_at: string;
+          formatted_timestamp: string;
+        }
+
+        const response = await api.get<{ success: boolean; data: SupportMessage[] }>("/api/v1/chat_messages/support_history");
+        const msgs = response?.data || [];
+
+        const newMessages = msgs.map((msg) => ({
+          id: msg.id,
+          conversation_id: "support" as string | number,
+          sender_id: msg.user_id || 0,
+          sender_name: msg.is_ai ? "Teeem AI" : "You",
+          sender_avatar: null,
+          content: msg.content,
+          message_type: "text" as const,
+          file_url: null,
+          file_name: null,
+          created_at: msg.created_at,
+          read_by: [] as number[],
+          is_own: !msg.is_ai,
+        }));
+
+        setMessages(prevMessages => {
+          const prevIds = prevMessages.map(m => m.id).sort().join(',');
+          const newIds = newMessages.map(m => m.id).sort().join(',');
+          return prevIds !== newIds ? newMessages : prevMessages;
+        });
+
+        if (isInitialLoad) setLoadingMessages(false);
+        return;
+      }
+
       const apiParams: Record<string, string | number> = {};
 
       if (typeof conversationId === "string" && conversationId.startsWith("dm-")) {
@@ -494,8 +541,91 @@ export default function ChatPage() {
     }
   };
 
+  // State for AI "thinking" indicator
+  const [aiThinking, setAiThinking] = useState(false);
+
   const handleSend = async () => {
     if ((!newMessage.trim() && !pastedImage) || !selectedConversation || !user) return;
+
+    // Support conversation: send to AI endpoint
+    if (selectedConversation.type === "support") {
+      const content = newMessage.trim();
+      if (!content) return;
+
+      // Optimistic: add user message immediately
+      const tempUserMsg: ChatMessage = {
+        id: Date.now(),
+        conversation_id: "support",
+        sender_id: user.id,
+        sender_name: "You",
+        sender_avatar: null,
+        content,
+        message_type: "text",
+        file_url: null,
+        file_name: null,
+        created_at: new Date().toISOString(),
+        read_by: [user.id],
+        is_own: true,
+      };
+      setMessages((prev) => [...prev, tempUserMsg]);
+      setNewMessage("");
+      setAiThinking(true);
+
+      try {
+        interface SupportResponse {
+          success: boolean;
+          data: {
+            user_message: { id: number; content: string; user_id: number; sender_name: string; is_ai: boolean; created_at: string; formatted_timestamp: string };
+            ai_message: { id: number; content: string; user_id: number | null; sender_name: string; is_ai: boolean; created_at: string; formatted_timestamp: string };
+          };
+        }
+
+        const response = await api.post<SupportResponse>("/api/v1/chat_messages/support", { content });
+        if (response?.data) {
+          const { user_message, ai_message } = response.data;
+          // Replace temp message with real one and add AI response
+          setMessages((prev) => [
+            ...prev.filter((m) => m.id !== tempUserMsg.id),
+            {
+              id: user_message.id,
+              conversation_id: "support",
+              sender_id: user_message.user_id || user.id,
+              sender_name: "You",
+              sender_avatar: null,
+              content: user_message.content,
+              message_type: "text",
+              file_url: null,
+              file_name: null,
+              created_at: user_message.created_at,
+              read_by: [],
+              is_own: true,
+            },
+            {
+              id: ai_message.id,
+              conversation_id: "support",
+              sender_id: 0,
+              sender_name: "Teeem AI",
+              sender_avatar: null,
+              content: ai_message.content,
+              message_type: "text",
+              file_url: null,
+              file_name: null,
+              created_at: ai_message.created_at,
+              read_by: [],
+              is_own: false,
+            },
+          ]);
+        }
+      } catch (error) {
+        console.error("Failed to send support message:", error);
+        // Remove optimistic message on failure
+        setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
+        setNewMessage(content);
+      } finally {
+        setAiThinking(false);
+      }
+      return;
+    }
 
     let recipientId: number | undefined;
     let chatConversationId: number | undefined;
@@ -1235,6 +1365,7 @@ export default function ChatPage() {
                         <MessageBubble
                           key={message.id}
                           message={message}
+                          conversation={selectedConversation}
                           onSaveToEntity={(messageId, entityType) => {
                             setSavingMessageId(messageId);
                             setSaveEntityType(entityType);
@@ -1570,12 +1701,32 @@ function SidebarGroupEntry({
 
 function MessageBubble({
   message,
+  conversation,
   onSaveToEntity,
 }: {
   message: ChatMessage;
+  conversation?: Conversation | null;
   onSaveToEntity?: (messageId: number, entityType: EntityType) => void;
 }) {
   const [showSaveMenu, setShowSaveMenu] = useState(false);
+  const [showReadReceipts, setShowReadReceipts] = useState(false);
+
+  // Compute read receipts from conversation participants
+  const readReceipts = useMemo(() => {
+    if (!conversation?.participants || !message.is_own) return [];
+    const msgTime = new Date(message.created_at).getTime();
+    return conversation.participants
+      .filter((p) => p.id !== message.sender_id)
+      .map((p) => {
+        const readAt = p.last_read_at ? new Date(p.last_read_at).getTime() : 0;
+        return {
+          id: p.id,
+          name: p.name,
+          hasSeen: readAt >= msgTime,
+          readAt: p.last_read_at,
+        };
+      });
+  }, [conversation?.participants, message.created_at, message.sender_id, message.is_own]);
 
   return (
     <div className={cn("flex", message.is_own ? "justify-end" : "justify-start")}>
@@ -1710,13 +1861,67 @@ function MessageBubble({
             )}
           >
             <span>{formatTime(message.created_at)}</span>
-            {message.is_own && (
+            {message.is_own && readReceipts.length > 0 ? (
+              <Popover open={showReadReceipts} onOpenChange={setShowReadReceipts}>
+                <PopoverTrigger asChild>
+                  <button
+                    className="inline-flex items-center gap-0.5 hover:opacity-70 transition-opacity"
+                    title="Read receipts"
+                  >
+                    {readReceipts.some((r) => r.hasSeen) ? (
+                      <CheckCheck className="h-3 w-3 text-blue-500 dark:text-blue-400" />
+                    ) : (
+                      <Check className="h-3 w-3" />
+                    )}
+                    <ChevronDown className={cn(
+                      "h-2.5 w-2.5 transition-transform",
+                      showReadReceipts && "rotate-180"
+                    )} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  className="w-56 p-2"
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                >
+                  <div className="text-xs font-medium text-muted-foreground mb-1.5 px-1">Read receipts</div>
+                  <div className="space-y-1">
+                    {readReceipts.map((r) => (
+                      <div key={r.id} className="flex items-center gap-2 px-1 py-1 rounded">
+                        <div className="relative">
+                          <Avatar className="h-5 w-5">
+                            <AvatarFallback className="text-[9px]">
+                              {r.name.split(" ").map((n) => n[0]).join("").substring(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                          {r.hasSeen && (
+                            <CheckCheck className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 text-blue-500 bg-background rounded-full" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-medium truncate">{r.name}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {r.hasSeen && r.readAt ? (
+                              <span className="text-blue-600 dark:text-blue-400">
+                                Seen {formatTime(r.readAt)}
+                              </span>
+                            ) : (
+                              <span>Not seen yet</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            ) : message.is_own ? (
               message.read_by.length > 1 ? (
                 <CheckCheck className="h-3 w-3 text-blue-500 dark:text-blue-400" />
               ) : (
                 <Check className="h-3 w-3" />
               )
-            )}
+            ) : null}
             {onSaveToEntity && !message.saved_to_job && !message.contact_id && !message.case_id && (
               <DropdownMenu open={showSaveMenu} onOpenChange={setShowSaveMenu}>
                 <DropdownMenuTrigger asChild>

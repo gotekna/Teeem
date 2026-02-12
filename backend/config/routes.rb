@@ -1237,6 +1237,8 @@ Rails.application.routes.draw do
           get :conversations
           post :mark_as_read
           post :save_conversation_to_job
+          post :support
+          get :support_history
         end
         member do
           post :save_to_job
