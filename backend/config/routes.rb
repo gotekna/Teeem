@@ -1241,6 +1241,15 @@ Rails.application.routes.draw do
         end
       end
 
+      # Guest chat sessions (shareable links)
+      resources :chat_guest_sessions, only: [:index, :create, :destroy] do
+        member do
+          post :join
+          get :messages
+          post :send_message
+        end
+      end
+
       # Group chat conversations
       resources :chat_conversations, only: [ :create, :update ] do
         member do

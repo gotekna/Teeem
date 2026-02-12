@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "zlib"
+require "stringio"
+
 # HerokuPlatformService
 # Fetches live dyno and addon data from the Heroku Platform API.
 # Uses HEROKU_API_KEY (same env var as worker_watchdog.rb).
@@ -232,11 +235,13 @@ class HerokuPlatformService
       end
 
       if response.code.to_i < 300
-        # Parse the raw body as-is. Don't scrub here — scrubbing replaces
-        # leading bytes with "?" which breaks JSON.parse. The original error
-        # was on JSON *generation* (render json:), not parsing. String values
-        # are scrubbed later by deep_scrub_strings on the final result hash.
-        JSON.parse(response.body)
+        body = response.body
+        # Heroku API may return gzip-compressed responses. Ruby's Net::HTTP
+        # auto-decompression doesn't always work in threaded contexts.
+        if body.bytes[0..1] == [0x1F, 0x8B] # gzip magic number
+          body = Zlib::GzipReader.new(StringIO.new(body)).read
+        end
+        JSON.parse(body)
       else
         Rails.logger.error("[HerokuPlatformService] GET #{path} failed (HTTP #{response.code})")
         nil
