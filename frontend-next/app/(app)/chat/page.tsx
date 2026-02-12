@@ -34,6 +34,7 @@ import {
   Copy,
   Maximize2,
   ChevronDown,
+  Link,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -110,6 +111,11 @@ export default function ChatPage() {
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<number[]>([]);
   const [groupSearchQuery, setGroupSearchQuery] = useState("");
   const [creatingGroup, setCreatingGroup] = useState(false);
+
+  // Guest chat link state
+  const [guestShareUrl, setGuestShareUrl] = useState<string | null>(null);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [creatingShareLink, setCreatingShareLink] = useState(false);
 
   // Screen share state
   const [screenShareTarget, setScreenShareTarget] = useState<{ id: number; name: string } | null>(null);

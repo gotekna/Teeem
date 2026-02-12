@@ -3,8 +3,14 @@ class Api::V1::ChatMessagesController < ApplicationController
   # GET /api/v1/chat_messages/online_users
   # Returns list of users with their online status
   def online_users
-    users = User.where.not(id: current_user.id)
-                .order(:name)
+    # Current tenant's users (auto-scoped by acts_as_tenant)
+    users = User.where.not(id: current_user.id).order(:name).to_a
+
+    # Cross-tenant: If current_user is from a different tenant (Teeem staff visiting),
+    # include them so tenant users can see and reply to them
+    if current_user.tenant_id != current_tenant&.id
+      users.unshift(current_user)
+    end
 
     render json: users.map { |user|
       last_seen = user.last_seen_at
@@ -18,12 +24,15 @@ class Api::V1::ChatMessagesController < ApplicationController
                           "offline"
       end
 
+      is_external = user.tenant_id != current_tenant&.id
+
       {
         id: user.id,
-        name: user.name,
+        name: is_external ? "#{user.name} (Teeem Support)" : user.name,
         email: user.email,
         presence_status: presence_status,
         is_online: presence_status == "online",
+        is_teeem_support: is_external,
         last_seen_at: user.last_seen_at
       }
     }
@@ -40,8 +49,9 @@ class Api::V1::ChatMessagesController < ApplicationController
       .order(Arel.sql("LEAST(user_id, recipient_user_id), GREATEST(user_id, recipient_user_id), created_at DESC"))
 
     # Get unique conversation partner IDs
+    # Cross-tenant: Use unscoped so Teeem support users from other tenants are found
     partner_ids = direct_messages.flat_map { |m| [ m.user_id, m.recipient_user_id ] }.uniq - [ current_user.id ]
-    partners = User.where(id: partner_ids).index_by(&:id)
+    partners = User.unscoped.where(id: partner_ids).index_by(&:id)
 
     # Per-conversation read timestamps (SSoT for unread tracking)
     read_timestamps = current_user.chat_read_timestamps || {}

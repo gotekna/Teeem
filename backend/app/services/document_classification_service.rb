@@ -133,24 +133,36 @@ class DocumentClassificationService
 
   # Main classification entry point
   def classify!
+    # Always run DocumentTypeMatcher to get suggestions (even if other layers match)
+    matcher_result = classify_by_document_type_matcher
+    suggestions = matcher_result[:suggestions] || []
+
     # Layer 1: Filename patterns (fastest, highest confidence for matches)
     result = classify_by_filename
-    return result if result[:confidence] >= 0.9
+    if result[:confidence] >= 0.9
+      result[:suggestions] = suggestions
+      return result
+    end
 
     # Layer 1.5: Content type hints
     type_hint = classify_by_content_type
     if type_hint[:document_type]
-      return type_hint if type_hint[:confidence] >= 0.95
+      if type_hint[:confidence] >= 0.95
+        type_hint[:suggestions] = suggestions
+        return type_hint
+      end
       # Boost filename result if content type matches
       if result[:document_type] == type_hint[:document_type]
         result[:confidence] = [result[:confidence] + 0.1, 1.0].min
         result[:signals] << 'content_type_match'
-        return result if result[:confidence] >= 0.9
+        if result[:confidence] >= 0.9
+          result[:suggestions] = suggestions
+          return result
+        end
       end
     end
 
-    # Layer 2: DocumentTypeMatcher (SSoT pattern matching)
-    matcher_result = classify_by_document_type_matcher
+    # Layer 2: Use DocumentTypeMatcher result if confident enough
     if matcher_result[:confidence] >= 0.8
       return matcher_result
     end
@@ -162,6 +174,7 @@ class DocumentClassificationService
     if best_result[:confidence] < 0.6 && ai_classification_enabled?
       ai_result = classify_with_ai
       if ai_result[:confidence] > best_result[:confidence]
+        ai_result[:suggestions] = suggestions
         return ai_result
       end
     end
@@ -173,10 +186,12 @@ class DocumentClassificationService
         confidence: 0.3,
         method: 'default',
         signals: ['no_match'],
+        suggestions: suggestions,
         classified_at: Time.current
       }
     end
 
+    best_result[:suggestions] = suggestions unless best_result[:suggestions]
     best_result
   end
 
@@ -238,7 +253,7 @@ class DocumentClassificationService
 
   # Layer 2: Use DocumentTypeMatcher (SSoT for document type matching)
   def classify_by_document_type_matcher
-    suggestions = DocumentTypeMatcher.suggest(@filename, limit: 3)
+    suggestions = DocumentTypeMatcher.suggest(@filename, limit: 5)
     return empty_result('document_type_matcher') if suggestions.empty?
 
     top_match = suggestions.first
@@ -250,6 +265,14 @@ class DocumentClassificationService
       method: 'document_type_matcher',
       signals: [top_match[:match_type], top_match[:matched_term]].compact,
       matched_document_type: top_match[:document_type].name,
+      suggestions: suggestions.map { |s|
+        {
+          name: s[:document_type].name,
+          confidence: s[:confidence],
+          match_type: s[:match_type],
+          matched_term: s[:matched_term]
+        }
+      },
       classified_at: Time.current
     }
   end

@@ -290,13 +290,13 @@ module Api
           source_icon: item.source_icon,
           display_name: item.display_name,
           can_auto_route: item.can_auto_route?,
+          classification_result: item.classification_result,
           created_at: item.created_at,
           updated_at: item.updated_at
         }
 
         if detailed
           base.merge!(
-            classification_result: item.classification_result,
             metadata: item.metadata,
             uploaded_by: item.uploaded_by&.slice(:id, :name, :email),
             overridden_by: item.overridden_by&.slice(:id, :name, :email),

@@ -2,13 +2,16 @@ class ChatMessage < ApplicationRecord
   include StorageUploadable
   acts_as_tenant :tenant
 
-  belongs_to :user
-  belongs_to :recipient_user, class_name: "User", optional: true
+  # Cross-tenant chat: unscope user lookups so messages from Teeem support
+  # (different tenant) still load the sender/recipient correctly
+  belongs_to :user, -> { unscope(where: :tenant_id) }, optional: true
+  belongs_to :recipient_user, -> { unscope(where: :tenant_id) }, class_name: "User", optional: true
   belongs_to :job, optional: true
   belongs_to :contact, optional: true
   belongs_to :legal_case, class_name: "CaseRecord", foreign_key: "case_id", optional: true
 
   belongs_to :chat_conversation, optional: true
+  belongs_to :chat_guest_session, optional: true
 
   # SSoT: Link to deduplicated file storage (Jan 2026)
   belongs_to :storage_blob, optional: true
@@ -40,16 +43,29 @@ class ChatMessage < ApplicationRecord
     ).order(created_at: :asc)
   }
 
+  # Display name: user name for authenticated senders, guest_sender_name for guests
+  def sender_display_name
+    return guest_sender_name if guest_sender_name.present?
+    user&.name || "Unknown"
+  end
+
+  def guest_message?
+    chat_guest_session_id.present? && user_id.nil?
+  end
+
   def as_json(options = {})
-    super(options.merge(
+    json = super(options.merge(
       include: {
         user: {},
         job: {},
         contact: {},
         legal_case: {}
       },
-      methods: [ :formatted_timestamp, :file_url ]
+      methods: [ :formatted_timestamp, :file_url, :sender_display_name ]
     ))
+    json[:is_guest] = guest_message?
+    json[:guest_sender_name] = guest_sender_name if guest_sender_name.present?
+    json
   end
 
   # Returns the URL for the attached file (for image/file display)
@@ -170,7 +186,7 @@ class ChatMessage < ApplicationRecord
   # acts_as_tenant normally sets this from ActsAsTenant.current_tenant,
   # but in ActionCable callbacks there may be no tenant context.
   def set_tenant_from_user
-    self.tenant_id ||= user&.tenant_id
+    self.tenant_id ||= user&.tenant_id || chat_guest_session&.tenant_id
   end
 
   # Resolve tenant for WarehouseProvider access

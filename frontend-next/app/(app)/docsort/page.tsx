@@ -38,12 +38,35 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
 // Types
+interface ClassificationSuggestion {
+  name: string;
+  confidence: number;
+  match_type: string;
+  matched_term: string | null;
+}
+
+interface ClassificationResult {
+  document_type: string | null;
+  confidence: number;
+  method: string;
+  signals: string[];
+  matched_document_type?: string;
+  suggestions?: ClassificationSuggestion[];
+  classified_at: string;
+}
+
 interface DocumentInboxItem {
   id: number;
   source: string;
@@ -67,6 +90,7 @@ interface DocumentInboxItem {
   source_icon: string;
   display_name: string;
   can_auto_route: boolean;
+  classification_result: ClassificationResult | null;
   created_at: string;
   updated_at: string;
 }
@@ -117,6 +141,16 @@ const STATUS_COLORS: Record<string, string> = {
   yellow: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
   green: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
   red: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+};
+
+// Classification method labels
+const METHOD_LABELS: Record<string, string> = {
+  filename_pattern: "Filename pattern match",
+  content_type: "Content type detection",
+  file_extension: "File extension detection",
+  document_type_matcher: "Document type matcher",
+  ai: "AI classification",
+  default: "Default (no match)",
 };
 
 // Document type options
@@ -543,12 +577,32 @@ export default function DocsortPage() {
 
                       {/* Status badges */}
                       <div className="flex items-center gap-2">
-                        {/* Document type badge */}
+                        {/* Document type badge with classification method tooltip */}
                         {item.document_type && (
-                          <Badge className={cn("text-xs", CONFIDENCE_COLORS[item.confidence_color])}>
-                            {item.document_type_label}
-                            {item.confidence_percent && ` (${item.confidence_percent}%)`}
-                          </Badge>
+                          <TooltipProvider delayDuration={300}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge className={cn("text-xs cursor-default", CONFIDENCE_COLORS[item.confidence_color])}>
+                                  {item.document_type_label}
+                                  {item.confidence_percent != null && ` (${item.confidence_percent}%)`}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-xs">
+                                <div className="space-y-1">
+                                  <p className="font-medium text-xs">
+                                    {item.classification_result
+                                      ? METHOD_LABELS[item.classification_result.method] || item.classification_result.method
+                                      : "Unknown method"}
+                                  </p>
+                                  {(item.classification_result?.signals?.length ?? 0) > 0 && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Signals: {item.classification_result!.signals.join(", ")}
+                                    </p>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
 
                         {/* Status badge - clickable dropdown for pending items */}
@@ -691,6 +745,34 @@ export default function DocsortPage() {
                           </Badge>
                         </div>
                       )}
+                      {selectedItem.classification_result && (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Method</span>
+                            <span className="text-sm">
+                              {METHOD_LABELS[selectedItem.classification_result.method] || selectedItem.classification_result.method}
+                            </span>
+                          </div>
+                          {selectedItem.classification_result.signals?.length > 0 && (
+                            <div>
+                              <span className="text-sm text-muted-foreground">Signals</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {selectedItem.classification_result.signals.map((signal, i) => (
+                                  <Badge key={i} variant="outline" className="text-xs font-mono">
+                                    {signal}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {selectedItem.classification_result.matched_document_type && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">Matched Type</span>
+                              <span className="text-sm">{selectedItem.classification_result.matched_document_type}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Status</span>
                         <Badge className={cn(STATUS_COLORS[selectedItem.status_color])}>
@@ -699,6 +781,64 @@ export default function DocsortPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Document Type Suggestions */}
+                  {selectedItem.classification_result?.suggestions &&
+                    selectedItem.classification_result.suggestions.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-3">
+                        {selectedItem.document_type === "general"
+                          ? "Closest Document Type Matches"
+                          : "Document Type Matches"}
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedItem.classification_result.suggestions.map((suggestion, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium">{suggestion.name}</span>
+                              {suggestion.matched_term && (
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  via {suggestion.match_type}: &quot;{suggestion.matched_term}&quot;
+                                </span>
+                              )}
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-xs ml-2 shrink-0",
+                                suggestion.confidence >= 80
+                                  ? "border-green-500 text-green-700 dark:text-green-400"
+                                  : suggestion.confidence >= 60
+                                    ? "border-yellow-500 text-yellow-700 dark:text-yellow-400"
+                                    : "border-gray-400 text-gray-600 dark:text-gray-400"
+                              )}
+                            >
+                              {suggestion.confidence}%
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                      {selectedItem.document_type === "general" && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          No strong match found. Use the Document Type dropdown above to manually classify.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* No suggestions and classified as general */}
+                  {selectedItem.document_type === "general" &&
+                    (!selectedItem.classification_result?.suggestions ||
+                      selectedItem.classification_result.suggestions.length === 0) && (
+                    <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400">
+                      <p className="text-sm">
+                        No document type matches found. Use the dropdown above to manually classify this document.
+                      </p>
+                    </div>
+                  )}
 
                   {/* File info */}
                   <div>
