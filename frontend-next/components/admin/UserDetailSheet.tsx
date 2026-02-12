@@ -35,7 +35,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
-import Link from "next/link";
 
 interface Role {
   id: number;
@@ -355,12 +354,19 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
                 </div>
               </div>
               {displayUser?.contact_id && (
-                <Link href={`/contacts/${typeof displayUser.contact_id === 'object' ? (displayUser.contact_id as { id: number }).id : displayUser.contact_id}`}>
-                  <Button variant="outline" size="sm" className="gap-1.5 h-8">
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    Profile
-                  </Button>
-                </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 h-8"
+                  onClick={() => {
+                    const contactId = typeof displayUser.contact_id === 'object' ? (displayUser.contact_id as { id: number }).id : displayUser.contact_id;
+                    onClose();
+                    router.push(`/contacts/${contactId}`);
+                  }}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Personal Details
+                </Button>
               )}
             </div>
           </div>
