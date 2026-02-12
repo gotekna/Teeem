@@ -232,7 +232,11 @@ class HerokuPlatformService
       end
 
       if response.code.to_i < 300
-        JSON.parse(response.body.force_encoding("UTF-8").scrub("?"))
+        # Parse the raw body as-is. Don't scrub here — scrubbing replaces
+        # leading bytes with "?" which breaks JSON.parse. The original error
+        # was on JSON *generation* (render json:), not parsing. String values
+        # are scrubbed later by deep_scrub_strings on the final result hash.
+        JSON.parse(response.body)
       else
         Rails.logger.error("[HerokuPlatformService] GET #{path} failed (HTTP #{response.code})")
         nil
