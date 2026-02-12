@@ -174,57 +174,45 @@ class VercelBillingService
       period_end_ms = bm_item["periodEnd"].to_i
       period_start = Time.at(period_start_ms / 1000)
 
-      # Paginate through deployments in the billing period
-      deployments = []
-      url_cursor = nil
-      loop do
-        path = "/v6/deployments?teamId=#{team_id}&limit=100&since=#{period_start_ms}&state=READY"
-        path += "&until=#{url_cursor}" if url_cursor
-
-        page = vercel_get(token, path)
-        break unless page
-
-        page_deployments = page["deployments"] || []
-        break if page_deployments.empty?
-
-        deployments.concat(page_deployments)
-
-        # Vercel pagination: use "until" param with the createdAt of the last deployment
-        pagination = page["pagination"]
-        break unless pagination && pagination["next"].present?
-        url_cursor = pagination["next"]
-      end
-
-      # Calculate build duration per deployment and aggregate
-      daily_data = Hash.new { |h, k| h[k] = { minutes: 0.0, deploys: 0, projects: Hash.new { |h2, k2| h2[k2] = { minutes: 0.0, deploys: 0 } } } }
-
-      deployments.each do |d|
-        building_at = d["buildingAt"]
-        ready_at = d["ready"]
-        next unless building_at && ready_at && building_at > 0 && ready_at > 0
-
-        duration_min = (ready_at - building_at) / 60_000.0
-        next if duration_min <= 0
-
-        date = Time.at(building_at / 1000).in_time_zone("Australia/Brisbane").to_date.iso8601
-        project = d["name"] || "unknown"
-
-        daily_data[date][:minutes] += duration_min
-        daily_data[date][:deploys] += 1
-        daily_data[date][:projects][project][:minutes] += duration_min
-        daily_data[date][:projects][project][:deploys] += 1
-      end
-
-      # Group days into weeks (aligned to billing cycle start day)
+      # Split billing period into day-sized windows and fetch in parallel.
+      # With ~10k deployments, sequential pagination takes >2 min (exceeds Heroku 30s limit).
+      # Day-sized parallel fetches: ~18 days * ~1s each in 6 threads = ~3-4 seconds.
       cycle_start_date = period_start.in_time_zone("Australia/Brisbane").to_date
-      sorted_dates = daily_data.keys.sort
+      today = Time.current.in_time_zone("Australia/Brisbane").to_date
 
+      day_ranges = []
+      d = cycle_start_date
+      while d <= today
+        day_start_ms = d.in_time_zone("Australia/Brisbane").beginning_of_day.to_i * 1000
+        day_end_ms = d.in_time_zone("Australia/Brisbane").end_of_day.to_i * 1000
+        day_ranges << { date: d, since: day_start_ms, until_ms: day_end_ms }
+        d += 1.day
+      end
+
+      # Fetch deployments for each day in parallel threads (max 6 concurrent)
+      daily_data = {}
+      mutex = Mutex.new
+      thread_pool = []
+
+      day_ranges.each_slice(6) do |batch|
+        batch.each do |day_range|
+          thread_pool << Thread.new(day_range) do |dr|
+            day_deployments = fetch_day_deployments(token, team_id, dr[:since], dr[:until_ms])
+            day_result = aggregate_day(day_deployments, dr[:date])
+            mutex.synchronize { daily_data[dr[:date].iso8601] = day_result } if day_result
+          end
+        end
+        thread_pool.each(&:join)
+        thread_pool.clear
+      end
+
+      # Group days into weeks (aligned to billing cycle start)
+      sorted_dates = daily_data.keys.sort
       weeks = []
       current_week = nil
 
       sorted_dates.each do |date_str|
         date = Date.parse(date_str)
-        # Week number = days since cycle start / 7
         week_num = ((date - cycle_start_date) / 7).floor
         week_start = cycle_start_date + (week_num * 7)
         week_end = week_start + 6
@@ -243,23 +231,11 @@ class VercelBillingService
         end
 
         day = daily_data[date_str]
-        projects = day[:projects].map { |name, data| { name: name, minutes: data[:minutes].round(1), deploys: data[:deploys] } }
-          .sort_by { |p| -p[:minutes] }
-
-        day_entry = {
-          date: date_str,
-          dayLabel: date.strftime("%a %d %b"),
-          minutes: day[:minutes].round(1),
-          deploys: day[:deploys],
-          projects: projects
-        }
-
-        current_week[:days] << day_entry
+        current_week[:days] << day
         current_week[:minutes] += day[:minutes]
         current_week[:deploys] += day[:deploys]
       end
 
-      # Round week totals
       weeks.each { |w| w[:minutes] = w[:minutes].round(1) }
 
       {
@@ -270,6 +246,62 @@ class VercelBillingService
         totalDeploys: daily_data.values.sum { |d| d[:deploys] },
         weeks: weeks,
         fetchedAt: Time.current.iso8601
+      }
+    end
+
+    def fetch_day_deployments(token, team_id, since_ms, until_ms)
+      deployments = []
+      url_cursor = nil
+
+      loop do
+        path = "/v6/deployments?teamId=#{team_id}&limit=100&since=#{since_ms}&state=READY"
+        path += "&until=#{url_cursor || until_ms}"
+
+        page = vercel_get(token, path)
+        break unless page
+
+        page_deps = page["deployments"] || []
+        break if page_deps.empty?
+
+        deployments.concat(page_deps)
+
+        pagination = page["pagination"]
+        break unless pagination && pagination["next"].present?
+        url_cursor = pagination["next"]
+      end
+
+      deployments
+    end
+
+    def aggregate_day(deployments, date)
+      minutes = 0.0
+      deploys = 0
+      projects = Hash.new { |h, k| h[k] = { minutes: 0.0, deploys: 0 } }
+
+      deployments.each do |d|
+        building_at = d["buildingAt"]
+        ready_at = d["ready"]
+        next unless building_at && ready_at && building_at > 0 && ready_at > 0
+
+        duration_min = (ready_at - building_at) / 60_000.0
+        next if duration_min <= 0
+
+        project = d["name"] || "unknown"
+        minutes += duration_min
+        deploys += 1
+        projects[project][:minutes] += duration_min
+        projects[project][:deploys] += 1
+      end
+
+      return nil if deploys == 0
+
+      {
+        date: date.iso8601,
+        dayLabel: date.strftime("%a %d %b"),
+        minutes: minutes.round(1),
+        deploys: deploys,
+        projects: projects.map { |name, data| { name: name, minutes: data[:minutes].round(1), deploys: data[:deploys] } }
+          .sort_by { |p| -p[:minutes] }
       }
     end
 

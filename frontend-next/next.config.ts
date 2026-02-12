@@ -4,6 +4,9 @@ import { execSync } from "child_process";
 // @ts-expect-error - next-pwa has incomplete types
 import withPWA from "next-pwa";
 
+// Bundle analyzer (run with ANALYZE=true npm run build)
+import withBundleAnalyzer from "@next/bundle-analyzer";
+
 // Get git commit hash at build time
 let gitCommitHash = "dev";
 try {
@@ -31,6 +34,19 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_GIT_COMMIT: gitCommitHash,
     NEXT_PUBLIC_BUILD_NUMBER: commitCount,
     NEXT_PUBLIC_BUILD_TIME: buildTime,
+  },
+  experimental: {
+    optimizePackageImports: [
+      "recharts",
+      "@tiptap/starter-kit",
+      "@tiptap/react",
+      "@tiptap/pm",
+      "date-fns",
+      "@radix-ui/react-icons",
+      "@dnd-kit/core",
+      "@dnd-kit/sortable",
+      "@xyflow/react",
+    ],
   },
 };
 
@@ -110,5 +126,8 @@ const pwaConfig = withPWA({
   ],
 });
 
-export default pwaConfig(nextConfig);
-// Force rebuild Sat Jan 31 19:15:17 CET 2026
+const analyzedConfig = withBundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+})(nextConfig);
+
+export default pwaConfig(analyzedConfig);

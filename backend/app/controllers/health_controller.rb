@@ -11,9 +11,12 @@ class HealthController < ApplicationController
   end
 
   def version
-    # Use HEROKU_RELEASE_CREATED_AT for actual deploy time, fallback to current time
+    # Use HEROKU_RELEASE_CREATED_AT for actual deploy time (requires dyno metadata addon).
+    # FRC (Feb 2026): Do NOT fallback to Time.current — that makes every refresh
+    # show the current time instead of the actual deploy time. Return nil so
+    # the frontend falls back to its own NEXT_PUBLIC_BUILD_TIME (baked at Vercel build).
     deploy_time = ENV["HEROKU_RELEASE_CREATED_AT"].present? ?
-      Time.parse(ENV["HEROKU_RELEASE_CREATED_AT"]) : Time.current
+      Time.parse(ENV["HEROKU_RELEASE_CREATED_AT"]) : nil
 
     response = {
       version: AppVersion.current_version_string,

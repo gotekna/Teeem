@@ -995,6 +995,12 @@ export default function CostsMap() {
                               {breakdownLoading && <Spinner className="h-3 w-3" />}
                             </button>
 
+                            {breakdownVisible && breakdownLoading && !breakdown && (
+                              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                                <Spinner className="h-3 w-3" />
+                                Loading build minutes breakdown (this may take a few seconds)...
+                              </div>
+                            )}
                             {breakdownVisible && breakdown && (
                               <div className="mt-2 space-y-1">
                                 {breakdown.error && (

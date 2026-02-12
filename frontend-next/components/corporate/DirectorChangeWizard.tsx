@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { pollPdfGeneration, type PdfGenerationStatus } from "@/lib/pdf-generation";
 import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
 
@@ -124,7 +125,7 @@ interface DirectorChangeWizardProps {
 async function fetchPdfAsBlob(downloadPath: string): Promise<string | null> {
   try {
     const baseUrl = getApiBaseUrl();
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
     const resp = await fetch(`${baseUrl}${downloadPath}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
