@@ -915,7 +915,7 @@ export function WarehouseFoldersTab() {
                 label="Name (also used as folder path)"
                 value={formData.name}
                 onChange={(value) =>
-                  setFormData({ ...formData, name: value })
+                  setFormData((prev) => ({ ...prev, name: value }))
                 }
                 scope={(() => {
                   const selectedType = warehouseTypeOptions.find(wt => wt.value === formData.warehouse_type_id);
