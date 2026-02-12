@@ -119,12 +119,12 @@ interface EmailConfigTabProps {
 
 // SSoT: Standard mailbox prefixes (same as Tekna's shared mailbox naming)
 const MAILBOX_PREFIXES = [
-  { prefix: "pay", label: "Bills/Invoices", description: "Incoming supplier invoices are routed here for automated processing" },
-  { prefix: "newtask", label: "New Tasks", description: "Emails forwarded here automatically create tasks" },
-  { prefix: "newjob", label: "New Jobs", description: "Emails here trigger AI job extraction and proposal creation" },
-  { prefix: "newcase", label: "New Cases", description: "Emails here trigger case creation proposals" },
-  { prefix: "docsort", label: "Document Sorting", description: "Documents emailed here are AI-classified and routed automatically" },
-  { prefix: "esign", label: "E-Signature", description: "Signing invitations and notifications are sent from this address" },
+  { prefix: "pay", key: "pay", label: "Bills/Invoices", description: "Incoming supplier invoices are routed here for automated processing" },
+  { prefix: "newtask", key: "newtask", label: "New Tasks", description: "Emails forwarded here automatically create tasks" },
+  { prefix: "newjob", key: "newjob", label: "New Jobs", description: "Emails here trigger AI job extraction and proposal creation" },
+  { prefix: "newcase", key: "newcase", label: "New Cases", description: "Emails here trigger case creation proposals" },
+  { prefix: "docsort", key: "docsort", label: "Document Sorting", description: "Documents emailed here are AI-classified and routed automatically" },
+  { prefix: "esign", key: "esignature", label: "E-Signature", description: "Signing invitations and notifications are sent from this address" },
 ];
 
 export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConfigTabProps = {}) {
@@ -319,7 +319,7 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
                     if (!domain) return;
                     const updates: Record<string, string> = {};
                     for (const m of MAILBOX_PREFIXES) {
-                      const key = `monitored_mailbox_${m.prefix}` as keyof typeof formData;
+                      const key = `monitored_mailbox_${m.key}` as keyof typeof formData;
                       if (!formData[key]) {
                         updates[key] = `${m.prefix}@${domain}`;
                       }
