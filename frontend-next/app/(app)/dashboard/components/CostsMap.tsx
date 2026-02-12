@@ -228,6 +228,43 @@ export default function CostsMap() {
     }
   }, []);
 
+  const handleScaleDyno = useCallback(async (app: string, dyno: string, currentQty: number) => {
+    const newQty = currentQty > 0 ? 0 : 1;
+    const action = newQty === 0 ? "scale down (stop)" : "scale up (start)";
+    if (!confirm(`${action} ${dyno} dyno on ${app}?`)) return;
+
+    const key = `${app}:${dyno}`;
+    setScalingDyno(key);
+
+    try {
+      const response = await api.patch<{ success: boolean; error?: string }>(
+        "/api/v1/heroku/scale",
+        { app, dyno, quantity: newQty }
+      );
+
+      if (response?.success) {
+        // Optimistic update
+        setData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            dynos: prev.dynos.map((d) =>
+              d.app === app && d.dyno === dyno
+                ? { ...d, quantity: newQty, cost: d.unitCost * newQty, scaledDown: newQty === 0 }
+                : d
+            ),
+          };
+        });
+      } else {
+        alert(`Failed to scale: ${response?.error || "Unknown error"}`);
+      }
+    } catch (e) {
+      alert(`Failed to scale: ${e instanceof Error ? e.message : "Unknown error"}`);
+    } finally {
+      setScalingDyno(null);
+    }
+  }, []);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
@@ -255,12 +292,33 @@ export default function CostsMap() {
     );
   }
 
-  // Derive databases and redis from addons
-  const databases = data.addons.filter((a) => a.addonServiceName === "heroku-postgresql");
-  const redis = data.addons.filter((a) => a.addonServiceName === "heroku-redis");
+  // Derive databases and redis from addons, deduplicating shared addons
+  const rawDatabases = data.addons.filter((a) => a.addonServiceName === "heroku-postgresql");
+  const rawRedis = data.addons.filter((a) => a.addonServiceName === "heroku-redis");
   const otherAddons = data.addons.filter(
     (a) => a.addonServiceName !== "heroku-postgresql" && a.addonServiceName !== "heroku-redis"
   );
+
+  // Deduplicate: same addon name = same database attached to multiple apps
+  type UniqueAddon = AddonCost & { environments: string[] };
+  function deduplicateAddons(addons: AddonCost[]): UniqueAddon[] {
+    const map = new Map<string, UniqueAddon>();
+    const result: UniqueAddon[] = [];
+    addons.forEach((a) => {
+      const existing = map.get(a.name);
+      if (existing) {
+        existing.environments.push(a.environment);
+      } else {
+        const entry = { ...a, environments: [a.environment] };
+        map.set(a.name, entry);
+        result.push(entry);
+      }
+    });
+    return result;
+  }
+
+  const databases = deduplicateAddons(rawDatabases);
+  const redis = deduplicateAddons(rawRedis);
 
   const totalDynos = data.dynos.reduce((sum, d) => sum + d.cost, 0);
   const totalDatabases = databases.reduce((sum, d) => sum + (d.cost ?? 0), 0);
@@ -416,20 +474,56 @@ export default function CostsMap() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.dynos.map((d, i) => (
-                    <tr key={`${d.app}-${d.dyno}`} className={cn("border-b border-border last:border-0", i % 2 === 0 && "bg-muted/30")}>
-                      <td className="py-2 pr-4">
-                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{d.app}</code>
-                      </td>
-                      <td className="py-2 pr-4 text-xs">{d.dyno}</td>
-                      <td className="py-2 pr-4 text-xs font-mono">{d.size}</td>
-                      <td className="py-2 pr-4 text-xs font-mono">{d.quantity}</td>
-                      <td className="py-2 pr-4">
-                        <CostBadge cost={d.cost} />
-                      </td>
-                      <td className="py-2 text-xs text-muted-foreground">{d.purpose}</td>
-                    </tr>
-                  ))}
+                  {data.dynos.map((d, i) => {
+                    const isDevApp = DEV_APPS.includes(d.app);
+                    const isScaling = scalingDyno === `${d.app}:${d.dyno}`;
+                    return (
+                      <tr
+                        key={`${d.app}-${d.dyno}`}
+                        className={cn(
+                          "border-b border-border last:border-0",
+                          i % 2 === 0 && "bg-muted/30",
+                          d.scaledDown && "opacity-50"
+                        )}
+                      >
+                        <td className="py-2 pr-4">
+                          <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{d.app}</code>
+                        </td>
+                        <td className="py-2 pr-4 text-xs">{d.dyno}</td>
+                        <td className="py-2 pr-4 text-xs font-mono">{d.size}</td>
+                        <td className="py-2 pr-4 text-xs font-mono">
+                          <span className="inline-flex items-center gap-1.5">
+                            {d.quantity}
+                            {isDevApp && (
+                              <button
+                                onClick={() => handleScaleDyno(d.app, d.dyno, d.quantity)}
+                                disabled={isScaling}
+                                className={cn(
+                                  "inline-flex items-center justify-center rounded p-0.5 transition-colors",
+                                  d.scaledDown
+                                    ? "text-muted-foreground hover:text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30"
+                                    : "text-green-600 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30",
+                                  isScaling && "animate-pulse"
+                                )}
+                                title={d.scaledDown ? "Start dyno" : "Stop dyno"}
+                              >
+                                <Power className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-4">
+                          <CostBadge cost={d.cost} />
+                        </td>
+                        <td className="py-2 text-xs text-muted-foreground">
+                          {d.purpose}
+                          {d.scaledDown && (
+                            <span className="ml-1.5 text-[10px] font-medium text-yellow-600 dark:text-yellow-400">(stopped)</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -446,7 +540,7 @@ export default function CostsMap() {
               Heroku Databases
               <Badge variant="outline" className="ml-auto font-mono">${totalDatabases}/mo</Badge>
             </CardTitle>
-            <CardDescription>PostgreSQL databases (staging/beta/prod share one DB)</CardDescription>
+            <CardDescription>PostgreSQL databases (shared addons shown once with all attached apps)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -456,7 +550,7 @@ export default function CostsMap() {
                     <th className="pb-2 font-medium">Name</th>
                     <th className="pb-2 font-medium">Plan</th>
                     <th className="pb-2 font-medium">Cost</th>
-                    <th className="pb-2 font-medium">App</th>
+                    <th className="pb-2 font-medium">Apps</th>
                     <th className="pb-2 font-medium">State</th>
                   </tr>
                 </thead>
@@ -470,7 +564,13 @@ export default function CostsMap() {
                       <td className="py-2 pr-4">
                         <CostBadge cost={d.cost} />
                       </td>
-                      <td className="py-2 pr-4 text-xs text-muted-foreground">{d.environment}</td>
+                      <td className="py-2 pr-4 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap gap-1">
+                          {d.environments.map((env) => (
+                            <Badge key={env} variant="outline" className="text-[10px]">{env}</Badge>
+                          ))}
+                        </div>
+                      </td>
                       <td className="py-2 text-xs">
                         <Badge variant={d.state === "provisioned" ? "outline" : "destructive"} className="text-[10px]">
                           {d.state}
@@ -504,7 +604,7 @@ export default function CostsMap() {
                     <th className="pb-2 font-medium">Name</th>
                     <th className="pb-2 font-medium">Plan</th>
                     <th className="pb-2 font-medium">Cost</th>
-                    <th className="pb-2 font-medium">App</th>
+                    <th className="pb-2 font-medium">Apps</th>
                     <th className="pb-2 font-medium">State</th>
                   </tr>
                 </thead>
@@ -518,7 +618,13 @@ export default function CostsMap() {
                       <td className="py-2 pr-4">
                         <CostBadge cost={r.cost} />
                       </td>
-                      <td className="py-2 pr-4 text-xs text-muted-foreground">{r.environment}</td>
+                      <td className="py-2 pr-4 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap gap-1">
+                          {r.environments.map((env) => (
+                            <Badge key={env} variant="outline" className="text-[10px]">{env}</Badge>
+                          ))}
+                        </div>
+                      </td>
                       <td className="py-2 text-xs">
                         <Badge variant={r.state === "provisioned" ? "outline" : "destructive"} className="text-[10px]">
                           {r.state}

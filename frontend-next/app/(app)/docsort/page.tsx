@@ -695,7 +695,7 @@ export default function DocsortPage() {
           setDrawerOpen(open);
           if (!open) setSelectedItem(null);
         }}>
-          <SheetContent className="w-[400px] sm:w-[540px]">
+          <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
             {selectedItem && (
               <>
                 <SheetHeader>
@@ -747,9 +747,9 @@ export default function DocsortPage() {
                       )}
                       {selectedItem.classification_result && (
                         <>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-muted-foreground">Method</span>
-                            <span className="text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm text-muted-foreground shrink-0">Method</span>
+                            <span className="text-sm text-right truncate">
                               {METHOD_LABELS[selectedItem.classification_result.method] || selectedItem.classification_result.method}
                             </span>
                           </div>
@@ -766,9 +766,11 @@ export default function DocsortPage() {
                             </div>
                           )}
                           {selectedItem.classification_result.matched_document_type && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm text-muted-foreground">Matched Type</span>
-                              <span className="text-sm">{selectedItem.classification_result.matched_document_type}</span>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm text-muted-foreground shrink-0">Matched Type</span>
+                              <span className="text-sm text-right truncate">
+                                {selectedItem.classification_result.matched_document_type}
+                              </span>
                             </div>
                           )}
                         </>
@@ -844,20 +846,20 @@ export default function DocsortPage() {
                   <div>
                     <h4 className="text-sm font-medium mb-3">File Details</h4>
                     <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Filename</span>
-                        <span className="truncate max-w-[200px]">{selectedItem.original_filename || "—"}</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground shrink-0">Filename</span>
+                        <span className="truncate text-right">{selectedItem.original_filename || "—"}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Size</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground shrink-0">Size</span>
                         <span>{formatFileSize(selectedItem.file_size)}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Type</span>
-                        <span>{selectedItem.content_type || "—"}</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground shrink-0">Type</span>
+                        <span className="truncate text-right">{selectedItem.content_type || "—"}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Source</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground shrink-0">Source</span>
                         <span className="capitalize">{selectedItem.source}</span>
                       </div>
                     </div>

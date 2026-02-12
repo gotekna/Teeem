@@ -99,7 +99,47 @@ class HerokuPlatformService
     teeem-jake-dev
   ].freeze
 
+  # Dev apps that should share Sam Dev's database (not their own)
+  DEV_DB_SOURCE = "teeem-sam-dev"
+  DEV_DB_TARGETS = %w[teeem-rob-dev teeem-jake-dev].freeze
+
   class << self
+    # Points target dev apps' DATABASE_URL to the source dev app's database.
+    # This lets Jake Dev and Rob Dev share Sam Dev's database.
+    def share_dev_database
+      api_key = ENV["HEROKU_API_KEY"]
+      return { success: false, error: "HEROKU_API_KEY not configured" } unless api_key.present?
+
+      # Get Sam Dev's DATABASE_URL
+      source_config = heroku_get(api_key, "/apps/#{DEV_DB_SOURCE}/config-vars")
+      return { success: false, error: "Could not read #{DEV_DB_SOURCE} config vars" } unless source_config
+      source_db_url = source_config["DATABASE_URL"]
+      return { success: false, error: "#{DEV_DB_SOURCE} has no DATABASE_URL" } unless source_db_url.present?
+
+      results = {}
+      DEV_DB_TARGETS.each do |target_app|
+        # Check current DATABASE_URL
+        target_config = heroku_get(api_key, "/apps/#{target_app}/config-vars")
+        current_url = target_config&.dig("DATABASE_URL")
+
+        if current_url == source_db_url
+          results[target_app] = { status: "already_shared", message: "Already using #{DEV_DB_SOURCE} database" }
+          next
+        end
+
+        # Set DATABASE_URL to Sam Dev's (this restarts the app)
+        result = heroku_patch(api_key, "/apps/#{target_app}/config-vars", { "DATABASE_URL" => source_db_url })
+        if result
+          results[target_app] = { status: "updated", message: "Now using #{DEV_DB_SOURCE} database", previousUrl: current_url&.truncate(40) }
+        else
+          results[target_app] = { status: "failed", message: "Heroku API call failed" }
+        end
+      end
+
+      Rails.cache.delete(CACHE_KEY)
+      { success: true, data: { source: DEV_DB_SOURCE, targets: results } }
+    end
+
     def scale_dyno(app_name, dyno_type, quantity)
       api_key = ENV["HEROKU_API_KEY"]
       return { success: false, error: "HEROKU_API_KEY not configured" } unless api_key.present?
