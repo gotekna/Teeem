@@ -200,6 +200,33 @@ interface BreakdownWeek {
   days: BreakdownDay[];
 }
 
+interface StorageProviderBilling {
+  success: boolean;
+  error?: string;
+  provider?: string;
+  bucket?: string;
+  totalBytes?: number;
+  totalObjects?: number;
+  totalSizeGB?: number;
+  totalSizeTB?: number;
+  billableTB?: number;
+  estimatedCost?: number;
+  ratePerTB?: number;
+  minimumTB?: number;
+  freeGB?: number;
+  sampled?: boolean;
+  byPrefix?: Array<{ name: string; count: number; sizeGB: number }>;
+}
+
+interface StorageBillingData {
+  success: boolean;
+  wasabi?: StorageProviderBilling;
+  backblaze?: StorageProviderBilling;
+  fetchedAt?: string;
+  cached?: boolean;
+  error?: string;
+}
+
 interface VercelBreakdownData {
   success: boolean;
   periodStart?: string;
@@ -263,6 +290,69 @@ function PaymentBadge({ paidBy }: { paidBy: string }) {
   );
 }
 
+function StorageDetailCard({ data, label }: { data: StorageProviderBilling; label: string }) {
+  if (!data.success) return null;
+  const usageBarPct = data.minimumTB
+    ? Math.min(((data.totalSizeTB || 0) / data.minimumTB) * 100, 100)
+    : 0;
+
+  return (
+    <div className="mt-2 border border-border rounded p-2.5 bg-muted/30 space-y-1.5">
+      {/* Usage summary */}
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium">{label} Storage</span>
+        <span className="font-mono font-medium">${data.estimatedCost?.toFixed(2)}/mo</span>
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <span>{data.totalSizeGB?.toLocaleString()} GB &middot; {data.totalObjects?.toLocaleString()} objects</span>
+        <span>@ ${data.ratePerTB}/TB/month</span>
+      </div>
+      {/* Usage bar (for Wasabi with 1TB minimum) */}
+      {data.minimumTB && (
+        <div className="space-y-0.5">
+          <div className="relative h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className={cn(
+                "absolute inset-y-0 left-0 rounded-full transition-all",
+                usageBarPct > 90 ? "bg-amber-500" : "bg-blue-500"
+              )}
+              style={{ width: `${usageBarPct}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span>{data.totalSizeTB?.toFixed(3)} TB used</span>
+            <span>{data.minimumTB} TB minimum (billed as {data.billableTB?.toFixed(3)} TB)</span>
+          </div>
+        </div>
+      )}
+      {/* Free tier info for Backblaze */}
+      {data.freeGB != null && (
+        <div className="text-[10px] text-muted-foreground">
+          First {data.freeGB} GB free &middot; {data.totalSizeGB != null && data.totalSizeGB > data.freeGB
+            ? `${(data.totalSizeGB - data.freeGB).toFixed(2)} GB billable`
+            : "Within free tier"}
+        </div>
+      )}
+      {/* Top folders by size */}
+      {data.byPrefix && data.byPrefix.length > 0 && (
+        <div className="space-y-0.5 pt-1 border-t border-border">
+          <span className="text-[10px] text-muted-foreground font-medium">Top folders:</span>
+          {data.byPrefix.slice(0, 5).map((p) => (
+            <div key={p.name} className="flex items-center text-[10px] gap-2">
+              <span className="text-muted-foreground w-28 truncate">{p.name}/</span>
+              <span className="font-mono">{p.sizeGB} GB</span>
+              <span className="text-muted-foreground">({p.count.toLocaleString()} files)</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {data.sampled && (
+        <p className="text-[10px] text-amber-600 dark:text-amber-400">Sampled (100k+ objects, actual size may be higher)</p>
+      )}
+    </div>
+  );
+}
+
 function formatTimestamp(iso: string | null): string {
   if (!iso) return "Never";
   const d = new Date(iso);
@@ -291,6 +381,9 @@ export default function CostsMap() {
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const [breakdownVisible, setBreakdownVisible] = useState(false);
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
+  const [storageBilling, setStorageBilling] = useState<StorageBillingData | null>(null);
+  const [storageBillingLoading, setStorageBillingLoading] = useState(false);
+  const [storageBillingVisible, setStorageBillingVisible] = useState<Record<string, boolean>>({});
 
   const fetchData = useCallback(async (refresh = false) => {
     try {
@@ -403,6 +496,53 @@ export default function CostsMap() {
       return next;
     });
   }, []);
+
+  const fetchStorageBilling = useCallback(async (refresh = false) => {
+    setStorageBillingLoading(true);
+    try {
+      const response = await api.get<{ success: boolean; data: StorageBillingData }>(
+        "/api/v1/heroku/storage_billing",
+        refresh ? { params: { refresh: "true" } } : {}
+      );
+      if (response?.data) {
+        setStorageBilling(response.data);
+        // Update external services costs with real data
+        if (response.data.wasabi?.estimatedCost != null) {
+          setData((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              externalServices: prev.externalServices.map((s) =>
+                s.name === "Wasabi Storage" ? { ...s, cost: response.data.wasabi!.estimatedCost! } : s
+              ),
+            };
+          });
+        }
+        if (response.data.backblaze?.estimatedCost != null) {
+          setData((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              externalServices: prev.externalServices.map((s) =>
+                s.name === "Backblaze B2" ? { ...s, cost: response.data.backblaze!.estimatedCost! } : s
+              ),
+            };
+          });
+        }
+      }
+    } catch {
+      setStorageBilling({ success: false, error: "Failed to load storage billing" });
+    } finally {
+      setStorageBillingLoading(false);
+    }
+  }, []);
+
+  const toggleStorageDetail = useCallback((provider: string) => {
+    if (!storageBilling) {
+      fetchStorageBilling();
+    }
+    setStorageBillingVisible((prev) => ({ ...prev, [provider]: !prev[provider] }));
+  }, [storageBilling, fetchStorageBilling]);
 
   useEffect(() => {
     fetchData();
@@ -1094,6 +1234,56 @@ export default function CostsMap() {
                                   </div>
                                 )}
                               </div>
+                            )}
+                          </div>
+                        )}
+                        {/* Storage detail for Wasabi */}
+                        {s.name === "Wasabi Storage" && (
+                          <div className="mt-2">
+                            <button
+                              onClick={() => toggleStorageDetail("wasabi")}
+                              className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                            >
+                              <HardDrive className="h-3 w-3" />
+                              {storageBillingVisible.wasabi ? "Hide Storage Detail" : "View Storage Detail"}
+                              {storageBillingLoading && !storageBilling && <Spinner className="h-3 w-3" />}
+                            </button>
+                            {storageBillingVisible.wasabi && storageBillingLoading && !storageBilling && (
+                              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                                <Spinner className="h-3 w-3" />
+                                Scanning storage buckets...
+                              </div>
+                            )}
+                            {storageBillingVisible.wasabi && storageBilling?.wasabi && (
+                              <StorageDetailCard data={storageBilling.wasabi} label="Wasabi" />
+                            )}
+                            {storageBillingVisible.wasabi && storageBilling?.wasabi?.success === false && (
+                              <p className="text-xs text-red-500 mt-1">{storageBilling.wasabi.error}</p>
+                            )}
+                          </div>
+                        )}
+                        {/* Storage detail for Backblaze */}
+                        {s.name === "Backblaze B2" && (
+                          <div className="mt-2">
+                            <button
+                              onClick={() => toggleStorageDetail("backblaze")}
+                              className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                            >
+                              <HardDrive className="h-3 w-3" />
+                              {storageBillingVisible.backblaze ? "Hide Storage Detail" : "View Storage Detail"}
+                              {storageBillingLoading && !storageBilling && <Spinner className="h-3 w-3" />}
+                            </button>
+                            {storageBillingVisible.backblaze && storageBillingLoading && !storageBilling && (
+                              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                                <Spinner className="h-3 w-3" />
+                                Scanning storage buckets...
+                              </div>
+                            )}
+                            {storageBillingVisible.backblaze && storageBilling?.backblaze && (
+                              <StorageDetailCard data={storageBilling.backblaze} label="Backblaze B2" />
+                            )}
+                            {storageBillingVisible.backblaze && storageBilling?.backblaze?.success === false && (
+                              <p className="text-xs text-red-500 mt-1">{storageBilling.backblaze.error}</p>
                             )}
                           </div>
                         )}

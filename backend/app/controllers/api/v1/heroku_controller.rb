@@ -59,6 +59,15 @@ module Api
         render json: { success: true, data: result }
       end
 
+      # GET /api/v1/heroku/storage_billing
+      # Returns real storage usage and costs for Wasabi and Backblaze B2
+      def storage_billing
+        force_refresh = params[:refresh] == "true"
+        result = StorageBillingService.billing(force_refresh: force_refresh)
+
+        render json: { success: true, data: result }
+      end
+
       private
 
       def require_admin
