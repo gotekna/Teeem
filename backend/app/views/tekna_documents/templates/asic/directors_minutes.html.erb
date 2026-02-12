@@ -1,51 +1,51 @@
 <% # Minutes of Meeting of Directors - ASIC Form 484 Package %>
 <% # Template variables: company, ceasing_directors, new_appointments, meeting_date, meeting_date_formatted, remaining_directors %>
 
-<div class="page">
-  <div style="text-align: center; margin-bottom: 20px;">
-    <h1 style="font-size: 18pt; margin-bottom: 3px;">MINUTES OF MEETING OF DIRECTORS</h1>
+<div class="page" style="font-size: 10pt; line-height: 1.3;">
+  <div style="text-align: center; margin-bottom: 15px;">
+    <h1 style="font-size: 16pt; margin-bottom: 2px;">MINUTES OF MEETING OF DIRECTORS</h1>
     <p class="small-text">Corporations Act 2001</p>
   </div>
 
   <!-- Company Details -->
-  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
+  <div class="section" style="margin-bottom: 8px; padding-bottom: 6px;">
     <table style="border: none; margin-bottom: 0;">
       <tr>
-        <td style="border: none; width: 140px;" class="field-label">Company:</td>
-        <td style="border: none;" class="field-value"><%= company[:name] %></td>
+        <td style="border: none; width: 120px; padding: 2px 6px;" class="field-label">Company:</td>
+        <td style="border: none; padding: 2px 6px;" class="field-value"><%= company[:name] %></td>
       </tr>
       <% if company[:acn].present? %>
       <tr>
-        <td style="border: none;" class="field-label">ACN:</td>
-        <td style="border: none;" class="field-value"><%= company[:formatted_acn] %></td>
+        <td style="border: none; padding: 2px 6px;" class="field-label">ACN:</td>
+        <td style="border: none; padding: 2px 6px;" class="field-value"><%= company[:formatted_acn] %></td>
       </tr>
       <% end %>
       <% if company[:abn].present? %>
       <tr>
-        <td style="border: none;" class="field-label">ABN:</td>
-        <td style="border: none;" class="field-value"><%= company[:formatted_abn] %></td>
+        <td style="border: none; padding: 2px 6px;" class="field-label">ABN:</td>
+        <td style="border: none; padding: 2px 6px;" class="field-value"><%= company[:formatted_abn] %></td>
       </tr>
       <% end %>
       <tr>
-        <td style="border: none;" class="field-label">Date of Meeting:</td>
-        <td style="border: none;" class="field-value"><%= meeting_date_formatted %></td>
+        <td style="border: none; padding: 2px 6px;" class="field-label">Date of Meeting:</td>
+        <td style="border: none; padding: 2px 6px;" class="field-value"><%= meeting_date_formatted %></td>
       </tr>
       <% if company[:registered_office_address].present? %>
       <tr>
-        <td style="border: none;" class="field-label">Place of Meeting:</td>
-        <td style="border: none;" class="field-value"><%= company[:registered_office_address] %></td>
+        <td style="border: none; padding: 2px 6px;" class="field-label">Place of Meeting:</td>
+        <td style="border: none; padding: 2px 6px;" class="field-value"><%= company[:registered_office_address] %></td>
       </tr>
       <% end %>
     </table>
   </div>
 
   <!-- Present -->
-  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
-    <div class="field-label" style="margin-bottom: 6px;">Present:</div>
+  <div class="section" style="margin-bottom: 8px; padding-bottom: 6px;">
+    <div class="field-label" style="margin-bottom: 4px;">Present:</div>
     <% if remaining_directors.present? %>
-      <ul style="margin-left: 30px;">
+      <ul style="margin-left: 25px;">
         <% remaining_directors.each do |dir| %>
-          <li style="margin-bottom: 2px;"><%= dir[:full_name] %> (<%= dir[:positions].map { |p| p.titleize.gsub("_", " / ") }.join(", ") %>)</li>
+          <li style="margin-bottom: 1px;"><%= dir[:full_name] %> (<%= dir[:positions].map { |p| p.titleize.gsub("_", " / ") }.join(", ") %>)</li>
         <% end %>
       </ul>
     <% else %>
@@ -54,18 +54,18 @@
   </div>
 
   <!-- Quorum -->
-  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
-    <div class="field-label" style="margin-bottom: 6px;">Quorum:</div>
+  <div class="section" style="margin-bottom: 8px; padding-bottom: 6px;">
+    <div class="field-label" style="margin-bottom: 4px;">Quorum:</div>
     <p>A quorum being present, the Chairperson declared the meeting open.</p>
   </div>
 
   <% if ceasing_directors.present? %>
   <!-- Resignation Resolution -->
-  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
-    <div class="field-label" style="margin-bottom: 6px;">Resolution 1 - Acceptance of Resignation</div>
+  <div class="section" style="margin-bottom: 8px; padding-bottom: 6px;">
+    <div class="field-label" style="margin-bottom: 4px;">Resolution 1 - Acceptance of Resignation</div>
 
-    <% ceasing_directors.each_with_index do |cd, idx| %>
-      <p style="margin-bottom: 6px;">
+    <% ceasing_directors.each do |cd| %>
+      <p style="margin-bottom: 4px;">
         It was <strong>RESOLVED</strong> that the resignation of
         <strong><%= cd[:full_name] %></strong>
         as <%= cd[:positions].map { |p| p.titleize.gsub("_", " / ") }.join(" and ") %>
@@ -74,24 +74,22 @@
       </p>
     <% end %>
 
-    <p style="margin-bottom: 6px;">
+    <p style="margin-bottom: 4px;">
       The Board noted that the written resignation<%= ceasing_directors.length > 1 ? "s have" : " has" %>
       been received and <%= ceasing_directors.length > 1 ? "are" : "is" %> tabled at this meeting.
     </p>
 
-    <p style="margin-top: 8px;">
-      <strong>Carried unanimously.</strong>
-    </p>
+    <p style="margin-top: 6px;"><strong>Carried unanimously.</strong></p>
   </div>
   <% end %>
 
   <% if new_appointments.present? %>
   <!-- Appointment Resolution -->
-  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
-    <div class="field-label" style="margin-bottom: 6px;">Resolution <%= ceasing_directors.present? ? "2" : "1" %> - Appointment of Officeholder<%= new_appointments.length > 1 ? "s" : "" %></div>
+  <div class="section" style="margin-bottom: 8px; padding-bottom: 6px;">
+    <div class="field-label" style="margin-bottom: 4px;">Resolution <%= ceasing_directors.present? ? "2" : "1" %> - Appointment of Officeholder<%= new_appointments.length > 1 ? "s" : "" %></div>
 
     <% new_appointments.each do |appt| %>
-      <p style="margin-bottom: 6px;">
+      <p style="margin-bottom: 4px;">
         It was <strong>RESOLVED</strong> that
         <strong><%= appt[:full_name] %></strong>
         <% if appt[:address].present? %>of <%= appt[:address] %><% end %>
@@ -102,41 +100,37 @@
       </p>
     <% end %>
 
-    <p style="margin-top: 8px;">
-      <strong>Carried unanimously.</strong>
-    </p>
+    <p style="margin-top: 6px;"><strong>Carried unanimously.</strong></p>
   </div>
   <% end %>
 
   <!-- ASIC Notification -->
-  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
-    <div class="field-label" style="margin-bottom: 6px;">Resolution <%= (ceasing_directors.present? && new_appointments.present?) ? "3" : "2" %> - ASIC Notification</div>
+  <div class="section" style="margin-bottom: 8px; padding-bottom: 6px;">
+    <div class="field-label" style="margin-bottom: 4px;">Resolution <%= (ceasing_directors.present? && new_appointments.present?) ? "3" : "2" %> - ASIC Notification</div>
 
-    <p style="margin-bottom: 6px;">
+    <p style="margin-bottom: 4px;">
       It was <strong>RESOLVED</strong> that the company secretary (or other authorised person)
       be and is hereby directed to lodge notification of the above changes with the
       Australian Securities and Investments Commission (ASIC) within 28 days in accordance
       with section 205B of the Corporations Act 2001.
     </p>
 
-    <p style="margin-top: 8px;">
-      <strong>Carried unanimously.</strong>
-    </p>
+    <p style="margin-top: 6px;"><strong>Carried unanimously.</strong></p>
   </div>
 
   <!-- Close -->
-  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
-    <div class="field-label" style="margin-bottom: 6px;">Close of Meeting</div>
+  <div class="section" style="margin-bottom: 8px; padding-bottom: 6px;">
+    <div class="field-label" style="margin-bottom: 4px;">Close of Meeting</div>
     <p>There being no further business, the Chairperson declared the meeting closed.</p>
   </div>
 
   <!-- Signature Block - keep together on one page -->
-  <div style="margin-top: 20px; page-break-inside: avoid;">
+  <div style="margin-top: 15px; page-break-inside: avoid;">
     <table style="width: 100%; border: none; margin-bottom: 0;">
       <tr>
         <td style="width: 50%; border: none; padding: 0;">
           <div class="field-label">Signed as a correct record:</div>
-          <div class="signature-box" style="margin-top: 5px;">
+          <div class="signature-box" style="margin-top: 4px;">
             <div class="signature-badge">
               <span class="badge-icon">&#9998;</span>
               <span class="badge-name">Chairperson</span>
@@ -146,14 +140,14 @@
         </td>
         <td style="width: 50%; border: none; padding: 0;">
           <div class="field-label">Date:</div>
-          <div style="border-bottom: 1px solid #000; min-width: 200px; min-height: 30px; margin-top: 5px; padding: 5px;">
+          <div style="border-bottom: 1px solid #000; min-width: 200px; min-height: 30px; margin-top: 4px; padding: 5px;">
             <%= meeting_date_formatted %>
           </div>
         </td>
       </tr>
     </table>
 
-    <div style="margin-top: 10px;">
+    <div style="margin-top: 8px;">
       <div class="field-label">Chairperson:</div>
       <div style="border-bottom: 1px solid #000; min-width: 300px; min-height: 20px; padding: 5px;"></div>
     </div>
