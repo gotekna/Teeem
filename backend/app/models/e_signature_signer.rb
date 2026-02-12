@@ -115,7 +115,7 @@ class ESignatureSigner < ApplicationRecord
     return if notified_at.present?
 
     generate_access_token!
-    ESignatureMailer.signing_request(e_signature_request, self).deliver_later
+    ESignatureMailer.signing_request(e_signature_request, self).deliver_now
 
     update!(status: "notified", notified_at: Time.current)
     log_event("notified", description: "Signing notification sent")

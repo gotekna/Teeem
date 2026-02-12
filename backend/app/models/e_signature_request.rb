@@ -103,7 +103,7 @@ class ESignatureRequest < ApplicationRecord
       log_event("completed", description: "All signers have signed")
 
       # Send completion notifications
-      ESignatureMailer.completion_notification(self).deliver_later
+      ESignatureMailer.completion_notification(self).deliver_now
     end
   end
 
@@ -122,7 +122,7 @@ class ESignatureRequest < ApplicationRecord
     )
 
     # Notify creator
-    ESignatureMailer.decline_notification(self, signer).deliver_later
+    ESignatureMailer.decline_notification(self, signer).deliver_now
   end
 
   def cancel!(reason: nil)
@@ -141,7 +141,7 @@ class ESignatureRequest < ApplicationRecord
     log_event("expired", description: "Request expired")
 
     # Notify all parties
-    ESignatureMailer.expiration_notification(self).deliver_later
+    ESignatureMailer.expiration_notification(self).deliver_now
   end
 
   # Progress tracking
@@ -221,7 +221,7 @@ class ESignatureRequest < ApplicationRecord
     return unless send_reminders?
 
     signers.pending.each do |signer|
-      ESignatureMailer.reminder(self, signer).deliver_later
+      ESignatureMailer.reminder(self, signer).deliver_now
     end
 
     update!(last_reminder_sent_at: Time.current)

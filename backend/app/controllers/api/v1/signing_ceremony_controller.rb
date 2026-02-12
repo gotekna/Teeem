@@ -96,7 +96,7 @@ class Api::V1::SigningCeremonyController < ApplicationController
   def send_verification_code
     code = @signer.generate_verification_code!
 
-    ESignatureMailer.verification_code(@signer).deliver_later
+    ESignatureMailer.verification_code(@signer).deliver_now
 
     render json: {
       success: true,
