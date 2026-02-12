@@ -142,6 +142,11 @@ class User < ApplicationRecord
     available_tenants.count > 1
   end
 
+  # SSoT: Universal display name interface (consistent with Contact, BankAccount, etc.)
+  def display_name
+    name
+  end
+
   # Get user initials from name (e.g., "Robert Harder" -> "RH")
   def initials
     return "" if name.blank?

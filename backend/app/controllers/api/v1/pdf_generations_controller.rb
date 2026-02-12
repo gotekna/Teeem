@@ -127,7 +127,7 @@ module Api
           filename: pdf_gen.result_filename,
           createdAt: pdf_gen.created_at&.iso8601,
           updatedAt: pdf_gen.updated_at&.iso8601,
-          userName: pdf_gen.user&.name
+          userName: pdf_gen.user&.display_name
         }
 
         # Include company context from generator_params (for cross-company lists)
