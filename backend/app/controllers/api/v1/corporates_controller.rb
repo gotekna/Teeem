@@ -13,7 +13,7 @@ module Api
       # By default, only shows companies linked to a corporate group (have company_group_id)
       # Use include_unlinked=true to show all companies
       def index
-        @companies = Corporate.includes(:corporate_directors, :corporate_xero_connection).all
+        @companies = Corporate.includes(:corporate_directors, :corporate_xero_connection, :company_group).all
 
         # By default, only show companies linked to corporate (have company_group_id)
         # Unless include_unlinked=true is passed
@@ -50,7 +50,8 @@ module Api
           companies: @companies.as_json(
             include: {
               current_directors: {},
-              corporate_xero_connection: {}
+              corporate_xero_connection: {},
+              company_group: { only: [ :id, :name ] }
             },
             methods: [ :formatted_acn, :formatted_abn, :has_xero_connection? ]
           ),

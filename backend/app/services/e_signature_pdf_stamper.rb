@@ -352,7 +352,7 @@ class ESignaturePdfStamper
     canvas = page.canvas
 
     # Title
-    canvas.font("Helvetica-Bold", size: 24)
+    canvas.font("Helvetica", variant: :bold, size: 24)
     canvas.fill_color("000000")
     canvas.text("Certificate of Completion", at: [ box.width / 2 - 100, box.height - 80 ])
 
@@ -366,7 +366,7 @@ class ESignaturePdfStamper
 
     # Document info
     y = box.height - 160
-    canvas.font("Helvetica-Bold", size: 12)
+    canvas.font("Helvetica", variant: :bold, size: 12)
     canvas.fill_color("000000")
     canvas.text("Document Details", at: [ MARGIN, y ])
 
@@ -382,7 +382,7 @@ class ESignaturePdfStamper
 
     # Document hashes
     y -= 30
-    canvas.font("Helvetica-Bold", size: 12)
+    canvas.font("Helvetica", variant: :bold, size: 12)
     canvas.text("Document Integrity", at: [ MARGIN, y ])
 
     canvas.font("Courier", size: 8)
@@ -397,7 +397,7 @@ class ESignaturePdfStamper
 
     # Signers list
     y -= 30
-    canvas.font("Helvetica-Bold", size: 12)
+    canvas.font("Helvetica", variant: :bold, size: 12)
     canvas.text("Signatories", at: [ MARGIN, y ])
 
     canvas.font("Helvetica", size: 10)
