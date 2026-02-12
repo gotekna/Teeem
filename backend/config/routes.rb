@@ -1241,6 +1241,14 @@ Rails.application.routes.draw do
         end
       end
 
+      # Group chat conversations
+      resources :chat_conversations, only: [ :create, :update ] do
+        member do
+          post :add_participant
+          post :remove_participant
+        end
+      end
+
       # Users management
       resources :users, only: [ :index, :show, :create, :update, :destroy ] do
         collection do

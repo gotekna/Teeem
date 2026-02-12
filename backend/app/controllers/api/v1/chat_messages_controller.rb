@@ -89,8 +89,43 @@ class Api::V1::ChatMessagesController < ApplicationController
       }
     end.compact
 
+    # Include group conversations
+    group_conversations = ChatConversation.for_user(current_user.id)
+                                          .includes(:chat_conversation_participants, :users, chat_messages: :user)
+
+    group_conversations.each do |conv|
+      last_msg = conv.last_message
+      conversations << {
+        id: "group-#{conv.id}",
+        type: "group",
+        name: conv.display_name,
+        participants: conv.chat_conversation_participants.includes(:user).map { |p|
+          last_seen = p.user.last_seen_at
+          {
+            id: p.user.id,
+            name: p.user.name,
+            is_online: last_seen.present? && last_seen > 5.minutes.ago,
+            is_admin: p.is_admin
+          }
+        },
+        last_message: last_msg ? {
+          id: last_msg.id,
+          content: last_msg.content,
+          sender_id: last_msg.user_id,
+          sender_name: last_msg.user_id == current_user.id ? "You" : last_msg.user&.name,
+          created_at: last_msg.created_at,
+          is_own: last_msg.user_id == current_user.id
+        } : nil,
+        unread_count: conv.unread_count_for(current_user),
+        is_pinned: false,
+        job_id: nil,
+        job_name: nil,
+        updated_at: last_msg&.created_at || conv.created_at
+      }
+    end
+
     # Sort by most recent message
-    conversations.sort_by! { |c| c[:updated_at] }.reverse!
+    conversations.sort_by! { |c| c[:updated_at] || Time.at(0) }.reverse!
 
     render json: { conversations: conversations }
   end
@@ -108,7 +143,9 @@ class Api::V1::ChatMessagesController < ApplicationController
 
     # Get the most recent 100 messages, then sort chronologically (oldest first, newest last)
     # This matches standard chat UI where newest messages appear at the bottom
-    base_query = if params[:job_id].present?
+    base_query = if params[:chat_conversation_id].present?
+      ChatMessage.where(chat_conversation_id: params[:chat_conversation_id])
+    elsif params[:job_id].present?
       ChatMessage.for_job(params[:job_id])
     elsif params[:contact_id].present?
       ChatMessage.for_contact(params[:contact_id])
@@ -221,6 +258,11 @@ class Api::V1::ChatMessagesController < ApplicationController
                  .count
     end
 
+    # Add group conversation unread counts
+    ChatConversation.for_user(current_user.id).each do |conv|
+      total += conv.unread_count_for(current_user)
+    end
+
     render json: { unread_count: total }
   end
 
@@ -229,8 +271,15 @@ class Api::V1::ChatMessagesController < ApplicationController
   def mark_as_read
     conversation_id = params[:conversation_id]
 
-    if conversation_id.present?
-      # Per-conversation read tracking
+    if conversation_id.present? && conversation_id.to_s.start_with?("group-")
+      # Group conversation: update participant's last_read_at
+      group_id = conversation_id.to_s.sub("group-", "")
+      participant = ChatConversationParticipant
+        .joins(:chat_conversation)
+        .find_by(chat_conversation_id: group_id, user_id: current_user.id)
+      participant&.mark_as_read!
+    elsif conversation_id.present?
+      # DM: per-conversation read tracking via user JSON
       timestamps = current_user.chat_read_timestamps || {}
       timestamps[conversation_id.to_s] = Time.current.iso8601
       current_user.update(chat_read_timestamps: timestamps)
@@ -285,6 +334,6 @@ class Api::V1::ChatMessagesController < ApplicationController
   private
 
   def message_params
-    params.require(:chat_message).permit(:content, :channel, :recipient_user_id, :job_id, :contact_id, :case_id, :message_type, :file)
+    params.require(:chat_message).permit(:content, :channel, :recipient_user_id, :chat_conversation_id, :job_id, :contact_id, :case_id, :message_type, :file)
   end
 end

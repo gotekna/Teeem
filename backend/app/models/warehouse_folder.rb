@@ -590,11 +590,19 @@ class WarehouseFolder < ApplicationRecord
   end
 
   def sync_display_name_and_folder_segment
-    # If display_name is set but folder_segment is not, use display_name
+    # When name is explicitly updated, propagate to display_name and folder_segment
+    # FRC (Feb 2026): ||= was preventing updates on existing records because
+    # display_name/folder_segment were already set. The edit dialog sends `name`
+    # which must propagate to all three fields for the change to be visible
+    # (as_nested_json returns display_name || name, full_folder_path uses folder_segment).
+    if name_changed? && name.present?
+      self.display_name = name
+      self.folder_segment = name
+    end
+
+    # Fill in blanks for initial creation or legacy records
     self.folder_segment ||= display_name if display_name.present?
-    # If folder_segment is set but display_name is not, use folder_segment
     self.display_name ||= folder_segment if folder_segment.present?
-    # If name is not set, use display_name
     self.name ||= display_name if display_name.present?
   end
 

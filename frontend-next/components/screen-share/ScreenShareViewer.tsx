@@ -223,18 +223,27 @@ export function ScreenShareViewer({
     [remoteControlEnabled]
   );
 
-  const handleScroll = useCallback(
-    (e: React.WheelEvent) => {
-      if (!remoteControlEnabled || !managerRef.current) return;
-      e.preventDefault();
-      managerRef.current.sendControlEvent({
-        type: "scroll",
-        deltaX: e.deltaX,
-        deltaY: e.deltaY,
-      });
-    },
-    [remoteControlEnabled]
-  );
+  // Scroll handler stored in ref for native event listener
+  const handleScrollRef = useRef<(e: WheelEvent) => void>(() => {});
+  handleScrollRef.current = (e: WheelEvent) => {
+    if (!remoteControlEnabled || !managerRef.current) return;
+    e.preventDefault();
+    managerRef.current.sendControlEvent({
+      type: "scroll",
+      deltaX: e.deltaX,
+      deltaY: e.deltaY,
+    });
+  };
+
+  // Attach wheel listener with { passive: false } so preventDefault() works
+  // React registers onWheel as passive by default, which blocks preventDefault
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+    const handler = (e: WheelEvent) => handleScrollRef.current(e);
+    overlay.addEventListener("wheel", handler, { passive: false });
+    return () => overlay.removeEventListener("wheel", handler);
+  });
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -414,7 +423,6 @@ export function ScreenShareViewer({
               onClick={(e) => handleMouseEvent(e, "click")}
               onDoubleClick={(e) => handleMouseEvent(e, "dblclick")}
               onMouseMove={(e) => handleMouseEvent(e, "mousemove")}
-              onWheel={handleScroll}
               onKeyDown={handleKeyDown}
               onKeyUp={handleKeyUp}
               onContextMenu={(e) => e.preventDefault()}
