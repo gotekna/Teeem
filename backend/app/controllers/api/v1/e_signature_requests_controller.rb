@@ -1,4 +1,6 @@
 class Api::V1::ESignatureRequestsController < ApplicationController
+  include PresignedUploadHandler
+
   before_action :set_request, only: [ :show, :update, :destroy, :send_for_signing, :cancel, :audit_trail, :certificate ]
 
   # GET /api/v1/e_signature_requests
@@ -227,6 +229,48 @@ class Api::V1::ESignatureRequestsController < ApplicationController
     end
   end
 
+  # POST /api/v1/e_signature_requests/upload_document
+  # Upload a PDF document for e-signature, returns a StorageBlob reference.
+  # Accepts multipart file upload (params[:file]) or presigned S3 key (params[:storage_key]).
+  def upload_document
+    file = resolve_uploaded_file(:file, :storage_key)
+    unless file
+      return render json: {
+        success: false,
+        errors: [ "No file provided. Use 'file' for multipart or 'storage_key' for presigned URL upload." ]
+      }, status: :unprocessable_entity
+    end
+
+    content = file.read
+    # FRC (Feb 2026): Force binary encoding to prevent PDF corruption
+    content.force_encoding("BINARY") if content.respond_to?(:force_encoding)
+
+    filename = file.respond_to?(:original_filename) ? file.original_filename : "document.pdf"
+    content_type = file.respond_to?(:content_type) ? file.content_type : "application/pdf"
+
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+    blob.increment_reference!
+
+    render json: {
+      success: true,
+      storage_blob_id: blob.id,
+      storage_reference: blob.id.to_s,
+      filename: blob.original_filename,
+      file_size: blob.file_size,
+      content_hash: blob.content_hash
+    }
+  rescue => e
+    Rails.logger.error "[ESignature] Document upload failed: #{e.class} - #{e.message}"
+    render json: {
+      success: false,
+      errors: [ "Failed to upload document: #{e.message}" ]
+    }, status: :unprocessable_entity
+  end
+
   # DELETE /api/v1/e_signature_requests/:id/signers/:signer_id
   def remove_signer
     @request = ESignatureRequest.find(params[:e_signature_request_id])
@@ -277,6 +321,7 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       :reminder_interval_days,
       :message_to_signers,
       :original_storage_file_id,
+      :original_storage_item_id,
       :storage_site_id,
       :storage_drive_id,
       signers_attributes: [ :id, :name, :email, :role, :signing_order, :contact_id, :_destroy ]

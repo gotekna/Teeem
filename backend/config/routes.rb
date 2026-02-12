@@ -813,6 +813,9 @@ Rails.application.routes.draw do
 
       # E-Signature Requests
       resources :e_signature_requests, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          post :upload_document
+        end
         member do
           post :send_for_signing, path: "send"
           post :cancel
