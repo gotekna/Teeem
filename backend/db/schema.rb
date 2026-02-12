@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_12_080000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_12_090000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1144,6 +1144,28 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_080000) do
     t.index ["tenant_id"], name: "index_cases_on_tenant_id"
   end
 
+  create_table "chat_conversation_participants", force: :cascade do |t|
+    t.bigint "chat_conversation_id", null: false
+    t.bigint "user_id", null: false
+    t.datetime "last_read_at"
+    t.boolean "is_admin", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_conversation_id", "user_id"], name: "idx_chat_conv_participants_unique", unique: true
+    t.index ["user_id"], name: "index_chat_conversation_participants_on_user_id"
+  end
+
+  create_table "chat_conversations", force: :cascade do |t|
+    t.string "conversation_type", default: "group", null: false
+    t.string "name"
+    t.bigint "created_by_id", null: false
+    t.bigint "tenant_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_chat_conversations_on_created_by_id"
+    t.index ["tenant_id"], name: "index_chat_conversations_on_tenant_id"
+  end
+
   create_table "chat_messages", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.text "content", null: false
@@ -1161,8 +1183,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_080000) do
     t.string "storage_file_id"
     t.string "storage_item_id"
     t.bigint "storage_blob_id"
+    t.bigint "chat_conversation_id"
     t.index ["case_id"], name: "index_chat_messages_on_case_id"
     t.index ["channel", "created_at"], name: "index_chat_messages_on_channel_and_created_at"
+    t.index ["chat_conversation_id"], name: "index_chat_messages_on_chat_conversation_id"
     t.index ["contact_id"], name: "index_chat_messages_on_contact_id"
     t.index ["created_at"], name: "index_chat_messages_on_created_at"
     t.index ["job_id", "channel", "created_at"], name: "index_chat_messages_on_construction_channel_created"
@@ -10900,6 +10924,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_080000) do
   add_foreign_key "cases", "tenants"
   add_foreign_key "cases", "users", column: "assigned_to_id"
   add_foreign_key "cases", "users", column: "created_by_id"
+  add_foreign_key "chat_conversation_participants", "chat_conversations"
+  add_foreign_key "chat_conversation_participants", "users"
+  add_foreign_key "chat_conversations", "tenants"
+  add_foreign_key "chat_conversations", "users", column: "created_by_id"
+  add_foreign_key "chat_messages", "chat_conversations"
   add_foreign_key "chat_messages", "jobs"
   add_foreign_key "chat_messages", "storage_blobs"
   add_foreign_key "chat_messages", "users"

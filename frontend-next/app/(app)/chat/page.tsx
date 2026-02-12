@@ -1,12 +1,12 @@
- 
+
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { copyToClipboard } from "@/utils/formatters";
@@ -33,6 +33,7 @@ import {
   FolderOpen,
   Copy,
   Maximize2,
+  ChevronDown,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -67,8 +68,23 @@ import type {
   EntityType,
 } from "@/types/chat";
 
+// ─── Sidebar item types for unified view ───
+interface SidebarDMItem {
+  kind: "dm";
+  userId: number;
+  userName: string;
+  userEmail: string;
+  presenceStatus: "online" | "away" | "offline";
+  isOnline: boolean;
+  conversation: Conversation | null;
+}
+
+interface SidebarGroupItem {
+  kind: "group";
+  conversation: Conversation;
+}
+
 export default function ChatPage() {
-  // Use full-height layout mode
   useSetLayoutMode("full-height");
 
   const { user } = useAuth();
@@ -81,14 +97,19 @@ export default function ChatPage() {
   const [newMessage, setNewMessage] = useState("");
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
-  const [showNewChatDialog, setShowNewChatDialog] = useState(false);
-  const [userSearchQuery, setUserSearchQuery] = useState("");
   const [pastedImage, setPastedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // New Group dialog
+  const [showNewGroupDialog, setShowNewGroupDialog] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState<number[]>([]);
+  const [groupSearchQuery, setGroupSearchQuery] = useState("");
+  const [creatingGroup, setCreatingGroup] = useState(false);
 
   // Screen share state
   const [screenShareTarget, setScreenShareTarget] = useState<{ id: number; name: string } | null>(null);
@@ -117,7 +138,6 @@ export default function ChatPage() {
     };
     loadOnlineUsers();
 
-    // Refresh online users every 30 seconds
     const interval = setInterval(loadOnlineUsers, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -141,7 +161,6 @@ export default function ChatPage() {
     };
     loadConversations();
 
-    // Refresh conversations every 30 seconds for unread badge updates
     const interval = setInterval(loadConversations, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -149,39 +168,30 @@ export default function ChatPage() {
   const loadMessages = useCallback(async (conversationId: number | string, isInitialLoad = false) => {
     if (!user) return;
 
-    // Only show loading spinner on initial load, not during polling
     if (isInitialLoad) {
       setLoadingMessages(true);
     }
 
     try {
-      // Determine API parameters based on conversation type
       const apiParams: Record<string, string | number> = {};
 
-      // Handle DM format: "dm-34-45" or "dm-new-45"
-      // Format is dm-{smallerId}-{largerId}, need to find the OTHER user's ID
       if (typeof conversationId === "string" && conversationId.startsWith("dm-")) {
         const parts = conversationId.split("-");
         if (parts[1] === "new") {
-          // New conversation: "dm-new-36" → recipient is 36
           apiParams.user_id = parts[2];
         } else {
-          // Existing conversation: "dm-34-36" → find the ID that's NOT current user
           const userId1 = parseInt(parts[1], 10);
           const userId2 = parseInt(parts[2], 10);
           apiParams.user_id = userId1 === user.id ? userId2 : userId1;
         }
-      }
-      // Handle numeric conversation ID
-      else if (typeof conversationId === "number") {
+      } else if (typeof conversationId === "string" && conversationId.startsWith("group-")) {
+        apiParams.chat_conversation_id = conversationId.replace("group-", "");
+      } else if (typeof conversationId === "number") {
         apiParams.conversation_id = conversationId;
-      }
-      // Handle string conversation ID (could be job, contact, case)
-      else if (typeof conversationId === "string") {
+      } else if (typeof conversationId === "string") {
         apiParams.conversation_id = conversationId;
       }
 
-      // API response has different shape than our ChatMessage interface
       interface ApiMessage {
         id: number;
         user_id: number;
@@ -198,7 +208,6 @@ export default function ChatPage() {
 
       const response = await api.get<ApiMessage[]>("/api/v1/chat_messages", { params: apiParams });
 
-      // Transform backend response to our ChatMessage format
       const newMessages = (response || []).map((msg) => ({
         id: msg.id,
         conversation_id: conversationId,
@@ -215,8 +224,6 @@ export default function ChatPage() {
         is_own: msg.user_id === user.id,
       }));
 
-      // Only update if messages actually changed (prevents flashing)
-      // Compare count AND IDs to detect new messages
       setMessages(prevMessages => {
         const prevIds = prevMessages.map(m => m.id).sort().join(',');
         const newIds = newMessages.map(m => m.id).sort().join(',');
@@ -251,13 +258,11 @@ export default function ChatPage() {
       }
     }
 
-    // Mark this specific conversation as read (per-conversation tracking)
     async function markAsRead() {
       try {
         await api.post("/api/v1/chat_messages/mark_as_read", {
           conversation_id: conversationId,
         });
-        // Update local unread count to 0 for this conversation only
         setConversations(prev => prev.map(c =>
           c.id === conversationId ? { ...c, unread_count: 0 } : c
         ));
@@ -266,11 +271,9 @@ export default function ChatPage() {
       }
     }
 
-    // Initial fetch with loading spinner
     fetchMessages();
     markAsRead();
 
-    // Poll for new messages every 10 seconds (silent updates, avoid rate limiting)
     const pollInterval = setInterval(() => {
       if (!cancelled) {
         fetchMessages();
@@ -287,34 +290,23 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Load entities for save-to-entity functionality - lazy load when dialog opens
+  // Load entities for save-to-entity - lazy load when dialog opens
   const loadEntities = useCallback(async () => {
     try {
-      // Load jobs
-      // SSoT: Uses PAGE_SIZE_REFERENCE from pagination-constants.ts
       const jobsResponse = await api.get<{ constructions: Construction[] }>("/api/v1/jobs", {
         params: { status: "Active", per_page: PAGE_SIZE_REFERENCE },
       });
       setConstructions(jobsResponse?.constructions || []);
 
-      // Load contacts
-      // SSoT: Uses PAGE_SIZE_REFERENCE from pagination-constants.ts
       const contactsResponse = await api.get<{ contacts: Contact[] }>("/api/v1/contacts", {
         params: { per_page: PAGE_SIZE_REFERENCE },
       });
       setContacts(contactsResponse?.contacts || []);
-
-      // Load cases (if you have a cases endpoint)
-      // const casesResponse = await api.get<{ cases: Case[] }>("/api/v1/cases", {
-      //   params: { per_page: 100 },
-      // });
-      // setCases(casesResponse?.cases || []);
     } catch (error) {
       console.error("Failed to load entities:", error);
     }
   }, []);
 
-  // Lazy load entities when save dialog opens (not on page mount)
   const entitiesLoaded = useRef(false);
   useEffect(() => {
     if (showSaveDialog && !entitiesLoaded.current) {
@@ -323,7 +315,6 @@ export default function ChatPage() {
     }
   }, [showSaveDialog, loadEntities]);
 
-  // Save message to entity
   const handleSaveToEntity = async (
     messageId: number,
     entityType: EntityType,
@@ -342,7 +333,6 @@ export default function ChatPage() {
 
       await api.post(`/api/v1/chat_messages/${messageId}/save_to_${entityType}`, payload);
 
-      // Update message in state
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
           msg.id === messageId
@@ -369,7 +359,6 @@ export default function ChatPage() {
     const items = e.clipboardData?.items;
     if (!items) return;
 
-    // Check for image in clipboard
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (item.type.indexOf('image') !== -1) {
@@ -377,7 +366,6 @@ export default function ChatPage() {
         const blob = item.getAsFile();
         if (blob) {
           setPastedImage(blob);
-          // Create preview
           const reader = new FileReader();
           reader.onload = (e) => {
             setImagePreview(e.target?.result as string);
@@ -387,7 +375,6 @@ export default function ChatPage() {
         return;
       }
     }
-    // If no image, allow default text paste behavior
   };
 
   const clearImagePreview = () => {
@@ -405,14 +392,13 @@ export default function ChatPage() {
       };
       reader.readAsDataURL(file);
     }
-    e.target.value = ""; // Reset for re-selection
+    e.target.value = "";
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setPastedImage(file);
-      // For non-image files, just set a placeholder preview indicator
       if (file.type.startsWith("image/")) {
         const reader = new FileReader();
         reader.onload = (ev) => {
@@ -420,7 +406,7 @@ export default function ChatPage() {
         };
         reader.readAsDataURL(file);
       } else {
-        setImagePreview(null); // No preview for non-image files
+        setImagePreview(null);
       }
     }
     e.target.value = "";
@@ -459,69 +445,52 @@ export default function ChatPage() {
 
   const handleScreenCapture = async () => {
     try {
-      // Request screen capture from browser
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          mediaSource: "screen",
-        } as MediaTrackConstraints,
+        video: { mediaSource: "screen" } as MediaTrackConstraints,
       });
 
-      // Create video element to capture frame
       const video = document.createElement("video");
       video.srcObject = stream;
       video.play();
 
-      // Wait for video to load
-      await new Promise((resolve) => {
-        video.onloadedmetadata = resolve;
-      });
+      await new Promise((resolve) => { video.onloadedmetadata = resolve; });
 
-      // Create canvas and capture frame
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
       ctx?.drawImage(video, 0, 0);
 
-      // Stop the stream
       stream.getTracks().forEach((track) => track.stop());
 
-      // Convert canvas to blob
       canvas.toBlob((blob) => {
         if (blob) {
-          const file = new File([blob], `screenshot-${Date.now()}.png`, {
-            type: "image/png",
-          });
+          const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" });
           setPastedImage(file);
-
-          // Create preview
           const reader = new FileReader();
-          reader.onload = (e) => {
-            setImagePreview(e.target?.result as string);
-          };
+          reader.onload = (e) => { setImagePreview(e.target?.result as string); };
           reader.readAsDataURL(file);
         }
       }, "image/png");
     } catch (error) {
       console.error("Screen capture failed:", error);
-      // User likely cancelled the screen share prompt
     }
   };
 
   const handleSend = async () => {
     if ((!newMessage.trim() && !pastedImage) || !selectedConversation || !user) return;
 
-    // Get recipient user ID from the conversation ID or participants
     let recipientId: number | undefined;
+    let chatConversationId: number | undefined;
 
-    if (typeof selectedConversation.id === "string" && selectedConversation.id.startsWith("dm-")) {
-      // Conversation ID format: "dm-34-36" or "dm-new-36"
+    // Determine target: group conversation or DM recipient
+    if (selectedConversation.type === "group" && typeof selectedConversation.id === "string" && selectedConversation.id.startsWith("group-")) {
+      chatConversationId = parseInt(selectedConversation.id.replace("group-", ""), 10);
+    } else if (typeof selectedConversation.id === "string" && selectedConversation.id.startsWith("dm-")) {
       const parts = selectedConversation.id.split("-");
       if (parts[1] === "new") {
-        // New conversation: "dm-new-36" → recipient is 36
         recipientId = parseInt(parts[2], 10);
       } else {
-        // Existing conversation: "dm-34-36" → find the ID that's NOT current user
         const userId1 = parseInt(parts[1], 10);
         const userId2 = parseInt(parts[2], 10);
         recipientId = userId1 === user.id ? userId2 : userId1;
@@ -530,7 +499,7 @@ export default function ChatPage() {
       recipientId = selectedConversation.participants.find(p => p.id !== user?.id)?.id;
     }
 
-    // Handle image upload if present
+    // Handle image upload
     if (pastedImage) {
       const tempMessage: ChatMessage = {
         id: Date.now(),
@@ -552,20 +521,18 @@ export default function ChatPage() {
       clearImagePreview();
 
       try {
-        // SSoT: Upload image via presigned URL (bypasses Heroku 30s timeout)
         const uploadResult = await uploadFile(pastedImage, 'chat');
-
         if (!uploadResult.success || !uploadResult.key) {
           throw new Error(uploadResult.error || "Failed to upload image");
         }
 
-        // Send message with storage_key
         await api.post("/api/v1/chat_messages", {
           chat_message: {
             content: newMessage || "[Image]",
             message_type: "image",
             storage_key: uploadResult.key,
             recipient_user_id: recipientId,
+            chat_conversation_id: chatConversationId,
           }
         });
       } catch (error) {
@@ -598,6 +565,7 @@ export default function ChatPage() {
         chat_message: {
           content: newMessage,
           recipient_user_id: recipientId,
+          chat_conversation_id: chatConversationId,
         },
       });
     } catch (error) {
@@ -605,11 +573,10 @@ export default function ChatPage() {
     }
   };
 
-  // Start a new conversation with a user
+  // Start a new DM conversation with a user
   const startConversation = (selectedUser: OnlineUser) => {
     if (!user) return;
 
-    // Create a temporary conversation for this user
     const newConversation: Conversation = {
       id: `dm-new-${selectedUser.id}`,
       type: "direct",
@@ -629,54 +596,177 @@ export default function ChatPage() {
       updated_at: new Date().toISOString(),
     };
 
-    // Check if conversation already exists
     const existingConv = conversations.find(c =>
       c.type === "direct" && c.participants.some(p => p.id === selectedUser.id)
     );
 
-    // Check if last message was more than 15 minutes ago (treat as new session)
     const isStaleConversation = existingConv?.last_message?.created_at
       ? (Date.now() - new Date(existingConv.last_message.created_at).getTime()) > 15 * 60 * 1000
-      : true; // No messages = definitely show greeting
+      : true;
 
     if (existingConv) {
       setSelectedConversation(existingConv);
     } else {
-      // NEW conversation - add to list
       setConversations(prev => [newConversation, ...prev]);
       setSelectedConversation(newConversation);
     }
 
-    // Auto-populate greeting if NEW conversation OR 15+ mins since last message
     if (!existingConv || isStaleConversation) {
       const firstName = selectedUser.name.split(' ')[0];
       setNewMessage(`Hi ${firstName}`);
     }
-
-    setShowNewChatDialog(false);
-    setUserSearchQuery("");
   };
 
-  // Filter users for search
-  const filteredUsers = onlineUsers.filter(user =>
-    user.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(userSearchQuery.toLowerCase())
+  // Create a new group conversation
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim() || selectedGroupMembers.length === 0 || !user) return;
+
+    setCreatingGroup(true);
+    try {
+      const response = await api.post<{
+        id: number;
+        name: string;
+        participants: Array<{ id: number; name: string; is_online: boolean }>;
+      }>("/api/v1/chat_conversations", {
+        chat_conversation: {
+          name: newGroupName.trim(),
+          participant_ids: selectedGroupMembers,
+        },
+      });
+
+      if (!response) return;
+
+      const groupConv: Conversation = {
+        id: `group-${response.id}`,
+        type: "group",
+        name: response.name,
+        participants: response.participants.map(p => ({
+          id: p.id,
+          name: p.name,
+          avatar_url: null,
+          is_online: p.is_online,
+        })),
+        last_message: null,
+        unread_count: 0,
+        is_pinned: false,
+        job_id: null,
+        job_name: null,
+        entity_type: null,
+        entity_id: null,
+        entity_name: null,
+        updated_at: new Date().toISOString(),
+      };
+
+      setConversations(prev => [groupConv, ...prev]);
+      setSelectedConversation(groupConv);
+      setShowNewGroupDialog(false);
+      setNewGroupName("");
+      setSelectedGroupMembers([]);
+      setGroupSearchQuery("");
+    } catch (error) {
+      console.error("Failed to create group:", error);
+    }
+    setCreatingGroup(false);
+  };
+
+  // ─── Build unified sidebar items ───
+  const sidebarItems = useMemo((): { dmItems: SidebarDMItem[]; groupItems: SidebarGroupItem[] } => {
+    const dmConvByUserId = new Map<number, Conversation>();
+    for (const conv of conversations) {
+      if (conv.type === "direct") {
+        const otherParticipant = conv.participants.find(p => p.id !== user?.id);
+        if (otherParticipant) {
+          dmConvByUserId.set(otherParticipant.id, conv);
+        }
+      }
+    }
+
+    const dmItems: SidebarDMItem[] = onlineUsers.map(ou => ({
+      kind: "dm" as const,
+      userId: ou.id,
+      userName: ou.name,
+      userEmail: ou.email,
+      presenceStatus: ou.presence_status,
+      isOnline: ou.is_online,
+      conversation: dmConvByUserId.get(ou.id) ?? null,
+    }));
+
+    // Sort: users with conversations first (by last_message time desc),
+    // then users without conversations (online first, then alphabetical)
+    dmItems.sort((a, b) => {
+      const aHasConv = a.conversation?.last_message ? 1 : 0;
+      const bHasConv = b.conversation?.last_message ? 1 : 0;
+      if (aHasConv !== bHasConv) return bHasConv - aHasConv;
+      if (aHasConv && bHasConv) {
+        const aTime = new Date(a.conversation!.last_message!.created_at).getTime();
+        const bTime = new Date(b.conversation!.last_message!.created_at).getTime();
+        return bTime - aTime;
+      }
+      const presenceOrder = { online: 0, away: 1, offline: 2 };
+      const presenceDiff = presenceOrder[a.presenceStatus] - presenceOrder[b.presenceStatus];
+      if (presenceDiff !== 0) return presenceDiff;
+      return a.userName.localeCompare(b.userName);
+    });
+
+    const groupItems: SidebarGroupItem[] = conversations
+      .filter(c => c.type === "group")
+      .map(c => ({ kind: "group" as const, conversation: c }));
+
+    return { dmItems, groupItems };
+  }, [conversations, onlineUsers, user?.id]);
+
+  // Filter sidebar items by search
+  const filteredDMItems = useMemo(() => {
+    if (!searchQuery) return sidebarItems.dmItems;
+    const q = searchQuery.toLowerCase();
+    return sidebarItems.dmItems.filter(item =>
+      item.userName.toLowerCase().includes(q) ||
+      item.userEmail.toLowerCase().includes(q)
+    );
+  }, [sidebarItems.dmItems, searchQuery]);
+
+  const filteredGroupItems = useMemo(() => {
+    if (!searchQuery) return sidebarItems.groupItems;
+    const q = searchQuery.toLowerCase();
+    return sidebarItems.groupItems.filter(item =>
+      item.conversation.name.toLowerCase().includes(q)
+    );
+  }, [sidebarItems.groupItems, searchQuery]);
+
+  const isDMSelected = (item: SidebarDMItem) => {
+    if (!selectedConversation) return false;
+    if (item.conversation) return selectedConversation.id === item.conversation.id;
+    return selectedConversation.id === `dm-new-${item.userId}`;
+  };
+
+  const isGroupSelected = (item: SidebarGroupItem) => {
+    if (!selectedConversation) return false;
+    return selectedConversation.id === item.conversation.id;
+  };
+
+  const handleDMClick = (item: SidebarDMItem) => {
+    if (item.conversation) {
+      setSelectedConversation(item.conversation);
+    } else {
+      const ou: OnlineUser = {
+        id: item.userId,
+        name: item.userName,
+        email: item.userEmail,
+        presence_status: item.presenceStatus,
+        is_online: item.isOnline,
+        last_seen_at: null,
+      };
+      startConversation(ou);
+    }
+  };
+
+  // Filter users for new group dialog
+  const filteredGroupDialogUsers = onlineUsers.filter(u =>
+    u.name.toLowerCase().includes(groupSearchQuery.toLowerCase()) ||
+    u.email.toLowerCase().includes(groupSearchQuery.toLowerCase())
   );
 
-  // Sort users: online first, then away, then offline
-  const sortedOnlineUsers = [...onlineUsers].sort((a, b) => {
-    const order = { online: 0, away: 1, offline: 2 };
-    return order[a.presence_status] - order[b.presence_status];
-  });
-
-  const filteredConversations = conversations.filter((conv) =>
-    conv.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const pinnedConversations = filteredConversations.filter((c) => c.is_pinned);
-  const regularConversations = filteredConversations.filter((c) => !c.is_pinned);
-
-  if (loading) {
+  if (loading && loadingUsers) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Spinner />
@@ -686,156 +776,122 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Compact Header */}
+      {/* Header */}
       <div className="flex items-center justify-between py-2 px-1 shrink-0">
         <h1 className="text-lg font-semibold">Messages</h1>
-        <Dialog open={showNewChatDialog} onOpenChange={setShowNewChatDialog}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1" />
               New Chat
+              <ChevronDown className="h-3 w-3 ml-1" />
             </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Start a New Conversation</DialogTitle>
-              <DialogDescription>
-                Select a team member to start a private chat
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <SearchInput
-                value={userSearchQuery}
-                onChange={setUserSearchQuery}
-                placeholder="Search team members..."
-              />
-              <ScrollArea className="h-[300px]">
-                <div className="space-y-1">
-                  {filteredUsers.map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-secondary transition-colors"
-                      onClick={() => startConversation(user)}
-                    >
-                      <div className="relative">
-                        <Avatar className="h-10 w-10">
-                          <AvatarFallback>
-                            {user.name.split(" ").map((n) => n[0]).join("").substring(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span
-                          className={cn(
-                            "absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background",
-                            user.presence_status === "online" && "bg-green-500",
-                            user.presence_status === "away" && "bg-yellow-500",
-                            user.presence_status === "offline" && "bg-muted-foreground"
-                          )}
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-medium">{user.name}</div>
-                        <div className="text-xs text-muted-foreground">{user.email}</div>
-                      </div>
-                      <Badge
-                        variant={user.presence_status === "online" ? "default" : "secondary"}
-                        className={cn(
-                          "text-xs",
-                          user.presence_status === "online" && "bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20"
-                        )}
-                      >
-                        {user.presence_status}
-                      </Badge>
-                    </div>
-                  ))}
-                  {filteredUsers.length === 0 && (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No users found
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
-          </DialogContent>
-        </Dialog>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => {
+              setSearchQuery("");
+              const searchEl = document.getElementById("chat-sidebar-search");
+              searchEl?.focus();
+            }}>
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Direct Message
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowNewGroupDialog(true)}>
+              <Users className="h-4 w-4 mr-2" />
+              New Group
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {/* Chat Interface */}
-      <div className="grid grid-cols-12 gap-2 flex-1 min-h-0">
-        {/* Online Users Sidebar */}
-        <Card className="col-span-2 flex flex-col min-h-0">
-          <CardHeader className="py-2 px-3 shrink-0">
-            <CardTitle className="text-xs font-medium flex items-center gap-1">
-              <Users className="h-3 w-3" />
-              Team ({onlineUsers.filter(u => u.is_online).length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 flex-1 min-h-0">
-            <ScrollArea className="h-full">
-              <div className="px-3 pb-3 space-y-1">
-                {loadingUsers ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Spinner />
-                  </div>
-                ) : (
-                  sortedOnlineUsers.map((onlineUser) => (
+      {/* New Group Dialog */}
+      <Dialog open={showNewGroupDialog} onOpenChange={setShowNewGroupDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create a Group Chat</DialogTitle>
+            <DialogDescription>
+              Name your group and select members
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder="Group name..."
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              autoFocus
+            />
+            <SearchInput
+              value={groupSearchQuery}
+              onChange={setGroupSearchQuery}
+              placeholder="Search team members..."
+            />
+            <ScrollArea className="h-[250px]">
+              <div className="space-y-1">
+                {filteredGroupDialogUsers.map((u) => {
+                  const isSelected = selectedGroupMembers.includes(u.id);
+                  return (
                     <div
-                      key={onlineUser.id}
-                      className="group flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-secondary transition-colors"
-                      onClick={() => startConversation(onlineUser)}
-                      title={`Chat with ${onlineUser.name}`}
+                      key={u.id}
+                      className={cn(
+                        "flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors",
+                        isSelected ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-secondary"
+                      )}
+                      onClick={() => {
+                        setSelectedGroupMembers(prev =>
+                          isSelected ? prev.filter(id => id !== u.id) : [...prev, u.id]
+                        );
+                      }}
                     >
                       <div className="relative">
                         <Avatar className="h-8 w-8">
                           <AvatarFallback className="text-xs">
-                            {onlineUser.name.split(" ").map((n) => n[0]).join("").substring(0, 2)}
+                            {u.name.split(" ").map((n) => n[0]).join("").substring(0, 2)}
                           </AvatarFallback>
                         </Avatar>
                         <span
                           className={cn(
                             "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background",
-                            onlineUser.presence_status === "online" && "bg-green-500",
-                            onlineUser.presence_status === "away" && "bg-yellow-500",
-                            onlineUser.presence_status === "offline" && "bg-muted-foreground"
+                            u.presence_status === "online" && "bg-green-500",
+                            u.presence_status === "away" && "bg-yellow-500",
+                            u.presence_status === "offline" && "bg-muted-foreground"
                           )}
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{onlineUser.name}</div>
-                        <div className="text-xs text-muted-foreground capitalize">
-                          {onlineUser.presence_status}
-                        </div>
+                        <div className="text-sm font-medium truncate">{u.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">{u.email}</div>
                       </div>
-                      {onlineUser.is_online && (
-                        <button
-                          className="hidden group-hover:flex h-6 w-6 items-center justify-center rounded hover:bg-primary/10"
-                          title={`Screen share with ${onlineUser.name}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setScreenShareTarget({ id: onlineUser.id, name: onlineUser.name });
-                            setScreenShareViewerOpen(true);
-                          }}
-                        >
-                          <Monitor className="h-3.5 w-3.5" />
-                        </button>
-                      )}
+                      {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
                     </div>
-                  ))
-                )}
-                {!loadingUsers && onlineUsers.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground text-xs">
-                    No team members
-                  </div>
-                )}
+                  );
+                })}
               </div>
             </ScrollArea>
-          </CardContent>
-        </Card>
+            {selectedGroupMembers.length > 0 && (
+              <div className="text-xs text-muted-foreground">
+                {selectedGroupMembers.length} member{selectedGroupMembers.length !== 1 ? "s" : ""} selected
+              </div>
+            )}
+            <Button
+              className="w-full"
+              onClick={handleCreateGroup}
+              disabled={!newGroupName.trim() || selectedGroupMembers.length === 0 || creatingGroup}
+            >
+              {creatingGroup ? <Spinner className="mr-2" /> : null}
+              Create Group
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-        {/* Conversations List */}
-        <Card className="col-span-3 flex flex-col min-h-0">
+      {/* Chat Interface - 2 column layout */}
+      <div className="grid grid-cols-12 gap-2 flex-1 min-h-0">
+        {/* Unified Sidebar */}
+        <Card className="col-span-4 flex flex-col min-h-0">
           <CardHeader className="py-2 px-3 shrink-0">
             <SearchInput
-              placeholder="Search..."
+              id="chat-sidebar-search"
+              placeholder="Search people & groups..."
               value={searchQuery}
               onChange={setSearchQuery}
               inputClassName="h-8 text-sm"
@@ -843,34 +899,60 @@ export default function ChatPage() {
           </CardHeader>
           <CardContent className="p-0 flex-1 min-h-0">
             <ScrollArea className="h-full">
-              {pinnedConversations.length > 0 && (
-                <div className="px-4 py-2">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-                    <Pin className="h-3 w-3" />
-                    Pinned
-                  </div>
-                  {pinnedConversations.map((conv) => (
-                    <ConversationItem
-                      key={conv.id}
-                      conversation={conv}
-                      isSelected={selectedConversation?.id === conv.id}
-                      onClick={() => setSelectedConversation(conv)}
-                    />
-                  ))}
+              <div className="px-2 pb-2">
+                {/* Direct Messages Section */}
+                <div className="px-2 py-1.5">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Direct Messages
+                  </span>
                 </div>
-              )}
-              <div className="px-4 py-2">
-                {pinnedConversations.length > 0 && (
-                  <div className="text-xs text-muted-foreground mb-2">Recent</div>
+                {loadingUsers && conversations.length === 0 ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Spinner />
+                  </div>
+                ) : filteredDMItems.length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground text-xs">
+                    No matches found
+                  </div>
+                ) : (
+                  filteredDMItems.map((item) => (
+                    <SidebarDMEntry
+                      key={item.userId}
+                      item={item}
+                      isSelected={isDMSelected(item)}
+                      onClick={() => handleDMClick(item)}
+                      onScreenShare={(userId, userName) => {
+                        setScreenShareTarget({ id: userId, name: userName });
+                        setScreenShareViewerOpen(true);
+                      }}
+                    />
+                  ))
                 )}
-                {regularConversations.map((conv) => (
-                  <ConversationItem
-                    key={conv.id}
-                    conversation={conv}
-                    isSelected={selectedConversation?.id === conv.id}
-                    onClick={() => setSelectedConversation(conv)}
-                  />
-                ))}
+
+                {/* Groups Section */}
+                {(filteredGroupItems.length > 0 || !searchQuery) && (
+                  <>
+                    <div className="px-2 py-1.5 mt-3">
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Groups
+                      </span>
+                    </div>
+                    {filteredGroupItems.length === 0 ? (
+                      <div className="text-center py-3 text-muted-foreground text-xs">
+                        {searchQuery ? "No groups match" : "No groups yet"}
+                      </div>
+                    ) : (
+                      filteredGroupItems.map((item) => (
+                        <SidebarGroupEntry
+                          key={String(item.conversation.id)}
+                          item={item}
+                          isSelected={isGroupSelected(item)}
+                          onClick={() => setSelectedConversation(item.conversation)}
+                        />
+                      ))
+                    )}
+                  </>
+                )}
               </div>
             </ScrollArea>
           </CardContent>
@@ -885,25 +967,36 @@ export default function ChatPage() {
         )}
 
         {/* Messages Area */}
-        <Card className="col-span-7 flex flex-col min-h-0">
+        <Card className="col-span-8 flex flex-col min-h-0">
           {selectedConversation ? (
             <>
               {/* Conversation Header */}
               <CardHeader className="py-2 px-3 border-b shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-sm">
-                        {selectedConversation.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .substring(0, 2)}
-                      </AvatarFallback>
-                    </Avatar>
+                    {selectedConversation.type === "group" ? (
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Users className="h-4 w-4 text-primary" />
+                      </div>
+                    ) : (
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="text-sm">
+                          {selectedConversation.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .substring(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
                     <div>
                       <div className="text-sm font-medium flex items-center gap-2">
                         {selectedConversation.name}
+                        {selectedConversation.type === "group" && (
+                          <span className="text-xs text-muted-foreground font-normal">
+                            {selectedConversation.participants.length} members
+                          </span>
+                        )}
                         {selectedConversation.job_name && (
                           <Badge variant="outline" className="text-xs py-0">
                             <Briefcase className="h-2.5 w-2.5 mr-1" />
@@ -914,7 +1007,7 @@ export default function ChatPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    {/* Screen Share button - only for DM conversations with online users */}
+                    {/* Screen Share button - only for DM with online users */}
                     {selectedConversation.type === "direct" && (() => {
                       const otherParticipant = selectedConversation.participants.find(p => p.id !== user?.id);
                       const isOnline = otherParticipant && onlineUsers.some(u => u.id === otherParticipant.id && u.is_online);
@@ -1052,8 +1145,6 @@ export default function ChatPage() {
 
               {/* Message Input */}
               <div className="p-2 border-t shrink-0">
-                {/* Image Preview */}
-                {/* Hidden file inputs */}
                 <input
                   type="file"
                   ref={imageInputRef}
@@ -1067,7 +1158,6 @@ export default function ChatPage() {
                   className="hidden"
                   onChange={handleFileSelect}
                 />
-                {/* Image preview */}
                 {imagePreview && (
                   <div className="mb-2 relative inline-block">
                     <img
@@ -1085,7 +1175,6 @@ export default function ChatPage() {
                     </Button>
                   </div>
                 )}
-                {/* Non-image file preview */}
                 {pastedImage && !imagePreview && (
                   <div className="mb-2 relative inline-flex items-center gap-2 bg-secondary rounded-lg px-3 py-2">
                     <FileIcon className="h-4 w-4 shrink-0" />
@@ -1163,15 +1252,100 @@ export default function ChatPage() {
   );
 }
 
-function ConversationItem({
-  conversation,
+// ─── Sidebar DM Entry ───
+function SidebarDMEntry({
+  item,
+  isSelected,
+  onClick,
+  onScreenShare,
+}: {
+  item: SidebarDMItem;
+  isSelected: boolean;
+  onClick: () => void;
+  onScreenShare: (userId: number, userName: string) => void;
+}) {
+  const hasConversation = !!item.conversation?.last_message;
+
+  return (
+    <div
+      className={cn(
+        "group flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors mb-0.5",
+        isSelected ? "bg-secondary" : "hover:bg-secondary/50",
+        !hasConversation && "opacity-60"
+      )}
+      onClick={onClick}
+    >
+      <div className="relative">
+        <Avatar className="h-8 w-8">
+          <AvatarFallback className="text-xs">
+            {item.userName.split(" ").map((n) => n[0]).join("").substring(0, 2)}
+          </AvatarFallback>
+        </Avatar>
+        <span
+          className={cn(
+            "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background",
+            item.presenceStatus === "online" && "bg-green-500",
+            item.presenceStatus === "away" && "bg-yellow-500",
+            item.presenceStatus === "offline" && "bg-muted-foreground"
+          )}
+        />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium truncate">{item.userName}</span>
+          <div className="flex items-center gap-1">
+            {item.conversation?.last_message && (
+              <span className="text-[10px] text-muted-foreground">
+                {formatTime(item.conversation.last_message.created_at)}
+              </span>
+            )}
+          </div>
+        </div>
+        {hasConversation ? (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground truncate">
+              {item.conversation!.last_message!.content}
+            </span>
+            {(item.conversation?.unread_count ?? 0) > 0 && (
+              <Badge className="bg-primary h-4 px-1 ml-1 text-[10px] shrink-0">
+                {item.conversation!.unread_count}
+              </Badge>
+            )}
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground capitalize">
+            {item.presenceStatus}
+          </div>
+        )}
+      </div>
+      {item.isOnline && (
+        <button
+          className="hidden group-hover:flex h-6 w-6 items-center justify-center rounded hover:bg-primary/10 shrink-0"
+          title={`Screen share with ${item.userName}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onScreenShare(item.userId, item.userName);
+          }}
+        >
+          <Monitor className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Sidebar Group Entry ───
+function SidebarGroupEntry({
+  item,
   isSelected,
   onClick,
 }: {
-  conversation: Conversation;
+  item: SidebarGroupItem;
   isSelected: boolean;
   onClick: () => void;
 }) {
+  const conv = item.conversation;
+
   return (
     <div
       className={cn(
@@ -1180,36 +1354,25 @@ function ConversationItem({
       )}
       onClick={onClick}
     >
-      <div className="relative">
-        <Avatar className="h-8 w-8">
-          <AvatarFallback className="text-xs">
-            {conversation.name
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-              .substring(0, 2)}
-          </AvatarFallback>
-        </Avatar>
-        {conversation.type === "job" && (
-          <div className="absolute -bottom-0.5 -right-0.5 bg-blue-500 rounded-full p-0.5">
-            <Briefcase className="h-2 w-2 text-white" />
-          </div>
-        )}
+      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        <Users className="h-4 w-4 text-primary" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium truncate">{conversation.name}</span>
-          <span className="text-[10px] text-muted-foreground">
-            {formatTime(conversation.updated_at)}
-          </span>
+          <span className="text-sm font-medium truncate">{conv.name}</span>
+          {conv.last_message && (
+            <span className="text-[10px] text-muted-foreground">
+              {formatTime(conv.last_message.created_at)}
+            </span>
+          )}
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground truncate">
-            {conversation.last_message?.content || "No messages yet"}
+            {conv.last_message?.content || `${conv.participants.length} members`}
           </span>
-          {conversation.unread_count > 0 && (
-            <Badge className="bg-primary h-4 px-1 ml-1 text-[10px]">
-              {conversation.unread_count}
+          {conv.unread_count > 0 && (
+            <Badge className="bg-primary h-4 px-1 ml-1 text-[10px] shrink-0">
+              {conv.unread_count}
             </Badge>
           )}
         </div>
@@ -1256,7 +1419,6 @@ function MessageBubble({
             {message.message_type === "image" ? (
               <div>
                 {message.file_url ? (
-                  // Check if it's actually an image or a PDF/document
                   message.file_name?.toLowerCase().endsWith('.pdf') ? (
                     <a
                       href={message.file_url}
@@ -1289,7 +1451,6 @@ function MessageBubble({
                           />
                         </DialogContent>
                       </Dialog>
-                      {/* Action buttons overlay */}
                       <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={async (e) => {
@@ -1301,7 +1462,6 @@ function MessageBubble({
                                 new ClipboardItem({ [blob.type]: blob })
                               ]);
                             } catch {
-                              // Fallback: copy URL to clipboard
                               await copyToClipboard(message.file_url!);
                             }
                           }}
@@ -1335,7 +1495,6 @@ function MessageBubble({
                     </div>
                   )
                 ) : message.file_name ? (
-                  // Fallback when file_url is not available yet (uploading to storage)
                   <div className="flex items-center gap-2 px-3 py-2">
                     <FileIcon className="h-4 w-4 shrink-0" />
                     <span className="text-sm break-words">{message.file_name}</span>
