@@ -73,13 +73,14 @@ class ESignatureMailer < ApplicationMailer
     )
   end
 
-  # Sent when a request is cancelled
+  # Sent when a request is cancelled (only to signers who received a signing link)
   def cancellation_notification(request, reason: nil)
     @request = request
     @reason = reason
 
+    # Only notify signers who were already notified (not pending ones who never got a link)
     recipients = [ request.created_by&.email ]
-    recipients += request.signers.pluck(:email)
+    recipients += request.signers.where.not(status: "pending").pluck(:email)
     recipients = recipients.compact.uniq
 
     mail(
