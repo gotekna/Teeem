@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AddressSearchInput } from "@/components/ui/address-search-input";
 import {
   Select,
   SelectContent,
@@ -391,22 +392,20 @@ export default function NewCompanyPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="registered_office_address">Registered Office Address</Label>
-                <Textarea
+                <AddressSearchInput
                   id="registered_office_address"
                   value={formData.registered_office_address}
-                  onChange={(e) => handleChange("registered_office_address", e.target.value)}
-                  placeholder="Full registered office address"
-                  rows={2}
+                  placeholder="Search registered office address..."
+                  onSelect={(address) => handleChange("registered_office_address", address)}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="principal_place_of_business">Principal Place of Business</Label>
-                <Textarea
+                <AddressSearchInput
                   id="principal_place_of_business"
                   value={formData.principal_place_of_business}
-                  onChange={(e) => handleChange("principal_place_of_business", e.target.value)}
-                  placeholder="Full business address"
-                  rows={2}
+                  placeholder="Search business address..."
+                  onSelect={(address) => handleChange("principal_place_of_business", address)}
                 />
               </div>
             </CardContent>
