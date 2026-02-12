@@ -703,6 +703,7 @@ export function DirectorChangeWizard({
           address: a.address,
         })),
         send_for_signing: true,
+        reuse_pdf_generation_id: pdfGenerationId,
       });
 
       if (!response?.success || !response.data?.pdfGenerationId) {
