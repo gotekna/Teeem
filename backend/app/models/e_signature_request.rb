@@ -321,18 +321,24 @@ class ESignatureRequest < ApplicationRecord
 
     begin
       # Download original document content from storage
-      storage_service = DocumentStorageService.new
-      provider = storage_service.send(:s3_provider)
-      return unless provider
-
-      content = provider.download_file(storage_ref)
+      # SSoT pattern: Try StorageBlob first (used by DirectorChangeService, signing ceremony),
+      # fall back to S3 direct download (legacy path)
+      blob_source = StorageBlob.find_by(id: storage_ref)
+      if blob_source
+        content = blob_source.download
+      else
+        storage_service = DocumentStorageService.new
+        provider = storage_service.send(:s3_provider)
+        return unless provider
+        content = provider.download_file(storage_ref)
+      end
       return if content.blank?
 
       filename = generate_signed_filename
       source_type = resolve_source_type
 
-      # Create StorageBlob with content-hash deduplication (SSoT: StorageBlob)
-      blob = StorageBlob.find_or_create_for_content!(
+      # Reuse existing blob if available, otherwise create new with deduplication
+      blob = blob_source || StorageBlob.find_or_create_for_content!(
         content,
         filename: filename,
         content_type: "application/pdf"
