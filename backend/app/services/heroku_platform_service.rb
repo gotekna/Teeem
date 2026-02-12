@@ -96,7 +96,7 @@ class HerokuPlatformService
       cached = Rails.cache.read(CACHE_KEY)
       return cached.merge(cached: true) if cached
 
-      result = fetch_from_heroku
+      result = deep_scrub_strings(fetch_from_heroku)
       Rails.cache.write(CACHE_KEY, result, expires_in: CACHE_TTL)
       result.merge(cached: false)
     rescue => e
@@ -232,12 +232,23 @@ class HerokuPlatformService
       end
 
       if response.code.to_i < 300
-        body = response.body.force_encoding("UTF-8")
-        body = body.encode("UTF-8", invalid: :replace, undef: :replace, replace: "?") unless body.valid_encoding?
-        JSON.parse(body)
+        JSON.parse(response.body.force_encoding("UTF-8").scrub("?"))
       else
         Rails.logger.error("[HerokuPlatformService] GET #{path} failed (HTTP #{response.code})")
         nil
+      end
+    end
+
+    def deep_scrub_strings(obj)
+      case obj
+      when String
+        obj.encode("UTF-8", invalid: :replace, undef: :replace, replace: "?").scrub("?")
+      when Hash
+        obj.transform_values { |v| deep_scrub_strings(v) }
+      when Array
+        obj.map { |v| deep_scrub_strings(v) }
+      else
+        obj
       end
     end
 
