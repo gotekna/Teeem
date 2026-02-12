@@ -26,16 +26,25 @@ class ESignatureEmailService
     subject = mail.subject
     body = extract_html_body(mail)
 
+    Rails.logger.info "[ESignatureEmail] Attempting delivery from #{from_email} to #{to_emails.join(', ')} (subject: #{subject})"
+
     begin
       client = MicrosoftAppGraphClient.new
       client.send_email(from: from_email, to: to_emails, subject: subject, body: body)
       Rails.logger.info "[ESignatureEmail] Sent via Graph API from #{from_email} to #{to_emails.join(', ')}"
     rescue MicrosoftAppGraphClient::NotConnectedError, MicrosoftAppGraphClient::DeadTokenError => e
-      Rails.logger.warn "[ESignatureEmail] Graph API unavailable (#{e.message}), falling back to SMTP"
-      mail_delivery.deliver_now
+      Rails.logger.warn "[ESignatureEmail] Graph API unavailable (#{e.message}), falling back to direct SMTP"
+      # Use mail.deliver! directly on the Mail::Message to bypass ActiveJob/SolidQueue.
+      # mail_delivery.deliver_now goes through the job queue which may not process immediately.
+      # E-signature emails (especially verification codes) must be sent synchronously.
+      mail.deliver!
+      Rails.logger.info "[ESignatureEmail] Sent via SMTP from #{from_email} to #{to_emails.join(', ')}"
     rescue MicrosoftAppGraphClient::ApiError => e
       Rails.logger.error "[ESignatureEmail] Graph API send failed: #{e.message}"
       raise DeliveryError, "Failed to send e-signature email from #{from_email}: #{e.message}"
+    rescue => e
+      Rails.logger.error "[ESignatureEmail] Unexpected error: #{e.class} - #{e.message}"
+      raise DeliveryError, "Failed to send e-signature email: #{e.message}"
     end
   end
 

@@ -79,38 +79,44 @@ class ESignaturePdfStamper
   private
 
   def fetch_original_document
-    return nil unless @request.original_storage_file_id.present?
+    ref = @request.original_storage_reference
+    return nil unless ref.present?
 
-    begin
-      client = MicrosoftAppGraphClient.new
-      client.get_drive_item_content(
-        site_id: @request.storage_site_id,
-        drive_id: @request.storage_drive_id,
-        item_id: @request.original_storage_file_id
-      )
-    rescue StandardError => e
-      Rails.logger.error("ESignaturePdfStamper: Failed to fetch original document: #{e.message}")
-      nil
-    end
+    fetch_document_by_reference(ref, "original")
   end
 
   def fetch_current_document
     # If we have a signed version, use that, otherwise use original
-    if @request.signed_storage_file_id.present?
-      begin
-        client = MicrosoftAppGraphClient.new
-        client.get_drive_item_content(
-          site_id: @request.storage_site_id,
-          drive_id: @request.storage_drive_id,
-          item_id: @request.signed_storage_file_id
-        )
-      rescue StandardError => e
-        Rails.logger.error("ESignaturePdfStamper: Failed to fetch signed document: #{e.message}")
-        fetch_original_document
-      end
+    signed_ref = @request.signed_storage_reference
+    if signed_ref.present?
+      fetch_document_by_reference(signed_ref, "signed") || fetch_original_document
     else
       fetch_original_document
     end
+  end
+
+  # Fetch document from StorageBlob (S3/Wasabi) or SharePoint
+  def fetch_document_by_reference(storage_ref, label)
+    # Try StorageBlob first (S3/Wasabi)
+    blob = StorageBlob.find_by(id: storage_ref)
+    if blob
+      return blob.download
+    end
+
+    # Fall back to SharePoint
+    if @request.storage_site_id.present? && @request.storage_drive_id.present?
+      client = MicrosoftAppGraphClient.new
+      return client.get_drive_item_content(
+        site_id: @request.storage_site_id,
+        drive_id: @request.storage_drive_id,
+        item_id: storage_ref
+      )
+    end
+
+    nil
+  rescue StandardError => e
+    Rails.logger.error("ESignaturePdfStamper: Failed to fetch #{label} document: #{e.message}")
+    nil
   end
 
   def add_signature_footer(page, page_number, total_pages)

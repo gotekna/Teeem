@@ -283,10 +283,12 @@ class Api::V1::SigningCeremonyController < ApplicationController
 
   # GET /api/v1/sign/:token/document
   # Download the document to be signed
+  # Supports both StorageBlob (S3/Wasabi) and SharePoint storage
   def download_document
     request_obj = @signer.e_signature_request
+    storage_ref = request_obj.original_storage_reference
 
-    unless request_obj.original_storage_file_id.present?
+    unless storage_ref.present?
       render json: {
         success: false,
         errors: [ "Document not available" ]
@@ -295,12 +297,7 @@ class Api::V1::SigningCeremonyController < ApplicationController
     end
 
     begin
-      client = MicrosoftAppGraphClient.new
-      content = client.get_drive_item_content(
-        site_id: request_obj.storage_site_id,
-        drive_id: request_obj.storage_drive_id,
-        item_id: request_obj.original_storage_file_id
-      )
+      content = fetch_document_content(request_obj, storage_ref)
 
       # Log download event
       @signer.log_event("document_downloaded",
@@ -313,7 +310,8 @@ class Api::V1::SigningCeremonyController < ApplicationController
                 filename: "#{request_obj.title}.pdf",
                 type: "application/pdf",
                 disposition: "inline"
-    rescue MicrosoftAppGraphClient::ApiError => e
+    rescue => e
+      Rails.logger.error "[ESignature] Document download failed: #{e.class} - #{e.message}"
       render json: {
         success: false,
         errors: [ "Failed to retrieve document" ]
@@ -322,6 +320,29 @@ class Api::V1::SigningCeremonyController < ApplicationController
   end
 
   private
+
+  # Fetch document content from StorageBlob (S3/Wasabi) or SharePoint
+  def fetch_document_content(request_obj, storage_ref)
+    # Try StorageBlob first (S3/Wasabi - used by DirectorChangeService and newer code)
+    blob = StorageBlob.find_by(id: storage_ref)
+    if blob
+      Rails.logger.info "[ESignature] Downloading document from StorageBlob ##{blob.id}"
+      return blob.download
+    end
+
+    # Fall back to SharePoint (legacy path)
+    if request_obj.storage_site_id.present? && request_obj.storage_drive_id.present?
+      Rails.logger.info "[ESignature] Downloading document from SharePoint (item: #{storage_ref})"
+      client = MicrosoftAppGraphClient.new
+      return client.get_drive_item_content(
+        site_id: request_obj.storage_site_id,
+        drive_id: request_obj.storage_drive_id,
+        item_id: storage_ref
+      )
+    end
+
+    raise "No storage backend available for document (ref: #{storage_ref})"
+  end
 
   def authenticate_signer
     token = params[:token]
