@@ -17,6 +17,7 @@ import {
   Info,
   Sparkles,
   Send,
+  PenLine,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -31,6 +32,7 @@ interface EmailConfig {
     newjob: string;
     newcase: string;
     docsort: string;
+    esignature: string;
   };
 }
 
@@ -122,6 +124,7 @@ const MAILBOX_PREFIXES = [
   { prefix: "newjob", label: "New Jobs", description: "Emails here trigger AI job extraction and proposal creation" },
   { prefix: "newcase", label: "New Cases", description: "Emails here trigger case creation proposals" },
   { prefix: "docsort", label: "Document Sorting", description: "Documents emailed here are AI-classified and routed automatically" },
+  { prefix: "esign", label: "E-Signature", description: "Signing invitations and notifications are sent from this address" },
 ];
 
 export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConfigTabProps = {}) {
@@ -136,6 +139,7 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
     monitored_mailbox_newjob: "",
     monitored_mailbox_newcase: "",
     monitored_mailbox_docsort: "",
+    monitored_mailbox_esignature: "",
   });
 
   // Load email config on mount
@@ -157,6 +161,7 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
           monitored_mailbox_newjob: response.data.monitored_mailboxes?.newjob || "",
           monitored_mailbox_newcase: response.data.monitored_mailboxes?.newcase || "",
           monitored_mailbox_docsort: response.data.monitored_mailboxes?.docsort || "",
+          monitored_mailbox_esignature: response.data.monitored_mailboxes?.esignature || "",
         });
       }
     } catch (error) {
@@ -435,6 +440,19 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
               description="Documents here are AI-classified and routed automatically"
               connectedAliases={connectedAliases}
               keywords={["docsort", "doc", "document", "sort"]}
+            />
+
+            {/* E-Signature Mailbox */}
+            <MailboxField
+              id="mailbox_esignature"
+              label="E-Signature Outbox"
+              icon={<PenLine className="h-3 w-3 text-indigo-500 dark:text-indigo-400" />}
+              value={formData.monitored_mailbox_esignature}
+              onChange={(v) => handleChange("monitored_mailbox_esignature", v)}
+              placeholder="esign@example.com"
+              description="Signing invitations and notifications are sent from this address"
+              connectedAliases={connectedAliases}
+              keywords={["esign", "sign", "signature", "esignature"]}
             />
           </div>
         </CardContent>

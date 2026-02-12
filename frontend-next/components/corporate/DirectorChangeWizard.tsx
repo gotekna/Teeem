@@ -1611,7 +1611,7 @@ export function DirectorChangeWizard({
             <div className="text-center space-y-2">
               <h3 className="text-lg font-semibold">Package Sent for Signing</h3>
               <p className="text-sm text-muted-foreground">
-                Signing invitations sent from <span className="font-medium">esign@teeem.com.au</span>
+                Signing invitations have been sent to all signers.
               </p>
               {requestNumber && (
                 <p className="text-xs text-muted-foreground">

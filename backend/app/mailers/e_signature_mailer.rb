@@ -3,7 +3,10 @@
 # ESignatureMailer handles all email notifications for the e-signature system.
 #
 class ESignatureMailer < ApplicationMailer
-  default from: -> { ENV.fetch("ESIGNATURE_FROM_EMAIL", "esign@teeem.com.au") }
+  default from: -> {
+    TenantSetting.monitored_mailbox_esignature.presence ||
+      ENV.fetch("ESIGNATURE_FROM_EMAIL", "robert@teeem.com.au")
+  }
 
   # Sent when a signer is asked to sign a document
   def signing_request(request, signer)
