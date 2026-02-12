@@ -1108,7 +1108,16 @@ export default function EmailPage() {
       replyToMessageId: undefined,
     });
     setComposeOpen(true);
-  }, [searchParams, setReplyTo, setComposeOpen]);
+
+    // Clear compose params from URL so refresh doesn't reopen the modal
+    const url = new URL(window.location.href);
+    url.searchParams.delete("compose_to");
+    url.searchParams.delete("compose_subject");
+    url.searchParams.delete("compose_body");
+    url.searchParams.delete("compose_cc");
+    url.searchParams.delete("compose_from");
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, [searchParams, setReplyTo, setComposeOpen, router]);
 
   // Initialize keyboard shortcuts
   useEmailKeyboardShortcuts({

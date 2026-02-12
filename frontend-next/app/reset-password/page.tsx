@@ -18,6 +18,7 @@ function ResetPasswordForm() {
   const { handleTokenFromRedirect } = useAuth();
   const token = searchParams.get("token");
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -44,6 +45,7 @@ function ResetPasswordForm() {
         const data = await res.json();
         if (data.success) {
           setName(data.name || "");
+          setUsername(data.username || data.email || "");
         } else {
           setTokenValid(false);
           setTokenError(data.error || "Invalid or expired reset link");
@@ -75,7 +77,7 @@ function ResetPasswordForm() {
       const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/reset_password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password, name: name.trim() || undefined }),
+        body: JSON.stringify({ token, password, name: name.trim() || undefined, username: username.trim() || undefined }),
       });
       const data = await res.json();
       if (data.success && data.token) {
@@ -137,7 +139,7 @@ function ResetPasswordForm() {
               <div className="text-sm text-destructive text-center">{error}</div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="name">Your name</Label>
+              <Label htmlFor="name">Display name</Label>
               <Input
                 id="name"
                 type="text"
@@ -146,6 +148,18 @@ function ResetPasswordForm() {
                 disabled={isLoading}
                 placeholder="Full name"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={isLoading}
+                placeholder="Username"
+              />
+              <p className="text-xs text-muted-foreground">Defaults to your email. You can change this.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">New password</Label>

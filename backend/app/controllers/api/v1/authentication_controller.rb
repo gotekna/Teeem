@@ -349,7 +349,7 @@ module Api
           return
         end
 
-        render json: { success: true, name: user.name, email: user.email }
+        render json: { success: true, name: user.name, email: user.email, username: user.username }
       end
 
       # POST /api/v1/auth/reset_password
@@ -385,6 +385,7 @@ module Api
         user.reset_password_sent_at = nil
         user.force_password_change = false
         user.name = params[:name] if params[:name].present?
+        user.username = params[:username] if params[:username].present?
 
         if user.save
           # Auto-login: return JWT token so frontend can log them straight in
