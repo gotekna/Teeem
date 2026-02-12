@@ -232,7 +232,9 @@ class HerokuPlatformService
       end
 
       if response.code.to_i < 300
-        JSON.parse(response.body)
+        body = response.body.force_encoding("UTF-8")
+        body = body.encode("UTF-8", invalid: :replace, undef: :replace, replace: "?") unless body.valid_encoding?
+        JSON.parse(body)
       else
         Rails.logger.error("[HerokuPlatformService] GET #{path} failed (HTTP #{response.code})")
         nil
