@@ -117,15 +117,34 @@ export function DocumentViewerStep({
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 pb-4 border-b">
+    <div className="flex flex-col">
+      {/* Action buttons - ABOVE the PDF so always visible */}
+      <div className="flex justify-between items-center mb-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+        <div>
+          <p className="font-medium text-sm">Please review the document below</p>
+          <p className="text-xs text-muted-foreground">Scroll through the PDF, then click to continue</p>
+        </div>
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDeclineDialog(true)}
+          >
+            Decline
+          </Button>
+          <Button size="lg" onClick={onContinue} className="font-semibold">
+            I Have Reviewed — Continue to Sign →
+          </Button>
+        </div>
+      </div>
+
+      {/* Document header with zoom/download */}
+      <div className="flex items-center justify-between mb-3 pb-3 border-b">
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-muted-foreground" />
-          <span className="font-medium">{documentTitle}</span>
+          <span className="font-medium text-sm">{documentTitle}</span>
         </div>
         <div className="flex items-center gap-2">
-          {/* Zoom controls */}
           <Button
             variant="outline"
             size="sm"
@@ -143,8 +162,6 @@ export function DocumentViewerStep({
           >
             <ZoomIn className="h-4 w-4" />
           </Button>
-
-          {/* Download button */}
           {pdfUrl && (
             <Button variant="outline" size="sm" asChild>
               <a href={pdfUrl} download={`${documentTitle}.pdf`}>
@@ -158,7 +175,7 @@ export function DocumentViewerStep({
 
       {/* PDF Viewer */}
       <div
-        className="flex-1 overflow-auto bg-muted dark:bg-slate-800 rounded-lg mb-4 min-h-[400px]"
+        className="overflow-auto bg-muted dark:bg-slate-800 rounded-lg mb-4"
         onScroll={handleScroll}
       >
         {pdfUrl ? (
@@ -169,55 +186,15 @@ export function DocumentViewerStep({
               style={{
                 height: "600px",
                 maxWidth: `${zoom}%`,
-                transform: `scale(${zoom / 100})`,
-                transformOrigin: "top center"
               }}
               title={documentTitle}
             />
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center min-h-[300px]">
             <p className="text-muted-foreground">Document preview not available</p>
           </div>
         )}
-      </div>
-
-      {/* Page navigation (if multi-page) */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-4 mb-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-            disabled={currentPage <= 1}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-sm">
-            Page {currentPage} of {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-            disabled={currentPage >= totalPages}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
-
-      {/* Action buttons */}
-      <div className="flex justify-between pt-4 border-t">
-        <Button
-          variant="outline"
-          onClick={() => setShowDeclineDialog(true)}
-        >
-          Decline to Sign
-        </Button>
-        <Button onClick={onContinue}>
-          I Have Reviewed the Document
-        </Button>
       </div>
 
       {/* Decline dialog */}

@@ -157,7 +157,20 @@ class GeneratePdfJob < ApplicationJob
     )
 
     if params["send_for_signing"]
-      result = service.generate_and_send!
+      # Reuse existing PDF blob from preview step if available (avoids duplicate generation)
+      existing_blob = nil
+      if params["reuse_pdf_generation_id"].present?
+        existing_gen = PdfGeneration.find_by(id: params["reuse_pdf_generation_id"], status: "completed")
+        existing_blob = existing_gen&.storage_blob
+      end
+
+      if existing_blob
+        # Skip PDF generation - reuse preview blob and just send for signing
+        result = service.send_with_existing_blob!(existing_blob)
+      else
+        result = service.generate_and_send!
+      end
+
       # Store e-sig result for frontend polling
       pdf_gen.update_column(:generator_params, pdf_gen.generator_params.merge(
         "_result" => {
