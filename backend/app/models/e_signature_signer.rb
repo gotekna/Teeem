@@ -115,10 +115,15 @@ class ESignatureSigner < ApplicationRecord
     return if notified_at.present?
 
     generate_access_token!
-    ESignatureMailer.signing_request(e_signature_request, self).deliver_now
+    begin
+      ESignatureMailer.signing_request(e_signature_request, self).deliver_now
+    rescue Net::ReadTimeout, Net::OpenTimeout, Errno::ECONNREFUSED, Errno::ECONNRESET => e
+      log_event("notification_failed", description: "Email delivery failed: #{e.message}")
+      raise DirectorChangeService::GenerationError, "Failed to send email to #{email}: #{e.class.name} - check E-Signature Outbox in Settings > Email Setup"
+    end
 
     update!(status: "notified", notified_at: Time.current)
-    log_event("notified", description: "Signing notification sent")
+    log_event("notified", description: "Signing notification sent to #{email}")
   end
 
   def mark_viewed!(ip_address: nil, user_agent: nil)
