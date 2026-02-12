@@ -956,14 +956,18 @@ module Api
             {
               corporate_director_id: cd[:corporate_director_id].to_i,
               positions: cd[:positions],
-              cessation_date: cd[:cessation_date]
+              cessation_date: cd[:cessation_date],
+              email: cd[:email],
+              address: cd[:address]
             }
           },
           new_appointments: (params[:new_appointments] || []).map { |appt|
             {
               contact_id: appt[:contact_id].to_i,
               positions: appt[:positions],
-              appointment_date: appt[:appointment_date]
+              appointment_date: appt[:appointment_date],
+              email: appt[:email],
+              address: appt[:address]
             }
           },
           send_for_signing: params[:send_for_signing].present?

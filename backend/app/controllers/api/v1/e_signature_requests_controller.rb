@@ -87,10 +87,10 @@ class Api::V1::ESignatureRequestsController < ApplicationController
 
   # DELETE /api/v1/e_signature_requests/:id
   def destroy
-    unless @request.status == "draft"
+    unless @request.status.in?(%w[draft cancelled])
       render json: {
         success: false,
-        errors: [ "Cannot delete a request that has been sent. Cancel it instead." ]
+        errors: [ "Only draft or cancelled requests can be deleted" ]
       }, status: :unprocessable_entity
       return
     end

@@ -158,6 +158,8 @@ import {
   Key,
   // Folder variants
   FolderHeart,
+  // E-Signature
+  PenLine,
   type LucideIcon,
 } from "lucide-react";
 
@@ -322,6 +324,8 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   Key,
   // Folder variants
   FolderHeart,
+  // E-Signature
+  PenLine,
 };
 
 // List of available icons for the icon picker

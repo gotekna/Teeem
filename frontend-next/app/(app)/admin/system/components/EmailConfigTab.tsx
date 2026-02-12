@@ -17,7 +17,10 @@ import {
   Info,
   Sparkles,
   Send,
+  PenLine,
+  ShieldCheck,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
@@ -31,7 +34,9 @@ interface EmailConfig {
     newjob: string;
     newcase: string;
     docsort: string;
+    esignature: string;
   };
+  esignature_require_email_verification: boolean;
 }
 
 function MailboxField({
@@ -117,11 +122,12 @@ interface EmailConfigTabProps {
 
 // SSoT: Standard mailbox prefixes (same as Tekna's shared mailbox naming)
 const MAILBOX_PREFIXES = [
-  { prefix: "pay", label: "Bills/Invoices", description: "Incoming supplier invoices are routed here for automated processing" },
-  { prefix: "newtask", label: "New Tasks", description: "Emails forwarded here automatically create tasks" },
-  { prefix: "newjob", label: "New Jobs", description: "Emails here trigger AI job extraction and proposal creation" },
-  { prefix: "newcase", label: "New Cases", description: "Emails here trigger case creation proposals" },
-  { prefix: "docsort", label: "Document Sorting", description: "Documents emailed here are AI-classified and routed automatically" },
+  { prefix: "pay", key: "pay", label: "Bills/Invoices", description: "Incoming supplier invoices are routed here for automated processing" },
+  { prefix: "newtask", key: "newtask", label: "New Tasks", description: "Emails forwarded here automatically create tasks" },
+  { prefix: "newjob", key: "newjob", label: "New Jobs", description: "Emails here trigger AI job extraction and proposal creation" },
+  { prefix: "newcase", key: "newcase", label: "New Cases", description: "Emails here trigger case creation proposals" },
+  { prefix: "docsort", key: "docsort", label: "Document Sorting", description: "Documents emailed here are AI-classified and routed automatically" },
+  { prefix: "esign", key: "esignature", label: "E-Signature", description: "Signing invitations and notifications are sent from this address" },
 ];
 
 export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConfigTabProps = {}) {
@@ -136,6 +142,8 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
     monitored_mailbox_newjob: "",
     monitored_mailbox_newcase: "",
     monitored_mailbox_docsort: "",
+    monitored_mailbox_esignature: "",
+    esignature_require_email_verification: true,
   });
 
   // Load email config on mount
@@ -157,6 +165,8 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
           monitored_mailbox_newjob: response.data.monitored_mailboxes?.newjob || "",
           monitored_mailbox_newcase: response.data.monitored_mailboxes?.newcase || "",
           monitored_mailbox_docsort: response.data.monitored_mailboxes?.docsort || "",
+          monitored_mailbox_esignature: response.data.monitored_mailboxes?.esignature || "",
+          esignature_require_email_verification: response.data.esignature_require_email_verification ?? true,
         });
       }
     } catch (error) {
@@ -314,7 +324,7 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
                     if (!domain) return;
                     const updates: Record<string, string> = {};
                     for (const m of MAILBOX_PREFIXES) {
-                      const key = `monitored_mailbox_${m.prefix}` as keyof typeof formData;
+                      const key = `monitored_mailbox_${m.key}` as keyof typeof formData;
                       if (!formData[key]) {
                         updates[key] = `${m.prefix}@${domain}`;
                       }
@@ -435,6 +445,52 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
               description="Documents here are AI-classified and routed automatically"
               connectedAliases={connectedAliases}
               keywords={["docsort", "doc", "document", "sort"]}
+            />
+
+            {/* E-Signature Mailbox */}
+            <MailboxField
+              id="mailbox_esignature"
+              label="E-Signature Outbox"
+              icon={<PenLine className="h-3 w-3 text-indigo-500 dark:text-indigo-400" />}
+              value={formData.monitored_mailbox_esignature}
+              onChange={(v) => handleChange("monitored_mailbox_esignature", v)}
+              placeholder="esign@example.com"
+              description="Signing invitations and notifications are sent from this address"
+              connectedAliases={connectedAliases}
+              keywords={["esign", "sign", "signature", "esignature"]}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* E-Signature Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            E-Signature Security
+          </CardTitle>
+          <CardDescription>
+            Configure security settings for the e-signature signing process
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="esign_verification" className="text-sm font-medium">
+                Require email verification before signing
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                When enabled, signers must verify their email with a 6-digit code before they can sign.
+                Disable this for trusted internal signing workflows.
+              </p>
+            </div>
+            <Switch
+              id="esign_verification"
+              checked={formData.esignature_require_email_verification}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, esignature_require_email_verification: checked }))
+              }
             />
           </div>
         </CardContent>

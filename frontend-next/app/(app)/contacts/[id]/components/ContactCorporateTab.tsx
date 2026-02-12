@@ -191,6 +191,8 @@ function IdentitySubTab({ contact }: { contact: Contact; }) {
   const [localContact, setLocalContact] = useState(contact);
   const [editingDob, setEditingDob] = useState(false);
   const [dobValue, setDobValue] = useState(contact.date_of_birth || "");
+  const [editingPob, setEditingPob] = useState(false);
+  const [pobValue, setPobValue] = useState(contact.place_of_birth || "");
   const [editingAddress, setEditingAddress] = useState(false);
   const [addressValue, setAddressValue] = useState(contact.residential_address || "");
   const [sameAsStreet, setSameAsStreet] = useState(false);
@@ -199,6 +201,7 @@ function IdentitySubTab({ contact }: { contact: Contact; }) {
   useEffect(() => {
     setLocalContact(contact);
     setDobValue(contact.date_of_birth || "");
+    setPobValue(contact.place_of_birth || "");
     setAddressValue(contact.residential_address || "");
   }, [contact]);
 
@@ -278,7 +281,7 @@ function IdentitySubTab({ contact }: { contact: Contact; }) {
                 <div className="flex items-center gap-1.5">
                   <p className="text-sm font-medium">
                     {localContact.date_of_birth ? (
-                      new Date(localContact.date_of_birth).toLocaleDateString()
+                      new Date(localContact.date_of_birth).toLocaleDateString("en-AU")
                     ) : (
                       <span className="text-muted-foreground">Not set</span>
                     )}
@@ -296,17 +299,63 @@ function IdentitySubTab({ contact }: { contact: Contact; }) {
             {/* Place of Birth */}
             <div>
               <p className="text-xs text-muted-foreground">Place of Birth</p>
-              <p className="text-sm font-medium">
-                {contact.place_of_birth === "[RESTRICTED]" ? (
-                  <span className="text-amber-600 flex items-center gap-1">
-                    <Lock className="h-3 w-3" /> Restricted
-                  </span>
-                ) : contact.place_of_birth ? (
-                  `${contact.place_of_birth}${contact.birth_state ? `, ${contact.birth_state}` : ""}${contact.birth_country ? `, ${contact.birth_country}` : ""}`
-                ) : (
-                  <span className="text-muted-foreground">Not set</span>
-                )}
-              </p>
+              {localContact.place_of_birth === "[RESTRICTED]" ? (
+                <span className="text-amber-600 flex items-center gap-1 text-sm">
+                  <Lock className="h-3 w-3" /> Restricted
+                </span>
+              ) : editingPob ? (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <Input
+                    type="text"
+                    value={pobValue}
+                    onChange={(e) => setPobValue(e.target.value)}
+                    placeholder="e.g. Brisbane"
+                    className="h-7 text-sm w-40"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        saveField("place_of_birth", pobValue);
+                        setEditingPob(false);
+                      } else if (e.key === "Escape") {
+                        setPobValue(localContact.place_of_birth || "");
+                        setEditingPob(false);
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0"
+                    disabled={savingField === "place_of_birth"}
+                    onClick={async () => {
+                      await saveField("place_of_birth", pobValue);
+                      setEditingPob(false);
+                    }}
+                  >
+                    {savingField === "place_of_birth" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Check className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-medium">
+                    {localContact.place_of_birth ? (
+                      `${localContact.place_of_birth}${localContact.birth_state ? `, ${localContact.birth_state}` : ""}${localContact.birth_country ? `, ${localContact.birth_country}` : ""}`
+                    ) : (
+                      <span className="text-muted-foreground">Not set</span>
+                    )}
+                  </p>
+                  <button
+                    onClick={() => setEditingPob(true)}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Director ID (DIN) */}
@@ -581,8 +630,8 @@ function DirectorshipsTable({
               position: d.formatted_position || d.position,
               company_group: d.company_group_name || "-",
               status: d.is_current ? "Current" : "Former",
-              appointed: d.appointment_date ? new Date(d.appointment_date).toLocaleDateString() : "-",
-              resigned: d.resignation_date ? new Date(d.resignation_date).toLocaleDateString() : "-",
+              appointed: d.appointment_date ? new Date(d.appointment_date).toLocaleDateString("en-AU") : "-",
+              resigned: d.resignation_date ? new Date(d.resignation_date).toLocaleDateString("en-AU") : "-",
             }))}
             columns={[
               { key: "company_name", label: "Company", column_type: "text" },
@@ -642,7 +691,7 @@ function ShareholdingsTable({
               percentage: sh.percentage_of_total != null ? `${sh.percentage_of_total.toFixed(1)}%` : "-",
               company_group: sh.company_group_name || "-",
               status: !sh.disposal_date ? "Current" : "Disposed",
-              acquired: sh.acquisition_date ? new Date(sh.acquisition_date).toLocaleDateString() : "-",
+              acquired: sh.acquisition_date ? new Date(sh.acquisition_date).toLocaleDateString("en-AU") : "-",
             }))}
             columns={[
               { key: "company_name", label: "Company", column_type: "text" },
@@ -747,7 +796,7 @@ function TrustRolesTable({
       role: "Trustee",
       entitlement: "-",
       status: r.is_active ? "Active" : "Inactive",
-      since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
+      since: r.start_date ? new Date(r.start_date).toLocaleDateString("en-AU") : "-",
     })),
     ...trustRoles.beneficiary_roles.map(r => ({
       id: r.id,
@@ -756,7 +805,7 @@ function TrustRolesTable({
       role: "Beneficiary",
       entitlement: r.ownership_percentage != null ? `${r.ownership_percentage.toFixed(1)}%` : "-",
       status: r.is_active ? "Active" : "Inactive",
-      since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
+      since: r.start_date ? new Date(r.start_date).toLocaleDateString("en-AU") : "-",
     })),
     ...trustRoles.appointor_roles.map(r => ({
       id: r.id,
@@ -765,7 +814,7 @@ function TrustRolesTable({
       role: "Appointor",
       entitlement: "-",
       status: r.is_active ? "Active" : "Inactive",
-      since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
+      since: r.start_date ? new Date(r.start_date).toLocaleDateString("en-AU") : "-",
     })),
   ];
 

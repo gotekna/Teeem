@@ -190,8 +190,8 @@ class DirectorChangeService
 
     context = {
       company: build_company_context,
-      director: build_director_context(contact),
-      positions: cd_data[:positions],
+      director: build_director_context(contact, selected_email: cd_data[:email], selected_address: cd_data[:address]),
+      positions: deduplicate_positions(cd_data[:positions]),
       cessation_date: cessation_date,
       cessation_date_formatted: cessation_date.strftime("%d/%m/%Y")
     }
@@ -217,8 +217,8 @@ class DirectorChangeService
 
     context = {
       company: build_company_context,
-      director: build_director_context(contact),
-      positions: appt_data[:positions],
+      director: build_director_context(contact, selected_email: appt_data[:email], selected_address: appt_data[:address]),
+      positions: deduplicate_positions(appt_data[:positions]),
       appointment_date: appointment_date,
       appointment_date_formatted: appointment_date.strftime("%d/%m/%Y")
     }
@@ -247,12 +247,15 @@ class DirectorChangeService
     remaining_directors = remaining.group_by(&:contact_id).map do |_cid, dirs|
       {
         full_name: dirs.first.contact.display_name,
-        positions: dirs.map(&:position)
+        positions: deduplicate_positions(dirs.map(&:position))
       }
     end
 
-    # Determine chairperson - prefer director with chairperson position, else first remaining
+    # Determine chairperson for signing badge
+    # Priority: 1) remaining director with "chair" position, 2) first remaining director,
+    # 3) first ceasing director (outgoing chairs the meeting), 4) first new appointment
     chairperson_contact = nil
+    chairperson_selected_email = nil
     remaining.each do |dir|
       if dir.position&.downcase&.include?("chair")
         chairperson_contact = dir.contact
@@ -260,6 +263,15 @@ class DirectorChangeService
       end
     end
     chairperson_contact ||= remaining.first&.contact
+    unless chairperson_contact
+      # Fallback to ceasing director - use their wizard-selected email
+      cd = ceasing_directors.first
+      if cd
+        chairperson_contact = cd[:corporate_director]&.contact
+        chairperson_selected_email = cd[:email]
+      end
+    end
+    chairperson_contact ||= new_appointments.first&.dig(:contact)
 
     context = {
       company: build_company_context,
@@ -267,7 +279,7 @@ class DirectorChangeService
         contact = cd[:corporate_director].contact
         {
           full_name: contact.display_name,
-          positions: cd[:positions],
+          positions: deduplicate_positions(cd[:positions]),
           cessation_date_formatted: cd[:cessation_date].strftime("%d/%m/%Y")
         }
       end,
@@ -275,14 +287,14 @@ class DirectorChangeService
         contact = appt[:contact]
         {
           full_name: contact.display_name,
-          address: contact.full_address,
-          positions: appt[:positions],
+          address: appt[:address].presence || contact.residential_address.presence || contact.full_address,
+          positions: deduplicate_positions(appt[:positions]),
           appointment_date_formatted: appt[:appointment_date].strftime("%d/%m/%Y")
         }
       end,
       remaining_directors: remaining_directors,
       chairperson_name: chairperson_contact&.display_name,
-      chairperson_email: chairperson_contact&.primary_email,
+      chairperson_email: chairperson_selected_email.presence || chairperson_contact&.primary_email,
       meeting_date: meeting_date,
       meeting_date_formatted: meeting_date.strftime("%d/%m/%Y")
     }
@@ -308,8 +320,8 @@ class DirectorChangeService
         {
           full_name: contact.display_name,
           date_of_birth: contact.date_of_birth&.strftime("%d/%m/%Y"),
-          address: contact.full_address,
-          positions: cd[:positions],
+          address: cd[:address].presence || contact.residential_address.presence || contact.full_address,
+          positions: deduplicate_positions(cd[:positions]),
           cessation_date_formatted: cd[:cessation_date].strftime("%d/%m/%Y")
         }
       end,
@@ -318,8 +330,8 @@ class DirectorChangeService
         {
           full_name: contact.display_name,
           date_of_birth: contact.date_of_birth&.strftime("%d/%m/%Y"),
-          address: contact.full_address,
-          positions: appt[:positions],
+          address: appt[:address].presence || contact.residential_address.presence || contact.full_address,
+          positions: deduplicate_positions(appt[:positions]),
           appointment_date_formatted: appt[:appointment_date].strftime("%d/%m/%Y")
         }
       end,
@@ -372,12 +384,12 @@ class DirectorChangeService
     }
   end
 
-  def build_director_context(contact)
+  def build_director_context(contact, selected_email: nil, selected_address: nil)
     {
       full_name: contact.display_name,
       date_of_birth: contact.date_of_birth&.strftime("%d/%m/%Y"),
-      address: contact.full_address,
-      email: contact.primary_email
+      address: selected_address.presence || contact.residential_address.presence || contact.full_address,
+      email: selected_email.presence || contact.primary_email
     }
   end
 
@@ -483,6 +495,17 @@ class DirectorChangeService
     ceasing_directors.each { |cd| dates << cd[:cessation_date] }
     new_appointments.each { |appt| dates << appt[:appointment_date] }
     dates.compact.min || Date.current
+  end
+
+  # Deduplicate positions: removes combined strings like "Director Secretary Public Officer"
+  # when individual positions ("Director", "Secretary", "Public Officer") are also present.
+  def deduplicate_positions(positions)
+    return positions if positions.length <= 1
+
+    positions.reject do |pos|
+      others = positions.select { |p| p != pos && pos.downcase.include?(p.downcase) }
+      others.length >= 2
+    end
   end
 
   def log_activity(activity_type, description)

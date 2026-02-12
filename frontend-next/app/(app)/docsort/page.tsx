@@ -276,11 +276,24 @@ export default function DocsortPage() {
   // Auto-detect company from filename by finding the longest company name match
   const detectCompanyFromFilename = useCallback((filename: string | null): ComboboxItem | undefined => {
     if (!filename || companies.length === 0) return undefined;
-    const normalizedFilename = filename.toLowerCase();
+    // Strip extension and normalize
+    const baseName = filename.replace(/\.[^.]+$/, "");
+
+    // Normalize abbreviations so "Ltd" matches "Limited", "Pty" matches "Proprietary", etc.
+    const normalizeAbbreviations = (s: string) =>
+      s.toLowerCase()
+        .replace(/\blimited\b/g, "ltd")
+        .replace(/\bproprietary\b/g, "pty")
+        .replace(/\bincorporated\b/g, "inc")
+        .replace(/\bcorporation\b/g, "corp")
+        .trim();
+
+    const normalizedFilename = normalizeAbbreviations(baseName);
     let bestMatch: ComboboxItem | undefined;
     let bestLength = 0;
     for (const company of companies) {
-      const name = company.label.toLowerCase();
+      // Strip trailing markers like " *" and normalize abbreviations
+      const name = normalizeAbbreviations(company.label.replace(/\s*\*\s*$/, ""));
       if (name.length > 2 && normalizedFilename.includes(name) && name.length > bestLength) {
         bestMatch = company;
         bestLength = name.length;
@@ -676,7 +689,11 @@ export default function DocsortPage() {
                         "flex items-center gap-4 px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors",
                         selectedItem?.id === item.id && "bg-muted"
                       )}
-                      onClick={() => setSelectedItem(item)}
+                      onClick={() => {
+                        setSelectedItem(item);
+                        setSelectedCorporate(detectCompanyFromFilename(item.original_filename));
+                        setDrawerOpen(true);
+                      }}
                     >
                       {/* Icon */}
                       <div className="flex-shrink-0">

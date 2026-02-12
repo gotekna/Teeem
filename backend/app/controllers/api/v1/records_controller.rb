@@ -73,7 +73,9 @@ module Api
             # Company/Role panel view: Search name-related columns only
             # This prevents matching irrelevant contacts via city, place_of_birth, abn_entity_name, etc.
             # Note: Contacts table has no 'email' column - emails are in contact_emails table
-            %w[display_name first_name last_name company_name_or_trust]
+            # CRITICAL: Table-qualify columns because eager loading :primary_company
+            # creates a self-JOIN on contacts, making display_name ambiguous
+            %w[contacts.display_name contacts.first_name contacts.last_name contacts.company_name_or_trust]
           elsif search_all
             # Search ALL text columns (comprehensive but slower)
             if @foundation.table_type == "system"
@@ -102,6 +104,13 @@ module Api
             else
               []
             end
+          end
+
+          # SSoT: Contacts foundation - qualify columns to avoid ambiguity
+          # Eager loading :primary_company creates a self-JOIN (contacts → contacts),
+          # making columns like display_name ambiguous. Qualify with table name.
+          if @foundation.slug == "contacts" && !is_company_role_view
+            searchable_columns = searchable_columns.map { |col| col.include?(".") ? col : "contacts.#{col}" }
           end
 
           # SSoT: Jobs foundation - also search client name via job_contacts join
