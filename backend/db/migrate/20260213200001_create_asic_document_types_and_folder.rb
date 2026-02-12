@@ -17,6 +17,14 @@ class CreateAsicDocumentTypesAndFolder < ActiveRecord::Migration[8.0]
       return
     end
 
+    # Set tenant context for acts_as_tenant models
+    tenant = Tenant.first
+    ActsAsTenant.with_tenant(tenant) do
+      run_with_tenant(corporate_wt)
+    end
+  end
+
+  def run_with_tenant(corporate_wt)
     # Find or create "ASIC Forms" folder under corporate warehouse type
     asic_folder = WarehouseFolder.find_or_create_by!(
       warehouse_type: corporate_wt,
