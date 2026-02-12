@@ -149,6 +149,8 @@ interface VercelBillingData {
     total: number;
     status: string;
     createdAt: string;
+    periodStart?: number;
+    periodEnd?: number;
     groups: Array<{ id: string; title: string; total: number }>;
     lineItems: VercelLineItem[];
   };
@@ -825,6 +827,16 @@ export default function CostsMap() {
                         {/* Vercel build minutes detail */}
                         {isVercel && vercelBilling && (
                           <div className="mt-2 space-y-1.5">
+                            {vercelBilling.currentInvoice?.periodStart && vercelBilling.currentInvoice?.periodEnd && (
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-muted-foreground">Billing Cycle:</span>
+                                <span className="font-mono font-medium">
+                                  {new Date(vercelBilling.currentInvoice.periodStart).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Brisbane" })}
+                                  {" — "}
+                                  {new Date(vercelBilling.currentInvoice.periodEnd).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Brisbane" })}
+                                </span>
+                              </div>
+                            )}
                             {vercelBilling.buildMinutes && (
                               <div className="flex items-center gap-2 text-xs">
                                 <span className="text-muted-foreground">Build Minutes:</span>

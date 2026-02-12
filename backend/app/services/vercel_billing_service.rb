@@ -84,6 +84,10 @@ class VercelBillingService
         end
       end
 
+      # Extract billing period from invoice
+      period_start = current["period"]&.dig("start") || current["periodStart"]
+      period_end = current["period"]&.dig("end") || current["periodEnd"]
+
       {
         success: true,
         plan: "pro",
@@ -92,6 +96,8 @@ class VercelBillingService
           total: current["amountDue"].to_f,
           status: current["status"],
           createdAt: current["createdAt"],
+          periodStart: period_start,
+          periodEnd: period_end,
           groups: groups,
           lineItems: line_items.first(10)  # Top 10 by cost
         },
