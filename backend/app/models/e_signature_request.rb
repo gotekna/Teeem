@@ -64,7 +64,15 @@ class ESignatureRequest < ApplicationRecord
         expires_at: 30.days.from_now
       )
 
-      signers.each(&:send_notification!)
+      if sequential_signing?
+        # Only notify the first signer - subsequent signers get notified
+        # after the previous signer completes (see ESignatureSigner#sign!)
+        first_signer = signers.order(:signing_order).first
+        first_signer&.send_notification!
+      else
+        signers.each(&:send_notification!)
+      end
+
       log_event("sent", description: "Request sent for signing")
     end
 
