@@ -130,6 +130,17 @@ class ESignatureRequest < ApplicationRecord
 
     update!(status: "cancelled")
     log_event("cancelled", description: reason || "Request cancelled")
+
+    # Notify all signers and the creator that the request was cancelled
+    begin
+      ESignatureEmailService.deliver(
+        ESignatureMailer.cancellation_notification(self, reason: reason)
+      )
+    rescue => e
+      Rails.logger.error "[ESignature] Cancellation notification failed: #{e.message}"
+      # Don't fail the cancellation if notification fails
+    end
+
     true
   end
 

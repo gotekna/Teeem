@@ -73,6 +73,21 @@ class ESignatureMailer < ApplicationMailer
     )
   end
 
+  # Sent when a request is cancelled
+  def cancellation_notification(request, reason: nil)
+    @request = request
+    @reason = reason
+
+    recipients = [ request.created_by&.email ]
+    recipients += request.signers.pluck(:email)
+    recipients = recipients.compact.uniq
+
+    mail(
+      to: recipients,
+      subject: "Signing request cancelled: #{request.title}"
+    )
+  end
+
   # Sent when a request expires
   def expiration_notification(request)
     @request = request
