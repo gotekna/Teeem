@@ -32,6 +32,7 @@ Rails.application.routes.draw do
         member do
           get :download
           patch :cancel
+          patch :dismiss
         end
       end
 

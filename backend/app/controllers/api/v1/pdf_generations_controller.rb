@@ -85,6 +85,20 @@ module Api
         render json: { success: true, data: serialize(pdf_gen) }
       end
 
+      # PATCH /api/v1/pdf_generations/:id/dismiss
+      # Dismiss a completed generation so it no longer shows in the wizard
+      def dismiss
+        pdf_gen = PdfGeneration.find(params[:id])
+
+        unless pdf_gen.tenant_id == current_tenant&.id
+          return render json: { success: false, error: "Not found" }, status: :not_found
+        end
+
+        pdf_gen.update!(status: "failed", error_message: "Dismissed by user")
+
+        render json: { success: true, data: serialize(pdf_gen) }
+      end
+
       # GET /api/v1/pdf_generations/:id/download
       # Download the generated PDF (redirects to presigned URL or streams inline)
       def download

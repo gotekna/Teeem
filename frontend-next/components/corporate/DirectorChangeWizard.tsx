@@ -40,6 +40,7 @@ import {
   FileText,
   Pencil,
   Plus,
+  Mail,
   Send,
   Trash2,
   User,
@@ -53,6 +54,13 @@ import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
 
 // --- Types ---
 
+interface ContactEmail {
+  id: number;
+  email: string;
+  is_primary: boolean;
+  label: string | null;
+}
+
 interface CeasingDirector {
   corporate_director_id: number;
   contact_id: number;
@@ -61,6 +69,14 @@ interface CeasingDirector {
   position: string;
   positions: string[];
   cessation_date: string;
+  has_dob: boolean;
+  has_address: boolean;
+  dob: string;
+  address: string;
+  editing_dob: boolean;
+  editing_address: boolean;
+  emails: ContactEmail[];      // All available emails
+  selected_email: string;      // Email selected for e-signature
 }
 
 interface NewAppointment {
@@ -71,10 +87,12 @@ interface NewAppointment {
   appointment_date: string;
   has_dob: boolean;
   has_address: boolean;
-  dob: string;        // Actual DOB value for display/confirmation
-  address: string;    // Actual residential address for display/confirmation
+  dob: string;
+  address: string;
   editing_dob: boolean;
   editing_address: boolean;
+  emails: ContactEmail[];      // All available emails
+  selected_email: string;      // Email selected for e-signature
 }
 
 interface ContactSearchResult {
@@ -226,13 +244,16 @@ export function DirectorChangeWizard({
     }
   };
 
-  // Cancel a pending/processing PDF generation
-  const cancelGeneration = async (id: number) => {
+  // Cancel (pending/processing) or dismiss (completed) a PDF generation
+  const dismissGeneration = async (gen: PendingGeneration) => {
     try {
-      await api.patch(`/api/v1/pdf_generations/${id}/cancel`, {});
-      setPendingGenerations((prev) => prev.filter((pg) => pg.id !== id));
+      const endpoint = gen.status === "completed"
+        ? `/api/v1/pdf_generations/${gen.id}/dismiss`
+        : `/api/v1/pdf_generations/${gen.id}/cancel`;
+      await api.patch(endpoint, {});
+      setPendingGenerations((prev) => prev.filter((pg) => pg.id !== gen.id));
     } catch {
-      setError("Failed to cancel generation");
+      setError("Failed to dismiss generation");
     }
   };
 
@@ -317,7 +338,7 @@ export function DirectorChangeWizard({
 
   // --- Ceasing Directors ---
 
-  const addCeasingDirector = (officer: OfficerRecord) => {
+  const addCeasingDirector = async (officer: OfficerRecord) => {
     // Check if this contact is already added (by contact id, not officer id)
     const contactId = officer.contact?.id;
     if (contactId && ceasingDirectors.some((cd) => cd.contact_id === contactId)) return;
@@ -333,6 +354,27 @@ export function DirectorChangeWizard({
       .filter((o) => o.contact?.id === contactId && o.is_current)
       .map((o) => o.id);
 
+    // Fetch contact details for DOB/address/emails
+    let dob = "";
+    let address = "";
+    let hasDob = false;
+    let hasAddress = false;
+    let emails: ContactEmail[] = [];
+    let selectedEmail = officer.contact?.email || "";
+    if (contactId) {
+      try {
+        const resp = await api.get(`/api/v1/contacts/${contactId}`) as { contact: Record<string, unknown>; contact_emails?: ContactEmail[] };
+        const contact = resp.contact || resp;
+        dob = (contact.date_of_birth as string) || "";
+        address = (contact.residential_address as string) || (contact.full_address as string) || "";
+        hasDob = !!dob;
+        hasAddress = !!address;
+        emails = ((contact.contact_emails || resp.contact_emails) as ContactEmail[] | undefined) || [];
+        const primary = emails.find((e) => e.is_primary);
+        selectedEmail = primary?.email || emails[0]?.email || selectedEmail;
+      } catch { /* proceed without details */ }
+    }
+
     setCeasingDirectors((prev) => [
       ...prev,
       {
@@ -343,6 +385,14 @@ export function DirectorChangeWizard({
         position: officer.position,
         positions: uniquePositions.length > 0 ? uniquePositions : [officer.position],
         cessation_date: format(new Date(), "yyyy-MM-dd"),
+        has_dob: hasDob,
+        has_address: hasAddress,
+        dob,
+        address,
+        editing_dob: false,
+        editing_address: false,
+        emails,
+        selected_email: selectedEmail,
       },
     ]);
   };
@@ -371,14 +421,16 @@ export function DirectorChangeWizard({
     // Default appointment date to the first ceasing director's cessation date (continuity)
     const defaultDate = ceasingDirectors[0]?.cessation_date || format(new Date(), "yyyy-MM-dd");
 
-    // Fetch full contact details to get DOB and residential address for confirmation
+    // Fetch full contact details to get DOB, residential address, and emails
     // ASIC forms require residential_address specifically, not just contact_addresses
     let hasDob = !!contact.date_of_birth;
     let hasAddress = false;
     let dobValue = "";
     let addressValue = "";
+    let emails: ContactEmail[] = [];
+    let selectedEmail = contact.email || "";
     try {
-      const detail = await api.get<{ contact: { date_of_birth?: string; residential_address?: string | null; contact_addresses?: Array<{ line1?: string; line2?: string; city?: string; region?: string; postal_code?: string; country?: string; address_type?: string }> } }>(
+      const detail = await api.get<{ contact: { date_of_birth?: string; residential_address?: string | null; contact_emails?: ContactEmail[]; contact_addresses?: Array<{ line1?: string; line2?: string; city?: string; region?: string; postal_code?: string; country?: string; address_type?: string }> } }>(
         `/api/v1/contacts/${contact.id}`
       );
       const c = detail.contact;
@@ -399,6 +451,10 @@ export function DirectorChangeWizard({
           addressValue = parts.join(", ");
         }
       }
+      // Emails for e-signature delivery
+      emails = c?.contact_emails || [];
+      const primary = emails.find((e) => e.is_primary);
+      selectedEmail = primary?.email || emails[0]?.email || selectedEmail;
     } catch {
       // If fetch fails, keep search-level values
     }
@@ -417,6 +473,8 @@ export function DirectorChangeWizard({
         address: addressValue,
         editing_dob: false,
         editing_address: false,
+        emails,
+        selected_email: selectedEmail,
       },
     ]);
     setContactSearch("");
@@ -692,26 +750,14 @@ export function DirectorChangeWizard({
                     >
                       {gen.status === "completed" ? "View" : "Continue"}
                     </Button>
-                    {gen.status !== "completed" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs text-destructive hover:text-destructive"
-                        onClick={() => cancelGeneration(gen.id)}
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                    {gen.status === "completed" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs text-muted-foreground"
-                        onClick={() => setPendingGenerations((prev) => prev.filter((p) => p.id !== gen.id))}
-                      >
-                        Dismiss
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className={`h-7 text-xs ${gen.status === "completed" ? "text-muted-foreground" : "text-destructive hover:text-destructive"}`}
+                      onClick={() => dismissGeneration(gen)}
+                    >
+                      {gen.status === "completed" ? "Dismiss" : "Cancel"}
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -721,7 +767,18 @@ export function DirectorChangeWizard({
               variant="ghost"
               size="sm"
               className="w-full text-xs text-muted-foreground"
-              onClick={() => setPendingGenerations([])}
+              onClick={async () => {
+                // Dismiss all on backend, then clear local state
+                await Promise.allSettled(
+                  pendingGenerations.map((gen) => {
+                    const endpoint = gen.status === "completed"
+                      ? `/api/v1/pdf_generations/${gen.id}/dismiss`
+                      : `/api/v1/pdf_generations/${gen.id}/cancel`;
+                    return api.patch(endpoint, {});
+                  })
+                );
+                setPendingGenerations([]);
+              }}
             >
               Dismiss all — start new generation
             </Button>
@@ -798,6 +855,153 @@ export function DirectorChangeWizard({
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+
+                  {/* DOB and Address for ceasing director */}
+                  <div className="space-y-2 p-2 bg-muted/50 border rounded text-sm">
+                    {/* Date of Birth */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Date of Birth</Label>
+                        {cd.has_dob && !cd.editing_dob && (
+                          <button
+                            onClick={() => setCeasingDirectors((prev) =>
+                              prev.map((c) => c.corporate_director_id === cd.corporate_director_id ? { ...c, editing_dob: true } : c)
+                            )}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            <Pencil className="w-3 h-3" /> Update
+                          </button>
+                        )}
+                      </div>
+                      {cd.has_dob && !cd.editing_dob ? (
+                        <p className="text-sm">
+                          {cd.dob ? format(new Date(cd.dob + "T00:00:00"), "dd/MM/yyyy") : "On file"}
+                        </p>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {!cd.has_dob && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                              <AlertCircle className="w-3 h-3" />
+                              Required
+                            </div>
+                          )}
+                          <Input
+                            type="date"
+                            defaultValue={cd.editing_dob ? cd.dob : ""}
+                            className="h-8 text-sm flex-1"
+                            onChange={async (e) => {
+                              if (!e.target.value) return;
+                              try {
+                                await api.patch(`/api/v1/contacts/${cd.contact_id}`, {
+                                  contact: { date_of_birth: e.target.value },
+                                });
+                                setCeasingDirectors((prev) =>
+                                  prev.map((c) => c.corporate_director_id === cd.corporate_director_id
+                                    ? { ...c, has_dob: true, dob: e.target.value, editing_dob: false }
+                                    : c)
+                                );
+                              } catch { /* ignore */ }
+                            }}
+                          />
+                          {cd.editing_dob && (
+                            <button
+                              onClick={() => setCeasingDirectors((prev) =>
+                                prev.map((c) => c.corporate_director_id === cd.corporate_director_id ? { ...c, editing_dob: false } : c)
+                              )}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Residential Address */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Residential Address</Label>
+                        {cd.has_address && !cd.editing_address && (
+                          <button
+                            onClick={() => setCeasingDirectors((prev) =>
+                              prev.map((c) => c.corporate_director_id === cd.corporate_director_id ? { ...c, editing_address: true } : c)
+                            )}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            <Pencil className="w-3 h-3" /> Update
+                          </button>
+                        )}
+                      </div>
+                      {cd.has_address && !cd.editing_address ? (
+                        <p className="text-sm">{cd.address || "On file"}</p>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {!cd.has_address && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                              <AlertCircle className="w-3 h-3" />
+                              Required
+                            </div>
+                          )}
+                          <Input
+                            type="text"
+                            defaultValue={cd.editing_address ? cd.address : ""}
+                            placeholder="e.g. 123 Main St, Brisbane QLD 4000"
+                            className="h-8 text-sm flex-1"
+                            onBlur={async (e) => {
+                              if (!e.target.value) return;
+                              try {
+                                await api.patch(`/api/v1/contacts/${cd.contact_id}`, {
+                                  contact: { residential_address: e.target.value },
+                                });
+                                setCeasingDirectors((prev) =>
+                                  prev.map((c) => c.corporate_director_id === cd.corporate_director_id
+                                    ? { ...c, has_address: true, address: e.target.value, editing_address: false }
+                                    : c)
+                                );
+                              } catch { /* ignore */ }
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                          />
+                          {cd.editing_address && (
+                            <button
+                              onClick={() => setCeasingDirectors((prev) =>
+                                prev.map((c) => c.corporate_director_id === cd.corporate_director_id ? { ...c, editing_address: false } : c)
+                              )}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* E-Signature Email */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Mail className="w-3 h-3" /> Resignation sent for signature to
+                      </Label>
+                      {cd.emails.length > 1 ? (
+                        <select
+                          value={cd.selected_email}
+                          onChange={(e) => setCeasingDirectors((prev) =>
+                            prev.map((c) => c.corporate_director_id === cd.corporate_director_id
+                              ? { ...c, selected_email: e.target.value } : c)
+                          )}
+                          className="w-full h-8 text-sm rounded-md border border-input bg-background px-2"
+                        >
+                          {cd.emails.map((em) => (
+                            <option key={em.id} value={em.email}>
+                              {em.email}{em.label ? ` (${em.label})` : ""}{em.is_primary ? " — primary" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-sm">{cd.selected_email || "No email on file"}</p>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <div>
                       <Label className="text-xs">Resigning From</Label>
