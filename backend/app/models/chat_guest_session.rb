@@ -11,6 +11,7 @@ class ChatGuestSession < ApplicationRecord
   acts_as_tenant :tenant
 
   belongs_to :host_user, class_name: "User"
+  belongs_to :job, optional: true
   has_many :chat_messages, dependent: :nullify
 
   validates :token, presence: true, uniqueness: true
@@ -21,10 +22,12 @@ class ChatGuestSession < ApplicationRecord
   scope :active_or_pending, -> { where(status: %w[pending active]).where("expires_at IS NULL OR expires_at > ?", Time.current) }
 
   # Create a guest session for a host user
-  def self.create_for_user!(user)
+  # Optional job_id links the session to a job (messages appear in Job > Coms)
+  def self.create_for_user!(user, job_id: nil)
     create!(
       host_user: user,
       tenant_id: user.tenant_id,
+      job_id: job_id,
       expires_at: 7.days.from_now
     )
   end

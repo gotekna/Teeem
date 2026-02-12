@@ -20,8 +20,9 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
 
   # POST /api/v1/chat_guest_sessions
   # Create a new guest chat link (authenticated - host user)
+  # Optional job_id links the session to a job (messages appear in Job > Coms)
   def create
-    session = ChatGuestSession.create_for_user!(current_user)
+    session = ChatGuestSession.create_for_user!(current_user, job_id: params[:job_id])
 
     render json: {
       success: true,
@@ -30,7 +31,8 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
         token: session.token,
         share_url: session.share_url,
         expires_at: session.expires_at,
-        status: session.status
+        status: session.status,
+        job_id: session.job_id
       }
     }, status: :created
   end
@@ -48,7 +50,8 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
         host_initials: session.host_user&.initials,
         guest_name: session.guest_name,
         expires_at: session.expires_at,
-        active: session.active?
+        active: session.active?,
+        job_name: session.job&.title
       }
     }
   rescue ActiveRecord::RecordNotFound => e
@@ -79,11 +82,21 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
     session = find_guest_session!
 
     ActsAsTenant.with_tenant(session.tenant) do
-      msgs = ChatMessage
-        .where(chat_guest_session_id: session.id)
-        .includes(:user)
-        .order(created_at: :asc)
-        .limit(200)
+      # Show guest session messages + host replies from job chat (if job-linked)
+      msgs = if session.job_id.present?
+        ChatMessage
+          .where("chat_guest_session_id = ? OR (job_id = ? AND user_id = ? AND created_at >= ?)",
+            session.id, session.job_id, session.host_user_id, session.created_at)
+          .includes(:user)
+          .order(created_at: :asc)
+          .limit(200)
+      else
+        ChatMessage
+          .where(chat_guest_session_id: session.id)
+          .includes(:user)
+          .order(created_at: :asc)
+          .limit(200)
+      end
 
       render json: {
         success: true,
@@ -109,6 +122,7 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
         chat_guest_session: session,
         guest_sender_name: session.guest_name,
         channel: "guest",
+        job_id: session.job_id,
         tenant_id: session.tenant_id
       )
 
@@ -147,6 +161,8 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
           share_url: s.share_url,
           guest_name: s.guest_name,
           status: s.status,
+          job_id: s.job_id,
+          job_name: s.job&.title,
           created_at: s.created_at,
           expires_at: s.expires_at,
           message_count: s.chat_messages.count

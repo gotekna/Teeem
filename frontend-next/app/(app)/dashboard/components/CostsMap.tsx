@@ -26,6 +26,7 @@ import {
   BarChart3,
   AlertTriangle,
   RefreshCw,
+  Power,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -92,6 +93,7 @@ interface DynoCost {
   unitCost: number;
   purpose: string;
   environment: string;
+  scaledDown?: boolean;
 }
 
 interface AddonCost {
@@ -193,11 +195,14 @@ function formatTimestamp(iso: string | null): string {
 // Component
 // ─────────────────────────────────────────────
 
+const DEV_APPS = ["teeem-sam-dev", "teeem-rob-dev", "teeem-jake-dev"];
+
 export default function CostsMap() {
   const [data, setData] = useState<InfrastructureData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scalingDyno, setScalingDyno] = useState<string | null>(null); // "app:dyno" key
 
   const fetchData = useCallback(async (refresh = false) => {
     try {
