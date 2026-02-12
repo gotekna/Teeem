@@ -275,7 +275,6 @@ export default function DocsortPage() {
 
   // Auto-detect company from filename by finding the longest company name match
   const detectCompanyFromFilename = useCallback((filename: string | null): ComboboxItem | undefined => {
-    console.log("[detectCompany] filename:", filename, "companies count:", companies.length);
     if (!filename || companies.length === 0) return undefined;
     // Strip extension and normalize
     const baseName = filename.replace(/\.[^.]+$/, "");
@@ -283,15 +282,12 @@ export default function DocsortPage() {
     let bestMatch: ComboboxItem | undefined;
     let bestLength = 0;
     for (const company of companies) {
-      const name = company.label.toLowerCase();
+      // Strip trailing markers like " *" from company names before matching
+      const name = company.label.replace(/\s*\*\s*$/, "").toLowerCase().trim();
       if (name.length > 2 && normalizedFilename.includes(name) && name.length > bestLength) {
         bestMatch = company;
         bestLength = name.length;
       }
-    }
-    console.log("[detectCompany] result:", bestMatch?.label || "no match", "from", companies.length, "companies");
-    if (!bestMatch) {
-      console.log("[detectCompany] company names sample:", companies.slice(0, 10).map(c => c.label));
     }
     return bestMatch;
   }, [companies]);
