@@ -133,6 +133,37 @@ interface InfrastructureData {
   errors?: string[];
 }
 
+interface VercelLineItem {
+  name: string;
+  amount: number;
+  quantity: number;
+  unit: string | null;
+  group: string;
+}
+
+interface VercelBillingData {
+  success: boolean;
+  plan?: string;
+  currentInvoice?: {
+    number: string;
+    total: number;
+    status: string;
+    createdAt: string;
+    groups: Array<{ id: string; title: string; total: number }>;
+    lineItems: VercelLineItem[];
+  };
+  previousInvoice?: {
+    number: string;
+    total: number;
+    status: string;
+  };
+  buildMinutes?: { cost: number; minutes: number };
+  previousBuildMinutes?: { cost: number; minutes: number };
+  teamSeats?: number;
+  fetchedAt?: string;
+  error?: string;
+}
+
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
@@ -200,6 +231,7 @@ const DEV_APPS = ["teeem-sam-dev", "teeem-rob-dev", "teeem-jake-dev"];
 
 export default function CostsMap() {
   const [data, setData] = useState<InfrastructureData | null>(null);
+  const [vercelBilling, setVercelBilling] = useState<VercelBillingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -211,14 +243,29 @@ export default function CostsMap() {
       if (refresh) setRefreshing(true);
       else setLoading(true);
 
-      const response = await api.get<{ success: boolean; data: InfrastructureData }>(
-        "/api/v1/heroku/infrastructure",
-        refresh ? { params: { refresh: "true" } } : {}
-      );
+      const [infraResponse, vercelResponse] = await Promise.all([
+        api.get<{ success: boolean; data: InfrastructureData }>(
+          "/api/v1/heroku/infrastructure",
+          refresh ? { params: { refresh: "true" } } : {}
+        ),
+        api.get<{ success: boolean; data: VercelBillingData }>(
+          "/api/v1/heroku/vercel_billing",
+          refresh ? { params: { refresh: "true" } } : {}
+        ).catch(() => null),
+      ]);
 
-      if (response?.success && response.data) {
-        setData(response.data);
-        setError(response.data.error || null);
+      if (infraResponse?.success && infraResponse.data) {
+        // Update Vercel external service cost with real data
+        const vercelData = vercelResponse?.data;
+        if (vercelData?.success && vercelData.currentInvoice) {
+          setVercelBilling(vercelData);
+          const realCost = Math.round(vercelData.currentInvoice.total);
+          infraResponse.data.externalServices = infraResponse.data.externalServices.map((s) =>
+            s.name === "Vercel (Pro)" ? { ...s, cost: realCost } : s
+          );
+        }
+        setData(infraResponse.data);
+        setError(infraResponse.data.error || null);
       } else {
         setError("Failed to load infrastructure data");
       }
@@ -762,6 +809,7 @@ export default function CostsMap() {
               <div className="grid md:grid-cols-2 gap-3">
                 {services.map((s) => {
                   const Icon = SERVICE_ICONS[s.name] || Cloud;
+                  const isVercel = s.name === "Vercel (Pro)" && vercelBilling?.success;
                   return (
                     <div key={s.name} className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/20">
                       <Icon className="h-5 w-5 mt-0.5 text-muted-foreground shrink-0" />
@@ -774,6 +822,59 @@ export default function CostsMap() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">{s.purpose}</p>
+                        {/* Vercel build minutes detail */}
+                        {isVercel && vercelBilling && (
+                          <div className="mt-2 space-y-1.5">
+                            {vercelBilling.buildMinutes && (
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-muted-foreground">Build Minutes:</span>
+                                <span className="font-mono font-medium">
+                                  {vercelBilling.buildMinutes.minutes.toLocaleString()} min
+                                </span>
+                                <span className="text-muted-foreground">
+                                  (${vercelBilling.buildMinutes.cost.toFixed(2)})
+                                </span>
+                                {vercelBilling.previousBuildMinutes && (
+                                  <span className={cn(
+                                    "text-[10px] font-medium",
+                                    vercelBilling.buildMinutes.minutes < vercelBilling.previousBuildMinutes.minutes
+                                      ? "text-green-600 dark:text-green-400"
+                                      : vercelBilling.buildMinutes.minutes > vercelBilling.previousBuildMinutes.minutes
+                                        ? "text-red-600 dark:text-red-400"
+                                        : "text-muted-foreground"
+                                  )}>
+                                    {vercelBilling.buildMinutes.minutes < vercelBilling.previousBuildMinutes.minutes ? "↓" : "↑"}
+                                    {" vs "}
+                                    {vercelBilling.previousBuildMinutes.minutes.toLocaleString()} min last month
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {vercelBilling.teamSeats && vercelBilling.teamSeats > 1 && (
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-muted-foreground">Team Seats:</span>
+                                <span className="font-mono font-medium">{vercelBilling.teamSeats}</span>
+                                <span className="text-muted-foreground">($20/seat)</span>
+                              </div>
+                            )}
+                            {vercelBilling.currentInvoice && (
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-muted-foreground">Invoice:</span>
+                                <span className="font-mono font-medium">
+                                  ${vercelBilling.currentInvoice.total.toFixed(2)}
+                                </span>
+                                <Badge variant="outline" className="text-[10px]">
+                                  {vercelBilling.currentInvoice.status}
+                                </Badge>
+                                {vercelBilling.previousInvoice && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    (prev: ${vercelBilling.previousInvoice.total.toFixed(2)})
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {s.paidBy !== "free" && (
                           <div className="mt-1">
                             <PaymentBadge paidBy={s.paidBy} />
