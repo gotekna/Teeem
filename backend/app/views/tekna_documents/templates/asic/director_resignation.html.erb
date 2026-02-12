@@ -60,6 +60,9 @@
               <span class="badge-icon">&#9998;</span>
               <span class="badge-name"><%= director[:full_name] %></span>
               <span class="badge-label">Signs here</span>
+              <% if director[:email].present? %>
+                <span class="badge-label" style="font-size: 7pt; margin-top: 1px;"><%= director[:email] %></span>
+              <% end %>
             </div>
           </div>
         </td>
