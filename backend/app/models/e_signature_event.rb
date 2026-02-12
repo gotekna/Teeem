@@ -13,6 +13,7 @@ class ESignatureEvent < ApplicationRecord
   EVENT_TYPES = %w[
     created
     sent
+    notified
     viewed
     verified
     verification_failed
@@ -102,6 +103,9 @@ class ESignatureEvent < ApplicationRecord
       "E-signature request created"
     when "sent"
       "Request sent for signing"
+    when "notified"
+      signer_name = e_signature_signer&.name || "Unknown"
+      "Signing notification sent to #{signer_name}"
     when "viewed"
       signer_name = e_signature_signer&.name || "Unknown"
       "Document viewed by #{signer_name}"
