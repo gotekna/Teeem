@@ -336,6 +336,7 @@ Rails.application.routes.draw do
       # Heroku Infrastructure (admin-only, live from Heroku Platform API)
       get "heroku/infrastructure", to: "heroku#infrastructure"
       patch "heroku/scale", to: "heroku#scale"
+      post "heroku/share_dev_database", to: "heroku#share_dev_database"
 
       # System & Performance Monitoring
       get "system/health", to: "system#health"
