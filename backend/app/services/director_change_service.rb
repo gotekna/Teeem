@@ -253,8 +253,9 @@ class DirectorChangeService
 
     # Determine chairperson for signing badge
     # Priority: 1) remaining director with "chair" position, 2) first remaining director,
-    # 3) first new appointment, 4) first ceasing director
+    # 3) first ceasing director (outgoing chairs the meeting), 4) first new appointment
     chairperson_contact = nil
+    chairperson_selected_email = nil
     remaining.each do |dir|
       if dir.position&.downcase&.include?("chair")
         chairperson_contact = dir.contact
@@ -262,7 +263,14 @@ class DirectorChangeService
       end
     end
     chairperson_contact ||= remaining.first&.contact
-    chairperson_contact ||= ceasing_directors.first&.dig(:corporate_director)&.contact
+    unless chairperson_contact
+      # Fallback to ceasing director - use their wizard-selected email
+      cd = ceasing_directors.first
+      if cd
+        chairperson_contact = cd[:corporate_director]&.contact
+        chairperson_selected_email = cd[:email]
+      end
+    end
     chairperson_contact ||= new_appointments.first&.dig(:contact)
 
     context = {
@@ -286,7 +294,7 @@ class DirectorChangeService
       end,
       remaining_directors: remaining_directors,
       chairperson_name: chairperson_contact&.display_name,
-      chairperson_email: chairperson_contact&.primary_email,
+      chairperson_email: chairperson_selected_email.presence || chairperson_contact&.primary_email,
       meeting_date: meeting_date,
       meeting_date_formatted: meeting_date.strftime("%d/%m/%Y")
     }
