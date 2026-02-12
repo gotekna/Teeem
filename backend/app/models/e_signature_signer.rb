@@ -116,8 +116,10 @@ class ESignatureSigner < ApplicationRecord
 
     generate_access_token!
     begin
-      ESignatureMailer.signing_request(e_signature_request, self).deliver_now
-    rescue Net::ReadTimeout, Net::OpenTimeout, Errno::ECONNREFUSED, Errno::ECONNRESET => e
+      ESignatureEmailService.deliver(
+        ESignatureMailer.signing_request(e_signature_request, self)
+      )
+    rescue ESignatureEmailService::DeliveryError, Net::ReadTimeout, Net::OpenTimeout, Errno::ECONNREFUSED, Errno::ECONNRESET => e
       log_event("notification_failed", description: "Email delivery failed: #{e.message}")
       raise DirectorChangeService::GenerationError, "Failed to send email to #{email}: #{e.class.name} - check E-Signature Outbox in Settings > Email Setup"
     end
