@@ -104,8 +104,22 @@ module Api
           return
         end
 
-        url = pdf_gen.download_url
-        if url
+        # ⚠️ DO NOT SIMPLIFY - Stream vs Redirect (Feb 2026)
+        # ════════════════════════════════════════════════════════════
+        # Why: fetch() following a redirect to S3/Wasabi presigned URL gets
+        #      blocked by CORS (S3 doesn't return Access-Control-Allow-Origin).
+        # ❌ WRONG: Always redirect_to presigned URL — breaks frontend fetch()
+        # ✅ CORRECT: Stream content for API requests (Authorization header),
+        #            redirect for browser navigation (no auth header)
+        # ════════════════════════════════════════════════════════════
+        stream_directly = request.headers["Authorization"].present? || params[:stream] == "true"
+
+        if stream_directly && pdf_gen.storage_blob
+          send_data pdf_gen.storage_blob.read_content,
+                    filename: pdf_gen.result_filename || "document.pdf",
+                    type: "application/pdf",
+                    disposition: params[:inline] ? "inline" : "attachment"
+        elsif (url = pdf_gen.download_url)
           redirect_to url, allow_other_host: true
         elsif pdf_gen.storage_blob
           send_data pdf_gen.storage_blob.read_content,

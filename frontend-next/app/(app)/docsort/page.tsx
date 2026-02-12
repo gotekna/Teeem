@@ -738,7 +738,7 @@ export default function DocsortPage() {
           setDrawerOpen(open);
           if (!open) setSelectedItem(null);
         }}>
-          <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+          <SheetContent side="right-xl" className="overflow-y-auto">
             {selectedItem && (
               <>
                 <SheetHeader>

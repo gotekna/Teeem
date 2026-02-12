@@ -116,6 +116,30 @@ interface DirectorChangeWizardProps {
   onComplete?: () => void;
 }
 
+/**
+ * Fetch a PDF from the backend download endpoint and return a blob URL.
+ * The backend streams content directly when Authorization header is present,
+ * avoiding CORS issues with S3/Wasabi presigned URL redirects.
+ */
+async function fetchPdfAsBlob(downloadPath: string): Promise<string | null> {
+  try {
+    const baseUrl = getApiBaseUrl();
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const resp = await fetch(`${baseUrl}${downloadPath}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (resp.ok) {
+      const blob = await resp.blob();
+      return URL.createObjectURL(blob);
+    }
+    console.error("[DirectorChangeWizard] PDF fetch failed:", resp.status, resp.statusText);
+    return null;
+  } catch (err) {
+    console.error("[DirectorChangeWizard] PDF fetch error:", err);
+    return null;
+  }
+}
+
 export function DirectorChangeWizard({
   open,
   onOpenChange,
@@ -221,16 +245,8 @@ export function DirectorChangeWizard({
       setLoadingMessage("Loading completed preview...");
       setLoading(true);
       try {
-        const baseUrl = getApiBaseUrl();
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        const pdfResp = await fetch(`${baseUrl}${gen.downloadUrl}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          redirect: "follow",
-        });
-        if (pdfResp.ok) {
-          const blob = await pdfResp.blob();
-          setPdfDownloadUrl(URL.createObjectURL(blob));
-        }
+        const blobUrl = await fetchPdfAsBlob(gen.downloadUrl!);
+        if (blobUrl) setPdfDownloadUrl(blobUrl);
         setGeneratedFilename(gen.filename || "");
         const docs = gen.result?.documents as Array<{ type: string; name: string }> | undefined;
         if (docs) setGeneratedDocuments(docs);
@@ -485,22 +501,13 @@ export function DirectorChangeWizard({
 
       if (result.status === "completed" && result.downloadUrl) {
         setLoadingMessage("Downloading preview...");
-        // Fetch PDF with auth and create blob URL for iframe preview
-        const baseUrl = getApiBaseUrl();
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        const pdfResp = await fetch(`${baseUrl}${result.downloadUrl}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          redirect: "follow",
-        });
-        if (pdfResp.ok) {
-          const blob = await pdfResp.blob();
-          setPdfDownloadUrl(URL.createObjectURL(blob));
+        const blobUrl = await fetchPdfAsBlob(result.downloadUrl);
+        if (blobUrl) {
+          setPdfDownloadUrl(blobUrl);
         } else {
-          // Fallback: try opening URL directly (works if presigned URL redirect)
-          setPdfDownloadUrl(`${baseUrl}${result.downloadUrl}`);
+          setError("Failed to download generated PDF");
         }
         setGeneratedFilename(result.filename || "");
-        // Get documents list from result data
         const docs = result.result?.documents as Array<{ type: string; name: string }> | undefined;
         if (docs) {
           setGeneratedDocuments(docs);
@@ -1119,18 +1126,23 @@ export function DirectorChangeWizard({
 
             {/* PDF Preview */}
             {pdfDownloadUrl && (
-              <div className="border rounded-lg overflow-hidden" style={{ height: "400px" }}>
-                <iframe
-                  src={pdfDownloadUrl}
+              <div className="border rounded-lg overflow-hidden" style={{ height: "500px" }}>
+                <object
+                  data={`${pdfDownloadUrl}#toolbar=1&navpanes=0`}
+                  type="application/pdf"
                   className="w-full h-full"
-                  title="Director Change Package Preview"
-                />
+                >
+                  <p className="p-4 text-center text-muted-foreground">
+                    PDF preview not available in this browser.{" "}
+                    <button onClick={downloadPdf} className="text-primary underline">Download PDF</button>
+                  </p>
+                </object>
               </div>
             )}
 
-            <Button variant="outline" onClick={downloadPdf} className="w-full">
+            <Button variant="outline" onClick={downloadPdf} disabled={!pdfDownloadUrl} className="w-full">
               <Download className="w-4 h-4 mr-2" />
-              Download {generatedFilename}
+              Download {generatedFilename || "PDF"}
             </Button>
 
             {/* Navigation */}
