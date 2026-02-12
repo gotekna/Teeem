@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_12_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_12_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1184,6 +1184,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_100000) do
     t.string "storage_item_id"
     t.bigint "storage_blob_id"
     t.bigint "chat_conversation_id"
+    t.bigint "tenant_id"
     t.index ["case_id"], name: "index_chat_messages_on_case_id"
     t.index ["channel", "created_at"], name: "index_chat_messages_on_channel_and_created_at"
     t.index ["chat_conversation_id"], name: "index_chat_messages_on_chat_conversation_id"
@@ -1195,6 +1196,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_100000) do
     t.index ["storage_blob_id"], name: "index_chat_messages_on_storage_blob_id"
     t.index ["storage_file_id"], name: "index_chat_messages_on_storage_file_id"
     t.index ["storage_item_id"], name: "index_chat_messages_on_storage_item_id"
+    t.index ["tenant_id"], name: "index_chat_messages_on_tenant_id"
     t.index ["user_id"], name: "index_chat_messages_on_user_id"
   end
 
@@ -10931,6 +10933,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_100000) do
   add_foreign_key "chat_messages", "chat_conversations"
   add_foreign_key "chat_messages", "jobs"
   add_foreign_key "chat_messages", "storage_blobs"
+  add_foreign_key "chat_messages", "tenants"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "claim_invoice_templates", "tenants", on_delete: :cascade
   add_foreign_key "cloudflare_credentials", "tenants", on_delete: :cascade

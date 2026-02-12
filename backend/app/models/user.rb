@@ -73,6 +73,8 @@ class User < ApplicationRecord
   # Phase 3: Update Contact.is_user_cached flag when User is created/destroyed
   after_save :update_contact_user_flag, if: :contact_id
   after_destroy :clear_contact_user_flag
+  # Auto-set contact as team contact linked to tenant's company when user is created
+  after_create :set_contact_as_team_member
 
   # Role helper methods
   # SSoT: ONLY use user_roles join table - legacy role column is deprecated
@@ -533,6 +535,26 @@ class User < ApplicationRecord
     Rails.logger.info "[User#update_contact_user_flag] Set is_user_cached=true for Contact##{contact.id}"
   rescue StandardError => e
     Rails.logger.error "[User#update_contact_user_flag] Failed: #{e.message}"
+  end
+
+  # Auto-set contact as team member when user is created
+  # Users are employees of the tenant's company by default
+  def set_contact_as_team_member
+    return unless contact.present? && tenant.present?
+
+    # Find the tenant's primary company contact via billing_company (Corporate)
+    corporate = tenant.billing_company
+    return unless corporate&.contact_id.present?
+
+    # Only update if not already set
+    unless contact.is_team_contact && contact.primary_company_id.present?
+      contact.update_columns(
+        is_team_contact: true,
+        primary_company_id: corporate.contact_id
+      )
+    end
+  rescue StandardError => e
+    Rails.logger.error "[User#set_contact_as_team_member] Failed: #{e.message}"
   end
 
   # Phase 3: Clear Contact.is_user_cached flag when User is destroyed

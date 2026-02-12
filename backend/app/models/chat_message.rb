@@ -1,5 +1,6 @@
 class ChatMessage < ApplicationRecord
   include StorageUploadable
+  acts_as_tenant :tenant
 
   belongs_to :user
   belongs_to :recipient_user, class_name: "User", optional: true
@@ -18,6 +19,9 @@ class ChatMessage < ApplicationRecord
 
   validates :content, presence: true
   validates :message_type, inclusion: { in: %w[text image file] }, allow_nil: true
+
+  # Ensure tenant_id is set from user before validation
+  before_validation :set_tenant_from_user, on: :create
 
   # Upload to storage after file is attached
   after_commit :upload_to_storage, on: [:create, :update], if: :should_upload_to_storage?
@@ -161,6 +165,13 @@ class ChatMessage < ApplicationRecord
   end
 
   private
+
+  # Set tenant from user on create (defense-in-depth)
+  # acts_as_tenant normally sets this from ActsAsTenant.current_tenant,
+  # but in ActionCable callbacks there may be no tenant context.
+  def set_tenant_from_user
+    self.tenant_id ||= user&.tenant_id
+  end
 
   # Resolve tenant for WarehouseProvider access
   # ⚠️ FRC (Jan 2026): Model callbacks don't have ActsAsTenant context
