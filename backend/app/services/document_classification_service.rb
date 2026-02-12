@@ -5,9 +5,12 @@
 # SSoT: THE ONE service for classifying documents in DocSort
 #
 # Runs all 3 classification methods independently and stores results for each:
-#   1. Name Match — filename patterns + DocumentTypeMatcher (fast, <50ms)
+#   1. Name Match — DocumentTypeMatcher + content type hints (fast, <50ms)
 #   2. Content Match — OCR/text search via ContentMatchService (100-500ms for PDFs)
 #   3. AI Match — Claude Haiku when enabled (500-2000ms)
+#
+# All methods use DocumentType records from the database (not hardcoded categories).
+# Results are logged to AIProcessingLog for accuracy tracking and learning.
 #
 # The winner is picked by confidence, preferring name > content > ai on ties.
 #
@@ -32,51 +35,6 @@
 class DocumentClassificationService
   include AnthropicClient
 
-  # Filename patterns for common document types
-  FILENAME_PATTERNS = {
-    'invoice' => [
-      /\binvoice\b/i, /\binv[-_.\s]?\d+/i, /\btax\s*invoice\b/i,
-      /\breceipt\b/i, /\bbill\b/i
-    ],
-    'plan' => [
-      /\bplan[s]?\b/i, /\bdrawing[s]?\b/i, /\bfloor\s*plan\b/i,
-      /\bsite\s*plan\b/i, /\barchitectural\b/i, /\bstructural\b/i,
-      /\belev(ation)?\b/i, /\bsection\b/i, /\bdetail[s]?\b/i,
-      /\.dwg$/i, /\.dxf$/i,
-      /^A[-_]?\d{2,3}/i, /^S[-_]?\d{2,3}/i, /^E[-_]?\d{2,3}/i
-    ],
-    'quote' => [
-      /\bquote\b/i, /\bquotation\b/i, /\bestimate\b/i,
-      /\bproposal\b/i, /\bprice[-_.\s]?list\b/i, /\bbudget\b/i
-    ],
-    'contract' => [
-      /\bcontract\b/i, /\bagreement\b/i, /\bterms\b/i,
-      /\bscope\s*of\s*work\b/i, /\bsow\b/i,
-      /\bmaster\s*services?\s*agreement\b/i, /\bmsa\b/i
-    ],
-    'purchase_order' => [
-      /\bpurchase[-_.\s]?order\b/i, /\bpo[-_.\s]?\d+/i, /\border[-_.\s]?\d+/i
-    ],
-    'work_order' => [
-      /\bwork[-_.\s]?order\b/i, /\bwo[-_.\s]?\d+/i,
-      /\bservice[-_.\s]?order\b/i, /\bjob[-_.\s]?sheet\b/i
-    ],
-    'certificate' => [
-      /\bcertificate\b/i, /\bcert\b/i, /\bcompliance\b/i,
-      /\binsurance\b/i, /\bwarranty\b/i, /\bguarantee\b/i,
-      /\blicen[cs]e\b/i
-    ],
-    'compliance' => [
-      /\bsafety\b/i, /\bswms\b/i, /\bmsds\b/i, /\bsds\b/i,
-      /\brisk[-_.\s]?assessment\b/i, /\bmethod[-_.\s]?statement\b/i,
-      /\binduction\b/i, /\btraining\b/i
-    ],
-    'correspondence' => [
-      /\bletter\b/i, /\bmemo\b/i, /\bmeeting[-_.\s]?minutes\b/i,
-      /\bminutes\b/i, /\bnotes\b/i, /\breport\b/i
-    ]
-  }.freeze
-
   CONTENT_TYPE_HINTS = {
     'message/rfc822' => 'email',
     'application/vnd.ms-outlook' => 'email',
@@ -94,10 +52,14 @@ class DocumentClassificationService
     @filename = docsort_item.original_filename || ''
     @content_type = docsort_item.content_type || ''
     @subject = docsort_item.subject || ''
+    # Cache active document types once - shared across all 3 methods
+    @active_document_types = DocumentType.where(active: true).to_a
   end
 
   # Main classification entry point - runs all methods, picks winner
   def classify!
+    start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
     # Run all 3 methods independently
     name_result = run_name_match
     content_result = run_content_match
@@ -116,7 +78,7 @@ class DocumentClassificationService
     suggestions = name_result[:suggestions] || []
 
     # Build final result with backward-compatible top-level keys + new methods hash
-    {
+    result = {
       document_type: winner_result[:document_type] || "general",
       confidence: winner_result[:confidence] || 0.0,
       method: winner_result[:method] || "default",
@@ -127,32 +89,33 @@ class DocumentClassificationService
       suggestions: suggestions,
       classified_at: Time.current
     }
+
+    # Log to AIProcessingLog (non-blocking)
+    log_classification(result, duration_ms(start_time))
+
+    result
   end
 
   private
 
   # ═══════════════════════════════════════════════════════════════
-  # Method 1: Name Match (filename patterns + DocumentTypeMatcher)
+  # Method 1: Name Match (DocumentTypeMatcher + content type hints)
   # ═══════════════════════════════════════════════════════════════
   def run_name_match
     start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-    # Run filename pattern matching
-    filename_result = classify_by_filename
-
-    # Run DocumentTypeMatcher (SSoT for document type matching)
+    # Run DocumentTypeMatcher (SSoT for document type matching from database)
     matcher_result = classify_by_document_type_matcher
 
-    # Also check content type hints
+    # Also check content type hints (email, CAD files)
     type_hint = classify_by_content_type
 
-    # Merge: take the best of filename pattern, content type, and DTM
-    candidates = [filename_result, matcher_result]
+    candidates = [matcher_result]
 
-    # If content type hint matches filename result, boost it
-    if type_hint[:document_type] && filename_result[:document_type] == type_hint[:document_type]
-      filename_result[:confidence] = [filename_result[:confidence] + 0.1, 1.0].min
-      filename_result[:signals] = (filename_result[:signals] || []) + ["content_type_match"]
+    # If content type hint matches DTM result, boost it
+    if type_hint[:document_type] && matcher_result[:document_type] == type_hint[:document_type]
+      matcher_result[:confidence] = [matcher_result[:confidence] + 0.1, 1.0].min
+      matcher_result[:signals] = (matcher_result[:signals] || []) + ["content_type_match"]
     elsif type_hint[:confidence] >= 0.95
       candidates << type_hint
     end
@@ -178,7 +141,7 @@ class DocumentClassificationService
   # Method 2: Content Match (OCR text search via ContentMatchService)
   # ═══════════════════════════════════════════════════════════════
   def run_content_match
-    result = ContentMatchService.new(@item).classify
+    result = ContentMatchService.new(@item, document_types: @active_document_types).classify
 
     {
       document_type: result[:document_type],
@@ -260,31 +223,8 @@ class DocumentClassificationService
   end
 
   # ═══════════════════════════════════════════════════════════════
-  # Existing helpers (kept from original)
+  # Helpers
   # ═══════════════════════════════════════════════════════════════
-
-  def classify_by_filename
-    return empty_result('filename') if @filename.blank?
-
-    matches = []
-
-    FILENAME_PATTERNS.each do |doc_type, patterns|
-      matched_patterns = patterns.select { |pattern| @filename.match?(pattern) }
-      next if matched_patterns.empty?
-
-      confidence = calculate_pattern_confidence(matched_patterns, patterns.length)
-
-      matches << {
-        document_type: doc_type,
-        confidence: confidence,
-        method: 'filename_pattern',
-        signals: matched_patterns.map { |p| p.source.gsub(/[^a-zA-Z0-9]/, '_')[0..30] },
-        classified_at: Time.current
-      }
-    end
-
-    matches.max_by { |m| m[:confidence] } || empty_result('filename')
-  end
 
   def classify_by_content_type
     if CONTENT_TYPE_HINTS[@content_type]
@@ -367,22 +307,31 @@ class DocumentClassificationService
     context
   end
 
+  # Build AI prompt dynamically from active DocumentTypes in the database
   def build_classification_prompt(context)
+    # Build category list from database
+    type_lines = @active_document_types.map do |dt|
+      parts = ["- #{dt.name.parameterize(separator: '_')}"]
+      parts << ": #{dt.description}" if dt.description.present?
+      if dt.aliases.is_a?(Array) && dt.aliases.any?
+        parts << " (also known as: #{dt.aliases.first(5).join(', ')})"
+      end
+      parts.join
+    end
+
+    # Always include a general fallback
+    unless @active_document_types.any? { |dt| dt.name.parameterize(separator: '_') == 'general' }
+      type_lines << "- general: Documents that don't match any other category"
+    end
+
+    # Include learning context from recent corrections
+    learning = AiProcessingLog.learning_context("document_classification", limit: 10)
+
     <<~PROMPT
       Classify this document into one of these categories:
-      - invoice: Bills, tax invoices, receipts
-      - plan: Construction drawings, floor plans, architectural documents
-      - quote: Quotations, estimates, proposals, price lists
-      - contract: Contracts, agreements, terms, scope of work
-      - purchase_order: Purchase orders
-      - work_order: Work orders, job sheets
-      - certificate: Certificates, licenses, insurance, warranties
-      - compliance: Safety documents, SWMS, risk assessments
-      - correspondence: Letters, memos, meeting minutes
-      - email: Email messages
-      - general: Other documents
+      #{type_lines.join("\n")}
 
-      Document info:
+      #{"#{learning}\n" if learning.present?}Document info:
       Filename: #{context[:filename]}
       Content type: #{context[:content_type]}
       #{"Email subject: #{context[:email_subject]}" if context[:email_subject]}
@@ -417,12 +366,6 @@ class DocumentClassificationService
     document_type.name.parameterize(separator: '_')
   end
 
-  def calculate_pattern_confidence(matched_patterns, total_patterns)
-    base_confidence = 0.8
-    match_bonus = (matched_patterns.length - 1) * 0.05
-    [base_confidence + match_bonus, 0.95].min
-  end
-
   def empty_result(method)
     {
       document_type: nil,
@@ -435,5 +378,25 @@ class DocumentClassificationService
 
   def duration_ms(start_time)
     ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time) * 1000).to_i
+  end
+
+  # Log classification result to AIProcessingLog for accuracy tracking
+  def log_classification(result, total_ms)
+    AiProcessingLog.create!(
+      service_type: "document_classification",
+      input_identifier: @filename,
+      processable: @item,
+      ocr_result: result.dig(:methods, :content_match),
+      pattern_result: result.dig(:methods, :name_match),
+      ai_result: result.dig(:methods, :ai_match),
+      final_type: result[:document_type],
+      final_confidence: ((result[:confidence] || 0) * 100).to_i,
+      decision_method: result[:winner],
+      total_duration_ms: total_ms,
+      ocr_duration_ms: result.dig(:methods, :content_match, :duration_ms),
+      ai_duration_ms: result.dig(:methods, :ai_match, :duration_ms)
+    )
+  rescue StandardError => e
+    Rails.logger.error "[DocumentClassificationService] Failed to log classification: #{e.message}"
   end
 end

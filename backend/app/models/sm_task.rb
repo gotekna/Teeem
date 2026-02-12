@@ -990,6 +990,10 @@ class SmTask < ApplicationRecord
   end
 
   # Check if an email matches this task's keywords
+  # FRC (Feb 2026): Changed from .any? to .all? — requiring ALL keywords to match.
+  # With .any?, a task with keywords "sale, Pixley, Street, Kangaroo, Point" matched
+  # ANY email mentioning "Street" or "Kangaroo Point" (false positives from suburb names).
+  # With .all?, only emails containing ALL keywords match (much more precise).
   def matches_email_keywords?(email)
     return false if email_keywords.blank?
     return false unless email.respond_to?(:subject)
@@ -999,13 +1003,15 @@ class SmTask < ApplicationRecord
 
     subject_lower = email.subject&.downcase || ""
     body_lower = email.body_text&.downcase || ""
+    search_text = "#{subject_lower} #{body_lower}"
 
-    keywords.any? do |keyword|
-      subject_lower.include?(keyword) || body_lower.include?(keyword)
+    keywords.all? do |keyword|
+      search_text.include?(keyword)
     end
   end
 
   # Get tasks that match an email's content by keywords
+  # FRC (Feb 2026): Changed from .any? to .all? — see matches_email_keywords? above.
   def self.tasks_matching_email(email, scope: SmTask.all)
     return [] if email.blank?
 
@@ -1015,7 +1021,7 @@ class SmTask < ApplicationRecord
 
     scope.where.not(email_keywords: [nil, ""]).select do |task|
       keywords = task.email_keywords.split(",").map(&:strip).map(&:downcase).reject(&:blank?)
-      keywords.any? { |kw| search_text.include?(kw) }
+      keywords.all? { |kw| search_text.include?(kw) }
     end
   end
 end

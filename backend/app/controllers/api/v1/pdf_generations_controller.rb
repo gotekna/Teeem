@@ -85,6 +85,20 @@ module Api
         render json: { success: true, data: serialize(pdf_gen) }
       end
 
+      # PATCH /api/v1/pdf_generations/:id/dismiss
+      # Dismiss a completed generation so it no longer shows in the wizard
+      def dismiss
+        pdf_gen = PdfGeneration.find(params[:id])
+
+        unless pdf_gen.tenant_id == current_tenant&.id
+          return render json: { success: false, error: "Not found" }, status: :not_found
+        end
+
+        pdf_gen.update!(status: "failed", error_message: "Dismissed by user")
+
+        render json: { success: true, data: serialize(pdf_gen) }
+      end
+
       # GET /api/v1/pdf_generations/:id/download
       # Download the generated PDF (redirects to presigned URL or streams inline)
       def download
@@ -104,11 +118,25 @@ module Api
           return
         end
 
-        url = pdf_gen.download_url
-        if url
+        # ⚠️ DO NOT SIMPLIFY - Stream vs Redirect (Feb 2026)
+        # ════════════════════════════════════════════════════════════
+        # Why: fetch() following a redirect to S3/Wasabi presigned URL gets
+        #      blocked by CORS (S3 doesn't return Access-Control-Allow-Origin).
+        # ❌ WRONG: Always redirect_to presigned URL — breaks frontend fetch()
+        # ✅ CORRECT: Stream content for API requests (Authorization header),
+        #            redirect for browser navigation (no auth header)
+        # ════════════════════════════════════════════════════════════
+        stream_directly = request.headers["Authorization"].present? || params[:stream] == "true"
+
+        if stream_directly && pdf_gen.storage_blob
+          send_data pdf_gen.storage_blob.download,
+                    filename: pdf_gen.result_filename || "document.pdf",
+                    type: "application/pdf",
+                    disposition: params[:inline] ? "inline" : "attachment"
+        elsif (url = pdf_gen.download_url)
           redirect_to url, allow_other_host: true
         elsif pdf_gen.storage_blob
-          send_data pdf_gen.storage_blob.read_content,
+          send_data pdf_gen.storage_blob.download,
                     filename: pdf_gen.result_filename || "document.pdf",
                     type: "application/pdf",
                     disposition: params[:inline] ? "inline" : "attachment"

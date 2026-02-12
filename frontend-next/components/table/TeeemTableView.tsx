@@ -3115,15 +3115,17 @@ export default function TeeemTableView({
   const startMultiEditing = rowEditing.actions.startMultiEditing;
   const cancelEditing = rowEditing.actions.cancelEditing;
 
-  // Handler for row double-click - uses parent handler if provided, else starts inline editing
+  // Handler for row double-click - uses parent handler if provided, else opens edit dialog (if available), else inline editing
   const handleRowDoubleClick = useCallback((row: TableRowType) => {
     if (editingRowIds.has(row.id)) return; // Already editing
     if (onRowDoubleClick) {
       onRowDoubleClick(row);
+    } else if (effectiveOnEdit) {
+      effectiveOnEdit(row);
     } else {
       startEditing(row);
     }
-  }, [editingRowIds, onRowDoubleClick, startEditing]);
+  }, [editingRowIds, onRowDoubleClick, effectiveOnEdit, startEditing]);
 
   // Default handler for health issue click - opens row for editing
   const handleHealthIssueClick = useCallback(async (item: { id: number | string; display?: string }, _check: unknown) => {

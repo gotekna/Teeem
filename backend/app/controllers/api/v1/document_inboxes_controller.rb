@@ -158,9 +158,13 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        # Optional: allow specifying job_id for routing
+        # Optional: allow specifying job_id or corporate_id for routing
         if params[:job_id].present?
           @item.metadata['job_id'] = params[:job_id]
+          @item.save!
+        end
+        if params[:corporate_id].present?
+          @item.metadata['corporate_id'] = params[:corporate_id]
           @item.save!
         end
 

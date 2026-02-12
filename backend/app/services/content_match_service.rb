@@ -3,7 +3,11 @@
 # ContentMatchService - OCR/text-based document classification
 #
 # Extracts first-page text from PDFs using PdfTextExtractionService (SSoT),
-# then searches the extracted text for DocumentType names and aliases.
+# then searches the extracted text for DocumentType names, aliases, and
+# description keywords.
+#
+# Accepts an optional `document_types:` array to avoid redundant DB queries
+# when called from DocumentClassificationService (which caches them).
 #
 # Returns:
 #   - status: "completed" (found text), "not_applicable" (non-PDF), "error"
@@ -11,14 +15,15 @@
 #
 # Usage:
 #   result = ContentMatchService.new(docsort_item).classify
-#   # => { document_type: "constitution", confidence: 0.85, status: "completed", ... }
+#   result = ContentMatchService.new(docsort_item, document_types: cached_types).classify
 #
 class ContentMatchService
   MAX_TEXT_PREVIEW = 200
 
-  def initialize(docsort_item)
+  def initialize(docsort_item, document_types: nil)
     @item = docsort_item
     @content_type = docsort_item.content_type || ""
+    @document_types = document_types
   end
 
   def classify
@@ -90,14 +95,19 @@ class ContentMatchService
     result[:success] ? result[:text].to_s.strip : ""
   end
 
-  # Search extracted text for DocumentType names and aliases
+  # Use cached document types if provided, otherwise query
+  def active_document_types
+    @document_types || DocumentType.where(active: true).to_a
+  end
+
+  # Search extracted text for DocumentType names, aliases, and description keywords
   # Returns the best match with confidence and matched terms
   def search_text_for_document_types(text)
     normalized_text = text.downcase
 
     best_match = { document_type: nil, confidence: 0.0, matched_terms: [] }
 
-    DocumentType.all.each do |doc_type|
+    active_document_types.each do |doc_type|
       matched_terms = []
 
       # Check name
@@ -111,6 +121,16 @@ class ContentMatchService
           next if a.blank?
           if normalized_text.include?(a.to_s.strip.downcase)
             matched_terms << a.to_s.strip
+          end
+        end
+      end
+
+      # Check description keywords (comma/newline/semicolon-separated)
+      if doc_type.description.present?
+        extract_keywords(doc_type.description).each do |keyword|
+          next if keyword.length < 3
+          if normalized_text.include?(keyword.downcase)
+            matched_terms << keyword
           end
         end
       end
@@ -130,6 +150,11 @@ class ContentMatchService
     end
 
     best_match
+  end
+
+  # Extract keywords from description text (split by comma, newline, semicolon)
+  def extract_keywords(description)
+    description.split(/[,;\n]+/).map(&:strip).reject(&:blank?)
   end
 
   def calculate_confidence(matched_terms, doc_type, text)

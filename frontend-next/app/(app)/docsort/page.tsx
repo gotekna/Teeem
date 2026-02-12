@@ -50,6 +50,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { cn } from "@/lib/utils";
@@ -212,7 +214,10 @@ export default function DocsortPage() {
   const [selectedItem, setSelectedItem] = useState<DocumentInboxItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const [reclassifyingAll, setReclassifyingAll] = useState(false);
   const [documentTypes, setDocumentTypes] = useState<{ value: string; label: string }[]>(FALLBACK_DOCUMENT_TYPES);
+  const [companies, setCompanies] = useState<ComboboxItem[]>([]);
+  const [selectedCorporate, setSelectedCorporate] = useState<ComboboxItem | undefined>();
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("active");
@@ -242,10 +247,31 @@ export default function DocsortPage() {
     }
   }, []);
 
-  // Load document types once on mount
+  // Load companies for the filing dropdown
+  const loadCompanies = useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; companies: Array<{ id: number; name: string; company_code?: string }> }>(
+        "/api/v1/companies?include_unlinked=true"
+      );
+      if (response?.companies) {
+        setCompanies(
+          response.companies.map((c) => ({
+            id: c.id.toString(),
+            label: c.name,
+            searchText: c.company_code || undefined,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load companies:", error);
+    }
+  }, []);
+
+  // Load document types and companies once on mount
   useEffect(() => {
     loadDocumentTypes();
-  }, [loadDocumentTypes]);
+    loadCompanies();
+  }, [loadDocumentTypes, loadCompanies]);
 
   // Load items and stats
   const loadData = useCallback(async () => {
@@ -361,8 +387,14 @@ export default function DocsortPage() {
   const handleClassify = async (item: DocumentInboxItem) => {
     setProcessingId(item.id);
     try {
-      await api.post(`/api/v1/document_inboxes/${item.id}/classify`);
-      toast({ title: "Classification started" });
+      const response = await api.post<{ success: boolean; item: DocumentInboxItem }>(
+        `/api/v1/document_inboxes/${item.id}/classify`
+      );
+      toast({ title: "Re-classified successfully" });
+      // Update the selected item with fresh data if it's the one we just classified
+      if (response?.item && selectedItem?.id === item.id) {
+        setSelectedItem(response.item);
+      }
       loadData();
     } catch (error) {
       toast({
@@ -374,11 +406,40 @@ export default function DocsortPage() {
     }
   };
 
-  const handleRoute = async (item: DocumentInboxItem, jobId?: number) => {
+  const handleReclassifyAll = async () => {
+    const classifiableItems = items.filter((item) => item.status !== "completed");
+    if (classifiableItems.length === 0) {
+      toast({ title: "No items to re-classify", description: "All items are already completed" });
+      return;
+    }
+
+    setReclassifyingAll(true);
+    let success = 0;
+    let failed = 0;
+
+    for (const item of classifiableItems) {
+      try {
+        await api.post(`/api/v1/document_inboxes/${item.id}/classify`);
+        success++;
+      } catch {
+        failed++;
+      }
+    }
+
+    toast({
+      title: "Re-classification complete",
+      description: `${success} classified${failed > 0 ? `, ${failed} failed` : ""}`,
+    });
+    loadData();
+    setReclassifyingAll(false);
+  };
+
+  const handleRoute = async (item: DocumentInboxItem, jobId?: number, corporateId?: string) => {
     setProcessingId(item.id);
     try {
       const params: any = {};
       if (jobId) params.job_id = jobId;
+      if (corporateId) params.corporate_id = corporateId;
 
       const response = await api.post<{ success: boolean; routing: any }>(
         `/api/v1/document_inboxes/${item.id}/route`,
@@ -479,6 +540,15 @@ export default function DocsortPage() {
               <span>{stats.today_count} today</span>
             </div>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReclassifyAll}
+            disabled={reclassifyingAll || loading || items.length === 0}
+          >
+            <ArrowPathIcon className={cn("h-4 w-4 mr-2", reclassifyingAll && "animate-spin")} />
+            {reclassifyingAll ? "Re-classifying..." : "Re-classify All"}
+          </Button>
           <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
             <ArrowPathIcon className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
             Refresh
@@ -620,32 +690,56 @@ export default function DocsortPage() {
 
                       {/* Status badges */}
                       <div className="flex items-center gap-2">
-                        {/* Document type badge with classification method tooltip */}
+                        {/* Document type badge */}
                         {item.document_type && (
-                          <TooltipProvider delayDuration={300}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge className={cn("text-xs cursor-default", CONFIDENCE_COLORS[item.confidence_color])}>
-                                  {item.document_type_label}
-                                  {item.confidence_percent != null && ` (${item.confidence_percent}%)`}
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom" className="max-w-xs">
-                                <div className="space-y-1">
-                                  <p className="font-medium text-xs">
-                                    {item.classification_result
-                                      ? METHOD_LABELS[item.classification_result.method] || item.classification_result.method
-                                      : "Unknown method"}
-                                  </p>
-                                  {(item.classification_result?.signals?.length ?? 0) > 0 && (
-                                    <p className="text-xs text-muted-foreground">
-                                      Signals: {item.classification_result!.signals.join(", ")}
-                                    </p>
-                                  )}
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                          <Badge className={cn("text-xs", CONFIDENCE_COLORS[item.confidence_color])}>
+                            {item.document_type_label}
+                            {item.confidence_percent != null && ` (${item.confidence_percent}%)`}
+                          </Badge>
+                        )}
+
+                        {/* 3-method indicators */}
+                        {item.classification_result?.methods && (
+                          <div className="flex items-center gap-1">
+                            {(["name_match", "content_match", "ai_match"] as const).map((key) => {
+                              const m = (item.classification_result!.methods as Record<string, MethodResult>)[key];
+                              if (!m) return null;
+                              const isWinner = item.classification_result!.winner === key;
+                              const pct = Math.round(m.confidence * 100);
+                              const label = key === "name_match" ? "N" : key === "content_match" ? "O" : "AI";
+                              const hasResult = m.status === "completed" && m.document_type;
+
+                              return (
+                                <TooltipProvider key={key} delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span
+                                        className={cn(
+                                          "inline-flex items-center text-[10px] font-medium rounded px-1 py-0.5 tabular-nums",
+                                          isWinner
+                                            ? "bg-primary/15 text-primary ring-1 ring-primary/30"
+                                            : hasResult
+                                              ? "bg-muted text-muted-foreground"
+                                              : "bg-muted/50 text-muted-foreground/50"
+                                        )}
+                                      >
+                                        {label}:{hasResult ? `${pct}%` : "—"}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="text-xs">
+                                      <p className="font-medium">{METHOD_DISPLAY_NAMES[key]}</p>
+                                      {hasResult ? (
+                                        <p>{m.matched_document_type || m.document_type} — {pct}%</p>
+                                      ) : (
+                                        <p className="text-muted-foreground">{METHOD_STATUS_LABELS[m.status] || m.status}</p>
+                                      )}
+                                      {isWinner && <p className="text-primary">Winner</p>}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              );
+                            })}
+                          </div>
                         )}
 
                         {/* Status badge - clickable dropdown for pending items */}
@@ -719,6 +813,7 @@ export default function DocsortPage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedItem(item);
+                          setSelectedCorporate(undefined);
                           setDrawerOpen(true);
                         }}
                         className="p-1 rounded hover:bg-muted transition-colors"
@@ -736,9 +831,12 @@ export default function DocsortPage() {
         {/* Right: Detail panel */}
         <Sheet open={drawerOpen} onOpenChange={(open) => {
           setDrawerOpen(open);
-          if (!open) setSelectedItem(null);
+          if (!open) {
+            setSelectedItem(null);
+            setSelectedCorporate(undefined);
+          }
         }}>
-          <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+          <SheetContent side="right-xl" className="overflow-y-auto">
             {selectedItem && (
               <>
                 <SheetHeader>
@@ -1046,11 +1144,30 @@ export default function DocsortPage() {
                     </div>
                   )}
 
+                  {/* File under company */}
+                  {selectedItem.status === "classified" && !selectedItem.routed_to_type && (
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium flex items-center gap-1.5 text-muted-foreground">
+                        <BuildingOffice2Icon className="h-4 w-4" />
+                        File under Company
+                      </label>
+                      <ComboboxDropdown
+                        items={companies}
+                        selectedItem={selectedCorporate}
+                        onSelect={(item) => setSelectedCorporate(item)}
+                        placeholder="Select company..."
+                        searchPlaceholder="Search companies..."
+                        clearable
+                        onClear={() => setSelectedCorporate(undefined)}
+                      />
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="flex flex-col gap-2">
                     {selectedItem.status === "classified" && !selectedItem.routed_to_type && (
                       <Button
-                        onClick={() => handleRoute(selectedItem)}
+                        onClick={() => handleRoute(selectedItem, undefined, selectedCorporate?.id)}
                         disabled={processingId === selectedItem.id}
                       >
                         {processingId === selectedItem.id ? (
@@ -1058,7 +1175,7 @@ export default function DocsortPage() {
                         ) : (
                           <CheckCircleIcon className="h-4 w-4 mr-2" />
                         )}
-                        Route Document
+                        {selectedCorporate ? `File under ${selectedCorporate.label}` : "Route Document"}
                       </Button>
                     )}
 

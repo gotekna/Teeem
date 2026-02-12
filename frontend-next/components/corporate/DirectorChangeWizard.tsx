@@ -14,6 +14,9 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import {
   Sheet,
   SheetContent,
@@ -34,12 +37,14 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  CalendarIcon,
   Check,
   Clock,
   Download,
   FileText,
   Pencil,
   Plus,
+  Mail,
   Send,
   Trash2,
   User,
@@ -47,10 +52,211 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { pollPdfGeneration, type PdfGenerationStatus } from "@/lib/pdf-generation";
 import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
 
+// --- Date Picker (standard Popover + Calendar, replaces native input[type=date]) ---
+
+function DatePickerInput({
+  value,
+  onChange,
+  placeholder = "Pick date...",
+  isDob = false,
+  className,
+}: {
+  value?: string;
+  onChange: (date: string) => void;
+  placeholder?: string;
+  isDob?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const parsed = value ? new Date(value + "T00:00:00") : undefined;
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            "h-8 w-full justify-start text-left font-normal text-sm",
+            !parsed && "text-muted-foreground",
+            className,
+          )}
+        >
+          <CalendarIcon className="mr-2 h-3 w-3" />
+          {parsed ? format(parsed, "dd/MM/yyyy") : placeholder}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={parsed}
+          defaultMonth={parsed || (isDob ? new Date(1980, 0) : new Date())}
+          onSelect={(date) => {
+            if (date) {
+              const iso = format(date, "yyyy-MM-dd");
+              onChange(iso);
+              setOpen(false);
+            }
+          }}
+          {...(isDob ? {
+            captionLayout: "dropdown",
+            fromYear: 1920,
+            toYear: currentYear,
+          } : {
+            fromYear: currentYear - 5,
+            toYear: currentYear + 1,
+          })}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// --- Address Search (same feel as Jobs LocationMapSelector) ---
+
+interface AddressSuggestion {
+  id: string;
+  placeName: string;
+  center: [number, number];
+  address: {
+    houseNumber: string;
+    street: string;
+    streetName: string;
+    streetType: string;
+    suburb: string;
+    state: string;
+    postcode: string;
+  };
+}
+
+function AddressSearchInput({
+  defaultValue,
+  onSelect,
+  className,
+}: {
+  defaultValue?: string;
+  onSelect: (address: string) => void;
+  className?: string;
+}) {
+  const [value, setValue] = React.useState(defaultValue || "");
+  const [suggestions, setSuggestions] = React.useState<AddressSuggestion[]>([]);
+  const [showDropdown, setShowDropdown] = React.useState(false);
+  const [searching, setSearching] = React.useState(false);
+  const skipNextSearchRef = React.useRef(false);
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Debounced search (300ms, same as Jobs)
+  React.useEffect(() => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (value.length < 3 || skipNextSearchRef.current) {
+      skipNextSearchRef.current = false;
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const data = await api.get<{ suggestions: AddressSuggestion[] }>(
+          `/api/v1/geocode/search?q=${encodeURIComponent(value)}`
+        );
+        const results = data?.suggestions || [];
+        setSuggestions(results);
+        setShowDropdown(results.length > 0);
+      } catch {
+        setSuggestions([]);
+        setShowDropdown(false);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => { if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current); };
+  }, [value]);
+
+  const handleSelect = (suggestion: AddressSuggestion) => {
+    skipNextSearchRef.current = true;
+    setValue(suggestion.placeName);
+    setShowDropdown(false);
+    setSuggestions([]);
+    onSelect(suggestion.placeName);
+  };
+
+  return (
+    <div ref={containerRef} className={`relative flex-1 ${className || ""}`}>
+      <Input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search address..."
+        className="h-8 text-sm pr-8"
+        onBlur={() => {
+          // If user typed something without selecting, save it after a short delay
+          // (delay allows click on suggestion to fire first)
+          setTimeout(() => {
+            if (value && value !== defaultValue) {
+              onSelect(value);
+            }
+          }, 200);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          }
+          if (e.key === "Escape") {
+            setShowDropdown(false);
+          }
+        }}
+      />
+      {searching && (
+        <Spinner size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      )}
+      {showDropdown && suggestions.length > 0 && (
+        <div className="absolute z-[9999] w-full mt-1 bg-background border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {suggestions.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleSelect(s)}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors border-b last:border-b-0"
+            >
+              {s.placeName}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Types ---
+
+interface ContactEmail {
+  id: number;
+  email: string;
+  is_primary: boolean;
+  label: string | null;
+}
 
 interface CeasingDirector {
   corporate_director_id: number;
@@ -60,6 +266,14 @@ interface CeasingDirector {
   position: string;
   positions: string[];
   cessation_date: string;
+  has_dob: boolean;
+  has_address: boolean;
+  dob: string;
+  address: string;
+  editing_dob: boolean;
+  editing_address: boolean;
+  emails: ContactEmail[];      // All available emails
+  selected_email: string;      // Email selected for e-signature
 }
 
 interface NewAppointment {
@@ -70,10 +284,12 @@ interface NewAppointment {
   appointment_date: string;
   has_dob: boolean;
   has_address: boolean;
-  dob: string;        // Actual DOB value for display/confirmation
-  address: string;    // Actual residential address for display/confirmation
+  dob: string;
+  address: string;
   editing_dob: boolean;
   editing_address: boolean;
+  emails: ContactEmail[];      // All available emails
+  selected_email: string;      // Email selected for e-signature
 }
 
 interface ContactSearchResult {
@@ -114,6 +330,30 @@ interface DirectorChangeWizardProps {
   companyId: string;
   officers: OfficerRecord[];
   onComplete?: () => void;
+}
+
+/**
+ * Fetch a PDF from the backend download endpoint and return a blob URL.
+ * The backend streams content directly when Authorization header is present,
+ * avoiding CORS issues with S3/Wasabi presigned URL redirects.
+ */
+async function fetchPdfAsBlob(downloadPath: string): Promise<string | null> {
+  try {
+    const baseUrl = getApiBaseUrl();
+    const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
+    const resp = await fetch(`${baseUrl}${downloadPath}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (resp.ok) {
+      const blob = await resp.blob();
+      return URL.createObjectURL(blob);
+    }
+    console.error("[DirectorChangeWizard] PDF fetch failed:", resp.status, resp.statusText);
+    return null;
+  } catch (err) {
+    console.error("[DirectorChangeWizard] PDF fetch error:", err);
+    return null;
+  }
 }
 
 export function DirectorChangeWizard({
@@ -201,13 +441,16 @@ export function DirectorChangeWizard({
     }
   };
 
-  // Cancel a pending/processing PDF generation
-  const cancelGeneration = async (id: number) => {
+  // Cancel (pending/processing) or dismiss (completed) a PDF generation
+  const dismissGeneration = async (gen: PendingGeneration) => {
     try {
-      await api.patch(`/api/v1/pdf_generations/${id}/cancel`, {});
-      setPendingGenerations((prev) => prev.filter((pg) => pg.id !== id));
+      const endpoint = gen.status === "completed"
+        ? `/api/v1/pdf_generations/${gen.id}/dismiss`
+        : `/api/v1/pdf_generations/${gen.id}/cancel`;
+      await api.patch(endpoint, {});
+      setPendingGenerations((prev) => prev.filter((pg) => pg.id !== gen.id));
     } catch {
-      setError("Failed to cancel generation");
+      setError("Failed to dismiss generation");
     }
   };
 
@@ -221,16 +464,8 @@ export function DirectorChangeWizard({
       setLoadingMessage("Loading completed preview...");
       setLoading(true);
       try {
-        const baseUrl = getApiBaseUrl();
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        const pdfResp = await fetch(`${baseUrl}${gen.downloadUrl}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          redirect: "follow",
-        });
-        if (pdfResp.ok) {
-          const blob = await pdfResp.blob();
-          setPdfDownloadUrl(URL.createObjectURL(blob));
-        }
+        const blobUrl = await fetchPdfAsBlob(gen.downloadUrl!);
+        if (blobUrl) setPdfDownloadUrl(blobUrl);
         setGeneratedFilename(gen.filename || "");
         const docs = gen.result?.documents as Array<{ type: string; name: string }> | undefined;
         if (docs) setGeneratedDocuments(docs);
@@ -255,16 +490,8 @@ export function DirectorChangeWizard({
         });
         if (result.status === "completed" && result.downloadUrl) {
           setLoadingMessage("Downloading preview...");
-          const baseUrl = getApiBaseUrl();
-          const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-          const pdfResp = await fetch(`${baseUrl}${result.downloadUrl}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            redirect: "follow",
-          });
-          if (pdfResp.ok) {
-            const blob = await pdfResp.blob();
-            setPdfDownloadUrl(URL.createObjectURL(blob));
-          }
+          const blobUrl = await fetchPdfAsBlob(result.downloadUrl);
+          if (blobUrl) setPdfDownloadUrl(blobUrl);
           setGeneratedFilename(result.filename || "");
           const docs = result.result?.documents as Array<{ type: string; name: string }> | undefined;
           if (docs) setGeneratedDocuments(docs);
@@ -308,7 +535,7 @@ export function DirectorChangeWizard({
 
   // --- Ceasing Directors ---
 
-  const addCeasingDirector = (officer: OfficerRecord) => {
+  const addCeasingDirector = async (officer: OfficerRecord) => {
     // Check if this contact is already added (by contact id, not officer id)
     const contactId = officer.contact?.id;
     if (contactId && ceasingDirectors.some((cd) => cd.contact_id === contactId)) return;
@@ -324,6 +551,40 @@ export function DirectorChangeWizard({
       .filter((o) => o.contact?.id === contactId && o.is_current)
       .map((o) => o.id);
 
+    // Fetch contact details for DOB/address/emails
+    let dob = "";
+    let address = "";
+    let hasDob = false;
+    let hasAddress = false;
+    let emails: ContactEmail[] = [];
+    let selectedEmail = officer.contact?.email || "";
+    if (contactId) {
+      try {
+        const detail = await api.get<{ contact: { date_of_birth?: string; residential_address?: string | null; full_address?: string; contact_emails?: ContactEmail[]; contact_addresses?: Array<{ line1?: string; line2?: string; city?: string; region?: string; postal_code?: string; country?: string; address_type?: string }> } }>(
+          `/api/v1/contacts/${contactId}`
+        );
+        const c = detail.contact;
+        dob = c?.date_of_birth || "";
+        hasDob = !!dob && dob !== "[RESTRICTED]";
+        // Check residential_address first, fall back to contact_addresses
+        if (c?.residential_address && c.residential_address !== "[RESTRICTED]") {
+          hasAddress = true;
+          address = c.residential_address;
+        } else if (c?.contact_addresses?.length) {
+          const streetAddr = c.contact_addresses.find((a) => a.address_type === "STREET") || c.contact_addresses[0];
+          const parts = [streetAddr.line1, streetAddr.line2, streetAddr.city, streetAddr.region, streetAddr.postal_code].filter(Boolean);
+          if (parts.length > 0) {
+            hasAddress = true;
+            address = parts.join(", ");
+          }
+        }
+        // Emails for e-signature delivery
+        emails = c?.contact_emails || [];
+        const primary = emails.find((e) => e.is_primary);
+        selectedEmail = primary?.email || emails[0]?.email || selectedEmail;
+      } catch { /* proceed without details */ }
+    }
+
     setCeasingDirectors((prev) => [
       ...prev,
       {
@@ -334,6 +595,14 @@ export function DirectorChangeWizard({
         position: officer.position,
         positions: uniquePositions.length > 0 ? uniquePositions : [officer.position],
         cessation_date: format(new Date(), "yyyy-MM-dd"),
+        has_dob: hasDob,
+        has_address: hasAddress,
+        dob,
+        address,
+        editing_dob: false,
+        editing_address: false,
+        emails,
+        selected_email: selectedEmail,
       },
     ]);
   };
@@ -362,14 +631,16 @@ export function DirectorChangeWizard({
     // Default appointment date to the first ceasing director's cessation date (continuity)
     const defaultDate = ceasingDirectors[0]?.cessation_date || format(new Date(), "yyyy-MM-dd");
 
-    // Fetch full contact details to get DOB and residential address for confirmation
+    // Fetch full contact details to get DOB, residential address, and emails
     // ASIC forms require residential_address specifically, not just contact_addresses
     let hasDob = !!contact.date_of_birth;
     let hasAddress = false;
     let dobValue = "";
     let addressValue = "";
+    let emails: ContactEmail[] = [];
+    let selectedEmail = contact.email || "";
     try {
-      const detail = await api.get<{ contact: { date_of_birth?: string; residential_address?: string | null; contact_addresses?: Array<{ line1?: string; line2?: string; city?: string; region?: string; postal_code?: string; country?: string; address_type?: string }> } }>(
+      const detail = await api.get<{ contact: { date_of_birth?: string; residential_address?: string | null; contact_emails?: ContactEmail[]; contact_addresses?: Array<{ line1?: string; line2?: string; city?: string; region?: string; postal_code?: string; country?: string; address_type?: string }> } }>(
         `/api/v1/contacts/${contact.id}`
       );
       const c = detail.contact;
@@ -382,7 +653,6 @@ export function DirectorChangeWizard({
         hasAddress = true;
         addressValue = c.residential_address;
       } else if (c?.contact_addresses?.length) {
-        // Use STREET address if available, otherwise first address
         const streetAddr = c.contact_addresses.find((a) => a.address_type === "STREET") || c.contact_addresses[0];
         const parts = [streetAddr.line1, streetAddr.line2, streetAddr.city, streetAddr.region, streetAddr.postal_code].filter(Boolean);
         if (parts.length > 0) {
@@ -390,6 +660,10 @@ export function DirectorChangeWizard({
           addressValue = parts.join(", ");
         }
       }
+      // Emails for e-signature delivery
+      emails = c?.contact_emails || [];
+      const primary = emails.find((e) => e.is_primary);
+      selectedEmail = primary?.email || emails[0]?.email || selectedEmail;
     } catch {
       // If fetch fails, keep search-level values
     }
@@ -408,6 +682,8 @@ export function DirectorChangeWizard({
         address: addressValue,
         editing_dob: false,
         editing_address: false,
+        emails,
+        selected_email: selectedEmail,
       },
     ]);
     setContactSearch("");
@@ -453,11 +729,13 @@ export function DirectorChangeWizard({
           corporate_director_id: cd.corporate_director_id,
           positions: cd.positions,
           cessation_date: cd.cessation_date,
+          email: cd.selected_email,
         })),
         new_appointments: newAppointments.map((a) => ({
           contact_id: a.contact_id,
           positions: a.positions,
           appointment_date: a.appointment_date,
+          email: a.selected_email,
         })),
       });
 
@@ -485,22 +763,13 @@ export function DirectorChangeWizard({
 
       if (result.status === "completed" && result.downloadUrl) {
         setLoadingMessage("Downloading preview...");
-        // Fetch PDF with auth and create blob URL for iframe preview
-        const baseUrl = getApiBaseUrl();
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-        const pdfResp = await fetch(`${baseUrl}${result.downloadUrl}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          redirect: "follow",
-        });
-        if (pdfResp.ok) {
-          const blob = await pdfResp.blob();
-          setPdfDownloadUrl(URL.createObjectURL(blob));
+        const blobUrl = await fetchPdfAsBlob(result.downloadUrl);
+        if (blobUrl) {
+          setPdfDownloadUrl(blobUrl);
         } else {
-          // Fallback: try opening URL directly (works if presigned URL redirect)
-          setPdfDownloadUrl(`${baseUrl}${result.downloadUrl}`);
+          setError("Failed to download generated PDF");
         }
         setGeneratedFilename(result.filename || "");
-        // Get documents list from result data
         const docs = result.result?.documents as Array<{ type: string; name: string }> | undefined;
         if (docs) {
           setGeneratedDocuments(docs);
@@ -543,11 +812,13 @@ export function DirectorChangeWizard({
           corporate_director_id: cd.corporate_director_id,
           positions: cd.positions,
           cessation_date: cd.cessation_date,
+          email: cd.selected_email,
         })),
         new_appointments: newAppointments.map((a) => ({
           contact_id: a.contact_id,
           positions: a.positions,
           appointment_date: a.appointment_date,
+          email: a.selected_email,
         })),
         send_for_signing: true,
       });
@@ -692,26 +963,14 @@ export function DirectorChangeWizard({
                     >
                       {gen.status === "completed" ? "View" : "Continue"}
                     </Button>
-                    {gen.status !== "completed" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs text-destructive hover:text-destructive"
-                        onClick={() => cancelGeneration(gen.id)}
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                    {gen.status === "completed" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs text-muted-foreground"
-                        onClick={() => setPendingGenerations((prev) => prev.filter((p) => p.id !== gen.id))}
-                      >
-                        Dismiss
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className={`h-7 text-xs ${gen.status === "completed" ? "text-muted-foreground" : "text-destructive hover:text-destructive"}`}
+                      onClick={() => dismissGeneration(gen)}
+                    >
+                      {gen.status === "completed" ? "Dismiss" : "Cancel"}
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -721,7 +980,18 @@ export function DirectorChangeWizard({
               variant="ghost"
               size="sm"
               className="w-full text-xs text-muted-foreground"
-              onClick={() => setPendingGenerations([])}
+              onClick={async () => {
+                // Dismiss all on backend, then clear local state
+                await Promise.allSettled(
+                  pendingGenerations.map((gen) => {
+                    const endpoint = gen.status === "completed"
+                      ? `/api/v1/pdf_generations/${gen.id}/dismiss`
+                      : `/api/v1/pdf_generations/${gen.id}/cancel`;
+                    return api.patch(endpoint, {});
+                  })
+                );
+                setPendingGenerations([]);
+              }}
             >
               Dismiss all — start new generation
             </Button>
@@ -790,7 +1060,12 @@ export function DirectorChangeWizard({
               {ceasingDirectors.map((cd) => (
                 <div key={cd.corporate_director_id} className="p-3 border rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-sm">{cd.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm">{cd.name}</p>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        <Pencil className="w-2.5 h-2.5 mr-0.5" /> Signs Resignation
+                      </Badge>
+                    </div>
                     <button
                       onClick={() => removeCeasingDirector(cd.corporate_director_id)}
                       className="text-muted-foreground hover:text-destructive"
@@ -798,6 +1073,154 @@ export function DirectorChangeWizard({
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+
+                  {/* DOB and Address for ceasing director */}
+                  <div className="space-y-2 p-2 bg-muted/50 border rounded text-sm">
+                    {/* Date of Birth */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Date of Birth</Label>
+                        {cd.has_dob && !cd.editing_dob && (
+                          <button
+                            onClick={() => setCeasingDirectors((prev) =>
+                              prev.map((c) => c.corporate_director_id === cd.corporate_director_id ? { ...c, editing_dob: true } : c)
+                            )}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            <Pencil className="w-3 h-3" /> Update
+                          </button>
+                        )}
+                      </div>
+                      {cd.has_dob && !cd.editing_dob ? (
+                        <p className="text-sm">
+                          {cd.dob ? format(new Date(cd.dob + "T00:00:00"), "dd/MM/yyyy") : "On file"}
+                        </p>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {!cd.has_dob && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                              <AlertCircle className="w-3 h-3" />
+                              Required
+                            </div>
+                          )}
+                          <DatePickerInput
+                            value={cd.editing_dob ? cd.dob : ""}
+                            isDob
+                            placeholder="Select date of birth..."
+                            className="flex-1"
+                            onChange={async (date) => {
+                              try {
+                                await api.patch(`/api/v1/contacts/${cd.contact_id}`, {
+                                  contact: { date_of_birth: date },
+                                });
+                                setCeasingDirectors((prev) =>
+                                  prev.map((c) => c.corporate_director_id === cd.corporate_director_id
+                                    ? { ...c, has_dob: true, dob: date, editing_dob: false }
+                                    : c)
+                                );
+                              } catch { /* ignore */ }
+                            }}
+                          />
+                          {cd.editing_dob && (
+                            <button
+                              onClick={() => setCeasingDirectors((prev) =>
+                                prev.map((c) => c.corporate_director_id === cd.corporate_director_id ? { ...c, editing_dob: false } : c)
+                              )}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Residential Address */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Residential Address</Label>
+                        {cd.has_address && !cd.editing_address && (
+                          <button
+                            onClick={() => setCeasingDirectors((prev) =>
+                              prev.map((c) => c.corporate_director_id === cd.corporate_director_id ? { ...c, editing_address: true } : c)
+                            )}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            <Pencil className="w-3 h-3" /> Update
+                          </button>
+                        )}
+                      </div>
+                      {cd.has_address && !cd.editing_address ? (
+                        <p className="text-sm">{cd.address || "On file"}</p>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {!cd.has_address && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                              <AlertCircle className="w-3 h-3" />
+                              Required
+                            </div>
+                          )}
+                          <AddressSearchInput
+                            defaultValue={cd.editing_address ? cd.address : ""}
+                            onSelect={async (address) => {
+                              if (!address) return;
+                              try {
+                                await api.patch(`/api/v1/contacts/${cd.contact_id}`, {
+                                  contact: { residential_address: address },
+                                });
+                                setCeasingDirectors((prev) =>
+                                  prev.map((c) => c.corporate_director_id === cd.corporate_director_id
+                                    ? { ...c, has_address: true, address, editing_address: false }
+                                    : c)
+                                );
+                              } catch { /* ignore */ }
+                            }}
+                          />
+                          {cd.editing_address && (
+                            <button
+                              onClick={() => setCeasingDirectors((prev) =>
+                                prev.map((c) => c.corporate_director_id === cd.corporate_director_id ? { ...c, editing_address: false } : c)
+                              )}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* E-Signature Email */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Mail className="w-3 h-3" /> Resignation sent for signature to
+                      </Label>
+                      {cd.emails.length > 1 ? (
+                        <select
+                          value={cd.selected_email}
+                          onChange={(e) => setCeasingDirectors((prev) =>
+                            prev.map((c) => c.corporate_director_id === cd.corporate_director_id
+                              ? { ...c, selected_email: e.target.value } : c)
+                          )}
+                          className="w-full h-8 text-sm rounded-md border border-input bg-background px-2"
+                        >
+                          {cd.emails.map((em) => (
+                            <option key={em.id} value={em.email}>
+                              {em.email}{em.label ? ` (${em.label})` : ""}{em.is_primary ? " \u2014 primary" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      ) : cd.selected_email ? (
+                        <p className="text-sm font-medium">{cd.selected_email}</p>
+                      ) : (
+                        <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                          <AlertCircle className="w-3 h-3" />
+                          No email on file
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <div>
                       <Label className="text-xs">Resigning From</Label>
@@ -822,11 +1245,10 @@ export function DirectorChangeWizard({
                     </div>
                     <div>
                       <Label className="text-xs">Cessation Date</Label>
-                      <Input
-                        type="date"
+                      <DatePickerInput
                         value={cd.cessation_date}
-                        onChange={(e) => updateCeasingDate(cd.corporate_director_id, e.target.value)}
-                        className="h-8 text-sm"
+                        onChange={(date) => updateCeasingDate(cd.corporate_director_id, date)}
+                        placeholder="Select cessation date..."
                       />
                     </div>
                   </div>
@@ -880,9 +1302,11 @@ export function DirectorChangeWizard({
               {newAppointments.map((appt) => (
                 <div key={appt.contact_id} className="p-3 border rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex items-center gap-2">
                       <p className="font-medium text-sm">{appt.name}</p>
-                      {appt.email && <p className="text-xs text-muted-foreground">{appt.email}</p>}
+                      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 text-[10px] px-1.5 py-0">
+                        <Pencil className="w-2.5 h-2.5 mr-0.5" /> Signs Consent
+                      </Badge>
                     </div>
                     <button
                       onClick={() => removeAppointment(appt.contact_id)}
@@ -921,19 +1345,19 @@ export function DirectorChangeWizard({
                               Required
                             </div>
                           )}
-                          <Input
-                            type="date"
-                            defaultValue={appt.editing_dob ? appt.dob : ""}
-                            className="h-8 text-sm flex-1"
-                            onChange={async (e) => {
-                              if (!e.target.value) return;
+                          <DatePickerInput
+                            value={appt.editing_dob ? appt.dob : ""}
+                            isDob
+                            placeholder="Select date of birth..."
+                            className="flex-1"
+                            onChange={async (date) => {
                               try {
                                 await api.patch(`/api/v1/contacts/${appt.contact_id}`, {
-                                  contact: { date_of_birth: e.target.value },
+                                  contact: { date_of_birth: date },
                                 });
                                 setNewAppointments((prev) =>
                                   prev.map((a) => a.contact_id === appt.contact_id
-                                    ? { ...a, has_dob: true, dob: e.target.value, editing_dob: false }
+                                    ? { ...a, has_dob: true, dob: date, editing_dob: false }
                                     : a)
                                 );
                               } catch { /* ignore */ }
@@ -978,25 +1402,21 @@ export function DirectorChangeWizard({
                               Required
                             </div>
                           )}
-                          <Input
-                            type="text"
+                          <AddressSearchInput
                             defaultValue={appt.editing_address ? appt.address : ""}
-                            placeholder="e.g. 123 Main St, Brisbane QLD 4000"
-                            className="h-8 text-sm flex-1"
-                            onBlur={async (e) => {
-                              if (!e.target.value) return;
+                            onSelect={async (address) => {
+                              if (!address) return;
                               try {
                                 await api.patch(`/api/v1/contacts/${appt.contact_id}`, {
-                                  contact: { residential_address: e.target.value },
+                                  contact: { residential_address: address },
                                 });
                                 setNewAppointments((prev) =>
                                   prev.map((a) => a.contact_id === appt.contact_id
-                                    ? { ...a, has_address: true, address: e.target.value, editing_address: false }
+                                    ? { ...a, has_address: true, address, editing_address: false }
                                     : a)
                                 );
                               } catch { /* ignore */ }
                             }}
-                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                           />
                           {appt.editing_address && (
                             <button
@@ -1008,6 +1428,36 @@ export function DirectorChangeWizard({
                               <X className="w-4 h-4" />
                             </button>
                           )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* E-Signature Email */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Mail className="w-3 h-3" /> Consent sent for signature to
+                      </Label>
+                      {appt.emails.length > 1 ? (
+                        <select
+                          value={appt.selected_email}
+                          onChange={(e) => setNewAppointments((prev) =>
+                            prev.map((a) => a.contact_id === appt.contact_id
+                              ? { ...a, selected_email: e.target.value } : a)
+                          )}
+                          className="w-full h-8 text-sm rounded-md border border-input bg-background px-2"
+                        >
+                          {appt.emails.map((em) => (
+                            <option key={em.id} value={em.email}>
+                              {em.email}{em.label ? ` (${em.label})` : ""}{em.is_primary ? " \u2014 primary" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      ) : appt.selected_email ? (
+                        <p className="text-sm font-medium">{appt.selected_email}</p>
+                      ) : (
+                        <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                          <AlertCircle className="w-3 h-3" />
+                          No email on file
                         </div>
                       )}
                     </div>
@@ -1037,11 +1487,10 @@ export function DirectorChangeWizard({
                     </div>
                     <div>
                       <Label className="text-xs">Appointment Date</Label>
-                      <Input
-                        type="date"
+                      <DatePickerInput
                         value={appt.appointment_date}
-                        onChange={(e) => updateAppointmentDate(appt.contact_id, e.target.value)}
-                        className="h-8 text-sm"
+                        onChange={(date) => updateAppointmentDate(appt.contact_id, date)}
+                        placeholder="Select appointment date..."
                       />
                     </div>
                   </div>
@@ -1106,31 +1555,69 @@ export function DirectorChangeWizard({
           <div className="space-y-4">
             <div className="space-y-2">
               <h4 className="text-sm font-semibold">Generated Documents</h4>
-              {generatedDocuments.map((doc, i) => (
-                <div key={i} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
-                  <FileText className="w-4 h-4 text-muted-foreground" />
-                  <span>{doc.name}</span>
-                  <Badge variant="secondary" className="ml-auto text-xs">
-                    {doc.type}
-                  </Badge>
-                </div>
-              ))}
+              {generatedDocuments.map((doc, i) => {
+                // Determine signer for this document
+                let signerLabel = "";
+                let signerColor = "text-muted-foreground";
+                if (doc.type === "resignation") {
+                  const cd = ceasingDirectors.find((c) => doc.name.includes(c.name));
+                  signerLabel = cd ? `${cd.name} signs → ${cd.selected_email}` : "";
+                  signerColor = "text-red-600 dark:text-red-400";
+                } else if (doc.type === "consent") {
+                  const appt = newAppointments.find((a) => doc.name.includes(a.name));
+                  signerLabel = appt ? `${appt.name} signs → ${appt.selected_email}` : "";
+                  signerColor = "text-green-600 dark:text-green-400";
+                } else if (doc.type === "minutes") {
+                  signerLabel = "Signed by Chairperson at meeting";
+                  signerColor = "text-blue-600 dark:text-blue-400";
+                } else if (doc.type === "form_484") {
+                  signerLabel = "Internal record — no signature required";
+                }
+
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm cursor-pointer hover:bg-muted transition-colors"
+                    onDoubleClick={() => pdfDownloadUrl && window.open(pdfDownloadUrl, "_blank")}
+                    title="Double-click to open in new window"
+                  >
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <span className="select-none">{doc.name}</span>
+                      {signerLabel && (
+                        <div className={`text-xs ${signerColor} flex items-center gap-1`}>
+                          <Pencil className="w-3 h-3" />
+                          {signerLabel}
+                        </div>
+                      )}
+                    </div>
+                    <Badge variant="secondary" className="ml-auto text-xs shrink-0">
+                      {doc.type}
+                    </Badge>
+                  </div>
+                );
+              })}
             </div>
 
             {/* PDF Preview */}
             {pdfDownloadUrl && (
-              <div className="border rounded-lg overflow-hidden" style={{ height: "400px" }}>
-                <iframe
-                  src={pdfDownloadUrl}
+              <div className="border rounded-lg overflow-hidden" style={{ height: "500px" }}>
+                <object
+                  data={`${pdfDownloadUrl}#toolbar=1&navpanes=0`}
+                  type="application/pdf"
                   className="w-full h-full"
-                  title="Director Change Package Preview"
-                />
+                >
+                  <p className="p-4 text-center text-muted-foreground">
+                    PDF preview not available in this browser.{" "}
+                    <button onClick={downloadPdf} className="text-primary underline">Download PDF</button>
+                  </p>
+                </object>
               </div>
             )}
 
-            <Button variant="outline" onClick={downloadPdf} className="w-full">
+            <Button variant="outline" onClick={downloadPdf} disabled={!pdfDownloadUrl} className="w-full">
               <Download className="w-4 h-4 mr-2" />
-              Download {generatedFilename}
+              Download {generatedFilename || "PDF"}
             </Button>
 
             {/* Navigation */}
