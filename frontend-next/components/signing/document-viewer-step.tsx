@@ -117,85 +117,84 @@ export function DocumentViewerStep({
   }
 
   return (
-    <>
-      <div className="flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4 pb-4 border-b">
-          <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">{documentTitle}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Zoom controls */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setZoom(Math.max(50, zoom - 25))}
-              disabled={zoom <= 50}
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <span className="text-sm w-16 text-center">{zoom}%</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setZoom(Math.min(200, zoom + 25))}
-              disabled={zoom >= 200}
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-
-            {/* Download button */}
-            {pdfUrl && (
-              <Button variant="outline" size="sm" asChild>
-                <a href={pdfUrl} download={`${documentTitle}.pdf`}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </a>
-              </Button>
-            )}
-          </div>
+    <div className="flex flex-col">
+      {/* Action buttons - ABOVE the PDF so always visible */}
+      <div className="flex justify-between items-center mb-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+        <div>
+          <p className="font-medium text-sm">Please review the document below</p>
+          <p className="text-xs text-muted-foreground">Scroll through the PDF, then click to continue</p>
         </div>
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDeclineDialog(true)}
+          >
+            Decline
+          </Button>
+          <Button size="lg" onClick={onContinue} className="font-semibold">
+            I Have Reviewed — Continue to Sign →
+          </Button>
+        </div>
+      </div>
 
-        {/* PDF Viewer - constrained height so buttons are visible */}
-        <div
-          className="overflow-auto bg-muted dark:bg-slate-800 rounded-lg"
-          style={{ maxHeight: "calc(100vh - 340px)" }}
-          onScroll={handleScroll}
-        >
-          {pdfUrl ? (
-            <div className="flex justify-center p-4">
-              <iframe
-                src={`${pdfUrl}#toolbar=0`}
-                className="w-full bg-white shadow-lg rounded"
-                style={{
-                  height: "800px",
-                  maxWidth: `${zoom}%`,
-                }}
-                title={documentTitle}
-              />
-            </div>
-          ) : (
-            <div className="flex items-center justify-center min-h-[300px]">
-              <p className="text-muted-foreground">Document preview not available</p>
-            </div>
+      {/* Document header with zoom/download */}
+      <div className="flex items-center justify-between mb-3 pb-3 border-b">
+        <div className="flex items-center gap-2">
+          <FileText className="h-5 w-5 text-muted-foreground" />
+          <span className="font-medium text-sm">{documentTitle}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setZoom(Math.max(50, zoom - 25))}
+            disabled={zoom <= 50}
+          >
+            <ZoomOut className="h-4 w-4" />
+          </Button>
+          <span className="text-sm w-16 text-center">{zoom}%</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setZoom(Math.min(200, zoom + 25))}
+            disabled={zoom >= 200}
+          >
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+          {pdfUrl && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={pdfUrl} download={`${documentTitle}.pdf`}>
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </a>
+            </Button>
           )}
         </div>
       </div>
 
-      {/* Action buttons - fixed above the footer, always visible */}
-      <div className="fixed bottom-10 left-0 right-0 z-50 bg-white dark:bg-slate-800 border-t shadow-lg">
-        <div className="max-w-4xl mx-auto px-6 py-3 flex justify-between items-center">
-          <Button
-            variant="outline"
-            onClick={() => setShowDeclineDialog(true)}
-          >
-            Decline to Sign
-          </Button>
-          <Button size="lg" onClick={onContinue} className="font-semibold text-base px-8">
-            I Have Reviewed the Document →
-          </Button>
-        </div>
+      {/* PDF Viewer */}
+      <div
+        className="overflow-auto bg-muted dark:bg-slate-800 rounded-lg mb-4"
+        onScroll={handleScroll}
+      >
+        {pdfUrl ? (
+          <div className="flex justify-center p-4">
+            <iframe
+              src={`${pdfUrl}#toolbar=0`}
+              className="w-full bg-white shadow-lg rounded"
+              style={{
+                height: "600px",
+                maxWidth: `${zoom}%`,
+              }}
+              title={documentTitle}
+            />
+          </div>
+        ) : (
+          <div className="flex items-center justify-center min-h-[300px]">
+            <p className="text-muted-foreground">Document preview not available</p>
+          </div>
+        )}
       </div>
 
       {/* Decline dialog */}
@@ -226,6 +225,6 @@ export function DocumentViewerStep({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }
