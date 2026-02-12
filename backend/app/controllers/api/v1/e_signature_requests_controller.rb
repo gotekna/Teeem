@@ -1,7 +1,7 @@
 class Api::V1::ESignatureRequestsController < ApplicationController
   include PresignedUploadHandler
 
-  before_action :set_request, only: [ :show, :update, :destroy, :send_for_signing, :cancel, :audit_trail, :certificate ]
+  before_action :set_request, only: [ :show, :update, :destroy, :send_for_signing, :cancel, :audit_trail, :certificate, :download_document ]
 
   # GET /api/v1/e_signature_requests
   def index
@@ -202,6 +202,35 @@ class Api::V1::ESignatureRequestsController < ApplicationController
     end
   end
 
+  # GET /api/v1/e_signature_requests/:id/document
+  # Download the original document (authenticated, for request creator/admins)
+  def download_document
+    storage_ref = @request.original_storage_reference
+
+    unless storage_ref.present?
+      render json: {
+        success: false,
+        errors: [ "Document not available" ]
+      }, status: :not_found
+      return
+    end
+
+    begin
+      content = fetch_document_content(@request, storage_ref)
+
+      send_data content,
+                filename: "#{@request.title}.pdf",
+                type: "application/pdf",
+                disposition: "inline"
+    rescue => e
+      Rails.logger.error "[ESignature] Document download failed: #{e.class} - #{e.message}"
+      render json: {
+        success: false,
+        errors: [ "Failed to retrieve document" ]
+      }, status: :unprocessable_entity
+    end
+  end
+
   # POST /api/v1/e_signature_requests/:id/signers
   def add_signer
     @request = ESignatureRequest.find(params[:e_signature_request_id])
@@ -364,6 +393,7 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       json[:send_reminders] = request.send_reminders
       json[:reminder_interval_days] = request.reminder_interval_days
       json[:has_certificate] = request.certificate.present?
+      json[:has_document] = request.original_storage_reference.present?
     end
 
     json
@@ -403,6 +433,26 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       signer_id: field.e_signature_signer_id,
       signer_email: field.e_signature_signer&.email
     }
+  end
+
+  # Fetch document content from StorageBlob (S3/Wasabi) or SharePoint
+  # Same pattern as signing_ceremony_controller#fetch_document_content
+  def fetch_document_content(request_obj, storage_ref)
+    blob = StorageBlob.find_by(id: storage_ref)
+    if blob
+      return blob.download
+    end
+
+    if request_obj.storage_site_id.present? && request_obj.storage_drive_id.present?
+      client = MicrosoftAppGraphClient.new
+      return client.get_drive_item_content(
+        site_id: request_obj.storage_site_id,
+        drive_id: request_obj.storage_drive_id,
+        item_id: storage_ref
+      )
+    end
+
+    raise "No storage backend available for document (ref: #{storage_ref})"
   end
 
   # Create fields and map signer_index to actual signer IDs

@@ -215,7 +215,7 @@ export default function DocsortPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [reclassifyingAll, setReclassifyingAll] = useState(false);
-  const [documentTypes, setDocumentTypes] = useState<{ value: string; label: string }[]>(FALLBACK_DOCUMENT_TYPES);
+  const [documentTypes, setDocumentTypes] = useState<{ value: string; label: string; id?: number; folderPath?: string; uiName?: string; downloadName?: string }[]>(FALLBACK_DOCUMENT_TYPES);
   const [companies, setCompanies] = useState<ComboboxItem[]>([]);
   const [selectedCorporate, setSelectedCorporate] = useState<ComboboxItem | undefined>();
 
@@ -227,7 +227,7 @@ export default function DocsortPage() {
   // Load document types from database
   const loadDocumentTypes = useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string }> }>(
+      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; primary_folder_path?: string; uiName?: string; downloadName?: string }> }>(
         "/api/v1/document_types"
       );
       if (response?.data) {
@@ -235,6 +235,10 @@ export default function DocsortPage() {
           // Match Rails .parameterize(separator: '_')
           value: dt.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
           label: dt.name,
+          id: dt.id,
+          folderPath: dt.primary_folder_path,
+          uiName: dt.uiName,
+          downloadName: dt.downloadName,
         }));
         // Add "General" at the end if not already present
         if (!types.find((t) => t.value === "general")) {
@@ -911,6 +915,91 @@ export default function DocsortPage() {
                           </SelectContent>
                         </Select>
                       </div>
+                      {/* Folder path, proposed names, and doc type link */}
+                      {(() => {
+                        const matchedType = documentTypes.find(
+                          (t) => t.value === (selectedItem.document_type || "general")
+                        );
+                        if (!matchedType || matchedType.value === "general") return null;
+
+                        // Expand {{Token}} placeholders with available context
+                        const expandTemplate = (template: string | undefined) => {
+                          if (!template) return null;
+                          const now = new Date();
+                          const dd = String(now.getDate()).padStart(2, '0');
+                          const mm = String(now.getMonth() + 1).padStart(2, '0');
+                          const yyyy = now.getFullYear();
+                          const originalFilename = selectedItem.original_filename || selectedItem.display_name || '';
+                          const baseName = originalFilename.replace(/\.[^/.]+$/, '');
+                          const ext = originalFilename.split('.').pop() || '';
+
+                          let result = template;
+                          const tokens: Record<string, string> = {
+                            DocTypeName: matchedType.label,
+                            DocTypeCode: matchedType.value,
+                            CompanyName: selectedCorporate?.label || '',
+                            CompanyCode: selectedCorporate?.searchText || '',
+                            Date: `${dd}-${mm}-${yyyy}`,
+                            DDMMYYYY: `${dd}-${mm}-${yyyy}`,
+                            YYYYMMDD: `${yyyy}-${mm}-${dd}`,
+                            OriginalFileName: baseName,
+                            OriginalFileNameWithExt: originalFilename,
+                            FileExtension: ext,
+                            Subject: selectedItem.subject || '',
+                            FromEmail: selectedItem.from_email || '',
+                          };
+                          for (const [key, val] of Object.entries(tokens)) {
+                            if (val) {
+                              result = result.replaceAll(`{{${key}}}`, val).replaceAll(`{${key}}`, val);
+                            }
+                          }
+                          // Clean unreplaced tokens
+                          result = result.replace(/\s*\{\{?[^}]+\}?\}\s*/g, ' ').replace(/\s+/g, ' ').trim();
+                          return result || null;
+                        };
+
+                        const proposedUiName = expandTemplate(matchedType.uiName);
+                        const proposedDlName = expandTemplate(matchedType.downloadName);
+
+                        return (
+                          <div className="space-y-1.5">
+                            {matchedType.folderPath && (
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-sm text-muted-foreground shrink-0">Folder Path</span>
+                                <span className="text-sm text-right text-muted-foreground/80 font-mono truncate" title={matchedType.folderPath}>
+                                  {matchedType.folderPath}
+                                </span>
+                              </div>
+                            )}
+                            {proposedUiName && (
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-sm text-muted-foreground shrink-0">Proposed UI Name</span>
+                                <span className="text-sm text-right truncate" title={`Template: ${matchedType.uiName}\nResolved: ${proposedUiName}`}>
+                                  {proposedUiName}
+                                </span>
+                              </div>
+                            )}
+                            {proposedDlName && (
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-sm text-muted-foreground shrink-0">Proposed DL Name</span>
+                                <span className="text-sm text-right truncate" title={`Template: ${matchedType.downloadName}\nResolved: ${proposedDlName}`}>
+                                  {proposedDlName}
+                                </span>
+                              </div>
+                            )}
+                            {matchedType.id && (
+                              <div className="flex items-center justify-end">
+                                <button
+                                  onClick={() => router.push('/settings/documents')}
+                                  className="text-xs text-primary hover:underline"
+                                >
+                                  Open Document Type Settings →
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {selectedItem.classification_confidence !== null && (
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-muted-foreground">Confidence</span>
