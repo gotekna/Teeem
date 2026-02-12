@@ -51,6 +51,9 @@ class Api::V1::SigningCeremonyController < ApplicationController
       }
     end
 
+    # Check tenant setting for email verification requirement
+    email_verification_required = resolve_email_verification_required(signer)
+
     render json: {
       success: true,
       signer: {
@@ -60,7 +63,8 @@ class Api::V1::SigningCeremonyController < ApplicationController
         role: signer.role,
         status: signer.status,
         can_sign: signer.can_sign?,
-        email_verified: signer.email_verified?
+        email_verified: signer.email_verified?,
+        email_verification_required: email_verification_required
       },
       request: {
         id: request.id,
@@ -96,7 +100,23 @@ class Api::V1::SigningCeremonyController < ApplicationController
   def send_verification_code
     code = @signer.generate_verification_code!
 
-    ESignatureEmailService.deliver(ESignatureMailer.verification_code(@signer))
+    begin
+      ESignatureEmailService.deliver(ESignatureMailer.verification_code(@signer))
+    rescue ESignatureEmailService::DeliveryError, MicrosoftAppGraphClient::ApiError => e
+      Rails.logger.error "[ESignature] Verification code email failed for #{@signer.email}: #{e.message}"
+      render json: {
+        success: false,
+        errors: [ "Failed to send verification email. Please try again or contact the sender." ]
+      }, status: :unprocessable_entity
+      return
+    rescue MicrosoftAppGraphClient::NotConnectedError, MicrosoftAppGraphClient::DeadTokenError => e
+      Rails.logger.error "[ESignature] Email service not available: #{e.message}"
+      render json: {
+        success: false,
+        errors: [ "Email service is temporarily unavailable. Please try again later." ]
+      }, status: :service_unavailable
+      return
+    end
 
     render json: {
       success: true,
@@ -136,7 +156,7 @@ class Api::V1::SigningCeremonyController < ApplicationController
       return
     end
 
-    unless @signer.email_verified?
+    if resolve_email_verification_required(@signer) && !@signer.email_verified?
       render json: {
         success: false,
         errors: [ "Please verify your email before signing" ]
@@ -150,7 +170,8 @@ class Api::V1::SigningCeremonyController < ApplicationController
       typed_font: params[:typed_font],
       ip_address: request.remote_ip,
       user_agent: request.user_agent,
-      device: detect_device
+      device: detect_device,
+      skip_email_verification: !resolve_email_verification_required(@signer)
     )
 
     if success
@@ -191,7 +212,7 @@ class Api::V1::SigningCeremonyController < ApplicationController
       return
     end
 
-    unless @signer.email_verified?
+    if resolve_email_verification_required(@signer) && !@signer.email_verified?
       render json: {
         success: false,
         errors: [ "Please verify your email before signing" ]
@@ -315,6 +336,14 @@ class Api::V1::SigningCeremonyController < ApplicationController
       .where("access_token_expires_at > ?", Time.current)
       .where(e_signature_requests: { status: %w[sent in_progress] })
       .first
+  end
+
+  def resolve_email_verification_required(signer)
+    user = signer.e_signature_request.created_by
+    return true unless user&.tenant_id
+
+    setting = TenantSetting.find_by(tenant_id: user.tenant_id)
+    setting&.esignature_require_email_verification != false
   end
 
   def detect_device

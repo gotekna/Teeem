@@ -289,7 +289,8 @@ class TenantSetting < ApplicationRecord
         newcase: monitored_mailbox_newcase,
         docsort: monitored_mailbox_docsort,
         esignature: monitored_mailbox_esignature
-      }
+      },
+      esignature_require_email_verification: instance.esignature_require_email_verification
     }
   end
 

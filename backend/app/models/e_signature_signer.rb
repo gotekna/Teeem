@@ -148,9 +148,9 @@ class ESignatureSigner < ApplicationRecord
     e_signature_request.mark_in_progress!
   end
 
-  def sign!(signature_data:, signature_type:, ip_address: nil, user_agent: nil, typed_font: nil, device: nil)
+  def sign!(signature_data:, signature_type:, ip_address: nil, user_agent: nil, typed_font: nil, device: nil, skip_email_verification: false)
     return false unless can_sign?
-    return false unless email_verified?
+    return false unless skip_email_verification || email_verified?
 
     transaction do
       update!(

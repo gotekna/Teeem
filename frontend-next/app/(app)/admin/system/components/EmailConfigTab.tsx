@@ -18,7 +18,9 @@ import {
   Sparkles,
   Send,
   PenLine,
+  ShieldCheck,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
@@ -34,6 +36,7 @@ interface EmailConfig {
     docsort: string;
     esignature: string;
   };
+  esignature_require_email_verification: boolean;
 }
 
 function MailboxField({
@@ -140,6 +143,7 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
     monitored_mailbox_newcase: "",
     monitored_mailbox_docsort: "",
     monitored_mailbox_esignature: "",
+    esignature_require_email_verification: true,
   });
 
   // Load email config on mount
@@ -162,6 +166,7 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
           monitored_mailbox_newcase: response.data.monitored_mailboxes?.newcase || "",
           monitored_mailbox_docsort: response.data.monitored_mailboxes?.docsort || "",
           monitored_mailbox_esignature: response.data.monitored_mailboxes?.esignature || "",
+          esignature_require_email_verification: response.data.esignature_require_email_verification ?? true,
         });
       }
     } catch (error) {
@@ -453,6 +458,39 @@ export function EmailConfigTab({ connectedDomains, connectedAliases }: EmailConf
               description="Signing invitations and notifications are sent from this address"
               connectedAliases={connectedAliases}
               keywords={["esign", "sign", "signature", "esignature"]}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* E-Signature Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            E-Signature Security
+          </CardTitle>
+          <CardDescription>
+            Configure security settings for the e-signature signing process
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="esign_verification" className="text-sm font-medium">
+                Require email verification before signing
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                When enabled, signers must verify their email with a 6-digit code before they can sign.
+                Disable this for trusted internal signing workflows.
+              </p>
+            </div>
+            <Switch
+              id="esign_verification"
+              checked={formData.esignature_require_email_verification}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, esignature_require_email_verification: checked }))
+              }
             />
           </div>
         </CardContent>
