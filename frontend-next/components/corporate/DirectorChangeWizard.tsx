@@ -272,16 +272,8 @@ export function DirectorChangeWizard({
         });
         if (result.status === "completed" && result.downloadUrl) {
           setLoadingMessage("Downloading preview...");
-          const baseUrl = getApiBaseUrl();
-          const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-          const pdfResp = await fetch(`${baseUrl}${result.downloadUrl}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            redirect: "follow",
-          });
-          if (pdfResp.ok) {
-            const blob = await pdfResp.blob();
-            setPdfDownloadUrl(URL.createObjectURL(blob));
-          }
+          const blobUrl = await fetchPdfAsBlob(result.downloadUrl);
+          if (blobUrl) setPdfDownloadUrl(blobUrl);
           setGeneratedFilename(result.filename || "");
           const docs = result.result?.documents as Array<{ type: string; name: string }> | undefined;
           if (docs) setGeneratedDocuments(docs);
