@@ -970,7 +970,8 @@ module Api
               address: appt[:address]
             }
           },
-          send_for_signing: params[:send_for_signing].present?
+          send_for_signing: params[:send_for_signing].present?,
+          reuse_pdf_generation_id: params[:reuse_pdf_generation_id]
         }
 
         enqueue_pdf_and_respond(

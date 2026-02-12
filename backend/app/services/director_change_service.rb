@@ -77,6 +77,24 @@ class DirectorChangeService
     }
   end
 
+  # Send for e-signature using an existing StorageBlob (from preview step).
+  # Avoids regenerating the PDF when the user already previewed it.
+  def send_with_existing_blob!(blob)
+    pdf_content = blob.download
+
+    e_sig_request = create_e_signature_request_from_blob(blob, pdf_content)
+    e_sig_request.send_for_signing!
+
+    documents = build_document_metadata
+
+    {
+      e_signature_request: e_sig_request,
+      pdf_content: pdf_content,
+      filename: generate_filename,
+      documents: documents
+    }
+  end
+
   # Called when e-signature completes - updates director records
   def complete_signing!(e_signature_request)
     ActiveRecord::Base.transaction do
@@ -461,24 +479,78 @@ class DirectorChangeService
     request.set_original_storage_reference(blob.id.to_s)
     request.save!
 
-    # Add signers from documents that need signatures
-    signing_order = 0
-    package_documents = generate_all_documents
+    # Add signers from input data (no need to regenerate PDFs for signer metadata)
+    add_signers_to_request(request)
 
-    package_documents.each do |doc|
-      next unless doc[:signer_email].present?
+    request
+  end
+
+  # Create e-signature request using an existing blob (reuse from preview step)
+  def create_e_signature_request_from_blob(blob, pdf_content)
+    request = ESignatureRequest.create!(
+      title: "Director Change - #{company.name}",
+      documentable: company,
+      created_by: user,
+      signing_order: ESignatureRequest::SIGNING_ORDERS[:sequential],
+      send_reminders: true,
+      original_document_hash: Digest::SHA256.hexdigest(pdf_content)
+    )
+
+    request.set_original_storage_reference(blob.id.to_s)
+    request.save!
+
+    add_signers_to_request(request)
+
+    request
+  end
+
+  # Extract signer info directly from ceasing_directors and new_appointments
+  # without regenerating PDFs (avoids expensive Grover HTML→PDF conversion)
+  def add_signers_to_request(request)
+    signing_order = 0
+
+    ceasing_directors.each do |cd|
+      contact = cd[:corporate_director].contact
+      email = cd[:email].presence || contact.primary_email
+      next unless email.present?
 
       signing_order += 1
       request.signers.create!(
-        name: doc[:signer_name],
-        email: doc[:signer_email],
-        contact: doc[:signer_contact],
-        role: doc[:signer_role],
+        name: contact.display_name,
+        email: email,
+        contact: contact,
+        role: "director",
         signing_order: signing_order
       )
     end
 
-    request
+    new_appointments.each do |appt|
+      contact = appt[:contact]
+      email = appt[:email].presence || contact.primary_email
+      next unless email.present?
+
+      signing_order += 1
+      request.signers.create!(
+        name: contact.display_name,
+        email: email,
+        contact: contact,
+        role: "director",
+        signing_order: signing_order
+      )
+    end
+  end
+
+  # Build document metadata without generating PDFs
+  def build_document_metadata
+    docs = [{ type: :minutes, name: "Minutes of Meeting of Directors" }]
+    ceasing_directors.each do |cd|
+      docs << { type: :resignation, name: "Resignation - #{cd[:corporate_director].contact.display_name}" }
+    end
+    new_appointments.each do |appt|
+      docs << { type: :consent, name: "Consent to Act - #{appt[:contact].display_name}" }
+    end
+    docs << { type: :form_484, name: "Form 484 Record" }
+    docs
   end
 
   # --- Helpers ---
