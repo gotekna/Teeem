@@ -160,7 +160,7 @@ class CreateAsicDocumentTypesAndFolder < ActiveRecord::Migration[8.0]
       {
         name: "Form 484 Record",
         local_template_path: "tekna_documents/templates/asic/form_484_record",
-        category: "corporate",
+        category: "letter",
         template_type: "html",
         output_format: "pdf",
         is_active: true,
@@ -169,7 +169,7 @@ class CreateAsicDocumentTypesAndFolder < ActiveRecord::Migration[8.0]
       {
         name: "Consent to Act as Director",
         local_template_path: "tekna_documents/templates/asic/consent_to_act",
-        category: "corporate",
+        category: "letter",
         template_type: "html",
         output_format: "pdf",
         is_active: true,
@@ -178,7 +178,7 @@ class CreateAsicDocumentTypesAndFolder < ActiveRecord::Migration[8.0]
       {
         name: "Director Resignation Letter",
         local_template_path: "tekna_documents/templates/asic/director_resignation",
-        category: "corporate",
+        category: "letter",
         template_type: "html",
         output_format: "pdf",
         is_active: true,
@@ -187,7 +187,7 @@ class CreateAsicDocumentTypesAndFolder < ActiveRecord::Migration[8.0]
       {
         name: "Directors Minutes",
         local_template_path: "tekna_documents/templates/asic/directors_minutes",
-        category: "corporate",
+        category: "letter",
         template_type: "html",
         output_format: "pdf",
         is_active: true,

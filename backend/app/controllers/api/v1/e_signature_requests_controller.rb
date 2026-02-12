@@ -203,7 +203,8 @@ class Api::V1::ESignatureRequestsController < ApplicationController
   end
 
   # GET /api/v1/e_signature_requests/:id/document
-  # Download the original document (authenticated, for request creator/admins)
+  # Download document: stamped/signed version for completed requests, original otherwise.
+  # Pass ?version=original to force the original document.
   def download_document
     storage_ref = @request.original_storage_reference
 
@@ -216,10 +217,21 @@ class Api::V1::ESignatureRequestsController < ApplicationController
     end
 
     begin
-      content = fetch_document_content(@request, storage_ref)
+      # For completed requests, generate stamped PDF with signatures (unless original requested)
+      if @request.status == "completed" && params[:version] != "original"
+        stamper = ESignaturePdfStamper.new(@request)
+        content = stamper.stamp!
+        filename = "#{@request.title} (Signed).pdf"
+      end
+
+      # Fall back to original document
+      unless content.present?
+        content = fetch_document_content(@request, storage_ref)
+        filename = "#{@request.title}.pdf"
+      end
 
       send_data content,
-                filename: "#{@request.title}.pdf",
+                filename: filename,
                 type: "application/pdf",
                 disposition: "inline"
     rescue => e
