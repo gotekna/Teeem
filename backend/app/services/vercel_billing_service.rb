@@ -9,7 +9,7 @@
 #
 class VercelBillingService
   CACHE_KEY = "vercel_billing_data"
-  BREAKDOWN_CACHE_KEY = "vercel_usage_breakdown"
+  BREAKDOWN_CACHE_KEY = "vercel_usage_breakdown_v2"
   CACHE_TTL = 1.hour
 
   class << self
@@ -162,29 +162,29 @@ class VercelBillingService
       return { success: false, error: "VERCEL_TOKEN not configured" } unless token.present?
       return { success: false, error: "VERCEL_TEAM_ID not configured" } unless team_id.present?
 
-      # Get current billing period dates from upcoming invoice
-      upcoming_data = vercel_get(token, "/v1/invoices/upcoming?teamId=#{team_id}")
-      upcoming_invoice = upcoming_data&.dig("data", 0)
-      return { success: false, error: "No upcoming invoice found" } unless upcoming_invoice
+      # Get billing cycle dates from the billing endpoint (SSoT - already proven correct).
+      # The billing response's currentPeriod has periodStart/periodEnd in milliseconds
+      # that the frontend displays correctly as "26 Jan – 26 Feb 2026".
+      billing_data = billing(force_refresh: false)
+      period_start_ms = billing_data&.dig(:currentPeriod, :periodStart).to_i
+      period_end_ms = billing_data&.dig(:currentPeriod, :periodEnd).to_i
 
-      bm_item = (upcoming_invoice["lineItems"] || []).find { |li| (li["title"] || "").include?("Build") }
-      return { success: false, error: "No build minutes line item found" } unless bm_item
-
-      # Derive billing cycle dates.
-      # The line item periodStart is in milliseconds. Sanity check: if it results in
-      # a date before 2020, fall back to 30 days ago (Vercel billing is monthly).
-      raw_start = bm_item["periodStart"].to_i
-      raw_end = bm_item["periodEnd"].to_i
-      Rails.logger.info("[VercelBillingService] Raw periodStart=#{raw_start}, periodEnd=#{raw_end}")
-      period_start = raw_start > 1_000_000_000_000 ? Time.at(raw_start / 1000) : Time.at(raw_start)
-      period_end = raw_end > 1_000_000_000_000 ? Time.at(raw_end / 1000) : Time.at(raw_end)
-      Rails.logger.info("[VercelBillingService] Resolved cycle: #{period_start} to #{period_end}")
-
-      # If still unreasonable, fall back to ~30 days ago
-      if period_start.year < 2020
-        Rails.logger.warn("[VercelBillingService] periodStart unreliable (#{raw_start}), falling back to 30 days")
+      # Convert ms to Time (billing endpoint returns raw ms from Vercel API)
+      if period_start_ms > 1_000_000_000_000
+        period_start = Time.at(period_start_ms / 1000)
+        period_end = Time.at(period_end_ms / 1000)
+      elsif period_start_ms > 1_000_000_000
+        # Already in seconds
+        period_start = Time.at(period_start_ms)
+        period_end = Time.at(period_end_ms)
+      else
+        # Fallback: use last 30 days
+        Rails.logger.warn("[VercelBillingService] Cannot determine billing cycle (raw: #{period_start_ms}), using last 30 days")
         period_start = 30.days.ago
+        period_end = Time.current + 15.days
       end
+
+      Rails.logger.info("[VercelBillingService] Breakdown cycle: #{period_start} to #{period_end}")
 
       # Split billing period into day-sized windows and fetch in parallel.
       # With ~10k deployments, sequential pagination takes >2 min (exceeds Heroku 30s limit).
