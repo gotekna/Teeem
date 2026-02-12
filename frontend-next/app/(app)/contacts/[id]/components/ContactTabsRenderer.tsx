@@ -197,15 +197,16 @@ export function ContactTabsRenderer({
           .filter((child) => child.enabled && evaluateVisibility(child.visibility_rule, visibilityData))
           .sort((a, b) => (a.order_position || 0) - (b.order_position || 0));
 
-        const hasChildren = visibleChildren.length > 0;
+        const hasMultipleChildren = visibleChildren.length > 1;
         const badgeCount = getTabBadgeCount(tab.tab_key, visibilityData);
         const showLock = !contact.can_view_confidential && (tab.tab_key === "corporate" || tab.tab_key === "financial");
 
         // Get icon
         const IconComponent = tab.icon_name ? getIcon(tab.icon_name) : null;
 
-        // If tab has children, render with dropdown
-        if (hasChildren) {
+        // If tab has multiple children, render with dropdown
+        // Single child = no dropdown needed, just navigate directly
+        if (hasMultipleChildren) {
           return (
             <TabWithDropdown
               key={tab.tab_key}
