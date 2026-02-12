@@ -23,9 +23,9 @@ import {
 import { FileText } from "lucide-react";
 
 import { format } from "date-fns";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
-import { DirectorChangeWizard } from "@/components/corporate/DirectorChangeWizard";
 
 interface DirectorsTabProps {
   companyId: string;
@@ -36,9 +36,10 @@ interface DirectorsTabProps {
 
 export function DirectorsTab({ companyId, entityId, company, onUpdate }: DirectorsTabProps) {
   const effectiveCompanyId = companyId || entityId;
+  const router = useRouter();
   const [officers, setOfficers] = React.useState<OfficerRecord[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [wizardOpen, setWizardOpen] = React.useState(false);
+  const [startingWorkflow, setStartingWorkflow] = React.useState(false);
 
   const loadOfficers = React.useCallback(async () => {
     try {
@@ -62,10 +63,34 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
   const secretaries = officers.filter(o => o.position?.includes("secretary"));
   const publicOfficers = officers.filter(o => o.position?.includes("public_officer"));
 
-  const handleWizardComplete = () => {
-    loadOfficers();
-    onUpdate?.();
-  };
+  const startDirectorChangeWorkflow = React.useCallback(async () => {
+    if (!company) return;
+    setStartingWorkflow(true);
+    try {
+      const res = await api.post<{
+        success: boolean;
+        instance: { id: number };
+        first_task_id: number | null;
+        error?: string;
+      }>("/api/v1/bpmn_process_instances", {
+        bpmn_process_id: "Director Change",
+        subject_type: "Corporate",
+        subject_id: company.id,
+      });
+
+      if (res?.success && res.first_task_id) {
+        router.push(`/workflows/tasks/${res.first_task_id}`);
+      } else if (res?.success) {
+        router.push("/workflows");
+      } else {
+        console.error("Failed to start workflow:", res?.error);
+      }
+    } catch (err) {
+      console.error("Failed to start director change workflow:", err);
+    } finally {
+      setStartingWorkflow(false);
+    }
+  }, [company, router]);
 
   const renderOfficerList = (title: string, officerList: OfficerRecord[]) => {
     const current = officerList.filter(o => o.is_current);
@@ -160,8 +185,17 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">Corporate Officers History</h3>
         {company && (
-          <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)}>
-            <FileText className="w-4 h-4 mr-1.5" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={startDirectorChangeWorkflow}
+            disabled={startingWorkflow}
+          >
+            {startingWorkflow ? (
+              <Spinner size={16} className="mr-1.5" />
+            ) : (
+              <FileText className="w-4 h-4 mr-1.5" />
+            )}
             Director Changes
           </Button>
         )}
@@ -170,17 +204,6 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
       {renderOfficerList("Secretaries", secretaries)}
       {renderOfficerList("Public Officers", publicOfficers)}
 
-      {/* Director Change Wizard */}
-      {company && (
-        <DirectorChangeWizard
-          open={wizardOpen}
-          onOpenChange={setWizardOpen}
-          company={company}
-          companyId={effectiveCompanyId || ""}
-          officers={officers}
-          onComplete={handleWizardComplete}
-        />
-      )}
     </div>
   );
 }

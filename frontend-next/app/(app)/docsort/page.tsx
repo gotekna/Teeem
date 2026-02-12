@@ -242,7 +242,7 @@ export default function DocsortPage() {
         }));
         // Add "General" at the end if not already present
         if (!types.find((t) => t.value === "general")) {
-          types.push({ value: "general", label: "General" });
+          types.push({ value: "general", label: "General", id: 0, folderPath: undefined, uiName: undefined, downloadName: undefined });
         }
         setDocumentTypes(types);
       }
