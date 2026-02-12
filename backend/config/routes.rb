@@ -821,6 +821,7 @@ Rails.application.routes.draw do
           post :cancel
           get :audit_trail
           get :certificate
+          get :download_document, path: "document"
         end
         resources :signers, controller: "e_signature_requests", only: [] do
           collection do
