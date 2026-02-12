@@ -206,7 +206,8 @@ interface VercelBreakdownData {
   periodEnd?: string;
   totalMinutes?: number;
   totalDeploys?: number;
-  includedMinutes?: number;
+  estimatedCost?: number;
+  ratePerMinute?: number;
   weeks?: BreakdownWeek[];
   fetchedAt?: string;
   cached?: boolean;
@@ -1008,56 +1009,27 @@ export default function CostsMap() {
                                   <p className="text-xs text-red-500">{breakdown.error}</p>
                                 )}
 
-                                {/* Billing cycle header with usage bar */}
+                                {/* Billing cycle header with usage summary */}
                                 {breakdown.periodStart && breakdown.periodEnd && (
                                   <div className="border border-border rounded p-2.5 bg-muted/30">
-                                    <div className="flex items-center justify-between text-xs mb-1.5">
+                                    <div className="flex items-center justify-between text-xs mb-1">
                                       <span className="font-medium">
                                         Billing Cycle: {new Date(breakdown.periodStart + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
                                         {" – "}
                                         {new Date(breakdown.periodEnd + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
                                       </span>
                                       <span className="font-mono font-medium">
-                                        {breakdown.totalMinutes?.toLocaleString()} / {(breakdown.includedMinutes || 6000).toLocaleString()} min
+                                        ${breakdown.estimatedCost?.toFixed(2) ?? "—"}
                                       </span>
                                     </div>
-                                    {/* Usage bar */}
-                                    {(() => {
-                                      const included = breakdown.includedMinutes || 6000;
-                                      const used = breakdown.totalMinutes || 0;
-                                      const pct = Math.min((used / included) * 100, 100);
-                                      const overPct = used > included ? Math.min(((used - included) / included) * 100, 50) : 0;
-                                      const isOver = used > included;
-                                      return (
-                                        <div className="space-y-1">
-                                          <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-                                            <div
-                                              className={cn(
-                                                "absolute inset-y-0 left-0 rounded-full transition-all",
-                                                isOver ? "bg-red-500" : pct > 80 ? "bg-amber-500" : "bg-green-500"
-                                              )}
-                                              style={{ width: `${pct}%` }}
-                                            />
-                                            {overPct > 0 && (
-                                              <div
-                                                className="absolute inset-y-0 bg-red-500/30 rounded-r-full"
-                                                style={{ left: "100%", width: `${overPct}%` }}
-                                              />
-                                            )}
-                                          </div>
-                                          <div className="flex justify-between text-[10px] text-muted-foreground">
-                                            <span>{breakdown.totalDeploys?.toLocaleString()} deploys</span>
-                                            {isOver ? (
-                                              <span className="text-red-500 font-medium">
-                                                {(used - included).toLocaleString()} min overage
-                                              </span>
-                                            ) : (
-                                              <span>{(included - used).toLocaleString()} min remaining</span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      );
-                                    })()}
+                                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                      <span>
+                                        {breakdown.totalMinutes?.toLocaleString()} min &middot; {breakdown.totalDeploys?.toLocaleString()} deploys
+                                      </span>
+                                      <span>
+                                        @ ${breakdown.ratePerMinute ?? 0.014}/min (standard)
+                                      </span>
+                                    </div>
                                   </div>
                                 )}
 

@@ -256,16 +256,19 @@ class VercelBillingService
       end
       weeks.reverse!  # Latest week first
 
-      # Vercel Pro plan: 100 hours = 6,000 build minutes included per month
-      included_minutes = 6_000
+      # Vercel Pro: no included build minutes, all usage-based
+      # Standard machine: $0.014/min, Enhanced: $0.028/min
+      total_minutes = daily_data.values.sum { |d| d[:minutes] }.round(1)
+      estimated_cost = (total_minutes * 0.014).round(2)  # Standard machine rate
 
       {
         success: true,
         periodStart: cycle_start_date.iso8601,
         periodEnd: period_end_date.iso8601,
-        totalMinutes: daily_data.values.sum { |d| d[:minutes] }.round(1),
+        totalMinutes: total_minutes,
         totalDeploys: daily_data.values.sum { |d| d[:deploys] },
-        includedMinutes: included_minutes,
+        estimatedCost: estimated_cost,
+        ratePerMinute: 0.014,
         weeks: weeks,
         fetchedAt: Time.current.iso8601
       }
