@@ -362,7 +362,12 @@ export function EmailPropertyGroup({
   const handleSaveExisting = useCallback(
     async (email: ContactEmail, updates: Partial<ContactEmail>) => {
       const updatedEmails = emails.map((e) => {
-        if (e.id === email.id || e._tempId === email._tempId) {
+        const match = email.id
+          ? e.id === email.id
+          : email._tempId
+            ? e._tempId === email._tempId
+            : false;
+        if (match) {
           return { ...e, ...updates };
         }
         return e;
@@ -377,7 +382,11 @@ export function EmailPropertyGroup({
     async (email: ContactEmail) => {
       const updatedEmails = emails.map((e) => ({
         ...e,
-        is_primary: e.id === email.id || e._tempId === email._tempId,
+        is_primary: email.id
+          ? e.id === email.id
+          : email._tempId
+            ? e._tempId === email._tempId
+            : false,
       }));
       await onSave(updatedEmails);
     },
