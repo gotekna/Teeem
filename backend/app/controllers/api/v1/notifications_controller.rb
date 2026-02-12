@@ -79,7 +79,7 @@ module Api
       def notification_link(notification)
         case notification.notifiable_type
         when "SmTask"
-          "/tasks" # For now, link to tasks page
+          "/sm_tasks/#{notification.notifiable_id}"
         else
           nil
         end
