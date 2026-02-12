@@ -13,6 +13,22 @@ module Api
         render json: { success: true, data: data }
       end
 
+      # PATCH /api/v1/heroku/scale
+      # Scales a dyno up (1) or down (0). Dev apps only.
+      def scale
+        app = params[:app]
+        dyno = params[:dyno]
+        quantity = params[:quantity].to_i
+
+        result = HerokuPlatformService.scale_dyno(app, dyno, quantity)
+
+        if result[:success]
+          render json: { success: true, data: result[:data] }
+        else
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       def require_admin

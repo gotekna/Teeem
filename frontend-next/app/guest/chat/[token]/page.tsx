@@ -30,6 +30,7 @@ interface SessionInfo {
   guest_name: string | null;
   expires_at: string;
   active: boolean;
+  job_name?: string;
 }
 
 export default function GuestChatPage() {
@@ -194,6 +195,9 @@ export default function GuestChatPage() {
               </Avatar>
               <h2 className="text-lg font-semibold">{session.host_name}</h2>
               <p className="text-sm text-muted-foreground">invited you to chat</p>
+              {session.job_name && (
+                <p className="text-xs text-muted-foreground mt-1">Re: {session.job_name}</p>
+              )}
             </div>
             <div className="space-y-4">
               <div>

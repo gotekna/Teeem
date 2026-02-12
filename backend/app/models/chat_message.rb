@@ -25,6 +25,8 @@ class ChatMessage < ApplicationRecord
 
   # Ensure tenant_id is set from user before validation
   before_validation :set_tenant_from_user, on: :create
+  # Auto-propagate job_id from guest session (client chats appear in Job > Coms)
+  before_validation :set_job_from_guest_session, on: :create
 
   # Upload to storage after file is attached
   after_commit :upload_to_storage, on: [:create, :update], if: :should_upload_to_storage?
@@ -187,6 +189,13 @@ class ChatMessage < ApplicationRecord
   # but in ActionCable callbacks there may be no tenant context.
   def set_tenant_from_user
     self.tenant_id ||= user&.tenant_id || chat_guest_session&.tenant_id
+  end
+
+  # Auto-propagate job_id from guest session so client messages
+  # appear in the job's Communications page EntityChat
+  def set_job_from_guest_session
+    return unless chat_guest_session_id.present? && job_id.nil?
+    self.job_id ||= chat_guest_session&.job_id
   end
 
   # Resolve tenant for WarehouseProvider access

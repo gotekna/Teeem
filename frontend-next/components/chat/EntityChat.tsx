@@ -12,7 +12,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Send, MessageSquare, Bookmark, Check, Briefcase, User, FileText } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Send, MessageSquare, Bookmark, Check, Briefcase, User, FileText, Link, Copy, ExternalLink } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
@@ -20,16 +27,29 @@ import { cn } from "@/lib/utils";
 interface Message {
   id: number;
   content: string;
-  user_id: number;
+  user_id: number | null;
   user?: {
     id: number;
     name: string;
     email: string;
-  };
+  } | null;
+  sender_display_name?: string;
+  guest_sender_name?: string;
+  is_guest?: boolean;
   created_at: string;
   formatted_timestamp: string;
   saved_to_job?: boolean;
   job_id?: number;
+}
+
+interface GuestSession {
+  id: number;
+  token: string;
+  share_url: string;
+  guest_name: string | null;
+  status: string;
+  job_id: number | null;
+  expires_at: string;
 }
 
 interface Job {
@@ -58,6 +78,7 @@ export function EntityChat({
   maxHeight = "400px",
   fullHeight = false,
 }: EntityChatProps) {
+  const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [newMessage, setNewMessage] = useState("");
@@ -68,6 +89,12 @@ export function EntityChat({
   const [jobSearch, setJobSearch] = useState("");
   const [openPopoverId, setOpenPopoverId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Guest chat invitation state (only for jobs)
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
+  const [creatingLink, setCreatingLink] = useState(false);
+  const [activeGuestSessions, setActiveGuestSessions] = useState<GuestSession[]>([]);
 
   // Get entity icon based on type
   const getEntityIcon = () => {
@@ -103,6 +130,55 @@ export function EntityChat({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Load active guest sessions for this job
+  useEffect(() => {
+    if (entityType !== "job") return;
+    loadGuestSessions();
+  }, [entityType, entityId]);
+
+  const loadGuestSessions = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: GuestSession[] }>(
+        "/api/v1/chat_guest_sessions"
+      );
+      if (response?.data) {
+        // Filter to sessions linked to THIS job that are active/pending
+        setActiveGuestSessions(
+          response.data.filter(
+            (s) => (s.status === "active" || s.status === "pending") && s.job_id === entityId
+          )
+        );
+      }
+    } catch {
+      // Silently fail - not critical
+    }
+  };
+
+  const handleInviteClient = async () => {
+    setCreatingLink(true);
+    try {
+      const response = await api.post<{ success: boolean; data: { share_url: string; token: string } }>(
+        "/api/v1/chat_guest_sessions",
+        { job_id: entityId }
+      );
+      if (response?.data?.share_url) {
+        setShareUrl(response.data.share_url);
+        setShowShareDialog(true);
+        loadGuestSessions();
+      }
+    } catch (error) {
+      console.error("Failed to create guest link:", error);
+      toast({ title: "Error", description: "Failed to create chat link", variant: "destructive" });
+    } finally {
+      setCreatingLink(false);
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(shareUrl);
+    toast({ title: "Link copied", description: "Share this link with your client" });
+  };
 
   const loadMessages = async () => {
     try {
@@ -213,12 +289,38 @@ export function EntityChat({
             <MessageSquare className="h-3 w-3" />
             Chat
           </CardTitle>
+          {entityType === "job" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px] gap-1"
+              onClick={handleInviteClient}
+              disabled={creatingLink}
+            >
+              <Link className="h-3 w-3" />
+              {creatingLink ? "Creating..." : "Invite Client"}
+            </Button>
+          )}
         </div>
         {/* Context bar showing where we are */}
         {entityName && (
           <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
             {getEntityIcon()}
             <span className="truncate">{entityName}</span>
+          </div>
+        )}
+        {/* Active guest sessions indicator */}
+        {activeGuestSessions.length > 0 && (
+          <div className="flex items-center gap-1 mt-1">
+            {activeGuestSessions.map((gs) => (
+              <span
+                key={gs.token}
+                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+              >
+                <ExternalLink className="h-2.5 w-2.5" />
+                {gs.guest_name ? `${gs.guest_name} (Client)` : "Link pending..."}
+              </span>
+            ))}
           </div>
         )}
       </CardHeader>
@@ -240,22 +342,37 @@ export function EntityChat({
         ) : (
           <ScrollArea className="flex-1 px-3">
             <div className="space-y-2 py-2">
-              {messages.map((message) => (
+              {messages.map((message) => {
+                const isGuestMsg = message.is_guest || (!message.user_id && message.guest_sender_name);
+                const senderName = isGuestMsg
+                  ? (message.guest_sender_name || message.sender_display_name || "Guest")
+                  : (message.user?.name || message.sender_display_name || "Unknown");
+                const senderInitials = senderName
+                  .split(" ")
+                  .map((n: string) => n[0])
+                  .join("")
+                  .substring(0, 2);
+
+                return (
                 <div key={message.id} className="flex gap-2 group">
                   <Avatar className="h-6 w-6 shrink-0">
-                    <AvatarFallback className="text-[10px]">
-                      {message.user?.name
-                        ?.split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .substring(0, 2) || "?"}
+                    <AvatarFallback className={cn(
+                      "text-[10px]",
+                      isGuestMsg && "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                    )}>
+                      {senderInitials || "?"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">
                       <span className="text-xs font-medium">
-                        {message.user?.name || "Unknown"}
+                        {senderName}
                       </span>
+                      {isGuestMsg && (
+                        <span className="text-[10px] px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 leading-none">
+                          Client
+                        </span>
+                      )}
                       <span className="text-[10px] text-muted-foreground">
                         {message.formatted_timestamp || formatTime(message.created_at)}
                       </span>
@@ -347,7 +464,8 @@ export function EntityChat({
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
@@ -369,6 +487,43 @@ export function EntityChat({
           </div>
         </form>
       </CardContent>
+
+      {/* Share Chat Link Dialog */}
+      <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link className="h-4 w-4" />
+              Client Chat Link
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Send this link to your client. They can join the chat without creating an account.
+              {entityName && (
+                <span className="block mt-1 text-xs">
+                  Messages will appear in <strong>{entityName}</strong> communications.
+                </span>
+              )}
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                readOnly
+                value={shareUrl}
+                className="text-xs"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <Button size="sm" variant="outline" onClick={handleCopyLink} className="shrink-0 gap-1">
+                <Copy className="h-3 w-3" />
+                Copy
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Link expires in 7 days. You can close it anytime from the main Chat page.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
