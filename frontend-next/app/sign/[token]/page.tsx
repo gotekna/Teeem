@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { EmailVerificationStep } from "@/components/signing/email-verification-step";
 import { DocumentViewerStep } from "@/components/signing/document-viewer-step";
-import { ConsentStep } from "@/components/signing/consent-step";
 import { SignatureCaptureStep } from "@/components/signing/signature-capture-step";
 import { PositionedSigningStep } from "@/components/signing/positioned-signing-step";
 import { CompletionStep } from "@/components/signing/completion-step";
@@ -56,7 +55,7 @@ interface SignatureField {
   value?: string;
 }
 
-type SigningStep = "loading" | "error" | "verify_email" | "view_document" | "consent" | "sign" | "sign_positioned" | "completed" | "declined" | "already_signed";
+type SigningStep = "loading" | "error" | "verify_email" | "view_document" | "sign" | "sign_positioned" | "completed" | "declined" | "already_signed";
 
 export default function SigningCeremonyPage() {
   const params = useParams();
@@ -134,15 +133,9 @@ export default function SigningCeremonyPage() {
     setStep("view_document");
   };
 
-  // Handle document viewed
+  // Handle document viewed - go straight to sign (consent is implied by signing)
   const handleDocumentViewed = () => {
     markViewed();
-    setStep("consent");
-  };
-
-  // Handle consent given
-  const handleConsentGiven = () => {
-    // Use positioned signing if fields exist, otherwise use legacy signature capture
     if (request?.has_positioned_fields && fields.length > 0) {
       setStep("sign_positioned");
     } else {
@@ -213,22 +206,13 @@ export default function SigningCeremonyPage() {
           />
         );
 
-      case "consent":
-        return (
-          <ConsentStep
-            documentTitle={request?.title || "Document"}
-            onConsent={handleConsentGiven}
-            onDecline={handleDecline}
-          />
-        );
-
       case "sign":
         return (
           <SignatureCaptureStep
             token={token}
             signerName={signer?.name || ""}
             onComplete={(completed) => handleSignatureSubmitted(completed)}
-            onBack={() => setStep("consent")}
+            onBack={() => setStep("view_document")}
           />
         );
 
