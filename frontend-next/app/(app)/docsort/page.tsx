@@ -273,6 +273,22 @@ export default function DocsortPage() {
     loadCompanies();
   }, [loadDocumentTypes, loadCompanies]);
 
+  // Auto-detect company from filename by finding the longest company name match
+  const detectCompanyFromFilename = useCallback((filename: string | null): ComboboxItem | undefined => {
+    if (!filename || companies.length === 0) return undefined;
+    const normalizedFilename = filename.toLowerCase();
+    let bestMatch: ComboboxItem | undefined;
+    let bestLength = 0;
+    for (const company of companies) {
+      const name = company.label.toLowerCase();
+      if (name.length > 2 && normalizedFilename.includes(name) && name.length > bestLength) {
+        bestMatch = company;
+        bestLength = name.length;
+      }
+    }
+    return bestMatch;
+  }, [companies]);
+
   // Load items and stats
   const loadData = useCallback(async () => {
     try {
@@ -813,7 +829,7 @@ export default function DocsortPage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedItem(item);
-                          setSelectedCorporate(undefined);
+                          setSelectedCorporate(detectCompanyFromFilename(item.original_filename));
                           setDrawerOpen(true);
                         }}
                         className="p-1 rounded hover:bg-muted transition-colors"
