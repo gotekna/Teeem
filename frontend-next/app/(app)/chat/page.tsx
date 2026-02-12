@@ -121,6 +121,9 @@ export default function ChatPage() {
   const [screenShareTarget, setScreenShareTarget] = useState<{ id: number; name: string } | null>(null);
   const setScreenShareViewerOpen = useSetAtom(screenShareViewerOpenAtom);
 
+  // Group members panel
+  const [showMembersPanel, setShowMembersPanel] = useState(false);
+
   // Save to entity functionality
   const [constructions, setConstructions] = useState<Construction[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -202,16 +205,19 @@ export default function ChatPage() {
 
       interface ApiMessage {
         id: number;
-        user_id: number;
+        user_id: number | null;
         content: string;
         created_at: string;
-        user?: { name?: string };
+        user?: { name?: string } | null;
         message_type?: "text" | "image" | "file";
         file_url?: string | null;
         file_name?: string | null;
         storage_item_id?: string | null;
         storage_reference?: string | null;
         has_file?: boolean;
+        sender_display_name?: string;
+        guest_sender_name?: string;
+        is_guest?: boolean;
       }
 
       const response = await api.get<ApiMessage[]>("/api/v1/chat_messages", { params: apiParams });
@@ -219,8 +225,8 @@ export default function ChatPage() {
       const newMessages = (response || []).map((msg) => ({
         id: msg.id,
         conversation_id: conversationId,
-        sender_id: msg.user_id,
-        sender_name: (msg as Record<string, unknown>).sender_display_name as string || msg.user?.name || (msg as Record<string, unknown>).guest_sender_name as string || "Unknown",
+        sender_id: msg.user_id || 0,
+        sender_name: msg.sender_display_name || msg.user?.name || msg.guest_sender_name || "Unknown",
         sender_avatar: null,
         content: msg.content,
         message_type: msg.message_type || "text",
@@ -228,7 +234,7 @@ export default function ChatPage() {
         file_name: msg.file_name || null,
         storage_item_id: msg.storage_item_id || msg.storage_reference || null,
         created_at: msg.created_at,
-        read_by: [msg.user_id],
+        read_by: msg.user_id ? [msg.user_id] : [],
         is_own: msg.user_id === user.id,
       }));
 
@@ -250,6 +256,9 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!selectedConversation) return;
+
+    // Reset members panel when switching conversations
+    setShowMembersPanel(false);
 
     const conversationId = selectedConversation.id;
     let cancelled = false;
@@ -720,9 +729,13 @@ export default function ChatPage() {
       conversation: dmConvByUserId.get(ou.id) ?? null,
     }));
 
-    // Sort: users with conversations first (by last_message time desc),
-    // then users without conversations (online first, then alphabetical)
+    // Sort: unread first, then conversations by time, then online status
     dmItems.sort((a, b) => {
+      // Unread conversations always sort first
+      const aUnread = (a.conversation?.unread_count ?? 0) > 0 ? 1 : 0;
+      const bUnread = (b.conversation?.unread_count ?? 0) > 0 ? 1 : 0;
+      if (aUnread !== bUnread) return bUnread - aUnread;
+
       const aHasConv = a.conversation?.last_message ? 1 : 0;
       const bHasConv = b.conversation?.last_message ? 1 : 0;
       if (aHasConv !== bHasConv) return bHasConv - aHasConv;
@@ -1057,9 +1070,16 @@ export default function ChatPage() {
                       <div className="text-sm font-medium flex items-center gap-2">
                         {selectedConversation.name}
                         {selectedConversation.type === "group" && (
-                          <span className="text-xs text-muted-foreground font-normal">
+                          <button
+                            className="flex items-center gap-1 text-xs text-muted-foreground font-normal hover:text-foreground transition-colors"
+                            onClick={() => setShowMembersPanel(prev => !prev)}
+                          >
                             {selectedConversation.participants.length} members
-                          </span>
+                            <ChevronDown className={cn(
+                              "h-3 w-3 transition-transform",
+                              showMembersPanel && "rotate-180"
+                            )} />
+                          </button>
                         )}
                         {selectedConversation.job_name && (
                           <Badge variant="outline" className="text-xs py-0">
@@ -1068,6 +1088,25 @@ export default function ChatPage() {
                           </Badge>
                         )}
                       </div>
+                      {/* DM: Show online status under name */}
+                      {selectedConversation.type === "direct" && (() => {
+                        const otherParticipant = selectedConversation.participants.find(p => p.id !== user?.id);
+                        const onlineUser = otherParticipant && onlineUsers.find(u => u.id === otherParticipant.id);
+                        if (!onlineUser) return null;
+                        return (
+                          <div className="flex items-center gap-1">
+                            <span className={cn(
+                              "h-1.5 w-1.5 rounded-full",
+                              onlineUser.presence_status === "online" && "bg-green-500",
+                              onlineUser.presence_status === "away" && "bg-yellow-500",
+                              onlineUser.presence_status === "offline" && "bg-muted-foreground"
+                            )} />
+                            <span className="text-[11px] text-muted-foreground capitalize">
+                              {onlineUser.presence_status}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -1090,6 +1129,17 @@ export default function ChatPage() {
                         </Button>
                       );
                     })()}
+                    {/* Toggle members panel for groups */}
+                    {selectedConversation.type === "group" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={showMembersPanel ? "Hide members" : "Show members"}
+                        onClick={() => setShowMembersPanel(prev => !prev)}
+                      >
+                        <Users className="h-4 w-4" />
+                      </Button>
+                    )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
@@ -1101,10 +1151,12 @@ export default function ChatPage() {
                           <Pin className="h-4 w-4 mr-2" />
                           {selectedConversation.is_pinned ? "Unpin" : "Pin"}
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Users className="h-4 w-4 mr-2" />
-                          View Participants
-                        </DropdownMenuItem>
+                        {selectedConversation.type === "group" && (
+                          <DropdownMenuItem onClick={() => setShowMembersPanel(prev => !prev)}>
+                            <Users className="h-4 w-4 mr-2" />
+                            {showMembersPanel ? "Hide Members" : "Show Members"}
+                          </DropdownMenuItem>
+                        )}
                         {selectedConversation.job_id && (
                           <DropdownMenuItem>
                             <Briefcase className="h-4 w-4 mr-2" />
@@ -1122,6 +1174,52 @@ export default function ChatPage() {
                     </DropdownMenu>
                   </div>
                 </div>
+                {/* Expandable members panel for group chats */}
+                {selectedConversation.type === "group" && showMembersPanel && (
+                  <div className="mt-2 pt-2 border-t">
+                    <div className="flex flex-wrap gap-2">
+                      {selectedConversation.participants.map((p) => {
+                        const onlineUser = onlineUsers.find(u => u.id === p.id);
+                        const presenceStatus = onlineUser?.presence_status || (p.is_online ? "online" : "offline");
+                        const lastSeen = onlineUser?.last_seen_at;
+                        return (
+                          <div
+                            key={p.id}
+                            className="flex items-center gap-2 bg-secondary/50 rounded-lg px-2.5 py-1.5"
+                          >
+                            <div className="relative">
+                              <Avatar className="h-6 w-6">
+                                <AvatarFallback className="text-[10px]">
+                                  {p.name.split(" ").map((n) => n[0]).join("").substring(0, 2)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className={cn(
+                                "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-background",
+                                presenceStatus === "online" && "bg-green-500",
+                                presenceStatus === "away" && "bg-yellow-500",
+                                presenceStatus === "offline" && "bg-muted-foreground"
+                              )} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-medium truncate">
+                                {p.id === user?.id ? "You" : p.name}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                {presenceStatus === "online" ? (
+                                  <span className="text-green-600 dark:text-green-400">Online</span>
+                                ) : lastSeen ? (
+                                  `Last seen ${formatTime(lastSeen)}`
+                                ) : (
+                                  <span className="capitalize">{presenceStatus}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </CardHeader>
 
               {/* Messages */}
@@ -1329,18 +1427,19 @@ function SidebarDMEntry({
   onScreenShare: (userId: number, userName: string) => void;
 }) {
   const hasConversation = !!item.conversation?.last_message;
+  const hasUnread = (item.conversation?.unread_count ?? 0) > 0;
 
   return (
     <div
       className={cn(
         "group flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors mb-0.5",
-        isSelected ? "bg-secondary" : "hover:bg-secondary/50",
-        !hasConversation && "opacity-60"
+        isSelected ? "bg-secondary" : hasUnread ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-secondary/50",
+        !hasConversation && !hasUnread && "opacity-60"
       )}
       onClick={onClick}
     >
       <div className="relative">
-        <Avatar className="h-8 w-8">
+        <Avatar className={cn("h-8 w-8", hasUnread && "ring-2 ring-primary/30")}>
           <AvatarFallback className="text-xs">
             {item.userName.split(" ").map((n) => n[0]).join("").substring(0, 2)}
           </AvatarFallback>
@@ -1356,26 +1455,35 @@ function SidebarDMEntry({
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium truncate">{item.userName}</span>
+          <span className={cn(
+            "text-sm truncate",
+            hasUnread ? "font-semibold text-foreground" : "font-medium"
+          )}>
+            {item.userName}
+          </span>
           <div className="flex items-center gap-1">
+            {hasUnread && (
+              <Badge className="bg-primary text-primary-foreground h-5 min-w-[20px] px-1.5 text-[11px] font-semibold shrink-0">
+                {item.conversation!.unread_count}
+              </Badge>
+            )}
             {item.conversation?.last_message && (
-              <span className="text-[10px] text-muted-foreground">
+              <span className={cn(
+                "text-[10px]",
+                hasUnread ? "text-primary font-medium" : "text-muted-foreground"
+              )}>
                 {formatTime(item.conversation.last_message.created_at)}
               </span>
             )}
           </div>
         </div>
         {hasConversation ? (
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground truncate">
-              {item.conversation!.last_message!.content}
-            </span>
-            {(item.conversation?.unread_count ?? 0) > 0 && (
-              <Badge className="bg-primary h-4 px-1 ml-1 text-[10px] shrink-0">
-                {item.conversation!.unread_count}
-              </Badge>
-            )}
-          </div>
+          <span className={cn(
+            "text-xs truncate block",
+            hasUnread ? "text-foreground/80 font-medium" : "text-muted-foreground"
+          )}>
+            {item.conversation!.last_message!.content}
+          </span>
         ) : (
           <div className="text-xs text-muted-foreground capitalize">
             {item.presenceStatus}
@@ -1409,37 +1517,52 @@ function SidebarGroupEntry({
   onClick: () => void;
 }) {
   const conv = item.conversation;
+  const hasUnread = conv.unread_count > 0;
 
   return (
     <div
       className={cn(
         "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors mb-0.5",
-        isSelected ? "bg-secondary" : "hover:bg-secondary/50"
+        isSelected ? "bg-secondary" : hasUnread ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-secondary/50"
       )}
       onClick={onClick}
     >
-      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+      <div className={cn(
+        "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+        hasUnread ? "bg-primary/20 ring-2 ring-primary/30" : "bg-primary/10"
+      )}>
         <Users className="h-4 w-4 text-primary" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium truncate">{conv.name}</span>
-          {conv.last_message && (
-            <span className="text-[10px] text-muted-foreground">
-              {formatTime(conv.last_message.created_at)}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground truncate">
-            {conv.last_message?.content || `${conv.participants.length} members`}
+          <span className={cn(
+            "text-sm truncate",
+            hasUnread ? "font-semibold text-foreground" : "font-medium"
+          )}>
+            {conv.name}
           </span>
-          {conv.unread_count > 0 && (
-            <Badge className="bg-primary h-4 px-1 ml-1 text-[10px] shrink-0">
-              {conv.unread_count}
-            </Badge>
-          )}
+          <div className="flex items-center gap-1">
+            {hasUnread && (
+              <Badge className="bg-primary text-primary-foreground h-5 min-w-[20px] px-1.5 text-[11px] font-semibold shrink-0">
+                {conv.unread_count}
+              </Badge>
+            )}
+            {conv.last_message && (
+              <span className={cn(
+                "text-[10px]",
+                hasUnread ? "text-primary font-medium" : "text-muted-foreground"
+              )}>
+                {formatTime(conv.last_message.created_at)}
+              </span>
+            )}
+          </div>
         </div>
+        <span className={cn(
+          "text-xs truncate block",
+          hasUnread ? "text-foreground/80 font-medium" : "text-muted-foreground"
+        )}>
+          {conv.last_message?.content || `${conv.participants.length} members`}
+        </span>
       </div>
     </div>
   );

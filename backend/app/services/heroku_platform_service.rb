@@ -92,7 +92,31 @@ class HerokuPlatformService
     { date: "Feb 2026", description: "Destroyed orphan QUEUE_DATABASE (Essential-1)", monthlySaved: 9 }
   ].freeze
 
+  # Dev apps that can be toggled on/off from the dashboard
+  DEV_APPS = %w[
+    teeem-sam-dev
+    teeem-rob-dev
+    teeem-jake-dev
+  ].freeze
+
   class << self
+    def scale_dyno(app_name, dyno_type, quantity)
+      api_key = ENV["HEROKU_API_KEY"]
+      return { success: false, error: "HEROKU_API_KEY not configured" } unless api_key.present?
+      return { success: false, error: "Only dev apps can be scaled from the dashboard" } unless app_name.in?(DEV_APPS)
+      return { success: false, error: "Quantity must be 0 or 1" } unless quantity.in?([0, 1])
+
+      result = heroku_patch(api_key, "/apps/#{app_name}/formation/#{dyno_type}", { quantity: quantity })
+
+      if result
+        # Bust cache so dashboard shows updated state
+        Rails.cache.delete(CACHE_KEY)
+        { success: true, data: { app: app_name, dyno: dyno_type, quantity: quantity } }
+      else
+        { success: false, error: "Heroku API call failed" }
+      end
+    end
+
     def infrastructure(force_refresh: false)
       Rails.cache.delete(CACHE_KEY) if force_refresh
 
@@ -165,8 +189,6 @@ class HerokuPlatformService
         if formation.is_a?(Array)
           formation.each do |dyno|
             qty = dyno["quantity"].to_i
-            next if qty == 0 # Skip scaled-down dynos
-
             size = dyno["size"]
             unit_cost = DYNO_COSTS[size] || 0
 
@@ -178,7 +200,8 @@ class HerokuPlatformService
               cost: unit_cost * qty,
               unitCost: unit_cost,
               purpose: purpose_for(app, dyno["type"]),
-              environment: meta[:environment]
+              environment: meta[:environment],
+              scaledDown: qty == 0
             }
           end
         end
@@ -244,6 +267,28 @@ class HerokuPlatformService
         JSON.parse(body)
       else
         Rails.logger.error("[HerokuPlatformService] GET #{path} failed (HTTP #{response.code})")
+        nil
+      end
+    end
+
+    def heroku_patch(api_key, path, body)
+      uri = URI("https://api.heroku.com#{path}")
+      request = Net::HTTP::Patch.new(uri)
+      request["Authorization"] = "Bearer #{api_key}"
+      request["Accept"] = "application/vnd.heroku+json; version=3"
+      request["Content-Type"] = "application/json"
+      request.body = body.to_json
+
+      response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+        http.open_timeout = 10
+        http.read_timeout = 10
+        http.request(request)
+      end
+
+      if response.code.to_i < 300
+        JSON.parse(response.body)
+      else
+        Rails.logger.error("[HerokuPlatformService] PATCH #{path} failed (HTTP #{response.code}): #{response.body}")
         nil
       end
     end

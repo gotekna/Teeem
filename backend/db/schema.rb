@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_12_130000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_12_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1178,7 +1178,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_130000) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "job_id"
     t.index ["host_user_id"], name: "index_chat_guest_sessions_on_host_user_id"
+    t.index ["job_id"], name: "index_chat_guest_sessions_on_job_id"
     t.index ["tenant_id"], name: "index_chat_guest_sessions_on_tenant_id"
     t.index ["token"], name: "index_chat_guest_sessions_on_token", unique: true
   end
@@ -10950,6 +10952,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_130000) do
   add_foreign_key "chat_conversation_participants", "users"
   add_foreign_key "chat_conversations", "tenants"
   add_foreign_key "chat_conversations", "users", column: "created_by_id"
+  add_foreign_key "chat_guest_sessions", "jobs"
   add_foreign_key "chat_guest_sessions", "tenants"
   add_foreign_key "chat_guest_sessions", "users", column: "host_user_id"
   add_foreign_key "chat_messages", "chat_conversations"
