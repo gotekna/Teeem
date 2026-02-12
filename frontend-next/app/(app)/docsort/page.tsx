@@ -217,6 +217,7 @@ export default function DocsortPage() {
   const [reclassifyingAll, setReclassifyingAll] = useState(false);
   const [documentTypes, setDocumentTypes] = useState<{ value: string; label: string; id?: number; folderPath?: string; targetFolder?: string; uiName?: string; downloadName?: string }[]>(FALLBACK_DOCUMENT_TYPES);
   const [companies, setCompanies] = useState<ComboboxItem[]>([]);
+  const [companyGroupMap, setCompanyGroupMap] = useState<Record<string, string>>({});
   const [selectedCorporate, setSelectedCorporate] = useState<ComboboxItem | undefined>();
 
   // Filters
@@ -255,7 +256,7 @@ export default function DocsortPage() {
   // Load companies for the filing dropdown
   const loadCompanies = useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; companies: Array<{ id: number; name: string; company_code?: string }> }>(
+      const response = await api.get<{ success: boolean; companies: Array<{ id: number; name: string; company_code?: string; company_group?: { id: number; name: string } | null }> }>(
         "/api/v1/companies?include_unlinked=true"
       );
       if (response?.companies) {
@@ -266,6 +267,14 @@ export default function DocsortPage() {
             searchText: c.company_code || undefined,
           }))
         );
+        // Build company ID → group name map for template expansion
+        const groupMap: Record<string, string> = {};
+        for (const c of response.companies) {
+          if (c.company_group?.name) {
+            groupMap[c.id.toString()] = c.company_group.name;
+          }
+        }
+        setCompanyGroupMap(groupMap);
       }
     } catch (error) {
       console.error("Failed to load companies:", error);
@@ -940,6 +949,7 @@ export default function DocsortPage() {
                             DocTypeCode: matchedType.value,
                             CompanyName: selectedCorporate?.label || '',
                             CompanyCode: selectedCorporate?.searchText || '',
+                            CompanyGroup: (selectedCorporate?.id && companyGroupMap[selectedCorporate.id]) || '',
                             Date: `${dd}-${mm}-${yyyy}`,
                             DDMMYYYY: `${dd}-${mm}-${yyyy}`,
                             YYYYMMDD: `${yyyy}-${mm}-${dd}`,
