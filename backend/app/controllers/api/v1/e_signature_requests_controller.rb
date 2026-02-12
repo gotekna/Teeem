@@ -3,7 +3,7 @@ class Api::V1::ESignatureRequestsController < ApplicationController
 
   # GET /api/v1/e_signature_requests
   def index
-    requests = ESignatureRequest.includes(:signers, :created_by)
+    requests = ESignatureRequest.includes(:signers, :created_by, :document_type)
 
     # Filter by status
     requests = requests.by_status(params[:status]) if params[:status].present?
@@ -270,6 +270,7 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       :description,
       :documentable_type,
       :documentable_id,
+      :document_type_id,
       :signing_order,
       :expires_at,
       :send_reminders,
@@ -301,7 +302,9 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       expires_at: request.expires_at,
       completed_at: request.completed_at,
       created_at: request.created_at,
-      created_by: request.created_by&.email
+      created_by: request.created_by&.email,
+      document_type_id: request.document_type_id,
+      document_type_name: request.document_type&.name
     }
 
     if include_details

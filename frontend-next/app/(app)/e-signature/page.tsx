@@ -65,6 +65,8 @@ interface ESignatureRequest {
   completed_at: string | null;
   created_at: string;
   created_by: string;
+  document_type_id: number | null;
+  document_type_name: string | null;
 }
 
 interface ESignatureResponse {
@@ -217,6 +219,7 @@ export default function ESignaturePage() {
               <TableRow>
                 <TableHead>Request</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Document Type</TableHead>
                 <TableHead>Progress</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Expires</TableHead>
@@ -242,6 +245,9 @@ export default function ESignaturePage() {
                         {statusConfig.icon}
                         {statusConfig.label}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {request.document_type_name || "—"}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

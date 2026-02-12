@@ -70,6 +70,8 @@ interface ESignatureRequest {
   has_certificate: boolean;
   message_to_signers: string;
   send_reminders: boolean;
+  document_type_id: number | null;
+  document_type_name: string | null;
 }
 
 interface ESignatureResponse {
@@ -340,6 +342,16 @@ export default function ESignatureDetailPage() {
                     {request.has_positioned_fields ? "Positioned Fields" : "Standard Signature"}
                   </div>
                 </div>
+
+                {request.document_type_name && (
+                  <div>
+                    <div className="text-sm text-muted-foreground flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      Document Type
+                    </div>
+                    <div>{request.document_type_name}</div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_12_140001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_13_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2467,7 +2467,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_140001) do
     t.datetime "updated_at", null: false
     t.string "original_storage_item_id"
     t.string "signed_storage_item_id"
+    t.bigint "document_type_id"
     t.index ["created_by_id"], name: "index_e_signature_requests_on_created_by_id"
+    t.index ["document_type_id"], name: "index_e_signature_requests_on_document_type_id"
     t.index ["documentable_type", "documentable_id"], name: "index_e_signature_requests_on_documentable"
     t.index ["expires_at"], name: "index_e_signature_requests_on_expires_at"
     t.index ["request_number"], name: "index_e_signature_requests_on_request_number", unique: true
@@ -11053,6 +11055,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_140001) do
   add_foreign_key "e_signature_events", "users", column: "actor_user_id"
   add_foreign_key "e_signature_fields", "e_signature_requests"
   add_foreign_key "e_signature_fields", "e_signature_signers"
+  add_foreign_key "e_signature_requests", "document_types"
   add_foreign_key "e_signature_requests", "users", column: "created_by_id"
   add_foreign_key "e_signature_signers", "contacts"
   add_foreign_key "e_signature_signers", "e_signature_requests"
