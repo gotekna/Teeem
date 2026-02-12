@@ -2,7 +2,7 @@
 
 module Bpmn
   module Tasks
-    # CreateDirectorChangeESignTask - Create e-signature request for director change package
+    # CreateDirectorChangeEsignTask - Create e-signature request for director change package
     #
     # Specialized version of CreateEsignRequestTask that builds signers from the
     # director_change_form process variable (ceasing directors + new appointments).
@@ -16,7 +16,7 @@ module Bpmn
     # Process variables set:
     #   esign_result - { request_id, request_number, status, signers_count }
     #
-    class CreateDirectorChangeESignTask < BaseTask
+    class CreateDirectorChangeEsignTask < BaseTask
       def execute
         raise "Subject must be a Corporate" unless @subject.is_a?(Corporate)
 

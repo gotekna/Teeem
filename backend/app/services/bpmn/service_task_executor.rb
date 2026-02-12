@@ -17,7 +17,7 @@ module Bpmn
       "generate_and_send_for_signing" => "Bpmn::Tasks::GenerateAndSendForSigningTask",
       "attach_sharepoint_file" => "Bpmn::Tasks::AttachSharepointFileTask",
       "director_change" => "Bpmn::Tasks::DirectorChangeTask",
-      "create_director_change_esign" => "Bpmn::Tasks::CreateDirectorChangeESignTask",
+      "create_director_change_esign" => "Bpmn::Tasks::CreateDirectorChangeEsignTask",
       "complete_director_change" => "Bpmn::Tasks::CompleteDirectorChangeTask"
     }.freeze
 
