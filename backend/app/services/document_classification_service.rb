@@ -398,7 +398,7 @@ class DocumentClassificationService
     return 'invoice' if name.include?('invoice') || name.include?('bill') || name.include?('receipt')
     return 'plan' if name.include?('plan') || name.include?('drawing') || name.include?('architectural')
     return 'quote' if name.include?('quote') || name.include?('estimate') || name.include?('proposal')
-    return 'contract' if name.include?('contract') || name.include?('agreement')
+    return 'contract' if name.include?('contract') || name.include?('agreement') || name.include?('constitution') || name.include?('trust deed') || name.include?('deed')
     return 'purchase_order' if name.include?('purchase') || name.include?('po ')
     return 'work_order' if name.include?('work order') || name.include?('job sheet')
     return 'certificate' if name.include?('certificate') || name.include?('license') || name.include?('insurance')

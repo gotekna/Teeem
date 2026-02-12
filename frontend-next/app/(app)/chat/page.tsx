@@ -84,6 +84,7 @@ interface SidebarDMItem {
   userEmail: string;
   presenceStatus: "online" | "away" | "offline";
   isOnline: boolean;
+  lastSeenAt: string | null;
   conversation: Conversation | null;
 }
 
@@ -856,6 +857,7 @@ export default function ChatPage() {
       userEmail: ou.email,
       presenceStatus: ou.presence_status,
       isOnline: ou.is_online,
+      lastSeenAt: ou.last_seen_at,
       conversation: dmConvByUserId.get(ou.id) ?? null,
     }));
 
@@ -1107,6 +1109,61 @@ export default function ChatPage() {
           <CardContent className="p-0 flex-1 min-h-0">
             <ScrollArea className="h-full">
               <div className="px-2 pb-2">
+                {/* Teeem Support - Always pinned at top */}
+                {(!searchQuery || "teeem support ai".includes(searchQuery.toLowerCase())) && (
+                  <div
+                    className={cn(
+                      "flex items-center gap-3 px-2 py-2 rounded-lg cursor-pointer transition-colors mb-1",
+                      selectedConversation?.id === "support"
+                        ? "bg-primary/10 ring-1 ring-primary/20"
+                        : "hover:bg-secondary"
+                    )}
+                    onClick={() => {
+                      const existing = conversations.find(c => c.id === "support");
+                      if (existing) {
+                        setSelectedConversation(existing);
+                      } else {
+                        const supportConv: Conversation = {
+                          id: "support",
+                          type: "support",
+                          name: "Teeem Support",
+                          participants: [
+                            { id: user?.id || 0, name: "You", avatar_url: null, is_online: true },
+                            { id: 0, name: "Teeem AI", avatar_url: null, is_online: true },
+                          ],
+                          last_message: null,
+                          unread_count: 0,
+                          is_pinned: true,
+                          is_support: true,
+                          job_id: null,
+                          job_name: null,
+                          entity_type: null,
+                          entity_id: null,
+                          entity_name: null,
+                          updated_at: new Date().toISOString(),
+                        };
+                        setSelectedConversation(supportConv);
+                      }
+                    }}
+                  >
+                    <div className="relative">
+                      <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                        <Sparkles className="h-4 w-4 text-white" />
+                      </div>
+                      <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background bg-green-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium flex items-center gap-1.5">
+                        Teeem Support
+                        <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 font-normal">AI</Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {conversations.find(c => c.id === "support")?.last_message?.content || "Ask me anything about Teeem"}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Direct Messages Section */}
                 <div className="px-2 py-1.5">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -1181,7 +1238,11 @@ export default function ChatPage() {
               <CardHeader className="py-2 px-3 border-b shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    {selectedConversation.type === "group" ? (
+                    {selectedConversation.type === "support" ? (
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                        <Sparkles className="h-4 w-4 text-white" />
+                      </div>
+                    ) : selectedConversation.type === "group" ? (
                       <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                         <Users className="h-4 w-4 text-primary" />
                       </div>
@@ -1199,6 +1260,9 @@ export default function ChatPage() {
                     <div>
                       <div className="text-sm font-medium flex items-center gap-2">
                         {selectedConversation.name}
+                        {selectedConversation.type === "support" && (
+                          <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 font-normal">AI</Badge>
+                        )}
                         {selectedConversation.type === "group" && (
                           <button
                             className="flex items-center gap-1 text-xs text-muted-foreground font-normal hover:text-foreground transition-colors"
@@ -1218,6 +1282,13 @@ export default function ChatPage() {
                           </Badge>
                         )}
                       </div>
+                      {/* Support: Show AI status */}
+                      {selectedConversation.type === "support" && (
+                        <div className="flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                          <span className="text-[11px] text-muted-foreground">AI-powered support - always online</span>
+                        </div>
+                      )}
                       {/* DM: Show online status under name */}
                       {selectedConversation.type === "direct" && (() => {
                         const otherParticipant = selectedConversation.participants.find(p => p.id !== user?.id);
@@ -1361,6 +1432,32 @@ export default function ChatPage() {
                 ) : (
                   <ScrollArea className="h-full pr-2">
                     <div className="space-y-3">
+                      {/* Support welcome message when empty */}
+                      {messages.length === 0 && selectedConversation?.type === "support" && (
+                        <div className="flex justify-start">
+                          <div className="flex gap-2 max-w-[70%]">
+                            <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                              <Sparkles className="h-3.5 w-3.5 text-white" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
+                                Teeem AI
+                                <Badge variant="secondary" className="text-[8px] px-1 py-0 h-3 font-normal">AI</Badge>
+                              </div>
+                              <div className="rounded-lg px-3 py-2 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800/50">
+                                <p className="text-sm">Hi! I&apos;m your Teeem AI assistant. I can help you with:</p>
+                                <ul className="text-sm mt-1.5 space-y-0.5 list-disc list-inside text-muted-foreground">
+                                  <li>Finding features and navigating Teeem</li>
+                                  <li>How to create jobs, contacts, and documents</li>
+                                  <li>Schedule Master and Gantt charts</li>
+                                  <li>Email, chat, and integrations</li>
+                                </ul>
+                                <p className="text-sm mt-1.5">Just type your question below!</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       {messages.map((message) => (
                         <MessageBubble
                           key={message.id}
@@ -1373,6 +1470,26 @@ export default function ChatPage() {
                           }}
                         />
                       ))}
+                      {/* AI thinking indicator */}
+                      {aiThinking && selectedConversation?.type === "support" && (
+                        <div className="flex justify-start">
+                          <div className="flex gap-2 max-w-[70%]">
+                            <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                              <Sparkles className="h-3.5 w-3.5 text-white" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs text-muted-foreground mb-1">Teeem AI</div>
+                              <div className="rounded-lg px-3 py-2 bg-secondary">
+                                <div className="flex items-center gap-1">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: "0ms" }} />
+                                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: "150ms" }} />
+                                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: "300ms" }} />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       <div ref={messagesEndRef} />
                     </div>
                   </ScrollArea>
@@ -1513,7 +1630,7 @@ export default function ChatPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                   <Input
-                    placeholder="Type a message or paste a screenshot..."
+                    placeholder={selectedConversation?.type === "support" ? "Ask Teeem AI a question..." : "Type a message or paste a screenshot..."}
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => {
@@ -1524,8 +1641,9 @@ export default function ChatPage() {
                     }}
                     onPaste={handlePaste}
                     className="flex-1 h-8"
+                    disabled={aiThinking}
                   />
-                  <Button size="sm" className="h-8" onClick={handleSend} disabled={!newMessage.trim() && !pastedImage}>
+                  <Button size="sm" className="h-8" onClick={handleSend} disabled={aiThinking || (!newMessage.trim() && !pastedImage)}>
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1616,8 +1734,14 @@ function SidebarDMEntry({
             {item.conversation!.last_message!.content}
           </span>
         ) : (
-          <div className="text-xs text-muted-foreground capitalize">
-            {item.presenceStatus}
+          <div className="text-xs text-muted-foreground">
+            {item.presenceStatus === "online" ? (
+              <span className="text-green-600 dark:text-green-400">Online</span>
+            ) : item.lastSeenAt ? (
+              <span>Last seen {formatLastSeen(item.lastSeenAt)}</span>
+            ) : (
+              <span className="capitalize">{item.presenceStatus}</span>
+            )}
           </div>
         )}
       </div>
@@ -1728,22 +1852,35 @@ function MessageBubble({
       });
   }, [conversation?.participants, message.created_at, message.sender_id, message.is_own]);
 
+  const isAiMessage = conversation?.type === "support" && message.sender_name === "Teeem AI";
+
   return (
     <div className={cn("flex", message.is_own ? "justify-end" : "justify-start")}>
       <div className={cn("flex gap-2 max-w-[70%]", message.is_own && "flex-row-reverse")}>
         {!message.is_own && (
-          <Avatar className="h-8 w-8 shrink-0">
-            <AvatarFallback className="text-xs">
-              {message.sender_name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}
-            </AvatarFallback>
-          </Avatar>
+          isAiMessage ? (
+            <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+              <Sparkles className="h-3.5 w-3.5 text-white" />
+            </div>
+          ) : (
+            <Avatar className="h-8 w-8 shrink-0">
+              <AvatarFallback className="text-xs">
+                {message.sender_name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")}
+              </AvatarFallback>
+            </Avatar>
+          )
         )}
         <div className="min-w-0 flex-1">
           {!message.is_own && (
-            <div className="text-xs text-muted-foreground mb-1">{message.sender_name}</div>
+            <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
+              {message.sender_name}
+              {isAiMessage && (
+                <Badge variant="secondary" className="text-[8px] px-1 py-0 h-3 font-normal">AI</Badge>
+              )}
+            </div>
           )}
           <div
             className={cn(
@@ -1751,7 +1888,9 @@ function MessageBubble({
               message.message_type === "image" ? "p-0" : "px-3 py-2",
               message.is_own
                 ? "bg-primary text-primary-foreground"
-                : "bg-secondary"
+                : isAiMessage
+                  ? "bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800/50"
+                  : "bg-secondary"
             )}
           >
             {message.message_type === "image" ? (
@@ -1972,6 +2111,28 @@ function formatTime(dateString: string): string {
   } else {
     return date.toLocaleDateString([], { month: "short", day: "numeric" });
   }
+}
+
+function formatLastSeen(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24 && date.getDate() === now.getDate()) {
+    return `today at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  }
+  if (diffDays === 1 || (diffHours < 48 && date.getDate() === now.getDate() - 1)) {
+    return `yesterday at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  }
+  if (diffDays < 7) {
+    return `${date.toLocaleDateString([], { weekday: "short" })} at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  }
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 function getMockConversations(): Conversation[] {
