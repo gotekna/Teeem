@@ -190,7 +190,7 @@ class DirectorChangeService
 
     context = {
       company: build_company_context,
-      director: build_director_context(contact, selected_email: cd_data[:email]),
+      director: build_director_context(contact, selected_email: cd_data[:email], selected_address: cd_data[:address]),
       positions: cd_data[:positions],
       cessation_date: cessation_date,
       cessation_date_formatted: cessation_date.strftime("%d/%m/%Y")
@@ -217,7 +217,7 @@ class DirectorChangeService
 
     context = {
       company: build_company_context,
-      director: build_director_context(contact, selected_email: appt_data[:email]),
+      director: build_director_context(contact, selected_email: appt_data[:email], selected_address: appt_data[:address]),
       positions: appt_data[:positions],
       appointment_date: appointment_date,
       appointment_date_formatted: appointment_date.strftime("%d/%m/%Y")
@@ -287,7 +287,7 @@ class DirectorChangeService
         contact = appt[:contact]
         {
           full_name: contact.display_name,
-          address: contact.full_address,
+          address: appt[:address].presence || contact.residential_address.presence || contact.full_address,
           positions: appt[:positions],
           appointment_date_formatted: appt[:appointment_date].strftime("%d/%m/%Y")
         }
@@ -320,7 +320,7 @@ class DirectorChangeService
         {
           full_name: contact.display_name,
           date_of_birth: contact.date_of_birth&.strftime("%d/%m/%Y"),
-          address: contact.full_address,
+          address: cd[:address].presence || contact.residential_address.presence || contact.full_address,
           positions: cd[:positions],
           cessation_date_formatted: cd[:cessation_date].strftime("%d/%m/%Y")
         }
@@ -330,7 +330,7 @@ class DirectorChangeService
         {
           full_name: contact.display_name,
           date_of_birth: contact.date_of_birth&.strftime("%d/%m/%Y"),
-          address: contact.full_address,
+          address: appt[:address].presence || contact.residential_address.presence || contact.full_address,
           positions: appt[:positions],
           appointment_date_formatted: appt[:appointment_date].strftime("%d/%m/%Y")
         }

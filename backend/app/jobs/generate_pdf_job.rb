@@ -133,7 +133,8 @@ class GeneratePdfJob < ApplicationJob
         corporate_director: director,
         positions: cd["positions"],
         cessation_date: Date.parse(cd["cessation_date"]),
-        email: cd["email"]
+        email: cd["email"],
+        address: cd["address"]
       }
     end
 
@@ -143,7 +144,8 @@ class GeneratePdfJob < ApplicationJob
         contact: contact,
         positions: appt["positions"],
         appointment_date: Date.parse(appt["appointment_date"]),
-        email: appt["email"]
+        email: appt["email"],
+        address: appt["address"]
       }
     end
 
