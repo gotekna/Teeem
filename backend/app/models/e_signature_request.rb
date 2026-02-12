@@ -349,11 +349,15 @@ class ESignatureRequest < ApplicationRecord
       metadata["document_type_id"] = document_type_id if document_type_id.present?
       metadata["document_type"] = document_type.name if document_type.present?
 
+      # Resolve warehouse folder from document type (for precise path materialization)
+      warehouse_folder_id = document_type&.primary_warehouse_folder&.id
+
       WarehouseDocumentCreator.create!(
         filename: filename,
         source_type: source_type,
         linkable: documentable,
         storage_blob: blob,
+        warehouse_folder_id: warehouse_folder_id,
         file_size: content.bytesize,
         content_type: "application/pdf",
         metadata: metadata
