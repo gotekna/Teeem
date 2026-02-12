@@ -1,5 +1,6 @@
 class Corporate < ApplicationRecord
   include SelfHealing  # Auto-fix formatting issues (ABN, ACN) and earn System kudos
+  include BpmnTriggerable  # Enable BPMN workflow triggers (Director Changes, etc.)
   acts_as_tenant :tenant  # Multi-tenancy: Auto-scope queries to current tenant
 
   # Explicit table name since we renamed from corporate_companies
@@ -56,6 +57,7 @@ class Corporate < ApplicationRecord
 
   # Note: corporate_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
   has_many :corporate_activities, foreign_key: "company_id", dependent: :destroy
+  has_many :e_signature_requests, as: :documentable, dependent: :nullify
   has_one :corporate_xero_connection, foreign_key: "company_id", dependent: :destroy
   has_many :corporate_monthly_pls, foreign_key: "corporate_id", dependent: :destroy  # Cached Xero P&L data
 

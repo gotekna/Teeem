@@ -2849,8 +2849,14 @@ Rails.application.routes.draw do
             post :bulk_delete
             post :bulk_update
             post :bulk_create
+            get :export
           end
         end
+
+        # Foundation data import (into existing tables)
+        post "import/preview", to: "foundation_imports#preview"
+        post "import/execute", to: "foundation_imports#execute"
+        get "import/status/:session_key", to: "foundation_imports#status"
       end
 
       # Foundation views (user-specific saved views)

@@ -265,6 +265,7 @@ import { useDeviceContext } from "@/lib/hooks/use-device-context";
 
 // Modals (Phase 7 refactoring)
 import { ExportModal } from "./modals/ExportModal";
+import { ImportModal } from "./modals/ImportModal";
 import { BulkUpdateModal } from "./modals/BulkUpdateModal";
 import { SaveViewModal } from "./modals/SaveViewModal";
 import { SchemaModals } from "./modals/SchemaModals";
@@ -2218,6 +2219,9 @@ export default function TeeemTableView({
   const [showExportModal, setShowExportModal] = useAtom(showExportModalAtom);
   const [exportScope, setExportScope] = useAtom(exportScopeAtom);
   const [exportFormat, setExportFormat] = useAtom(exportFormatAtom);
+
+  // Import modal state (local - no atom needed, only used by this component)
+  const [showImportModal, setShowImportModal] = React.useState(false);
 
   // Email to Contacts modal state (SSoT: table-atoms.ts - Phase 7.1)
   const [showEmailToContactsModal, setShowEmailToContactsModal] = useAtom(showEmailToContactsModalAtom);
@@ -6123,6 +6127,38 @@ export default function TeeemTableView({
             </Button>
           )}
 
+          {/* Import button - visible when import is enabled */}
+          {effectiveEnableImport && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                if (onImport) {
+                  onImport();
+                } else {
+                  setShowImportModal(true);
+                }
+              }}
+              title="Import data"
+              className="h-9 w-9"
+            >
+              <Upload className="h-4 w-4" />
+            </Button>
+          )}
+
+          {/* Export button - visible when export is enabled */}
+          {effectiveEnableExport && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowExportModal(true)}
+              title="Export data"
+              className="h-9 w-9"
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+          )}
+
           {/* Fullscreen toggle - SSoT for table fullscreen */}
           {enableFullscreen && (
             <Button
@@ -6406,7 +6442,29 @@ export default function TeeemTableView({
         allDataColumns={allDataColumns}
         filteredAndSortedEntries={filteredAndSortedEntries}
         handleExport={handleExport}
+        foundationSlug={foundationSlug || undefined}
+        serverTotalRecords={autoFetchTotalCount ?? serverTotalRecords ?? undefined}
+        currentFilters={safeFilters.length > 0 ? JSON.stringify(safeFilters) : undefined}
+        currentSortBy={sortColumns?.[0]?.column}
+        currentSortDirection={sortColumns?.[0]?.dir}
       />
+
+      {/* Import Modal - visible when import button clicked and no custom onImport handler */}
+      {foundationSlug && (
+        <ImportModal
+          open={showImportModal}
+          onOpenChange={setShowImportModal}
+          foundationSlug={foundationSlug}
+          foundationName={tableName}
+          onImportComplete={() => {
+            if (effectiveFoundationId) {
+              clearCachedRecords(effectiveFoundationId);
+            }
+            triggerAutoRefresh();
+            onRefresh?.();
+          }}
+        />
+      )}
 
       {/* Shared Merge Modal - used by all tables when enableMerge is true */}
       {/* SSoT: Only render if parent doesn't provide onBulkMerge (custom modal) */}
