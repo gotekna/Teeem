@@ -2,14 +2,14 @@
 <% # Template variables: company, ceasing_directors, new_appointments, meeting_date, meeting_date_formatted, remaining_directors %>
 
 <div class="page">
-  <div style="text-align: center; margin-bottom: 30px;">
-    <h1 style="font-size: 18pt; margin-bottom: 5px;">MINUTES OF MEETING OF DIRECTORS</h1>
+  <div style="text-align: center; margin-bottom: 20px;">
+    <h1 style="font-size: 18pt; margin-bottom: 3px;">MINUTES OF MEETING OF DIRECTORS</h1>
     <p class="small-text">Corporations Act 2001</p>
   </div>
 
   <!-- Company Details -->
-  <div class="section">
-    <table style="border: none;">
+  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
+    <table style="border: none; margin-bottom: 0;">
       <tr>
         <td style="border: none; width: 140px;" class="field-label">Company:</td>
         <td style="border: none;" class="field-value"><%= company[:name] %></td>
@@ -40,12 +40,12 @@
   </div>
 
   <!-- Present -->
-  <div class="section">
-    <div class="field-label" style="margin-bottom: 10px;">Present:</div>
+  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
+    <div class="field-label" style="margin-bottom: 6px;">Present:</div>
     <% if remaining_directors.present? %>
       <ul style="margin-left: 30px;">
         <% remaining_directors.each do |dir| %>
-          <li style="margin-bottom: 3px;"><%= dir[:full_name] %> (<%= dir[:positions].map { |p| p.titleize.gsub("_", " / ") }.join(", ") %>)</li>
+          <li style="margin-bottom: 2px;"><%= dir[:full_name] %> (<%= dir[:positions].map { |p| p.titleize.gsub("_", " / ") }.join(", ") %>)</li>
         <% end %>
       </ul>
     <% else %>
@@ -54,18 +54,18 @@
   </div>
 
   <!-- Quorum -->
-  <div class="section">
-    <div class="field-label" style="margin-bottom: 10px;">Quorum:</div>
+  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
+    <div class="field-label" style="margin-bottom: 6px;">Quorum:</div>
     <p>A quorum being present, the Chairperson declared the meeting open.</p>
   </div>
 
   <% if ceasing_directors.present? %>
   <!-- Resignation Resolution -->
-  <div class="section">
-    <div class="field-label" style="margin-bottom: 10px;">Resolution 1 - Acceptance of Resignation</div>
+  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
+    <div class="field-label" style="margin-bottom: 6px;">Resolution 1 - Acceptance of Resignation</div>
 
     <% ceasing_directors.each_with_index do |cd, idx| %>
-      <p style="margin-bottom: 10px;">
+      <p style="margin-bottom: 6px;">
         It was <strong>RESOLVED</strong> that the resignation of
         <strong><%= cd[:full_name] %></strong>
         as <%= cd[:positions].map { |p| p.titleize.gsub("_", " / ") }.join(" and ") %>
@@ -74,12 +74,12 @@
       </p>
     <% end %>
 
-    <p style="margin-bottom: 10px;">
+    <p style="margin-bottom: 6px;">
       The Board noted that the written resignation<%= ceasing_directors.length > 1 ? "s have" : " has" %>
       been received and <%= ceasing_directors.length > 1 ? "are" : "is" %> tabled at this meeting.
     </p>
 
-    <p style="margin-top: 15px;">
+    <p style="margin-top: 8px;">
       <strong>Carried unanimously.</strong>
     </p>
   </div>
@@ -87,11 +87,11 @@
 
   <% if new_appointments.present? %>
   <!-- Appointment Resolution -->
-  <div class="section">
-    <div class="field-label" style="margin-bottom: 10px;">Resolution <%= ceasing_directors.present? ? "2" : "1" %> - Appointment of Officeholder<%= new_appointments.length > 1 ? "s" : "" %></div>
+  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
+    <div class="field-label" style="margin-bottom: 6px;">Resolution <%= ceasing_directors.present? ? "2" : "1" %> - Appointment of Officeholder<%= new_appointments.length > 1 ? "s" : "" %></div>
 
     <% new_appointments.each do |appt| %>
-      <p style="margin-bottom: 10px;">
+      <p style="margin-bottom: 6px;">
         It was <strong>RESOLVED</strong> that
         <strong><%= appt[:full_name] %></strong>
         <% if appt[:address].present? %>of <%= appt[:address] %><% end %>
@@ -102,41 +102,47 @@
       </p>
     <% end %>
 
-    <p style="margin-top: 15px;">
+    <p style="margin-top: 8px;">
       <strong>Carried unanimously.</strong>
     </p>
   </div>
   <% end %>
 
   <!-- ASIC Notification -->
-  <div class="section">
-    <div class="field-label" style="margin-bottom: 10px;">Resolution <%= (ceasing_directors.present? && new_appointments.present?) ? "3" : "2" %> - ASIC Notification</div>
+  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
+    <div class="field-label" style="margin-bottom: 6px;">Resolution <%= (ceasing_directors.present? && new_appointments.present?) ? "3" : "2" %> - ASIC Notification</div>
 
-    <p style="margin-bottom: 10px;">
+    <p style="margin-bottom: 6px;">
       It was <strong>RESOLVED</strong> that the company secretary (or other authorised person)
       be and is hereby directed to lodge notification of the above changes with the
       Australian Securities and Investments Commission (ASIC) within 28 days in accordance
       with section 205B of the Corporations Act 2001.
     </p>
 
-    <p style="margin-top: 15px;">
+    <p style="margin-top: 8px;">
       <strong>Carried unanimously.</strong>
     </p>
   </div>
 
   <!-- Close -->
-  <div class="section">
-    <div class="field-label" style="margin-bottom: 10px;">Close of Meeting</div>
+  <div class="section" style="margin-bottom: 10px; padding-bottom: 8px;">
+    <div class="field-label" style="margin-bottom: 6px;">Close of Meeting</div>
     <p>There being no further business, the Chairperson declared the meeting closed.</p>
   </div>
 
-  <!-- Signature Block -->
-  <div style="margin-top: 40px;">
-    <table style="width: 100%; border: none;">
+  <!-- Signature Block - keep together on one page -->
+  <div style="margin-top: 20px; page-break-inside: avoid;">
+    <table style="width: 100%; border: none; margin-bottom: 0;">
       <tr>
         <td style="width: 50%; border: none; padding: 0;">
           <div class="field-label">Signed as a correct record:</div>
-          <div class="signature-box" style="margin-top: 5px;"></div>
+          <div class="signature-box" style="margin-top: 5px;">
+            <div class="signature-badge">
+              <span class="badge-icon">&#9998;</span>
+              <span class="badge-name">Chairperson</span>
+              <span class="badge-label">Signed at meeting</span>
+            </div>
+          </div>
         </td>
         <td style="width: 50%; border: none; padding: 0;">
           <div class="field-label">Date:</div>
@@ -147,7 +153,7 @@
       </tr>
     </table>
 
-    <div style="margin-top: 15px;">
+    <div style="margin-top: 10px;">
       <div class="field-label">Chairperson:</div>
       <div style="border-bottom: 1px solid #000; min-width: 300px; min-height: 20px; padding: 5px;"></div>
     </div>
