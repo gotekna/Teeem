@@ -35,6 +35,7 @@ import {
   Users,
   FileText,
   Trash2,
+  Eye,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -67,6 +68,7 @@ interface ESignatureRequest {
   created_by: string;
   document_type_id: number | null;
   document_type_name: string | null;
+  has_document: boolean;
 }
 
 interface ESignatureResponse {
@@ -275,6 +277,22 @@ export default function ESignaturePage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
+                        {request.has_document && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground"
+                            title="View Document"
+                            onClick={async () => {
+                              try {
+                                const blob = await api.getBlob(`/api/v1/e_signature_requests/${request.id}/document`);
+                                window.open(URL.createObjectURL(blob), "_blank");
+                              } catch { /* ignore */ }
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Link href={`/e-signature/${request.id}`}>
                           <Button variant="ghost" size="sm">
                             View
