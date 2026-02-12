@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_12_060001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_12_070000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1688,6 +1688,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_060001) do
     t.bigint "parent_company_contact_id"
     t.string "sync_key"
     t.date "date_of_birth"
+    t.string "emergency_contact_name"
+    t.string "emergency_contact_phone"
+    t.string "emergency_contact_relationship"
     t.index "lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
