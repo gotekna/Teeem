@@ -41,6 +41,15 @@ module Api
         end
       end
 
+      # GET /api/v1/heroku/vercel_billing
+      # Returns real Vercel billing data (invoices, build minutes, costs)
+      def vercel_billing
+        force_refresh = params[:refresh] == "true"
+        result = VercelBillingService.billing(force_refresh: force_refresh)
+
+        render json: { success: true, data: result }
+      end
+
       private
 
       def require_admin
