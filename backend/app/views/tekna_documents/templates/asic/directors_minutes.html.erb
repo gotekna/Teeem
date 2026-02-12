@@ -135,6 +135,12 @@
               <span class="badge-icon">&#9998;</span>
               <span class="badge-name">Chairperson</span>
               <span class="badge-label">Signed at meeting</span>
+              <% if chairperson_name.present? %>
+                <span class="badge-label" style="font-weight: 600; margin-top: 2px;"><%= chairperson_name %></span>
+              <% end %>
+              <% if chairperson_email.present? %>
+                <span class="badge-label" style="font-size: 7pt; margin-top: 1px;"><%= chairperson_email %></span>
+              <% end %>
             </div>
           </div>
         </td>

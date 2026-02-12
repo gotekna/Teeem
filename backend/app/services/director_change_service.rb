@@ -251,6 +251,16 @@ class DirectorChangeService
       }
     end
 
+    # Determine chairperson - prefer director with chairperson position, else first remaining
+    chairperson_contact = nil
+    remaining.each do |dir|
+      if dir.position&.downcase&.include?("chair")
+        chairperson_contact = dir.contact
+        break
+      end
+    end
+    chairperson_contact ||= remaining.first&.contact
+
     context = {
       company: build_company_context,
       ceasing_directors: ceasing_directors.map do |cd|
@@ -271,6 +281,8 @@ class DirectorChangeService
         }
       end,
       remaining_directors: remaining_directors,
+      chairperson_name: chairperson_contact&.display_name,
+      chairperson_email: chairperson_contact&.primary_email,
       meeting_date: meeting_date,
       meeting_date_formatted: meeting_date.strftime("%d/%m/%Y")
     }
