@@ -43,6 +43,9 @@ class Api::V1::ChatMessagesController < ApplicationController
     partner_ids = direct_messages.flat_map { |m| [ m.user_id, m.recipient_user_id ] }.uniq - [ current_user.id ]
     partners = User.where(id: partner_ids).index_by(&:id)
 
+    # Per-conversation read timestamps (SSoT for unread tracking)
+    read_timestamps = current_user.chat_read_timestamps || {}
+
     conversations = direct_messages.map do |msg|
       partner_id = msg.user_id == current_user.id ? msg.recipient_user_id : msg.user_id
       partner = partners[partner_id]
@@ -51,8 +54,17 @@ class Api::V1::ChatMessagesController < ApplicationController
       last_seen = partner.last_seen_at
       is_online = last_seen.present? && last_seen > 5.minutes.ago
 
+      conversation_key = "dm-#{[ current_user.id, partner_id ].sort.join('-')}"
+
+      # Use per-conversation read timestamp, fall back to global last_chat_read_at for migration
+      last_read_at = if read_timestamps[conversation_key].present?
+                       Time.parse(read_timestamps[conversation_key])
+                     else
+                       current_user.last_chat_read_at || Time.at(0)
+                     end
+
       {
-        id: "dm-#{[ current_user.id, partner_id ].sort.join('-')}",
+        id: conversation_key,
         type: "direct",
         name: partner.name,
         participants: [
@@ -68,7 +80,7 @@ class Api::V1::ChatMessagesController < ApplicationController
           is_own: msg.user_id == current_user.id
         },
         unread_count: ChatMessage.where(user_id: partner_id, recipient_user_id: current_user.id)
-                                 .where("created_at > ?", current_user.last_chat_read_at || Time.at(0))
+                                 .where("created_at > ?", last_read_at)
                                  .count,
         is_pinned: false,
         job_id: nil,
@@ -186,17 +198,47 @@ class Api::V1::ChatMessagesController < ApplicationController
   end
 
   # GET /api/v1/chat_messages/unread_count
+  # Returns total unread count across all conversations (for nav badge)
   def unread_count
-    last_read = current_user.last_chat_read_at || Time.at(0)
-    count = ChatMessage.where("created_at > ?", last_read)
-                      .where(recipient_user_id: current_user.id)
-                      .count
-    render json: { unread_count: count }
+    read_timestamps = current_user.chat_read_timestamps || {}
+
+    # Get all unique conversation partners
+    partner_ids = ChatMessage
+      .where(recipient_user_id: current_user.id)
+      .where.not(user_id: current_user.id)
+      .distinct
+      .pluck(:user_id)
+
+    total = partner_ids.sum do |partner_id|
+      conversation_key = "dm-#{[ current_user.id, partner_id ].sort.join('-')}"
+      last_read_at = if read_timestamps[conversation_key].present?
+                       Time.parse(read_timestamps[conversation_key])
+                     else
+                       current_user.last_chat_read_at || Time.at(0)
+                     end
+      ChatMessage.where(user_id: partner_id, recipient_user_id: current_user.id)
+                 .where("created_at > ?", last_read_at)
+                 .count
+    end
+
+    render json: { unread_count: total }
   end
 
   # POST /api/v1/chat_messages/mark_as_read
+  # Accepts conversation_id to mark only that conversation as read
   def mark_as_read
-    current_user.update(last_chat_read_at: Time.current)
+    conversation_id = params[:conversation_id]
+
+    if conversation_id.present?
+      # Per-conversation read tracking
+      timestamps = current_user.chat_read_timestamps || {}
+      timestamps[conversation_id.to_s] = Time.current.iso8601
+      current_user.update(chat_read_timestamps: timestamps)
+    else
+      # Legacy: mark all as read (global timestamp)
+      current_user.update(last_chat_read_at: Time.current)
+    end
+
     head :no_content
   end
 
