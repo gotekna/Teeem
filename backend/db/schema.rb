@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_12_060000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_12_060001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10013,6 +10013,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_060000) do
     t.boolean "enable_ai_writing_assistant", default: false, null: false
     t.string "email_signature_style", default: "modern-dark"
     t.boolean "force_password_change", default: false, null: false
+    t.string "username"
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["contact_id"], name: "index_users_on_contact_id_unique", unique: true, where: "(contact_id IS NOT NULL)"
     t.index ["email", "tenant_id"], name: "index_users_on_email_and_tenant", unique: true
@@ -10020,6 +10021,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_12_060000) do
     t.index ["signature_blob_id"], name: "index_users_on_signature_blob_id"
     t.index ["tenant_id"], name: "index_users_on_tenant_id"
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
+    t.index ["username"], name: "index_users_on_username", unique: true, where: "(username IS NOT NULL)"
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
