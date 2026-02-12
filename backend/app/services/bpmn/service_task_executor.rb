@@ -15,7 +15,10 @@ module Bpmn
       "create_esign_request" => "Bpmn::Tasks::CreateESignRequestTask",
       "wait_for_signatures" => "Bpmn::Tasks::WaitForSignaturesTask",
       "generate_and_send_for_signing" => "Bpmn::Tasks::GenerateAndSendForSigningTask",
-      "attach_sharepoint_file" => "Bpmn::Tasks::AttachSharepointFileTask"
+      "attach_sharepoint_file" => "Bpmn::Tasks::AttachSharepointFileTask",
+      "director_change" => "Bpmn::Tasks::DirectorChangeTask",
+      "create_director_change_esign" => "Bpmn::Tasks::CreateDirectorChangeEsignTask",
+      "complete_director_change" => "Bpmn::Tasks::CompleteDirectorChangeTask"
     }.freeze
 
     def self.execute(token)

@@ -11,7 +11,7 @@
 #   end
 #
 class SpreadsheetParser
-  SUPPORTED_EXTENSIONS = %w[.xlsx .csv].freeze # XLS deprecated
+  SUPPORTED_EXTENSIONS = %w[.xlsx .csv .xml].freeze
 
   attr_reader :file_path, :spreadsheet, :headers
 

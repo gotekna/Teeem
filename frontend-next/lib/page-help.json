@@ -474,6 +474,12 @@
       "tips": ["Use the improved visual interface", "Add complex conditions", "Preview workflow execution"],
       "tasks": ["Design workflow", "Add steps and conditions", "Test execution", "Activate workflow"]
     },
+    "/workflows/tasks/[id]": {
+      "title": "Workflow Task",
+      "description": "Complete a workflow task. Fill in the required form and submit to advance the workflow.",
+      "tips": ["Review the task details before completing", "All fields must be filled before submitting", "The workflow advances automatically after completion"],
+      "tasks": ["Review task requirements", "Fill in the form", "Submit to complete the task"]
+    },
     "/workflows/processes": {
       "title": "Workflow Processes",
       "description": "View and manage running workflow processes.",

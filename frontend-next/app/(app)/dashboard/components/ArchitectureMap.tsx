@@ -200,8 +200,18 @@ function HealthCheckItem({
   );
 }
 
-export default function ArchitectureMap() {
-  const [activeView, setActiveView] = useState("beginner");
+const DEFAULT_SUB_TAB = "beginner";
+
+interface ArchitectureMapProps {
+  activeSubTab?: string | null;
+  onSubTabChange?: (tab: string) => void;
+}
+
+export default function ArchitectureMap({ activeSubTab, onSubTabChange }: ArchitectureMapProps) {
+  const activeView = activeSubTab || DEFAULT_SUB_TAB;
+  const setActiveView = (tab: string) => {
+    if (onSubTabChange) onSubTabChange(tab);
+  };
   const [healthChecks, setHealthChecks] = useState<Record<string, boolean>>({});
 
   const toggleHealthCheck = (id: string) => {

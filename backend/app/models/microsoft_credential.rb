@@ -557,7 +557,7 @@ class MicrosoftCredential < ApplicationRecord
     return [] if token.blank?
 
     response = HTTP.auth("Bearer #{token}")
-                   .get("https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName")
+                   .get("https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName,assignedLicenses&$top=999")
 
     if response.status.success?
       data = response.parse
@@ -565,7 +565,8 @@ class MicrosoftCredential < ApplicationRecord
         {
           id: user["id"],
           name: user["displayName"],
-          email: user["mail"] || user["userPrincipalName"]
+          email: user["mail"] || user["userPrincipalName"],
+          has_license: user["assignedLicenses"].present? && user["assignedLicenses"].any?
         }
       end
     else

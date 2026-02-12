@@ -167,13 +167,13 @@ export function ToolbarMoreActions({
         </DropdownMenuLabel>
         {enableImport && (
           <DropdownMenuItem onClick={onImport}>
-            <Download className="h-4 w-4 mr-2" />
+            <Upload className="h-4 w-4 mr-2" />
             Import
           </DropdownMenuItem>
         )}
         {enableExport && (
           <DropdownMenuItem onClick={onShowExport}>
-            <Upload className="h-4 w-4 mr-2" />
+            <Download className="h-4 w-4 mr-2" />
             Export
           </DropdownMenuItem>
         )}
