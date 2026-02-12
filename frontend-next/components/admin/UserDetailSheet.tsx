@@ -359,7 +359,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
                   size="sm"
                   className="gap-1.5 h-8"
                   onClick={() => {
-                    const contactId = typeof displayUser.contact_id === 'object' ? (displayUser.contact_id as { id: number }).id : displayUser.contact_id;
+                    const contactId = displayUser.contact_id && typeof displayUser.contact_id === 'object' ? (displayUser.contact_id as unknown as { id: number }).id : displayUser.contact_id;
                     onClose();
                     router.push(`/contacts/${contactId}`);
                   }}
