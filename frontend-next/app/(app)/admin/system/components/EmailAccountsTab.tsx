@@ -57,6 +57,7 @@ import {
   ChevronUp,
   Link,
   Shield,
+  UserPlus,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -171,6 +172,15 @@ interface TeeemUser {
   email: string;
 }
 
+// M365 tenant user with license info (for import dialog)
+interface M365TenantUser {
+  id: string;
+  name: string;
+  email: string;
+  has_license: boolean;
+  already_in_teeem: boolean; // Computed client-side
+}
+
 interface ShareableUser {
   id: number;
   name: string;
@@ -200,6 +210,14 @@ function MS365MailboxAccessConfig() {
   const [togglingSyncAll, setTogglingSyncAll] = useState<number | null>(null);
   const [syncingOrgId, setSyncingOrgId] = useState<number | null>(null);
   // NOTE (Feb 2026): docsortMailboxes REMOVED - now in TenantSettings (SSoT)
+
+  // Import Users dialog state
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importOrgId, setImportOrgId] = useState<number | null>(null);
+  const [m365Users, setM365Users] = useState<M365TenantUser[]>([]);
+  const [selectedImportIds, setSelectedImportIds] = useState<Set<string>>(new Set());
+  const [loadingM365Users, setLoadingM365Users] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   // Trigger a full sync for an MS365 organization
   const handleSyncOrg = async (orgId: number) => {
@@ -335,6 +353,122 @@ function MS365MailboxAccessConfig() {
   // SSoT: Check if user has auto-access to mailbox (their own email)
   const isAutoAccess = (userEmail: string, mailbox: string): boolean => {
     return userEmail?.toLowerCase() === mailbox?.toLowerCase();
+  };
+
+  // Open import dialog and fetch M365 users for the org
+  const handleOpenImportDialog = async (orgId: number) => {
+    setImportOrgId(orgId);
+    setShowImportDialog(true);
+    setLoadingM365Users(true);
+    setSelectedImportIds(new Set());
+
+    try {
+      const response = await api.get<{
+        users: Array<{ id: string; name: string; email: string; has_license: boolean }>;
+        total: number;
+      }>(`/api/v1/microsoft_app/users?organization_id=${orgId}`);
+
+      // Cross-reference with existing Teeem users to mark already_in_teeem
+      const existingEmails = new Set(teeemUsers.map(u => u.email.toLowerCase()));
+      const enriched: M365TenantUser[] = (response.users || []).map(u => ({
+        ...u,
+        already_in_teeem: existingEmails.has(u.email?.toLowerCase() || ""),
+      }));
+
+      // Sort: licensed first, then alphabetical
+      enriched.sort((a, b) => {
+        if (a.already_in_teeem !== b.already_in_teeem) return a.already_in_teeem ? 1 : -1;
+        if (a.has_license !== b.has_license) return a.has_license ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      setM365Users(enriched);
+    } catch (error) {
+      console.error("Failed to fetch M365 users:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch Microsoft 365 users",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingM365Users(false);
+    }
+  };
+
+  const toggleImportSelection = (userId: string) => {
+    setSelectedImportIds(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllImportable = () => {
+    const importable = m365Users
+      .filter(u => !u.already_in_teeem && u.email)
+      .map(u => u.id);
+    setSelectedImportIds(new Set(importable));
+  };
+
+  const selectLicensedOnly = () => {
+    const licensed = m365Users
+      .filter(u => !u.already_in_teeem && u.has_license && u.email)
+      .map(u => u.id);
+    setSelectedImportIds(new Set(licensed));
+  };
+
+  const clearImportSelection = () => {
+    setSelectedImportIds(new Set());
+  };
+
+  const handleImportUsers = async () => {
+    if (selectedImportIds.size === 0 || !importOrgId) return;
+    setImporting(true);
+
+    try {
+      const response = await api.post<{
+        success: boolean;
+        created: Array<{ name: string; email: string; user_id: number }>;
+        skipped: Array<{ name: string; email?: string; reason: string }>;
+        errors: Array<{ name: string; email?: string; error: string }>;
+        message: string;
+      }>("/api/v1/microsoft_app/import_users", {
+        microsoft_user_ids: Array.from(selectedImportIds),
+        organization_id: importOrgId,
+      });
+
+      if (!response) throw new Error("No response");
+      const created = response.created || [];
+      const skipped = response.skipped || [];
+      const importErrors = response.errors || [];
+
+      toast({
+        title: `Imported ${created.length} User${created.length !== 1 ? "s" : ""}`,
+        description: [
+          created.length > 0 ? `Created: ${created.map((u: { name: string }) => u.name).join(", ")}` : null,
+          skipped.length > 0 ? `Skipped: ${skipped.length}` : null,
+          importErrors.length > 0 ? `Errors: ${importErrors.length}` : null,
+        ].filter(Boolean).join(". "),
+        variant: importErrors.length > 0 ? "destructive" : "default",
+      });
+
+      setShowImportDialog(false);
+      // Refresh data to show new users in the mailbox access matrix
+      fetchData();
+    } catch (error) {
+      console.error("Failed to import users:", error);
+      toast({
+        title: "Import Failed",
+        description: "Failed to import users from Microsoft 365",
+        variant: "destructive",
+      });
+    } finally {
+      setImporting(false);
+    }
   };
 
   // State for inline "Create Link" to add MS365 org
@@ -618,6 +752,24 @@ function MS365MailboxAccessConfig() {
                   )}
                   Save
                 </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenImportDialog(org.id)}
+                        disabled={org.status !== "connected"}
+                      >
+                        <UserPlus className="h-4 w-4 mr-1" />
+                        Import Users
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Import Microsoft 365 users as Teeem users</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
           </CardHeader>
@@ -683,6 +835,127 @@ function MS365MailboxAccessConfig() {
           </CardContent>
         </Card>
       ))}
+
+      {/* Import Users from Microsoft 365 Dialog */}
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Import Users from Microsoft 365
+            </DialogTitle>
+            <DialogDescription>
+              Select users to create as Teeem accounts. Licensed users have active M365 subscriptions.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingM365Users ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner className="h-6 w-6 mr-2" />
+              <span className="text-sm text-muted-foreground">Loading Microsoft 365 users...</span>
+            </div>
+          ) : (
+            <>
+              {/* Quick selection buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button size="sm" variant="outline" onClick={selectLicensedOnly}>
+                  Select Licensed Only
+                </Button>
+                <Button size="sm" variant="outline" onClick={selectAllImportable}>
+                  Select All
+                </Button>
+                <Button size="sm" variant="ghost" onClick={clearImportSelection}>
+                  Clear
+                </Button>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {selectedImportIds.size} selected of {m365Users.filter(u => !u.already_in_teeem).length} importable
+                </span>
+              </div>
+
+              {/* Users table */}
+              <div className="overflow-y-auto flex-1 border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead className="text-center">License</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {m365Users.map(user => (
+                      <TableRow
+                        key={user.id}
+                        className={user.already_in_teeem ? "opacity-50" : "cursor-pointer hover:bg-muted/50"}
+                        onClick={() => {
+                          if (!user.already_in_teeem && user.email) {
+                            toggleImportSelection(user.id);
+                          }
+                        }}
+                      >
+                        <TableCell className="text-center">
+                          <Checkbox
+                            checked={selectedImportIds.has(user.id)}
+                            disabled={user.already_in_teeem || !user.email}
+                            onCheckedChange={() => toggleImportSelection(user.id)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{user.name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {user.email || <span className="italic">No email</span>}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {user.has_license ? (
+                            <Badge variant="default" className="text-xs">Licensed</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">No License</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {user.already_in_teeem ? (
+                            <Badge variant="outline" className="text-xs">
+                              <Check className="h-3 w-3 mr-1" />
+                              In Teeem
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Ready</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {m365Users.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          No users found in this Microsoft 365 tenant.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowImportDialog(false)} disabled={importing}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImportUsers}
+              disabled={selectedImportIds.size === 0 || importing}
+            >
+              {importing ? (
+                <Spinner className="h-4 w-4 mr-1" />
+              ) : (
+                <UserPlus className="h-4 w-4 mr-1" />
+              )}
+              Import {selectedImportIds.size > 0 ? `${selectedImportIds.size} User${selectedImportIds.size !== 1 ? "s" : ""}` : "Selected"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

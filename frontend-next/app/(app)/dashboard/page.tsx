@@ -42,22 +42,33 @@ export default function DashboardPage() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Path-based tab: /dashboard/overview, /dashboard/competitor
+  // Path-based tab: /dashboard/overview, /dashboard/competitor, /dashboard/architecture/costs
   // URL always shows current tab for clarity
-  const activeTab = useMemo(() => {
-    const parts = (pathname ?? "").replace("/dashboard", "").split("/").filter(Boolean);
-    return parts[0] || null; // null means no tab in URL yet
+  const pathParts = useMemo(() => {
+    return (pathname ?? "").replace("/dashboard", "").split("/").filter(Boolean);
   }, [pathname]);
+
+  const activeTab = pathParts[0] || null; // null means no tab in URL yet
+  const subTab = pathParts[1] || null; // sub-tab for architecture, etc.
 
   // Redirect to default tab if none specified
   useEffect(() => {
     if (activeTab === null) {
       router.replace("/dashboard/overview", { scroll: false });
     }
-  }, [activeTab, router]);
+    // Redirect /dashboard/architecture to /dashboard/architecture/beginner
+    if (activeTab === "architecture" && !subTab) {
+      router.replace("/dashboard/architecture/beginner", { scroll: false });
+    }
+  }, [activeTab, subTab, router]);
 
   const setActiveTab = useCallback((tab: string) => {
-    router.push(`/dashboard/${tab}`, { scroll: false });
+    // When switching to architecture, include default sub-tab in URL
+    if (tab === "architecture") {
+      router.push(`/dashboard/architecture/beginner`, { scroll: false });
+    } else {
+      router.push(`/dashboard/${tab}`, { scroll: false });
+    }
   }, [router]);
 
   const [stats] = useState<DashboardStats>({
@@ -371,7 +382,7 @@ export default function DashboardPage() {
 
         {/* Architecture Tab */}
         <TabsContent value="architecture">
-          <ArchitectureMap />
+          <ArchitectureMap activeSubTab={subTab} onSubTabChange={(tab) => router.push(`/dashboard/architecture/${tab}`, { scroll: false })} />
         </TabsContent>
       </Tabs>
     </div>

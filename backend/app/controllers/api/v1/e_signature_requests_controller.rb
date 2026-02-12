@@ -378,7 +378,8 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       created_at: request.created_at,
       created_by: request.created_by&.email,
       document_type_id: request.document_type_id,
-      document_type_name: request.document_type&.name
+      document_type_name: request.document_type&.name,
+      has_document: request.original_storage_reference.present?
     }
 
     if include_details

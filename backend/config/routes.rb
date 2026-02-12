@@ -1378,6 +1378,7 @@ Rails.application.routes.draw do
           get :admin_consent_callback
           post :test
           get :users
+          post :import_users
           post :configure_sync
           post :sync_to_storage
           post :sync_to_sharepoint # Legacy alias for sync_to_storage
@@ -2849,8 +2850,14 @@ Rails.application.routes.draw do
             post :bulk_delete
             post :bulk_update
             post :bulk_create
+            get :export
           end
         end
+
+        # Foundation data import (into existing tables)
+        post "import/preview", to: "foundation_imports#preview"
+        post "import/execute", to: "foundation_imports#execute"
+        get "import/status/:session_key", to: "foundation_imports#status"
       end
 
       # Foundation views (user-specific saved views)
