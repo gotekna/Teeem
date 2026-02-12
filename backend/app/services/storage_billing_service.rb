@@ -54,7 +54,8 @@ class StorageBillingService
     end
 
     def fetch_wasabi_usage
-      provider = WarehouseProvider.instance
+      tenant = ActsAsTenant.current_tenant
+      provider = tenant ? WarehouseProvider.for_tenant(tenant) : WarehouseProvider.first
       return { success: false, error: "No storage provider configured" } unless provider&.connected?
       return { success: false, error: "Not S3-compatible provider" } unless provider.provider_type == "s3_compatible"
 
