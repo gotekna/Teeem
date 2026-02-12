@@ -171,12 +171,26 @@ export default function ESignaturePreparePage() {
     setError(null);
 
     try {
-      // First, upload the document to get SharePoint file info
-      // For now, we'll create the request with the fields
+      // Step 1: Upload the PDF to S3 via StorageBlob
+      const formData = new FormData();
+      formData.append("file", documentFile);
+
+      const uploadResult = await api.postFormData<{
+        success: boolean;
+        storage_reference?: string;
+        errors?: string[];
+      }>("/api/v1/e_signature_requests/upload_document", formData);
+
+      if (!uploadResult?.success || !uploadResult.storage_reference) {
+        throw new Error(uploadResult?.errors?.[0] || "Failed to upload document");
+      }
+
+      // Step 2: Create the e-signature request with the storage reference
       const requestData = {
         title,
         description,
         document_type_id: documentTypeId ? parseInt(documentTypeId) : undefined,
+        original_storage_item_id: uploadResult.storage_reference,
         signers_attributes: signers.map((s, index) => ({
           email: s.email,
           name: s.name || s.email.split("@")[0],
