@@ -342,8 +342,8 @@ export default function SigningCeremonyPage() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-800 border-t py-3">
+      {/* Footer - not fixed, sits below content */}
+      <footer className="border-t py-3 mt-8">
         <div className="max-w-4xl mx-auto px-4 text-center text-xs text-muted-foreground">
           Powered by TEEEM E-Signature System
         </div>
