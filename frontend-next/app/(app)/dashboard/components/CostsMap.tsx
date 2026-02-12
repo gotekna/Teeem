@@ -381,6 +381,7 @@ export default function CostsMap() {
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const [breakdownVisible, setBreakdownVisible] = useState(false);
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
+  const [cycleExpanded, setCycleExpanded] = useState(false);
   const [storageBilling, setStorageBilling] = useState<StorageBillingData | null>(null);
   const [storageBillingLoading, setStorageBillingLoading] = useState(false);
   const [storageBillingVisible, setStorageBillingVisible] = useState<Record<string, boolean>>({});
@@ -1144,82 +1145,107 @@ export default function CostsMap() {
                               </div>
                             )}
                             {breakdownVisible && breakdown && (
-                              <div className="mt-2 space-y-2">
+                              <div className="mt-2 space-y-1">
                                 {breakdown.error && (
                                   <p className="text-xs text-red-500">{breakdown.error}</p>
                                 )}
 
-                                {/* Billing cycle header with usage summary */}
+                                {/* Level 1: Billing Cycle (collapsible → weeks) */}
                                 {breakdown.periodStart && breakdown.periodEnd && (
-                                  <div className="border border-border rounded p-2.5 bg-muted/30">
-                                    <div className="flex items-center justify-between text-xs mb-1">
-                                      <span className="font-medium">
-                                        Billing Cycle: {new Date(breakdown.periodStart + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
+                                  <div className="border border-border rounded overflow-hidden">
+                                    <button
+                                      onClick={() => setCycleExpanded((v) => !v)}
+                                      className="flex items-center w-full px-2.5 py-2 text-left hover:bg-muted/50 transition-colors text-xs"
+                                    >
+                                      {cycleExpanded ? (
+                                        <ChevronDown className="h-3.5 w-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                                      ) : (
+                                        <ChevronRight className="h-3.5 w-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                                      )}
+                                      <span className="font-medium mr-2">
+                                        {new Date(breakdown.periodStart + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
                                         {" – "}
                                         {new Date(breakdown.periodEnd + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+                                      </span>
+                                      <span className="text-muted-foreground mr-auto text-[11px]">
+                                        {breakdown.totalMinutes?.toLocaleString()} min &middot; {breakdown.totalDeploys?.toLocaleString()} deploys
                                       </span>
                                       <span className="font-mono font-medium">
                                         ${breakdown.estimatedCost?.toFixed(2) ?? "—"}
                                       </span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                                      <span>
-                                        {breakdown.totalMinutes?.toLocaleString()} min &middot; {breakdown.totalDeploys?.toLocaleString()} deploys
-                                      </span>
-                                      <span>
-                                        @ ${breakdown.ratePerMinute ?? 0.014}/min (standard)
-                                      </span>
-                                    </div>
+                                    </button>
+
+                                    {/* Level 2: Weeks (inside expanded billing cycle) */}
+                                    {cycleExpanded && (
+                                      <div className="border-t border-border">
+                                        <div className="px-2.5 py-1 text-[10px] text-muted-foreground bg-muted/30">
+                                          @ ${breakdown.ratePerMinute ?? 0.014}/min (standard machine)
+                                        </div>
+                                        {breakdown.weeks?.map((week) => {
+                                          const isWeekExpanded = expandedWeeks.has(week.weekNum);
+                                          return (
+                                            <div key={week.weekNum} className="border-t border-border">
+                                              <button
+                                                onClick={() => toggleWeek(week.weekNum)}
+                                                className="flex items-center w-full px-2.5 py-1.5 pl-7 text-left hover:bg-muted/50 transition-colors text-xs"
+                                              >
+                                                {isWeekExpanded ? (
+                                                  <ChevronDown className="h-3 w-3 mr-1.5 text-muted-foreground shrink-0" />
+                                                ) : (
+                                                  <ChevronRight className="h-3 w-3 mr-1.5 text-muted-foreground shrink-0" />
+                                                )}
+                                                <span className="font-medium mr-2">{week.label}</span>
+                                                <span className="text-muted-foreground mr-auto text-[11px]">
+                                                  {new Date(week.periodStart + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
+                                                  {" – "}
+                                                  {new Date(week.periodEnd + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
+                                                </span>
+                                                <span className="font-mono font-medium">{week.minutes.toLocaleString()} min</span>
+                                                <span className="text-muted-foreground ml-1.5 shrink-0">({week.deploys})</span>
+                                              </button>
+
+                                              {/* Level 3: Days (inside expanded week) */}
+                                              {isWeekExpanded && (
+                                                <div className="border-t border-border bg-muted/20">
+                                                  {week.days.map((day) => (
+                                                    <div key={day.date} className="px-2.5 py-1.5 pl-14 border-b border-border last:border-0">
+                                                      <div className="flex items-center text-xs gap-2">
+                                                        <span className="text-muted-foreground w-[70px] shrink-0">{day.dayLabel}</span>
+                                                        <span className="font-mono font-medium w-16 shrink-0">{day.minutes} min</span>
+                                                        <span className="text-muted-foreground w-14 shrink-0">{day.deploys} dep</span>
+                                                        <div className="flex-1 flex flex-wrap gap-1">
+                                                          {day.projects.map((p) => (
+                                                            <span key={p.name} className="inline-flex items-center px-1.5 py-0.5 text-[10px] rounded bg-muted border border-border">
+                                                              {p.name}: {p.minutes}m
+                                                            </span>
+                                                          ))}
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
 
-                                {/* Weeks (latest first, collapsible → days) */}
-                                {breakdown.weeks?.map((week) => {
-                                  const isExpanded = expandedWeeks.has(week.weekNum);
-                                  return (
-                                    <div key={week.weekNum} className="border border-border rounded overflow-hidden">
-                                      <button
-                                        onClick={() => toggleWeek(week.weekNum)}
-                                        className="flex items-center w-full px-2.5 py-1.5 text-left hover:bg-muted/50 transition-colors text-xs"
-                                      >
-                                        {isExpanded ? (
-                                          <ChevronDown className="h-3 w-3 mr-1.5 text-muted-foreground shrink-0" />
-                                        ) : (
-                                          <ChevronRight className="h-3 w-3 mr-1.5 text-muted-foreground shrink-0" />
-                                        )}
-                                        <span className="font-medium mr-2">{week.label}</span>
-                                        <span className="text-muted-foreground mr-auto text-[11px]">
-                                          {new Date(week.periodStart + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
-                                          {" – "}
-                                          {new Date(week.periodEnd + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
-                                        </span>
-                                        <span className="font-mono font-medium">{week.minutes.toLocaleString()} min</span>
-                                        <span className="text-muted-foreground ml-1.5 shrink-0">({week.deploys})</span>
-                                      </button>
-
-                                      {isExpanded && (
-                                        <div className="border-t border-border">
-                                          {week.days.map((day) => (
-                                            <div key={day.date} className="px-2.5 py-1.5 border-b border-border last:border-0">
-                                              <div className="flex items-center text-xs gap-2">
-                                                <span className="text-muted-foreground w-[70px] shrink-0">{day.dayLabel}</span>
-                                                <span className="font-mono font-medium w-16 shrink-0">{day.minutes} min</span>
-                                                <span className="text-muted-foreground w-14 shrink-0">{day.deploys} dep</span>
-                                                <div className="flex-1 flex flex-wrap gap-1">
-                                                  {day.projects.map((p) => (
-                                                    <span key={p.name} className="inline-flex items-center px-1.5 py-0.5 text-[10px] rounded bg-muted border border-border">
-                                                      {p.name}: {p.minutes}m
-                                                    </span>
-                                                  ))}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                                {/* Last month invoice (non-expandable, just totals) */}
+                                {vercelBilling.currentInvoice && (
+                                  <div className="border border-border rounded px-2.5 py-2 text-xs flex items-center opacity-60">
+                                    <span className="text-muted-foreground mr-1.5">Previous:</span>
+                                    <span className="font-medium mr-auto">
+                                      {vercelBilling.buildMinutes ? `${vercelBilling.buildMinutes.minutes.toLocaleString()} min` : "—"}
+                                    </span>
+                                    <span className="font-mono font-medium">
+                                      ${vercelBilling.currentInvoice.total.toFixed(2)}
+                                    </span>
+                                    <Badge variant="outline" className="text-[10px] ml-1.5">{vercelBilling.currentInvoice.status}</Badge>
+                                  </div>
+                                )}
 
                                 {breakdown.cached && (
                                   <div className="flex items-center gap-2 mt-1">
