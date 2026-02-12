@@ -1,7 +1,10 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Server,
   Database,
@@ -22,61 +25,91 @@ import {
   ScanFace,
   BarChart3,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 // ─────────────────────────────────────────────
-// Cost data - hardcoded (Heroku has no free billing API)
-// Update these values when costs change
+// Display-only constants (stays in frontend)
 // ─────────────────────────────────────────────
 
-const LAST_UPDATED = "February 2026";
-
-// ── Payment Methods ──
-// Update card descriptions here when cards change.
-// Use null for free services or services billed through another platform.
 const PAYMENT_METHODS = {
-  heroku: "Heroku Account",          // Update: which card pays Heroku?
-  vercel: "Vercel Account",          // Update: which card pays Vercel?
-  wasabi: "Wasabi Account",          // Update: which card pays Wasabi?
-  backblaze: "Backblaze Account",    // Update: which card pays Backblaze?
-  webcentral: "Webcentral Account",  // Update: which card pays Webcentral?
-  anthropic: "Anthropic Account",    // Update: which card pays Anthropic?
-  aws: "AWS Account",               // Update: which card pays AWS?
-  twilio: "Twilio Account",          // Update: which card pays Twilio?
-  stripe: "Stripe Account",          // Stripe collects fees from transactions
-  polaris: "Polaris Account",        // Update: which card pays Polaris?
-  basiq: "Basiq Account",            // Update: which card pays Basiq?
-  free: null,                        // No payment needed
+  heroku: "Heroku Account",
+  vercel: "Vercel Account",
+  wasabi: "Wasabi Account",
+  backblaze: "Backblaze Account",
+  webcentral: "Webcentral Account",
+  anthropic: "Anthropic Account",
+  aws: "AWS Account",
+  twilio: "Twilio Account",
+  stripe: "Stripe Account",
+  polaris: "Polaris Account",
+  basiq: "Basiq Account",
+  free: null,
 } as const;
 
 type PaymentMethodKey = keyof typeof PAYMENT_METHODS;
+
+// Map service names to icons (display-only, no API equivalent)
+const SERVICE_ICONS: Record<string, React.ElementType> = {
+  "Vercel (Pro)": Globe,
+  "Wasabi Storage": HardDrive,
+  "Backblaze B2": HardDrive,
+  "Webcentral": Globe,
+  "Cloudflare": Shield,
+  "Anthropic (Claude)": Bot,
+  "AWS Rekognition": ScanFace,
+  "Xero API": FileSpreadsheet,
+  "Microsoft Graph": Mail,
+  "Polaris Mail": Mail,
+  "Sentry": AlertTriangle,
+  "WeatherAPI": CloudRain,
+  "Cloudinary": Image,
+  "Metabase": BarChart3,
+  "Stripe": CreditCard,
+  "Twilio": MessageSquare,
+  "Basiq": Landmark,
+};
+
+const CATEGORY_LABELS: Record<string, { label: string; description: string }> = {
+  hosting: { label: "Hosting & Storage", description: "Infrastructure that runs and stores TEEEM" },
+  ai: { label: "AI & Machine Learning", description: "Variable cost - scales with usage" },
+  integration: { label: "Integrations", description: "Third-party APIs (most included/free tier)" },
+  payperuse: { label: "Pay-per-use", description: "Transaction-based billing" },
+};
+
+// ─────────────────────────────────────────────
+// Types (from API response)
+// ─────────────────────────────────────────────
 
 interface DynoCost {
   app: string;
   dyno: string;
   size: string;
+  quantity: number;
   cost: number;
+  unitCost: number;
   purpose: string;
   environment: string;
-  note?: string;
 }
 
-interface DatabaseCost {
+interface AddonCost {
+  app: string;
   name: string;
+  addonServiceName: string;
   plan: string;
-  cost: number;
-  usedBy: string;
-  note?: string;
+  cost: number | null;
+  state: string;
+  environment: string;
 }
 
-interface ServiceCost {
+interface ExternalService {
   name: string;
   cost: number | string;
   purpose: string;
-  icon: React.ElementType;
-  category: "hosting" | "ai" | "integration" | "payperuse";
-  paidBy: PaymentMethodKey;
+  category: string;
+  paidBy: string;
   note?: string;
 }
 
@@ -86,69 +119,29 @@ interface SavingsEntry {
   monthlySaved: number;
 }
 
-const DYNOS: DynoCost[] = [
-  { app: "teeem-production", dyno: "web", size: "Basic", cost: 7, purpose: "Production Rails API", environment: "Production" },
-  { app: "teeem-beta", dyno: "web", size: "Basic", cost: 7, purpose: "Beta/UAT Rails API", environment: "Beta" },
-  { app: "teeem-staging", dyno: "web", size: "Basic", cost: 7, purpose: "Staging Rails API", environment: "Staging" },
-  { app: "teeem-staging", dyno: "worker", size: "Basic", cost: 7, purpose: "Staging background jobs", environment: "Staging" },
-  { app: "teeem-shared-worker", dyno: "worker", size: "Standard-2X", cost: 50, purpose: "Shared job processing (all envs)", environment: "Shared" },
-  { app: "teeem-sam-dev", dyno: "web", size: "Standard-2X", cost: 50, purpose: "Sam's dev API", environment: "Sam Dev" },
-  { app: "teeem-sam-dev", dyno: "worker", size: "Standard-2X", cost: 50, purpose: "Sam's dev background jobs", environment: "Sam Dev" },
-  { app: "teeem-rob-dev", dyno: "web", size: "Basic", cost: 7, purpose: "Rob's dev API", environment: "Rob Dev" },
-  { app: "teeem-rob-dev", dyno: "worker", size: "Basic", cost: 7, purpose: "Rob's dev background jobs", environment: "Rob Dev" },
-  { app: "teeem-jake-dev", dyno: "web", size: "Basic", cost: 7, purpose: "Jake's dev environment", environment: "Jake Dev" },
-];
-
-const DATABASES: DatabaseCost[] = [
-  { name: "PRIMARY (shared)", plan: "Standard-0", cost: 50, usedBy: "All environments (staging/beta/prod)" },
-  { name: "Sam Dev DB", plan: "Essential-1", cost: 9, usedBy: "teeem-sam-dev only" },
-  { name: "Rob Dev DB", plan: "Mini", cost: 5, usedBy: "teeem-rob-dev only" },
-];
-
-const SERVICES: ServiceCost[] = [
-  // ── Hosting & Storage ──
-  { name: "Vercel (Pro)", cost: 20, purpose: "Next.js frontend hosting + edge CDN for all environments", icon: Globe, category: "hosting", paidBy: "vercel" },
-  { name: "Wasabi Storage", cost: 7, purpose: "Primary S3-compatible document warehouse (jobs, emails, corporate docs)", icon: HardDrive, category: "hosting", paidBy: "wasabi" },
-  { name: "Backblaze B2", cost: "~5-10", purpose: "Disaster recovery backups - weekly mirror from Wasabi", icon: HardDrive, category: "hosting", paidBy: "backblaze" },
-  { name: "Webcentral", cost: "~15", purpose: "Domain registration & DNS for teeem.com.au", icon: Globe, category: "hosting", paidBy: "webcentral", note: "Update with actual cost" },
-  { name: "Cloudflare", cost: 0, purpose: "DNS management, email DNS provisioning, wildcard SSL (free tier)", icon: Shield, category: "hosting", paidBy: "free" },
-
-  // ── AI & Machine Learning ──
-  { name: "Anthropic (Claude)", cost: "~50-100", purpose: "AI summaries, email classification, plan review, writing assistant, invoice matching", icon: Bot, category: "ai", paidBy: "anthropic" },
-  { name: "AWS Rekognition", cost: "~1-5", purpose: "Face verification for site check-in/out (prevents buddy punching)", icon: ScanFace, category: "ai", paidBy: "aws" },
-
-  // ── Integrations (included/free) ──
-  { name: "Xero API", cost: 0, purpose: "Contact/invoice sync via webhooks (included in Xero subscription)", icon: FileSpreadsheet, category: "integration", paidBy: "free" },
-  { name: "Microsoft Graph", cost: 0, purpose: "Email sync (O365), SharePoint, calendar (included in M365)", icon: Mail, category: "integration", paidBy: "free" },
-  { name: "Polaris Mail", cost: "TBD", purpose: "White-label email hosting - mailbox provisioning, aliases, billing", icon: Mail, category: "integration", paidBy: "polaris", note: "Email reseller" },
-  { name: "Sentry", cost: 0, purpose: "Error tracking & performance monitoring (free tier: 5k errors/mo)", icon: AlertTriangle, category: "integration", paidBy: "free" },
-  { name: "WeatherAPI", cost: 0, purpose: "Automatic rain log tracking for construction jobs (free tier: 100k calls/mo)", icon: CloudRain, category: "integration", paidBy: "free" },
-  { name: "Cloudinary", cost: 0, purpose: "Product images, pricebook photos, image optimization (free tier: 25GB)", icon: Image, category: "integration", paidBy: "free" },
-  { name: "Metabase", cost: 0, purpose: "Business intelligence dashboards (self-hosted on Heroku)", icon: BarChart3, category: "integration", paidBy: "heroku", note: "Runs on Heroku" },
-
-  // ── Pay-per-use ──
-  { name: "Stripe", cost: "fees only", purpose: "Payment processing - payment links, subscriptions, customer portal", icon: CreditCard, category: "payperuse", paidBy: "stripe" },
-  { name: "Twilio", cost: "per msg", purpose: "SMS notifications - quote reminders, alerts", icon: MessageSquare, category: "payperuse", paidBy: "twilio" },
-  { name: "Basiq", cost: "TBD", purpose: "Bank feed aggregation - account linking for financial tracking", icon: Landmark, category: "payperuse", paidBy: "basiq" },
-];
-
-const SAVINGS_HISTORY: SavingsEntry[] = [
-  { date: "Feb 2026", description: "Destroyed orphan HEROKU_POSTGRESQL_RED (Essential-2)", monthlySaved: 20 },
-  { date: "Feb 2026", description: "Destroyed orphan QUEUE_DATABASE (Essential-1)", monthlySaved: 9 },
-];
+interface InfrastructureData {
+  dynos: DynoCost[];
+  addons: AddonCost[];
+  externalServices: ExternalService[];
+  savingsHistory: SavingsEntry[];
+  fetchedAt: string | null;
+  cached: boolean;
+  error?: string;
+  errors?: string[];
+}
 
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
 
-const CATEGORY_LABELS: Record<string, { label: string; description: string }> = {
-  hosting: { label: "Hosting & Storage", description: "Infrastructure that runs and stores TEEEM" },
-  ai: { label: "AI & Machine Learning", description: "Variable cost - scales with usage" },
-  integration: { label: "Integrations", description: "Third-party APIs (most included/free tier)" },
-  payperuse: { label: "Pay-per-use", description: "Transaction-based billing" },
-};
+function CostBadge({ cost }: { cost: number | string | null }) {
+  if (cost === null) return (
+    <span className={cn("inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border",
+      "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800")}>
+      Unknown
+    </span>
+  );
 
-function CostBadge({ cost }: { cost: number | string }) {
   const numCost = typeof cost === "string" ? (cost === "TBD" ? -1 : 100) : cost;
   const color =
     numCost === -1
@@ -175,8 +168,8 @@ function CostBadge({ cost }: { cost: number | string }) {
   );
 }
 
-function PaymentBadge({ paidBy }: { paidBy: PaymentMethodKey }) {
-  const method = PAYMENT_METHODS[paidBy];
+function PaymentBadge({ paidBy }: { paidBy: string }) {
+  const method = PAYMENT_METHODS[paidBy as PaymentMethodKey];
   if (!method) return null;
   return (
     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded border border-border bg-muted/50 text-muted-foreground">
@@ -186,31 +179,105 @@ function PaymentBadge({ paidBy }: { paidBy: PaymentMethodKey }) {
   );
 }
 
+function formatTimestamp(iso: string | null): string {
+  if (!iso) return "Never";
+  const d = new Date(iso);
+  return d.toLocaleString("en-AU", {
+    timeZone: "Australia/Brisbane",
+    day: "numeric", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
 // ─────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────
 
 export default function CostsMap() {
-  const totalDynos = DYNOS.reduce((sum, d) => sum + d.cost, 0);
-  const totalDatabases = DATABASES.reduce((sum, d) => sum + d.cost, 0);
-  const totalHeroku = totalDynos + totalDatabases;
-  const fixedExternal = SERVICES.filter((s) => typeof s.cost === "number").reduce(
-    (sum, s) => sum + (s.cost as number),
-    0
+  const [data, setData] = useState<InfrastructureData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async (refresh = false) => {
+    try {
+      if (refresh) setRefreshing(true);
+      else setLoading(true);
+
+      const response = await api.get<{ success: boolean; data: InfrastructureData }>(
+        "/api/v1/heroku/infrastructure",
+        refresh ? { params: { refresh: "true" } } : {}
+      );
+
+      if (response?.success && response.data) {
+        setData(response.data);
+        setError(response.data.error || null);
+      } else {
+        setError("Failed to load infrastructure data");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load infrastructure data");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Spinner className="h-6 w-6" />
+        <span className="ml-2 text-sm text-muted-foreground">Loading infrastructure data...</span>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center">
+          <AlertTriangle className="h-8 w-8 mx-auto text-yellow-500 mb-2" />
+          <p className="text-sm text-muted-foreground mb-3">{error || "No data available"}</p>
+          <Button variant="outline" size="sm" onClick={() => fetchData()}>
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Derive databases and redis from addons
+  const databases = data.addons.filter((a) => a.addonServiceName === "heroku-postgresql");
+  const redis = data.addons.filter((a) => a.addonServiceName === "heroku-redis");
+  const otherAddons = data.addons.filter(
+    (a) => a.addonServiceName !== "heroku-postgresql" && a.addonServiceName !== "heroku-redis"
   );
+
+  const totalDynos = data.dynos.reduce((sum, d) => sum + d.cost, 0);
+  const totalDatabases = databases.reduce((sum, d) => sum + (d.cost ?? 0), 0);
+  const totalRedis = redis.reduce((sum, r) => sum + (r.cost ?? 0), 0);
+  const totalOtherAddons = otherAddons.reduce((sum, a) => sum + (a.cost ?? 0), 0);
+  const totalHeroku = totalDynos + totalDatabases + totalRedis + totalOtherAddons;
+  const fixedExternal = data.externalServices
+    .filter((s) => typeof s.cost === "number")
+    .reduce((sum, s) => sum + (s.cost as number), 0);
   const totalFixed = totalHeroku + fixedExternal;
-  const totalSaved = SAVINGS_HISTORY.reduce((sum, s) => sum + s.monthlySaved, 0);
+  const totalSaved = data.savingsHistory.reduce((sum, s) => sum + s.monthlySaved, 0);
 
   // Group dynos by environment
   const envGroups: Record<string, { dynos: DynoCost[]; total: number }> = {};
-  DYNOS.forEach((d) => {
+  data.dynos.forEach((d) => {
     if (!envGroups[d.environment]) envGroups[d.environment] = { dynos: [], total: 0 };
     envGroups[d.environment].dynos.push(d);
     envGroups[d.environment].total += d.cost;
   });
 
-  // Group services by category
-  const servicesByCategory = SERVICES.reduce<Record<string, ServiceCost[]>>((acc, s) => {
+  // Group external services by category
+  const servicesByCategory = data.externalServices.reduce<Record<string, ExternalService[]>>((acc, s) => {
     if (!acc[s.category]) acc[s.category] = [];
     acc[s.category].push(s);
     return acc;
@@ -219,13 +286,37 @@ export default function CostsMap() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h3 className="text-lg font-semibold">Infrastructure Costs</h3>
-        <p className="text-sm text-muted-foreground">
-          Monthly cost breakdown across all services and environments.
-          Last updated: {LAST_UPDATED}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Infrastructure Costs</h3>
+          <p className="text-sm text-muted-foreground">
+            Monthly cost breakdown across all services and environments.
+            {data.fetchedAt && (
+              <> Last fetched: {formatTimestamp(data.fetchedAt)}{data.cached && " (cached)"}</>
+            )}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => fetchData(true)}
+          disabled={refreshing}
+          className="gap-1.5"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+          {refreshing ? "Refreshing..." : "Refresh"}
+        </Button>
       </div>
+
+      {/* Error/warning banner */}
+      {(error || data.errors?.length) && (
+        <div className="p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/20">
+          <div className="flex items-center gap-2 text-sm text-yellow-700 dark:text-yellow-400">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>{error || data.errors?.join(", ")}</span>
+          </div>
+        </div>
+      )}
 
       {/* Summary Card */}
       <Card>
@@ -247,8 +338,8 @@ export default function CostsMap() {
               <div className="text-xs text-muted-foreground">Heroku Dynos</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800">
-              <div className="text-xl font-bold text-purple-700 dark:text-purple-300">${totalDatabases}</div>
-              <div className="text-xs text-muted-foreground">Databases</div>
+              <div className="text-xl font-bold text-purple-700 dark:text-purple-300">${totalDatabases + totalRedis}</div>
+              <div className="text-xs text-muted-foreground">Databases & Redis</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800">
               <div className="text-xl font-bold text-orange-700 dark:text-orange-300">${fixedExternal}</div>
@@ -261,30 +352,32 @@ export default function CostsMap() {
           </div>
 
           {/* Breakdown bar */}
-          <div className="mt-4">
-            <div className="flex h-3 rounded-full overflow-hidden">
-              <div
-                className="bg-blue-500"
-                style={{ width: `${(totalDynos / totalFixed) * 100}%` }}
-                title={`Dynos: $${totalDynos}`}
-              />
-              <div
-                className="bg-purple-500"
-                style={{ width: `${(totalDatabases / totalFixed) * 100}%` }}
-                title={`Databases: $${totalDatabases}`}
-              />
-              <div
-                className="bg-orange-500"
-                style={{ width: `${(fixedExternal / totalFixed) * 100}%` }}
-                title={`External: $${fixedExternal}`}
-              />
+          {totalFixed > 0 && (
+            <div className="mt-4">
+              <div className="flex h-3 rounded-full overflow-hidden">
+                <div
+                  className="bg-blue-500"
+                  style={{ width: `${(totalDynos / totalFixed) * 100}%` }}
+                  title={`Dynos: $${totalDynos}`}
+                />
+                <div
+                  className="bg-purple-500"
+                  style={{ width: `${((totalDatabases + totalRedis) / totalFixed) * 100}%` }}
+                  title={`Databases & Redis: $${totalDatabases + totalRedis}`}
+                />
+                <div
+                  className="bg-orange-500"
+                  style={{ width: `${(fixedExternal / totalFixed) * 100}%` }}
+                  title={`External: $${fixedExternal}`}
+                />
+              </div>
+              <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />Dynos ({Math.round((totalDynos / totalFixed) * 100)}%)</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />DB & Redis ({Math.round(((totalDatabases + totalRedis) / totalFixed) * 100)}%)</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />External ({Math.round((fixedExternal / totalFixed) * 100)}%)</span>
+              </div>
             </div>
-            <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />Dynos ({Math.round((totalDynos / totalFixed) * 100)}%)</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />Databases ({Math.round((totalDatabases / totalFixed) * 100)}%)</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />External ({Math.round((fixedExternal / totalFixed) * 100)}%)</span>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
@@ -296,84 +389,189 @@ export default function CostsMap() {
             Heroku Dynos
             <Badge variant="outline" className="ml-auto font-mono">${totalDynos}/mo</Badge>
           </CardTitle>
-          <CardDescription>Compute instances running the Rails backend</CardDescription>
+          <CardDescription>
+            Compute instances running the Rails backend
+            {data.dynos.length > 0 && ` (${data.dynos.reduce((sum, d) => sum + d.quantity, 0)} total)`}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="pb-2 font-medium">App</th>
-                  <th className="pb-2 font-medium">Dyno</th>
-                  <th className="pb-2 font-medium">Size</th>
-                  <th className="pb-2 font-medium">Cost</th>
-                  <th className="pb-2 font-medium">Purpose</th>
-                </tr>
-              </thead>
-              <tbody>
-                {DYNOS.map((d, i) => (
-                  <tr key={i} className={cn("border-b border-border last:border-0", i % 2 === 0 && "bg-muted/30")}>
-                    <td className="py-2 pr-4">
-                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{d.app}</code>
-                    </td>
-                    <td className="py-2 pr-4 text-xs">{d.dyno}</td>
-                    <td className="py-2 pr-4 text-xs font-mono">{d.size}</td>
-                    <td className="py-2 pr-4">
-                      <CostBadge cost={d.cost} />
-                    </td>
-                    <td className="py-2 text-xs text-muted-foreground">
-                      {d.purpose}
-                      {d.note && (
-                        <Badge variant="outline" className="ml-2 text-[10px]">{d.note}</Badge>
-                      )}
-                    </td>
+          {data.dynos.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No dynos found (HEROKU_API_KEY may not be configured)</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="pb-2 font-medium">App</th>
+                    <th className="pb-2 font-medium">Dyno</th>
+                    <th className="pb-2 font-medium">Size</th>
+                    <th className="pb-2 font-medium">Qty</th>
+                    <th className="pb-2 font-medium">Cost</th>
+                    <th className="pb-2 font-medium">Purpose</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {data.dynos.map((d, i) => (
+                    <tr key={`${d.app}-${d.dyno}`} className={cn("border-b border-border last:border-0", i % 2 === 0 && "bg-muted/30")}>
+                      <td className="py-2 pr-4">
+                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{d.app}</code>
+                      </td>
+                      <td className="py-2 pr-4 text-xs">{d.dyno}</td>
+                      <td className="py-2 pr-4 text-xs font-mono">{d.size}</td>
+                      <td className="py-2 pr-4 text-xs font-mono">{d.quantity}</td>
+                      <td className="py-2 pr-4">
+                        <CostBadge cost={d.cost} />
+                      </td>
+                      <td className="py-2 text-xs text-muted-foreground">{d.purpose}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Heroku Databases */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Database className="h-4 w-4" />
-            Heroku Databases
-            <Badge variant="outline" className="ml-auto font-mono">${totalDatabases}/mo</Badge>
-          </CardTitle>
-          <CardDescription>PostgreSQL databases (staging/beta/prod share one DB)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="pb-2 font-medium">Database</th>
-                  <th className="pb-2 font-medium">Plan</th>
-                  <th className="pb-2 font-medium">Cost</th>
-                  <th className="pb-2 font-medium">Used By</th>
-                </tr>
-              </thead>
-              <tbody>
-                {DATABASES.map((d, i) => (
-                  <tr key={i} className={cn("border-b border-border last:border-0", i % 2 === 0 && "bg-muted/30")}>
-                    <td className="py-2 pr-4 font-medium text-xs">{d.name}</td>
-                    <td className="py-2 pr-4">
-                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{d.plan}</code>
-                    </td>
-                    <td className="py-2 pr-4">
-                      <CostBadge cost={d.cost} />
-                    </td>
-                    <td className="py-2 text-xs text-muted-foreground">{d.usedBy}</td>
+      {databases.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Heroku Databases
+              <Badge variant="outline" className="ml-auto font-mono">${totalDatabases}/mo</Badge>
+            </CardTitle>
+            <CardDescription>PostgreSQL databases (staging/beta/prod share one DB)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="pb-2 font-medium">Name</th>
+                    <th className="pb-2 font-medium">Plan</th>
+                    <th className="pb-2 font-medium">Cost</th>
+                    <th className="pb-2 font-medium">App</th>
+                    <th className="pb-2 font-medium">State</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                </thead>
+                <tbody>
+                  {databases.map((d, i) => (
+                    <tr key={d.name} className={cn("border-b border-border last:border-0", i % 2 === 0 && "bg-muted/30")}>
+                      <td className="py-2 pr-4 font-medium text-xs">{d.name}</td>
+                      <td className="py-2 pr-4">
+                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{d.plan.replace("heroku-postgresql:", "")}</code>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <CostBadge cost={d.cost} />
+                      </td>
+                      <td className="py-2 pr-4 text-xs text-muted-foreground">{d.environment}</td>
+                      <td className="py-2 text-xs">
+                        <Badge variant={d.state === "provisioned" ? "outline" : "destructive"} className="text-[10px]">
+                          {d.state}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Heroku Redis */}
+      {redis.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Heroku Redis
+              <Badge variant="outline" className="ml-auto font-mono">${totalRedis}/mo</Badge>
+            </CardTitle>
+            <CardDescription>Redis instances for caching and job queues</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="pb-2 font-medium">Name</th>
+                    <th className="pb-2 font-medium">Plan</th>
+                    <th className="pb-2 font-medium">Cost</th>
+                    <th className="pb-2 font-medium">App</th>
+                    <th className="pb-2 font-medium">State</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {redis.map((r, i) => (
+                    <tr key={r.name} className={cn("border-b border-border last:border-0", i % 2 === 0 && "bg-muted/30")}>
+                      <td className="py-2 pr-4 font-medium text-xs">{r.name}</td>
+                      <td className="py-2 pr-4">
+                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{r.plan.replace("heroku-redis:", "")}</code>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <CostBadge cost={r.cost} />
+                      </td>
+                      <td className="py-2 pr-4 text-xs text-muted-foreground">{r.environment}</td>
+                      <td className="py-2 text-xs">
+                        <Badge variant={r.state === "provisioned" ? "outline" : "destructive"} className="text-[10px]">
+                          {r.state}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Other Heroku Addons */}
+      {otherAddons.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cloud className="h-4 w-4" />
+              Other Heroku Addons
+              <Badge variant="outline" className="ml-auto font-mono">${totalOtherAddons}/mo</Badge>
+            </CardTitle>
+            <CardDescription>Scheduler, Papertrail, SendGrid, etc.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="pb-2 font-medium">Addon</th>
+                    <th className="pb-2 font-medium">Plan</th>
+                    <th className="pb-2 font-medium">Cost</th>
+                    <th className="pb-2 font-medium">App</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {otherAddons.map((a, i) => (
+                    <tr key={a.name} className={cn("border-b border-border last:border-0", i % 2 === 0 && "bg-muted/30")}>
+                      <td className="py-2 pr-4 text-xs">
+                        <span className="font-medium">{a.addonServiceName}</span>
+                        <span className="text-muted-foreground ml-1">({a.name})</span>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{a.plan.split(":")[1] || a.plan}</code>
+                      </td>
+                      <td className="py-2 pr-4">
+                        <CostBadge cost={a.cost} />
+                      </td>
+                      <td className="py-2 text-xs text-muted-foreground">{a.environment}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* External Services - by category */}
       {(["hosting", "ai", "integration", "payperuse"] as const).map((cat) => {
@@ -391,26 +589,29 @@ export default function CostsMap() {
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-2 gap-3">
-                {services.map((s) => (
-                  <div key={s.name} className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/20">
-                    <s.icon className="h-5 w-5 mt-0.5 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm">{s.name}</span>
-                        <CostBadge cost={s.cost} />
-                        {s.note && (
-                          <Badge variant="outline" className="text-[10px]">{s.note}</Badge>
+                {services.map((s) => {
+                  const Icon = SERVICE_ICONS[s.name] || Cloud;
+                  return (
+                    <div key={s.name} className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/20">
+                      <Icon className="h-5 w-5 mt-0.5 text-muted-foreground shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm">{s.name}</span>
+                          <CostBadge cost={s.cost} />
+                          {s.note && (
+                            <Badge variant="outline" className="text-[10px]">{s.note}</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{s.purpose}</p>
+                        {s.paidBy !== "free" && (
+                          <div className="mt-1">
+                            <PaymentBadge paidBy={s.paidBy} />
+                          </div>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{s.purpose}</p>
-                      {s.paidBy !== "free" && (
-                        <div className="mt-1">
-                          <PaymentBadge paidBy={s.paidBy} />
-                        </div>
-                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -418,36 +619,38 @@ export default function CostsMap() {
       })}
 
       {/* Cost by Environment */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Server className="h-4 w-4" />
-            Cost by Environment
-          </CardTitle>
-          <CardDescription>Heroku dyno costs grouped by environment</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {Object.entries(envGroups)
-              .sort((a, b) => b[1].total - a[1].total)
-              .map(([env, group]) => (
-                <div key={env} className="p-3 rounded-lg border border-border">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-sm">{env}</span>
-                    <CostBadge cost={group.total} />
+      {Object.keys(envGroups).length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Server className="h-4 w-4" />
+              Cost by Environment
+            </CardTitle>
+            <CardDescription>Heroku dyno costs grouped by environment</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {Object.entries(envGroups)
+                .sort((a, b) => b[1].total - a[1].total)
+                .map(([env, group]) => (
+                  <div key={env} className="p-3 rounded-lg border border-border">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium text-sm">{env}</span>
+                      <CostBadge cost={group.total} />
+                    </div>
+                    <div className="space-y-0.5">
+                      {group.dynos.map((d) => (
+                        <div key={`${d.app}-${d.dyno}`} className="text-[11px] text-muted-foreground">
+                          {d.dyno} ({d.size}){d.quantity > 1 ? ` x${d.quantity}` : ""}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-0.5">
-                    {group.dynos.map((d, i) => (
-                      <div key={i} className="text-[11px] text-muted-foreground">
-                        {d.dyno} ({d.size}){d.note ? ` - ${d.note}` : ""}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-          </div>
-        </CardContent>
-      </Card>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Payment Methods Summary */}
       <Card>
@@ -456,7 +659,7 @@ export default function CostsMap() {
             <CreditCard className="h-4 w-4" />
             Payment Methods
           </CardTitle>
-          <CardDescription>Which account/card pays for what (update in CostsMap.tsx PAYMENT_METHODS)</CardDescription>
+          <CardDescription>Which account/card pays for what</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -470,21 +673,22 @@ export default function CostsMap() {
               </thead>
               <tbody>
                 {(() => {
-                  // Build a map of payment method → services + costs
                   const methodMap: Record<string, { services: string[]; fixedTotal: number; hasVariable: boolean }> = {};
 
-                  // Add Heroku (dynos + databases)
+                  // Add Heroku (dynos + addons)
                   const herokuLabel = PAYMENT_METHODS.heroku;
-                  methodMap[herokuLabel] = {
-                    services: ["All Heroku Dynos", "All Heroku Databases"],
-                    fixedTotal: totalHeroku,
-                    hasVariable: false,
-                  };
+                  if (herokuLabel) {
+                    methodMap[herokuLabel] = {
+                      services: ["All Heroku Dynos", "All Heroku Addons"],
+                      fixedTotal: totalHeroku,
+                      hasVariable: false,
+                    };
+                  }
 
                   // Add external services
-                  SERVICES.forEach((s) => {
-                    const method = PAYMENT_METHODS[s.paidBy];
-                    if (!method) return; // skip free
+                  data.externalServices.forEach((s) => {
+                    const method = PAYMENT_METHODS[s.paidBy as PaymentMethodKey];
+                    if (!method) return;
                     if (!methodMap[method]) methodMap[method] = { services: [], fixedTotal: 0, hasVariable: false };
                     methodMap[method].services.push(s.name);
                     if (typeof s.cost === "number") {
@@ -496,7 +700,7 @@ export default function CostsMap() {
 
                   return Object.entries(methodMap)
                     .sort((a, b) => b[1].fixedTotal - a[1].fixedTotal)
-                    .map(([method, data], i) => (
+                    .map(([method, mData], i) => (
                       <tr key={method} className={cn("border-b border-border last:border-0", i % 2 === 0 && "bg-muted/30")}>
                         <td className="py-2 pr-4">
                           <span className="inline-flex items-center gap-1.5 font-medium text-xs">
@@ -505,11 +709,11 @@ export default function CostsMap() {
                           </span>
                         </td>
                         <td className="py-2 pr-4 text-xs text-muted-foreground">
-                          {data.services.join(", ")}
+                          {mData.services.join(", ")}
                         </td>
                         <td className="py-2 text-right">
                           <span className="font-mono text-xs font-medium">
-                            ${data.fixedTotal}{data.hasVariable ? "+" : ""}/mo
+                            ${mData.fixedTotal}{mData.hasVariable ? "+" : ""}/mo
                           </span>
                         </td>
                       </tr>
@@ -522,31 +726,33 @@ export default function CostsMap() {
       </Card>
 
       {/* Savings History */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <TrendingDown className="h-4 w-4 text-green-600" />
-            Recent Savings
-            <Badge className="ml-auto bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800">
-              -${totalSaved}/mo (${totalSaved * 12}/yr)
-            </Badge>
-          </CardTitle>
-          <CardDescription>Cost optimizations and cleanup</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {SAVINGS_HISTORY.map((s, i) => (
-              <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
-                <Badge variant="outline" className="shrink-0 text-xs">{s.date}</Badge>
-                <span className="text-sm flex-1">{s.description}</span>
-                <span className="font-mono text-sm font-medium text-green-700 dark:text-green-400 shrink-0">
-                  -${s.monthlySaved}/mo
-                </span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {data.savingsHistory.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-green-600" />
+              Recent Savings
+              <Badge className="ml-auto bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800">
+                -${totalSaved}/mo (${totalSaved * 12}/yr)
+              </Badge>
+            </CardTitle>
+            <CardDescription>Cost optimizations and cleanup</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {data.savingsHistory.map((s, i) => (
+                <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
+                  <Badge variant="outline" className="shrink-0 text-xs">{s.date}</Badge>
+                  <span className="text-sm flex-1">{s.description}</span>
+                  <span className="font-mono text-sm font-medium text-green-700 dark:text-green-400 shrink-0">
+                    -${s.monthlySaved}/mo
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
