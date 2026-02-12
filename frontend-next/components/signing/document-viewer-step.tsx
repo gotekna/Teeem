@@ -158,7 +158,7 @@ export function DocumentViewerStep({
 
       {/* PDF Viewer */}
       <div
-        className="flex-1 overflow-auto bg-muted dark:bg-slate-800 rounded-lg mb-4 min-h-[400px]"
+        className="flex-1 overflow-auto bg-muted dark:bg-slate-800 rounded-lg mb-4"
         onScroll={handleScroll}
       >
         {pdfUrl ? (
@@ -167,7 +167,7 @@ export function DocumentViewerStep({
               src={`${pdfUrl}#toolbar=0`}
               className="w-full bg-white shadow-lg rounded"
               style={{
-                height: "600px",
+                height: "70vh",
                 maxWidth: `${zoom}%`,
                 transform: `scale(${zoom / 100})`,
                 transformOrigin: "top center"
@@ -176,7 +176,7 @@ export function DocumentViewerStep({
             />
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center h-full min-h-[300px]">
             <p className="text-muted-foreground">Document preview not available</p>
           </div>
         )}
@@ -207,16 +207,16 @@ export function DocumentViewerStep({
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex justify-between pt-4 border-t">
+      {/* Action buttons - sticky at bottom with padding for fixed footer */}
+      <div className="flex justify-between pt-4 pb-12 border-t bg-white dark:bg-slate-900 sticky bottom-0">
         <Button
           variant="outline"
           onClick={() => setShowDeclineDialog(true)}
         >
           Decline to Sign
         </Button>
-        <Button onClick={onContinue}>
-          I Have Reviewed the Document
+        <Button size="lg" onClick={onContinue} className="font-semibold">
+          I Have Reviewed the Document →
         </Button>
       </div>
 
