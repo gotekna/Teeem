@@ -333,6 +333,9 @@ Rails.application.routes.draw do
       # Git integration
       get "git/branch_status", to: "git#branch_status"
 
+      # Heroku Infrastructure (admin-only, live from Heroku Platform API)
+      get "heroku/infrastructure", to: "heroku#infrastructure"
+
       # System & Performance Monitoring
       get "system/health", to: "system#health"
       get "system/performance", to: "system#performance"

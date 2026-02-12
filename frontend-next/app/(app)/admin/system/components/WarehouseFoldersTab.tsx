@@ -4,8 +4,6 @@ import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
@@ -37,6 +35,8 @@ import { Plus, Pencil, Trash2, Lock, FolderOpen, ArrowUpDown, ArrowUp, ArrowDown
 import { SearchInput } from "@/components/ui/search-input";
 import { TabTypeBadge } from "@/components/ui/tab-type-badge";
 import { deriveTabType } from "@/lib/constants/tab-types";
+import { PlaceholderBuilder } from "@/components/ui/placeholders";
+import { getWarehouseScopeForType, type PlaceholderScope } from "@/lib/placeholders";
 import { toast } from "sonner";
 
 type SortField = "warehouse_type_name" | "name" | "folder_path_template" | "warehouse_folders_count" | "enabled";
@@ -911,17 +911,21 @@ export function WarehouseFoldersTab() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="name">Name (also used as folder path)</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  placeholder="e.g., Responses, Attachments, Documents"
-                />
-              </div>
+              <PlaceholderBuilder
+                label="Name (also used as folder path)"
+                value={formData.name}
+                onChange={(value) =>
+                  setFormData({ ...formData, name: value })
+                }
+                scope={(() => {
+                  const selectedType = warehouseTypeOptions.find(wt => wt.value === formData.warehouse_type_id);
+                  return getWarehouseScopeForType(selectedType?.code || editingFolder?.warehouse_type_code || 'storage');
+                })() as PlaceholderScope}
+                separator="/"
+                placeholder="e.g., Responses, Attachments, {{UserName}}"
+                helpText="Folder name. Use tokens like {{UserName}}, {{Year}} for dynamic paths."
+                defaultExpanded={false}
+              />
 
               {/* Full path preview - includes parent hierarchy */}
               {(() => {
