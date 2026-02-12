@@ -73,13 +73,21 @@ class Api::V1::ChatMessagesController < ApplicationController
                        current_user.last_chat_read_at || Time.at(0)
                      end
 
+      # Partner's read timestamp for this conversation (for read receipts)
+      partner_read_timestamps = partner.chat_read_timestamps || {}
+      partner_last_read_at = if partner_read_timestamps[conversation_key].present?
+                               Time.parse(partner_read_timestamps[conversation_key])
+                             else
+                               partner.last_chat_read_at
+                             end
+
       {
         id: conversation_key,
         type: "direct",
         name: partner.name,
         participants: [
-          { id: current_user.id, name: current_user.name, is_online: true },
-          { id: partner.id, name: partner.name, is_online: is_online }
+          { id: current_user.id, name: current_user.name, is_online: true, last_read_at: last_read_at },
+          { id: partner.id, name: partner.name, is_online: is_online, last_read_at: partner_last_read_at }
         ],
         last_message: {
           id: msg.id,
@@ -115,7 +123,8 @@ class Api::V1::ChatMessagesController < ApplicationController
             id: p.user.id,
             name: p.user.name,
             is_online: last_seen.present? && last_seen > 5.minutes.ago,
-            is_admin: p.is_admin
+            is_admin: p.is_admin,
+            last_read_at: p.last_read_at
           }
         },
         last_message: last_msg ? {
@@ -167,6 +176,32 @@ class Api::V1::ChatMessagesController < ApplicationController
         updated_at: last_msg&.created_at || gs.created_at
       }
     end
+
+    # Include AI support conversation (always present, pinned at top)
+    support_last_msg = support_messages_for_user.order(created_at: :desc).first
+    conversations << {
+      id: "support",
+      type: "support",
+      name: "Teeem Support",
+      participants: [
+        { id: current_user.id, name: current_user.name, is_online: true },
+        { id: 0, name: "Teeem AI", is_online: true }
+      ],
+      last_message: support_last_msg ? {
+        id: support_last_msg.id,
+        content: support_last_msg.content,
+        sender_id: support_last_msg.user_id || 0,
+        sender_name: support_last_msg.guest_sender_name == "Teeem AI" ? "Teeem AI" : "You",
+        created_at: support_last_msg.created_at,
+        is_own: support_last_msg.user_id == current_user.id
+      } : nil,
+      unread_count: 0,
+      is_pinned: true,
+      is_support: true,
+      job_id: nil,
+      job_name: nil,
+      updated_at: support_last_msg&.created_at || Time.current
+    }
 
     # Sort by most recent message
     conversations.sort_by! { |c| c[:updated_at] || Time.at(0) }.reverse!
@@ -377,7 +412,100 @@ class Api::V1::ChatMessagesController < ApplicationController
     render json: @messages.as_json(include: { user: {} }, methods: :formatted_timestamp)
   end
 
+  # POST /api/v1/chat_messages/support
+  # Send a message to AI support and get a response
+  # Saves both user message and AI response as ChatMessages with channel: "support"
+  # AI messages use recipient_user_id to scope per user
+  def support
+    content = params[:content]
+    if content.blank?
+      return render json: { error: "Content is required" }, status: :unprocessable_entity
+    end
+
+    # Save the user's message
+    user_message = ChatMessage.new(
+      content: content,
+      channel: "support",
+      user: current_user,
+      tenant_id: current_user.tenant_id
+    )
+
+    unless user_message.save
+      return render json: { error: user_message.errors.full_messages.join(", ") }, status: :unprocessable_entity
+    end
+
+    # Build conversation history from this user's recent support messages
+    history = support_messages_for_user
+      .where("created_at > ?", 24.hours.ago)
+      .order(created_at: :asc)
+      .last(20)
+      .map do |msg|
+        if msg.guest_sender_name == "Teeem AI"
+          { role: "assistant", content: msg.content }
+        else
+          { role: "user", content: msg.content }
+        end
+      end
+
+    # Get AI response
+    service = SupportChatService.new(user: current_user, tenant: current_tenant)
+    ai_response = service.respond(message: content, history: history)
+
+    # Save AI response with recipient_user_id to scope per user
+    ai_message = ChatMessage.new(
+      content: ai_response[:content],
+      channel: "support",
+      guest_sender_name: "Teeem AI",
+      recipient_user_id: current_user.id,
+      tenant_id: current_user.tenant_id
+    )
+    ai_message.save
+
+    render json: {
+      success: true,
+      data: {
+        user_message: message_json(user_message),
+        ai_message: message_json(ai_message)
+      }
+    }
+  end
+
+  # GET /api/v1/chat_messages/support_history
+  # Get support chat history for current user
+  def support_history
+    messages = support_messages_for_user
+      .includes(:user)
+      .order(created_at: :asc)
+      .last(100)
+
+    render json: {
+      success: true,
+      data: (messages || []).map { |m| message_json(m) }
+    }
+  end
+
   private
+
+  # User's support messages (sent by them) + AI responses (addressed to them)
+  def support_messages_for_user
+    ChatMessage.where(channel: "support").where(
+      "user_id = ? OR (guest_sender_name = ? AND recipient_user_id = ?)",
+      current_user.id, "Teeem AI", current_user.id
+    )
+  end
+
+  def message_json(msg)
+    {
+      id: msg.id,
+      content: msg.content,
+      user_id: msg.user_id,
+      sender_name: msg.sender_display_name,
+      is_ai: msg.guest_sender_name == "Teeem AI",
+      channel: msg.channel,
+      created_at: msg.created_at,
+      formatted_timestamp: msg.formatted_timestamp
+    }
+  end
 
   def message_params
     params.require(:chat_message).permit(:content, :channel, :recipient_user_id, :chat_conversation_id, :chat_guest_session_id, :job_id, :contact_id, :case_id, :message_type, :file)
