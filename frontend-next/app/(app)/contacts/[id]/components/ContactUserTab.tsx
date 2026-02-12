@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Spinner } from "@/components/ui/spinner";
 import { PropertyRow, PropertySection } from "@/components/contact";
-import { KeyRound, UserX } from "lucide-react";
+import { Camera, KeyRound, UserX } from "lucide-react";
 import type { Contact } from "../types";
 
 // Personal details data shape from API
@@ -53,6 +55,9 @@ export function ContactUserTab({
   const [details, setDetails] = useState<PersonalDetails | null>(null);
   const [noUser, setNoUser] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Load personal details via the by_contact endpoint
   const loadDetails = useCallback(async () => {
@@ -160,6 +165,60 @@ export function ContactUserTab({
       setResettingPassword(false);
     }
   }, [details, toast]);
+
+  // Photo upload - uses existing PATCH /api/v1/users/:id with FormData
+  const handlePhotoSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !details) return;
+
+      if (!file.type.startsWith("image/")) {
+        toast({ title: "Invalid File", description: "Please select an image file (PNG, JPG, etc.)", variant: "destructive" });
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ title: "File Too Large", description: "Photo must be less than 10MB", variant: "destructive" });
+        return;
+      }
+
+      // Show preview immediately
+      setPhotoPreview(URL.createObjectURL(file));
+      setUploadingPhoto(true);
+
+      try {
+        const formData = new FormData();
+        formData.append("user[photo]", file);
+
+        const token = getStorageItem(STORAGE_KEYS.TOKEN, "", false);
+        const response = await fetch(`/api/v1/users/${details.id}`, {
+          method: "PATCH",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: formData,
+        });
+        const data = await response.json();
+
+        if (data?.success) {
+          // Reload to get new photo URL
+          await loadDetails();
+          setPhotoPreview(null);
+          toast({ title: "Photo updated" });
+        } else {
+          toast({ title: "Error", description: "Failed to upload photo", variant: "destructive" });
+          setPhotoPreview(null);
+        }
+      } catch {
+        toast({ title: "Error", description: "Failed to upload photo", variant: "destructive" });
+        setPhotoPreview(null);
+      } finally {
+        setUploadingPhoto(false);
+        // Reset file input
+        if (photoInputRef.current) photoInputRef.current.value = "";
+      }
+    },
+    [details, toast, loadDetails]
+  );
 
   // Loading state
   if (loading) {
@@ -366,25 +425,50 @@ export function ContactUserTab({
       </Card>
 
       {/* Profile Photo Section */}
-      {details.photoUrl && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Profile Photo</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex items-center gap-4 py-2">
-              <img
-                src={details.photoUrl}
-                alt={details.name}
-                className="h-16 w-16 rounded-full object-cover"
-              />
-              <p className="text-sm text-muted-foreground">
-                Profile photo can be updated from Settings &gt; Profile
-              </p>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Profile Photo</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="flex items-center gap-4 py-2">
+            <div className="relative">
+              <Avatar className="h-20 w-20">
+                <AvatarImage src={photoPreview || details.photoUrl || ""} />
+                <AvatarFallback className="text-lg">
+                  {details.name
+                    ?.split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+              {uploadingPhoto && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full">
+                  <Spinner className="h-5 w-5 text-white" />
+                </div>
+              )}
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <div>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoSelect}
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => photoInputRef.current?.click()}
+                disabled={uploadingPhoto}
+              >
+                <Camera className="h-3 w-3 mr-2" />
+                {details.photoUrl ? "Change Photo" : "Upload Photo"}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
