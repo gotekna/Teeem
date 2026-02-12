@@ -53,6 +53,9 @@ import { uploadFile } from "@/lib/upload-utils";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
 import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
+import { ScreenShareViewer } from "@/components/screen-share/ScreenShareViewer";
+import { useSetAtom } from "jotai";
+import { screenShareViewerOpenAtom } from "@/lib/screen-share-atoms";
 import type {
   ChatMessage,
   Conversation,
@@ -87,6 +90,10 @@ export default function ChatPage() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Screen share state
+  const [screenShareTarget, setScreenShareTarget] = useState<{ id: number; name: string } | null>(null);
+  const setScreenShareViewerOpen = useSetAtom(screenShareViewerOpenAtom);
+
   // Save to entity functionality
   const [constructions, setConstructions] = useState<Construction[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -115,20 +122,28 @@ export default function ChatPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Load conversations
+  // Load conversations (initial + poll for unread badge updates)
   useEffect(() => {
+    let isInitial = true;
     const loadConversations = async () => {
-      setLoading(true);
+      if (isInitial) setLoading(true);
       try {
         const response = await api.get<{ conversations: Conversation[] }>("/api/v1/chat_messages/conversations");
         setConversations(response.conversations || []);
       } catch (error) {
         console.error("Failed to load conversations:", error);
-        setConversations(getMockConversations());
+        if (isInitial) setConversations(getMockConversations());
       }
-      setLoading(false);
+      if (isInitial) {
+        setLoading(false);
+        isInitial = false;
+      }
     };
     loadConversations();
+
+    // Refresh conversations every 30 seconds for unread badge updates
+    const interval = setInterval(loadConversations, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadMessages = useCallback(async (conversationId: number | string, isInitialLoad = false) => {
@@ -236,11 +251,13 @@ export default function ChatPage() {
       }
     }
 
-    // Mark conversation as read when viewed
+    // Mark this specific conversation as read (per-conversation tracking)
     async function markAsRead() {
       try {
-        await api.post("/api/v1/chat_messages/mark_as_read", {});
-        // Update local unread count to 0 for this conversation
+        await api.post("/api/v1/chat_messages/mark_as_read", {
+          conversation_id: conversationId,
+        });
+        // Update local unread count to 0 for this conversation only
         setConversations(prev => prev.map(c =>
           c.id === conversationId ? { ...c, unread_count: 0 } : c
         ));
@@ -760,34 +777,47 @@ export default function ChatPage() {
                     <Spinner />
                   </div>
                 ) : (
-                  sortedOnlineUsers.map((user) => (
+                  sortedOnlineUsers.map((onlineUser) => (
                     <div
-                      key={user.id}
-                      className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-secondary transition-colors"
-                      onClick={() => startConversation(user)}
-                      title={`Chat with ${user.name}`}
+                      key={onlineUser.id}
+                      className="group flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-secondary transition-colors"
+                      onClick={() => startConversation(onlineUser)}
+                      title={`Chat with ${onlineUser.name}`}
                     >
                       <div className="relative">
                         <Avatar className="h-8 w-8">
                           <AvatarFallback className="text-xs">
-                            {user.name.split(" ").map((n) => n[0]).join("").substring(0, 2)}
+                            {onlineUser.name.split(" ").map((n) => n[0]).join("").substring(0, 2)}
                           </AvatarFallback>
                         </Avatar>
                         <span
                           className={cn(
                             "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background",
-                            user.presence_status === "online" && "bg-green-500",
-                            user.presence_status === "away" && "bg-yellow-500",
-                            user.presence_status === "offline" && "bg-muted-foreground"
+                            onlineUser.presence_status === "online" && "bg-green-500",
+                            onlineUser.presence_status === "away" && "bg-yellow-500",
+                            onlineUser.presence_status === "offline" && "bg-muted-foreground"
                           )}
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{user.name}</div>
+                        <div className="text-sm font-medium truncate">{onlineUser.name}</div>
                         <div className="text-xs text-muted-foreground capitalize">
-                          {user.presence_status}
+                          {onlineUser.presence_status}
                         </div>
                       </div>
+                      {onlineUser.is_online && (
+                        <button
+                          className="hidden group-hover:flex h-6 w-6 items-center justify-center rounded hover:bg-primary/10"
+                          title={`Screen share with ${onlineUser.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setScreenShareTarget({ id: onlineUser.id, name: onlineUser.name });
+                            setScreenShareViewerOpen(true);
+                          }}
+                        >
+                          <Monitor className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   ))
                 )}
@@ -846,6 +876,14 @@ export default function ChatPage() {
           </CardContent>
         </Card>
 
+        {/* Screen Share Viewer Modal */}
+        {screenShareTarget && (
+          <ScreenShareViewer
+            targetUserId={screenShareTarget.id}
+            targetUserName={screenShareTarget.name}
+          />
+        )}
+
         {/* Messages Area */}
         <Card className="col-span-7 flex flex-col min-h-0">
           {selectedConversation ? (
@@ -875,36 +913,57 @@ export default function ChatPage() {
                       </div>
                     </div>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Pin className="h-4 w-4 mr-2" />
-                        {selectedConversation.is_pinned ? "Unpin" : "Pin"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Users className="h-4 w-4 mr-2" />
-                        View Participants
-                      </DropdownMenuItem>
-                      {selectedConversation.job_id && (
+                  <div className="flex items-center gap-1">
+                    {/* Screen Share button - only for DM conversations with online users */}
+                    {selectedConversation.type === "direct" && (() => {
+                      const otherParticipant = selectedConversation.participants.find(p => p.id !== user?.id);
+                      const isOnline = otherParticipant && onlineUsers.some(u => u.id === otherParticipant.id && u.is_online);
+                      if (!otherParticipant || !isOnline) return null;
+                      return (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title={`Screen share with ${otherParticipant.name}`}
+                          onClick={() => {
+                            setScreenShareTarget({ id: otherParticipant.id, name: otherParticipant.name });
+                            setScreenShareViewerOpen(true);
+                          }}
+                        >
+                          <Monitor className="h-4 w-4" />
+                        </Button>
+                      );
+                    })()}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
                         <DropdownMenuItem>
-                          <Briefcase className="h-4 w-4 mr-2" />
-                          Save to Job
+                          <Pin className="h-4 w-4 mr-2" />
+                          {selectedConversation.is_pinned ? "Unpin" : "Pin"}
                         </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem
-                        onClick={() => setMessages([])}
-                        className="text-destructive"
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        Clear Chat
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        <DropdownMenuItem>
+                          <Users className="h-4 w-4 mr-2" />
+                          View Participants
+                        </DropdownMenuItem>
+                        {selectedConversation.job_id && (
+                          <DropdownMenuItem>
+                            <Briefcase className="h-4 w-4 mr-2" />
+                            Save to Job
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem
+                          onClick={() => setMessages([])}
+                          className="text-destructive"
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Clear Chat
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               </CardHeader>
 

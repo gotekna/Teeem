@@ -7,6 +7,7 @@
  * Used by:
  * - useEmailWebSocket (EmailChannel)
  * - useLocationWebSocket (LocationChannel)
+ * - useScreenShareWebSocket (ScreenShareChannel)
  */
 
 import { createConsumer, Consumer } from "@rails/actioncable";
