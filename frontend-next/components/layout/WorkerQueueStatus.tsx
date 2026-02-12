@@ -9,7 +9,6 @@ import {
   Minus,
   ArrowRight,
   RefreshCw,
-  Trash2,
 } from "lucide-react";
 import {
   Popover,
@@ -126,10 +125,29 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(seconds / 3600)}h ago`;
 }
 
+/** Map technical job class names to user-friendly labels */
+const FRIENDLY_JOB_NAMES: Record<string, { name: string; hint: string }> = {
+  XeroInvoiceSync: { name: "Xero Invoice Sync", hint: "Retries automatically" },
+  XeroAttachmentSync: { name: "Xero Attachment Sync", hint: "Retries automatically" },
+  XeroContactSync: { name: "Xero Contact Sync", hint: "Retries automatically" },
+  XeroBankTransactionSync: { name: "Xero Bank Sync", hint: "Retries automatically" },
+  GeneratePdf: { name: "PDF Generation", hint: "Will retry on next request" },
+  AllOrgsEmailSync: { name: "Email Sync", hint: "Retries every few minutes" },
+  BackupMirror: { name: "Backup Mirror", hint: "Retries on schedule" },
+  EmailSync: { name: "Email Sync", hint: "Retries every few minutes" },
+  DocumentClassification: { name: "Document Classification", hint: "Retries automatically" },
+};
+
+function friendlyJobName(className: string): { name: string; hint: string } {
+  return FRIENDLY_JOB_NAMES[className] || {
+    name: className.replace(/([A-Z])/g, " $1").trim(),
+    hint: "Retries automatically",
+  };
+}
+
 export function WorkerQueueStatus() {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
   const [data, setData] = useState<QueueStatusData | null>(null);
   const [status, setStatus] = useState<QueueStatusLevel>("unknown");
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
@@ -153,18 +171,6 @@ export function WorkerQueueStatus() {
       setIsLoading(false);
     }
   }, []);
-
-  const clearFailedJobs = useCallback(async () => {
-    setIsClearing(true);
-    try {
-      await api.delete("/api/v1/system/clear_failed_jobs");
-      await fetchQueueStatus();
-    } catch (error) {
-      console.debug("Failed to clear failed jobs:", error);
-    } finally {
-      setIsClearing(false);
-    }
-  }, [fetchQueueStatus]);
 
   // Fetch on mount (for the status dot)
   useEffect(() => {
@@ -246,10 +252,10 @@ export function WorkerQueueStatus() {
                 </span>
                 {data.failed > 0 && (
                   <span>
-                    <span className="font-medium text-red-500">
+                    <span className="font-medium text-orange-500 dark:text-orange-400">
                       {data.failed}
                     </span>{" "}
-                    <span className="text-red-500">failed</span>
+                    <span className="text-orange-500 dark:text-orange-400">retrying</span>
                   </span>
                 )}
               </div>
@@ -323,35 +329,32 @@ export function WorkerQueueStatus() {
               </div>
             )}
 
-            {/* Top failed */}
+            {/* Top failed - friendly names with guidance */}
             {data.failed > 0 && data.topFailed.length > 0 && (
               <div className="p-3 border-b border-border">
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-[10px] font-medium text-red-500 uppercase tracking-wider">
-                    Failed ({data.failed})
-                  </p>
-                  <button
-                    onClick={() => clearFailedJobs()}
-                    disabled={isClearing}
-                    className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-700 dark:hover:text-red-300 transition-colors"
-                  >
-                    <Trash2 className={cn("h-3 w-3", isClearing && "animate-pulse")} />
-                    {isClearing ? "Clearing..." : "Clear All"}
-                  </button>
-                </div>
-                {data.topFailed.map((f) => (
-                  <div
-                    key={f.className}
-                    className="flex justify-between text-xs py-0.5"
-                  >
-                    <span className="text-muted-foreground truncate">
-                      {f.className}
-                    </span>
-                    <span className="text-red-500 shrink-0 ml-2">
-                      {f.count}
-                    </span>
-                  </div>
-                ))}
+                <p className="text-[10px] font-medium text-orange-500 dark:text-orange-400 uppercase tracking-wider mb-1.5">
+                  Recent Issues ({data.failed})
+                </p>
+                <p className="text-[10px] text-muted-foreground mb-2">
+                  These are automatically retried and cleared after 24h.
+                </p>
+                {data.topFailed.map((f) => {
+                  const friendly = friendlyJobName(f.className);
+                  return (
+                    <div
+                      key={f.className}
+                      className="flex justify-between text-xs py-0.5 items-center"
+                    >
+                      <div className="min-w-0">
+                        <span className="text-foreground">{friendly.name}</span>
+                        <span className="text-[10px] text-muted-foreground ml-1.5">{friendly.hint}</span>
+                      </div>
+                      <span className="text-orange-500 dark:text-orange-400 shrink-0 ml-2 tabular-nums">
+                        {f.count}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </>

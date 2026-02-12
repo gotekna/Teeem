@@ -44,6 +44,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { cn } from "@/lib/utils";
@@ -57,6 +63,19 @@ interface ClassificationSuggestion {
   matched_term: string | null;
 }
 
+interface MethodResult {
+  document_type: string | null;
+  confidence: number;
+  method: string;
+  status: "completed" | "not_applicable" | "disabled" | "error";
+  signals: string[];
+  matched_document_type?: string;
+  suggestions?: ClassificationSuggestion[];
+  text_preview?: string;
+  reason?: string;
+  duration_ms?: number;
+}
+
 interface ClassificationResult {
   document_type: string | null;
   confidence: number;
@@ -65,6 +84,13 @@ interface ClassificationResult {
   matched_document_type?: string;
   suggestions?: ClassificationSuggestion[];
   classified_at: string;
+  // New 3-method fields
+  winner?: string;
+  methods?: {
+    name_match: MethodResult;
+    content_match: MethodResult;
+    ai_match: MethodResult;
+  };
 }
 
 interface DocumentInboxItem {
@@ -151,6 +177,21 @@ const METHOD_LABELS: Record<string, string> = {
   document_type_matcher: "Document type matcher",
   ai: "AI classification",
   default: "Default (no match)",
+};
+
+// Display names for the 3 classification methods
+const METHOD_DISPLAY_NAMES: Record<string, string> = {
+  name_match: "Name Match",
+  content_match: "Content Match (OCR)",
+  ai_match: "AI Match",
+};
+
+// Status labels for method results
+const METHOD_STATUS_LABELS: Record<string, string> = {
+  completed: "Completed",
+  not_applicable: "N/A",
+  disabled: "Disabled",
+  error: "Error",
 };
 
 // Fallback document type options (used while DB types load)
@@ -733,7 +774,7 @@ export default function DocsortPage() {
                 </SheetHeader>
 
                 <div className="mt-6 space-y-6">
-                  {/* Classification */}
+                  {/* Classification Header */}
                   <div>
                     <h4 className="text-sm font-medium mb-3">Classification</h4>
                     <div className="space-y-3">
@@ -764,36 +805,6 @@ export default function DocsortPage() {
                           </Badge>
                         </div>
                       )}
-                      {selectedItem.classification_result && (
-                        <>
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="text-sm text-muted-foreground shrink-0">Method</span>
-                            <span className="text-sm text-right break-words min-w-0">
-                              {METHOD_LABELS[selectedItem.classification_result.method] || selectedItem.classification_result.method}
-                            </span>
-                          </div>
-                          {selectedItem.classification_result.signals?.length > 0 && (
-                            <div>
-                              <span className="text-sm text-muted-foreground">Signals</span>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {selectedItem.classification_result.signals.map((signal, i) => (
-                                  <Badge key={i} variant="outline" className="text-xs font-mono">
-                                    {signal}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {selectedItem.classification_result.matched_document_type && (
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="text-sm text-muted-foreground shrink-0">Matched Type</span>
-                              <span className="text-sm text-right break-words min-w-0">
-                                {selectedItem.classification_result.matched_document_type}
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      )}
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Status</span>
                         <Badge className={cn(STATUS_COLORS[selectedItem.status_color])}>
@@ -803,58 +814,199 @@ export default function DocsortPage() {
                     </div>
                   </div>
 
-                  {/* Document Type Suggestions */}
-                  {selectedItem.classification_result?.suggestions &&
-                    selectedItem.classification_result.suggestions.length > 0 && (
+                  {/* 3-Method Classification Display */}
+                  {selectedItem.classification_result?.methods ? (
                     <div>
-                      <h4 className="text-sm font-medium mb-3">
-                        {selectedItem.document_type === "general"
-                          ? "Closest Document Type Matches"
-                          : "Document Type Matches"}
-                      </h4>
-                      <div className="space-y-2">
-                        {selectedItem.classification_result.suggestions.map((suggestion, i) => (
-                          <div
-                            key={i}
-                            className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <span className="font-medium">{suggestion.name}</span>
-                              {suggestion.matched_term && (
-                                <span className="text-xs text-muted-foreground ml-2">
-                                  via {suggestion.match_type}: &quot;{suggestion.matched_term}&quot;
-                                </span>
-                              )}
-                            </div>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-xs ml-2 shrink-0",
-                                suggestion.confidence >= 80
-                                  ? "border-green-500 text-green-700 dark:text-green-400"
-                                  : suggestion.confidence >= 60
-                                    ? "border-yellow-500 text-yellow-700 dark:text-yellow-400"
-                                    : "border-gray-400 text-gray-600 dark:text-gray-400"
-                              )}
-                            >
-                              {suggestion.confidence}%
-                            </Badge>
-                          </div>
-                        ))}
-                      </div>
-                      {selectedItem.document_type === "general" && (
-                        <p className="text-xs text-muted-foreground mt-2">
-                          No strong match found. Use the Document Type dropdown above to manually classify.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                      <h4 className="text-sm font-medium mb-2">Classification Methods</h4>
+                      <Accordion
+                        type="multiple"
+                        defaultValue={selectedItem.classification_result.winner ? [selectedItem.classification_result.winner] : ["name_match"]}
+                        className="w-full"
+                      >
+                        {(Object.entries(selectedItem.classification_result.methods) as [string, MethodResult][]).map(
+                          ([methodKey, methodResult]) => {
+                            const isWinner = selectedItem.classification_result?.winner === methodKey;
+                            const hasResult = methodResult.status === "completed" && methodResult.document_type;
+                            const confidencePercent = Math.round(methodResult.confidence * 100);
+                            const docTypeLabel = hasResult
+                              ? documentTypes.find((t) => t.value === methodResult.document_type)?.label || methodResult.document_type
+                              : null;
 
-                  {/* No suggestions and classified as general (only if no matched_document_type either) */}
+                            return (
+                              <AccordionItem key={methodKey} value={methodKey} className="border-b last:border-b-0">
+                                <AccordionTrigger className="py-3 text-sm hover:no-underline">
+                                  <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+                                    <span className="font-medium shrink-0">
+                                      {METHOD_DISPLAY_NAMES[methodKey] || methodKey}
+                                    </span>
+                                    {hasResult ? (
+                                      <>
+                                        <span className="text-muted-foreground truncate">{docTypeLabel}</span>
+                                        <Badge
+                                          variant="outline"
+                                          className={cn(
+                                            "text-xs shrink-0",
+                                            confidencePercent >= 80
+                                              ? "border-green-500 text-green-700 dark:text-green-400"
+                                              : confidencePercent >= 60
+                                                ? "border-yellow-500 text-yellow-700 dark:text-yellow-400"
+                                                : "border-gray-400 text-gray-600 dark:text-gray-400"
+                                          )}
+                                        >
+                                          {confidencePercent}%
+                                        </Badge>
+                                      </>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">
+                                        {METHOD_STATUS_LABELS[methodResult.status] || methodResult.status}
+                                      </span>
+                                    )}
+                                    {isWinner && (
+                                      <Badge className="text-xs bg-primary/10 text-primary border-primary/30 shrink-0">
+                                        Winner
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="text-sm">
+                                  <div className="space-y-2 pl-1">
+                                    {/* Signals / Matched Terms */}
+                                    {methodResult.signals && methodResult.signals.length > 0 && (
+                                      <div>
+                                        <span className="text-xs text-muted-foreground">
+                                          {methodKey === "content_match" ? "Matched Terms" : "Signals"}
+                                        </span>
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {methodResult.signals.map((signal, i) => (
+                                            <Badge key={i} variant="outline" className="text-xs font-mono">
+                                              {signal}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Text Preview (Content Match / OCR) */}
+                                    {methodResult.text_preview && (
+                                      <div>
+                                        <span className="text-xs text-muted-foreground">Text Preview</span>
+                                        <p className="text-xs mt-1 p-2 rounded bg-muted/50 font-mono whitespace-pre-wrap line-clamp-4">
+                                          {methodResult.text_preview}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {/* Suggestions (Name Match) */}
+                                    {methodResult.suggestions && methodResult.suggestions.length > 0 && (
+                                      <div>
+                                        <span className="text-xs text-muted-foreground">Suggestions</span>
+                                        <div className="space-y-1 mt-1">
+                                          {methodResult.suggestions.map((suggestion, i) => (
+                                            <div
+                                              key={i}
+                                              className="flex items-center justify-between p-1.5 rounded bg-muted/50 text-xs"
+                                            >
+                                              <div className="flex-1 min-w-0">
+                                                <span className="font-medium">{suggestion.name}</span>
+                                                {suggestion.matched_term && (
+                                                  <span className="text-muted-foreground ml-1">
+                                                    via {suggestion.match_type}: &quot;{suggestion.matched_term}&quot;
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <Badge
+                                                variant="outline"
+                                                className={cn(
+                                                  "text-xs ml-2 shrink-0",
+                                                  suggestion.confidence >= 80
+                                                    ? "border-green-500 text-green-700 dark:text-green-400"
+                                                    : suggestion.confidence >= 60
+                                                      ? "border-yellow-500 text-yellow-700 dark:text-yellow-400"
+                                                      : "border-gray-400 text-gray-600 dark:text-gray-400"
+                                                )}
+                                              >
+                                                {suggestion.confidence}%
+                                              </Badge>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Reason (for N/A, disabled, error) */}
+                                    {methodResult.reason && (
+                                      <p className="text-xs text-muted-foreground italic">{methodResult.reason}</p>
+                                    )}
+
+                                    {/* Duration */}
+                                    {methodResult.duration_ms != null && (
+                                      <p className="text-xs text-muted-foreground">Time: {methodResult.duration_ms}ms</p>
+                                    )}
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
+                            );
+                          }
+                        )}
+                      </Accordion>
+                    </div>
+                  ) : selectedItem.classification_result ? (
+                    /* Backward compatibility: old single-result display */
+                    <div>
+                      <h4 className="text-sm font-medium mb-3">Classification Details</h4>
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm text-muted-foreground shrink-0">Method</span>
+                          <span className="text-sm text-right break-words min-w-0">
+                            {METHOD_LABELS[selectedItem.classification_result.method] || selectedItem.classification_result.method}
+                          </span>
+                        </div>
+                        {selectedItem.classification_result.signals?.length > 0 && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Signals</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {selectedItem.classification_result.signals.map((signal, i) => (
+                                <Badge key={i} variant="outline" className="text-xs font-mono">
+                                  {signal}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {selectedItem.classification_result.matched_document_type && (
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm text-muted-foreground shrink-0">Matched Type</span>
+                            <span className="text-sm text-right break-words min-w-0">
+                              {selectedItem.classification_result.matched_document_type}
+                            </span>
+                          </div>
+                        )}
+                        {selectedItem.classification_result.suggestions &&
+                          selectedItem.classification_result.suggestions.length > 0 && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Suggestions</span>
+                            <div className="space-y-1 mt-1">
+                              {selectedItem.classification_result.suggestions.map((suggestion, i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-center justify-between p-1.5 rounded bg-muted/50 text-xs"
+                                >
+                                  <span className="font-medium">{suggestion.name}</span>
+                                  <Badge variant="outline" className="text-xs ml-2">
+                                    {suggestion.confidence}%
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* No classification at all */}
                   {selectedItem.document_type === "general" &&
-                    !selectedItem.classification_result?.matched_document_type &&
-                    (!selectedItem.classification_result?.suggestions ||
-                      selectedItem.classification_result.suggestions.length === 0) && (
+                    !selectedItem.classification_result && (
                     <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400">
                       <p className="text-sm">
                         No document type matches found. Use the dropdown above to manually classify this document.

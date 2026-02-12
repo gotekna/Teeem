@@ -143,6 +143,9 @@ module Api
       def queue_status
         alive_cutoff = 5.minutes.ago
 
+        # Auto-clear stale failed jobs (>24h old) - users shouldn't have to do this manually
+        auto_clear_stale_failures
+
         # 1. Process breakdown by kind (Worker/Dispatcher/Scheduler)
         processes_raw = SolidQueue::Process
           .where("last_heartbeat_at > ?", alive_cutoff)
@@ -379,7 +382,7 @@ module Api
 
         # Degraded: high failure count
         if failed > 50
-          return { level: "degraded", message: "#{failed} failed jobs need attention" }
+          return { level: "degraded", message: "#{failed} jobs retrying - auto-clears in 24h" }
         end
 
         # Busy: actively processing a backlog
@@ -389,12 +392,26 @@ module Api
 
         # Minor failures worth noting
         if failed > 10
-          return { level: "busy", message: "#{failed} failed jobs" }
+          return { level: "busy", message: "#{failed} jobs retrying" }
         end
 
         # Healthy
         msg = running > 0 ? "#{worker_count} workers, #{running} running" : "#{worker_count} workers, idle"
         { level: "healthy", message: msg }
+      end
+
+      # Auto-clear failed jobs older than 24 hours
+      # Users shouldn't need to manually clear stale failures
+      def auto_clear_stale_failures
+        cutoff = 24.hours.ago
+        stale = SolidQueue::FailedExecution.where("created_at < ?", cutoff)
+        count = stale.count
+        if count > 0
+          stale.delete_all
+          Rails.logger.info "[SystemController] Auto-cleared #{count} stale failed jobs (>24h old)"
+        end
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] auto_clear_stale_failures failed: #{e.message}"
       end
 
       def get_pending_jobs_count

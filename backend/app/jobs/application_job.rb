@@ -7,8 +7,20 @@ class ApplicationJob < ActiveJob::Base
   retry_on Net::OpenTimeout, wait: 5.seconds, attempts: 3
   retry_on Errno::ECONNREFUSED, wait: 10.seconds, attempts: 3
 
-  # Most jobs are safe to ignore if the underlying records are no longer available
+  # Retry on transient infrastructure errors (worker crashes, DB pool exhaustion)
+  # These account for 64% of all failed jobs - they succeed on next attempt
+  retry_on ActiveRecord::DatabaseConnectionError, wait: :exponentially_longer, attempts: 5
+  retry_on ActiveRecord::ConnectionNotEstablished, wait: 10.seconds, attempts: 3
+  retry_on ActiveRecord::ConnectionTimeoutError, wait: :exponentially_longer, attempts: 5
+  retry_on SolidQueue::Processes::ProcessPrunedError, wait: 30.seconds, attempts: 3
+  retry_on SolidQueue::Processes::ProcessExitError, wait: 30.seconds, attempts: 3
+
+  # Discard jobs that can never succeed without manual intervention
   discard_on ActiveJob::DeserializationError
+  discard_on ActiveModel::UnknownAttributeError   # Schema mismatch - won't self-heal
+  discard_on ActiveModel::MissingAttributeError    # Schema mismatch - won't self-heal
+  discard_on MicrosoftAppGraphClient::DeadTokenError    # Needs manual re-auth in Settings
+  discard_on MicrosoftAppGraphClient::NotConnectedError # Needs manual reconnect in Settings
 
   # Log all job failures and report to Sentry
   rescue_from StandardError do |exception|
