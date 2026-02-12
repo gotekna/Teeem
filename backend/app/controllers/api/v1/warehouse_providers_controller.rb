@@ -306,6 +306,16 @@ module Api
           # Update credential status to connected
           credential.update!(status: "connected")
 
+          # Auto-configure CORS for browser uploads (presigned URLs)
+          cors_configured = false
+          begin
+            provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+            provider.configure_cors!
+            cors_configured = true
+          rescue => e
+            Rails.logger.warn "[WarehouseProvider] CORS configuration failed (non-fatal): #{e.message}"
+          end
+
           render json: {
             success: true,
             message: "#{storage_config.provider_type == 's3_compatible' ? 'Wasabi/S3' : storage_config.provider_type.titleize} connection successful",
@@ -313,7 +323,8 @@ module Api
             details: {
               bucket: bucket,
               endpoint: credential.endpoint,
-              region: credential.region
+              region: credential.region,
+              cors_configured: cors_configured
             }
           }
         rescue Aws::S3::Errors::NotFound, Aws::S3::Errors::NoSuchBucket => e

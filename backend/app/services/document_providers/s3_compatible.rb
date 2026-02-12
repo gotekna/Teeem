@@ -621,6 +621,40 @@ module DocumentProviders
       )
     end
 
+    # Configure CORS on the S3 bucket to allow direct browser uploads/downloads
+    # Must be called once per bucket setup (not per-request)
+    # SSoT: Allowed origins match cors.rb (Rails CORS) for consistency
+    def configure_cors!
+      allowed_origins = [
+        "https://teeem.vercel.app",
+        "https://teeem-staging.vercel.app",
+        "https://teeem-beta.vercel.app",
+        "https://teeemrob.vercel.app",
+        "https://teeemsam.vercel.app",
+        "https://teeemjake.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:5173"
+      ]
+
+      @client.put_bucket_cors(
+        bucket: @bucket,
+        cors_configuration: {
+          cors_rules: [
+            {
+              allowed_headers: ["*"],
+              allowed_methods: ["PUT", "GET", "HEAD"],
+              allowed_origins: allowed_origins,
+              expose_headers: ["ETag"],
+              max_age_seconds: 3600
+            }
+          ]
+        }
+      )
+
+      Rails.logger.info "[S3Compatible] CORS configured for bucket #{@bucket} with #{allowed_origins.size} origins"
+      true
+    end
+
     # Delete all files with a prefix (delete folder and contents)
     def delete_folder(path)
       prefix = build_key(path)

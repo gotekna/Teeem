@@ -22,6 +22,8 @@ class Api::V1::UsersController < ApplicationController
       if @user.save
         # Assign roles if provided
         assign_roles_to_user(@user)
+        # Auto-link as employee of tenant company
+        link_user_to_tenant_company(@user)
         success = true
       else
         raise ActiveRecord::Rollback
@@ -501,6 +503,40 @@ class Api::V1::UsersController < ApplicationController
         end
       end
     end
+  end
+
+  # Auto-link new user's contact as employee of the tenant company
+  # SSoT: TenantSetting.company_name → Contact (company) → ContactRelationship (employee_of)
+  def link_user_to_tenant_company(user)
+    contact = user.contact
+    return unless contact&.entity_type == "person"
+
+    company_name = TenantSetting.instance&.company_name
+    return if company_name.blank?
+
+    company_contact = Contact.where(entity_type: "company")
+      .where("display_name ILIKE ?", company_name)
+      .first
+    return unless company_contact
+    return if contact.id == company_contact.id
+
+    # Skip if relationship already exists
+    return if ContactRelationship.exists?(
+      source_contact_id: contact.id,
+      related_contact_id: company_contact.id,
+      relationship_type: "employee_of"
+    )
+
+    ContactRelationship.create!(
+      source_contact_id: contact.id,
+      related_contact_id: company_contact.id,
+      relationship_type: "employee_of",
+      is_active: true,
+      start_date: Date.today
+    )
+  rescue => e
+    # Non-critical: log but don't fail user creation
+    Rails.logger.warn "Failed to auto-link user #{user.id} to tenant company: #{e.message}"
   end
 
   # Assign roles to newly created user
