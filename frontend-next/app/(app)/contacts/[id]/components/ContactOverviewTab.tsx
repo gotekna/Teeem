@@ -22,6 +22,7 @@ import {
   EmailPropertyGroup,
   AddressPropertyGroup,
 } from "@/components/contact";
+import { ContactIdentityCard } from "./ContactIdentityCard";
 import { SortableList, SortableItem } from "@/components/ui/dnd";
 import type {
   Contact,
