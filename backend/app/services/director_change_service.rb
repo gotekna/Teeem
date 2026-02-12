@@ -205,7 +205,7 @@ class DirectorChangeService
       html: html,
       pdf_content: pdf,
       signer_name: contact.display_name,
-      signer_email: contact.primary_email,
+      signer_email: cd_data[:email].presence || contact.primary_email,
       signer_contact: contact,
       signer_role: "director"
     }
@@ -232,7 +232,7 @@ class DirectorChangeService
       html: html,
       pdf_content: pdf,
       signer_name: contact.display_name,
-      signer_email: contact.primary_email,
+      signer_email: appt_data[:email].presence || contact.primary_email,
       signer_contact: contact,
       signer_role: "director"
     }

@@ -363,13 +363,26 @@ export function DirectorChangeWizard({
     let selectedEmail = officer.contact?.email || "";
     if (contactId) {
       try {
-        const resp = await api.get(`/api/v1/contacts/${contactId}`) as { contact: Record<string, unknown>; contact_emails?: ContactEmail[] };
-        const contact = resp.contact || resp;
-        dob = (contact.date_of_birth as string) || "";
-        address = (contact.residential_address as string) || (contact.full_address as string) || "";
-        hasDob = !!dob;
-        hasAddress = !!address;
-        emails = ((contact.contact_emails || resp.contact_emails) as ContactEmail[] | undefined) || [];
+        const detail = await api.get<{ contact: { date_of_birth?: string; residential_address?: string | null; full_address?: string; contact_emails?: ContactEmail[]; contact_addresses?: Array<{ line1?: string; line2?: string; city?: string; region?: string; postal_code?: string; country?: string; address_type?: string }> } }>(
+          `/api/v1/contacts/${contactId}`
+        );
+        const c = detail.contact;
+        dob = c?.date_of_birth || "";
+        hasDob = !!dob && dob !== "[RESTRICTED]";
+        // Check residential_address first, fall back to contact_addresses
+        if (c?.residential_address && c.residential_address !== "[RESTRICTED]") {
+          hasAddress = true;
+          address = c.residential_address;
+        } else if (c?.contact_addresses?.length) {
+          const streetAddr = c.contact_addresses.find((a) => a.address_type === "STREET") || c.contact_addresses[0];
+          const parts = [streetAddr.line1, streetAddr.line2, streetAddr.city, streetAddr.region, streetAddr.postal_code].filter(Boolean);
+          if (parts.length > 0) {
+            hasAddress = true;
+            address = parts.join(", ");
+          }
+        }
+        // Emails for e-signature delivery
+        emails = c?.contact_emails || [];
         const primary = emails.find((e) => e.is_primary);
         selectedEmail = primary?.email || emails[0]?.email || selectedEmail;
       } catch { /* proceed without details */ }
@@ -443,7 +456,6 @@ export function DirectorChangeWizard({
         hasAddress = true;
         addressValue = c.residential_address;
       } else if (c?.contact_addresses?.length) {
-        // Use STREET address if available, otherwise first address
         const streetAddr = c.contact_addresses.find((a) => a.address_type === "STREET") || c.contact_addresses[0];
         const parts = [streetAddr.line1, streetAddr.line2, streetAddr.city, streetAddr.region, streetAddr.postal_code].filter(Boolean);
         if (parts.length > 0) {
@@ -520,11 +532,13 @@ export function DirectorChangeWizard({
           corporate_director_id: cd.corporate_director_id,
           positions: cd.positions,
           cessation_date: cd.cessation_date,
+          email: cd.selected_email,
         })),
         new_appointments: newAppointments.map((a) => ({
           contact_id: a.contact_id,
           positions: a.positions,
           appointment_date: a.appointment_date,
+          email: a.selected_email,
         })),
       });
 
@@ -601,11 +615,13 @@ export function DirectorChangeWizard({
           corporate_director_id: cd.corporate_director_id,
           positions: cd.positions,
           cessation_date: cd.cessation_date,
+          email: cd.selected_email,
         })),
         new_appointments: newAppointments.map((a) => ({
           contact_id: a.contact_id,
           positions: a.positions,
           appointment_date: a.appointment_date,
+          email: a.selected_email,
         })),
         send_for_signing: true,
       });
@@ -992,12 +1008,17 @@ export function DirectorChangeWizard({
                         >
                           {cd.emails.map((em) => (
                             <option key={em.id} value={em.email}>
-                              {em.email}{em.label ? ` (${em.label})` : ""}{em.is_primary ? " — primary" : ""}
+                              {em.email}{em.label ? ` (${em.label})` : ""}{em.is_primary ? " \u2014 primary" : ""}
                             </option>
                           ))}
                         </select>
+                      ) : cd.selected_email ? (
+                        <p className="text-sm font-medium">{cd.selected_email}</p>
                       ) : (
-                        <p className="text-sm">{cd.selected_email || "No email on file"}</p>
+                        <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                          <AlertCircle className="w-3 h-3" />
+                          No email on file
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1212,6 +1233,36 @@ export function DirectorChangeWizard({
                               <X className="w-4 h-4" />
                             </button>
                           )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* E-Signature Email */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Mail className="w-3 h-3" /> Consent sent for signature to
+                      </Label>
+                      {appt.emails.length > 1 ? (
+                        <select
+                          value={appt.selected_email}
+                          onChange={(e) => setNewAppointments((prev) =>
+                            prev.map((a) => a.contact_id === appt.contact_id
+                              ? { ...a, selected_email: e.target.value } : a)
+                          )}
+                          className="w-full h-8 text-sm rounded-md border border-input bg-background px-2"
+                        >
+                          {appt.emails.map((em) => (
+                            <option key={em.id} value={em.email}>
+                              {em.email}{em.label ? ` (${em.label})` : ""}{em.is_primary ? " \u2014 primary" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      ) : appt.selected_email ? (
+                        <p className="text-sm font-medium">{appt.selected_email}</p>
+                      ) : (
+                        <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                          <AlertCircle className="w-3 h-3" />
+                          No email on file
                         </div>
                       )}
                     </div>
