@@ -134,6 +134,40 @@ class Api::V1::ChatMessagesController < ApplicationController
       }
     end
 
+    # Include guest chat sessions (shareable links)
+    guest_sessions = ChatGuestSession.where(host_user: current_user)
+                                      .where(status: %w[active pending])
+                                      .order(created_at: :desc)
+
+    guest_sessions.each do |gs|
+      last_msg = ChatMessage.where(chat_guest_session_id: gs.id).order(created_at: :desc).first
+      conversations << {
+        id: "guest-#{gs.id}",
+        type: "guest",
+        name: gs.guest_name.present? ? "#{gs.guest_name} (Guest)" : "Guest Link (pending)",
+        participants: [
+          { id: current_user.id, name: current_user.name, is_online: true },
+          { id: 0, name: gs.guest_name || "Waiting...", is_online: gs.status == "active" }
+        ],
+        last_message: last_msg ? {
+          id: last_msg.id,
+          content: last_msg.content,
+          sender_id: last_msg.user_id,
+          sender_name: last_msg.guest_message? ? last_msg.guest_sender_name : "You",
+          created_at: last_msg.created_at,
+          is_own: last_msg.user_id == current_user.id
+        } : nil,
+        unread_count: 0,
+        is_pinned: false,
+        is_guest: true,
+        guest_token: gs.token,
+        share_url: gs.share_url,
+        job_id: nil,
+        job_name: nil,
+        updated_at: last_msg&.created_at || gs.created_at
+      }
+    end
+
     # Sort by most recent message
     conversations.sort_by! { |c| c[:updated_at] || Time.at(0) }.reverse!
 
@@ -153,7 +187,9 @@ class Api::V1::ChatMessagesController < ApplicationController
 
     # Get the most recent 100 messages, then sort chronologically (oldest first, newest last)
     # This matches standard chat UI where newest messages appear at the bottom
-    base_query = if params[:chat_conversation_id].present?
+    base_query = if params[:chat_guest_session_id].present?
+      ChatMessage.where(chat_guest_session_id: params[:chat_guest_session_id])
+    elsif params[:chat_conversation_id].present?
       ChatMessage.where(chat_conversation_id: params[:chat_conversation_id])
     elsif params[:job_id].present?
       ChatMessage.for_job(params[:job_id])
@@ -344,6 +380,6 @@ class Api::V1::ChatMessagesController < ApplicationController
   private
 
   def message_params
-    params.require(:chat_message).permit(:content, :channel, :recipient_user_id, :chat_conversation_id, :job_id, :contact_id, :case_id, :message_type, :file)
+    params.require(:chat_message).permit(:content, :channel, :recipient_user_id, :chat_conversation_id, :chat_guest_session_id, :job_id, :contact_id, :case_id, :message_type, :file)
   end
 end

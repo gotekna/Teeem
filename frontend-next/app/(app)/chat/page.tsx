@@ -623,6 +623,22 @@ export default function ChatPage() {
     }
   };
 
+  // Create a shareable guest chat link
+  const handleCreateShareLink = async () => {
+    setCreatingShareLink(true);
+    try {
+      const response = await api.post<{ token: string; share_url: string }>("/api/v1/chat_guest_sessions");
+      if (response) {
+        setGuestShareUrl(response.share_url);
+        setShowShareDialog(true);
+      }
+    } catch (err) {
+      console.error("Failed to create share link:", err);
+    } finally {
+      setCreatingShareLink(false);
+    }
+  };
+
   // Create a new group conversation
   const handleCreateGroup = async () => {
     if (!newGroupName.trim() || selectedGroupMembers.length === 0 || !user) return;
@@ -806,9 +822,44 @@ export default function ChatPage() {
               <Users className="h-4 w-4 mr-2" />
               New Group
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleCreateShareLink} disabled={creatingShareLink}>
+              <Link className="h-4 w-4 mr-2" />
+              {creatingShareLink ? "Creating..." : "Share Chat Link"}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Share Chat Link Dialog */}
+      <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Share Chat Link</DialogTitle>
+            <DialogDescription>
+              Anyone with this link can chat with you. No account needed.
+            </DialogDescription>
+          </DialogHeader>
+          {guestShareUrl && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Input value={guestShareUrl} readOnly className="text-sm" />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    copyToClipboard(guestShareUrl);
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Link expires in 7 days. You can close it anytime from your chat list.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* New Group Dialog */}
       <Dialog open={showNewGroupDialog} onOpenChange={setShowNewGroupDialog}>
