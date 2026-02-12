@@ -14,6 +14,9 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import {
   Sheet,
   SheetContent,
@@ -34,6 +37,7 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  CalendarIcon,
   Check,
   Clock,
   Download,
@@ -51,6 +55,67 @@ import { api, getApiBaseUrl } from "@/lib/api";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { pollPdfGeneration, type PdfGenerationStatus } from "@/lib/pdf-generation";
 import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
+
+// --- Date Picker (standard Popover + Calendar, replaces native input[type=date]) ---
+
+function DatePickerInput({
+  value,
+  onChange,
+  placeholder = "Pick date...",
+  isDob = false,
+  className,
+}: {
+  value?: string;
+  onChange: (date: string) => void;
+  placeholder?: string;
+  isDob?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const parsed = value ? new Date(value + "T00:00:00") : undefined;
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            "h-8 w-full justify-start text-left font-normal text-sm",
+            !parsed && "text-muted-foreground",
+            className,
+          )}
+        >
+          <CalendarIcon className="mr-2 h-3 w-3" />
+          {parsed ? format(parsed, "dd/MM/yyyy") : placeholder}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={parsed}
+          defaultMonth={parsed || (isDob ? new Date(1980, 0) : new Date())}
+          onSelect={(date) => {
+            if (date) {
+              const iso = format(date, "yyyy-MM-dd");
+              onChange(iso);
+              setOpen(false);
+            }
+          }}
+          {...(isDob ? {
+            captionLayout: "dropdown",
+            fromYear: 1920,
+            toYear: currentYear,
+          } : {
+            fromYear: currentYear - 5,
+            toYear: currentYear + 1,
+          })}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // --- Address Search (same feel as Jobs LocationMapSelector) ---
 
@@ -1038,19 +1103,19 @@ export function DirectorChangeWizard({
                               Required
                             </div>
                           )}
-                          <Input
-                            type="date"
-                            defaultValue={cd.editing_dob ? cd.dob : ""}
-                            className="h-8 text-sm flex-1"
-                            onChange={async (e) => {
-                              if (!e.target.value) return;
+                          <DatePickerInput
+                            value={cd.editing_dob ? cd.dob : ""}
+                            isDob
+                            placeholder="Select date of birth..."
+                            className="flex-1"
+                            onChange={async (date) => {
                               try {
                                 await api.patch(`/api/v1/contacts/${cd.contact_id}`, {
-                                  contact: { date_of_birth: e.target.value },
+                                  contact: { date_of_birth: date },
                                 });
                                 setCeasingDirectors((prev) =>
                                   prev.map((c) => c.corporate_director_id === cd.corporate_director_id
-                                    ? { ...c, has_dob: true, dob: e.target.value, editing_dob: false }
+                                    ? { ...c, has_dob: true, dob: date, editing_dob: false }
                                     : c)
                                 );
                               } catch { /* ignore */ }
@@ -1180,11 +1245,10 @@ export function DirectorChangeWizard({
                     </div>
                     <div>
                       <Label className="text-xs">Cessation Date</Label>
-                      <Input
-                        type="date"
+                      <DatePickerInput
                         value={cd.cessation_date}
-                        onChange={(e) => updateCeasingDate(cd.corporate_director_id, e.target.value)}
-                        className="h-8 text-sm"
+                        onChange={(date) => updateCeasingDate(cd.corporate_director_id, date)}
+                        placeholder="Select cessation date..."
                       />
                     </div>
                   </div>
@@ -1281,19 +1345,19 @@ export function DirectorChangeWizard({
                               Required
                             </div>
                           )}
-                          <Input
-                            type="date"
-                            defaultValue={appt.editing_dob ? appt.dob : ""}
-                            className="h-8 text-sm flex-1"
-                            onChange={async (e) => {
-                              if (!e.target.value) return;
+                          <DatePickerInput
+                            value={appt.editing_dob ? appt.dob : ""}
+                            isDob
+                            placeholder="Select date of birth..."
+                            className="flex-1"
+                            onChange={async (date) => {
                               try {
                                 await api.patch(`/api/v1/contacts/${appt.contact_id}`, {
-                                  contact: { date_of_birth: e.target.value },
+                                  contact: { date_of_birth: date },
                                 });
                                 setNewAppointments((prev) =>
                                   prev.map((a) => a.contact_id === appt.contact_id
-                                    ? { ...a, has_dob: true, dob: e.target.value, editing_dob: false }
+                                    ? { ...a, has_dob: true, dob: date, editing_dob: false }
                                     : a)
                                 );
                               } catch { /* ignore */ }
@@ -1423,11 +1487,10 @@ export function DirectorChangeWizard({
                     </div>
                     <div>
                       <Label className="text-xs">Appointment Date</Label>
-                      <Input
-                        type="date"
+                      <DatePickerInput
                         value={appt.appointment_date}
-                        onChange={(e) => updateAppointmentDate(appt.contact_id, e.target.value)}
-                        className="h-8 text-sm"
+                        onChange={(date) => updateAppointmentDate(appt.contact_id, date)}
+                        placeholder="Select appointment date..."
                       />
                     </div>
                   </div>
