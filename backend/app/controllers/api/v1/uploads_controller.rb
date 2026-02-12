@@ -47,7 +47,7 @@ module Api
 
         begin
           Rails.logger.info "[UploadsController#presign] Starting presign for scope=#{scope}, filename=#{filename}"
-          provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+          provider = DocumentProviders::S3Compatible.for_tenant(current_tenant)
           Rails.logger.info "[UploadsController#presign] Got provider"
 
           # Build storage path based on scope
@@ -107,7 +107,7 @@ module Api
         end
 
         begin
-          provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+          provider = DocumentProviders::S3Compatible.for_tenant(current_tenant)
 
           # Verify file exists in S3
           file_info = provider.get_file(key)
@@ -154,7 +154,11 @@ module Api
         when "imports"
           "Imports/#{Time.current.strftime('%Y/%m')}"
         when "chat"
-          "Chat/#{Time.current.strftime('%Y/%m')}"
+          storage_config&.resolve_path(:chat, {
+            UserName: current_user&.name || "Unknown",
+            Year: Time.current.year.to_s,
+            Month: Time.current.strftime("%m")
+          }) || "Chat/#{Time.current.strftime('%Y/%m')}"
         when "transactions"
           "Transactions/#{Time.current.strftime('%Y/%m')}"
         else
