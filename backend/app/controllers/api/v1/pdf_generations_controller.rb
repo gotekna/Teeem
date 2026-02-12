@@ -115,14 +115,14 @@ module Api
         stream_directly = request.headers["Authorization"].present? || params[:stream] == "true"
 
         if stream_directly && pdf_gen.storage_blob
-          send_data pdf_gen.storage_blob.read_content,
+          send_data pdf_gen.storage_blob.download,
                     filename: pdf_gen.result_filename || "document.pdf",
                     type: "application/pdf",
                     disposition: params[:inline] ? "inline" : "attachment"
         elsif (url = pdf_gen.download_url)
           redirect_to url, allow_other_host: true
         elsif pdf_gen.storage_blob
-          send_data pdf_gen.storage_blob.read_content,
+          send_data pdf_gen.storage_blob.download,
                     filename: pdf_gen.result_filename || "document.pdf",
                     type: "application/pdf",
                     disposition: params[:inline] ? "inline" : "attachment"
