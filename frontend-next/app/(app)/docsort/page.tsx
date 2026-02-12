@@ -278,12 +278,22 @@ export default function DocsortPage() {
     if (!filename || companies.length === 0) return undefined;
     // Strip extension and normalize
     const baseName = filename.replace(/\.[^.]+$/, "");
-    const normalizedFilename = baseName.toLowerCase();
+
+    // Normalize abbreviations so "Ltd" matches "Limited", "Pty" matches "Proprietary", etc.
+    const normalizeAbbreviations = (s: string) =>
+      s.toLowerCase()
+        .replace(/\blimited\b/g, "ltd")
+        .replace(/\bproprietary\b/g, "pty")
+        .replace(/\bincorporated\b/g, "inc")
+        .replace(/\bcorporation\b/g, "corp")
+        .trim();
+
+    const normalizedFilename = normalizeAbbreviations(baseName);
     let bestMatch: ComboboxItem | undefined;
     let bestLength = 0;
     for (const company of companies) {
-      // Strip trailing markers like " *" from company names before matching
-      const name = company.label.replace(/\s*\*\s*$/, "").toLowerCase().trim();
+      // Strip trailing markers like " *" and normalize abbreviations
+      const name = normalizeAbbreviations(company.label.replace(/\s*\*\s*$/, ""));
       if (name.length > 2 && normalizedFilename.includes(name) && name.length > bestLength) {
         bestMatch = company;
         bestLength = name.length;

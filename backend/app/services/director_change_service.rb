@@ -384,11 +384,11 @@ class DirectorChangeService
     }
   end
 
-  def build_director_context(contact, selected_email: nil)
+  def build_director_context(contact, selected_email: nil, selected_address: nil)
     {
       full_name: contact.display_name,
       date_of_birth: contact.date_of_birth&.strftime("%d/%m/%Y"),
-      address: contact.full_address,
+      address: selected_address.presence || contact.residential_address.presence || contact.full_address,
       email: selected_email.presence || contact.primary_email
     }
   end
