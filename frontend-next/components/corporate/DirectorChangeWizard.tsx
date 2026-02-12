@@ -599,12 +599,14 @@ export function DirectorChangeWizard({
           positions: cd.positions,
           cessation_date: cd.cessation_date,
           email: cd.selected_email,
+          address: cd.address,
         })),
         new_appointments: newAppointments.map((a) => ({
           contact_id: a.contact_id,
           positions: a.positions,
           appointment_date: a.appointment_date,
           email: a.selected_email,
+          address: a.address,
         })),
       });
 
