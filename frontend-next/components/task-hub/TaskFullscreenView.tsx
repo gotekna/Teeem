@@ -7183,6 +7183,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               </span>
                                             )}
                                           </div>
+                                          {att.notes && (
+                                            <div className="text-[10px] text-amber-600 dark:text-amber-400 truncate flex items-center gap-1 mt-0.5">
+                                              <Search className="h-2.5 w-2.5 shrink-0" />
+                                              <span className="truncate">{att.notes}</span>
+                                            </div>
+                                          )}
                                         </div>
                                         <Button
                                           variant="ghost"
@@ -7204,13 +7210,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                             e.stopPropagation();
                                             handleRemoveAttachment(att.id);
                                           }}
-                                          title="Delete attachment"
+                                          title="Remove auto-matched email"
                                         >
                                           <X className="h-3 w-3" />
                                         </Button>
                                       </div>
                                     </ContextMenuTrigger>
                                     <ContextMenuContent>
+                                      {att.notes && (
+                                        <>
+                                          <ContextMenuItem disabled className="text-amber-600 dark:text-amber-400 text-xs opacity-100">
+                                            <Search className="h-3.5 w-3.5 mr-2" />
+                                            {att.notes}
+                                          </ContextMenuItem>
+                                          <ContextMenuSeparator />
+                                        </>
+                                      )}
                                       <ContextMenuItem onClick={() => handleCopyShareLink(att.id)}>
                                         <Link2 className="h-4 w-4 mr-2" />
                                         Copy Link
@@ -7221,7 +7236,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         className="text-destructive focus:text-destructive"
                                       >
                                         <Trash2 className="h-4 w-4 mr-2" />
-                                        Delete
+                                        Remove Match
                                       </ContextMenuItem>
                                     </ContextMenuContent>
                                   </ContextMenu>

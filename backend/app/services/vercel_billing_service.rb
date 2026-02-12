@@ -9,9 +9,25 @@
 #
 class VercelBillingService
   CACHE_KEY = "vercel_billing_data"
+  BREAKDOWN_CACHE_KEY = "vercel_usage_breakdown"
   CACHE_TTL = 1.hour
 
   class << self
+    def usage_breakdown(force_refresh: false)
+      Rails.cache.delete(BREAKDOWN_CACHE_KEY) if force_refresh
+
+      cached = Rails.cache.read(BREAKDOWN_CACHE_KEY)
+      return cached.merge(cached: true) if cached
+
+      result = fetch_usage_breakdown
+      Rails.cache.write(BREAKDOWN_CACHE_KEY, result, expires_in: CACHE_TTL) if result[:success]
+      result.merge(cached: false)
+    rescue StandardError => e
+      Rails.logger.error("[VercelBillingService] Breakdown error: #{e.message}")
+      fallback = Rails.cache.read(BREAKDOWN_CACHE_KEY)
+      fallback ? fallback.merge(cached: true) : { success: false, error: e.message }
+    end
+
     def billing(force_refresh: false)
       Rails.cache.delete(CACHE_KEY) if force_refresh
 
@@ -138,6 +154,123 @@ class VercelBillingService
       # 1 seat included with Pro plan + additional seats from line item
       additional = seat_item ? seat_item["quantity"].to_i : 0
       1 + additional
+    end
+
+    def fetch_usage_breakdown
+      token = ENV["VERCEL_TOKEN"]
+      team_id = ENV["VERCEL_TEAM_ID"]
+      return { success: false, error: "VERCEL_TOKEN not configured" } unless token.present?
+      return { success: false, error: "VERCEL_TEAM_ID not configured" } unless team_id.present?
+
+      # Get current billing period dates from upcoming invoice
+      upcoming_data = vercel_get(token, "/v1/invoices/upcoming?teamId=#{team_id}")
+      upcoming_invoice = upcoming_data&.dig("data", 0)
+      return { success: false, error: "No upcoming invoice found" } unless upcoming_invoice
+
+      bm_item = (upcoming_invoice["lineItems"] || []).find { |li| (li["title"] || "").include?("Build") }
+      return { success: false, error: "No build minutes line item found" } unless bm_item
+
+      period_start_ms = bm_item["periodStart"].to_i
+      period_end_ms = bm_item["periodEnd"].to_i
+      period_start = Time.at(period_start_ms / 1000)
+
+      # Paginate through deployments in the billing period
+      deployments = []
+      url_cursor = nil
+      loop do
+        path = "/v6/deployments?teamId=#{team_id}&limit=100&since=#{period_start_ms}&state=READY"
+        path += "&until=#{url_cursor}" if url_cursor
+
+        page = vercel_get(token, path)
+        break unless page
+
+        page_deployments = page["deployments"] || []
+        break if page_deployments.empty?
+
+        deployments.concat(page_deployments)
+
+        # Vercel pagination: use "until" param with the createdAt of the last deployment
+        pagination = page["pagination"]
+        break unless pagination && pagination["next"].present?
+        url_cursor = pagination["next"]
+      end
+
+      # Calculate build duration per deployment and aggregate
+      daily_data = Hash.new { |h, k| h[k] = { minutes: 0.0, deploys: 0, projects: Hash.new { |h2, k2| h2[k2] = { minutes: 0.0, deploys: 0 } } } }
+
+      deployments.each do |d|
+        building_at = d["buildingAt"]
+        ready_at = d["ready"]
+        next unless building_at && ready_at && building_at > 0 && ready_at > 0
+
+        duration_min = (ready_at - building_at) / 60_000.0
+        next if duration_min <= 0
+
+        date = Time.at(building_at / 1000).in_time_zone("Australia/Brisbane").to_date.iso8601
+        project = d["name"] || "unknown"
+
+        daily_data[date][:minutes] += duration_min
+        daily_data[date][:deploys] += 1
+        daily_data[date][:projects][project][:minutes] += duration_min
+        daily_data[date][:projects][project][:deploys] += 1
+      end
+
+      # Group days into weeks (aligned to billing cycle start day)
+      cycle_start_date = period_start.in_time_zone("Australia/Brisbane").to_date
+      sorted_dates = daily_data.keys.sort
+
+      weeks = []
+      current_week = nil
+
+      sorted_dates.each do |date_str|
+        date = Date.parse(date_str)
+        # Week number = days since cycle start / 7
+        week_num = ((date - cycle_start_date) / 7).floor
+        week_start = cycle_start_date + (week_num * 7)
+        week_end = week_start + 6
+
+        if current_week.nil? || current_week[:weekNum] != week_num
+          current_week = {
+            weekNum: week_num,
+            label: "Week #{week_num + 1}",
+            periodStart: week_start.iso8601,
+            periodEnd: week_end.iso8601,
+            minutes: 0.0,
+            deploys: 0,
+            days: []
+          }
+          weeks << current_week
+        end
+
+        day = daily_data[date_str]
+        projects = day[:projects].map { |name, data| { name: name, minutes: data[:minutes].round(1), deploys: data[:deploys] } }
+          .sort_by { |p| -p[:minutes] }
+
+        day_entry = {
+          date: date_str,
+          dayLabel: date.strftime("%a %d %b"),
+          minutes: day[:minutes].round(1),
+          deploys: day[:deploys],
+          projects: projects
+        }
+
+        current_week[:days] << day_entry
+        current_week[:minutes] += day[:minutes]
+        current_week[:deploys] += day[:deploys]
+      end
+
+      # Round week totals
+      weeks.each { |w| w[:minutes] = w[:minutes].round(1) }
+
+      {
+        success: true,
+        periodStart: cycle_start_date.iso8601,
+        periodEnd: Time.at(period_end_ms / 1000).in_time_zone("Australia/Brisbane").to_date.iso8601,
+        totalMinutes: daily_data.values.sum { |d| d[:minutes] }.round(1),
+        totalDeploys: daily_data.values.sum { |d| d[:deploys] },
+        weeks: weeks,
+        fetchedAt: Time.current.iso8601
+      }
     end
 
     def vercel_get(token, path)

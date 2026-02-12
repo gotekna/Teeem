@@ -28,6 +28,8 @@ import {
   RefreshCw,
   Power,
   ChevronRight,
+  ChevronDown,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -174,6 +176,42 @@ interface VercelBillingData {
   error?: string;
 }
 
+interface BreakdownProject {
+  name: string;
+  minutes: number;
+  deploys: number;
+}
+
+interface BreakdownDay {
+  date: string;
+  dayLabel: string;
+  minutes: number;
+  deploys: number;
+  projects: BreakdownProject[];
+}
+
+interface BreakdownWeek {
+  weekNum: number;
+  label: string;
+  periodStart: string;
+  periodEnd: string;
+  minutes: number;
+  deploys: number;
+  days: BreakdownDay[];
+}
+
+interface VercelBreakdownData {
+  success: boolean;
+  periodStart?: string;
+  periodEnd?: string;
+  totalMinutes?: number;
+  totalDeploys?: number;
+  weeks?: BreakdownWeek[];
+  fetchedAt?: string;
+  cached?: boolean;
+  error?: string;
+}
+
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
@@ -247,6 +285,10 @@ export default function CostsMap() {
   const [error, setError] = useState<string | null>(null);
   const [scalingDyno, setScalingDyno] = useState<string | null>(null); // "app:dyno" key
   const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set());
+  const [breakdown, setBreakdown] = useState<VercelBreakdownData | null>(null);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [breakdownVisible, setBreakdownVisible] = useState(false);
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
 
   const fetchData = useCallback(async (refresh = false) => {
     try {
@@ -325,6 +367,39 @@ export default function CostsMap() {
     } finally {
       setScalingDyno(null);
     }
+  }, []);
+
+  const fetchBreakdown = useCallback(async (refresh = false) => {
+    setBreakdownLoading(true);
+    try {
+      const response = await api.get<{ success: boolean; data: VercelBreakdownData }>(
+        "/api/v1/heroku/vercel_usage_breakdown",
+        refresh ? { params: { refresh: "true" } } : {}
+      );
+      if (response?.data) {
+        setBreakdown(response.data);
+      }
+    } catch {
+      setBreakdown({ success: false, error: "Failed to load breakdown" });
+    } finally {
+      setBreakdownLoading(false);
+    }
+  }, []);
+
+  const toggleBreakdown = useCallback(() => {
+    if (!breakdownVisible && !breakdown) {
+      fetchBreakdown();
+    }
+    setBreakdownVisible((v) => !v);
+  }, [breakdownVisible, breakdown, fetchBreakdown]);
+
+  const toggleWeek = useCallback((weekNum: number) => {
+    setExpandedWeeks((prev) => {
+      const next = new Set(prev);
+      if (next.has(weekNum)) next.delete(weekNum);
+      else next.add(weekNum);
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -904,6 +979,86 @@ export default function CostsMap() {
                                 <Badge variant="outline" className="text-[10px]">
                                   {vercelBilling.currentInvoice.status}
                                 </Badge>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {/* Build minutes breakdown (lazy-loaded on click) */}
+                        {isVercel && vercelBilling && (
+                          <div className="mt-2">
+                            <button
+                              onClick={toggleBreakdown}
+                              className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                            >
+                              <Calendar className="h-3 w-3" />
+                              {breakdownVisible ? "Hide Breakdown" : "View Weekly Breakdown"}
+                              {breakdownLoading && <Spinner className="h-3 w-3" />}
+                            </button>
+
+                            {breakdownVisible && breakdown && (
+                              <div className="mt-2 space-y-1">
+                                {breakdown.error && (
+                                  <p className="text-xs text-red-500">{breakdown.error}</p>
+                                )}
+                                {breakdown.weeks?.map((week) => {
+                                  const isExpanded = expandedWeeks.has(week.weekNum);
+                                  return (
+                                    <div key={week.weekNum} className="border border-border rounded overflow-hidden">
+                                      <button
+                                        onClick={() => toggleWeek(week.weekNum)}
+                                        className="flex items-center w-full px-2.5 py-1.5 text-left hover:bg-muted/50 transition-colors text-xs"
+                                      >
+                                        {isExpanded ? (
+                                          <ChevronDown className="h-3 w-3 mr-1.5 text-muted-foreground" />
+                                        ) : (
+                                          <ChevronRight className="h-3 w-3 mr-1.5 text-muted-foreground" />
+                                        )}
+                                        <span className="font-medium flex-1">{week.label}</span>
+                                        <span className="text-muted-foreground mr-2">
+                                          {new Date(week.periodStart).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Brisbane" })}
+                                          {" – "}
+                                          {new Date(week.periodEnd).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Brisbane" })}
+                                        </span>
+                                        <span className="font-mono font-medium">{week.minutes.toLocaleString()} min</span>
+                                        <span className="text-muted-foreground ml-1.5">({week.deploys} deploys)</span>
+                                      </button>
+
+                                      {isExpanded && (
+                                        <div className="border-t border-border">
+                                          {week.days.map((day) => (
+                                            <div key={day.date} className="px-2.5 py-1.5 border-b border-border last:border-0">
+                                              <div className="flex items-center text-xs">
+                                                <span className="text-muted-foreground w-20">{day.dayLabel}</span>
+                                                <span className="font-mono font-medium w-20">{day.minutes} min</span>
+                                                <span className="text-muted-foreground w-20">{day.deploys} deploys</span>
+                                                <div className="flex-1 flex flex-wrap gap-1">
+                                                  {day.projects.map((p) => (
+                                                    <span key={p.name} className="inline-flex items-center px-1.5 py-0.5 text-[10px] rounded bg-muted border border-border">
+                                                      {p.name}: {p.minutes}m ({p.deploys})
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+
+                                {breakdown.cached && (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] text-muted-foreground">Cached data</span>
+                                    <button
+                                      onClick={() => fetchBreakdown(true)}
+                                      className="text-[10px] text-primary hover:underline"
+                                      disabled={breakdownLoading}
+                                    >
+                                      Refresh
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

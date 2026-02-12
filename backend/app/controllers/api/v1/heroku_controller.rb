@@ -50,6 +50,15 @@ module Api
         render json: { success: true, data: result }
       end
 
+      # GET /api/v1/heroku/vercel_usage_breakdown
+      # Returns build minutes broken down by week and day with per-project detail
+      def vercel_usage_breakdown
+        force_refresh = params[:refresh] == "true"
+        result = VercelBillingService.usage_breakdown(force_refresh: force_refresh)
+
+        render json: { success: true, data: result }
+      end
+
       private
 
       def require_admin
