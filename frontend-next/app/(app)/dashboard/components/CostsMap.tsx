@@ -144,15 +144,23 @@ interface VercelLineItem {
 interface VercelBillingData {
   success: boolean;
   plan?: string;
+  currentPeriod?: {
+    periodStart: string;
+    periodEnd: string;
+    minutesUsed: number;
+    minutesCost: number;
+    allocationCost: number;
+    overageCost: number;
+    totalCost: number;
+    amountDue: number;
+    dueDate: string;
+    teamSeats: number;
+  };
   currentInvoice?: {
     number: string;
     total: number;
     status: string;
     createdAt: string;
-    periodStart?: number;
-    periodEnd?: number;
-    groups: Array<{ id: string; title: string; total: number }>;
-    lineItems: VercelLineItem[];
   };
   previousInvoice?: {
     number: string;
@@ -259,9 +267,12 @@ export default function CostsMap() {
       if (infraResponse?.success && infraResponse.data) {
         // Update Vercel external service cost with real data
         const vercelData = vercelResponse?.data;
-        if (vercelData?.success && vercelData.currentInvoice) {
+        if (vercelData?.success) {
           setVercelBilling(vercelData);
-          const realCost = Math.round(vercelData.currentInvoice.total);
+          // Use current period (upcoming) amount if available, else last paid invoice
+          const realCost = Math.round(
+            vercelData.currentPeriod?.amountDue ?? vercelData.currentInvoice?.total ?? 0
+          );
           infraResponse.data.externalServices = infraResponse.data.externalServices.map((s) =>
             s.name === "Vercel (Pro)" ? { ...s, cost: realCost } : s
           );
@@ -824,52 +835,67 @@ export default function CostsMap() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">{s.purpose}</p>
-                        {/* Vercel build minutes detail */}
+                        {/* Vercel billing detail */}
                         {isVercel && vercelBilling && (
                           <div className="mt-2 space-y-1.5">
-                            {vercelBilling.currentInvoice?.periodStart && vercelBilling.currentInvoice?.periodEnd && (
+                            {/* Current billing cycle */}
+                            {vercelBilling.currentPeriod?.periodStart && (
                               <div className="flex items-center gap-2 text-xs">
                                 <span className="text-muted-foreground">Billing Cycle:</span>
                                 <span className="font-mono font-medium">
-                                  {new Date(vercelBilling.currentInvoice.periodStart).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Brisbane" })}
+                                  {new Date(vercelBilling.currentPeriod.periodStart).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Brisbane" })}
                                   {" — "}
-                                  {new Date(vercelBilling.currentInvoice.periodEnd).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Brisbane" })}
+                                  {new Date(vercelBilling.currentPeriod.periodEnd).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Brisbane" })}
                                 </span>
                               </div>
                             )}
-                            {vercelBilling.buildMinutes && (
-                              <div className="flex items-center gap-2 text-xs">
+                            {/* Current period build minutes */}
+                            {vercelBilling.currentPeriod && vercelBilling.currentPeriod.minutesUsed > 0 && (
+                              <div className="flex items-center gap-2 text-xs flex-wrap">
                                 <span className="text-muted-foreground">Build Minutes:</span>
                                 <span className="font-mono font-medium">
-                                  {vercelBilling.buildMinutes.minutes.toLocaleString()} min
+                                  {vercelBilling.currentPeriod.minutesUsed.toLocaleString()} min
                                 </span>
                                 <span className="text-muted-foreground">
-                                  (${vercelBilling.buildMinutes.cost.toFixed(2)})
+                                  (${vercelBilling.currentPeriod.minutesCost.toFixed(2)} overage + ${vercelBilling.currentPeriod.allocationCost.toFixed(2)} included)
                                 </span>
-                                {vercelBilling.previousBuildMinutes && (
+                                {vercelBilling.buildMinutes && (
                                   <span className={cn(
                                     "text-[10px] font-medium",
-                                    vercelBilling.buildMinutes.minutes < vercelBilling.previousBuildMinutes.minutes
+                                    vercelBilling.currentPeriod.minutesUsed < vercelBilling.buildMinutes.minutes
                                       ? "text-green-600 dark:text-green-400"
-                                      : vercelBilling.buildMinutes.minutes > vercelBilling.previousBuildMinutes.minutes
-                                        ? "text-red-600 dark:text-red-400"
-                                        : "text-muted-foreground"
+                                      : "text-red-600 dark:text-red-400"
                                   )}>
-                                    {vercelBilling.buildMinutes.minutes < vercelBilling.previousBuildMinutes.minutes ? "↓" : "↑"}
-                                    {" vs "}
-                                    {vercelBilling.previousBuildMinutes.minutes.toLocaleString()} min last month
+                                    last month: {vercelBilling.buildMinutes.minutes.toLocaleString()} min
                                   </span>
                                 )}
                               </div>
                             )}
-                            {vercelBilling.teamSeats && vercelBilling.teamSeats > 1 && (
+                            {/* Team seats */}
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-muted-foreground">Team Seats:</span>
+                              <span className="font-mono font-medium">
+                                {vercelBilling.currentPeriod?.teamSeats ?? vercelBilling.teamSeats ?? 1}
+                              </span>
+                              <span className="text-muted-foreground">(1 included + ${((vercelBilling.currentPeriod?.teamSeats ?? vercelBilling.teamSeats ?? 1) - 1) * 20}/mo additional)</span>
+                            </div>
+                            {/* Current period charge */}
+                            {vercelBilling.currentPeriod && (
                               <div className="flex items-center gap-2 text-xs">
-                                <span className="text-muted-foreground">Team Seats:</span>
-                                <span className="font-mono font-medium">{vercelBilling.teamSeats}</span>
-                                <span className="text-muted-foreground">($20/seat)</span>
+                                <span className="text-muted-foreground">Current Charges:</span>
+                                <span className="font-mono font-medium">
+                                  ${vercelBilling.currentPeriod.amountDue.toFixed(2)}
+                                </span>
+                                <Badge variant="outline" className="text-[10px]">in progress</Badge>
+                                {vercelBilling.currentInvoice && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    (last month: ${vercelBilling.currentInvoice.total.toFixed(2)} {vercelBilling.currentInvoice.status})
+                                  </span>
+                                )}
                               </div>
                             )}
-                            {vercelBilling.currentInvoice && (
+                            {/* Fallback: show last invoice if no current period */}
+                            {!vercelBilling.currentPeriod && vercelBilling.currentInvoice && (
                               <div className="flex items-center gap-2 text-xs">
                                 <span className="text-muted-foreground">Invoice:</span>
                                 <span className="font-mono font-medium">
@@ -878,11 +904,6 @@ export default function CostsMap() {
                                 <Badge variant="outline" className="text-[10px]">
                                   {vercelBilling.currentInvoice.status}
                                 </Badge>
-                                {vercelBilling.previousInvoice && (
-                                  <span className="text-[10px] text-muted-foreground">
-                                    (prev: ${vercelBilling.previousInvoice.total.toFixed(2)})
-                                  </span>
-                                )}
                               </div>
                             )}
                           </div>

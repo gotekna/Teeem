@@ -35,18 +35,68 @@ class VercelBillingService
       return { success: false, error: "VERCEL_TOKEN not configured" } unless token.present?
       return { success: false, error: "VERCEL_TEAM_ID not configured" } unless team_id.present?
 
-      # Fetch latest 2 invoices for comparison
+      # Fetch latest 2 paid invoices + upcoming (current period) in parallel
       invoices_data = vercel_get(token, "/v1/invoices?teamId=#{team_id}&limit=2")
+      upcoming_data = vercel_get(token, "/v1/invoices/upcoming?teamId=#{team_id}")
+
       return { success: false, error: "Failed to fetch Vercel invoices" } unless invoices_data
 
       invoices = invoices_data["data"] || []
       return { success: false, error: "No invoices found" } if invoices.empty?
 
-      current = invoices[0]
+      last_paid = invoices[0]
       previous = invoices[1]
 
-      # Parse line items from current invoice
-      line_items = (current["lineItems"] || []).map do |li|
+      # Parse line items from last paid invoice
+      line_items = parse_line_items(last_paid)
+
+      # Build minutes from last paid invoice (for comparison)
+      last_build = extract_build_minutes(last_paid)
+      prev_build = previous ? extract_build_minutes(previous) : nil
+
+      # Current billing period from upcoming invoice
+      upcoming_invoice = upcoming_data&.dig("data", 0)
+      current_period = nil
+      if upcoming_invoice
+        upcoming_build = extract_build_minutes_detail(upcoming_invoice)
+        current_period = {
+          periodStart: upcoming_build&.dig(:periodStart),
+          periodEnd: upcoming_build&.dig(:periodEnd),
+          minutesUsed: upcoming_build&.dig(:minutes) || 0,
+          minutesCost: upcoming_build&.dig(:cost) || 0,
+          allocationCost: upcoming_build&.dig(:allocationCost) || 0,
+          overageCost: upcoming_build&.dig(:overageCost) || 0,
+          totalCost: upcoming_build&.dig(:totalCost) || 0,
+          amountDue: upcoming_invoice["amountDue"].to_f,
+          dueDate: upcoming_invoice["dueDate"],
+          teamSeats: extract_team_seats(upcoming_invoice)
+        }
+      end
+
+      {
+        success: true,
+        plan: "pro",
+        currentPeriod: current_period,
+        currentInvoice: {
+          number: last_paid["invoiceNumber"],
+          total: last_paid["amountDue"].to_f,
+          status: last_paid["status"],
+          createdAt: last_paid["createdAt"]
+        },
+        previousInvoice: previous ? {
+          number: previous["invoiceNumber"],
+          total: previous["amountDue"].to_f,
+          status: previous["status"]
+        } : nil,
+        buildMinutes: last_build ? { cost: last_build[:cost], minutes: last_build[:minutes] } : nil,
+        previousBuildMinutes: prev_build ? { cost: prev_build[:cost], minutes: prev_build[:minutes] } : nil,
+        teamSeats: extract_team_seats(last_paid),
+        fetchedAt: Time.current.iso8601
+      }
+    end
+
+    def parse_line_items(invoice)
+      (invoice["lineItems"] || []).map do |li|
         amount = li["amount"].to_f
         next if amount == 0
 
@@ -58,59 +108,36 @@ class VercelBillingService
           group: li["group"]
         }
       end.compact.sort_by { |li| -li[:amount] }
+    end
 
-      # Parse groups (Infrastructure usage vs Vercel platform)
-      groups = (current["groups"] || []).map do |g|
-        { id: g["id"], title: g["title"], total: g["total"].to_f, subtotal: g["subtotal"].to_f }
-      end
+    def extract_build_minutes(invoice)
+      bm = (invoice["lineItems"] || []).find { |li| (li["title"] || "").include?("Build") }
+      return nil unless bm
 
-      # Build minutes is the key cost driver
-      build_minutes_item = line_items.find { |li| li[:name]&.include?("Build") }
-      build_minutes = build_minutes_item ? {
-        cost: build_minutes_item[:amount],
-        minutes: build_minutes_item[:quantity].to_i
-      } : nil
+      { cost: bm["amount"].to_f, minutes: bm["quantity"].to_i }
+    end
 
-      # Previous month build minutes for comparison
-      prev_build = nil
-      if previous
-        prev_line_items = (previous["lineItems"] || [])
-        prev_bm = prev_line_items.find { |li| (li["title"] || "").include?("Build") }
-        if prev_bm
-          prev_build = {
-            cost: prev_bm["amount"].to_f,
-            minutes: prev_bm["quantity"].to_i
-          }
-        end
-      end
+    def extract_build_minutes_detail(invoice)
+      bm = (invoice["lineItems"] || []).find { |li| (li["title"] || "").include?("Build") }
+      return nil unless bm
 
-      # Extract billing period from invoice
-      period_start = current["period"]&.dig("start") || current["periodStart"]
-      period_end = current["period"]&.dig("end") || current["periodEnd"]
-
+      consumption = bm["consumption"] || {}
       {
-        success: true,
-        plan: "pro",
-        currentInvoice: {
-          number: current["invoiceNumber"],
-          total: current["amountDue"].to_f,
-          status: current["status"],
-          createdAt: current["createdAt"],
-          periodStart: period_start,
-          periodEnd: period_end,
-          groups: groups,
-          lineItems: line_items.first(10)  # Top 10 by cost
-        },
-        previousInvoice: previous ? {
-          number: previous["invoiceNumber"],
-          total: previous["amountDue"].to_f,
-          status: previous["status"]
-        } : nil,
-        buildMinutes: build_minutes,
-        previousBuildMinutes: prev_build,
-        teamSeats: line_items.find { |li| li[:name]&.include?("Seat") }&.dig(:quantity) || 1,
-        fetchedAt: Time.current.iso8601
+        minutes: bm["quantity"].to_i,
+        cost: bm["amount"].to_f,
+        allocationCost: consumption["allocation"].to_f,
+        overageCost: consumption["onDemand"].to_f,
+        totalCost: consumption["total"].to_f,
+        periodStart: bm["periodStart"],
+        periodEnd: bm["periodEnd"]
       }
+    end
+
+    def extract_team_seats(invoice)
+      seat_item = (invoice["lineItems"] || []).find { |li| (li["title"] || "").include?("Seat") }
+      # 1 seat included with Pro plan + additional seats from line item
+      additional = seat_item ? seat_item["quantity"].to_i : 0
+      1 + additional
     end
 
     def vercel_get(token, path)
