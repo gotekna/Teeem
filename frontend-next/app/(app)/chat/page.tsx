@@ -220,7 +220,7 @@ export default function ChatPage() {
         id: msg.id,
         conversation_id: conversationId,
         sender_id: msg.user_id,
-        sender_name: msg.user?.name || "Unknown",
+        sender_name: (msg as Record<string, unknown>).sender_display_name as string || msg.user?.name || (msg as Record<string, unknown>).guest_sender_name as string || "Unknown",
         sender_avatar: null,
         content: msg.content,
         message_type: msg.message_type || "text",
