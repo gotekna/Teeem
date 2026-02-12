@@ -173,6 +173,8 @@ class DocumentInbox < ApplicationRecord
 
   # User manually sets document type
   def override_classification!(user:, document_type:)
+    old_type = self.document_type
+
     update!(
       document_type: document_type,
       user_override: true,
@@ -180,6 +182,12 @@ class DocumentInbox < ApplicationRecord
       overridden_at: Time.current,
       classification_confidence: 1.0  # User overrides are 100% confidence
     )
+
+    # Log correction to AIProcessingLog for learning (non-blocking)
+    log_override_correction(user: user, new_type: document_type, old_type: old_type)
+
+    # Check if auto-learning should add a new alias
+    check_auto_learn_alias(filename: original_filename, target_type: document_type)
   end
 
   # Route to appropriate handler based on document_type
@@ -293,5 +301,71 @@ class DocumentInbox < ApplicationRecord
   def set_defaults
     self.status ||= 'pending'
     self.source ||= 'upload'
+  end
+
+  # Find the AIProcessingLog entry for this item and record the user's correction
+  def log_override_correction(user:, new_type:, old_type:)
+    log = AiProcessingLog.where(
+      processable_type: "DocumentInbox",
+      processable_id: id
+    ).order(created_at: :desc).first
+
+    return unless log
+
+    log.record_correction!(new_type, user: user)
+  rescue StandardError => e
+    Rails.logger.error "[DocumentInbox] Failed to log override correction: #{e.message}"
+  end
+
+  # After 3+ corrections of the same filename→type pattern, auto-add alias to DocumentType
+  AUTO_LEARN_THRESHOLD = 3
+
+  def check_auto_learn_alias(filename:, target_type:)
+    return if filename.blank? || target_type.blank?
+
+    # Count how many times this pattern has been corrected to the same type
+    correction_count = AiProcessingLog
+      .for_service("document_classification")
+      .corrected
+      .where(corrected_to: target_type)
+      .where("input_identifier IS NOT NULL")
+      .count
+
+    return unless correction_count >= AUTO_LEARN_THRESHOLD
+
+    # Extract meaningful words from the filename to use as alias candidates
+    words = filename
+      .gsub(/\.[^.]+$/, '')           # Remove extension
+      .gsub(/[^a-zA-Z0-9\s]/, ' ')   # Replace special chars with spaces
+      .split
+      .map(&:downcase)
+      .select { |w| w.length >= 3 }
+      .reject { |w| %w[the and for doc pdf jpg png].include?(w) }
+      .uniq
+
+    return if words.empty?
+
+    # Find the target DocumentType
+    doc_type = DocumentType.find_by("lower(name) = ? OR lower(name) = ?",
+      target_type.tr('_', ' ').downcase,
+      target_type.downcase
+    )
+    return unless doc_type
+
+    # Add new words that aren't already aliases
+    existing_aliases = (doc_type.aliases || []).map { |a| a.to_s.downcase }
+    new_aliases = words.reject { |w| existing_aliases.include?(w) || w == doc_type.name.downcase }
+
+    return if new_aliases.empty?
+
+    # Only add the most relevant word (first meaningful one from the corrected filenames)
+    alias_to_add = new_aliases.first
+    updated_aliases = (doc_type.aliases || []) + [alias_to_add]
+    doc_type.update!(aliases: updated_aliases)
+
+    Rails.logger.info "[DocumentInbox] Auto-learned alias '#{alias_to_add}' for DocumentType '#{doc_type.name}' " \
+                      "(#{correction_count} corrections triggered this)"
+  rescue StandardError => e
+    Rails.logger.error "[DocumentInbox] Auto-learn alias failed: #{e.message}"
   end
 end

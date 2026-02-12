@@ -205,7 +205,7 @@ class DirectorChangeService
       html: html,
       pdf_content: pdf,
       signer_name: contact.display_name,
-      signer_email: contact.primary_email,
+      signer_email: cd_data[:email].presence || contact.primary_email,
       signer_contact: contact,
       signer_role: "director"
     }
@@ -232,7 +232,7 @@ class DirectorChangeService
       html: html,
       pdf_content: pdf,
       signer_name: contact.display_name,
-      signer_email: contact.primary_email,
+      signer_email: appt_data[:email].presence || contact.primary_email,
       signer_contact: contact,
       signer_role: "director"
     }
@@ -397,12 +397,21 @@ class DirectorChangeService
   end
 
   def store_signed_document(e_signature_request)
+    # Link to the signed PDF blob from the e-signature system
+    signed_blob = StorageBlob.find_by(id: e_signature_request.signed_storage_reference)
+
+    # Find the "Officers" warehouse folder (corporate doc type for director changes)
+    officers_folder = WarehouseFolder.find_by_type_and_name("corporate", "Officers")
+
     WarehouseDocumentCreator.create!(
       filename: generate_filename,
       source_type: "corporate",
       linkable: company,
+      storage_blob: signed_blob,
+      warehouse_folder_id: officers_folder&.id,
       metadata: {
         form_type: "form_484",
+        document_type: "Officers",
         e_signature_request_id: e_signature_request.id,
         ceasing_directors: ceasing_directors.map { |cd| cd[:corporate_director].contact.display_name },
         new_appointments: new_appointments.map { |appt| appt[:contact].display_name },

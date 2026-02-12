@@ -16,7 +16,8 @@ module Api
         :history,
         :compare_to_template, :sync_from_template,
         :email_supplier, :create_case,
-        :email_link_options, :bulk_link_emails, :search_contacts, :match_keywords, :clear_matched_emails, :link_email_thread
+        :email_link_options, :bulk_link_emails, :search_contacts, :match_keywords, :clear_matched_emails, :link_email_thread,
+        :notes, :create_note, :delete_note
       ]
 
       # GET /api/v1/sm_tasks (global - all tasks across jobs)

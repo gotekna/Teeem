@@ -14,8 +14,12 @@ import { ChevronUp, ChevronDown, ChevronLeft } from "lucide-react";
 import { useBreadcrumbContext } from "@/contexts/BreadcrumbContext";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 
-// Takeoff components
-import { TakeoffCanvas } from "@/components/takeoff/TakeoffCanvas";
+// Takeoff components - lazy-load TakeoffCanvas (pulls in fabric ~500KB)
+import dynamic from "next/dynamic";
+const TakeoffCanvas = dynamic(
+  () => import("@/components/takeoff/TakeoffCanvas").then((mod) => mod.TakeoffCanvas),
+  { ssr: false }
+);
 import { TakeoffToolbar } from "@/components/takeoff/TakeoffToolbar";
 import { TakeoffSidebar } from "@/components/takeoff/TakeoffSidebar";
 import { PricebookSelector } from "@/components/takeoff/PricebookSelector";

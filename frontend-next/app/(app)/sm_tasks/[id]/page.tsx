@@ -58,13 +58,15 @@ function TaskDetailContent() {
   //      overwrite, attachments/emails disappear (shows "Emails 0").
   // ❌ WRONG: setTask(updatedTask) — overwrites full show data with stripped index data
   // ✅ CORRECT: Merge scalar fields from index, keep detailed nested data from show
+  // Note: `task` removed from deps to prevent infinite loop — functional
+  //       update (prev =>) avoids stale closure.
   // ════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (task && !contextLoading) {
+    if (!contextLoading) {
       const updatedTask = tasks.find((t: SmTask) => t.id === taskId);
       if (updatedTask) {
         setTask(prev => {
-          if (!prev) return updatedTask;
+          if (!prev) return prev;
           return {
             ...prev,
             ...updatedTask,
@@ -77,7 +79,7 @@ function TaskDetailContent() {
         });
       }
     }
-  }, [tasks, taskId, task, contextLoading]);
+  }, [tasks, taskId, contextLoading]);
 
   if (loading) {
     return (

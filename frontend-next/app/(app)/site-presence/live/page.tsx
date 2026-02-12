@@ -1,8 +1,14 @@
 "use client";
 
 import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import { Spinner } from "@/components/ui/spinner";
-import { LiveWorkerMap } from "@/components/site-presence/LiveWorkerMap";
+
+// Lazy-load LiveWorkerMap (pulls in leaflet ~150KB)
+const LiveWorkerMap = dynamic(
+  () => import("@/components/site-presence/LiveWorkerMap").then((mod) => mod.LiveWorkerMap),
+  { ssr: false }
+);
 
 export default function LiveTrackingPage() {
   return (

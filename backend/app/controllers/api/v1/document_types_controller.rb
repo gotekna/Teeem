@@ -317,6 +317,8 @@ module Api
           :certificate_template,      # Template to use (e.g., "form_43")
           :signature_field_config,    # JSONB: Signature field positions for Word→PDF conversion
           file_extensions: [],
+          aliases: [],                # JSONB: Alternative names for document matching
+          filename_patterns: [],      # JSONB: Regex patterns for filename matching
           warehouse_folder_ids: [],
           form_number_mapping: {}  # Hash: dwelling type -> form number
         )
@@ -388,6 +390,8 @@ module Api
           entity_tabs: warehouse_folders_data,
           scope: document_type.scope,
           file_extensions: document_type.file_extensions || [],
+          aliases: document_type.aliases || [],
+          filename_patterns: document_type.filename_patterns || [],
           target_folder: document_type.target_folder,
           form_number_mapping: document_type.form_number_mapping || {},
           supports_versioning: document_type.supports_versioning,

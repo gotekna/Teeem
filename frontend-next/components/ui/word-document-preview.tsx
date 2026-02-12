@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import mammoth from "mammoth";
 import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle } from "lucide-react";
 
@@ -35,6 +34,9 @@ export function WordDocumentPreview({ url, className }: WordDocumentPreviewProps
         }
 
         const arrayBuffer = await response.arrayBuffer();
+
+        // Dynamic import mammoth (~150KB) only when needed
+        const mammoth = (await import("mammoth")).default;
 
         // Convert to HTML using mammoth
         const result = await mammoth.convertToHtml(

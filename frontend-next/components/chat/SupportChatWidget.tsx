@@ -255,12 +255,24 @@ export function SupportChatWidget({ inline = false }: SupportChatWidgetProps) {
   const [aiThinking, setAiThinking] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const latestAiRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const prevPathnameRef = useRef(pathname);
+  const hasConversationRef = useRef(false);
 
-  // Auto-scroll to bottom on new messages
+  // Track whether a conversation exists (without triggering re-renders)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    hasConversationRef.current = messages.length > 0;
+  }, [messages.length]);
+
+  // Auto-scroll: AI messages → scroll to START of message, user messages → scroll to bottom
+  useEffect(() => {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg?.is_ai && latestAiRef.current) {
+      latestAiRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages, aiThinking]);
 
   // Focus input when popover opens
@@ -270,7 +282,8 @@ export function SupportChatWidget({ inline = false }: SupportChatWidgetProps) {
     }
   }, [isOpen]);
 
-  // When the user navigates while chat is open, show a context hint
+  // When the user navigates while chat is open, send context to the backend AI
+  // so it can continue the conversation (not a local-only generic message)
   useEffect(() => {
     if (!isOpen || pathname === prevPathnameRef.current) {
       prevPathnameRef.current = pathname;
@@ -278,18 +291,32 @@ export function SupportChatWidget({ inline = false }: SupportChatWidgetProps) {
     }
     prevPathnameRef.current = pathname;
 
-    // Derive a friendly page name from the pathname
+    // Only send navigation context if there's an active conversation
+    if (!hasConversationRef.current) return;
+
     const pageName = getPageName(pathname);
-    if (pageName) {
-      const navMsg: SupportMessage = {
-        id: Date.now() + 1,
-        content: `I can see you're now on the **${pageName}** page. How can I help you here?`,
-        is_ai: true,
-        created_at: new Date().toISOString(),
-        formatted_timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
-      setMessages((prev) => [...prev, navMsg]);
-    }
+    if (!pageName) return;
+
+    // Send navigation to backend AI - it has conversation history and will continue contextually
+    const sendNavigationContext = async () => {
+      setAiThinking(true);
+      try {
+        const response = await api.post<SupportResponse>("/api/v1/chat_messages/support", {
+          content: `[I navigated to the ${pageName} page]`,
+          current_page: pathname,
+        });
+        if (response?.data?.ai_message) {
+          // Only show the AI response (not the navigation "user message") to keep chat clean
+          setMessages((prev) => [...prev, response.data.ai_message]);
+        }
+      } catch {
+        // Silently fail - navigation context is non-critical
+      } finally {
+        setAiThinking(false);
+      }
+    };
+
+    sendNavigationContext();
   }, [pathname, isOpen]);
 
   // Load history when opened for the first time
@@ -398,9 +425,14 @@ export function SupportChatWidget({ inline = false }: SupportChatWidgetProps) {
         <ScrollArea className="flex-1 px-3 py-3">
           <div className="space-y-3">
             {messages.length === 0 && !aiThinking && <WelcomeMessage />}
-            {messages.map((msg) => (
-              <ChatBubble key={msg.id} msg={msg} isOwn={!msg.is_ai} onNavigate={handleNavigate} />
-            ))}
+            {messages.map((msg, idx) => {
+              const isLastAi = msg.is_ai && idx === messages.length - 1;
+              return (
+                <div key={msg.id} ref={isLastAi ? latestAiRef : undefined}>
+                  <ChatBubble msg={msg} isOwn={!msg.is_ai} onNavigate={handleNavigate} />
+                </div>
+              );
+            })}
             {aiThinking && (
               <div className="flex gap-2">
                 <AiAvatar />
