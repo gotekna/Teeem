@@ -41,12 +41,18 @@ class DocumentInboxRoutingService
     when 'email'
       route_email
     else
-      # 'general' or unknown - requires manual routing
-      {
-        success: false,
-        error: 'Manual routing required',
-        needs_manual_review: true
-      }
+      # Check if a corporate_id was provided for filing under a company
+      if @item.metadata['corporate_id'].present?
+        route_to_corporate
+      else
+        # Unknown type with no routing target - requires manual routing
+        {
+          success: false,
+          error: 'Manual routing required - select a company or job to file under',
+          needs_manual_review: true,
+          needs_corporate_selection: true
+        }
+      end
     end
   rescue StandardError => e
     Rails.logger.error "[DocumentInboxRoutingService] Routing failed for #{@item.id}: #{e.message}"
@@ -189,14 +195,20 @@ class DocumentInboxRoutingService
     route_to_bill_inbox
   end
 
-  # Route contracts to review queue
+  # Route contracts to review queue or corporate entity
   def route_to_review_queue
+    # If corporate_id provided, file under that company
+    if @item.metadata['corporate_id'].present?
+      return route_to_corporate
+    end
+
     # Contracts require manual review
     {
       success: false,
-      error: 'Contracts require manual review',
+      error: 'Contracts require manual review - select a company or job',
       needs_manual_review: true,
-      suggested_action: 'Review contract and assign to job'
+      needs_corporate_selection: true,
+      suggested_action: 'Review contract and assign to job or company'
     }
   end
 
@@ -241,14 +253,56 @@ class DocumentInboxRoutingService
         routed_to_id: warehouse_doc.id,
         message: "Filed in #{job.job_code}/Correspondence"
       }
+    elsif @item.metadata['corporate_id'].present?
+      route_to_corporate
     else
-      # General correspondence - file in corporate
       {
         success: false,
-        error: 'No job context - requires manual filing',
-        needs_manual_review: true
+        error: 'No job or company context - select a company or job to file under',
+        needs_manual_review: true,
+        needs_corporate_selection: true
       }
     end
+  end
+
+  # Route document to a corporate entity (company)
+  def route_to_corporate
+    corporate_id = @item.metadata['corporate_id']
+    corporate = Corporate.find_by(id: corporate_id)
+
+    unless corporate
+      return {
+        success: false,
+        error: "Company not found (id: #{corporate_id})"
+      }
+    end
+
+    # Find the document type record for filing
+    doc_type = DocumentType.find_by_name_or_alias(@item.document_type) if @item.document_type.present?
+
+    # Create WarehouseDocument linked to the corporate entity
+    warehouse_doc = WarehouseDocumentCreator.create!(
+      filename: @item.original_filename || @item.display_name,
+      source_type: "corporate",
+      linkable: corporate,
+      storage_blob: @item.storage_blob,
+      file_size: @item.file_size,
+      content_type: @item.content_type,
+      metadata: {
+        "document_inbox_id" => @item.id,
+        "document_type" => doc_type&.name || @item.document_type
+      }
+    )
+
+    @item.storage_blob&.increment!(:reference_count)
+    @item.update!(warehouse_document: warehouse_doc)
+
+    {
+      success: true,
+      routed_to_type: 'WarehouseDocument',
+      routed_to_id: warehouse_doc.id,
+      message: "Filed under #{corporate.name}"
+    }
   end
 
   # Route email documents

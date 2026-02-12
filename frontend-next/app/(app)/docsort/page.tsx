@@ -50,6 +50,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { cn } from "@/lib/utils";
@@ -214,6 +216,8 @@ export default function DocsortPage() {
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [reclassifyingAll, setReclassifyingAll] = useState(false);
   const [documentTypes, setDocumentTypes] = useState<{ value: string; label: string }[]>(FALLBACK_DOCUMENT_TYPES);
+  const [companies, setCompanies] = useState<ComboboxItem[]>([]);
+  const [selectedCorporate, setSelectedCorporate] = useState<ComboboxItem | undefined>();
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("active");
@@ -243,10 +247,31 @@ export default function DocsortPage() {
     }
   }, []);
 
-  // Load document types once on mount
+  // Load companies for the filing dropdown
+  const loadCompanies = useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; companies: Array<{ id: number; name: string; company_code?: string }> }>(
+        "/api/v1/companies?include_unlinked=true"
+      );
+      if (response?.companies) {
+        setCompanies(
+          response.companies.map((c) => ({
+            id: c.id.toString(),
+            label: c.name,
+            searchText: c.company_code || undefined,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load companies:", error);
+    }
+  }, []);
+
+  // Load document types and companies once on mount
   useEffect(() => {
     loadDocumentTypes();
-  }, [loadDocumentTypes]);
+    loadCompanies();
+  }, [loadDocumentTypes, loadCompanies]);
 
   // Load items and stats
   const loadData = useCallback(async () => {
@@ -409,11 +434,12 @@ export default function DocsortPage() {
     setReclassifyingAll(false);
   };
 
-  const handleRoute = async (item: DocumentInboxItem, jobId?: number) => {
+  const handleRoute = async (item: DocumentInboxItem, jobId?: number, corporateId?: string) => {
     setProcessingId(item.id);
     try {
       const params: any = {};
       if (jobId) params.job_id = jobId;
+      if (corporateId) params.corporate_id = corporateId;
 
       const response = await api.post<{ success: boolean; routing: any }>(
         `/api/v1/document_inboxes/${item.id}/route`,
@@ -787,6 +813,7 @@ export default function DocsortPage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedItem(item);
+                          setSelectedCorporate(undefined);
                           setDrawerOpen(true);
                         }}
                         className="p-1 rounded hover:bg-muted transition-colors"
@@ -804,7 +831,10 @@ export default function DocsortPage() {
         {/* Right: Detail panel */}
         <Sheet open={drawerOpen} onOpenChange={(open) => {
           setDrawerOpen(open);
-          if (!open) setSelectedItem(null);
+          if (!open) {
+            setSelectedItem(null);
+            setSelectedCorporate(undefined);
+          }
         }}>
           <SheetContent side="right-xl" className="overflow-y-auto">
             {selectedItem && (
@@ -1114,11 +1144,30 @@ export default function DocsortPage() {
                     </div>
                   )}
 
+                  {/* File under company */}
+                  {selectedItem.status === "classified" && !selectedItem.routed_to_type && (
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium flex items-center gap-1.5 text-muted-foreground">
+                        <BuildingOffice2Icon className="h-4 w-4" />
+                        File under Company
+                      </label>
+                      <ComboboxDropdown
+                        items={companies}
+                        selectedItem={selectedCorporate}
+                        onSelect={(item) => setSelectedCorporate(item)}
+                        placeholder="Select company..."
+                        searchPlaceholder="Search companies..."
+                        clearable
+                        onClear={() => setSelectedCorporate(undefined)}
+                      />
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="flex flex-col gap-2">
                     {selectedItem.status === "classified" && !selectedItem.routed_to_type && (
                       <Button
-                        onClick={() => handleRoute(selectedItem)}
+                        onClick={() => handleRoute(selectedItem, undefined, selectedCorporate?.id)}
                         disabled={processingId === selectedItem.id}
                       >
                         {processingId === selectedItem.id ? (
@@ -1126,7 +1175,7 @@ export default function DocsortPage() {
                         ) : (
                           <CheckCircleIcon className="h-4 w-4 mr-2" />
                         )}
-                        Route Document
+                        {selectedCorporate ? `File under ${selectedCorporate.label}` : "Route Document"}
                       </Button>
                     )}
 

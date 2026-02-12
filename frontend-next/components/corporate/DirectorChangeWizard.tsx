@@ -52,6 +52,138 @@ import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { pollPdfGeneration, type PdfGenerationStatus } from "@/lib/pdf-generation";
 import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
 
+// --- Address Search (same feel as Jobs LocationMapSelector) ---
+
+interface AddressSuggestion {
+  id: string;
+  placeName: string;
+  center: [number, number];
+  address: {
+    houseNumber: string;
+    street: string;
+    streetName: string;
+    streetType: string;
+    suburb: string;
+    state: string;
+    postcode: string;
+  };
+}
+
+function AddressSearchInput({
+  defaultValue,
+  onSelect,
+  className,
+}: {
+  defaultValue?: string;
+  onSelect: (address: string) => void;
+  className?: string;
+}) {
+  const [value, setValue] = React.useState(defaultValue || "");
+  const [suggestions, setSuggestions] = React.useState<AddressSuggestion[]>([]);
+  const [showDropdown, setShowDropdown] = React.useState(false);
+  const [searching, setSearching] = React.useState(false);
+  const skipNextSearchRef = React.useRef(false);
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Debounced search (300ms, same as Jobs)
+  React.useEffect(() => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (value.length < 3 || skipNextSearchRef.current) {
+      skipNextSearchRef.current = false;
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const data = await api.get<{ suggestions: AddressSuggestion[] }>(
+          `/api/v1/geocode/search?q=${encodeURIComponent(value)}`
+        );
+        const results = data?.suggestions || [];
+        setSuggestions(results);
+        setShowDropdown(results.length > 0);
+      } catch {
+        setSuggestions([]);
+        setShowDropdown(false);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => { if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current); };
+  }, [value]);
+
+  const handleSelect = (suggestion: AddressSuggestion) => {
+    skipNextSearchRef.current = true;
+    setValue(suggestion.placeName);
+    setShowDropdown(false);
+    setSuggestions([]);
+    onSelect(suggestion.placeName);
+  };
+
+  return (
+    <div ref={containerRef} className={`relative flex-1 ${className || ""}`}>
+      <Input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search address..."
+        className="h-8 text-sm pr-8"
+        onBlur={() => {
+          // If user typed something without selecting, save it after a short delay
+          // (delay allows click on suggestion to fire first)
+          setTimeout(() => {
+            if (value && value !== defaultValue) {
+              onSelect(value);
+            }
+          }, 200);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          }
+          if (e.key === "Escape") {
+            setShowDropdown(false);
+          }
+        }}
+      />
+      {searching && (
+        <Spinner size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      )}
+      {showDropdown && suggestions.length > 0 && (
+        <div className="absolute z-[9999] w-full mt-1 bg-background border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {suggestions.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleSelect(s)}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors border-b last:border-b-0"
+            >
+              {s.placeName}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Types ---
 
 interface ContactEmail {
@@ -963,25 +1095,21 @@ export function DirectorChangeWizard({
                               Required
                             </div>
                           )}
-                          <Input
-                            type="text"
+                          <AddressSearchInput
                             defaultValue={cd.editing_address ? cd.address : ""}
-                            placeholder="e.g. 123 Main St, Brisbane QLD 4000"
-                            className="h-8 text-sm flex-1"
-                            onBlur={async (e) => {
-                              if (!e.target.value) return;
+                            onSelect={async (address) => {
+                              if (!address) return;
                               try {
                                 await api.patch(`/api/v1/contacts/${cd.contact_id}`, {
-                                  contact: { residential_address: e.target.value },
+                                  contact: { residential_address: address },
                                 });
                                 setCeasingDirectors((prev) =>
                                   prev.map((c) => c.corporate_director_id === cd.corporate_director_id
-                                    ? { ...c, has_address: true, address: e.target.value, editing_address: false }
+                                    ? { ...c, has_address: true, address, editing_address: false }
                                     : c)
                                 );
                               } catch { /* ignore */ }
                             }}
-                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                           />
                           {cd.editing_address && (
                             <button
@@ -1210,25 +1338,21 @@ export function DirectorChangeWizard({
                               Required
                             </div>
                           )}
-                          <Input
-                            type="text"
+                          <AddressSearchInput
                             defaultValue={appt.editing_address ? appt.address : ""}
-                            placeholder="e.g. 123 Main St, Brisbane QLD 4000"
-                            className="h-8 text-sm flex-1"
-                            onBlur={async (e) => {
-                              if (!e.target.value) return;
+                            onSelect={async (address) => {
+                              if (!address) return;
                               try {
                                 await api.patch(`/api/v1/contacts/${appt.contact_id}`, {
-                                  contact: { residential_address: e.target.value },
+                                  contact: { residential_address: address },
                                 });
                                 setNewAppointments((prev) =>
                                   prev.map((a) => a.contact_id === appt.contact_id
-                                    ? { ...a, has_address: true, address: e.target.value, editing_address: false }
+                                    ? { ...a, has_address: true, address, editing_address: false }
                                     : a)
                                 );
                               } catch { /* ignore */ }
                             }}
-                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                           />
                           {appt.editing_address && (
                             <button
