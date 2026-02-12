@@ -1243,10 +1243,13 @@ Rails.application.routes.draw do
         collection do
           post :bulk_delete
           get :for_select
+          get "by_contact/:contact_id/personal_details", action: :personal_details_by_contact
         end
         member do
           get :signature_usages, to: "signature_usages#user_history"
           post :send_invite
+          get :personal_details
+          patch :personal_details, action: :update_personal_details
         end
       end
 
