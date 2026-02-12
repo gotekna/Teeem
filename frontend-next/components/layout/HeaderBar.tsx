@@ -49,6 +49,7 @@ import {
 import { InspiringBanner } from "./InspiringBanner";
 import { WorkerQueueStatus } from "./WorkerQueueStatus";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
+import { SupportChatWidget } from "@/components/chat/SupportChatWidget";
 import { NotificationBell } from "@/components/ui/notification-bell";
 import { CreateTaskDialog } from "@/components/task-hub/CreateTaskDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -679,6 +680,9 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           <div className="flex-1 flex justify-center px-2">
             <InspiringBanner />
           </div>
+
+          {/* AI Support Chat */}
+          <SupportChatWidget inline={true} />
 
           {/* Help Button */}
           <FloatingHelpButton inline={true} />

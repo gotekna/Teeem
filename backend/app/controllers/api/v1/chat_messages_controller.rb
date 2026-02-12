@@ -447,9 +447,9 @@ class Api::V1::ChatMessagesController < ApplicationController
         end
       end
 
-    # Get AI response
+    # Get AI response (include current page for context-aware help)
     service = SupportChatService.new(user: current_user, tenant: current_tenant)
-    ai_response = service.respond(message: content, history: history)
+    ai_response = service.respond(message: content, history: history, current_page: params[:current_page])
 
     # Save AI response with recipient_user_id to scope per user
     ai_message = ChatMessage.new(

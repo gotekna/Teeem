@@ -333,12 +333,14 @@ export default function CostsMap() {
   const totalFixed = totalHeroku + fixedExternal;
   const totalSaved = data.savingsHistory.reduce((sum, s) => sum + s.monthlySaved, 0);
 
-  // Group dynos by environment
+  // Group dynos by environment, merging dev apps into one group
+  const DEV_ENVIRONMENTS = ["Sam Dev", "Rob Dev", "Jake Dev"];
   const envGroups: Record<string, { dynos: DynoCost[]; total: number }> = {};
   data.dynos.forEach((d) => {
-    if (!envGroups[d.environment]) envGroups[d.environment] = { dynos: [], total: 0 };
-    envGroups[d.environment].dynos.push(d);
-    envGroups[d.environment].total += d.cost;
+    const groupKey = DEV_ENVIRONMENTS.includes(d.environment) ? "Dev Apps" : d.environment;
+    if (!envGroups[groupKey]) envGroups[groupKey] = { dynos: [], total: 0 };
+    envGroups[groupKey].dynos.push(d);
+    envGroups[groupKey].total += d.cost;
   });
 
   // Group external services by category
@@ -468,8 +470,15 @@ export default function CostsMap() {
                 .map(([env, group]) => {
                   const isExpanded = expandedApps.has(env);
                   const activeDynos = group.dynos.filter((d) => d.quantity > 0);
-                  const isDevApp = group.dynos.some((d) => DEV_APPS.includes(d.app));
-                  const appName = group.dynos[0]?.app;
+                  const isDevGroup = env === "Dev Apps";
+                  const isDevApp = isDevGroup || group.dynos.some((d) => DEV_APPS.includes(d.app));
+                  // For dev group summary, show which apps have web dynos running
+                  const devAppSummary = isDevGroup
+                    ? [...new Set(group.dynos.filter((d) => d.dyno === "web").map((d) => {
+                        const running = d.quantity > 0;
+                        return `${d.environment}${running ? "" : " (off)"}`;
+                      }))]
+                    : [];
                   const toggleExpand = () => {
                     setExpandedApps((prev) => {
                       const next = new Set(prev);
@@ -489,9 +498,11 @@ export default function CostsMap() {
                         <ChevronRight className={cn("h-4 w-4 mr-2 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />
                         <span className="font-medium text-sm flex-1">{env}</span>
                         <span className="text-xs text-muted-foreground mr-3">
-                          {activeDynos.length > 0
-                            ? activeDynos.map((d) => `${d.dyno} (${d.size})`).join(", ")
-                            : "all stopped"}
+                          {isDevGroup
+                            ? devAppSummary.join(", ")
+                            : activeDynos.length > 0
+                              ? activeDynos.map((d) => `${d.dyno} (${d.size})`).join(", ")
+                              : "all stopped"}
                         </span>
                         {isDevApp && (
                           <span className="mr-2">
@@ -511,6 +522,7 @@ export default function CostsMap() {
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="border-b border-border text-left bg-muted/30">
+                                {isDevGroup && <th className="py-1.5 px-3 font-medium text-xs">App</th>}
                                 <th className="py-1.5 px-3 font-medium text-xs">Dyno</th>
                                 <th className="py-1.5 px-3 font-medium text-xs">Size</th>
                                 <th className="py-1.5 px-3 font-medium text-xs">Qty</th>
@@ -519,7 +531,9 @@ export default function CostsMap() {
                               </tr>
                             </thead>
                             <tbody>
-                              {group.dynos.map((d) => {
+                              {group.dynos
+                                .filter((d) => !isDevGroup || d.dyno === "web" || d.dyno === "worker")
+                                .map((d) => {
                                 const isDev = DEV_APPS.includes(d.app);
                                 const isScaling = scalingDyno === `${d.app}:${d.dyno}`;
                                 return (
@@ -527,6 +541,9 @@ export default function CostsMap() {
                                     key={`${d.app}-${d.dyno}`}
                                     className={cn("border-b border-border last:border-0", d.scaledDown && "opacity-50")}
                                   >
+                                    {isDevGroup && (
+                                      <td className="py-1.5 px-3 text-xs font-medium">{d.environment}</td>
+                                    )}
                                     <td className="py-1.5 px-3 text-xs">{d.dyno}</td>
                                     <td className="py-1.5 px-3 text-xs font-mono">{d.size}</td>
                                     <td className="py-1.5 px-3 text-xs font-mono">
