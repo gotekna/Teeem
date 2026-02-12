@@ -299,8 +299,8 @@ export default function SigningCeremonyPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      {/* Main Content - pb-16 accounts for fixed footer */}
+      <main className="max-w-4xl mx-auto px-4 py-8 pb-20">
         {request && step !== "loading" && step !== "error" && (
           <div className="mb-6">
             <h1 className="text-2xl font-bold mb-1">{request.title}</h1>
