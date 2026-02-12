@@ -390,23 +390,10 @@ class DocumentClassificationService
     empty_result('ai')
   end
 
-  # Map DocumentType model to DocumentInbox document_type
+  # Map DocumentType model to document_type string
+  # Uses the actual DocumentType name (parameterized) so all DB document types are recognized
   def map_document_type_to_docsort_type(document_type)
-    name = document_type.name.downcase
-
-    # Direct mappings
-    return 'invoice' if name.include?('invoice') || name.include?('bill') || name.include?('receipt')
-    return 'plan' if name.include?('plan') || name.include?('drawing') || name.include?('architectural')
-    return 'quote' if name.include?('quote') || name.include?('estimate') || name.include?('proposal')
-    return 'contract' if name.include?('contract') || name.include?('agreement') || name.include?('constitution') || name.include?('trust deed') || name.include?('deed')
-    return 'purchase_order' if name.include?('purchase') || name.include?('po ')
-    return 'work_order' if name.include?('work order') || name.include?('job sheet')
-    return 'certificate' if name.include?('certificate') || name.include?('license') || name.include?('insurance')
-    return 'compliance' if name.include?('safety') || name.include?('compliance') || name.include?('swms')
-    return 'correspondence' if name.include?('letter') || name.include?('memo') || name.include?('minutes')
-
-    # Default
-    'general'
+    document_type.name.parameterize(separator: '_')
   end
 
   # Calculate confidence based on pattern matches
