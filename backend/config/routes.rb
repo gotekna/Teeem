@@ -730,7 +730,7 @@ Rails.application.routes.draw do
       # SmTask + Job are THE ONE systems for tasks and project tracking
 
       # Meetings (non-nested routes)
-      resources :meetings, only: [ :index, :show, :update, :destroy ] do
+      resources :meetings, only: [ :index, :create, :show, :update, :destroy ] do
         member do
           post :start
           post :complete
