@@ -206,6 +206,7 @@ interface VercelBreakdownData {
   periodEnd?: string;
   totalMinutes?: number;
   totalDeploys?: number;
+  includedMinutes?: number;
   weeks?: BreakdownWeek[];
   fetchedAt?: string;
   cached?: boolean;
@@ -991,21 +992,76 @@ export default function CostsMap() {
                               className="flex items-center gap-1.5 text-xs text-primary hover:underline"
                             >
                               <Calendar className="h-3 w-3" />
-                              {breakdownVisible ? "Hide Breakdown" : "View Weekly Breakdown"}
+                              {breakdownVisible ? "Hide Breakdown" : "View Build Minutes Breakdown"}
                               {breakdownLoading && <Spinner className="h-3 w-3" />}
                             </button>
 
                             {breakdownVisible && breakdownLoading && !breakdown && (
                               <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                                 <Spinner className="h-3 w-3" />
-                                Loading build minutes breakdown (this may take a few seconds)...
+                                Loading build minutes breakdown...
                               </div>
                             )}
                             {breakdownVisible && breakdown && (
-                              <div className="mt-2 space-y-1">
+                              <div className="mt-2 space-y-2">
                                 {breakdown.error && (
                                   <p className="text-xs text-red-500">{breakdown.error}</p>
                                 )}
+
+                                {/* Billing cycle header with usage bar */}
+                                {breakdown.periodStart && breakdown.periodEnd && (
+                                  <div className="border border-border rounded p-2.5 bg-muted/30">
+                                    <div className="flex items-center justify-between text-xs mb-1.5">
+                                      <span className="font-medium">
+                                        Billing Cycle: {new Date(breakdown.periodStart + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
+                                        {" – "}
+                                        {new Date(breakdown.periodEnd + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+                                      </span>
+                                      <span className="font-mono font-medium">
+                                        {breakdown.totalMinutes?.toLocaleString()} / {(breakdown.includedMinutes || 6000).toLocaleString()} min
+                                      </span>
+                                    </div>
+                                    {/* Usage bar */}
+                                    {(() => {
+                                      const included = breakdown.includedMinutes || 6000;
+                                      const used = breakdown.totalMinutes || 0;
+                                      const pct = Math.min((used / included) * 100, 100);
+                                      const overPct = used > included ? Math.min(((used - included) / included) * 100, 50) : 0;
+                                      const isOver = used > included;
+                                      return (
+                                        <div className="space-y-1">
+                                          <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                                            <div
+                                              className={cn(
+                                                "absolute inset-y-0 left-0 rounded-full transition-all",
+                                                isOver ? "bg-red-500" : pct > 80 ? "bg-amber-500" : "bg-green-500"
+                                              )}
+                                              style={{ width: `${pct}%` }}
+                                            />
+                                            {overPct > 0 && (
+                                              <div
+                                                className="absolute inset-y-0 bg-red-500/30 rounded-r-full"
+                                                style={{ left: "100%", width: `${overPct}%` }}
+                                              />
+                                            )}
+                                          </div>
+                                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                                            <span>{breakdown.totalDeploys?.toLocaleString()} deploys</span>
+                                            {isOver ? (
+                                              <span className="text-red-500 font-medium">
+                                                {(used - included).toLocaleString()} min overage
+                                              </span>
+                                            ) : (
+                                              <span>{(included - used).toLocaleString()} min remaining</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                )}
+
+                                {/* Weeks (latest first, collapsible → days) */}
                                 {breakdown.weeks?.map((week) => {
                                   const isExpanded = expandedWeeks.has(week.weekNum);
                                   return (
@@ -1015,32 +1071,32 @@ export default function CostsMap() {
                                         className="flex items-center w-full px-2.5 py-1.5 text-left hover:bg-muted/50 transition-colors text-xs"
                                       >
                                         {isExpanded ? (
-                                          <ChevronDown className="h-3 w-3 mr-1.5 text-muted-foreground" />
+                                          <ChevronDown className="h-3 w-3 mr-1.5 text-muted-foreground shrink-0" />
                                         ) : (
-                                          <ChevronRight className="h-3 w-3 mr-1.5 text-muted-foreground" />
+                                          <ChevronRight className="h-3 w-3 mr-1.5 text-muted-foreground shrink-0" />
                                         )}
-                                        <span className="font-medium flex-1">{week.label}</span>
-                                        <span className="text-muted-foreground mr-2">
-                                          {new Date(week.periodStart).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Brisbane" })}
+                                        <span className="font-medium mr-2">{week.label}</span>
+                                        <span className="text-muted-foreground mr-auto text-[11px]">
+                                          {new Date(week.periodStart + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
                                           {" – "}
-                                          {new Date(week.periodEnd).toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Brisbane" })}
+                                          {new Date(week.periodEnd + "T00:00:00+10:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
                                         </span>
                                         <span className="font-mono font-medium">{week.minutes.toLocaleString()} min</span>
-                                        <span className="text-muted-foreground ml-1.5">({week.deploys} deploys)</span>
+                                        <span className="text-muted-foreground ml-1.5 shrink-0">({week.deploys})</span>
                                       </button>
 
                                       {isExpanded && (
                                         <div className="border-t border-border">
                                           {week.days.map((day) => (
                                             <div key={day.date} className="px-2.5 py-1.5 border-b border-border last:border-0">
-                                              <div className="flex items-center text-xs">
-                                                <span className="text-muted-foreground w-20">{day.dayLabel}</span>
-                                                <span className="font-mono font-medium w-20">{day.minutes} min</span>
-                                                <span className="text-muted-foreground w-20">{day.deploys} deploys</span>
+                                              <div className="flex items-center text-xs gap-2">
+                                                <span className="text-muted-foreground w-[70px] shrink-0">{day.dayLabel}</span>
+                                                <span className="font-mono font-medium w-16 shrink-0">{day.minutes} min</span>
+                                                <span className="text-muted-foreground w-14 shrink-0">{day.deploys} dep</span>
                                                 <div className="flex-1 flex flex-wrap gap-1">
                                                   {day.projects.map((p) => (
                                                     <span key={p.name} className="inline-flex items-center px-1.5 py-0.5 text-[10px] rounded bg-muted border border-border">
-                                                      {p.name}: {p.minutes}m ({p.deploys})
+                                                      {p.name}: {p.minutes}m
                                                     </span>
                                                   ))}
                                                 </div>

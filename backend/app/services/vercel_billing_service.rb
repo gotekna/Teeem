@@ -170,19 +170,33 @@ class VercelBillingService
       bm_item = (upcoming_invoice["lineItems"] || []).find { |li| (li["title"] || "").include?("Build") }
       return { success: false, error: "No build minutes line item found" } unless bm_item
 
-      period_start_ms = bm_item["periodStart"].to_i
-      period_end_ms = bm_item["periodEnd"].to_i
-      period_start = Time.at(period_start_ms / 1000)
+      # Derive billing cycle dates.
+      # The line item periodStart is in milliseconds. Sanity check: if it results in
+      # a date before 2020, fall back to 30 days ago (Vercel billing is monthly).
+      raw_start = bm_item["periodStart"].to_i
+      raw_end = bm_item["periodEnd"].to_i
+      Rails.logger.info("[VercelBillingService] Raw periodStart=#{raw_start}, periodEnd=#{raw_end}")
+      period_start = raw_start > 1_000_000_000_000 ? Time.at(raw_start / 1000) : Time.at(raw_start)
+      period_end = raw_end > 1_000_000_000_000 ? Time.at(raw_end / 1000) : Time.at(raw_end)
+      Rails.logger.info("[VercelBillingService] Resolved cycle: #{period_start} to #{period_end}")
+
+      # If still unreasonable, fall back to ~30 days ago
+      if period_start.year < 2020
+        Rails.logger.warn("[VercelBillingService] periodStart unreliable (#{raw_start}), falling back to 30 days")
+        period_start = 30.days.ago
+      end
 
       # Split billing period into day-sized windows and fetch in parallel.
       # With ~10k deployments, sequential pagination takes >2 min (exceeds Heroku 30s limit).
       # Day-sized parallel fetches: ~18 days * ~1s each in 6 threads = ~3-4 seconds.
       cycle_start_date = period_start.in_time_zone("Australia/Brisbane").to_date
+      period_end_date = period_end.in_time_zone("Australia/Brisbane").to_date
       today = Time.current.in_time_zone("Australia/Brisbane").to_date
 
       day_ranges = []
       d = cycle_start_date
-      while d <= today
+      max_days = 35  # Safety: billing cycle is ~30 days, cap to prevent runaway
+      while d <= today && day_ranges.length < max_days
         day_start_ms = d.in_time_zone("Australia/Brisbane").beginning_of_day.to_i * 1000
         day_end_ms = d.in_time_zone("Australia/Brisbane").end_of_day.to_i * 1000
         day_ranges << { date: d, since: day_start_ms, until_ms: day_end_ms }
@@ -206,7 +220,7 @@ class VercelBillingService
         thread_pool.clear
       end
 
-      # Group days into weeks (aligned to billing cycle start)
+      # Group days into weeks (aligned to billing cycle start, relative numbering)
       sorted_dates = daily_data.keys.sort
       weeks = []
       current_week = nil
@@ -215,7 +229,7 @@ class VercelBillingService
         date = Date.parse(date_str)
         week_num = ((date - cycle_start_date) / 7).floor
         week_start = cycle_start_date + (week_num * 7)
-        week_end = week_start + 6
+        week_end = [week_start + 6, period_end_date].min
 
         if current_week.nil? || current_week[:weekNum] != week_num
           current_week = {
@@ -236,14 +250,22 @@ class VercelBillingService
         current_week[:deploys] += day[:deploys]
       end
 
-      weeks.each { |w| w[:minutes] = w[:minutes].round(1) }
+      weeks.each do |w|
+        w[:minutes] = w[:minutes].round(1)
+        w[:days].reverse!  # Latest day first within each week
+      end
+      weeks.reverse!  # Latest week first
+
+      # Vercel Pro plan: 100 hours = 6,000 build minutes included per month
+      included_minutes = 6_000
 
       {
         success: true,
         periodStart: cycle_start_date.iso8601,
-        periodEnd: Time.at(period_end_ms / 1000).in_time_zone("Australia/Brisbane").to_date.iso8601,
+        periodEnd: period_end_date.iso8601,
         totalMinutes: daily_data.values.sum { |d| d[:minutes] }.round(1),
         totalDeploys: daily_data.values.sum { |d| d[:deploys] },
+        includedMinutes: included_minutes,
         weeks: weeks,
         fetchedAt: Time.current.iso8601
       }
