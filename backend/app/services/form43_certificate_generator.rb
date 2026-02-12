@@ -68,7 +68,7 @@ class Form43CertificateGenerator
   end
 
   def render_html
-    ApplicationController.render(
+    PdfRenderController.render(
       template: TEMPLATE_PATH,
       layout: "pdf",
       assigns: build_context
