@@ -66,6 +66,9 @@ class User < ApplicationRecord
   validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
 
+  # SSoT: Username defaults to email on creation (users can change it later)
+  before_validation :set_username_from_email, on: :create
+
   # SSoT: Sync User data to linked Contact when user is updated
   after_save :sync_mobile_to_contact, if: -> { saved_change_to_mobile_phone? && contact.present? }
   after_save :sync_email_to_contact, if: -> { saved_change_to_email? && contact.present? }
@@ -539,6 +542,11 @@ class User < ApplicationRecord
 
   # Auto-set contact as team member when user is created
   # Users are employees of the tenant's company by default
+  # SSoT: Username defaults to email (users can change later)
+  def set_username_from_email
+    self.username = email if username.blank? && email.present?
+  end
+
   def set_contact_as_team_member
     return unless contact.present? && tenant.present?
 
