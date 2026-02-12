@@ -275,8 +275,11 @@ export default function DocsortPage() {
 
   // Auto-detect company from filename by finding the longest company name match
   const detectCompanyFromFilename = useCallback((filename: string | null): ComboboxItem | undefined => {
+    console.log("[detectCompany] filename:", filename, "companies count:", companies.length);
     if (!filename || companies.length === 0) return undefined;
-    const normalizedFilename = filename.toLowerCase();
+    // Strip extension and normalize
+    const baseName = filename.replace(/\.[^.]+$/, "");
+    const normalizedFilename = baseName.toLowerCase();
     let bestMatch: ComboboxItem | undefined;
     let bestLength = 0;
     for (const company of companies) {
@@ -285,6 +288,10 @@ export default function DocsortPage() {
         bestMatch = company;
         bestLength = name.length;
       }
+    }
+    console.log("[detectCompany] result:", bestMatch?.label || "no match", "from", companies.length, "companies");
+    if (!bestMatch) {
+      console.log("[detectCompany] company names sample:", companies.slice(0, 10).map(c => c.label));
     }
     return bestMatch;
   }, [companies]);
@@ -676,7 +683,11 @@ export default function DocsortPage() {
                         "flex items-center gap-4 px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors",
                         selectedItem?.id === item.id && "bg-muted"
                       )}
-                      onClick={() => setSelectedItem(item)}
+                      onClick={() => {
+                        setSelectedItem(item);
+                        setSelectedCorporate(detectCompanyFromFilename(item.original_filename));
+                        setDrawerOpen(true);
+                      }}
                     >
                       {/* Icon */}
                       <div className="flex-shrink-0">

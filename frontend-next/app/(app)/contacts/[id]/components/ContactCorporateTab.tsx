@@ -281,7 +281,7 @@ function IdentitySubTab({ contact }: { contact: Contact; }) {
                 <div className="flex items-center gap-1.5">
                   <p className="text-sm font-medium">
                     {localContact.date_of_birth ? (
-                      new Date(localContact.date_of_birth).toLocaleDateString()
+                      new Date(localContact.date_of_birth).toLocaleDateString("en-AU")
                     ) : (
                       <span className="text-muted-foreground">Not set</span>
                     )}
@@ -630,8 +630,8 @@ function DirectorshipsTable({
               position: d.formatted_position || d.position,
               company_group: d.company_group_name || "-",
               status: d.is_current ? "Current" : "Former",
-              appointed: d.appointment_date ? new Date(d.appointment_date).toLocaleDateString() : "-",
-              resigned: d.resignation_date ? new Date(d.resignation_date).toLocaleDateString() : "-",
+              appointed: d.appointment_date ? new Date(d.appointment_date).toLocaleDateString("en-AU") : "-",
+              resigned: d.resignation_date ? new Date(d.resignation_date).toLocaleDateString("en-AU") : "-",
             }))}
             columns={[
               { key: "company_name", label: "Company", column_type: "text" },
@@ -691,7 +691,7 @@ function ShareholdingsTable({
               percentage: sh.percentage_of_total != null ? `${sh.percentage_of_total.toFixed(1)}%` : "-",
               company_group: sh.company_group_name || "-",
               status: !sh.disposal_date ? "Current" : "Disposed",
-              acquired: sh.acquisition_date ? new Date(sh.acquisition_date).toLocaleDateString() : "-",
+              acquired: sh.acquisition_date ? new Date(sh.acquisition_date).toLocaleDateString("en-AU") : "-",
             }))}
             columns={[
               { key: "company_name", label: "Company", column_type: "text" },
@@ -796,7 +796,7 @@ function TrustRolesTable({
       role: "Trustee",
       entitlement: "-",
       status: r.is_active ? "Active" : "Inactive",
-      since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
+      since: r.start_date ? new Date(r.start_date).toLocaleDateString("en-AU") : "-",
     })),
     ...trustRoles.beneficiary_roles.map(r => ({
       id: r.id,
@@ -805,7 +805,7 @@ function TrustRolesTable({
       role: "Beneficiary",
       entitlement: r.ownership_percentage != null ? `${r.ownership_percentage.toFixed(1)}%` : "-",
       status: r.is_active ? "Active" : "Inactive",
-      since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
+      since: r.start_date ? new Date(r.start_date).toLocaleDateString("en-AU") : "-",
     })),
     ...trustRoles.appointor_roles.map(r => ({
       id: r.id,
@@ -814,7 +814,7 @@ function TrustRolesTable({
       role: "Appointor",
       entitlement: "-",
       status: r.is_active ? "Active" : "Inactive",
-      since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
+      since: r.start_date ? new Date(r.start_date).toLocaleDateString("en-AU") : "-",
     })),
   ];
 
