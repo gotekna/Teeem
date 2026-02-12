@@ -1,9 +1,17 @@
 # Public controller for the e-signature signing ceremony.
 # This controller uses token-based authentication, not JWT.
 #
+# ⚠️ DO NOT SIMPLIFY - Tenant context required for SaaS (Feb 2026)
+# ════════════════════════════════════════════════════════════════
+# Why: This is a PUBLIC controller (no JWT auth). Without explicit tenant
+# context, TenantSetting.instance and MicrosoftCredential lookups fall back
+# to Tenant.first - which breaks in multi-tenant SaaS (wrong credentials,
+# wrong from address). We resolve the tenant from signer → request → user → tenant.
+# ════════════════════════════════════════════════════════════════
 class Api::V1::SigningCeremonyController < ApplicationController
   skip_before_action :authorize_request
   before_action :authenticate_signer, except: [ :verify_token ]
+  before_action :set_tenant_from_signer, except: [ :verify_token ]
 
   # GET /api/v1/sign/:token
   # Verify the token and get signing session info
@@ -50,6 +58,9 @@ class Api::V1::SigningCeremonyController < ApplicationController
         value: field.value
       }
     end
+
+    # Set tenant context for this request (SSoT for SaaS)
+    set_tenant_from_request(signer.e_signature_request)
 
     # Check tenant setting for email verification requirement
     email_verification_required = resolve_email_verification_required(signer)
@@ -338,11 +349,25 @@ class Api::V1::SigningCeremonyController < ApplicationController
       .first
   end
 
-  def resolve_email_verification_required(signer)
-    user = signer.e_signature_request.created_by
-    return true unless user&.tenant_id
+  # SSoT: Set ActsAsTenant.current_tenant from the signer's request chain.
+  # This ensures TenantSetting.instance, MicrosoftCredential lookups, and all
+  # tenant-scoped queries resolve to the correct tenant in this public controller.
+  def set_tenant_from_signer
+    return unless @signer
 
-    setting = TenantSetting.find_by(tenant_id: user.tenant_id)
+    set_tenant_from_request(@signer.e_signature_request)
+  end
+
+  def set_tenant_from_request(esign_request)
+    tenant = esign_request&.created_by&.tenant
+    ActsAsTenant.current_tenant = tenant if tenant
+  end
+
+  def resolve_email_verification_required(signer)
+    tenant = signer.e_signature_request.created_by&.tenant
+    return true unless tenant
+
+    setting = TenantSetting.find_by(tenant_id: tenant.id)
     setting&.esignature_require_email_verification != false
   end
 
