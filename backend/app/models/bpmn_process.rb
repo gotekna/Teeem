@@ -128,6 +128,101 @@ class BpmnProcess < ApplicationRecord
     validate_structure.empty?
   end
 
+  # Generate BPMN XML from database nodes and edges
+  # Use when nodes exist but bpmn_xml is missing (e.g., programmatically created workflows)
+  def generate_xml_from_nodes!
+    return if bpmn_nodes.empty?
+
+    nodes = bpmn_nodes.order(:id)
+    edges = bpmn_edges.includes(:source_node, :target_node)
+
+    # Layout: arrange nodes in a horizontal line with spacing
+    x_start = 180
+    y_center = 200
+    x_spacing = 200
+
+    # Map node_type to BPMN element type and dimensions
+    type_map = {
+      "start_event" => { element: "bpmn:startEvent", width: 36, height: 36 },
+      "end_event" => { element: "bpmn:endEvent", width: 36, height: 36 },
+      "service_task" => { element: "bpmn:serviceTask", width: 100, height: 80 },
+      "user_task" => { element: "bpmn:userTask", width: 100, height: 80 },
+      "exclusive_gateway" => { element: "bpmn:exclusiveGateway", width: 50, height: 50 },
+      "parallel_gateway" => { element: "bpmn:parallelGateway", width: 50, height: 50 },
+      "inclusive_gateway" => { element: "bpmn:inclusiveGateway", width: 50, height: 50 },
+      "timer_event" => { element: "bpmn:intermediateCatchEvent", width: 36, height: 36 },
+      "message_event" => { element: "bpmn:intermediateThrowEvent", width: 36, height: 36 }
+    }
+
+    # Build process elements XML
+    process_elements = ""
+    shape_elements = ""
+    edge_elements = ""
+
+    nodes.each_with_index do |node, idx|
+      info = type_map[node.node_type] || { element: "bpmn:task", width: 100, height: 80 }
+      x = node.position_x > 0 ? node.position_x : (x_start + idx * x_spacing)
+      y = node.position_y > 0 ? node.position_y : y_center
+
+      # Build the BPMN element
+      name_attr = node.name.present? ? " name=\"#{node.name.encode(xml: :attr)}\"" : ""
+
+      # Add documentation with config JSON if config exists
+      doc_content = ""
+      if node.config.present? && node.config.keys.any?
+        doc_content = "\n      <bpmn:documentation>#{node.config.to_json.encode(xml: :text)}</bpmn:documentation>"
+      end
+
+      process_elements += "    <#{info[:element]} id=\"#{node.node_key}\"#{name_attr}>#{doc_content}\n    </#{info[:element]}>\n"
+
+      # Build the shape
+      shape_elements += <<~SHAPE
+            <bpmndi:BPMNShape id="#{node.node_key}_di" bpmnElement="#{node.node_key}">
+              <dc:Bounds x="#{x}" y="#{y}" width="#{info[:width]}" height="#{info[:height]}" />
+              <bpmndi:BPMNLabel>
+                <dc:Bounds x="#{x - 10}" y="#{y + info[:height] + 5}" width="#{info[:width] + 20}" height="14" />
+              </bpmndi:BPMNLabel>
+            </bpmndi:BPMNShape>
+      SHAPE
+    end
+
+    # Add sequence flows
+    edges.each do |edge|
+      name_attr = edge.name.present? ? " name=\"#{edge.name.encode(xml: :attr)}\"" : ""
+      condition = ""
+      if edge.condition_expression.present?
+        condition = "\n      <bpmn:conditionExpression>#{edge.condition_expression.encode(xml: :text)}</bpmn:conditionExpression>"
+      end
+
+      process_elements += "    <bpmn:sequenceFlow id=\"#{edge.edge_key}\" sourceRef=\"#{edge.source_node.node_key}\" targetRef=\"#{edge.target_node.node_key}\"#{name_attr}>#{condition}\n    </bpmn:sequenceFlow>\n"
+
+      edge_elements += <<~EDGE
+            <bpmndi:BPMNEdge id="#{edge.edge_key}_di" bpmnElement="#{edge.edge_key}">
+            </bpmndi:BPMNEdge>
+      EDGE
+    end
+
+    xml = <<~XML
+      <?xml version="1.0" encoding="UTF-8"?>
+      <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                        xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                        xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                        xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                        id="Definitions_1"
+                        targetNamespace="http://bpmn.io/schema/bpmn">
+        <bpmn:process id="Process_1" isExecutable="true">
+      #{process_elements}  </bpmn:process>
+        <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+          <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1">
+      #{shape_elements}#{edge_elements}    </bpmndi:BPMNPlane>
+        </bpmndi:BPMNDiagram>
+      </bpmn:definitions>
+    XML
+
+    update!(bpmn_xml: xml)
+    xml
+  end
+
   # Sync nodes and edges from BPMN XML
   # Call this before test run if nodes are empty but XML exists
   def sync_nodes_from_xml!
