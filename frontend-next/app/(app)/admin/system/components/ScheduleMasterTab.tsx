@@ -1947,8 +1947,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const handleGanttRollover = async () => {
     if (!ganttTemplateId) return null;
 
-    console.log('[Gantt] 🔄 Rollover starting for template:', ganttTemplateId);
-
     try {
       const result = await api.post<{
         success: boolean;
@@ -1960,27 +1958,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
           cascade_updates: Array<{ task_number: number; name: string; old_start: string; new_start: string; reason: string }>;
         };
       }>(`/api/v1/sm_schedule_master_templates/${ganttTemplateId}/validate_dates`);
-
-      console.log('[Gantt] 📦 Rollover result:', JSON.stringify(result, null, 2));
-
-      if (result?.date_map) {
-        console.log('[Gantt] 📅 Date map (tasks that changed):');
-        Object.entries(result.date_map).forEach(([taskNum, dates]) => {
-          console.log(`  Task ${taskNum}: ${dates.start_date} → ${dates.end_date}`);
-        });
-      }
-
-      if (result?.debug) {
-        console.log('[Gantt] 🐛 Debug info:');
-        console.log(`  Tasks processed: ${result.debug.tasks_processed}`);
-        console.log(`  Tasks with predecessors: ${result.debug.tasks_with_predecessors}`);
-        if (result.debug.cascade_updates?.length > 0) {
-          console.log('  Cascade updates:');
-          result.debug.cascade_updates.forEach(u => {
-            console.log(`    ${u.task_number} (${u.name}): ${u.old_start} → ${u.new_start} [${u.reason}]`);
-          });
-        }
-      }
 
       if (result?.success) {
         toast({
@@ -2573,7 +2550,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       return;
     }
     if (ganttTemplateId) {
-      console.log('[ScheduleMasterTab] Toggle changed - showAllPOTasks:', showAllPOTasks, 'showClaims:', showClaims, '- reloading data');
       loadDataRef.current(); // Always calls latest version with correct apiConfig
     }
   }, [showAllPOTasks, showClaims, ganttTemplateId]);

@@ -134,18 +134,15 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
 
   // Switch to a different tenant
   const switchTenant = useCallback(async (tenantId: number): Promise<boolean> => {
-    console.log('[TenantSwitch] Attempting to switch to tenant:', tenantId);
     try {
       setIsLoading(true);
       setError(null);
 
       const response = await api.post<SwitchResponse>(`/api/v1/admin/tenants/${tenantId}/switch`);
-      console.log('[TenantSwitch] API response:', response);
 
       if (response?.success && response?.tenant) {
         // Store tenant override in localStorage - sent as X-Tenant-Override header on all API calls.
         // This replaces the cookie approach which fails cross-origin (Vercel → Heroku).
-        console.log(`[TenantSwitch] Success: switched to ${response.tenant.name} (id=${response.tenant.id}) - storing override and reloading`);
         setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.tenant.id));
         setCurrentTenant(response.tenant);
         window.location.reload();

@@ -2331,25 +2331,29 @@ module Api
                         australia australian qld nsw vic sa wa nt act tas
                         services solutions consulting enterprises industries]
 
-          # Get all unique Xero contacts per tenant
-          tenant_contacts = ExternalInvoice
+          # Get all unique Xero contacts per Xero org
+          # FRC (Feb 2026): Must group by xero_org_id (Xero UUID), NOT tenant_id (TEEEM integer).
+          # tenant_id is the TEEEM tenant FK - grouping by it lumps ALL Xero orgs together,
+          # causing false positives (same supplier across different Xero orgs is NOT a duplicate).
+          org_contacts = ExternalInvoice
             .where.not(contact_name: [ nil, "", "No Contact" ])
             .where.not(external_contact_id: nil)
-            .select("DISTINCT tenant_id, contact_name, external_contact_id")
+            .where.not(xero_org_id: [nil, ""])
+            .select("DISTINCT xero_org_id, contact_name, external_contact_id")
             .to_a
 
-          # Group by tenant
-          by_tenant = tenant_contacts.group_by(&:tenant_id)
+          # Group by Xero organization
+          by_xero_org = org_contacts.group_by(&:xero_org_id)
 
-          # FRC (Feb 2026): Build tenant-scoped credential lookup for display names
+          # Build credential lookup for Xero org display names
           common_cred_scope = if current_tenant&.master_tenant?
                                 XeroCredential
                               else
                                 XeroCredential.for_teeem_tenant(current_tenant)
                               end
-          by_tenant.each do |tenant_id, contacts|
-            cred = common_cred_scope.find_by(tenant_id: tenant_id)
-            tenant_name = cred&.tenant_name || tenant_id[0..7]
+          by_xero_org.each do |xero_org_id, contacts|
+            cred = common_cred_scope.find_by(tenant_id: xero_org_id)
+            tenant_name = cred&.tenant_name || xero_org_id.to_s[0..7]
 
             names = contacts.map { |c| { name: c.contact_name, xero_id: c.external_contact_id } }.uniq { |c| c[:xero_id] }
 
@@ -2381,7 +2385,7 @@ module Api
                 if likely_duplicate?(a[:name], b[:name], suffixes)
                   # Find or create group for this pair
                   existing_group = duplicates.find do |d|
-                    d[:tenant_id] == tenant_id &&
+                    d[:tenant_id] == xero_org_id &&
                     d[:xero_contacts].any? { |c| c[:xero_id] == a[:xero_id] || c[:xero_id] == b[:xero_id] }
                   end
 
@@ -2396,7 +2400,7 @@ module Api
                   else
                     # Create new group
                     duplicates << {
-                      tenant_id: tenant_id,
+                      tenant_id: xero_org_id,
                       tenant_name: tenant_name,
                       base_name: normalize_name(a[:name], suffixes).split.first&.capitalize || a[:name],
                       variation_count: 2,

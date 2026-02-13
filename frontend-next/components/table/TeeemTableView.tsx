@@ -1949,14 +1949,6 @@ export default function TeeemTableView({
   // IMPORTANT: Pass safeFilters so group counts respect saved views and cascade filters
   // Use validGroupByColumnForApi to prevent API errors from computed columns
 
-  // Debug: Log why groups API might not be called (disabled to reduce console noise during auto-fetch)
-  // console.log('[TeeemTableView] Groups API params:', {
-  //   effectiveFoundationId,
-  //   groupByColumn,
-  //   validGroupByColumnForApi,
-  //   groupByColumnsLength: groupByColumns.length, // ULTRA: Hook provides SSR-aware values
-  //   enabled: groupByColumns.length > 0 && !!validGroupByColumnForApi
-  // });
 
   // SSR: Convert initialGroupCounts to hook's expected format
   const ssrGroupCountsData = useMemo(() => {
@@ -5726,17 +5718,6 @@ export default function TeeemTableView({
   // Get active view name
   // Use loose comparison to handle string/number ID mismatches from API
   const activeView = savedViews.find((v) => String(v.id) === String(activeViewId));
-
-  // Debug logging for view selection
-  if (savedViews.length > 0) {
-    console.log('[TeeemTableView] View selection debug:', {
-      activeViewId,
-      activeViewIdType: typeof activeViewId,
-      foundActiveView: !!activeView,
-      savedViewsCount: savedViews.length,
-      savedViewIds: savedViews.map(v => ({ id: v.id, type: typeof v.id, name: v.name })),
-    });
-  }
 
   // NOTE: onViewChange is called from loadViewState when isUserAction=true
   // This prevents URL auto-updates on initial page load (confusing UX)

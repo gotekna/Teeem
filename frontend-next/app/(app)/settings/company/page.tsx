@@ -18,6 +18,7 @@ import { DocumentsTab } from "@/app/(app)/admin/system/components/DocumentsTab";
 import { EntityConfigurationTab } from "@/app/(app)/admin/system/components/EntityConfigurationTab";
 import CompanyInfoTab from "@/app/(app)/admin/system/components/CompanyInfoTab";
 import { OfflineTab } from "@/app/(app)/admin/system/components/OfflineTab";
+import { DuplicateContactsTab } from "@/components/settings/xero/DuplicateContactsTab";
 
 /**
  * Company Settings Page - Organization Settings
@@ -46,6 +47,7 @@ const COMPANY_TABS = [
   { id: "workflows", label: "Workflows" },
   { id: "job-setup", label: "Job Setup" },
   { id: "warehouse-config", label: "Warehouse Config" },
+  { id: "contacts", label: "Contacts" },
   { id: "offline", label: "Offline" },
 ];
 
@@ -130,6 +132,9 @@ export default function CompanySettingsPage() {
           </TabsContent>
           <TabsContent value="warehouse-config">
             <EntityConfigurationTab subTab={effectiveSubTab} deepTab={deepTab} basePath="/settings/company/warehouse-config" />
+          </TabsContent>
+          <TabsContent value="contacts">
+            <DuplicateContactsTab />
           </TabsContent>
           <TabsContent value="offline">
             <OfflineTab />
