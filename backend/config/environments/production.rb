@@ -55,8 +55,9 @@ Rails.application.configure do
   # config.action_mailer.raise_delivery_errors = false
 
   # Set host to be used by links generated in mailer templates and Active Storage URLs.
-  # SSoT: InfrastructureUrls for backend URL (strips protocol)
-  backend_host = (ENV["HOST"] || InfrastructureUrls.backend_url).gsub(%r{^https?://}, "")
+  # NOTE: Cannot use InfrastructureUrls here - not autoloaded yet at config time.
+  # Use ENV["HOST"] which is set per-app on Heroku.
+  backend_host = ENV.fetch("HOST", "teeem-production-121159e1ff9d.herokuapp.com")
   config.action_mailer.default_url_options = { host: backend_host, protocol: "https" }
 
   # Active Storage URL host
@@ -90,10 +91,11 @@ Rails.application.configure do
 
   # ActionCable WebSocket allowed origins
   # Allow connections from Vercel frontend and Heroku backend
-  # SSoT: InfrastructureUrls for production URLs
+  # NOTE: Cannot use InfrastructureUrls here - not autoloaded yet at config time.
+  # These must match TenantSetting::API_ENVIRONMENT_URLS/FRONTEND_ENVIRONMENT_URLS.
   config.action_cable.allowed_request_origins = [
-    InfrastructureUrls.production_frontend_url,
-    InfrastructureUrls.production_backend_url,
+    "https://teeem.vercel.app",
+    "https://teeem-production-121159e1ff9d.herokuapp.com",
     %r{https://teeem.*\.vercel\.app},  # Preview deployments
   ]
 
