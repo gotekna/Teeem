@@ -52,7 +52,7 @@ class ESignaturePdfStamper
     document = HexaPDF::Document.new(io: StringIO.new(pdf_content))
 
     # Find the last page for signature placement
-    last_page = document.pages.last
+    last_page = document.pages[document.pages.count - 1]
     box = last_page.box
 
     # Calculate signature position (bottom of page, based on signer order)
@@ -125,7 +125,7 @@ class ESignaturePdfStamper
     signed_signers = @request.signers.signed.order(:signing_order).to_a
     return if signed_signers.empty?
 
-    last_page = document.pages.last
+    last_page = document.pages[document.pages.count - 1]
     box = last_page.box
     canvas = last_page.canvas(type: :overlay)
 
