@@ -136,10 +136,10 @@ class BpmnProcess < ApplicationRecord
     nodes = bpmn_nodes.order(:id)
     edges = bpmn_edges.includes(:source_node, :target_node)
 
-    # Layout: arrange nodes in a horizontal line with spacing
+    # Layout constants - generous spacing for readability
     x_start = 180
-    y_center = 200
-    x_spacing = 200
+    y_midline = 260  # Vertical center for all elements
+    x_spacing = 200  # Between node centers
 
     # Map node_type to BPMN element type and dimensions
     type_map = {
@@ -154,17 +154,30 @@ class BpmnProcess < ApplicationRecord
       "message_event" => { element: "bpmn:intermediateThrowEvent", width: 36, height: 36 }
     }
 
+    # Compute positions: center each element on the midline
+    # Store computed bounds for edge waypoints
+    node_bounds = {}
+
+    nodes.each_with_index do |node, idx|
+      info = type_map[node.node_type] || { element: "bpmn:task", width: 100, height: 80 }
+      # Place center of each node at (x_start + idx * x_spacing, y_midline)
+      cx = x_start + idx * x_spacing
+      cy = y_midline
+      x = cx - info[:width] / 2.0
+      y = cy - info[:height] / 2.0
+      node_bounds[node.node_key] = { x: x, y: y, w: info[:width], h: info[:height], cx: cx, cy: cy }
+    end
+
     # Build process elements XML
     process_elements = ""
     shape_elements = ""
     edge_elements = ""
 
-    nodes.each_with_index do |node, idx|
+    nodes.each do |node|
       info = type_map[node.node_type] || { element: "bpmn:task", width: 100, height: 80 }
-      x = node.position_x > 0 ? node.position_x : (x_start + idx * x_spacing)
-      y = node.position_y > 0 ? node.position_y : y_center
+      b = node_bounds[node.node_key]
 
-      # Build the BPMN element - escape XML special chars in names
+      # Escape XML special chars in names
       escaped_name = node.name.to_s.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub("\"", "&quot;")
       name_attr = node.name.present? ? " name=\"#{escaped_name}\"" : ""
 
@@ -177,18 +190,15 @@ class BpmnProcess < ApplicationRecord
 
       process_elements += "    <#{info[:element]} id=\"#{node.node_key}\"#{name_attr}>#{doc_content}\n    </#{info[:element]}>\n"
 
-      # Build the shape
+      # Build the shape - no explicit label (bpmn-js auto-positions labels inside tasks)
       shape_elements += <<~SHAPE
             <bpmndi:BPMNShape id="#{node.node_key}_di" bpmnElement="#{node.node_key}">
-              <dc:Bounds x="#{x}" y="#{y}" width="#{info[:width]}" height="#{info[:height]}" />
-              <bpmndi:BPMNLabel>
-                <dc:Bounds x="#{x - 10}" y="#{y + info[:height] + 5}" width="#{info[:width] + 20}" height="14" />
-              </bpmndi:BPMNLabel>
+              <dc:Bounds x="#{b[:x].round}" y="#{b[:y].round}" width="#{b[:w]}" height="#{b[:h]}" />
             </bpmndi:BPMNShape>
       SHAPE
     end
 
-    # Add sequence flows
+    # Add sequence flows with waypoints
     edges.each do |edge|
       escaped_edge_name = edge.name.to_s.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub("\"", "&quot;")
       name_attr = edge.name.present? ? " name=\"#{escaped_edge_name}\"" : ""
@@ -200,10 +210,27 @@ class BpmnProcess < ApplicationRecord
 
       process_elements += "    <bpmn:sequenceFlow id=\"#{edge.edge_key}\" sourceRef=\"#{edge.source_node.node_key}\" targetRef=\"#{edge.target_node.node_key}\"#{name_attr}>#{condition}\n    </bpmn:sequenceFlow>\n"
 
-      edge_elements += <<~EDGE
-            <bpmndi:BPMNEdge id="#{edge.edge_key}_di" bpmnElement="#{edge.edge_key}">
-            </bpmndi:BPMNEdge>
-      EDGE
+      # Compute edge waypoints: right side of source → left side of target
+      src = node_bounds[edge.source_node.node_key]
+      tgt = node_bounds[edge.target_node.node_key]
+      if src && tgt
+        src_x = src[:x] + src[:w]  # Right edge of source
+        src_y = src[:cy]            # Vertical center
+        tgt_x = tgt[:x]            # Left edge of target
+        tgt_y = tgt[:cy]           # Vertical center
+
+        edge_elements += <<~EDGE
+              <bpmndi:BPMNEdge id="#{edge.edge_key}_di" bpmnElement="#{edge.edge_key}">
+                <di:waypoint x="#{src_x.round}" y="#{src_y.round}" />
+                <di:waypoint x="#{tgt_x.round}" y="#{tgt_y.round}" />
+              </bpmndi:BPMNEdge>
+        EDGE
+      else
+        edge_elements += <<~EDGE
+              <bpmndi:BPMNEdge id="#{edge.edge_key}_di" bpmnElement="#{edge.edge_key}">
+              </bpmndi:BPMNEdge>
+        EDGE
+      end
     end
 
     xml = <<~XML

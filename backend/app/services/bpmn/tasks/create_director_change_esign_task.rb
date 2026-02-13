@@ -58,6 +58,9 @@ module Bpmn
           )
         end
 
+        # Create positioned signature fields by detecting blue badges in the PDF
+        ESignatureBadgeDetector.create_fields_from_pdf!(request, pdf_content)
+
         # Send for signing
         request.send_for_signing!
 

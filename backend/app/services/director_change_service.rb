@@ -483,7 +483,7 @@ class DirectorChangeService
     add_signers_to_request(request)
 
     # Create positioned signature fields by detecting blue badges in the PDF
-    create_signature_fields_from_pdf!(request, package[:pdf_content])
+    ESignatureBadgeDetector.create_fields_from_pdf!(request, package[:pdf_content])
 
     request
   end
@@ -505,7 +505,7 @@ class DirectorChangeService
     add_signers_to_request(request)
 
     # Create positioned signature fields by detecting blue badges in the PDF
-    create_signature_fields_from_pdf!(request, pdf_content)
+    ESignatureBadgeDetector.create_fields_from_pdf!(request, pdf_content)
 
     request
   end
@@ -557,129 +557,6 @@ class DirectorChangeService
     end
     docs << { type: :form_484, name: "Form 484 Record" }
     docs
-  end
-
-  # --- Signature Field Detection ---
-  # Scans the combined PDF to find blue signature badges and creates
-  # ESignatureField records at those positions. This enables the stamper
-  # to overlay actual signatures exactly where the badges appear.
-
-  def create_signature_fields_from_pdf!(request, pdf_content)
-    document = HexaPDF::Document.new(io: StringIO.new(pdf_content))
-
-    request.signers.order(:signing_order).each do |signer|
-      badge_info = find_badge_for_signer(document, signer.email)
-      next unless badge_info
-
-      request.fields.create!(
-        e_signature_signer: signer,
-        field_type: "signature",
-        page_number: badge_info[:page_number],
-        x_percent: badge_info[:x_percent],
-        y_percent: badge_info[:y_percent],
-        width_percent: badge_info[:width_percent],
-        height_percent: badge_info[:height_percent],
-        required: true,
-        label: "Signature"
-      )
-    end
-  rescue => e
-    # Don't fail the request if field detection fails - legacy stamper handles it
-    Rails.logger.warn("[DirectorChangeService] Badge detection failed: #{e.message}")
-  end
-
-  # Find the page and position of a signer's signature badge in the PDF.
-  # Searches each page for both the signer's email text AND the blue badge
-  # background color (#e8f4fd). Returns percentages for ESignatureField.
-  def find_badge_for_signer(document, signer_email)
-    document.pages.each_with_index do |page, index|
-      stream = extract_page_stream(page)
-      next unless stream
-
-      # Page must contain BOTH the signer's email AND a blue badge
-      next unless stream.include?(signer_email)
-
-      badge_rect = find_badge_rect_in_stream(stream)
-      next unless badge_rect
-
-      box = page.box
-      # PDF coordinates are bottom-left origin.
-      # ESignatureField y_percent is from top of page.
-      # badge_rect[:y] is the bottom edge of the badge in PDF coords.
-      badge_top = badge_rect[:y] + badge_rect[:height]
-
-      return {
-        page_number: index + 1,
-        x_percent: ((badge_rect[:x] - 5) / box.width * 100).clamp(1.0, 90.0).round(1),
-        y_percent: ((box.height - badge_top - 5) / box.height * 100).clamp(1.0, 90.0).round(1),
-        width_percent: ((badge_rect[:width] + 20) / box.width * 100).clamp(10.0, 50.0).round(1),
-        height_percent: ((badge_rect[:height] + 20) / box.height * 100).clamp(5.0, 20.0).round(1)
-      }
-    end
-
-    nil # Badge not found
-  end
-
-  # Extract the decompressed content stream from a PDF page as a string
-  def extract_page_stream(page)
-    contents = page[:Contents]
-    return nil unless contents
-
-    if contents.is_a?(Array) || contents.is_a?(HexaPDF::PDFArray)
-      contents.map { |ref|
-        obj = ref.is_a?(HexaPDF::Reference) ? page.document.object(ref) : ref
-        obj.stream_decoded rescue obj.stream.to_s
-      }.join("\n")
-    else
-      contents.stream_decoded rescue contents.stream.to_s
-    end
-  rescue => e
-    Rails.logger.debug("[DirectorChangeService] Stream extraction failed: #{e.message}")
-    nil
-  end
-
-  # Parse a PDF content stream to find a blue badge background rectangle.
-  # Badge background color: #e8f4fd = RGB(0.91, 0.957, 0.992).
-  # Returns { x:, y:, width:, height: } in PDF points, or nil.
-  def find_badge_rect_in_stream(stream)
-    return nil if stream.blank?
-
-    # Tokenize the content stream - extract numbers and operators
-    tokens = stream.scan(/-?\d+\.?\d*|[a-zA-Z\*]+/)
-    badge_color_active = false
-    last_badge_rect = nil
-
-    tokens.each_with_index do |token, i|
-      case token
-      when "rg"
-        # Non-stroking fill color: 3 preceding numbers are r, g, b
-        if i >= 3
-          r = tokens[i - 3].to_f
-          g = tokens[i - 2].to_f
-          b = tokens[i - 1].to_f
-          # Match badge background #e8f4fd ≈ (0.91, 0.957, 0.992)
-          badge_color_active = (r - 0.91).abs < 0.03 &&
-                               (g - 0.957).abs < 0.03 &&
-                               (b - 0.992).abs < 0.03
-        end
-      when "re"
-        # Rectangle: 4 preceding numbers are x, y, width, height
-        if badge_color_active && i >= 4
-          x = tokens[i - 4].to_f
-          y = tokens[i - 3].to_f
-          w = tokens[i - 2].to_f
-          h = tokens[i - 1].to_f
-          # Badge should be a reasonable size (> 50pt wide, > 15pt tall)
-          if w.abs > 50 && h.abs > 15
-            last_badge_rect = { x: x, y: y, width: w.abs, height: h.abs }
-          end
-        end
-      when "f", "F", "B", "b"
-        badge_color_active = false
-      end
-    end
-
-    last_badge_rect
   end
 
   # --- Helpers ---
