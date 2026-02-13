@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -117,11 +118,22 @@ function getHealthBg(score: number): string {
   return "from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20";
 }
 
-export function DataHealthTab() {
+interface DataHealthTabProps {
+  subTab?: string;
+  basePath?: string;
+}
+
+export function DataHealthTab({ subTab, basePath = "/settings/company/data-health" }: DataHealthTabProps) {
+  const router = useRouter();
   const [healthData, setHealthData] = React.useState<UnifiedHealthResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
-  const [activeSubTab, setActiveSubTab] = React.useState("overview");
+
+  // URL is SSoT for sub-tab state, default to "overview"
+  const activeSubTab = subTab || "overview";
+  const setActiveSubTab = React.useCallback((tab: string) => {
+    router.push(`${basePath}/${tab}`, { scroll: false });
+  }, [router, basePath]);
 
   const fetchHealthData = React.useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -254,9 +266,9 @@ export function DataHealthTab() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="duplicates" className="flex items-center gap-2">
+          <TabsTrigger value="contacts" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            Duplicates
+            Contacts
           </TabsTrigger>
         </TabsList>
 
@@ -350,8 +362,8 @@ export function DataHealthTab() {
           )}
         </TabsContent>
 
-        {/* Duplicates Tab */}
-        <TabsContent value="duplicates">
+        {/* Contacts Tab */}
+        <TabsContent value="contacts">
           <DuplicateContactsTab />
         </TabsContent>
       </Tabs>

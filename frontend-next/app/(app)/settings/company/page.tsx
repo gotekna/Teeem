@@ -74,10 +74,11 @@ export default function CompanySettingsPage() {
     return parts[2] || undefined;
   }, [pathname]);
 
-  // Apply default sub-tab for warehouse-config
+  // Apply default sub-tab for tabs that have sub-tabs
   const effectiveSubTab = useMemo(() => {
     let sub = subTab;
     if (activeTab === "warehouse-config" && !sub) sub = "warehouse_folders";
+    if (activeTab === "data-health" && !sub) sub = "overview";
     return sub;
   }, [activeTab, subTab]);
 
@@ -91,6 +92,8 @@ export default function CompanySettingsPage() {
     if (!urlHasSubTab) {
       if (activeTab === "warehouse-config") {
         router.replace(`/settings/company/warehouse-config/warehouse_folders`, { scroll: false });
+      } else if (activeTab === "data-health") {
+        router.replace(`/settings/company/data-health/overview`, { scroll: false });
       }
     }
   }, [activeTab, router, pathname]);
@@ -134,7 +137,7 @@ export default function CompanySettingsPage() {
             <EntityConfigurationTab subTab={effectiveSubTab} deepTab={deepTab} basePath="/settings/company/warehouse-config" />
           </TabsContent>
           <TabsContent value="data-health">
-            <DataHealthTab />
+            <DataHealthTab subTab={effectiveSubTab} basePath="/settings/company/data-health" />
           </TabsContent>
           <TabsContent value="offline">
             <OfflineTab />

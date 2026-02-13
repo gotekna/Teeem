@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
+import { usePathTabs } from "@/hooks/usePathTabs";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -96,7 +97,12 @@ export default function SubscriptionDetailPage() {
 
   const [subscription, setSubscription] = React.useState<SubscriptionDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [activeTab, setActiveTab] = React.useState("mailboxes");
+  // URL is SSoT for tab state
+  const [activeTab, setActiveTab] = usePathTabs(
+    `/settings/email-reseller/subscriptions/${subscriptionId}`,
+    "mailboxes",
+    ["mailboxes", "migrations", "billing", "dns", "settings"]
+  );
   const [showAddMailbox, setShowAddMailbox] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
 

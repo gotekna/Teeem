@@ -187,6 +187,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "job-setup": "Job Setup",
   "workflow-config": "Workflow Config",
   "warehouse-config": "Warehouse Config",
+  "data-health": "Data Health",
   "offline": "Offline",
 
   // Settings > Company > Warehouse Config sub-tabs
@@ -205,7 +206,18 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "logs": "Logs",
   "components": "Components Lab",
   "tools": "Developer Tools",
+  "email-reseller": "Email Reseller",
   "unreal-engine": "Unreal Engine",
+
+  // Settings > Email Reseller sub-tabs
+  "subscriptions": "Subscriptions",
+  "migrations": "Migrations",
+  "reports": "Reports",
+  "active": "Active",
+  "completed": "Completed",
+  "mailboxes": "Mailboxes",
+  "billing": "Billing",
+  "dns": "DNS",
 
   // Settings > Developer > Components Lab subtabs (GoldStandardTab)
   "table": "Gold Standard Table",
@@ -240,9 +252,13 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "po-templates": "PO Templates",
 
   // Settings > System sub-tabs
+  "navigation": "Navigation",
   "agents": "AI Agents",
+  "scheduled-jobs": "Scheduled Jobs",
   "ai-processing": "AI Processing",
   "health": "System Health",
+  "user-manual": "User Manual",
+  "inspiring-quotes": "Inspiring Quotes",
 
   // Settings > Company > Documents sub-tabs
   "types": "Document Types",
@@ -258,6 +274,10 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "groups": "Groups",
   "companies": "Companies",
   "company-tabs": "Storage Locations",
+
+  // Portal > Settings sections
+  "profile": "Profile",
+  "accounting": "Accounting",
 
   // Settings > Operations tabs (legacy)
   "job-types": "Job Types",
@@ -447,6 +467,7 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "warehouse-config": ["warehouse_folders", "warehouse_tables", "document_types", "corporate", "job", "contact", "email_config", "sync"],
   "documents": ["types", "document-templates", "bank-statements", "invoice-templates", "email-signatures", "pdf-fields"],
   "job-setup": ["lists", "workflow"],
+  "data-health": ["overview", "contacts"],
   "email-accounts": ["configuration", "sync-dashboard", "email-setup"],
 };
 
