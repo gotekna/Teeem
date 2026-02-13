@@ -12,6 +12,18 @@ class ColumnTypeValidator
   GPS_REGEX = /\A-?\d+\.?\d*,-?\d+\.?\d*\z/
   HEX_COLOR_REGEX = /\A#[0-9A-Fa-f]{6}\z/
 
+  # Rails system columns that should never be validated as Foundation column types.
+  # These overlap with Foundation column names but serve different purposes
+  # (polymorphic types, foreign keys, timestamps, etc.)
+  RAILS_SYSTEM_COLUMNS = %w[
+    id created_at updated_at
+    linkable_type linkable_id
+    documentable_type documentable_id
+    subject_type subject_id
+    tenant_id
+    type
+  ].freeze
+
   # Cache column types per table to avoid repeated DB queries
   @@column_cache = {}
   @@cache_expires_at = {}
@@ -236,6 +248,9 @@ class ColumnTypeValidator
 
       column_types.each do |column_name, column_type|
         next unless record.respond_to?(column_name)
+        # Skip Rails system columns (polymorphic _type/_id, timestamps, etc.)
+        # These overlap with Foundation column names but serve different purposes
+        next if RAILS_SYSTEM_COLUMNS.include?(column_name)
 
         value = record.send(column_name)
         error = validate(value, column_type)
@@ -256,6 +271,7 @@ class ColumnTypeValidator
       column_types.each do |column_name, column_type|
         next unless record.respond_to?(column_name)
         next unless record.respond_to?("#{column_name}=")
+        next if RAILS_SYSTEM_COLUMNS.include?(column_name)
 
         value = record.send(column_name)
         formatted = format_value(value, column_type)

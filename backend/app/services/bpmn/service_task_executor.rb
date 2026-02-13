@@ -40,6 +40,22 @@ module Bpmn
       handler_class = TASK_HANDLERS[task_type]
       raise TaskError, "Unknown service task type: #{task_type}" unless handler_class
 
+      # Set tenant context from the process instance's subject.
+      # Background jobs don't have tenant context, but acts_as_tenant models
+      # (CorporateDirector, Contact, etc.) require it for all queries.
+      tenant = resolve_tenant
+      execution = -> { execute_task(handler_class, task_type) }
+
+      if tenant
+        ActsAsTenant.with_tenant(tenant, &execution)
+      else
+        execution.call
+      end
+    end
+
+    private
+
+    def execute_task(handler_class, task_type)
       task_instance = create_task_instance
 
       begin
@@ -73,7 +89,11 @@ module Bpmn
       end
     end
 
-    private
+    def resolve_tenant
+      subject = @instance.subject
+      return subject.tenant if subject.respond_to?(:tenant)
+      nil
+    end
 
     def create_task_instance
       BpmnTaskInstance.create!(
