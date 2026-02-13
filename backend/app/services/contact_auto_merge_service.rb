@@ -126,7 +126,7 @@ class ContactAutoMergeService
     score += 3 if contact.website.present?
     score += 3 if contact.contact_addresses.any?
     score += 2 if contact.notes.present?
-    score += 2 if contact.rating.to_i > 0
+    # FRC (Feb 2026): rating column removed from contacts in Dec 2025
     score += contact.roles.to_a.size * 2 # More roles = more data
 
     # Prefer active Xero contacts
@@ -208,10 +208,9 @@ class ContactAutoMergeService
 
         # Merge supplier-specific fields (if both are suppliers)
         if source.is_supplier? && target.is_supplier?
-          # Keep the better rating
-          if source.rating.to_i > target.rating.to_i
-            target.update!(rating: source.rating)
-          end
+          # FRC (Feb 2026): rating column was removed from contacts in Dec 2025
+          # Rating merge removed - no rating column exists on contacts
+
           # Combine notes if both have them
           if source.notes.present? && target.notes.present?
             target.update!(notes: "#{target.notes}\n\n--- Auto-merged from contact ##{source.id} ---\n#{source.notes}")

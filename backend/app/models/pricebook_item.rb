@@ -219,25 +219,12 @@ class PricebookItem < ApplicationRecord
   end
 
   # Supplier Reliability Score (0-100)
+  # FRC (Feb 2026): rating, response_rate, avg_response_time columns were removed
+  # from contacts table in Dec 2025. These were migrated from the old suppliers table
+  # but never populated on contacts. Returns 0 until a proper supplier scoring system
+  # is implemented.
   def supplier_reliability_score
-    return 0 unless supplier
-
-    score = 0
-
-    # Rating contributes 40 points (0-5 rating * 8)
-    score += (supplier.rating || 0) * 8
-
-    # Response rate contributes 30 points
-    score += (supplier.response_rate || 0) * 0.3
-
-    # Response time contributes 30 points (inverse - faster is better)
-    # Assume 48 hours is baseline, < 12 hours is excellent
-    if supplier.avg_response_time
-      time_score = [ 30 - (supplier.avg_response_time / 2.0), 0 ].max
-      score += time_score
-    end
-
-    score.round
+    0
   end
 
   # Price Volatility (based on price history)

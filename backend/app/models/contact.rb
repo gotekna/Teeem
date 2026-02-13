@@ -1181,17 +1181,6 @@ class Contact < ApplicationRecord
     update!(portal_enabled: false)
   end
 
-  def average_rating
-    teeem_rating&.round(2)
-  end
-
-  def rating_summary
-    {
-      average: teeem_rating&.round(2),
-      total_ratings: total_ratings_count
-    }
-  end
-
   def open_maintenance_requests_count
     maintenance_requests.active.count
   end
