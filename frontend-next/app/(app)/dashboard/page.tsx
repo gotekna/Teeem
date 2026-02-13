@@ -7,8 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-// api imported for future use
+import { api } from "@/lib/api";
 import {
   Briefcase,
   FileText,
@@ -20,22 +21,50 @@ import {
   CheckCircle,
   BarChart3,
   LayoutDashboard,
-  Heart,
   Shield,
   Zap,
   Smile,
   Target,
   Network,
+  AlertCircle,
 } from "lucide-react";
 import FeaturesTrackingTable from "./components/FeaturesTrackingTable";
 import ArchitectureMap from "./components/ArchitectureMap";
 
 interface DashboardStats {
   activeJobs: number;
-  pendingPOs: number;
-  totalRevenue: number;
+  activeJobsTrend: string;
+  pendingPos: number;
+  overduePos: number;
+  revenueYtd: number;
+  revenueTrendPct: number;
   totalContacts: number;
+  contactsTrend: string;
 }
+
+interface ActivityItem {
+  type: string;
+  title: string;
+  time: string;
+  timeAgo: string;
+  icon: string;
+}
+
+interface UpcomingItem {
+  type: string;
+  title: string;
+  date: string;
+  dateLabel: string;
+  category: string;
+}
+
+const ICON_MAP: Record<string, typeof CheckCircle> = {
+  check_circle: CheckCircle,
+  briefcase: Briefcase,
+  users: Users,
+  file_text: FileText,
+  clock: Clock,
+};
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -71,36 +100,80 @@ export default function DashboardPage() {
     }
   }, [router]);
 
-  const [stats] = useState<DashboardStats>({
-    activeJobs: 12,
-    pendingPOs: 8,
-    totalRevenue: 245000,
-    totalContacts: 156,
-  });
+  // Real data from API
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [upcoming, setUpcoming] = useState<UpcomingItem[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [upcomingLoading, setUpcomingLoading] = useState(true);
+  const [statsError, setStatsError] = useState(false);
 
-  const statCards = [
+  // Fetch all dashboard data in parallel
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await api.get<{ success: boolean; data: DashboardStats }>("/api/v1/app_dashboard/stats");
+        if (res?.data) setStats(res.data);
+      } catch {
+        setStatsError(true);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    const fetchActivity = async () => {
+      try {
+        const res = await api.get<{ success: boolean; data: ActivityItem[] }>("/api/v1/app_dashboard/activity");
+        if (res?.data) setActivity(res.data);
+      } catch {
+        // Activity feed is non-critical — show empty
+      } finally {
+        setActivityLoading(false);
+      }
+    };
+
+    const fetchUpcoming = async () => {
+      try {
+        const res = await api.get<{ success: boolean; data: UpcomingItem[] }>("/api/v1/app_dashboard/upcoming");
+        if (res?.data) setUpcoming(res.data);
+      } catch {
+        // Upcoming is non-critical — show empty
+      } finally {
+        setUpcomingLoading(false);
+      }
+    };
+
+    fetchStats();
+    fetchActivity();
+    fetchUpcoming();
+  }, []);
+
+  const statCards = stats ? [
     {
       title: "Active Jobs",
       value: stats.activeJobs,
       icon: Briefcase,
       description: "Jobs in progress",
-      trend: "+2 this week",
+      trend: stats.activeJobsTrend,
       href: "/jobs",
     },
     {
       title: "Pending POs",
-      value: stats.pendingPOs,
+      value: stats.pendingPos,
       icon: FileText,
       description: "Awaiting approval",
-      trend: "3 due today",
+      trend: stats.overduePos > 0 ? `${stats.overduePos} overdue` : "None overdue",
       href: "/purchase_orders",
     },
     {
       title: "Revenue (YTD)",
-      value: `$${stats.totalRevenue.toLocaleString()}`,
+      value: `$${Math.round(stats.revenueYtd).toLocaleString()}`,
       icon: DollarSign,
       description: "Year to date",
-      trend: "+12% vs last year",
+      trend: stats.revenueTrendPct !== 0
+        ? `${stats.revenueTrendPct > 0 ? "+" : ""}${stats.revenueTrendPct}% vs last year`
+        : "No comparison data",
       href: "/financial",
     },
     {
@@ -108,10 +181,10 @@ export default function DashboardPage() {
       value: stats.totalContacts,
       icon: Users,
       description: "Clients & suppliers",
-      trend: "+5 this month",
+      trend: stats.contactsTrend,
       href: "/contacts",
     },
-  ];
+  ] : [];
 
   return (
     <div className="space-y-6 -mt-2"> {/* -mt-2 adjusts for pt-6 vs pt-4 difference */}
@@ -144,27 +217,53 @@ export default function DashboardPage() {
         <TabsContent value="overview" className="space-y-6">
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="metrics-cards">
-            {statCards.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <Card key={stat.title} className="hover:bg-secondary/30 transition-colors cursor-pointer">
+            {statsLoading ? (
+              // Loading skeletons
+              Array.from({ length: 4 }).map((_, i) => (
+                <Card key={i}>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      {stat.title}
-                    </CardTitle>
-                    <Icon className="h-4 w-4 text-muted-foreground" />
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-4 rounded" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold font-mono">{stat.value}</div>
-                    <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
-                    <p className="text-xs text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
-                      <TrendingUp className="h-3 w-3" />
-                      {stat.trend}
-                    </p>
+                    <Skeleton className="h-8 w-16 mb-1" />
+                    <Skeleton className="h-3 w-20 mt-1" />
+                    <Skeleton className="h-3 w-28 mt-2" />
                   </CardContent>
                 </Card>
-              );
-            })}
+              ))
+            ) : statsError ? (
+              <Card className="col-span-full">
+                <CardContent className="py-8 text-center">
+                  <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">Unable to load dashboard stats</p>
+                </CardContent>
+              </Card>
+            ) : (
+              statCards.map((stat) => {
+                const Icon = stat.icon;
+                return (
+                  <Link key={stat.title} href={stat.href}>
+                    <Card className="hover:bg-secondary/30 transition-colors cursor-pointer">
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          {stat.title}
+                        </CardTitle>
+                        <Icon className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold font-mono">{stat.value}</div>
+                        <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
+                          <TrendingUp className="h-3 w-3" />
+                          {stat.trend}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                );
+              })
+            )}
           </div>
 
           {/* TEEEM Values */}
@@ -240,7 +339,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Quick Actions */}
+          {/* Activity & Upcoming */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Recent Activity */}
             <Card data-tour="recent-items">
@@ -249,47 +348,41 @@ export default function DashboardPage() {
                 <CardDescription>Latest updates from your team</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {[
-                    {
-                      icon: CheckCircle,
-                      title: "PO-2024-0042 approved",
-                      time: "2 hours ago",
-                      status: "success",
-                    },
-                    {
-                      icon: Clock,
-                      title: "Job #1234 schedule updated",
-                      time: "4 hours ago",
-                      status: "info",
-                    },
-                    {
-                      icon: FileText,
-                      title: "New estimate received",
-                      time: "Yesterday",
-                      status: "warning",
-                    },
-                    {
-                      icon: Users,
-                      title: "New supplier added",
-                      time: "2 days ago",
-                      status: "default",
-                    },
-                  ].map((activity, i) => {
-                    const Icon = activity.icon;
-                    return (
+                {activityLoading ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
                       <div key={i} className="flex items-start gap-3">
-                        <div className="p-2 bg-secondary">
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{activity.title}</p>
-                          <p className="text-xs text-muted-foreground">{activity.time}</p>
+                        <Skeleton className="h-8 w-8 rounded" />
+                        <div className="flex-1">
+                          <Skeleton className="h-4 w-3/4 mb-1" />
+                          <Skeleton className="h-3 w-20" />
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                ) : activity.length === 0 ? (
+                  <div className="py-6 text-center">
+                    <Clock className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">No recent activity</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {activity.map((item, i) => {
+                      const Icon = ICON_MAP[item.icon] || Clock;
+                      return (
+                        <div key={i} className="flex items-start gap-3">
+                          <div className="p-2 bg-secondary rounded">
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{item.title}</p>
+                            <p className="text-xs text-muted-foreground">{item.timeAgo}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -300,41 +393,39 @@ export default function DashboardPage() {
                 <CardDescription>Tasks and deadlines this week</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {[
-                    {
-                      title: "Site inspection - Project Alpha",
-                      date: "Today, 2:00 PM",
-                      type: "Meeting",
-                    },
-                    {
-                      title: "PO deadline - Steel delivery",
-                      date: "Tomorrow",
-                      type: "Deadline",
-                    },
-                    {
-                      title: "Client review - Beta Corp",
-                      date: "Friday, 10:00 AM",
-                      type: "Meeting",
-                    },
-                    {
-                      title: "Invoice due - INV-2024-089",
-                      date: "Next Monday",
-                      type: "Payment",
-                    },
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
-                      <div>
-                        <p className="text-sm font-medium">{item.title}</p>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                          <Calendar className="h-3 w-3" />
-                          {item.date}
-                        </p>
+                {upcomingLoading ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="flex items-center justify-between py-2">
+                        <div className="flex-1">
+                          <Skeleton className="h-4 w-3/4 mb-1" />
+                          <Skeleton className="h-3 w-24" />
+                        </div>
+                        <Skeleton className="h-5 w-16 rounded-full" />
                       </div>
-                      <Badge variant="secondary">{item.type}</Badge>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : upcoming.length === 0 ? (
+                  <div className="py-6 text-center">
+                    <Calendar className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">Nothing scheduled this week</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {upcoming.map((item, i) => (
+                      <div key={i} className="flex items-center justify-between py-2 border-b last:border-0">
+                        <div>
+                          <p className="text-sm font-medium">{item.title}</p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                            <Calendar className="h-3 w-3" />
+                            {item.dateLabel}
+                          </p>
+                        </div>
+                        <Badge variant="secondary">{item.category}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

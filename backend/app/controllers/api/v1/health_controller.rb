@@ -562,6 +562,8 @@ module Api
           fix_acn_format(item_ids, auto)
         when "employee_role_cleanup"
           fix_employee_role_cleanup(item_ids, auto)
+        when "relationship_type_fix"
+          fix_relationship_type(item_ids, params[:action], params[:new_value])
         else
           { success: false, error: "Unknown fix type: #{fix_type}" }
         end
@@ -916,6 +918,57 @@ module Api
           points_earned: 0,
           message: "Removed 'Employee' role from #{fixed_count} contacts without company"
         }
+      end
+
+      # Fix invalid relationship types - supports delete or change type
+      def fix_relationship_type(item_ids, action, new_value)
+        return { success: false, error: "item_ids are required" } if item_ids.blank?
+        return { success: false, error: "action is required" } if action.blank?
+
+        case action.to_s
+        when "delete_relationship"
+          relationships = ContactRelationship.where(id: item_ids)
+          count = relationships.count
+          relationships.destroy_all
+
+          {
+            success: true,
+            fixed_count: count,
+            points_earned: 0,
+            message: "Deleted #{count} invalid relationship#{'s' if count != 1}"
+          }
+        when "change_relationship_type"
+          return { success: false, error: "new_value is required for change_relationship_type" } if new_value.blank?
+
+          unless ContactRelationship::RELATIONSHIP_TYPES.include?(new_value)
+            return { success: false, error: "Invalid relationship type: #{new_value}" }
+          end
+
+          fixed_count = 0
+          ContactRelationship.where(id: item_ids).find_each do |rel|
+            # Validate the new type is actually valid for this entity type pair
+            valid_types = ContactRelationship.valid_types_for(
+              source_entity_type: rel.source_contact&.entity_type,
+              target_entity_type: rel.related_contact&.entity_type
+            )
+
+            if valid_types.include?(new_value)
+              rel.update_column(:relationship_type, new_value)
+              fixed_count += 1
+            else
+              Rails.logger.warn "[HealthController#fix_relationship_type] Type '#{new_value}' not valid for ContactRelationship##{rel.id} (#{rel.source_contact&.entity_type} → #{rel.related_contact&.entity_type})"
+            end
+          end
+
+          {
+            success: true,
+            fixed_count: fixed_count,
+            points_earned: 0,
+            message: "Changed #{fixed_count} relationship#{'s' if fixed_count != 1} to '#{new_value}'"
+          }
+        else
+          { success: false, error: "Unknown action: #{action}" }
+        end
       end
 
       def format_australian_phone(digits)

@@ -4,7 +4,6 @@ import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -32,10 +31,10 @@ import {
   Eye,
   Edit,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { SearchInput } from "@/components/ui/search-input";
 import { BackButton } from "@/components/ui/back-button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
 
@@ -90,87 +89,8 @@ export default function WHSSWMSPage() {
         const response = await api.get<{ swms: SWMS[] }>("/api/v1/whs/swms");
         setSwmsList(response.swms || []);
       } catch {
-        // Mock data
-        setSwmsList([
-          {
-            id: 1,
-            name: "Excavation Works SWMS",
-            job_id: 42,
-            job_title: "Smith Residence - Foundation",
-            description: "Safe work method statement for excavation and earthworks",
-            status: "active",
-            version: 2,
-            created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-            valid_until: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
-            approved_by: "Sarah Wilson",
-            approved_at: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString(),
-            workers_count: 8,
-            hazards_count: 12,
-            controls_count: 24,
-          },
-          {
-            id: 2,
-            name: "Working at Heights SWMS",
-            job_id: 67,
-            job_title: "Commercial Fitout - Level 3",
-            description: "Safe work procedures for elevated work platforms and scaffolding",
-            status: "active",
-            version: 1,
-            created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-            valid_until: new Date(Date.now() + 76 * 24 * 60 * 60 * 1000).toISOString(),
-            approved_by: "Mike Johnson",
-            approved_at: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
-            workers_count: 5,
-            hazards_count: 8,
-            controls_count: 16,
-          },
-          {
-            id: 3,
-            name: "Concrete Pouring SWMS",
-            job_id: 42,
-            job_title: "Smith Residence - Foundation",
-            description: "Safe work method for concrete delivery and placement",
-            status: "draft",
-            version: 1,
-            created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-            valid_until: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-            workers_count: 0,
-            hazards_count: 6,
-            controls_count: 12,
-          },
-          {
-            id: 4,
-            name: "Electrical Installation SWMS",
-            job_id: 67,
-            job_title: "Commercial Fitout - Level 3",
-            description: "Safe work procedures for electrical rough-in and fit-off",
-            status: "expired",
-            version: 3,
-            created_at: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString(),
-            valid_until: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-            approved_by: "David Brown",
-            approved_at: new Date(Date.now() - 118 * 24 * 60 * 60 * 1000).toISOString(),
-            workers_count: 3,
-            hazards_count: 10,
-            controls_count: 20,
-          },
-          {
-            id: 5,
-            name: "Demolition Works SWMS",
-            job_id: 89,
-            job_title: "Office Renovation",
-            description: "Safe work method for internal demolition",
-            status: "active",
-            version: 1,
-            created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-            valid_until: new Date(Date.now() + 23 * 24 * 60 * 60 * 1000).toISOString(),
-            approved_by: "Emma Davis",
-            approved_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-            workers_count: 4,
-            hazards_count: 15,
-            controls_count: 30,
-          },
-        ]);
+        // No mock data — show empty state
+        setSwmsList([]);
       } finally {
         setLoading(false);
       }
@@ -186,18 +106,6 @@ export default function WHSSWMSPage() {
     const matchesStatus = statusFilter === "all" || swms.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
-
-  const stats = {
-    total: swmsList.length,
-    active: swmsList.filter((s) => s.status === "active").length,
-    draft: swmsList.filter((s) => s.status === "draft").length,
-    expired: swmsList.filter((s) => s.status === "expired").length,
-    expiringSoon: swmsList.filter((s) => {
-      if (s.status !== "active") return false;
-      const days = getDaysRemaining(s.valid_until);
-      return days > 0 && days <= 30;
-    }).length,
-  };
 
   if (loading) {
     return (
@@ -340,7 +248,8 @@ export default function WHSSWMSPage() {
               <TableRow>
                 <TableCell colSpan={6}>
                   <EmptyState
-                    title="No SWMS found"
+                    title="No SWMS records yet"
+                    description="Create your first Safe Work Method Statement to get started"
                     icon={<ClipboardCheck className="h-12 w-12" />}
                     action={{
                       label: "Create First SWMS",

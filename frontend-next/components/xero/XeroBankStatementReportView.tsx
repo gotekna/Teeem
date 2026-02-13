@@ -312,12 +312,11 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
           /* Tabs for each bank account */
           <Tabs value={activeBank} onValueChange={setActiveBank} className="-mx-4">
             <div className="px-4 border-b">
-              <TabsList className="flex h-auto flex-wrap gap-1 bg-transparent p-0 pb-2">
+              <TabsList className="flex-wrap h-auto gap-1">
                 {bankNames.map((bankName) => (
                   <TabsTrigger
                     key={bankName}
                     value={bankName}
-                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md px-3 py-1.5 text-sm"
                   >
                     {bankName}
                     <span className="ml-1.5 text-xs opacity-70">

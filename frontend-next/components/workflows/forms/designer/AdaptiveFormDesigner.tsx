@@ -134,13 +134,13 @@ export function AdaptiveFormDesigner({
         <div className="flex-1 flex flex-col overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1">
             <div className="border-b px-4">
-              <TabsList className="h-9">
-                <TabsTrigger value="design" className="text-xs gap-1.5">
-                  <Settings className="h-3.5 w-3.5" />
+              <TabsList>
+                <TabsTrigger value="design" className="gap-1.5">
+                  <Settings className="h-4 w-4" />
                   Design
                 </TabsTrigger>
-                <TabsTrigger value="preview" className="text-xs gap-1.5">
-                  <Eye className="h-3.5 w-3.5" />
+                <TabsTrigger value="preview" className="gap-1.5">
+                  <Eye className="h-4 w-4" />
                   Preview
                 </TabsTrigger>
               </TabsList>

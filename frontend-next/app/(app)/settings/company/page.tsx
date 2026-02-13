@@ -79,6 +79,8 @@ export default function CompanySettingsPage() {
     let sub = subTab;
     if (activeTab === "warehouse-config" && !sub) sub = "warehouse_folders";
     if (activeTab === "data-health" && !sub) sub = "overview";
+    if (activeTab === "job-setup" && !sub) sub = "lists";
+    if (activeTab === "documents" && !sub) sub = "types";
     return sub;
   }, [activeTab, subTab]);
 
@@ -94,6 +96,10 @@ export default function CompanySettingsPage() {
         router.replace(`/settings/company/warehouse-config/warehouse_folders`, { scroll: false });
       } else if (activeTab === "data-health") {
         router.replace(`/settings/company/data-health/overview`, { scroll: false });
+      } else if (activeTab === "job-setup") {
+        router.replace(`/settings/company/job-setup/lists`, { scroll: false });
+      } else if (activeTab === "documents") {
+        router.replace(`/settings/company/documents/types`, { scroll: false });
       }
     }
   }, [activeTab, router, pathname]);

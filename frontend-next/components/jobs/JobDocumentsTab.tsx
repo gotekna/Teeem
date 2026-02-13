@@ -1530,12 +1530,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               if (cat) setSelectedCategory(cat);
             }}
           >
-            <TabsList className="w-full justify-start overflow-x-auto bg-muted/50 p-1">
+            <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-1">
               {documentCategories.map((cat) => (
                 <TabsTrigger
                   key={cat.id}
                   value={String(cat.id)}
-                  className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
                 >
                   {cat.name}
                 </TabsTrigger>
@@ -1553,7 +1552,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               if (subCat) setSelectedSubCategory(subCat);
             }}
           >
-            <TabsList className="w-full justify-start overflow-x-auto h-auto flex-wrap gap-1 bg-transparent p-0">
+            <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-1">
               {selectedCategory.children.map((subCat) => {
                 // Check if this sub-tab matches the initialCategory
                 const isActiveByInitial = initialCategory && subCat.name &&
@@ -1565,7 +1564,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                     key={subCat.id}
                     value={String(subCat.id)}
                     data-state={isActive ? "active" : "inactive"}
-                    className="border border-border bg-muted text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                   >
                     {subCat.name}
                   </TabsTrigger>

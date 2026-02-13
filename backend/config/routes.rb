@@ -27,6 +27,11 @@ Rails.application.routes.draw do
         end
       end
 
+      # App Dashboard (main overview page)
+      get "app_dashboard/stats", to: "app_dashboard#stats"
+      get "app_dashboard/activity", to: "app_dashboard#activity"
+      get "app_dashboard/upcoming", to: "app_dashboard#upcoming"
+
       # Async PDF Generation
       resources :pdf_generations, only: [:index, :create, :show] do
         member do

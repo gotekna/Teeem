@@ -709,13 +709,13 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
           value={activePanel}
           onValueChange={(v) => setActivePanel(v as typeof activePanel)}
         >
-          <TabsList className="w-full rounded-none border-b">
-            <TabsTrigger value="properties" className="flex-1">
-              <Settings className="mr-2 h-4 w-4" />
+          <TabsList className="w-full">
+            <TabsTrigger value="properties" className="flex-1 gap-2">
+              <Settings className="h-4 w-4" />
               Properties
             </TabsTrigger>
-            <TabsTrigger value="triggers" className="flex-1">
-              <Zap className="mr-2 h-4 w-4" />
+            <TabsTrigger value="triggers" className="flex-1 gap-2">
+              <Zap className="h-4 w-4" />
               Triggers
             </TabsTrigger>
           </TabsList>

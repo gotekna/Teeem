@@ -203,7 +203,7 @@ export function SplitInboxTabs({
         onValueChange={(v) => onCategoryChange(v as SplitInboxCategory)}
         className="w-full"
       >
-        <TabsList className="w-full justify-start bg-muted/50 h-10">
+        <TabsList className="w-full justify-start">
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon;
             const count = counts[cat.key] || 0;

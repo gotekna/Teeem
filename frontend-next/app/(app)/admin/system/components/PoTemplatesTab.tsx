@@ -385,13 +385,13 @@ export function PoTemplatesTab() {
         className="flex flex-col h-full"
       >
         <div className="flex items-center justify-between px-2 shrink-0">
-          <TabsList className="h-9">
-            <TabsTrigger value="templates" className="text-sm gap-1.5">
-              <Package className="h-3.5 w-3.5" />
+          <TabsList>
+            <TabsTrigger value="templates" className="gap-1.5">
+              <Package className="h-4 w-4" />
               Templates
             </TabsTrigger>
-            <TabsTrigger value="boq" className="text-sm gap-1.5">
-              <ClipboardList className="h-3.5 w-3.5" />
+            <TabsTrigger value="boq" className="gap-1.5">
+              <ClipboardList className="h-4 w-4" />
               Bill of Quantities
             </TabsTrigger>
           </TabsList>

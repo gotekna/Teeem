@@ -469,6 +469,7 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "job-setup": ["lists", "workflow"],
   "data-health": ["overview", "contacts"],
   "email-accounts": ["configuration", "sync-dashboard", "email-setup"],
+  "corporate": ["groups", "companies", "company-tabs"],
 };
 
 /**
