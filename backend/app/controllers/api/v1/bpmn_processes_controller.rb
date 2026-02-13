@@ -45,8 +45,13 @@ module Api
 
       def update
         ActiveRecord::Base.transaction do
+          xml_changed = process_params[:bpmn_xml].present? && process_params[:bpmn_xml] != @process.bpmn_xml
           @process.update!(process_params)
-          sync_nodes_and_edges if params[:nodes].present? || params[:edges].present?
+          if params[:nodes].present? || params[:edges].present?
+            sync_nodes_and_edges
+          elsif xml_changed
+            @process.sync_nodes_from_xml!
+          end
         end
 
         render json: { success: true, bpmn_process: serialize_process_full(@process.reload) }

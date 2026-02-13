@@ -696,6 +696,7 @@ module Api
           employees_from_relationships = employee_relationships
             .map { |rel| rel.source_contact }
             .compact
+            .select { |c| c.is_active }
 
           # Create a map of employee_id => display_order for later use
           employee_display_order = employee_relationships.each_with_object({}) do |rel, hash|
@@ -706,6 +707,7 @@ module Api
           employees_from_primary = Contact
             .where(primary_company_id: @contact.id)
             .where(entity_type: "person")
+            .where(is_active: true)
             .where.not(id: employees_from_relationships.map(&:id))  # Exclude duplicates
 
           # Combine both sources (relationships already sorted, primary at end)
