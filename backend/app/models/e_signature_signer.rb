@@ -164,6 +164,19 @@ class ESignatureSigner < ApplicationRecord
         signing_device: device
       )
 
+      # Auto-complete any associated positioned fields for this signer
+      # (e.g., fields created by DirectorChangeService for badge replacement)
+      fields.incomplete.each do |field|
+        case field.field_type
+        when "signature", "initials"
+          field.complete!(signature_data)
+        when "date"
+          field.complete!(Time.current.strftime(field.effective_date_format))
+        when "text"
+          field.complete!(name)
+        end
+      end
+
       log_event("signed",
         description: "Document signed",
         ip_address: ip_address,

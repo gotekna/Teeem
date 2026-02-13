@@ -164,13 +164,15 @@ class BpmnProcess < ApplicationRecord
       x = node.position_x > 0 ? node.position_x : (x_start + idx * x_spacing)
       y = node.position_y > 0 ? node.position_y : y_center
 
-      # Build the BPMN element
-      name_attr = node.name.present? ? " name=\"#{node.name.encode(xml: :attr)}\"" : ""
+      # Build the BPMN element - escape XML special chars in names
+      escaped_name = node.name.to_s.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub("\"", "&quot;")
+      name_attr = node.name.present? ? " name=\"#{escaped_name}\"" : ""
 
       # Add documentation with config JSON if config exists
       doc_content = ""
       if node.config.present? && node.config.keys.any?
-        doc_content = "\n      <bpmn:documentation>#{node.config.to_json.encode(xml: :text)}</bpmn:documentation>"
+        escaped_json = node.config.to_json.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;")
+        doc_content = "\n      <bpmn:documentation>#{escaped_json}</bpmn:documentation>"
       end
 
       process_elements += "    <#{info[:element]} id=\"#{node.node_key}\"#{name_attr}>#{doc_content}\n    </#{info[:element]}>\n"
@@ -188,10 +190,12 @@ class BpmnProcess < ApplicationRecord
 
     # Add sequence flows
     edges.each do |edge|
-      name_attr = edge.name.present? ? " name=\"#{edge.name.encode(xml: :attr)}\"" : ""
+      escaped_edge_name = edge.name.to_s.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub("\"", "&quot;")
+      name_attr = edge.name.present? ? " name=\"#{escaped_edge_name}\"" : ""
       condition = ""
       if edge.condition_expression.present?
-        condition = "\n      <bpmn:conditionExpression>#{edge.condition_expression.encode(xml: :text)}</bpmn:conditionExpression>"
+        escaped_cond = edge.condition_expression.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;")
+        condition = "\n      <bpmn:conditionExpression>#{escaped_cond}</bpmn:conditionExpression>"
       end
 
       process_elements += "    <bpmn:sequenceFlow id=\"#{edge.edge_key}\" sourceRef=\"#{edge.source_node.node_key}\" targetRef=\"#{edge.target_node.node_key}\"#{name_attr}>#{condition}\n    </bpmn:sequenceFlow>\n"

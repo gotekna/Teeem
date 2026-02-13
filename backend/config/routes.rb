@@ -1307,6 +1307,7 @@ Rails.application.routes.draw do
           post :duplicate
           get :validate
           post :test_run
+          post :regenerate_xml
         end
         resources :bpmn_triggers, only: [ :index, :show, :create, :update, :destroy ] do
           member do
