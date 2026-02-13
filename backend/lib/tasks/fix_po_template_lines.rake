@@ -19,9 +19,12 @@ namespace :po_templates do
 
     abort "Usage: rails po_templates:reimport_from_job['Pack Name',job_id]" unless pack_name && job_id
 
-    pack = PoTemplatePack.find_by!(name: pack_name)
+    pack = PoTemplatePack.unscoped.find_by!(name: pack_name)
+    tenant = Tenant.find(pack.tenant_id)
+    ActsAsTenant.current_tenant = tenant
     job = Job.find(job_id)
 
+    puts "Tenant: #{tenant.name} (ID: #{tenant.id})"
     puts "Pack: #{pack.name} (ID: #{pack.id})"
     puts "Job: #{job.job_code} - #{job.name} (ID: #{job.id})"
     puts ""
