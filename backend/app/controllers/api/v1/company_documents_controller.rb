@@ -49,6 +49,7 @@ module Api
           {
             id: doc.id,
             display_name: doc.ui_name,
+            download_name: doc.download_name,
             file_name: doc.storage_blob&.original_filename || doc.ui_name,
             document_type: doc.metadata&.dig("document_type")&.downcase,
             folder: doc.folder_path&.split("/")&.last&.upcase,

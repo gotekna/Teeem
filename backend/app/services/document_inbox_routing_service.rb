@@ -214,12 +214,21 @@ class DocumentInboxRoutingService
   # Build metadata hash for the WarehouseDocument.
   # Includes linkable context so the frontend can display company/job info without extra lookups.
   def routing_metadata(doc_type, linkable)
+    # Primary folder name for AI suggestion (e.g., "COMPANY", "ATO")
+    folder_name = doc_type&.primary_warehouse_folder&.name&.upcase
+
     meta = {
       "document_inbox_id" => @item.id,
       "document_type" => doc_type&.name || @item.document_type,
       "document_type_id" => doc_type&.id,
       "classification_confidence" => @item.classification_confidence,
-      "synced_at" => Time.current.iso8601
+      "synced_at" => Time.current.iso8601,
+      # Carry DocSort classification as AI suggestions for the preview modal
+      "ai_verification_status" => "verified",
+      "ai_suggested_type" => doc_type&.name&.downcase || @item.document_type&.downcase,
+      "ai_suggested_folder" => folder_name,
+      "ai_suggested_name" => @item.display_name || @item.original_filename,
+      "ai_confidence_score" => @item.classification_confidence
     }
 
     case linkable
