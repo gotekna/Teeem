@@ -34,9 +34,15 @@ module Api
           .order(created_at: :desc)
           .limit(500)
 
-        # Filter by tab/document_type if provided
+        # Filter by warehouse folder name (tab = folder name, e.g., "Company", "ASIC", "ATO")
         if params[:tab].present? && params[:tab] != "all"
-          docs = docs.where("metadata->>'document_type' = ?", params[:tab])
+          if params[:include_descendants] == 'true'
+            # Include documents in this folder and all subfolders
+            docs = docs.where("folder_path LIKE ?", "%/#{params[:tab]}%")
+          else
+            # Exact folder match - folder_path ends with the tab name
+            docs = docs.where("folder_path LIKE ?", "%/#{params[:tab]}")
+          end
         end
 
         documents = docs.map do |doc|
