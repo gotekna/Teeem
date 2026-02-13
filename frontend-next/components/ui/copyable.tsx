@@ -4,6 +4,7 @@ import * as React from "react";
 import { Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/utils/formatters";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 
 interface CopyButtonProps {
   value: string;
@@ -26,7 +27,7 @@ export function CopyButton({ value, className, size = "sm" }: CopyButtonProps) {
       // SSoT: Use copyToClipboard from formatters (has fallback for older browsers)
       await copyToClipboard(value);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), UI_COPY_FEEDBACK_MS);
     } catch (err) {
       console.error("Failed to copy:", err);
     }

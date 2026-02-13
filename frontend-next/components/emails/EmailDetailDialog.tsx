@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
+import { PAGE_SIZE_SEARCH } from "@/lib/constants/pagination-constants";
 import { AttachmentList, type Attachment } from "./AttachmentList";
 import { ComposeEmailModal } from "./ComposeEmailModal";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
@@ -210,7 +211,7 @@ export function EmailDetailDialog({
     try {
       const response = await api.get<{ records: Job[] }>(
         "/api/v1/foundations/jobs/records",
-        { params: { search, per_page: 20 } }
+        { params: { search, per_page: PAGE_SIZE_SEARCH } }
       );
       setJobs(response.records || []);
     } catch (err) {

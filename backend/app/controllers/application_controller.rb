@@ -193,4 +193,18 @@ class ApplicationController < ActionController::API
       error_code: "HAS_DEPENDENCIES"
     }, status: :unprocessable_entity
   end
+
+  # SSoT: Tenant scoping helpers - prevent duplicate tenant.users.pluck(:id) calls
+  # Returns array of user IDs for current tenant (empty array if no tenant)
+  # Memoized to avoid multiple queries per request
+  def tenant_user_ids
+    @tenant_user_ids ||= current_tenant&.users&.pluck(:id) || []
+  end
+
+  # SSoT: Tenant scoping helpers - prevent duplicate tenant.organizations.pluck(:id) calls
+  # Returns array of organization IDs for current tenant (empty array if no tenant)
+  # Memoized to avoid multiple queries per request
+  def tenant_organization_ids
+    @tenant_organization_ids ||= current_tenant&.organizations&.pluck(:id) || []
+  end
 end

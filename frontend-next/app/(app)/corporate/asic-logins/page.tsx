@@ -18,6 +18,7 @@ import { api } from "@/lib/api";
 import { copyToClipboard } from "@/utils/formatters";
 import { BackButton } from "@/components/ui/back-button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 import {
   Table,
   TableBody,
@@ -104,7 +105,7 @@ export default function AsicLoginsPage() {
     await copyToClipboard(text);
     const key = `${companyId}-${field}`;
     setCopiedField(key);
-    setTimeout(() => setCopiedField(null), 2000);
+    setTimeout(() => setCopiedField(null), UI_COPY_FEEDBACK_MS);
   };
 
   const handleGroupChange = (groupId: string) => {

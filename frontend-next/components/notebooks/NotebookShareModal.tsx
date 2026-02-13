@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { UserPlus, Trash2, Crown, Shield, Eye } from "lucide-react";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
 import {
   notebookActions,
   type Notebook,
@@ -76,7 +77,7 @@ export function NotebookShareModal({
     setIsSearching(true);
     try {
       const response = await api.get<{ users: User[] }>("/users/search", {
-        params: { q: query, limit: 10 },
+        params: { q: query, limit: PAGE_SIZE_AUTOCOMPLETE },
       });
       // Filter out users who already have access
       const existingUserIds = new Set([

@@ -1188,7 +1188,7 @@ export default function TeeemTableView({
       }
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const params: Record<string, any> = { limit: 100 };
+        const params: Record<string, any> = { limit: TABLE_ROW_LIMIT };
         // ULTRA FIX: Only include BASE filters in API call (not view/cascade filters)
         // This enables instant view switching - data loads once, views filter client-side
         // View filters are applied by filteredAndSortedEntries via applyFilters()
@@ -1268,7 +1268,7 @@ export default function TeeemTableView({
       setIsLoadingMore(true);
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const params: Record<string, any> = { cursor, limit: 100 };
+        const params: Record<string, any> = { cursor, limit: TABLE_ROW_LIMIT };
         // ULTRA FIX: Only include BASE filters in load-more (not view/cascade filters)
         // This enables instant view switching - all data loads regardless of current view
         if (baseFilters.length > 0) {
@@ -1319,7 +1319,7 @@ export default function TeeemTableView({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const params: Record<string, any> = {
         search: searchTerm,
-        limit: 100,
+        limit: TABLE_ROW_LIMIT,
       };
       // Pass search mode to backend if specified (backend defaults to 'contains')
       if (mode) {
@@ -5481,7 +5481,7 @@ export default function TeeemTableView({
   // Threshold for switching to virtualized rendering
   // Below this, use standard table (better for editing, printing, small datasets)
   // Above this, use virtual scrolling (better for performance with large datasets)
-  const VIRTUALIZATION_THRESHOLD = 200;
+  const VIRTUALIZATION_THRESHOLD = MAX_RENDERED_ROWS;
 
   // Render flat table - uses virtualization for large datasets
   const renderFlatTable = () => {

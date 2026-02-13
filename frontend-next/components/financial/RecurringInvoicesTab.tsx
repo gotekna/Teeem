@@ -59,9 +59,10 @@ import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { EmailContactAutocomplete } from "@/components/emails/EmailContactAutocomplete";
 import type { EmailContact } from "@/lib/email-types";
+import { DEBOUNCE_SEARCH_MS } from '@/lib/constants/timeout-constants';
 
 const CONTACT_SEARCH_MIN_CHARS = 2;
-const CONTACT_SEARCH_DEBOUNCE_MS = 300;
+const CONTACT_SEARCH_DEBOUNCE_MS = DEBOUNCE_SEARCH_MS;
 
 interface RecurringInvoice {
   id: number;

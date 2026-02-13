@@ -15,6 +15,7 @@
 
 import * as React from "react";
 import { copyToClipboard } from "@/utils/formatters";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 import {
   Sun,
   Moon,
@@ -1483,7 +1484,7 @@ function CopyButton({ text }: { text: string }) {
   const handleCopy = async () => {
     await copyToClipboard(text);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), UI_COPY_FEEDBACK_MS);
   };
 
   return (

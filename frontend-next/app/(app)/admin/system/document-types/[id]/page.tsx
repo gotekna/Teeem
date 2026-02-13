@@ -77,6 +77,7 @@ import {
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
 import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
+import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { getInitials as getInitialsSSoT } from "@/utils/formatters";
 
 // Re-export for local use (SSoT: @/lib/constants/document-types.ts)
@@ -1321,7 +1322,7 @@ export default function DocumentTypeDetailPage() {
         params: {
           document_type_id: documentType.id,
           scope: documentType.scope === "job" ? "job" : "corporate",
-          limit: 50,
+          limit: PAGE_SIZE_LIST,
         },
       });
 

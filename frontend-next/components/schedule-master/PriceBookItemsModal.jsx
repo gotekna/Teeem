@@ -4,6 +4,7 @@ import { XMarkIcon, PlusIcon, TrashIcon, CheckIcon } from '@heroicons/react/24/o
 import { api } from '@/lib/api'
 import { useToast } from '@/components/ui/use-toast'
 import { formatCurrency } from '../../utils/formatters'
+import { PAGE_SIZE_LARGE } from '@/lib/constants/pagination-constants'
 
 /**
  * PriceBookItemsModal
@@ -55,7 +56,7 @@ export default function PriceBookItemsModal({ isOpen, onClose, currentRow, onSav
           params: {
             sort_by: 'item_code',
             sort_direction: 'asc',
-            limit: 1000
+            limit: PAGE_SIZE_LARGE
           }
         })
         setAllSupplierItems(response.items || [])

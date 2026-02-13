@@ -27,6 +27,7 @@ import {
 import debounce from "lodash/debounce";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/contexts/ConfirmationContext";
+import { DEBOUNCE_SEARCH_MS } from '@/lib/constants/timeout-constants';
 import {
   DndContext,
   DragOverlay,
@@ -106,7 +107,7 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
 
   // Debounce search query
   const debouncedSetQuery = useMemo(
-    () => debounce((q: string) => setDebouncedQuery(q), 300),
+    () => debounce((q: string) => setDebouncedQuery(q), DEBOUNCE_SEARCH_MS),
     []
   );
 

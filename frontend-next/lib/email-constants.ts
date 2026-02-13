@@ -44,8 +44,10 @@ export const AUTO_SAVE_INTERVAL_MS = 30000; // 30 seconds
 /**
  * Debounce delay for contact search in milliseconds.
  * Prevents excessive API calls while typing in recipient fields.
+ * SSoT: Sourced from timeout-constants.
  */
-export const CONTACT_SEARCH_DEBOUNCE_MS = 300;
+import { DEBOUNCE_SEARCH_MS } from '@/lib/constants/timeout-constants';
+export const CONTACT_SEARCH_DEBOUNCE_MS = DEBOUNCE_SEARCH_MS;
 
 // =============================================================================
 // STORAGE CONSTANTS

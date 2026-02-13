@@ -24,7 +24,6 @@ class Api::V1::ImapCredentialsController < ApplicationController
     tenant = current_tenant
 
     # Get IMAP credentials for users in this tenant
-    tenant_user_ids = tenant&.users&.pluck(:id) || []
     all_imap = ImapCredential.where(is_active: true, user_id: tenant_user_ids)
 
     # Count by status
@@ -40,9 +39,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
     syncing_imap = all_imap.where(last_sync_status: 'syncing').count
 
     # Get MS365 org credentials for THIS TENANT's organizations only
-    tenant_org_ids = tenant&.organizations&.pluck(:id) || []
     ms365_credentials = MicrosoftCredential.app_credentials
-                                            .where(organization_id: tenant_org_ids)
+                                            .where(organization_id: tenant_organization_ids)
                                             .order(is_primary: :desc, name: :asc)
     total_ms365 = ms365_credentials.count
     connected_ms365 = ms365_credentials.where(status: 'connected').count
@@ -435,7 +433,6 @@ class Api::V1::ImapCredentialsController < ApplicationController
     favorite_ids = EmailMailboxFavorite.favorited_account_ids(current_user.id)
 
     # SSoT (Jan 2026): Filter by current tenant for multi-tenancy isolation
-    tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
 
     # Add connected Microsoft 365 organization accounts FOR THIS TENANT ONLY
     # These use Application permissions to access mailboxes
@@ -443,7 +440,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     # SSoT: Order by is_primary DESC so primary tenancy comes first
     ms365_credentials = MicrosoftCredential.app_credentials
                                             .connected
-                                            .where(organization_id: tenant_org_ids)
+                                            .where(organization_id: tenant_organization_ids)
                                             .order(is_primary: :desc, name: :asc)
 
     ms365_credentials.each do |org_cred|
@@ -809,8 +806,6 @@ class Api::V1::ImapCredentialsController < ApplicationController
   # FRC (Feb 2026): Also include already-shared users (even cross-tenant) so they appear in dialog
   # FRC (Feb 2026): Support tenant_id param to get users from a specific tenant
   def shareable_users
-    tenant_user_ids = current_tenant&.users&.pluck(:id) || []
-
     # Include users already shared with this credential (for cross-tenant visibility)
     already_shared_ids = []
     if params[:credential_id].present?

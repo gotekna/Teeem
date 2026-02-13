@@ -15,6 +15,7 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { getIconComponent, resolvePathTokens, SCOPE_ICONS } from "@/components/warehouse/warehouse-utils";
+import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { Folder } from "lucide-react";
 import React from "react";
 
@@ -272,7 +273,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
           pagination: RecordsPagination;
         };
       }>(`/api/v1/warehouse_types/${warehouseTypeCode}/records`, {
-        params: { limit: 50, offset }
+        params: { limit: PAGE_SIZE_LIST, offset }
       });
 
       if (response?.success && response.data) {
@@ -292,7 +293,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       if (offset === 0) {
         setWarehouseRecords(prev => ({
           ...prev,
-          [warehouseTypeCode]: { records: [], pagination: { total: 0, limit: 50, offset: 0, has_more: false } }
+          [warehouseTypeCode]: { records: [], pagination: { total: 0, limit: PAGE_SIZE_LIST, offset: 0, has_more: false } }
         }));
       }
     } finally {

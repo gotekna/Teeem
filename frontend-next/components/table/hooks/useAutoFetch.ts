@@ -26,6 +26,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { getCachedRecords, setCachedRecords } from '@/lib/records-cache';
+import { TABLE_ROW_LIMIT } from '@/lib/constants/pagination-constants';
 import type { CascadeFilter } from '../types';
 
 // ============================================================================
@@ -166,7 +167,7 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const params: Record<string, any> = {
         search: searchTerm,
-        limit: 100,
+        limit: TABLE_ROW_LIMIT,
       };
       if (mode) {
         params.search_mode = mode;
@@ -266,7 +267,7 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
       setIsLoadingMore(true);
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const params: Record<string, any> = { limit: 100 };
+        const params: Record<string, any> = { limit: TABLE_ROW_LIMIT };
         if (baseFilters.length > 0) {
           params.filters = JSON.stringify(baseFilters.map(f => ({
             column: f.column,
@@ -310,7 +311,7 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
       setIsLoadingMore(true);
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const params: Record<string, any> = { cursor, limit: 100 };
+        const params: Record<string, any> = { cursor, limit: TABLE_ROW_LIMIT };
         if (baseFilters.length > 0) {
           params.filters = JSON.stringify(baseFilters.map(f => ({
             column: f.column,

@@ -59,6 +59,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate, formatDateTime, copyToClipboard } from "@/utils/formatters";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 
 interface Contact {
   id: number;
@@ -192,7 +193,7 @@ export default function CustomerPortalTab() {
   const handleCopy = async (url: string, tokenId: string) => {
     await copyToClipboard(url);
     setCopiedToken(tokenId);
-    setTimeout(() => setCopiedToken(null), 2000);
+    setTimeout(() => setCopiedToken(null), UI_COPY_FEEDBACK_MS);
   };
 
   const handleGenerateToken = async () => {

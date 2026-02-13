@@ -16,6 +16,7 @@ import {
   calculateJobTotals,
   type PurchaseOrderRecord,
 } from "@/lib/expenses-utils";
+import { PAGE_SIZE_LARGE } from "@/lib/constants/pagination-constants";
 
 interface JobExpensesTabProps {
   jobId: string | number;
@@ -69,7 +70,7 @@ export function JobExpensesTab({ jobId }: JobExpensesTabProps) {
             filters: JSON.stringify([
               { column: "job_id", operator: "=", value: String(jobId) }
             ]),
-            per_page: 500,
+            per_page: PAGE_SIZE_LARGE,
           },
         }
       );

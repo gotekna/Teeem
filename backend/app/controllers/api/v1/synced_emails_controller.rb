@@ -571,12 +571,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
     # FRC (Feb 2026): Tenant-scope ALL queries. MicrosoftCredential and ImapCredential
     # are indirectly related to tenant (via Organization/User) so need manual filtering.
     # SyncedEmail and StorageBlob have acts_as_tenant and are auto-scoped.
-    tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
-    tenant_user_ids = current_tenant&.users&.pluck(:id) || []
 
     # MS365 Organizations - scoped to current tenant's organizations
     ms_credentials = MicrosoftCredential.refreshable_app
-                                         .where(organization_id: tenant_org_ids)
+                                         .where(organization_id: tenant_organization_ids)
                                          .includes(:organization)
 
     ms365_orgs = ms_credentials.map do |cred|

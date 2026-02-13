@@ -82,12 +82,7 @@ class DocumentInboxRoutingService
       warehouse_folder_id: primary_folder&.id,
       file_size: @item.file_size,
       content_type: @item.content_type,
-      metadata: {
-        "document_inbox_id" => @item.id,
-        "document_type" => doc_type&.name || @item.document_type,
-        "document_type_id" => doc_type&.id,
-        "classification_confidence" => @item.classification_confidence
-      }
+      metadata: routing_metadata(doc_type, linkable)
     )
 
     @item.storage_blob&.increment!(:reference_count)
@@ -210,6 +205,34 @@ class DocumentInboxRoutingService
       }
     )
     QuoteExtractionJob.perform_later(quote.id) if defined?(QuoteExtractionJob) && quote_extraction_enabled?
+  end
+
+  # ========================================
+  # Metadata
+  # ========================================
+
+  # Build metadata hash for the WarehouseDocument.
+  # Includes linkable context so the frontend can display company/job info without extra lookups.
+  def routing_metadata(doc_type, linkable)
+    meta = {
+      "document_inbox_id" => @item.id,
+      "document_type" => doc_type&.name || @item.document_type,
+      "document_type_id" => doc_type&.id,
+      "classification_confidence" => @item.classification_confidence,
+      "synced_at" => Time.current.iso8601
+    }
+
+    case linkable
+    when Corporate
+      meta["company_id"] = linkable.id
+    when Job
+      meta["job_id"] = linkable.id
+      meta["job_code"] = linkable.job_code
+    when Contact
+      meta["contact_id"] = linkable.id
+    end
+
+    meta
   end
 
   # ========================================

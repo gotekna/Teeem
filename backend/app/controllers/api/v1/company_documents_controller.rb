@@ -99,7 +99,7 @@ module Api
         end
 
         send_data doc.storage_blob.download,
-                  filename: doc.download_filename || doc.ui_name || "document",
+                  filename: doc.storage_blob.original_filename || doc.ui_name || "document",
                   type: doc.storage_blob.content_type || "application/octet-stream",
                   disposition: "inline"
       rescue ActiveRecord::RecordNotFound

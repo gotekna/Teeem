@@ -65,7 +65,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { clearCachedRecords } from "@/lib/records-cache";
-import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
+import { PAGE_SIZE_LIST, PAGE_SIZE_LARGE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { ContactEditModal } from "@/components/contacts/ContactEditModal";
@@ -710,7 +710,7 @@ export default function ContactDetailPage() {
     const fetchAllContacts = async () => {
       try {
         const response = await api.get<{ contacts: any[] }>("/api/v1/contacts", {
-          params: { limit: 500 }
+          params: { limit: PAGE_SIZE_LARGE }
         });
         const contacts = response.contacts || [];
         const options: Option[] = contacts

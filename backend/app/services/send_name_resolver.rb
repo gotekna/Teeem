@@ -202,7 +202,7 @@ class SendNameResolver
         context[:name] ||= linkable.display_name
         context[:person_name] ||= linkable.display_name
         context[:contact_name] ||= linkable.display_name
-      when CorporateCompany
+      when Corporate
         context[:company_code] ||= linkable.company_code || linkable.try(:code)
         context[:company_name] ||= linkable.name
         context[:company_group] ||= linkable.company_group&.name

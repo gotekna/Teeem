@@ -47,6 +47,7 @@ import TeeemTableView from '@/components/table/TeeemTableView';
 import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
 import { api, getApiBaseUrl } from '@/lib/api';
 import { getStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
+import { TABLE_ROW_LIMIT } from '@/lib/constants/pagination-constants';
 // Note: Uses sonner's toast (imported below) for toast.success/error/info API
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -2234,7 +2235,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   useEffect(() => {
     const loadJobs = async () => {
       try {
-        const response = await api.get<{ jobs: Job[] }>('/api/v1/jobs', { params: { per_page: 100 } });
+        const response = await api.get<{ jobs: Job[] }>('/api/v1/jobs', { params: { per_page: TABLE_ROW_LIMIT } });
         if (response?.jobs) {
           setJobs(response.jobs);
         }

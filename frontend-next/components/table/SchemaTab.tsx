@@ -22,6 +22,7 @@ import {
 import { getColumnTypeEmoji, getColumnTypeLabel } from "@/lib/column-type-registry";
 import { isChoiceColumn } from "@/lib/constants/column-types";
 import { copyToClipboard } from "@/utils/formatters";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 import { Key, Link, Calculator, Copy, Check } from "lucide-react";
 import { TableColumn } from "./types";
 
@@ -125,7 +126,7 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
   const handleCopy = async (text: string) => {
     await copyToClipboard(text);
     setCopiedKey(text);
-    setTimeout(() => setCopiedKey(null), 2000);
+    setTimeout(() => setCopiedKey(null), UI_COPY_FEEDBACK_MS);
   };
 
   // Filter out system columns like select/actions

@@ -35,6 +35,7 @@ import { ComboboxDropdown, type ComboboxItem } from "./combobox-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Popover,
@@ -162,7 +163,7 @@ function SidebarContent({
       });
       await copyToClipboard(formatted);
       setCopiedConsole(true);
-      setTimeout(() => setCopiedConsole(false), 2000);
+      setTimeout(() => setCopiedConsole(false), UI_COPY_FEEDBACK_MS);
     } catch (err) {
       console.error("Failed to copy console:", err);
     }
@@ -180,7 +181,7 @@ function SidebarContent({
       });
       await copyToClipboard(formatted);
       setCopiedProblems(true);
-      setTimeout(() => setCopiedProblems(false), 2000);
+      setTimeout(() => setCopiedProblems(false), UI_COPY_FEEDBACK_MS);
     } catch (err) {
       console.error("Failed to copy problems:", err);
     }

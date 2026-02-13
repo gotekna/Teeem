@@ -440,14 +440,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
 
     # SSoT (Jan 2026): Filter users by current tenant for multi-tenancy isolation
-    tenant_user_ids = current_tenant&.users&.pluck(:id) || []
     teeem_users = User.where(id: tenant_user_ids).order(:name).map do |u|
       { id: u.id, name: u.name, email: u.email }
     end
 
     # SSoT (Jan 2026): Filter MS365 credentials by current tenant's organizations
     # MicrosoftCredential belongs_to Organization, which belongs_to Tenant (indirect relationship)
-    tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
 
     # FRC (Feb 2026): Filter mailboxes by tenant's email domains to prevent
     # cross-tenant leakage. Multiple TEEEM tenants may share the same Azure AD,
@@ -462,7 +460,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
 
     organizations = MicrosoftCredential.app_credentials.active
-                                        .where(organization_id: tenant_org_ids)
+                                        .where(organization_id: tenant_organization_ids)
                                         .order(:name).map do |org|
       # Get mailboxes from Microsoft 365 tenant
       all_mailboxes = if org.status == "connected"

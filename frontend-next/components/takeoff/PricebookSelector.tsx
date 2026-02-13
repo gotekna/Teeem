@@ -19,6 +19,8 @@ import { api } from "@/lib/api";
 import { formatCurrency } from "@/utils/formatters";
 import { useDebounce } from "@/hooks/use-debounce";
 import type { TakeoffMeasurement, PricebookItemSummary } from "./types";
+import { DEBOUNCE_SEARCH_MS } from '@/lib/constants/timeout-constants';
+import { PAGE_SIZE_LIST } from '@/lib/constants/pagination-constants';
 
 // =============================================================================
 // Types
@@ -59,7 +61,7 @@ export function PricebookSelector({
   const [isLoading, setIsLoading] = useState(false);
   const [isSelecting, setIsSelecting] = useState(false);
 
-  const debouncedSearch = useDebounce(search, 300);
+  const debouncedSearch = useDebounce(search, DEBOUNCE_SEARCH_MS);
 
   // Fetch pricebook items
   const fetchItems = useCallback(async (query: string) => {
@@ -71,7 +73,7 @@ export function PricebookSelector({
       }>(`/api/v1/pricebook`, {
         params: {
           search: query,
-          limit: 50,
+          limit: PAGE_SIZE_LIST,
           active: true,
         },
       });
