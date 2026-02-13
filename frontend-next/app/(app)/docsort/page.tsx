@@ -964,8 +964,11 @@ export default function DocsortPage() {
                               result = result.replaceAll(`{{${key}}}`, val).replaceAll(`{${key}}`, val);
                             }
                           }
-                          // Clean unreplaced tokens
-                          result = result.replace(/\s*\{\{?[^}]+\}?\}\s*/g, ' ').replace(/\s+/g, ' ').trim();
+                          // Show unreplaced tokens as readable placeholders (e.g. {CompanyName} → [Company Name])
+                          // so the user can see what data is needed (e.g. select a company)
+                          result = result.replace(/\{\{?([^}]+)\}?\}/g, (_, name) =>
+                            `[${name.replace(/([A-Z])/g, ' $1').trim()}]`
+                          ).replace(/\s+/g, ' ').trim();
                           return result || null;
                         };
 
