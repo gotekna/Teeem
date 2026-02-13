@@ -22,6 +22,7 @@ import {
   Heading,
   Text,
   Minus,
+  ListPlus,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,10 +32,11 @@ export type InputFieldType = "text" | "textarea" | "number" | "email" | "phone" 
 export type ChoiceFieldType = "select" | "multi_select" | "checkbox" | "radio" | "switch";
 export type DateFieldType = "date";
 export type DisplayFieldType = "heading" | "paragraph" | "separator";
+export type GroupFieldType = "repeater";
 
-export type FieldType = InputFieldType | ChoiceFieldType | DateFieldType | DisplayFieldType;
+export type FieldType = InputFieldType | ChoiceFieldType | DateFieldType | DisplayFieldType | GroupFieldType;
 
-export type FieldCategory = "input" | "choice" | "date" | "display";
+export type FieldCategory = "input" | "choice" | "date" | "display" | "group";
 
 // ─── Field Option (for select, radio, multi_select) ────────────────────────────
 
@@ -62,6 +64,12 @@ export interface FormFieldDef {
   min?: number;
   max?: number;
   pattern?: string; // regex
+  // Repeater fields
+  subFields?: FormFieldDef[];
+  itemLabel?: string; // e.g. "Director" → renders as "Director 1", "Director 2"
+  addLabel?: string; // e.g. "Add Director"
+  minItems?: number;
+  maxItems?: number;
 }
 
 // ─── Form Schema (stored in bpmn_nodes.config.form_schema) ─────────────────────
@@ -106,6 +114,8 @@ export const FIELD_TYPE_META: FieldTypeMeta[] = [
   { type: "heading", label: "Heading", icon: Heading, category: "display", isDisplay: true },
   { type: "paragraph", label: "Paragraph", icon: Text, category: "display", isDisplay: true },
   { type: "separator", label: "Separator", icon: Minus, category: "display", isDisplay: true },
+  // Group
+  { type: "repeater", label: "Repeater", icon: ListPlus, category: "group" },
 ];
 
 export function getFieldMeta(type: FieldType): FieldTypeMeta | undefined {
@@ -118,4 +128,8 @@ export function isDisplayField(type: FieldType): boolean {
 
 export function isChoiceField(type: FieldType): boolean {
   return getFieldMeta(type)?.hasOptions === true;
+}
+
+export function isRepeaterField(type: FieldType): boolean {
+  return type === "repeater";
 }

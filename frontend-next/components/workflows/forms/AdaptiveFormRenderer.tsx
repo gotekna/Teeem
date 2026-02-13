@@ -17,7 +17,7 @@ import { AdaptiveFieldRenderer } from "./AdaptiveFieldRenderer";
 import type { TaskFormProps } from "@/lib/workflow-task-forms";
 import type { AdaptiveFormSchema } from "@/lib/workflow-forms/types";
 import { buildZodSchema } from "@/lib/workflow-forms/schema-utils";
-import { isDisplayField } from "@/lib/workflow-forms/types";
+import { isDisplayField, isRepeaterField } from "@/lib/workflow-forms/types";
 
 // Minimal Zod resolver (avoids @hookform/resolvers dependency)
 function createZodResolver(
@@ -89,6 +89,27 @@ export function AdaptiveFormRenderer({
             field={field}
             value={undefined}
             onChange={() => {}}
+            disabled={disabled}
+          />
+        </div>
+      );
+    }
+
+    // Repeater fields get a label but no FormField wrapper (the cards provide structure)
+    if (isRepeaterField(field.type)) {
+      const repeaterValue = values[field.name] ?? [{}];
+      return (
+        <div key={field.id} className="space-y-2">
+          {field.label && (
+            <h3 className="text-base font-semibold text-foreground">{field.label}</h3>
+          )}
+          {fieldError && (
+            <p className="text-sm text-destructive">{fieldError}</p>
+          )}
+          <AdaptiveFieldRenderer
+            field={field}
+            value={repeaterValue}
+            onChange={(val) => setValue(field.name, val as Record<string, unknown>[], { shouldValidate: true })}
             disabled={disabled}
           />
         </div>

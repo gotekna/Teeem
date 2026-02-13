@@ -32,6 +32,7 @@ import type {
 import {
   getFieldMeta,
   isDisplayField,
+  isRepeaterField,
 } from "@/lib/workflow-forms/types";
 import {
   addField,
@@ -258,7 +259,9 @@ function CanvasFieldItem({
 }) {
   const meta = getFieldMeta(field.type);
   const isDisplay = isDisplayField(field.type);
+  const isRepeater = isRepeaterField(field.type);
   const Icon = meta?.icon;
+  const subFieldCount = field.subFields?.length ?? 0;
 
   return (
     <SortableItem
@@ -296,8 +299,13 @@ function CanvasFieldItem({
               ? "Separator"
               : field.label || field.content || meta?.label}
           </span>
-          {!isDisplay && field.required && (
+          {!isDisplay && !isRepeater && field.required && (
             <span className="text-destructive text-xs">*</span>
+          )}
+          {isRepeater && (
+            <span className="text-xs text-muted-foreground">
+              ({subFieldCount} sub-field{subFieldCount !== 1 ? "s" : ""})
+            </span>
           )}
         </div>
         {!isDisplay && (

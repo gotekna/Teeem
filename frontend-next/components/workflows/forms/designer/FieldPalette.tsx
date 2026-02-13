@@ -18,9 +18,10 @@ const CATEGORY_LABELS: Record<FieldCategory, string> = {
   choice: "Choice",
   date: "Date & Time",
   display: "Display",
+  group: "Group",
 };
 
-const CATEGORY_ORDER: FieldCategory[] = ["input", "choice", "date", "display"];
+const CATEGORY_ORDER: FieldCategory[] = ["input", "choice", "date", "group", "display"];
 
 export function FieldPalette({ onAddField }: FieldPaletteProps) {
   const grouped = CATEGORY_ORDER.map((category) => ({

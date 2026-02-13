@@ -13,7 +13,7 @@ import type {
   FieldType,
   FieldOption,
 } from "./types";
-import { isDisplayField, isChoiceField } from "./types";
+import { isDisplayField, isChoiceField, isRepeaterField } from "./types";
 
 // ─── Schema Manipulation ───────────────────────────────────────────────────────
 
@@ -62,6 +62,15 @@ export function createField(type: FieldType, existingFields: FormFieldDef[]): Fo
     field.content = "Instructions or description text here.";
   }
 
+  // Add default repeater config
+  if (type === "repeater") {
+    field.itemLabel = "Item";
+    field.addLabel = "Add Item";
+    field.subFields = [];
+    field.minItems = 1;
+    field.maxItems = 10;
+  }
+
   return field;
 }
 
@@ -82,6 +91,7 @@ function defaultLabel(type: FieldType): string {
     heading: "Section Heading",
     paragraph: "Paragraph",
     separator: "",
+    repeater: "Repeater Group",
   };
   return labels[type];
 }
@@ -146,6 +156,16 @@ export function buildZodSchema(fields: FormFieldDef[]): z.ZodObject<Record<strin
     if (isDisplayField(field.type)) continue;
 
     let fieldSchema: z.ZodTypeAny;
+
+    // Repeater: array of objects, each validated by sub-field schema
+    if (isRepeaterField(field.type)) {
+      const subSchema = buildZodSchema(field.subFields || []);
+      fieldSchema = z.array(subSchema)
+        .min(field.minItems ?? 0, `At least ${field.minItems ?? 0} required`)
+        .max(field.maxItems ?? 100);
+      shape[field.name] = fieldSchema;
+      continue;
+    }
 
     switch (field.type) {
       case "number": {

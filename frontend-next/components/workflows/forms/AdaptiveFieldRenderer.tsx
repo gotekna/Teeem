@@ -28,10 +28,13 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { CalendarIcon } from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { FormField } from "@/components/ui/form-field";
+import { CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import type { FormFieldDef } from "@/lib/workflow-forms/types";
+import { isDisplayField } from "@/lib/workflow-forms/types";
 
 interface AdaptiveFieldRendererProps {
   field: FormFieldDef;
@@ -237,6 +240,88 @@ export function AdaptiveFieldRenderer({
 
     case "separator":
       return <Separator />;
+
+    // ── Group Types ───────────────────────────────────────────────────────
+    case "repeater": {
+      const items = (value as Record<string, unknown>[]) ?? [{}];
+      const canRemove = items.length > (field.minItems ?? 0);
+      const canAdd = !field.maxItems || items.length < field.maxItems;
+
+      const addItem = () => onChange([...items, {}]);
+      const removeItem = (idx: number) => onChange(items.filter((_, i) => i !== idx));
+      const updateItem = (idx: number, key: string, val: unknown) => {
+        const updated = [...items];
+        updated[idx] = { ...updated[idx], [key]: val };
+        onChange(updated);
+      };
+
+      return (
+        <div className="space-y-3">
+          {items.map((item, idx) => (
+            <Card key={idx} className="border-border/60">
+              <CardHeader className="flex flex-row items-center justify-between py-2.5 px-4 space-y-0 bg-muted/30">
+                <span className="text-sm font-medium">
+                  {field.itemLabel || "Item"} {idx + 1}
+                </span>
+                {canRemove && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => removeItem(idx)}
+                    disabled={disabled}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-3 pt-3 px-4 pb-4">
+                {(field.subFields ?? []).map((subField) => {
+                  if (isDisplayField(subField.type)) {
+                    return (
+                      <AdaptiveFieldRenderer
+                        key={subField.id}
+                        field={subField}
+                        value={undefined}
+                        onChange={() => {}}
+                        disabled={disabled}
+                      />
+                    );
+                  }
+                  return (
+                    <FormField
+                      key={subField.id}
+                      label={subField.label}
+                      required={subField.required}
+                    >
+                      <AdaptiveFieldRenderer
+                        field={subField}
+                        value={item[subField.name]}
+                        onChange={(val) => updateItem(idx, subField.name, val)}
+                        disabled={disabled}
+                      />
+                    </FormField>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          ))}
+          {canAdd && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={addItem}
+              disabled={disabled}
+              className="w-full border-dashed"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {field.addLabel || `Add ${field.itemLabel || "Item"}`}
+            </Button>
+          )}
+        </div>
+      );
+    }
 
     default:
       return null;
