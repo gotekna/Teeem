@@ -10,6 +10,10 @@
 # This task:
 # 1. Renumbers source PO line items in a job to have sequential line_numbers
 # 2. Deletes and re-creates template items from the job with correct line_numbers
+#
+# Note: The pack may be in a different tenant than the job (e.g., TEEEM config
+# tenant vs Tekna production tenant). We use unscoped queries for cross-tenant
+# lookups and set the pack's tenant for creating new records.
 
 namespace :po_templates do
   desc "Fix PO template line items by re-importing from source job"
@@ -19,21 +23,24 @@ namespace :po_templates do
 
     abort "Usage: rails po_templates:reimport_from_job['Pack Name',job_id]" unless pack_name && job_id
 
+    # Find pack and job without tenant scoping (may be in different tenants)
     pack = PoTemplatePack.unscoped.find_by!(name: pack_name)
+    job = Job.unscoped.find(job_id)
+
+    # Set tenant context from the pack (needed for creating PoTemplateItems)
     tenant = Tenant.find(pack.tenant_id)
     ActsAsTenant.current_tenant = tenant
-    job = Job.find(job_id)
 
     puts "Tenant: #{tenant.name} (ID: #{tenant.id})"
     puts "Pack: #{pack.name} (ID: #{pack.id})"
     puts "Job: #{job.job_code} - #{job.name} (ID: #{job.id})"
     puts ""
 
-    # Step 1: Fix source PO line_numbers
+    # Step 1: Fix source PO line_numbers (unscoped since job may be in different tenant)
     fixed_pos = 0
     fixed_lines = 0
 
-    PurchaseOrder.where(job_id: job.id).find_each do |po|
+    PurchaseOrder.unscoped.where(job_id: job.id).find_each do |po|
       lines = po.line_items.order(:id)
       next if lines.count <= 1
 
@@ -58,7 +65,7 @@ namespace :po_templates do
 
     pack.po_template_items.destroy_all
 
-    pos = PurchaseOrder.where(job_id: job.id)
+    pos = PurchaseOrder.unscoped.where(job_id: job.id)
       .includes(:supplier, sm_task: :sm_schedule_master)
       .includes(:line_items)
 
