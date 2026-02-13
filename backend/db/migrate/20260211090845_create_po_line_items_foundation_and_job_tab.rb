@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-# Migration: Create Foundation for PurchaseOrderLineItem + Job tab
+# Migration: Create Foundation for PurchaseOrderLineItem
 #
 # 1. Creates Foundation record (not tenant-scoped) so TeeemTableView can display PO line items
 # 2. Syncs columns from DB schema with appropriate types and visibility
-# 3. Creates WarehouseFolder records for ALL tenants (job tab: "Purchase Order Lines")
+# NOTE: PO Line Items tab is a frontend sub-tab within Purchase Orders (no WarehouseFolder needed)
 #
 class CreatePoLineItemsFoundationAndJobTab < ActiveRecord::Migration[7.2]
   def up
@@ -66,77 +66,9 @@ class CreatePoLineItemsFoundationAndJobTab < ActiveRecord::Migration[7.2]
     end
 
     puts "  ✅ Synced #{columns_config.size} columns"
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # 3. Create WarehouseFolder tab for ALL tenants (multi-tenant safe)
-    # ═══════════════════════════════════════════════════════════════════════════
-    job_type = execute("SELECT id FROM warehouse_types WHERE code = 'job' LIMIT 1").first
-    unless job_type
-      puts "  ⚠️  No 'job' warehouse_type found - skipping tab creation"
-      return
-    end
-    job_type_id = job_type["id"]
-
-    # Find the position of purchase-orders tab so we insert right after it
-    tenants = execute("SELECT id, name FROM tenants ORDER BY id")
-
-    if tenants.none?
-      puts "  ⚠️  No tenants found - skipping tab creation"
-      return
-    end
-
-    tenants.each do |tenant|
-      tenant_id = tenant["id"]
-      tenant_name = tenant["name"]
-
-      # Get position of purchase-orders tab for this tenant
-      po_tab = execute(<<-SQL.squish).first
-        SELECT order_position FROM warehouse_folders
-        WHERE warehouse_type_id = #{job_type_id}
-          AND tab_key = 'purchase-orders'
-          AND tenant_id = #{tenant_id}
-        LIMIT 1
-      SQL
-
-      # Position right after purchase-orders (default to 8 if not found)
-      new_position = po_tab ? po_tab["order_position"].to_i + 1 : 8
-
-      # Idempotent: skip if already exists
-      existing = execute(<<-SQL.squish).first
-        SELECT id FROM warehouse_folders
-        WHERE warehouse_type_id = #{job_type_id}
-          AND tab_key = 'purchase-order-lines'
-          AND tenant_id = #{tenant_id}
-        LIMIT 1
-      SQL
-      next if existing
-
-      execute(<<-SQL.squish)
-        INSERT INTO warehouse_folders (
-          warehouse_type_id, tenant_id, name, display_name, folder_segment,
-          tab_key, tab_type, tab_group, icon_name,
-          order_position, enabled, warehouse_enabled, is_system,
-          parent_id, created_at, updated_at
-        ) VALUES (
-          #{job_type_id}, #{tenant_id}, 'Purchase Order Lines', 'Purchase Order Lines', NULL,
-          'purchase-order-lines', 'system', 'data', 'List',
-          #{new_position}, TRUE, FALSE, FALSE,
-          NULL, NOW(), NOW()
-        )
-      SQL
-
-      puts "  ✅ Created 'Purchase Order Lines' tab for tenant: #{tenant_name}"
-    end
   end
 
   def down
-    # Remove WarehouseFolder tabs
-    execute(<<-SQL.squish)
-      DELETE FROM warehouse_folders
-      WHERE tab_key = 'purchase-order-lines'
-        AND display_name = 'Purchase Order Lines'
-    SQL
-
     # Remove Foundation columns then Foundation
     foundation = Foundation.find_by(slug: "purchase_order_line_items")
     if foundation

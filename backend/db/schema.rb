@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_11_100001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -470,6 +470,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_100001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.integer "retention_count", default: 5, null: false
     t.index ["primary_credential_id"], name: "index_backup_configurations_on_primary_credential_id"
     t.index ["secondary_credential_id"], name: "index_backup_configurations_on_secondary_credential_id"
     t.index ["tenant_id"], name: "index_backup_configurations_on_tenant_id"
@@ -5575,7 +5576,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_100001) do
     t.datetime "last_synced_at"
     t.string "last_sync_status"
     t.text "last_sync_error"
-    t.integer "sync_interval_minutes", default: 15
+    t.integer "sync_interval_minutes", default: 2
     t.bigint "last_uid"
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false

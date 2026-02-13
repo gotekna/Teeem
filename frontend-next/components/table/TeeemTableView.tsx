@@ -1685,10 +1685,13 @@ export default function TeeemTableView({
       const isFoundationChange = prevFoundationRef.current !== null && prevFoundationRef.current !== effectiveFoundationId;
 
       if (isInitialMount || isFoundationChange) {
-        // Clear user filters - this is still needed for filter atoms (not yet foundation-scoped)
+        // Clear ALL filters including base - prevents atom pollution between tables sharing the same Jotai store
+        // (e.g., PO table's job_id base filter leaking into PO Line Items table)
+        // Base filters will be re-set by the initialFilters effect below if needed
         console.log('[Foundation Change] Clearing filters for:', effectiveFoundationId,
           isInitialMount ? '(initial mount)' : `(from ${prevFoundationRef.current})`);
         clearAllUserFilters();
+        setBaseFilters([]);
 
         // Apply filters from initialView (CRITICAL: This is what makes LIVE filter work)
         if (initialView) {
@@ -1715,7 +1718,7 @@ export default function TeeemTableView({
       }
     }
     prevFoundationRef.current = effectiveFoundationId;
-  }, [effectiveFoundationId, setViewFilters, clearAllUserFilters, setFilterGroups, initialView]);
+  }, [effectiveFoundationId, setViewFilters, setBaseFilters, clearAllUserFilters, setFilterGroups, initialView]);
 
   // ULTRA Solution: Apply initialFilters as BASE filters (immutable, never overwritten by user filters)
   // Also clear view filters to prevent pollution from other tables with initialFilters
