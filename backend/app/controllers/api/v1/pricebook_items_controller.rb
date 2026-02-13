@@ -386,7 +386,7 @@ module Api
             item: item_with_image_data(@item)
           }
         else
-          render json: { success: false, error: "image_url is required" }, status: :unprocessable_entity
+          render_error("image_url is required", status: :unprocessable_entity)
         end
       end
 
@@ -450,7 +450,7 @@ module Api
             }
           }
         else
-          render json: { success: false, errors: @item.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@item)
         end
       end
 
@@ -459,7 +459,7 @@ module Api
         supplier_id = params[:supplier_id]
 
         if supplier_id.blank?
-          return render json: { success: false, error: "supplier_id is required" }, status: :unprocessable_entity
+          return render_error("supplier_id is required", status: :unprocessable_entity)
         end
 
         @item.default_supplier_id = supplier_id
@@ -485,7 +485,7 @@ module Api
             item: item_with_risk_data(@item)
           }
         else
-          render json: { success: false, errors: @item.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@item)
         end
       end
 
@@ -494,19 +494,19 @@ module Api
         history_id = params[:history_id]
 
         if history_id.blank?
-          return render json: { success: false, error: "history_id is required" }, status: :unprocessable_entity
+          return render_error("history_id is required", status: :unprocessable_entity)
         end
 
         price_history = @item.price_histories.find_by(id: history_id)
 
         if price_history.nil?
-          return render json: { success: false, error: "Price history not found" }, status: :not_found
+          return render_error("Price history not found", status: :not_found)
         end
 
         if price_history.destroy
           render json: { success: true, message: "Price history deleted successfully" }
         else
-          render json: { success: false, errors: price_history.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(price_history)
         end
       end
 
@@ -515,13 +515,13 @@ module Api
         history_id = params[:history_id]
 
         if history_id.blank?
-          return render json: { success: false, error: "history_id is required" }, status: :unprocessable_entity
+          return render_error("history_id is required", status: :unprocessable_entity)
         end
 
         price_history = @item.price_histories.find_by(id: history_id)
 
         if price_history.nil?
-          return render json: { success: false, error: "Price history not found" }, status: :not_found
+          return render_error("Price history not found", status: :not_found)
         end
 
         # Update the price history attributes
@@ -539,7 +539,7 @@ module Api
 
           render json: { success: true, message: "Price history updated successfully", price_history: price_history }
         else
-          render json: { success: false, errors: price_history.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(price_history)
         end
       end
 
@@ -641,7 +641,7 @@ module Api
       # POST /api/v1/pricebook/import_price_history
       def import_price_history
         unless params[:file]
-          return render json: { success: false, error: "No file provided" }, status: :unprocessable_entity
+          return render_error("No file provided", status: :unprocessable_entity)
         end
 
         file = params[:file]

@@ -69,7 +69,7 @@ class BasiqCredential < ApplicationRecord
 
     # Create consent request
     redirect_url = Rails.application.routes.url_helpers.api_v1_basiq_callback_url(
-      host: ENV["APP_HOST"] || "teeemlive-ce8e2660a615.herokuapp.com",
+      host: InfrastructureUrls.backend_url.gsub(%r{^https?://}, ""),
       protocol: "https"
     )
 

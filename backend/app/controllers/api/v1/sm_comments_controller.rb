@@ -41,17 +41,14 @@ module Api
             comment: comment_json(comment)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: comment.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(comment)
         end
       end
 
       # PATCH /api/v1/sm_comments/:id
       def update
         unless can_edit?(@comment)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         if @comment.update(comment_params)
@@ -60,17 +57,14 @@ module Api
             comment: comment_json(@comment)
           }
         else
-          render json: {
-            success: false,
-            errors: @comment.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@comment)
         end
       end
 
       # DELETE /api/v1/sm_comments/:id
       def destroy
         unless can_delete?(@comment)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         @comment.soft_delete!
@@ -102,10 +96,7 @@ module Api
             comment: comment_json(reply)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: reply.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(reply)
         end
       end
 
@@ -131,7 +122,7 @@ module Api
         mention = SmCommentMention.find(params[:id])
 
         unless mention.user_id == current_user.id
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         mention.mark_read!

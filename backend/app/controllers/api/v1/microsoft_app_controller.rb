@@ -130,7 +130,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Now supports multiple organizations via :name parameter
   def setup
     unless current_user_admin?
-      return render json: { error: "Only admins can configure organization-wide Microsoft access" }, status: :forbidden
+      return render_error("Only admins can configure organization-wide Microsoft access", status: :forbidden)
     end
 
     # Name is required for multi-org support
@@ -188,7 +188,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
       using_env_vars: params[:client_id].blank?
     }
   rescue ActiveRecord::RecordInvalid => e
-    render json: { error: e.message }, status: :unprocessable_entity
+    render_error(e.message)
   end
 
   # POST /api/v1/microsoft_app/setup_from_env
@@ -196,7 +196,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Now supports multiple organizations via :name parameter
   def setup_from_env
     unless current_user_admin?
-      return render json: { error: "Only admins can configure organization-wide Microsoft access" }, status: :forbidden
+      return render_error("Only admins can configure organization-wide Microsoft access", status: :forbidden)
     end
 
     org_name = params[:name].presence || "Tekna"
@@ -261,12 +261,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Get URL for Azure AD admin to grant organization-wide consent
   def admin_consent_url
     unless current_user_admin?
-      return render json: { error: "Only admins can request organization-wide consent" }, status: :forbidden
+      return render_error("Only admins can request organization-wide consent", status: :forbidden)
     end
 
     credential = find_credential_with_org_context
     unless credential
-      return render json: { error: "Please set up app credentials first" }, status: :unprocessable_entity
+      return render_error("Please set up app credentials first")
     end
 
     render json: {
@@ -351,14 +351,14 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Test the connection for a specific organization
   def test
     unless current_user_admin?
-      return render json: { error: "Only admins can test organization-wide Microsoft access" }, status: :forbidden
+      return render_error("Only admins can test organization-wide Microsoft access", status: :forbidden)
     end
 
     # Support testing specific org by id or name (uses org-scoped helper)
     credential = find_credential_with_org_context
 
     unless credential
-      return render json: { error: "No app credential configured" }, status: :not_found
+      return render_error("No app credential configured", status: :not_found)
     end
 
     if credential.test_connection!
@@ -383,14 +383,14 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # List all users in the tenant that can be synced
   def users
     unless current_user_admin?
-      return render json: { error: "Only admins can view organization users" }, status: :forbidden
+      return render_error("Only admins can view organization users", status: :forbidden)
     end
 
     # Support fetching users for specific org by id or name (uses org-scoped helper)
     credential = find_credential_with_org_context
 
     unless credential&.status == "connected"
-      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
+      return render_error("Organization Microsoft access not connected", status: :not_found)
     end
 
     users = credential.list_tenant_users
@@ -405,12 +405,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Configure which users' emails to sync
   def configure_sync
     unless current_user_admin?
-      return render json: { error: "Only admins can configure sync settings" }, status: :forbidden
+      return render_error("Only admins can configure sync settings", status: :forbidden)
     end
 
     credential = find_credential_with_org_context
     unless credential
-      return render json: { error: "No app credential configured" }, status: :not_found
+      return render_error("No app credential configured", status: :not_found)
     end
 
     # Update sync configuration
@@ -436,7 +436,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # List all MS365 orgs with their available mailboxes (for admin config UI)
   def organizations_with_mailboxes
     unless current_user_admin?
-      return render json: { error: "Only admins can view organization mailboxes" }, status: :forbidden
+      return render_error("Only admins can view organization mailboxes", status: :forbidden)
     end
 
     # SSoT (Jan 2026): Filter users by current tenant for multi-tenancy isolation
@@ -510,13 +510,13 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # FRC (Jan 2026): Also auto-updates user_emails to sync all accessible mailboxes
   def update_user_mailbox_access
     unless current_user_admin?
-      return render json: { error: "Only admins can configure mailbox access" }, status: :forbidden
+      return render_error("Only admins can configure mailbox access", status: :forbidden)
     end
 
     # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant credential access
     credential = tenant_scoped_ms_credentials.find_by(id: params[:id])
     unless credential
-      return render json: { error: "Organization not found" }, status: :not_found
+      return render_error("Organization not found", status: :not_found)
     end
 
     # user_mailbox_access format:
@@ -556,13 +556,13 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # When enabled, OrgEmailSyncJob will sync ALL mailboxes from the tenant
   def toggle_sync_all
     unless current_user_admin?
-      return render json: { error: "Only admins can toggle sync settings" }, status: :forbidden
+      return render_error("Only admins can toggle sync settings", status: :forbidden)
     end
 
     # FRC (Feb 2026): Must be tenant-scoped
     credential = tenant_scoped_ms_credentials.find_by(id: params[:id])
     unless credential
-      return render json: { error: "Organization not found" }, status: :not_found
+      return render_error("Organization not found", status: :not_found)
     end
 
     sync_all = ActiveModel::Type::Boolean.new.cast(params[:sync_all])
@@ -594,13 +594,13 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Trigger a full email sync for this organization
   def sync
     unless current_user_admin?
-      return render json: { error: "Only admins can trigger syncs" }, status: :forbidden
+      return render_error("Only admins can trigger syncs", status: :forbidden)
     end
 
     # FRC (Feb 2026): Must be tenant-scoped
     credential = tenant_scoped_ms_credentials.find_by(id: params[:id])
     unless credential
-      return render json: { error: "Organization not found" }, status: :not_found
+      return render_error("Organization not found", status: :not_found)
     end
 
     full_sync = params[:full_sync] == true || params[:full_sync] == "true"
@@ -618,7 +618,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Remove the organization-wide Microsoft access for a specific org
   def disconnect
     unless current_user_admin?
-      return render json: { error: "Only admins can disconnect organization-wide Microsoft access" }, status: :forbidden
+      return render_error("Only admins can disconnect organization-wide Microsoft access", status: :forbidden)
     end
 
     # Support disconnecting specific org by id or name
@@ -641,7 +641,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
         message: "Organization-wide Microsoft access for #{org_name} has been disconnected"
       }
     else
-      render json: { error: "No organization found to disconnect" }, status: :not_found
+      render_error("No organization found to disconnect", status: :not_found)
     end
   end
 
@@ -653,12 +653,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # List all SharePoint sites in the tenant
   def sharepoint_sites
     unless current_user_admin?
-      return render json: { error: "Only admins can view SharePoint sites" }, status: :forbidden
+      return render_error("Only admins can view SharePoint sites", status: :forbidden)
     end
 
     credential = find_credential_with_org_context
     unless credential&.status == "connected"
-      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
+      return render_error("Organization Microsoft access not connected", status: :not_found)
     end
 
     begin
@@ -670,7 +670,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
         total: sites.count
       }
     rescue MicrosoftAppGraphClient::ApiError => e
-      render json: { error: e.message }, status: :unprocessable_entity
+      render_error(e.message)
     end
   end
 
@@ -678,17 +678,17 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # List drives (document libraries) for a SharePoint site
   def site_drives
     unless current_user_admin?
-      return render json: { error: "Only admins can view site drives" }, status: :forbidden
+      return render_error("Only admins can view site drives", status: :forbidden)
     end
 
     site_id = params[:site_id]
     unless site_id.present?
-      return render json: { error: "site_id is required" }, status: :bad_request
+      return render_error("site_id is required", status: :bad_request)
     end
 
     credential = find_credential_with_org_context
     unless credential&.status == "connected"
-      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
+      return render_error("Organization Microsoft access not connected", status: :not_found)
     end
 
     begin
@@ -701,7 +701,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
         total: drives.count
       }
     rescue MicrosoftAppGraphClient::ApiError => e
-      render json: { error: e.message }, status: :unprocessable_entity
+      render_error(e.message)
     end
   end
 
@@ -709,17 +709,17 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Browse files in a drive (SharePoint or OneDrive)
   def browse
     unless current_user_admin?
-      return render json: { error: "Only admins can browse files" }, status: :forbidden
+      return render_error("Only admins can browse files", status: :forbidden)
     end
 
     drive_id = params[:drive_id]
     unless drive_id.present?
-      return render json: { error: "drive_id is required" }, status: :bad_request
+      return render_error("drive_id is required", status: :bad_request)
     end
 
     credential = find_credential_with_org_context
     unless credential&.status == "connected"
-      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
+      return render_error("Organization Microsoft access not connected", status: :not_found)
     end
 
     begin
@@ -739,7 +739,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
         total: items.count
       }
     rescue MicrosoftAppGraphClient::ApiError => e
-      render json: { error: e.message }, status: :unprocessable_entity
+      render_error(e.message)
     end
   end
 
@@ -747,17 +747,17 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Search across all SharePoint sites in the tenant
   def search_files
     unless current_user_admin?
-      return render json: { error: "Only admins can search files" }, status: :forbidden
+      return render_error("Only admins can search files", status: :forbidden)
     end
 
     query = params[:q]
     unless query.present?
-      return render json: { error: "q (search query) is required" }, status: :bad_request
+      return render_error("q (search query) is required", status: :bad_request)
     end
 
     credential = find_credential_with_org_context
     unless credential&.status == "connected"
-      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
+      return render_error("Organization Microsoft access not connected", status: :not_found)
     end
 
     begin
@@ -777,7 +777,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
         total: results.count
       }
     rescue MicrosoftAppGraphClient::ApiError => e
-      render json: { error: e.message }, status: :unprocessable_entity
+      render_error(e.message)
     end
   end
 
@@ -785,12 +785,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Test SharePoint access specifically
   def test_sharepoint
     unless current_user_admin?
-      return render json: { error: "Only admins can test SharePoint access" }, status: :forbidden
+      return render_error("Only admins can test SharePoint access", status: :forbidden)
     end
 
     credential = find_credential_with_org_context
     unless credential&.status == "connected"
-      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
+      return render_error("Organization Microsoft access not connected", status: :not_found)
     end
 
     begin
@@ -815,17 +815,17 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Bulk import M365 users as Teeem users (Contact + User + Role + Employee link)
   def import_users
     unless current_user_admin?
-      return render json: { error: "Only admins can import users" }, status: :forbidden
+      return render_error("Only admins can import users", status: :forbidden)
     end
 
     microsoft_user_ids = params[:microsoft_user_ids]
     if microsoft_user_ids.blank? || !microsoft_user_ids.is_a?(Array)
-      return render json: { error: "microsoft_user_ids array is required" }, status: :bad_request
+      return render_error("microsoft_user_ids array is required", status: :bad_request)
     end
 
     credential = find_credential_with_org_context
     unless credential&.status == "connected"
-      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
+      return render_error("Organization Microsoft access not connected", status: :not_found)
     end
 
     # Clear cache to ensure fresh data with has_license field
@@ -834,7 +834,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
     selected_users = all_m365_users.select { |u| microsoft_user_ids.include?(u[:id]) }
 
     if selected_users.empty?
-      return render json: { error: "No matching Microsoft 365 users found" }, status: :not_found
+      return render_error("No matching Microsoft 365 users found", status: :not_found)
     end
 
     # Get existing tenant user emails for duplicate detection
@@ -924,7 +924,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Sync emails to SyncedEmail and upload to configured storage provider (SSoT: WarehouseProvider)
   def sync_to_storage
     unless current_user_admin?
-      return render json: { error: "Only admins can trigger storage sync" }, status: :forbidden
+      return render_error("Only admins can trigger storage sync", status: :forbidden)
     end
 
     # Queue the storage upload job (respects WarehouseProvider provider)
@@ -956,7 +956,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Get current TEEEM SharePoint configuration for attachment storage
   def sharepoint_config
     unless current_user_admin?
-      return render json: { error: "Only admins can view SharePoint configuration" }, status: :forbidden
+      return render_error("Only admins can view SharePoint configuration", status: :forbidden)
     end
 
     # FRC (Feb 2026): Must be tenant-scoped for credential lookup
@@ -985,14 +985,14 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # This discovers available sites and drives for selection
   def configure_sharepoint
     unless current_user_admin?
-      return render json: { error: "Only admins can configure SharePoint" }, status: :forbidden
+      return render_error("Only admins can configure SharePoint", status: :forbidden)
     end
 
     # Get the credential to use for SharePoint (org-scoped)
     credential = find_credential_with_org_context
 
     unless credential&.status == "connected"
-      return render json: { error: "No connected Microsoft credential found" }, status: :not_found
+      return render_error("No connected Microsoft credential found", status: :not_found)
     end
 
     begin
@@ -1044,7 +1044,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Update TEEEM's SharePoint configuration for attachment storage
   def update_sharepoint_config
     unless current_user_admin?
-      return render json: { error: "Only admins can configure SharePoint" }, status: :forbidden
+      return render_error("Only admins can configure SharePoint", status: :forbidden)
     end
 
     site_id = params[:site_id]
@@ -1052,14 +1052,14 @@ class Api::V1::MicrosoftAppController < ApplicationController
     drive_name = params[:drive_name]
 
     unless site_id.present? && drive_id.present?
-      return render json: { error: "site_id and drive_id are required" }, status: :bad_request
+      return render_error("site_id and drive_id are required", status: :bad_request)
     end
 
     # SSoT: Update WarehouseProvider instead of MicrosoftCredential
     # MicrosoftCredential only holds auth tokens, WarehouseProvider holds connection config
     storage_config = WarehouseProvider.instance
     unless storage_config
-      return render json: { error: "No WarehouseProvider found" }, status: :not_found
+      return render_error("No WarehouseProvider found", status: :not_found)
     end
 
     # Update the SharePoint connection config
@@ -1094,22 +1094,22 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Trigger backfill job to upload existing attachments to SharePoint
   def backfill_attachments
     unless current_user_admin?
-      return render json: { error: "Only admins can trigger attachment backfill" }, status: :forbidden
+      return render_error("Only admins can trigger attachment backfill", status: :forbidden)
     end
 
     organization_id = params[:organization_id]
     unless organization_id.present?
-      return render json: { error: "organization_id is required" }, status: :bad_request
+      return render_error("organization_id is required", status: :bad_request)
     end
 
     # FRC (Feb 2026): Must be tenant-scoped
     credential = tenant_scoped_ms_credentials.find_by(id: organization_id)
     unless credential&.status == "connected"
-      return render json: { error: "Organization not connected" }, status: :not_found
+      return render_error("Organization not connected", status: :not_found)
     end
 
     unless WarehouseProvider.instance&.connected?
-      return render json: { error: "Storage not configured. Please configure storage provider first." }, status: :unprocessable_entity
+      return render_error("Storage not configured. Please configure storage provider first.")
     end
 
     # Queue the backfill job

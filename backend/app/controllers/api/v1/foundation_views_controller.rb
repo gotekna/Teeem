@@ -69,10 +69,7 @@ module Api
       # POST /api/v1/foundation_views
       def create
         unless current_user
-          return render json: {
-            success: false,
-            error: "Authentication required to save views"
-          }, status: :unauthorized
+          return render_error("Authentication required to save views", status: :unauthorized)
         end
 
         # Get params and resolve foundation_id (supports both slug and numeric ID)
@@ -80,10 +77,7 @@ module Api
         if view_params[:foundation_id].present?
           resolved_id = resolve_foundation_id(view_params[:foundation_id])
           unless resolved_id
-            return render json: {
-              success: false,
-              error: "Foundation not found for: #{view_params[:foundation_id]}"
-            }, status: :not_found
+            return render_error("Foundation not found for: #{view_params[:foundation_id]}", status: :not_found)
           end
           view_params = view_params.merge(foundation_id: resolved_id)
         end
@@ -97,10 +91,7 @@ module Api
             message: "View saved successfully"
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @foundation_view.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@foundation_view)
         end
       end
 
@@ -115,10 +106,7 @@ module Api
             message: "View updated successfully"
           }
         else
-          render json: {
-            success: false,
-            errors: @foundation_view.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@foundation_view)
         end
       end
 
@@ -139,10 +127,7 @@ module Api
         orders = params[:orders] # Array of {id: X, display_order: Y}
 
         if orders.blank?
-          return render json: {
-            success: false,
-            error: "No orders provided"
-          }, status: :unprocessable_entity
+          return render_error("No orders provided", status: :unprocessable_entity)
         end
 
         begin
@@ -169,17 +154,11 @@ module Api
         rescue ActiveRecord::RecordNotFound => e
           Rails.logger.error "[Reorder] RecordNotFound: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render json: {
-            success: false,
-            error: "One or more views not found"
-          }, status: :not_found
+          render_error("One or more views not found", status: :not_found)
         rescue => e
           Rails.logger.error "[Reorder] Error: #{e.class.name}: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -188,10 +167,7 @@ module Api
       # Only authenticated users can save global views
       def save_global
         unless current_user
-          return render json: {
-            success: false,
-            error: "Authentication required to save global views"
-          }, status: :unauthorized
+          return render_error("Authentication required to save global views", status: :unauthorized)
         end
 
         # Support both nested foundation_view params (from frontend) and direct params (backward compatibility)
@@ -200,19 +176,13 @@ module Api
         view_name = view_data[:name] || "Default View"
 
         unless raw_foundation_id
-          return render json: {
-            success: false,
-            error: "foundation_id is required"
-          }, status: :unprocessable_entity
+          return render_error("foundation_id is required", status: :unprocessable_entity)
         end
 
         # Resolve slug to numeric ID (supports both "sm_trades" slug and numeric 531)
         foundation_id = resolve_foundation_id(raw_foundation_id)
         unless foundation_id
-          return render json: {
-            success: false,
-            error: "Foundation not found for: #{raw_foundation_id}"
-          }, status: :not_found
+          return render_error("Foundation not found for: #{raw_foundation_id}", status: :not_found)
         end
 
         # Always create a NEW global view (allow multiple global views per foundation)
@@ -250,10 +220,7 @@ module Api
             message: "Global view '#{view_name}' created successfully. All users will see this view."
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: global_view.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(global_view)
         end
       end
 
@@ -261,10 +228,7 @@ module Api
 
       def set_foundation_view
         unless current_user
-          return render json: {
-            success: false,
-            error: "Authentication required"
-          }, status: :unauthorized
+          return render_error("Authentication required", status: :unauthorized)
         end
 
         # Support both numeric ID and slug for view lookup
@@ -283,10 +247,7 @@ module Api
         end
 
         unless @foundation_view
-          render json: {
-            success: false,
-            error: "View not found"
-          }, status: :not_found
+          render_error("View not found", status: :not_found)
         end
       end
 
@@ -355,10 +316,7 @@ module Api
     # Creates Setup views for all foundations that don't have one
     def create_all_setup_views
       unless current_user
-        return render json: {
-          success: false,
-          error: "Authentication required"
-        }, status: :unauthorized
+        return render_error("Authentication required", status: :unauthorized)
       end
 
       results = {

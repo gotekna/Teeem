@@ -61,10 +61,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
         data: state.as_json
       }
     else
-      render json: {
-        success: false,
-        error: state.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(state)
     end
   end
 
@@ -127,7 +124,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
       message: "Reminder set for #{remind_at.strftime('%b %d at %I:%M %p')}"
     }
   rescue ArgumentError
-    render json: { success: false, error: "Invalid date format" }, status: :unprocessable_entity
+    render_error("Invalid date format", status: :unprocessable_entity)
   end
 
   # DELETE /api/v1/email_user_states/for_email/:email_id/clear_reminder
@@ -158,7 +155,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
     mailbox_email = params[:mailbox_email]
     folder_name = params[:folder_name] || "Inbox"
 
-    return render json: { success: false, error: "mailbox_email required" }, status: :bad_request unless mailbox_email.present?
+    return render_error("mailbox_email required", status: :bad_request) unless mailbox_email.present?
 
     # Find all unread emails in this folder
     # SSoT: Column is mailbox_owner_email, not mailbox_email
@@ -187,7 +184,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
   rescue StandardError => e
     Rails.logger.error("[mark_folder_read] Error: #{e.class} - #{e.message}")
     Rails.logger.error(e.backtrace.first(5).join("\n"))
-    render json: { success: false, error: "Failed to mark folder as read: #{e.message}" }, status: :internal_server_error
+    render_error("Failed to mark folder as read: #{e.message}", status: :internal_server_error)
   end
 
   # POST /api/v1/email_user_states/bulk_action
@@ -196,8 +193,8 @@ class Api::V1::EmailUserStatesController < ApplicationController
     email_ids = params[:email_ids] || []
     action = params[:action_type]
 
-    return render json: { success: false, error: "No emails provided" }, status: :bad_request if email_ids.empty?
-    return render json: { success: false, error: "Invalid action" }, status: :bad_request unless %w[pin unpin star unstar archive unarchive mark_read mark_unread].include?(action)
+    return render_error("No emails provided", status: :bad_request) if email_ids.empty?
+    return render_error("Invalid action", status: :bad_request) unless %w[pin unpin star unstar archive unarchive mark_read mark_unread].include?(action)
 
     affected = 0
 
@@ -249,14 +246,14 @@ class Api::V1::EmailUserStatesController < ApplicationController
     email = SyncedEmail.unscoped.find_by(id: params[:email_id])
 
     if email.nil?
-      render json: { success: false, error: "Email not found" }, status: :not_found
+      render_error("Email not found", status: :not_found)
     elsif email.tenant_id.nil? && current_tenant.present?
       # Auto-fix legacy emails with NULL tenant_id
       Rails.logger.info "[EmailUserStates] Auto-fixing NULL tenant_id on email #{email.id}"
       email.update_column(:tenant_id, current_tenant.id)
       @email = email
     else
-      render json: { success: false, error: "Email not accessible" }, status: :not_found
+      render_error("Email not accessible", status: :not_found)
     end
   end
 

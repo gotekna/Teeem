@@ -46,10 +46,7 @@ module Api
             bank_account: @bank_account.as_json(methods: [ :display_name, :formatted_bsb ])
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @bank_account.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@bank_account)
         end
       end
 
@@ -62,10 +59,7 @@ module Api
             bank_account: @bank_account.as_json(methods: [ :display_name, :formatted_bsb ])
           }
         else
-          render json: {
-            success: false,
-            errors: @bank_account.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@bank_account)
         end
       end
 
@@ -83,7 +77,7 @@ module Api
       def set_bank_account
         @bank_account = BankAccount.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Bank account not found" }, status: :not_found
+        render_error("Bank account not found", status: :not_found)
       end
 
       def bank_account_params

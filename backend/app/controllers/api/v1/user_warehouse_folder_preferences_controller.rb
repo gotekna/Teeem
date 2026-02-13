@@ -7,7 +7,7 @@ class Api::V1::UserWarehouseFolderPreferencesController < ApplicationController
     scope_name = params[:scope]
 
     unless UserWarehouseFolderPreference::SCOPES.include?(scope_name)
-      return render json: { success: false, error: "Invalid scope: #{scope_name}" }, status: :unprocessable_entity
+      return render_error("Invalid scope: #{scope_name}", status: :unprocessable_entity)
     end
 
     preference = UserWarehouseFolderPreference.find_by(user: current_user, scope: scope_name)
@@ -29,7 +29,7 @@ class Api::V1::UserWarehouseFolderPreferencesController < ApplicationController
     scope_name = params[:scope]
 
     unless UserWarehouseFolderPreference::SCOPES.include?(scope_name)
-      return render json: { success: false, error: "Invalid scope: #{scope_name}" }, status: :unprocessable_entity
+      return render_error("Invalid scope: #{scope_name}", status: :unprocessable_entity)
     end
 
     preference = UserWarehouseFolderPreference.for_user_scope(current_user, scope_name)
@@ -45,7 +45,7 @@ class Api::V1::UserWarehouseFolderPreferencesController < ApplicationController
         }
       }
     else
-      render json: { success: false, error: preference.errors.full_messages.join(', ') }, status: :unprocessable_entity
+      render_validation_errors(preference)
     end
   end
 
@@ -56,11 +56,11 @@ class Api::V1::UserWarehouseFolderPreferencesController < ApplicationController
     tab_key = params[:tab_key]
 
     unless UserWarehouseFolderPreference::SCOPES.include?(scope_name)
-      return render json: { success: false, error: "Invalid scope: #{scope_name}" }, status: :unprocessable_entity
+      return render_error("Invalid scope: #{scope_name}", status: :unprocessable_entity)
     end
 
     unless tab_key.present?
-      return render json: { success: false, error: "tab_key is required" }, status: :unprocessable_entity
+      return render_error("tab_key is required", status: :unprocessable_entity)
     end
 
     preference = UserWarehouseFolderPreference.for_user_scope(current_user, scope_name)
@@ -84,7 +84,7 @@ class Api::V1::UserWarehouseFolderPreferencesController < ApplicationController
     tab_key = params[:tab_key]
 
     unless UserWarehouseFolderPreference::SCOPES.include?(scope_name)
-      return render json: { success: false, error: "Invalid scope: #{scope_name}" }, status: :unprocessable_entity
+      return render_error("Invalid scope: #{scope_name}", status: :unprocessable_entity)
     end
 
     preference = UserWarehouseFolderPreference.for_user_scope(current_user, scope_name)
@@ -111,7 +111,7 @@ class Api::V1::UserWarehouseFolderPreferencesController < ApplicationController
     tab_order = params[:tab_order]
 
     unless UserWarehouseFolderPreference::SCOPES.include?(scope_name)
-      return render json: { success: false, error: "Invalid scope: #{scope_name}" }, status: :unprocessable_entity
+      return render_error("Invalid scope: #{scope_name}", status: :unprocessable_entity)
     end
 
     preference = UserWarehouseFolderPreference.for_user_scope(current_user, scope_name)

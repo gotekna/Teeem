@@ -104,14 +104,23 @@ class HerokuPlatformService
   DEV_DB_TARGETS = %w[teeem-rob-dev teeem-jake-dev].freeze
 
   class << self
+    # SSoT for Heroku API key access
+    def api_key
+      ENV["HEROKU_API_KEY"].presence || raise("HEROKU_API_KEY not configured")
+    end
+
+    def api_key?
+      ENV["HEROKU_API_KEY"].present?
+    end
+
     # Points target dev apps' DATABASE_URL to the source dev app's database.
     # This lets Jake Dev and Rob Dev share Sam Dev's database.
     def share_dev_database
-      api_key = ENV["HEROKU_API_KEY"]
-      return { success: false, error: "HEROKU_API_KEY not configured" } unless api_key.present?
+      return { success: false, error: "HEROKU_API_KEY not configured" } unless api_key?
+      key = api_key
 
       # Get Sam Dev's DATABASE_URL
-      source_config = heroku_get(api_key, "/apps/#{DEV_DB_SOURCE}/config-vars")
+      source_config = heroku_get(key, "/apps/#{DEV_DB_SOURCE}/config-vars")
       return { success: false, error: "Could not read #{DEV_DB_SOURCE} config vars" } unless source_config
       source_db_url = source_config["DATABASE_URL"]
       return { success: false, error: "#{DEV_DB_SOURCE} has no DATABASE_URL" } unless source_db_url.present?
@@ -119,7 +128,7 @@ class HerokuPlatformService
       results = {}
       DEV_DB_TARGETS.each do |target_app|
         # Check current DATABASE_URL
-        target_config = heroku_get(api_key, "/apps/#{target_app}/config-vars")
+        target_config = heroku_get(key, "/apps/#{target_app}/config-vars")
         current_url = target_config&.dig("DATABASE_URL")
 
         if current_url == source_db_url
@@ -128,7 +137,7 @@ class HerokuPlatformService
         end
 
         # Set DATABASE_URL to Sam Dev's (this restarts the app)
-        result = heroku_patch(api_key, "/apps/#{target_app}/config-vars", { "DATABASE_URL" => source_db_url })
+        result = heroku_patch(key, "/apps/#{target_app}/config-vars", { "DATABASE_URL" => source_db_url })
         if result
           results[target_app] = { status: "updated", message: "Now using #{DEV_DB_SOURCE} database", previousUrl: current_url&.truncate(40) }
         else
@@ -141,8 +150,7 @@ class HerokuPlatformService
     end
 
     def scale_dyno(app_name, dyno_type, quantity)
-      api_key = ENV["HEROKU_API_KEY"]
-      return { success: false, error: "HEROKU_API_KEY not configured" } unless api_key.present?
+      return { success: false, error: "HEROKU_API_KEY not configured" } unless api_key?
       return { success: false, error: "Only dev apps can be scaled from the dashboard" } unless app_name.in?(DEV_APPS)
       return { success: false, error: "Quantity must be 0 or 1" } unless quantity.in?([0, 1])
 
@@ -188,8 +196,7 @@ class HerokuPlatformService
     private
 
     def fetch_from_heroku
-      api_key = ENV["HEROKU_API_KEY"]
-      unless api_key.present?
+      unless api_key?
         return {
           dynos: [],
           addons: [],
@@ -200,6 +207,8 @@ class HerokuPlatformService
         }
       end
 
+      key = api_key
+
       all_dynos = []
       all_addons = []
       errors = []
@@ -207,8 +216,8 @@ class HerokuPlatformService
       # Query all apps in parallel using threads
       threads = APPS.map do |app_name|
         Thread.new(app_name) do |app|
-          formation = fetch_formation(api_key, app)
-          addons = fetch_addons(api_key, app)
+          formation = fetch_formation(key, app)
+          addons = fetch_addons(key, app)
           [app, formation, addons]
         rescue => e
           Rails.logger.error("[HerokuPlatformService] Failed to fetch #{app}: #{e.message}")
@@ -271,6 +280,7 @@ class HerokuPlatformService
         addons: all_addons.sort_by { |a| [a[:addonServiceName], a[:app]] },
         externalServices: EXTERNAL_SERVICES,
         savingsHistory: SAVINGS_HISTORY,
+        apiKeyStatus: fetch_api_key_status,
         fetchedAt: Time.current.iso8601
       }
       result[:errors] = errors if errors.any?
@@ -343,6 +353,83 @@ class HerokuPlatformService
         obj.map { |v| deep_scrub_strings(v) }
       else
         obj
+      end
+    end
+
+    def fetch_api_key_status
+      keys = []
+
+      # ENV-based API keys
+      {
+        "Anthropic" => "ANTHROPIC_API_KEY",
+        "Vercel" => "VERCEL_TOKEN",
+        "Heroku" => "HEROKU_API_KEY",
+        "AWS" => "AWS_ACCESS_KEY_ID",
+        "Sentry" => "SENTRY_DSN",
+        "Stripe" => "STRIPE_SECRET_KEY",
+        "Twilio" => "TWILIO_AUTH_TOKEN",
+        "SendGrid" => "SENDGRID_API_KEY",
+        "Basiq" => "BASIQ_API_KEY",
+        "OpenAI" => "OPENAI_API_KEY"
+      }.each do |name, env_var|
+        val = ENV[env_var]
+        keys << {
+          name: name,
+          type: "api_key",
+          status: val.present? ? "active" : "missing",
+          envVar: env_var,
+          lastChars: val.present? ? "...#{val.last(4)}" : nil
+        }
+      end
+
+      # Xero OAuth credentials (have token expiry)
+      XeroCredential.all.each do |cred|
+        keys << {
+          name: "Xero (#{cred.xero_tenant_name.presence || cred.id})",
+          type: "oauth",
+          status: cred.connected? ? "active" : (cred.expired? ? "expired" : cred.status),
+          expiresAt: cred.expires_at&.iso8601,
+          expiresIn: cred.token_expiry_text
+        }
+      end
+
+      # Microsoft OAuth credentials (have token expiry)
+      MicrosoftCredential.all.each do |cred|
+        keys << {
+          name: "Microsoft (#{cred.credential_type} - #{cred.email.presence || cred.id})",
+          type: "oauth",
+          status: cred.connected? ? "active" : (cred.token_expired? ? "expired" : cred.status),
+          expiresAt: cred.token_expires_at&.iso8601,
+          expiresIn: cred.token_expires_at.present? ? time_until(cred.token_expires_at) : nil
+        }
+      end
+
+      # S3 credentials (Wasabi)
+      S3CompatibleCredential.all.each do |cred|
+        keys << {
+          name: "S3/Wasabi (#{cred.provider_type.presence || 'default'})",
+          type: "api_key",
+          status: cred.status == "connected" ? "active" : cred.status,
+          lastChars: cred.access_key_id.present? ? "...#{cred.access_key_id.last(4)}" : nil
+        }
+      end
+
+      keys
+    rescue StandardError => e
+      Rails.logger.error("[HerokuPlatformService] API key status check failed: #{e.message}")
+      []
+    end
+
+    def time_until(time)
+      return nil unless time
+      diff = time - Time.current
+      return "Expired" if diff <= 0
+      if diff < 1.hour
+        "#{(diff / 60).round}m"
+      elsif diff < 1.day
+        "#{(diff / 1.hour).round}h"
+      else
+        "#{(diff / 1.day).round}d"
       end
     end
 

@@ -130,7 +130,7 @@ module Api
         when "completion_notice"
           send_completion_notice(task, recipients)
         else
-          return render json: { success: false, error: "Invalid notification type" }, status: :bad_request
+          return render_error("Invalid notification type", status: :bad_request)
         end
 
         render json: {
@@ -164,7 +164,7 @@ module Api
         if settings.update(notification_settings_params)
           render json: { success: true }
         else
-          render json: { success: false, errors: settings.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(settings)
         end
       end
 

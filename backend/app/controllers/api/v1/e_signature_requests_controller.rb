@@ -55,10 +55,7 @@ class Api::V1::ESignatureRequestsController < ApplicationController
           e_signature_request: request_json(request.reload, include_details: true)
         }, status: :created
       else
-        render json: {
-          success: false,
-          errors: request.errors.full_messages
-        }, status: :unprocessable_entity
+        render_validation_errors(request)
         raise ActiveRecord::Rollback
       end
     end
@@ -80,10 +77,7 @@ class Api::V1::ESignatureRequestsController < ApplicationController
         e_signature_request: request_json(@request, include_details: true)
       }
     else
-      render json: {
-        success: false,
-        errors: @request.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@request)
     end
   end
 
@@ -263,10 +257,7 @@ class Api::V1::ESignatureRequestsController < ApplicationController
         signer: signer_json(signer)
       }, status: :created
     else
-      render json: {
-        success: false,
-        errors: signer.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(signer)
     end
   end
 

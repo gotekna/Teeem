@@ -35,10 +35,7 @@ class Api::V1::WHSSettingsController < ApplicationController
         }
       }
     else
-      render json: {
-        success: false,
-        error: "Setting not found"
-      }, status: :not_found
+      render_error("Setting not found", status: :not_found)
     end
   end
 
@@ -52,10 +49,7 @@ class Api::V1::WHSSettingsController < ApplicationController
         data: setting.as_json
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: setting.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(setting)
     end
   end
 
@@ -67,10 +61,7 @@ class Api::V1::WHSSettingsController < ApplicationController
         data: @whs_setting.as_json
       }
     else
-      render json: {
-        success: false,
-        error: @whs_setting.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@whs_setting)
     end
   end
 
@@ -94,10 +85,7 @@ class Api::V1::WHSSettingsController < ApplicationController
         }
       }
     rescue => e
-      render json: {
-        success: false,
-        error: e.message
-      }, status: :unprocessable_entity
+      render_error(e.message, status: :unprocessable_entity)
     end
   end
 
@@ -109,10 +97,7 @@ class Api::V1::WHSSettingsController < ApplicationController
         data: { message: "Setting deleted successfully" }
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to delete setting"
-      }, status: :unprocessable_entity
+      render_error("Failed to delete setting", status: :unprocessable_entity)
     end
   end
 

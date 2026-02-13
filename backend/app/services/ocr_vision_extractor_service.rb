@@ -4,11 +4,11 @@
 # Replaced Tesseract OCR (Feb 2026) to eliminate system package dependencies
 #
 # Usage:
-#   service = OcrExtractionService.new(bill_inbox)
+#   service = OcrVisionExtractorService.new(bill_inbox)
 #   result = service.extract!
 #   # => { text: "full text", words: [{text, x, y, width, height, confidence, page}], pages: [...] }
 #
-class OcrExtractionService
+class OcrVisionExtractorService
   include AnthropicClient
 
   def initialize(bill_inbox)

@@ -32,7 +32,7 @@ module Api
         if pack.save
           render json: { success: true, data: pack_json(pack, include_line_items: true) }, status: :created
         else
-          render json: { success: false, error: pack.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(pack)
         end
       end
 
@@ -43,7 +43,7 @@ module Api
         if @pack.update(pack_params)
           render json: { success: true, data: pack_json(@pack.reload, include_line_items: true) }
         else
-          render json: { success: false, error: @pack.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@pack)
         end
       end
 

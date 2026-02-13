@@ -21,7 +21,7 @@ module Api
         if @group.save
           render json: { success: true, navigation_group: full_group_json(@group) }, status: :created
         else
-          render json: { success: false, errors: @group.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@group)
         end
       end
 
@@ -30,7 +30,7 @@ module Api
         if @group.update(group_params)
           render json: { success: true, navigation_group: full_group_json(@group) }
         else
-          render json: { success: false, errors: @group.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@group)
         end
       end
 

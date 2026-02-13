@@ -871,7 +871,7 @@ class SyncedEmail < ApplicationRecord
   end
 
   # Extract text from all attached PDF files
-  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
+  # SSoT: Uses OcrTextExtractorService for all PDF text extraction
   # Note: Uses WarehouseDocument (Jan 2026 - email_attachments table dropped)
   def extract_pdf_text
     return nil unless attachment_documents.any?
@@ -887,7 +887,7 @@ class SyncedEmail < ApplicationRecord
         content = doc.storage_blob.download
         next unless content.present?
 
-        result = PdfTextExtractionService.extract(content, join_pages: true)
+        result = OcrTextExtractorService.extract(content, join_pages: true)
         next unless result[:success]
 
         pdf_texts << {

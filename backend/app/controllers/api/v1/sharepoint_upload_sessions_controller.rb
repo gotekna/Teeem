@@ -48,10 +48,7 @@ module Api
         begin
           setup_default_provider!
           unless current_provider_type == :sharepoint
-            return render json: {
-              success: false,
-              error: "Direct upload sessions are only available for SharePoint storage. Current provider: #{current_provider_type}. Use standard upload endpoints for #{current_provider_type}."
-            }, status: :unprocessable_entity
+            return render_error("Direct upload sessions are only available for SharePoint storage. Current provider: #{current_provider_type}. Use standard upload endpoints for #{current_provider_type}.", status: :unprocessable_entity)
           end
         rescue DocumentProviders::NotConnectedError
           # Fall through to SharePoint credential check below
@@ -59,10 +56,7 @@ module Api
 
         credential = MicrosoftCredential.sharepoint_credential
         unless credential&.valid_credential?
-          return render json: {
-            success: false,
-            error: "SharePoint not connected. Please connect in Admin > System > Connections."
-          }, status: :unauthorized
+          return render_error("SharePoint not connected. Please connect in Admin > System > Connections.", status: :unauthorized)
         end
 
         filename = params[:filename]
@@ -72,10 +66,7 @@ module Api
         job_id = params[:job_id]
 
         unless filename.present? && file_size > 0
-          return render json: {
-            success: false,
-            error: "filename and file_size are required"
-          }, status: :bad_request
+          return render_error("filename and file_size are required", status: :bad_request)
         end
 
         begin
@@ -113,10 +104,7 @@ module Api
           end
 
           unless folder_id.present?
-            return render json: {
-              success: false,
-              error: "folder_id or folder_path with job_id required"
-            }, status: :bad_request
+            return render_error("folder_id or folder_path with job_id required", status: :bad_request)
           end
 
           # Sanitize filename for SharePoint
@@ -128,10 +116,7 @@ module Api
           session = client.create_upload_session(folder_id, safe_filename, file_size)
 
           unless session && session["uploadUrl"].present?
-            return render json: {
-              success: false,
-              error: "Failed to create upload session"
-            }, status: :unprocessable_entity
+            return render_error("Failed to create upload session", status: :unprocessable_entity)
           end
 
           Rails.logger.info "[SharePointUploadSession] Created session for #{safe_filename} (#{file_size} bytes) in folder #{folder_id}"
@@ -150,10 +135,10 @@ module Api
           Rails.logger.error "[SharePointUploadSession] API error: #{e.message}"
           render json: { success: false, error: e.message }, status: :unprocessable_entity
         rescue ActiveRecord::RecordNotFound => e
-          render json: { success: false, error: "Job not found" }, status: :not_found
+          render_error("Job not found", status: :not_found)
         rescue => e
           Rails.logger.error "[SharePointUploadSession] Unexpected error: #{e.class} - #{e.message}"
-          render json: { success: false, error: "Failed to create upload session" }, status: :internal_server_error
+          render_error("Failed to create upload session", status: :internal_server_error)
         end
       end
 
@@ -209,7 +194,7 @@ module Api
 
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: "Job not found" }, status: :not_found
+        render_error("Job not found", status: :not_found)
       rescue => e
         Rails.logger.error "[SharePointUploadSession] Complete error: #{e.class} - #{e.message}"
         # Don't fail the whole request - file is already uploaded

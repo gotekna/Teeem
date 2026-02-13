@@ -39,10 +39,7 @@ class Api::V1::WHSInspectionTemplatesController < ApplicationController
         data: template.reload.as_json(include: serialization_includes)
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: template.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(template)
     end
   end
 
@@ -54,10 +51,7 @@ class Api::V1::WHSInspectionTemplatesController < ApplicationController
         data: @whs_inspection_template.reload.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: @whs_inspection_template.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@whs_inspection_template)
     end
   end
 
@@ -69,10 +63,7 @@ class Api::V1::WHSInspectionTemplatesController < ApplicationController
         data: { message: "Inspection template deleted successfully" }
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to delete inspection template"
-      }, status: :unprocessable_entity
+      render_error("Failed to delete inspection template", status: :unprocessable_entity)
     end
   end
 

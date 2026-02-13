@@ -63,10 +63,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
         data: action_item.reload.as_json(include: serialization_includes)
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: action_item.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(action_item)
     end
   end
 
@@ -78,10 +75,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
         data: @whs_action_item.reload.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: @whs_action_item.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@whs_action_item)
     end
   end
 
@@ -93,10 +87,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
         data: { message: "Action item deleted successfully" }
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to delete action item"
-      }, status: :unprocessable_entity
+      render_error("Failed to delete action item", status: :unprocessable_entity)
     end
   end
 
@@ -108,10 +99,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
         data: @whs_action_item.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot start action item"
-      }, status: :unprocessable_entity
+      render_error("Cannot start action item", status: :unprocessable_entity)
     end
   end
 
@@ -125,10 +113,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
         data: @whs_action_item.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot complete action item"
-      }, status: :unprocessable_entity
+      render_error("Cannot complete action item", status: :unprocessable_entity)
     end
   end
 
@@ -140,10 +125,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
         data: @whs_action_item.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot cancel action item"
-      }, status: :unprocessable_entity
+      render_error("Cannot cancel action item", status: :unprocessable_entity)
     end
   end
 

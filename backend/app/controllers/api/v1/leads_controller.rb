@@ -44,10 +44,7 @@ module Api
             lead: lead_to_json(@lead)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @lead.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@lead)
         end
       end
 
@@ -59,10 +56,7 @@ module Api
             lead: lead_to_json(@lead)
           }
         else
-          render json: {
-            success: false,
-            errors: @lead.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@lead)
         end
       end
 
@@ -79,10 +73,7 @@ module Api
       # PATCH /api/v1/leads/:id/status
       def update_status
         unless Lead::STATUSES.include?(params[:status])
-          return render json: {
-            success: false,
-            error: "Invalid status. Valid statuses: #{Lead::STATUSES.join(', ')}"
-          }, status: :unprocessable_entity
+          return render_error("Invalid status. Valid statuses: #{Lead::STATUSES.join(', ')}", status: :unprocessable_entity)
         end
 
         if @lead.update(status: params[:status])
@@ -91,10 +82,7 @@ module Api
             lead: lead_to_json(@lead)
           }
         else
-          render json: {
-            success: false,
-            errors: @lead.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@lead)
         end
       end
 
@@ -103,10 +91,7 @@ module Api
       def set_lead
         @lead = Lead.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Lead not found"
-        }, status: :not_found
+        render_error("Lead not found", status: :not_found)
       end
 
       def lead_params

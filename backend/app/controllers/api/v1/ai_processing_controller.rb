@@ -27,10 +27,7 @@ module Api
             data: serialize_config(@config)
           }
         else
-          render json: {
-            success: false,
-            error: @config.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@config)
         end
       end
 
@@ -74,7 +71,7 @@ module Api
           data: serialize_log(log, detailed: true)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Log not found" }, status: :not_found
+        render_error("Log not found", status: :not_found)
       end
 
       # GET /api/v1/ai_processing/stats
@@ -113,10 +110,7 @@ module Api
         log = AiProcessingLog.find(params[:id])
 
         unless params[:corrected_to].present?
-          return render json: {
-            success: false,
-            error: "corrected_to is required"
-          }, status: :unprocessable_entity
+          return render_error("corrected_to is required")
         end
 
         log.record_correction!(params[:corrected_to], user: current_user)
@@ -126,7 +120,7 @@ module Api
           data: serialize_log(log)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Log not found" }, status: :not_found
+        render_error("Log not found", status: :not_found)
       end
 
       # GET /api/v1/ai_processing/insights/:service_type
@@ -136,10 +130,7 @@ module Api
         days = (params[:days] || 30).to_i.clamp(1, 365)
 
         unless AiServiceConfig::SERVICE_TYPES.key?(service_type)
-          return render json: {
-            success: false,
-            error: "Invalid service type"
-          }, status: :bad_request
+          return render_error("Invalid service type", status: :bad_request)
         end
 
         config = AiServiceConfig.for(service_type)
@@ -224,7 +215,7 @@ module Api
       def set_config
         @config = AiServiceConfig.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Config not found" }, status: :not_found
+        render_error("Config not found", status: :not_found)
       end
 
       def config_params

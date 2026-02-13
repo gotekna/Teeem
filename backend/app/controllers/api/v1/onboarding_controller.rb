@@ -34,10 +34,7 @@ module Api
         step = service.step_status(step_key)
 
         if step.nil?
-          return render json: {
-            success: false,
-            error: "Unknown step: #{step_key}"
-          }, status: :not_found
+          return render_error("Unknown step: #{step_key}", status: :not_found)
         end
 
         render json: {
@@ -57,10 +54,7 @@ module Api
 
         user = User.find_by(id: user_id)
         unless user
-          return render json: {
-            success: false,
-            error: "User not found"
-          }, status: :not_found
+          return render_error("User not found", status: :not_found)
         end
 
         sm_task.update!(assigned_user: user)
@@ -81,10 +75,7 @@ module Api
         return render_step_not_found(step_key) unless step
 
         if step[:required]
-          return render json: {
-            success: false,
-            error: "Cannot skip required step"
-          }, status: :unprocessable_entity
+          return render_error("Cannot skip required step", status: :unprocessable_entity)
         end
 
         sm_task = find_onboarding_task(step_key)
@@ -129,10 +120,7 @@ module Api
         template_type = params[:type].to_sym
 
         unless valid_template_type?(template_type)
-          return render json: {
-            success: false,
-            error: "Invalid template type: #{template_type}"
-          }, status: :unprocessable_entity
+          return render_error("Invalid template type: #{template_type}", status: :unprocessable_entity)
         end
 
         xlsx_data = TemplateGeneratorService.generate_template(template_type, current_tenant)
@@ -149,10 +137,7 @@ module Api
         file = params[:file]
 
         unless import_type && file
-          return render json: {
-            success: false,
-            error: "type and file are required"
-          }, status: :unprocessable_entity
+          return render_error("type and file are required", status: :unprocessable_entity)
         end
 
         rows = parse_file(file)
@@ -172,10 +157,7 @@ module Api
         file = params[:file]
 
         unless import_type && file
-          return render json: {
-            success: false,
-            error: "type and file are required"
-          }, status: :unprocessable_entity
+          return render_error("type and file are required", status: :unprocessable_entity)
         end
 
         # Create audit log
@@ -279,10 +261,7 @@ module Api
         template_type = params[:type].to_sym
 
         unless valid_template_type?(template_type)
-          return render json: {
-            success: false,
-            error: "Invalid template type: #{template_type}"
-          }, status: :unprocessable_entity
+          return render_error("Invalid template type: #{template_type}", status: :unprocessable_entity)
         end
 
         xlsx_data = TemplateGeneratorService.generate_template(template_type, current_tenant)
@@ -298,10 +277,7 @@ module Api
         files = extract_files_from_params
 
         if files.empty?
-          return render json: {
-            success: false,
-            error: "No files provided"
-          }, status: :unprocessable_entity
+          return render_error("No files provided", status: :unprocessable_entity)
         end
 
         service = DataImportService.new(current_tenant, files)
@@ -321,10 +297,7 @@ module Api
         files = extract_files_from_params
 
         if files.empty?
-          return render json: {
-            success: false,
-            error: "No files provided"
-          }, status: :unprocessable_entity
+          return render_error("No files provided", status: :unprocessable_entity)
         end
 
         service = DataImportService.new(current_tenant, files)
@@ -352,10 +325,7 @@ module Api
         export_type = params[:type].to_sym
 
         unless valid_template_type?(export_type)
-          return render json: {
-            success: false,
-            error: "Invalid export type: #{export_type}"
-          }, status: :unprocessable_entity
+          return render_error("Invalid export type: #{export_type}", status: :unprocessable_entity)
         end
 
         xlsx_data = DataExportService.export(current_tenant, export_type)
@@ -389,17 +359,11 @@ module Api
       end
 
       def render_task_not_found(step_key)
-        render json: {
-          success: false,
-          error: "Onboarding task not found for step: #{step_key}"
-        }, status: :not_found
+        render_error("Onboarding task not found for step: #{step_key}", status: :not_found)
       end
 
       def render_step_not_found(step_key)
-        render json: {
-          success: false,
-          error: "Unknown step: #{step_key}"
-        }, status: :not_found
+        render_error("Unknown step: #{step_key}", status: :not_found)
       end
 
       def valid_template_type?(type)

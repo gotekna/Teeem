@@ -87,9 +87,9 @@ class AsicConnectService
     end
   end
 
-  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
+  # SSoT: Uses OcrTextExtractorService for all PDF text extraction
   def parse_pdf_extract(file_path)
-    result = PdfTextExtractionService.extract(file_path, join_pages: true)
+    result = OcrTextExtractorService.extract(file_path, join_pages: true)
 
     unless result[:success]
       return {

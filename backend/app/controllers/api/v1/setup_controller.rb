@@ -30,10 +30,7 @@ module Api
           Rails.logger.error("Failed to pull setup data from local: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
 
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -163,10 +160,7 @@ module Api
         Rails.logger.error("Failed to sync #{type}: #{error.message}")
         Rails.logger.error(error.backtrace.join("\n"))
 
-        render json: {
-          success: false,
-          error: error.message
-        }, status: :unprocessable_entity
+        render_error(error.message, status: :unprocessable_entity)
       end
     end
   end

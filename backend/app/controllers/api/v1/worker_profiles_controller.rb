@@ -78,10 +78,7 @@ class Api::V1::WorkerProfilesController < ApplicationController
         data: worker_to_json(@worker)
       }, status: :created
     else
-      render json: {
-        success: false,
-        errors: @worker.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@worker)
     end
   end
 
@@ -93,10 +90,7 @@ class Api::V1::WorkerProfilesController < ApplicationController
         data: worker_to_json(@worker)
       }
     else
-      render json: {
-        success: false,
-        errors: @worker.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@worker)
     end
   end
 
@@ -104,7 +98,7 @@ class Api::V1::WorkerProfilesController < ApplicationController
   # Upload a profile photo for face verification
   def upload_face_photo
     unless params[:photo].present?
-      return render json: { success: false, error: "Photo is required" }, status: :bad_request
+      return render_error("Photo is required", status: :bad_request)
     end
 
     # TODO: Upload to S3/Cloudinary and store URL
@@ -124,10 +118,7 @@ class Api::V1::WorkerProfilesController < ApplicationController
         }
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to upload photo"
-      }, status: :unprocessable_entity
+      render_error("Failed to upload photo", status: :unprocessable_entity)
     end
   end
 
@@ -135,14 +126,11 @@ class Api::V1::WorkerProfilesController < ApplicationController
   # Verify a photo against stored face photo
   def verify_face
     unless params[:photo_url].present?
-      return render json: { success: false, error: "Photo URL is required" }, status: :bad_request
+      return render_error("Photo URL is required", status: :bad_request)
     end
 
     unless @worker.profile_photo_url.present?
-      return render json: {
-        success: false,
-        error: "No profile photo on file for verification"
-      }, status: :unprocessable_entity
+      return render_error("No profile photo on file for verification", status: :unprocessable_entity)
     end
 
     # TODO: Call AWS Rekognition for face comparison (returns placeholder for now)
@@ -161,7 +149,7 @@ class Api::V1::WorkerProfilesController < ApplicationController
   def set_worker_profile
     @worker = WorkerProfile.find(params[:id])
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "Worker profile not found" }, status: :not_found
+    render_error("Worker profile not found", status: :not_found)
   end
 
   def worker_profile_params

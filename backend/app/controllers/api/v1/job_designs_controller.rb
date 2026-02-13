@@ -58,7 +58,7 @@ module Api
         if @design.save
           render json: { success: true, design: @design }, status: :created
         else
-          render json: { success: false, errors: @design.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@design)
         end
       end
 
@@ -67,7 +67,7 @@ module Api
         if @design.update(design_params)
           render json: { success: true, design: @design }
         else
-          render json: { success: false, errors: @design.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@design)
         end
       end
 
@@ -75,10 +75,7 @@ module Api
       # Soft delete - set is_active to false
       def destroy
         if @design.jobs.any?
-          return render json: {
-            success: false,
-            error: "Cannot delete design that is assigned to jobs"
-          }, status: :unprocessable_entity
+          return render_error("Cannot delete design that is assigned to jobs", status: :unprocessable_entity)
         end
 
         @design.update(is_active: false)
@@ -90,7 +87,7 @@ module Api
       def set_design
         @design = JobDesign.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "JobDesign not found" }, status: :not_found
+        render_error("JobDesign not found", status: :not_found)
       end
 
       def design_params

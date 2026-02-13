@@ -29,10 +29,7 @@ module Api
             sync_configuration: serialize_config(@sync_configuration)
           }
         else
-          render json: {
-            success: false,
-            errors: @sync_configuration.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@sync_configuration)
         end
       end
 

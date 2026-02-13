@@ -6,7 +6,7 @@
 #
 # Runs all 3 classification methods independently and stores results for each:
 #   1. Name Match — DocumentTypeMatcher + content type hints (fast, <50ms)
-#   2. Content Match — OCR/text search via ContentMatchService (100-500ms for PDFs)
+#   2. Content Match — OCR/text search via OcrPatternMatcherService (100-500ms for PDFs)
 #   3. AI Match — Claude Haiku when enabled (500-2000ms)
 #
 # All methods use DocumentType records from the database (not hardcoded categories).
@@ -138,10 +138,10 @@ class DocumentClassificationService
   end
 
   # ═══════════════════════════════════════════════════════════════
-  # Method 2: Content Match (OCR text search via ContentMatchService)
+  # Method 2: Content Match (OCR text search via OcrPatternMatcherService)
   # ═══════════════════════════════════════════════════════════════
   def run_content_match
-    result = ContentMatchService.new(@item, document_types: @active_document_types).classify
+    result = OcrPatternMatcherService.new(@item, document_types: @active_document_types).classify
 
     {
       document_type: result[:document_type],
@@ -297,7 +297,7 @@ class DocumentClassificationService
     if @content_type == 'application/pdf' && @item.storage_blob.present?
       begin
         content = @item.storage_blob.download
-        result = PdfTextExtractionService.extract(content, pages: [1], join_pages: true)
+        result = OcrTextExtractorService.extract(content, pages: [1], join_pages: true)
         context[:first_page_text] = result[:text].to_s.first(2000) if result[:success]
       rescue StandardError => e
         Rails.logger.debug "[DocumentClassificationService] PDF extraction failed: #{e.message}"

@@ -49,10 +49,7 @@ module Api
             data: serialize_account(@account)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @account.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@account)
         end
       end
 
@@ -64,10 +61,7 @@ module Api
             data: serialize_account(@account)
           }
         else
-          render json: {
-            success: false,
-            errors: @account.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@account)
         end
       end
 
@@ -358,10 +352,7 @@ module Api
         connection = company.corporate_xero_connection
 
         unless connection
-          return render json: {
-            success: false,
-            error: "No Xero connection for this company"
-          }, status: :not_found
+          return render_error("No Xero connection for this company", status: :not_found)
         end
 
         @accounts = connection.corporate_xero_accounts

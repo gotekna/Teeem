@@ -43,10 +43,7 @@ module Api
             relationship: serialize_relationship(@relationship)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @relationship.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@relationship)
         end
       end
 
@@ -58,10 +55,7 @@ module Api
             relationship: serialize_relationship(@relationship)
           }
         else
-          render json: {
-            success: false,
-            errors: @relationship.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@relationship)
         end
       end
 

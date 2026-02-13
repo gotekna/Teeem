@@ -17,7 +17,7 @@ class Api::V1::LocationTrackingController < ApplicationController
   # Receive single location update from mobile device
   def ping
     unless @active_session
-      return render json: { success: false, error: "No active session" }, status: :unprocessable_entity
+      return render_error("No active session", status: :unprocessable_entity)
     end
 
     location_ping = @active_session.location_pings.build(ping_params)
@@ -34,7 +34,7 @@ class Api::V1::LocationTrackingController < ApplicationController
         }
       }
     else
-      render json: { success: false, errors: location_ping.errors.full_messages }, status: :unprocessable_entity
+      render_validation_errors(location_ping)
     end
   end
 
@@ -42,7 +42,7 @@ class Api::V1::LocationTrackingController < ApplicationController
   # Receive batch of location updates (for offline sync)
   def batch_ping
     unless @active_session
-      return render json: { success: false, error: "No active session" }, status: :unprocessable_entity
+      return render_error("No active session", status: :unprocessable_entity)
     end
 
     pings = params[:pings] || []
@@ -89,7 +89,7 @@ class Api::V1::LocationTrackingController < ApplicationController
 
     # Authorization: only session owner, supervisors, or admins
     unless can_view_session?(session)
-      return render json: { success: false, error: "Unauthorized" }, status: :forbidden
+      return render_error("Unauthorized", status: :forbidden)
     end
 
     pings = session.location_pings.chronological
@@ -128,7 +128,7 @@ class Api::V1::LocationTrackingController < ApplicationController
     # Only supervisors and admins can view live locations
     # SSoT: Use has_role? (user.role column was removed, roles are now in user_roles table)
     unless current_user&.admin? || current_user&.has_role?('supervisor') || current_user&.has_role?('manager')
-      return render json: { success: false, error: "Unauthorized" }, status: :forbidden
+      return render_error("Unauthorized", status: :forbidden)
     end
 
     active_sessions = SitePresenceSession.active.includes(:worker_profile, :job, :location_pings)
@@ -189,7 +189,7 @@ class Api::V1::LocationTrackingController < ApplicationController
   def geofence_events
     # SSoT: Use has_role? (user.role column was removed, roles are now in user_roles table)
     unless current_user&.admin? || current_user&.has_role?('supervisor') || current_user&.has_role?('manager')
-      return render json: { success: false, error: "Unauthorized" }, status: :forbidden
+      return render_error("Unauthorized", status: :forbidden)
     end
 
     events = GeofenceEvent.recent

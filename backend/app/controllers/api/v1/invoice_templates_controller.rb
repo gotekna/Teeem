@@ -38,8 +38,7 @@ module Api
           render json: { success: true, data: template_json(@template, include_sections: true) },
                  status: :created
         else
-          render json: { success: false, error: @template.errors.full_messages.join(", ") },
-                 status: :unprocessable_entity
+          render_validation_errors(@template)
         end
       end
 
@@ -48,16 +47,14 @@ module Api
         if @template.update(template_params)
           render json: { success: true, data: template_json(@template, include_sections: true) }
         else
-          render json: { success: false, error: @template.errors.full_messages.join(", ") },
-                 status: :unprocessable_entity
+          render_validation_errors(@template)
         end
       end
 
       # DELETE /api/v1/invoice_templates/:id
       def destroy
         if @template.is_default?
-          return render json: { success: false, error: "Cannot delete the default template" },
-                        status: :unprocessable_entity
+          return render_error("Cannot delete the default template", status: :unprocessable_entity)
         end
 
         @template.destroy
@@ -74,8 +71,7 @@ module Api
           render json: { success: true, data: template_json(new_template, include_sections: true) },
                  status: :created
         else
-          render json: { success: false, error: new_template.errors.full_messages.join(", ") },
-                 status: :unprocessable_entity
+          render_validation_errors(new_template)
         end
       end
 
@@ -109,7 +105,7 @@ module Api
       def set_template
         @template = InvoiceTemplate.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Template not found" }, status: :not_found
+        render_error("Template not found", status: :not_found)
       end
 
       def template_params

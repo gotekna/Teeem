@@ -33,8 +33,7 @@ module Api
         if variable.save
           render json: { success: true, variable: variable.as_json }, status: :created
         else
-          render json: { success: false, error: variable.errors.full_messages.join(', ') },
-                 status: :unprocessable_entity
+          render_validation_errors(variable)
         end
       end
 
@@ -49,8 +48,7 @@ module Api
         if @variable.update(variable_params)
           render json: { success: true, variable: @variable.as_json }
         else
-          render json: { success: false, error: @variable.errors.full_messages.join(', ') },
-                 status: :unprocessable_entity
+          render_validation_errors(@variable)
         end
       end
 

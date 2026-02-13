@@ -37,7 +37,7 @@ module Api
         if @position.save
           render json: { success: true, data: position_json(@position) }, status: :created
         else
-          render json: { success: false, error: @position.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@position)
         end
       end
 
@@ -52,7 +52,7 @@ module Api
           render json: { success: true, data: position_json(@position) }
         else
           Rails.logger.error "[PDF] Update failed! Errors: #{@position.errors.full_messages.join(', ')}"
-          render json: { success: false, error: @position.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@position)
         end
       rescue StandardError => e
         Rails.logger.error "[PDF] Exception in update: #{e.class} - #{e.message}"
@@ -73,7 +73,7 @@ module Api
         template_key = params[:template]&.to_sym
 
         unless PdfFieldPosition::TEMPLATE_KEYS.include?(template_key.to_s)
-          return render json: { success: false, error: "Invalid template key" }, status: :bad_request
+          return render_error("Invalid template key", status: :bad_request)
         end
 
         job = params[:job_id].present? ? Job.find_by(id: params[:job_id]) : Job.first
@@ -97,7 +97,7 @@ module Api
         template_key = params[:template]
 
         unless template_key.present?
-          return render json: { success: false, error: "Template key required" }, status: :bad_request
+          return render_error("Template key required", status: :bad_request)
         end
 
         result = PdfFormParserService.parse(template_key)
@@ -148,12 +148,12 @@ module Api
         job_id = params[:job_id]
 
         unless template_key.present? && job_id.present?
-          return render json: { success: false, error: "template and job_id required" }, status: :bad_request
+          return render_error("template and job_id required", status: :bad_request)
         end
 
         job = Job.find_by(id: job_id)
         unless job
-          return render json: { success: false, error: "Job not found" }, status: :not_found
+          return render_error("Job not found", status: :not_found)
         end
 
         # Get computed values from PDF overlay engine
@@ -176,7 +176,7 @@ module Api
         template_key = params[:template]
 
         unless template_key.present?
-          return render json: { success: false, error: "Template key required" }, status: :bad_request
+          return render_error("Template key required", status: :bad_request)
         end
 
         # Map template key to file path
@@ -189,7 +189,7 @@ module Api
         pdf_path = template_paths[template_key]
 
         unless pdf_path && File.exist?(pdf_path)
-          return render json: { success: false, error: "Template not found: #{template_key}" }, status: :not_found
+          return render_error("Template not found: #{template_key}", status: :not_found)
         end
 
         send_file pdf_path,

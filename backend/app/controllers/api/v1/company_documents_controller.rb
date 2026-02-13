@@ -94,10 +94,10 @@ module Api
         if url.present?
           render json: { success: true, preview_url: url }
         else
-          render json: { success: false, error: "Preview not available for this document" }
+          render_error("Preview not available for this document")
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Document not found" }, status: :not_found
+        render_error("Document not found", status: :not_found)
       end
 
       # GET /api/v1/company_documents/:id/content
@@ -106,7 +106,7 @@ module Api
         doc = WarehouseDocument.find(params[:id])
 
         unless doc.storage_blob
-          return render json: { success: false, error: "No file content available" }, status: :not_found
+          return render_error("No file content available", status: :not_found)
         end
 
         send_data doc.storage_blob.download,
@@ -114,7 +114,7 @@ module Api
                   type: doc.storage_blob.content_type || "application/octet-stream",
                   disposition: "inline"
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Document not found" }, status: :not_found
+        render_error("Document not found", status: :not_found)
       end
 
       # GET /api/v1/company_documents/:id/download
@@ -127,10 +127,10 @@ module Api
         if url.present?
           redirect_to url, allow_other_host: true
         else
-          render json: { success: false, error: "Download not available" }, status: :not_found
+          render_error("Download not available", status: :not_found)
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Document not found" }, status: :not_found
+        render_error("Document not found", status: :not_found)
       end
 
       # POST /api/v1/company_documents/:id/validate
@@ -151,7 +151,78 @@ module Api
           validated_by: current_user&.name
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Document not found" }, status: :not_found
+        render_error("Document not found", status: :not_found)
+      end
+
+      # GET /api/v1/company_documents/:id/classification
+      # Returns OCR and AI classification breakdown for a document
+      # Used by the DocumentPreviewModal to show 3-column comparison
+      #
+      # Response:
+      #   {
+      #     success: true,
+      #     has_classification: true,
+      #     winner: "content_match",
+      #     ocr: { document_type: "...", confidence: 85, signals: [...], ... },
+      #     ai: { document_type: "...", confidence: 92, signals: [...], ... },
+      #     name_match: { document_type: "...", confidence: 70, signals: [...], ... },
+      #     classified_at: "2026-02-14T10:30:00Z"
+      #   }
+      #
+      def classification
+        doc = WarehouseDocument.find(params[:id])
+
+        # Try to find the associated DocumentInbox via metadata
+        inbox_id = doc.metadata&.dig("document_inbox_id")
+        inbox = inbox_id ? DocumentInbox.find_by(id: inbox_id) : nil
+
+        # Extract classification_result JSONB from DocumentInbox
+        classification = inbox&.classification_result || {}
+        methods = classification.is_a?(Hash) ? (classification["methods"] || classification[:methods] || {}) : {}
+
+        # Build OCR breakdown from content_match method
+        content_match = methods["content_match"] || methods[:content_match] || {}
+        ocr_data = {
+          document_type: content_match["document_type"] || content_match[:document_type],
+          confidence: ((content_match["confidence"] || content_match[:confidence] || 0).to_f * 100).round,
+          signals: content_match["signals"] || content_match[:signals] || content_match["matched_terms"] || content_match[:matched_terms] || [],
+          text_preview: content_match["text_preview"] || content_match[:text_preview],
+          status: content_match["status"] || content_match[:status] || "not_available",
+          duration_ms: content_match["duration_ms"] || content_match[:duration_ms]
+        }
+
+        # Build AI breakdown from ai_match method
+        ai_match = methods["ai_match"] || methods[:ai_match] || {}
+        ai_data = {
+          document_type: ai_match["document_type"] || ai_match[:document_type],
+          confidence: ((ai_match["confidence"] || ai_match[:confidence] || 0).to_f * 100).round,
+          signals: ai_match["signals"] || ai_match[:signals] || [],
+          status: ai_match["status"] || ai_match[:status] || "not_available",
+          duration_ms: ai_match["duration_ms"] || ai_match[:duration_ms],
+          suggested_folder: doc.metadata&.dig("ai_suggested_folder"),
+          suggested_name: doc.metadata&.dig("ai_suggested_name")
+        }
+
+        # Name match data
+        name_match = methods["name_match"] || methods[:name_match] || {}
+        name_data = {
+          document_type: name_match["document_type"] || name_match[:document_type],
+          confidence: ((name_match["confidence"] || name_match[:confidence] || 0).to_f * 100).round,
+          signals: name_match["signals"] || name_match[:signals] || [],
+          status: name_match["status"] || name_match[:status] || "not_available"
+        }
+
+        render json: {
+          success: true,
+          has_classification: inbox.present? && classification.present?,
+          winner: classification["winner"] || classification[:winner],
+          ocr: ocr_data,
+          ai: ai_data,
+          name_match: name_data,
+          classified_at: classification["classified_at"] || classification[:classified_at]
+        }
+      rescue ActiveRecord::RecordNotFound
+        render_error("Document not found", status: :not_found)
       end
 
       # GET /api/v1/company_documents/counts
@@ -167,7 +238,7 @@ module Api
         company_id = params[:company_id]
 
         unless company_id.present?
-          return render json: { success: false, error: "company_id is required" }, status: :bad_request
+          return render_error("company_id is required", status: :bad_request)
         end
 
         # SSoT: Query WarehouseDocument for corporate documents with this company_id

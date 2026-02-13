@@ -50,7 +50,7 @@ module Api
         contact = Contact.find(params[:contact_id])
 
         if contact.is_saas_customer?
-          render json: { success: false, error: "Contact is already a SaaS customer" }, status: :unprocessable_entity
+          render_error("Contact is already a SaaS customer", status: :unprocessable_entity)
           return
         end
 
@@ -61,7 +61,7 @@ module Api
         if contact.save
           render json: { success: true, data: customer_json(contact, full: true) }, status: :created
         else
-          render json: { success: false, error: contact.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(contact)
         end
       end
 
@@ -70,7 +70,7 @@ module Api
         if @customer.update(saas_customer_params)
           render json: { success: true, data: customer_json(@customer, full: true) }
         else
-          render json: { success: false, error: @customer.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@customer)
         end
       end
 

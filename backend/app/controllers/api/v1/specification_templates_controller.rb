@@ -28,7 +28,7 @@ module Api
         if template.save
           render json: { success: true, data: template_json(template) }, status: :created
         else
-          render json: { success: false, error: template.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(template)
         end
       end
 
@@ -37,7 +37,7 @@ module Api
         if @template.update(template_params)
           render json: { success: true, data: template_json(@template) }
         else
-          render json: { success: false, error: @template.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@template)
         end
       end
 
@@ -54,7 +54,7 @@ module Api
         if template
           render json: { success: true, data: template_json(template) }
         else
-          render json: { success: false, error: "No template found" }, status: :not_found
+          render_error("No template found", status: :not_found)
         end
       end
 

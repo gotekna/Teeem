@@ -66,10 +66,7 @@ module Api
             }, status: :created
           end
         else
-          render json: {
-            success: false,
-            error: credential.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(credential)
         end
       end
 
@@ -90,10 +87,7 @@ module Api
             data: credential_json(@credential)
           }
         else
-          render json: {
-            success: false,
-            error: @credential.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@credential)
         end
       end
 
@@ -115,10 +109,7 @@ module Api
             }
           }
         else
-          render json: {
-            success: false,
-            error: @credential.error_message || "Connection test failed"
-          }
+          render_error(@credential.error_message || "Connection test failed")
         end
       end
 
@@ -127,7 +118,7 @@ module Api
       def set_credential
         @credential = PolarisCredential.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Credential not found" }, status: :not_found
+        render_error("Credential not found", status: :not_found)
       end
 
       def credential_json(credential)

@@ -61,7 +61,7 @@ module Api
 
       def destroy
         if @process.has_active_instances?
-          render json: { success: false, error: "Cannot delete process with active instances" }, status: :unprocessable_entity
+          render_error("Cannot delete process with active instances", status: :unprocessable_entity)
         else
           @process.destroy!
           render json: { success: true }
@@ -102,7 +102,7 @@ module Api
       # Regenerate BPMN XML from database nodes (for processes created programmatically)
       def regenerate_xml
         if @process.bpmn_nodes.empty?
-          render json: { success: false, error: "No nodes found for this process" }, status: :unprocessable_entity
+          render_error("No nodes found for this process", status: :unprocessable_entity)
           return
         end
 
@@ -113,7 +113,7 @@ module Api
           message: "BPMN XML regenerated from #{@process.bpmn_nodes.count} nodes"
         }
       rescue StandardError => e
-        render json: { success: false, error: "Failed to regenerate XML: #{e.message}" }, status: :unprocessable_entity
+        render_error("Failed to regenerate XML: #{e.message}", status: :unprocessable_entity)
       end
 
       # POST /api/v1/bpmn_processes/:id/test_run
@@ -122,7 +122,7 @@ module Api
         job = Job.find_by(id: params[:job_id])
 
         unless job
-          render json: { success: false, error: "Job not found" }, status: :not_found
+          render_error("Job not found", status: :not_found)
           return
         end
 
@@ -134,14 +134,14 @@ module Api
 
         # Check that the process has a start node
         unless @process.start_node
-          render json: { success: false, error: "Workflow must have a Start Event. Please add one and save." }, status: :unprocessable_entity
+          render_error("Workflow must have a Start Event. Please add one and save.", status: :unprocessable_entity)
           return
         end
 
         # Check valid structure
         validation_errors = @process.validate_structure
         if validation_errors.any?
-          render json: { success: false, error: "Workflow issues: #{validation_errors.join(', ')}" }, status: :unprocessable_entity
+          render_error("Workflow issues: #{validation_errors.join(', ')}", status: :unprocessable_entity)
           return
         end
 
@@ -189,7 +189,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Test run failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
-          render json: { success: false, error: "Test run failed: #{e.message}" }, status: :unprocessable_entity
+          render_error("Test run failed: #{e.message}", status: :unprocessable_entity)
         end
       end
 
@@ -197,7 +197,7 @@ module Api
       # Import a Compoza BPMN XML file
       def import
         unless params[:file].present? || params[:xml_content].present?
-          render json: { success: false, error: "No BPMN file or content provided" }, status: :bad_request
+          render_error("No BPMN file or content provided", status: :bad_request)
           return
         end
 
@@ -228,7 +228,7 @@ module Api
         render json: { success: false, error: e.message }, status: :unprocessable_entity
       rescue StandardError => e
         Rails.logger.error("BPMN Import failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
-        render json: { success: false, error: "Import failed: #{e.message}" }, status: :unprocessable_entity
+        render_error("Import failed: #{e.message}", status: :unprocessable_entity)
       end
 
       private

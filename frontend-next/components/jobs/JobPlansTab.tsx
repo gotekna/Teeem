@@ -660,7 +660,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
-  // Handle re-extract single plan from PDF (uses PdfTextExtractionService SSoT)
+  // Handle re-extract single plan from PDF (uses OcrTextExtractorService SSoT)
   const handleReprocess = async (plan: JobPlan) => {
     const fileId = plan.current_revision?.storage_item_id || plan.current_revision?.storage_file_id;
     if (!fileId) {

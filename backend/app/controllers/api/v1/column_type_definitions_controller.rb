@@ -54,10 +54,7 @@ module Api
             message: "Column type definition created successfully"
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: @definition.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@definition)
         end
       end
 
@@ -76,10 +73,7 @@ module Api
             message: "Column type definition updated successfully"
           }
         else
-          render json: {
-            success: false,
-            error: @definition.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@definition)
         end
       end
 
@@ -88,10 +82,7 @@ module Api
       def destroy
         # Check if any columns are using this type
         if @definition.columns.exists?
-          render json: {
-            success: false,
-            error: "Cannot delete type definition that is in use by #{@definition.columns.count} column(s)"
-          }, status: :unprocessable_entity
+          render_error("Cannot delete type definition that is in use by #{@definition.columns.count} column(s)", status: :unprocessable_entity)
           return
         end
 
@@ -155,10 +146,7 @@ module Api
 
       def require_admin!
         unless current_user&.admin?
-          render json: {
-            success: false,
-            error: "Admin access required"
-          }, status: :forbidden
+          render_error("Admin access required", status: :forbidden)
         end
       end
 

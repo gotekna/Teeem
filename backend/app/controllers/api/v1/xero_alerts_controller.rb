@@ -148,7 +148,7 @@ module Api
         # Ensure user can access this alert
         company = current_user.corporate
         if company && @alert.corporate_id && @alert.corporate_id != company.id
-          render json: { success: false, error: "Not authorized" }, status: :forbidden
+          render_error("Not authorized", status: :forbidden)
         end
       end
 

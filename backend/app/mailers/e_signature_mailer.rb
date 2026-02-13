@@ -107,16 +107,7 @@ class ESignatureMailer < ApplicationMailer
 
   def signing_url_for(signer)
     token = signer.generate_access_token!
-    frontend_url = ENV.fetch("FRONTEND_URL") {
-      app_name = ENV["HEROKU_APP_NAME"].to_s
-      if app_name.include?("staging")
-        "https://teeem-staging.vercel.app"
-      elsif app_name.include?("beta")
-        "https://teeem-beta.vercel.app"
-      else
-        "https://teeem.vercel.app"
-      end
-    }
+    frontend_url = InfrastructureUrls.frontend_url
     "#{frontend_url}/sign/#{token}"
   end
 end

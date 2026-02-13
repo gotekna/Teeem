@@ -44,9 +44,6 @@ class Api::V1::WritingAssistantController < ApplicationController
   rescue StandardError => e
     Rails.logger.error "[WritingAssistant] Controller error: #{e.message}"
     Rails.logger.error "[WritingAssistant] Backtrace: #{e.backtrace.first(3).join("\n")}"
-    render json: {
-      success: false,
-      error: "Writing check failed. Please try again."
-    }, status: :internal_server_error
+    render_error("Writing check failed. Please try again.", status: :internal_server_error)
   end
 end

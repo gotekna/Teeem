@@ -53,10 +53,7 @@ class Api::V1::VipSendersController < ApplicationController
         data: vip.as_json
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: vip.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(vip)
     end
   end
 
@@ -68,10 +65,7 @@ class Api::V1::VipSendersController < ApplicationController
         data: @vip.as_json
       }
     else
-      render json: {
-        success: false,
-        error: @vip.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@vip)
     end
   end
 
@@ -89,7 +83,7 @@ class Api::V1::VipSendersController < ApplicationController
   # Toggle VIP status for an email address
   def toggle
     email_address = params[:email_address]
-    return render json: { success: false, error: "Email address required" }, status: :bad_request if email_address.blank?
+    return render_error("Email address required", status: :bad_request) if email_address.blank?
 
     result = VipSender.toggle!(
       user: current_user,
@@ -111,7 +105,7 @@ class Api::V1::VipSendersController < ApplicationController
   # Check if an email address is VIP
   def check
     email_address = params[:email_address]
-    return render json: { success: false, error: "Email address required" }, status: :bad_request if email_address.blank?
+    return render_error("Email address required", status: :bad_request) if email_address.blank?
 
     vip = current_user.vip_senders.find_by(email_address: email_address.downcase)
 

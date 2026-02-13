@@ -38,7 +38,7 @@ module Api
         render json: { success: true, id: id }
       rescue => e
         Rails.logger.error "[ViewerContexts#create] Error: #{e.message}"
-        render json: { success: false, error: "Failed to store context" }, status: :internal_server_error
+        render_error("Failed to store context", status: :internal_server_error)
       end
 
       # GET /api/v1/viewer_contexts/:id
@@ -51,11 +51,11 @@ module Api
         if cached
           render json: { success: true, context: JSON.parse(cached) }
         else
-          render json: { success: false, error: "Context not found or expired" }, status: :not_found
+          render_error("Context not found or expired", status: :not_found)
         end
       rescue => e
         Rails.logger.error "[ViewerContexts#show] Error: #{e.message}"
-        render json: { success: false, error: "Failed to retrieve context" }, status: :internal_server_error
+        render_error("Failed to retrieve context", status: :internal_server_error)
       end
     end
   end

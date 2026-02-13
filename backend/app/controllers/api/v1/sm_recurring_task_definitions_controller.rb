@@ -70,10 +70,7 @@ module Api
             message: 'Recurring task definition created successfully'
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: definition.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          render_validation_errors(definition)
         end
       end
 
@@ -88,10 +85,7 @@ module Api
             message: 'Recurring task definition updated successfully'
           }
         else
-          render json: {
-            success: false,
-            error: @definition.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          render_validation_errors(@definition)
         end
       end
 
@@ -103,10 +97,7 @@ module Api
             message: 'Recurring task definition deleted successfully'
           }
         else
-          render json: {
-            success: false,
-            error: 'Failed to delete recurring task definition'
-          }, status: :unprocessable_entity
+          render_error('Failed to delete recurring task definition', status: :unprocessable_entity)
         end
       end
 

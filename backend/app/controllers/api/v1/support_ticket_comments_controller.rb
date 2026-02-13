@@ -30,10 +30,7 @@ module Api
             }
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: @comment.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@comment)
         end
       end
 

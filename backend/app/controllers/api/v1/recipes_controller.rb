@@ -36,8 +36,7 @@ module Api
         if recipe.save
           render json: { success: true, recipe: recipe.as_json }, status: :created
         else
-          render json: { success: false, error: recipe.errors.full_messages.join(', ') },
-                 status: :unprocessable_entity
+          render_validation_errors(recipe)
         end
       end
 
@@ -46,8 +45,7 @@ module Api
         if @recipe.update(recipe_params)
           render json: { success: true, recipe: @recipe.as_json }
         else
-          render json: { success: false, error: @recipe.errors.full_messages.join(', ') },
-                 status: :unprocessable_entity
+          render_validation_errors(@recipe)
         end
       end
 

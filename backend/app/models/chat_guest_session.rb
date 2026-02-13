@@ -61,7 +61,7 @@ class ChatGuestSession < ApplicationRecord
 
   # URL for sharing (frontend route)
   def share_url
-    host = Rails.env.production? ? "https://teeem.vercel.app" : "http://localhost:3000"
+    host = InfrastructureUrls.frontend_url
     "#{host}/guest/chat/#{token}"
   end
 

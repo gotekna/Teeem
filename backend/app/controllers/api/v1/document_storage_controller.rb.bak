@@ -1154,13 +1154,13 @@ module Api
 
         # Require user auth for actual downloads, allow preview without auth
         unless is_preview || current_user
-          return render_error("Authentication required for downloads", status: :unauthorized)
+          return render json: { error: "Authentication required for downloads" }, status: :unauthorized
         end
 
         file_id = params[:file_id]
 
         unless file_id
-          return render_error("No file_id provided", status: :bad_request)
+          return render json: { error: "No file_id provided" }, status: :bad_request
         end
 
         begin
@@ -1185,9 +1185,9 @@ module Api
           end
 
         rescue DocumentProviders::NotFoundError => e
-          render_error("File not found: #{e.message}", status: :not_found)
+          render json: { error: "File not found: #{e.message}" }, status: :not_found
         rescue DocumentProviders::NotConnectedError => e
-          render_error("Storage not connected: #{e.message}", status: :unauthorized)
+          render json: { error: "Storage not connected: #{e.message}" }, status: :unauthorized
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
           render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
@@ -1195,7 +1195,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error "Failed to download file: #{e.message}"
           Rails.logger.error e.backtrace.first(5).join("\n")
-          render_error("Failed to download file: #{e.message}", status: :internal_server_error)
+          render json: { error: "Failed to download file: #{e.message}" }, status: :internal_server_error
         end
       end
 
@@ -1321,7 +1321,7 @@ module Api
         file_id = params[:file_id]
 
         unless file_id.present?
-          return render_error("No file_id provided", status: :bad_request)
+          return render json: { error: "No file_id provided" }, status: :bad_request
         end
 
         begin
@@ -1397,7 +1397,7 @@ module Api
           render_error("SharePoint API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "[DownloadURL] Failed to get download URL: #{e.message}"
-          render_error("Failed to get download URL: #{e.message}", status: :internal_server_error)
+          render json: { error: "Failed to get download URL: #{e.message}" }, status: :internal_server_error
         end
       end
 
@@ -1421,7 +1421,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error "Failed to preview private folders: #{e.message}"
-          render_error("Failed to preview: #{e.message}", status: :internal_server_error)
+          render json: { error: "Failed to preview: #{e.message}" }, status: :internal_server_error
         end
       end
 
@@ -1444,7 +1444,7 @@ module Api
         new_folder_name = params[:new_folder_name]
 
         if record_ids.empty?
-          return render_error("No records selected", status: :bad_request)
+          return render json: { error: "No records selected" }, status: :bad_request
         end
 
         begin
@@ -1473,14 +1473,14 @@ module Api
           target_folder_id = folder_id || storage_root_folder_id
 
           unless target_folder_id
-            return render_error("No target folder specified and no root folder configured", status: :bad_request)
+            return render json: { error: "No target folder specified and no root folder configured" }, status: :bad_request
           end
 
           # Get the model class for the foundation
           model_class = get_model_for_foundation(foundation_id)
 
           unless model_class
-            return render_error("Unknown foundation: #{foundation_id}", status: :bad_request)
+            return render json: { error: "Unknown foundation: #{foundation_id}" }, status: :bad_request
           end
 
           # Get records and their attachments
@@ -1574,7 +1574,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error "Failed to copy files: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render_error("Failed to copy files: #{e.message}", status: :internal_server_error)
+          render json: { error: "Failed to copy files: #{e.message}" }, status: :internal_server_error
         end
       end
 
@@ -1600,7 +1600,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error "Failed to create private folders: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render_error("Failed to create folders: #{e.message}", status: :internal_server_error)
+          render json: { error: "Failed to create folders: #{e.message}" }, status: :internal_server_error
         end
       end
 
@@ -1614,7 +1614,7 @@ module Api
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
           Rails.logger.warn "[OneDrive Corporate Sync] No valid credential found"
-          return render_error("SharePoint not connected. Please connect in Settings first.", status: :unauthorized)
+          return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
         folder_path = params[:folder_path] || "Corporate File"
@@ -1652,7 +1652,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error "[OneDrive Corporate Sync] Exception occurred: #{e.message}"
           Rails.logger.error "[OneDrive Corporate Sync] Backtrace:\n#{e.backtrace.join("\n")}"
-          render_error("Failed to sync corporate documents: #{e.message}", status: :internal_server_error)
+          render json: { error: "Failed to sync corporate documents: #{e.message}" }, status: :internal_server_error
         end
       end
 
@@ -1876,7 +1876,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error "[Upload Signed Version] Exception: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render_error("Failed to upload signed version: #{e.message}", status: :internal_server_error)
+          render json: { error: "Failed to upload signed version: #{e.message}" }, status: :internal_server_error
         end
       end
 
@@ -1898,7 +1898,7 @@ module Api
         force = params[:force].to_s == 'true'
 
         unless job_id.present?
-          return render_error("job_id is required", status: :bad_request)
+          return render json: { error: "job_id is required" }, status: :bad_request
         end
 
         job = Job.find(job_id)
@@ -1916,7 +1916,7 @@ module Api
           full_details_count: result[:details].size
         }
       rescue ActiveRecord::RecordNotFound
-        render_error("Job not found", status: :not_found)
+        render json: { error: "Job not found" }, status: :not_found
       rescue => e
         Rails.logger.error("[BulkCategorize] Error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
         render json: { success: false, error: e.message }, status: :internal_server_error
@@ -1979,7 +1979,7 @@ module Api
         action = params[:action]
 
         unless %w[approve reject].include?(action)
-          return render_error("action must be 'approve' or 'reject'", status: :bad_request)
+          return render json: { error: "action must be 'approve' or 'reject'" }, status: :bad_request
         end
 
         if action == "reject"
@@ -2011,7 +2011,7 @@ module Api
         new_name = params[:custom_name].presence || document.meta("ai_proposed_name")
 
         unless new_name.present?
-          return render_error("No proposed name available", status: :bad_request)
+          return render json: { error: "No proposed name available" }, status: :bad_request
         end
 
         # Determine the document type
@@ -2055,13 +2055,13 @@ module Api
 
         rescue MicrosoftGraphClient::APIError => e
           Rails.logger.error "[Approve Rename] OneDrive API error: #{e.message}"
-          render_error("Failed to rename in OneDrive: #{e.message}", status: :bad_gateway)
+          render json: { error: "Failed to rename in OneDrive: #{e.message}" }, status: :bad_gateway
         rescue StandardError => e
           Rails.logger.error "[Approve Rename] Error: #{e.message}"
-          render_error("Failed to rename: #{e.message}", status: :internal_server_error)
+          render json: { error: "Failed to rename: #{e.message}" }, status: :internal_server_error
         end
       rescue ActiveRecord::RecordNotFound
-        render_error("Document not found", status: :not_found)
+        render json: { error: "Document not found" }, status: :not_found
       end
 
       # POST /api/v1/documents/bulk_approve_renames
@@ -2073,7 +2073,7 @@ module Api
         document_ids = params[:document_ids] || []
 
         if document_ids.empty?
-          return render_error("No document IDs provided", status: :bad_request)
+          return render json: { error: "No document IDs provided" }, status: :bad_request
         end
 
         credential = MicrosoftCredential.sharepoint_credential
@@ -2151,7 +2151,7 @@ module Api
         is_preview = params[:preview] == "true"
 
         unless document_id.present?
-          return render_error("document_id is required", status: :bad_request)
+          return render json: { error: "document_id is required" }, status: :bad_request
         end
 
         # FRC (Feb 2026): This endpoint skips auth (skip_before_action :authorize_request)
@@ -2161,7 +2161,7 @@ module Api
         document = ActsAsTenant.without_tenant { WarehouseDocument.find_by(id: document_id) }
 
         unless document
-          return render_error("Document not found", status: :not_found)
+          return render json: { error: "Document not found" }, status: :not_found
         end
 
         # Set tenant from document for all downstream operations
@@ -2171,7 +2171,7 @@ module Api
 
         blob = document.storage_blob
         unless blob&.storage_path.present?
-          return render_error("Document has no storage reference", status: :unprocessable_entity)
+          return render json: { error: "Document has no storage reference" }, status: :unprocessable_entity
         end
 
         begin
@@ -2201,17 +2201,17 @@ module Api
           when "sharepoint"
             download_from_sharepoint_warehouse(document, is_preview)
           else
-            render_error("Unknown storage provider: #{doc_provider}", status: :bad_request)
+            render json: { error: "Unknown storage provider: #{doc_provider}" }, status: :bad_request
           end
 
         rescue DocumentProviders::NotFoundError => e
-          render_error("File not found in storage: #{e.message}", status: :not_found)
+          render json: { error: "File not found in storage: #{e.message}" }, status: :not_found
         rescue DocumentProviders::NotConnectedError => e
-          render_error("Storage provider not connected: #{e.message}", status: :service_unavailable)
+          render json: { error: "Storage provider not connected: #{e.message}" }, status: :service_unavailable
         rescue StandardError => e
           Rails.logger.error "[WarehouseDocumentDownload] Error downloading document #{document_id}: #{e.message}"
           Rails.logger.error e.backtrace.first(5).join("\n")
-          render_error("Failed to download: #{e.message}", status: :internal_server_error)
+          render json: { error: "Failed to download: #{e.message}" }, status: :internal_server_error
         end
       end
 
@@ -2762,13 +2762,13 @@ module Api
         }
 
       rescue MicrosoftGraphClient::AuthenticationError => e
-        render_error("Authentication failed: #{e.message}", status: :unauthorized)
+        render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
       rescue MicrosoftGraphClient::APIError => e
-        render_error("OneDrive API error: #{e.message}", status: :bad_gateway)
+        render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
       rescue StandardError => e
         Rails.logger.error "Failed to change root folder by ID: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
-        render_error("Failed to change root folder: #{e.message}", status: :internal_server_error)
+        render json: { error: "Failed to change root folder: #{e.message}" }, status: :internal_server_error
       end
 
       # ============================================================================

@@ -84,17 +84,17 @@ module Api
         if storage_config.update(update_attrs)
           render json: { success: true, data: storage_config.to_config_hash }
         else
-          render json: { success: false, errors: storage_config.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(storage_config)
         end
       end
 
       # POST /api/v1/tenant_settings/sharepoint/test
       def test_sharepoint
         storage_config = WarehouseProvider.instance
-        return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity unless storage_config&.connected?
+        return render_error("SharePoint not configured", status: :unprocessable_entity) unless storage_config&.connected?
 
         credential = MicrosoftCredential.sharepoint_credential
-        return render json: { success: false, error: "No SharePoint credential found" }, status: :unprocessable_entity unless credential
+        return render_error("No SharePoint credential found", status: :unprocessable_entity) unless credential
 
         client = MicrosoftAppGraphClient.new(credential)
         site_info = client.get_site(storage_config.site_id)
@@ -124,14 +124,14 @@ module Api
         if settings.update(brand_params)
           render json: { success: true, data: { colors: TenantSetting.brand_colors, website_url: settings.website, logo_url: settings.logo_url } }
         else
-          render json: { success: false, errors: settings.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(settings)
         end
       end
 
       # POST /api/v1/tenant_settings/brand/detect
       def detect_brand
         url = params[:url]
-        return render json: { success: false, error: "URL required" }, status: :bad_request if url.blank?
+        return render_error("URL required", status: :bad_request) if url.blank?
 
         result = BrandExtractorService.extract(url)
         return render json: { success: false, error: result[:error] }, status: :unprocessable_entity unless result[:success]
@@ -152,7 +152,7 @@ module Api
       # POST /api/v1/tenant_settings/brand/apply
       def apply_brand
         url = params[:url]
-        return render json: { success: false, error: "URL required" }, status: :bad_request if url.blank?
+        return render_error("URL required", status: :bad_request) if url.blank?
 
         result = BrandExtractorService.extract(url)
         return render json: { success: false, error: result[:error] }, status: :unprocessable_entity unless result[:success]
@@ -193,7 +193,7 @@ module Api
         if settings.update(email_config_params)
           render json: { success: true, data: TenantSetting.email_config }
         else
-          render json: { success: false, errors: settings.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(settings)
         end
       end
 

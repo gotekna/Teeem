@@ -39,10 +39,7 @@ module Api
             job_status: job_status_json(@job_status)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @job_status.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@job_status)
         end
       end
 
@@ -59,10 +56,7 @@ module Api
             job_status: job_status_json(@job_status)
           }
         else
-          render json: {
-            success: false,
-            errors: @job_status.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@job_status)
         end
       end
 

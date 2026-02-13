@@ -43,10 +43,7 @@ module Api
             data: presentation_detail(presentation)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: presentation.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(presentation)
         end
       end
 
@@ -58,10 +55,7 @@ module Api
             data: presentation_detail(@presentation)
           }
         else
-          render json: {
-            success: false,
-            error: @presentation.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@presentation)
         end
       end
 
@@ -90,7 +84,7 @@ module Api
       # Expects: file (PPTX blob from PptxGenJS) as multipart form data
       def save_to_warehouse
         unless params[:file].present?
-          return render json: { success: false, error: "No file provided. Generate PPTX client-side first." }, status: :bad_request
+          return render_error("No file provided. Generate PPTX client-side first.", status: :bad_request)
         end
 
         begin
@@ -126,7 +120,7 @@ module Api
       def set_presentation
         @presentation = current_user.teeem_presentations.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Presentation not found" }, status: :not_found
+        render_error("Presentation not found", status: :not_found)
       end
 
       def presentation_params

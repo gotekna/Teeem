@@ -59,10 +59,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
         data: incident.reload.as_json(include: serialization_includes)
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: incident.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(incident)
     end
   end
 
@@ -74,10 +71,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
         data: @whs_incident.reload.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: @whs_incident.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@whs_incident)
     end
   end
 
@@ -89,10 +83,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
         data: { message: "Incident deleted successfully" }
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to delete incident"
-      }, status: :unprocessable_entity
+      render_error("Failed to delete incident", status: :unprocessable_entity)
     end
   end
 
@@ -104,10 +95,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
         data: @whs_incident.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot start investigation"
-      }, status: :unprocessable_entity
+      render_error("Cannot start investigation", status: :unprocessable_entity)
     end
   end
 
@@ -116,10 +104,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
     closure_notes = params[:closure_notes]
 
     if closure_notes.blank?
-      return render json: {
-        success: false,
-        error: "Closure notes are required"
-      }, status: :unprocessable_entity
+      return render_error("Closure notes are required", status: :unprocessable_entity)
     end
 
     if @whs_incident.close!(closure_notes)
@@ -128,10 +113,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
         data: @whs_incident.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot close incident. Ensure all action items are completed."
-      }, status: :unprocessable_entity
+      render_error("Cannot close incident. Ensure all action items are completed.", status: :unprocessable_entity)
     end
   end
 
@@ -140,10 +122,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
     workcov_reference = params[:workcov_reference_number]
 
     if workcov_reference.blank?
-      return render json: {
-        success: false,
-        error: "WorkCover reference number is required"
-      }, status: :unprocessable_entity
+      return render_error("WorkCover reference number is required", status: :unprocessable_entity)
     end
 
     if @whs_incident.update(
@@ -155,10 +134,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
         data: @whs_incident.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to record WorkCover notification"
-      }, status: :unprocessable_entity
+      render_error("Failed to record WorkCover notification", status: :unprocessable_entity)
     end
   end
 

@@ -47,10 +47,7 @@ module Api
             message: "Account created successfully"
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @account.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@account)
         end
       end
 
@@ -63,10 +60,7 @@ module Api
             message: "Account updated successfully"
           }
         else
-          render json: {
-            success: false,
-            errors: @account.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@account)
         end
       end
 
@@ -74,10 +68,7 @@ module Api
       def destroy
         # Check if account has transactions
         if @account.keepr_postings.exists?
-          render json: {
-            success: false,
-            error: "Cannot delete account with existing transactions. Deactivate it instead."
-          }, status: :unprocessable_entity
+          render_error("Cannot delete account with existing transactions. Deactivate it instead.", status: :unprocessable_entity)
           return
         end
 
@@ -88,10 +79,7 @@ module Api
           message: "Account deleted successfully"
         }
       rescue => e
-        render json: {
-          success: false,
-          error: "Failed to delete account: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Failed to delete account: #{e.message}", status: :unprocessable_entity)
       end
 
       # GET /api/v1/chart_of_accounts/kinds
@@ -122,10 +110,7 @@ module Api
           to_date: to_date.iso8601
         }
       rescue Date::Error => e
-        render json: {
-          success: false,
-          error: "Invalid date format: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Invalid date format: #{e.message}", status: :unprocessable_entity)
       end
 
       private
@@ -133,10 +118,7 @@ module Api
       def set_account
         @account = Keepr::Account.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Account not found"
-        }, status: :not_found
+        render_error("Account not found", status: :not_found)
       end
 
       def account_params
@@ -150,10 +132,7 @@ module Api
 
       def require_admin
         unless current_user.admin?
-          render json: {
-            success: false,
-            error: "Admin access required"
-          }, status: :forbidden
+          render_error("Admin access required", status: :forbidden)
         end
       end
 

@@ -247,7 +247,10 @@ current_organization  # First organization in tenant (for credential lookups)
 
 | Constant | SSoT Location |
 |----------|---------------|
-| `ASSIGNABLE_ROLES` | `User::ASSIGNABLE_ROLES` |
+| **System roles** | Backend: `Role` model (database), Frontend: `lib/constants/roles.ts` |
+| **Notebook permissions** | `lib/constants/roles.ts` (`NOTEBOOK_PERMISSIONS`) |
+| **Plan recipient types** | `lib/constants/roles.ts` (`PLAN_RECIPIENT_TYPES`) |
+| **Job assignment roles** | Backend: `JobContact::INTERNAL_ROLES`, Frontend: `lib/constants/job-roles.ts` |
 | `COLUMN_TYPES` | `column_type_definitions` table (34 types, API: `/api/v1/column_type_definitions`) |
 | `LOOKUP_COLUMN_TYPES` | Backend: `Column::LOOKUP_COLUMN_TYPES`, Frontend: `lib/constants/column-types.ts` |
 | `CHOICE_COLUMN_TYPES` | Backend: `Column::CHOICE_COLUMN_TYPES`, Frontend: `lib/constants/column-types.ts` |
@@ -259,6 +262,40 @@ current_organization  # First organization in tenant (for credential lookups)
 | Foundation slugs | `lib/constants/foundation-slugs.ts` |
 
 **Rule:** Search `lib/constants/` before creating ANY constant.
+
+### Role Constants (Feb 2026)
+
+**CRITICAL: Three different types of roles - don't confuse them:**
+
+1. **System User Roles** (`SYSTEM_ROLES`) - What users ARE
+   - `admin`, `product_owner`, `estimator`, `supervisor`, `builder`, `user`, `super_admin`
+   - Backend SSoT: `roles` table, `User.role_names`, `User#admin?`, etc.
+   - Frontend: `lib/constants/roles.ts`
+   - Usage: Permission checks, settings access, feature gates
+
+2. **Job Assignment Roles** (`INTERNAL_ROLES`) - Who does what on a job
+   - `supervisor`, `site_coordinator`, `estimator`, `internal_sales`, `coordinator`
+   - Backend SSoT: `JobContact::INTERNAL_ROLES`
+   - Frontend: `lib/constants/job-roles.ts`
+   - Usage: Job team assignments, filtering users for job roles
+
+3. **Notebook Permissions** (`NOTEBOOK_PERMISSIONS`) - What access level for shared notebooks
+   - `view`, `edit`, `admin`
+   - Backend SSoT: `NotebookShare` model
+   - Frontend: `lib/constants/roles.ts`
+   - Usage: Notebook sharing UI, permission checks
+
+**Never use string literals for roles:**
+```typescript
+// ❌ WRONG
+if (user.role_names?.includes("admin"))
+if (share.permission === "view")
+
+// ✅ CORRECT
+import { SYSTEM_ROLES, NOTEBOOK_PERMISSIONS } from "@/lib/constants/roles";
+if (user.role_names?.includes(SYSTEM_ROLES.ADMIN))
+if (share.permission === NOTEBOOK_PERMISSIONS.VIEW)
+```
 
 ### Foundation Slugs (⚠️ HYPHEN VS UNDERSCORE)
 

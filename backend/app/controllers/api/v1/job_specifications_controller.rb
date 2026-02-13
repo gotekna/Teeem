@@ -45,7 +45,7 @@ module Api
         if specification.save
           render json: { success: true, data: specification.as_json }, status: :created
         else
-          render json: { success: false, error: specification.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(specification)
         end
       end
 
@@ -54,7 +54,7 @@ module Api
         if @specification.update(specification_params)
           render json: { success: true, data: @specification.as_json }
         else
-          render json: { success: false, error: @specification.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@specification)
         end
       end
 
@@ -69,7 +69,7 @@ module Api
         template = SpecificationTemplate.for_job_type(@job.job_type_id)
 
         unless template
-          return render json: { success: false, error: "No template found for this job type" }, status: :not_found
+          return render_error("No template found for this job type", status: :not_found)
         end
 
         # Clear existing specifications if requested

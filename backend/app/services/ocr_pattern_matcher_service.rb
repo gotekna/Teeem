@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-# ContentMatchService - OCR/text-based document classification
+# OcrPatternMatcherService - OCR/text-based document classification
 #
-# Extracts first-page text from PDFs using PdfTextExtractionService (SSoT),
+# Extracts first-page text from PDFs using OcrTextExtractorService (SSoT),
 # then searches the extracted text for DocumentType names, aliases, and
 # description keywords.
 #
@@ -14,10 +14,10 @@
 #   - document_type, confidence, matched_terms, text_preview
 #
 # Usage:
-#   result = ContentMatchService.new(docsort_item).classify
-#   result = ContentMatchService.new(docsort_item, document_types: cached_types).classify
+#   result = OcrPatternMatcherService.new(docsort_item).classify
+#   result = OcrPatternMatcherService.new(docsort_item, document_types: cached_types).classify
 #
-class ContentMatchService
+class OcrPatternMatcherService
   MAX_TEXT_PREVIEW = 200
 
   def initialize(docsort_item, document_types: nil)
@@ -73,7 +73,7 @@ class ContentMatchService
       duration_ms: duration_ms(start_time)
     }
   rescue StandardError => e
-    Rails.logger.error "[ContentMatchService] Error: #{e.message}"
+    Rails.logger.error "[OcrPatternMatcher] Error: #{e.message}"
     {
       document_type: nil,
       confidence: 0.0,
@@ -91,7 +91,7 @@ class ContentMatchService
 
   def extract_first_page_text
     content = @item.storage_blob.download
-    result = PdfTextExtractionService.extract(content, max_pages: 1, join_pages: true)
+    result = OcrTextExtractorService.extract(content, max_pages: 1, join_pages: true)
     result[:success] ? result[:text].to_s.strip : ""
   end
 

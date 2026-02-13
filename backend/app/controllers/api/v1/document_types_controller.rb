@@ -88,10 +88,7 @@ module Api
             data: serialize_document_type(@document_type)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @document_type.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@document_type)
         end
       end
 
@@ -130,10 +127,7 @@ module Api
 
           render json: response_data
         else
-          render json: {
-            success: false,
-            errors: @document_type.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@document_type)
         end
       end
 
@@ -173,10 +167,7 @@ module Api
             message: "Document type duplicated as '#{new_name}'"
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: new_doc_type.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(new_doc_type)
         end
       end
 
@@ -217,10 +208,7 @@ module Api
       # The detected fields can be adjusted in the frontend UI, then saved via PATCH /document_types/:id
       def detect_signature_fields
         unless params[:pdf_content].present?
-          return render json: {
-            success: false,
-            error: "pdf_content parameter is required (base64-encoded PDF)"
-          }, status: :bad_request
+          return render_error("pdf_content parameter is required (base64-encoded PDF)", status: :bad_request)
         end
 
         begin
@@ -237,17 +225,11 @@ module Api
               analysis_notes: result[:analysis_notes]
             }
           else
-            render json: {
-              success: false,
-              error: result[:error]
-            }, status: :unprocessable_entity
+            render_error(result[:error], status: :unprocessable_entity)
           end
         rescue StandardError => e
           Rails.logger.error("Signature detection failed: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to detect signature fields: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to detect signature fields: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -265,10 +247,7 @@ module Api
         filename = params[:filename]
 
         unless filename.present?
-          return render json: {
-            success: false,
-            error: "filename parameter is required"
-          }, status: :bad_request
+          return render_error("filename parameter is required", status: :bad_request)
         end
 
         suggestions = DocumentTypeMatcher.suggest(

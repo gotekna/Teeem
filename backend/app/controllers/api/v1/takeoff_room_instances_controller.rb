@@ -46,7 +46,7 @@ module Api
           template.record_usage!
           render json: { success: true, data: room.as_json }, status: :created
         else
-          render json: { success: false, error: room.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(room)
         end
       end
 
@@ -67,7 +67,7 @@ module Api
           template.record_usage!
           render json: { success: true, data: room.as_json }, status: :created
         else
-          render json: { success: false, error: room.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(room)
         end
       end
 
@@ -81,7 +81,7 @@ module Api
         if @room.update(room_params)
           render json: { success: true, data: @room.as_json }
         else
-          render json: { success: false, error: @room.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@room)
         end
       end
 
@@ -120,7 +120,7 @@ module Api
         if @slot.update(slot_params)
           render json: { success: true, data: @room.reload.as_json }
         else
-          render json: { success: false, error: @slot.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@slot)
         end
       end
 
@@ -129,10 +129,7 @@ module Api
         job = @room.job || @room.job_plan&.job
 
         unless job
-          return render json: {
-            success: false,
-            error: "Room must be linked to a job to generate a PO"
-          }, status: :unprocessable_entity
+          return render_error("Room must be linked to a job to generate a PO", status: :unprocessable_entity)
         end
 
         pos = @room.generate_purchase_order!(job: job, tenant: current_tenant)
@@ -165,7 +162,7 @@ module Api
       def set_document_inbox
         @document_inbox = DocumentInbox.find(params[:document_inbox_id])
         unless @document_inbox.tenant_id == current_tenant.id
-          render json: { success: false, error: "Access denied" }, status: :forbidden
+          render_error("Access denied", status: :forbidden)
         end
       end
 

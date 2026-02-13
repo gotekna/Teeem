@@ -42,10 +42,7 @@ class Api::V1::WHSInductionTemplatesController < ApplicationController
         data: template.reload.as_json(include: serialization_includes)
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: template.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(template)
     end
   end
 
@@ -57,10 +54,7 @@ class Api::V1::WHSInductionTemplatesController < ApplicationController
         data: @whs_induction_template.reload.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: @whs_induction_template.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@whs_induction_template)
     end
   end
 
@@ -72,10 +66,7 @@ class Api::V1::WHSInductionTemplatesController < ApplicationController
         data: { message: "Induction template deleted successfully" }
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to delete induction template"
-      }, status: :unprocessable_entity
+      render_error("Failed to delete induction template", status: :unprocessable_entity)
     end
   end
 

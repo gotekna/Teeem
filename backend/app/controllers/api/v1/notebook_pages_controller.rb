@@ -10,7 +10,7 @@ module Api
       def index
         notebook = @section.notebook
         unless notebook.accessible_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         pages = @section.pages.active.ordered.includes(:created_by, :last_edited_by)
@@ -25,7 +25,7 @@ module Api
       def show
         notebook = @page.notebook
         unless notebook.accessible_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         render json: {
@@ -38,7 +38,7 @@ module Api
       def create
         notebook = @section.notebook
         unless notebook.editable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         page = @section.pages.new(page_params)
@@ -60,10 +60,7 @@ module Api
             page: page_json(page, include_content: true)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: page.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(page)
         end
       end
 
@@ -71,7 +68,7 @@ module Api
       def update
         notebook = @page.notebook
         unless notebook.editable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         @page.last_edited_by = current_user
@@ -91,10 +88,7 @@ module Api
             page: page_json(@page, include_content: true, include_notebook: true)
           }
         else
-          render json: {
-            success: false,
-            errors: @page.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@page)
         end
       end
 
@@ -102,7 +96,7 @@ module Api
       def destroy
         notebook = @page.notebook
         unless notebook.editable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         page_title = @page.title
@@ -122,7 +116,7 @@ module Api
       def move
         notebook = @page.notebook
         unless notebook.editable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         if params[:section_id].present?
@@ -151,7 +145,7 @@ module Api
       def toggle_pin
         notebook = @page.notebook
         unless notebook.editable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         @page.toggle_pin!

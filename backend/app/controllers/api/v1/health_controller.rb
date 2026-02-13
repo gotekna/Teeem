@@ -109,7 +109,7 @@ module Api
         auto = params[:auto] == true || params[:auto] == "true"
 
         unless fix_type.present?
-          return render json: { success: false, error: "fix_type is required" }, status: :bad_request
+          return render_error("fix_type is required", status: :bad_request)
         end
 
         result = perform_fix(fix_type, item_ids, auto)
@@ -122,10 +122,7 @@ module Api
             message: result[:message]
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 

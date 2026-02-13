@@ -35,10 +35,7 @@ class Api::V1::EmailRulesController < ApplicationController
         message: "Rule created successfully"
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: rule.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(rule)
     end
   end
 
@@ -51,10 +48,7 @@ class Api::V1::EmailRulesController < ApplicationController
         message: "Rule updated successfully"
       }
     else
-      render json: {
-        success: false,
-        error: @rule.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@rule)
     end
   end
 
@@ -119,10 +113,7 @@ class Api::V1::EmailRulesController < ApplicationController
       message: "Rules reordered successfully"
     }
   rescue => e
-    render json: {
-      success: false,
-      error: "Failed to reorder rules: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to reorder rules: #{e.message}", status: :unprocessable_entity)
   end
 
   # GET /api/v1/email_rules/condition_types

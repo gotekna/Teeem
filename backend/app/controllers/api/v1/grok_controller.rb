@@ -5,7 +5,7 @@ class Api::V1::GrokController < ApplicationController
     context = params[:context] || {}
 
     if message.blank?
-      return render json: { success: false, error: "Message is required" }, status: :bad_request
+      return render_error("Message is required", status: :bad_request)
     end
 
     begin
@@ -20,10 +20,7 @@ class Api::V1::GrokController < ApplicationController
       }
     rescue StandardError => e
       Rails.logger.error "Grok API error: #{e.message}"
-      render json: {
-        success: false,
-        error: "Failed to get response from Grok: #{e.message}"
-      }, status: :internal_server_error
+      render_error("Failed to get response from Grok: #{e.message}", status: :internal_server_error)
     end
   end
 
@@ -56,10 +53,7 @@ class Api::V1::GrokController < ApplicationController
       }
     rescue StandardError => e
       Rails.logger.error "Grok API error: #{e.message}"
-      render json: {
-        success: false,
-        error: "Failed to get feature suggestions: #{e.message}"
-      }, status: :internal_server_error
+      render_error("Failed to get feature suggestions: #{e.message}", status: :internal_server_error)
     end
   end
 
@@ -75,7 +69,7 @@ class Api::V1::GrokController < ApplicationController
     if plan.persisted?
       render json: { success: true, plan: plan }
     else
-      render json: { success: false, errors: plan.errors.full_messages }, status: :unprocessable_entity
+      render_validation_errors(plan)
     end
   end
 
@@ -90,7 +84,7 @@ class Api::V1::GrokController < ApplicationController
     plan = @current_user.grok_plans.find(params[:id])
     render json: { success: true, plan: plan }
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "Plan not found" }, status: :not_found
+    render_error("Plan not found", status: :not_found)
   end
 
   # PATCH /api/v1/grok/plans/:id
@@ -100,10 +94,10 @@ class Api::V1::GrokController < ApplicationController
     if plan.update(plan_params)
       render json: { success: true, plan: plan }
     else
-      render json: { success: false, errors: plan.errors.full_messages }, status: :unprocessable_entity
+      render_validation_errors(plan)
     end
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "Plan not found" }, status: :not_found
+    render_error("Plan not found", status: :not_found)
   end
 
   private

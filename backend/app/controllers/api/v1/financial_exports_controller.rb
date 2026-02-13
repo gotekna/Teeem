@@ -26,10 +26,7 @@ module Api
                   filename: "balance_sheet_#{as_of_date.strftime('%Y%m%d')}.csv",
                   type: "text/csv"
       rescue Date::Error => e
-        render json: {
-          success: false,
-          error: "Invalid date format: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Invalid date format: #{e.message}", status: :unprocessable_entity)
       end
 
       # GET /api/v1/financial_exports/profit_loss
@@ -44,10 +41,7 @@ module Api
                   filename: "profit_loss_#{from_date.strftime('%Y%m%d')}_#{to_date.strftime('%Y%m%d')}.csv",
                   type: "text/csv"
       rescue Date::Error => e
-        render json: {
-          success: false,
-          error: "Invalid date format: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Invalid date format: #{e.message}", status: :unprocessable_entity)
       end
 
       # GET /api/v1/financial_exports/job_profitability
@@ -68,10 +62,7 @@ module Api
                   filename: "job_profitability_#{Date.current.strftime('%Y%m%d')}.csv",
                   type: "text/csv"
       rescue Date::Error => e
-        render json: {
-          success: false,
-          error: "Invalid date format: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Invalid date format: #{e.message}", status: :unprocessable_entity)
       end
 
       # GET /api/v1/financial_exports/chart_of_accounts
@@ -98,10 +89,7 @@ module Api
                   filename: "accountant_package_#{from_date.strftime('%Y%m%d')}_#{to_date.strftime('%Y%m%d')}.csv",
                   type: "text/csv"
       rescue Date::Error => e
-        render json: {
-          success: false,
-          error: "Invalid date format: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Invalid date format: #{e.message}", status: :unprocessable_entity)
       end
 
       private
@@ -113,10 +101,7 @@ module Api
                     current_user.company
         end
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Company not found"
-        }, status: :not_found
+        render_error("Company not found", status: :not_found)
       end
 
       def build_filters

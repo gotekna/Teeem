@@ -45,7 +45,7 @@ module Api
         if selection.save
           render json: { success: true, data: selection.as_json }, status: :created
         else
-          render json: { success: false, error: selection.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(selection)
         end
       end
 
@@ -54,7 +54,7 @@ module Api
         if @colour_selection.update(colour_selection_params)
           render json: { success: true, data: @colour_selection.as_json }
         else
-          render json: { success: false, error: @colour_selection.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@colour_selection)
         end
       end
 
@@ -69,7 +69,7 @@ module Api
         template = ColourSelectionTemplate.for_job_type(@job.job_type_id)
 
         unless template
-          return render json: { success: false, error: "No template found for this job type" }, status: :not_found
+          return render_error("No template found for this job type", status: :not_found)
         end
 
         # Clear existing selections if requested

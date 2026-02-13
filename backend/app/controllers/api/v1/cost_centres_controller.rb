@@ -55,10 +55,7 @@ class Api::V1::CostCentresController < ApplicationController
         data: cost_centre_to_json(@cost_centre)
       }, status: :created
     else
-      render json: {
-        success: false,
-        errors: @cost_centre.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@cost_centre)
     end
   end
 
@@ -70,10 +67,7 @@ class Api::V1::CostCentresController < ApplicationController
         data: cost_centre_to_json(@cost_centre)
       }
     else
-      render json: {
-        success: false,
-        errors: @cost_centre.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@cost_centre)
     end
   end
 
@@ -81,26 +75,17 @@ class Api::V1::CostCentresController < ApplicationController
   def destroy
     # Check if cost centre has any associated records
     if @cost_centre.labour_cost_entries.exists?
-      return render json: {
-        success: false,
-        error: "Cannot delete cost centre with associated labour cost entries"
-      }, status: :unprocessable_entity
+      return render_error("Cannot delete cost centre with associated labour cost entries", status: :unprocessable_entity)
     end
 
     if @cost_centre.children.exists?
-      return render json: {
-        success: false,
-        error: "Cannot delete cost centre with child cost centres"
-      }, status: :unprocessable_entity
+      return render_error("Cannot delete cost centre with child cost centres", status: :unprocessable_entity)
     end
 
     if @cost_centre.destroy
       render json: { success: true, message: "Cost centre deleted" }
     else
-      render json: {
-        success: false,
-        errors: @cost_centre.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@cost_centre)
     end
   end
 
@@ -197,7 +182,7 @@ class Api::V1::CostCentresController < ApplicationController
   def set_cost_centre
     @cost_centre = CostCentre.find(params[:id])
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "Cost centre not found" }, status: :not_found
+    render_error("Cost centre not found", status: :not_found)
   end
 
   def cost_centre_params

@@ -68,7 +68,7 @@ module Api
 
           render json: { success: true, data: billing_record_json(@record, full: true) }, status: :created
         else
-          render json: { success: false, error: @record.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@record)
         end
       end
 
@@ -77,14 +77,14 @@ module Api
         if @record.update(billing_record_params)
           render json: { success: true, data: billing_record_json(@record, full: true) }
         else
-          render json: { success: false, error: @record.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@record)
         end
       end
 
       # DELETE /api/v1/saas_billing/:id
       def destroy
         if @record.gl_invoice_id.present?
-          render json: { success: false, error: "Cannot delete billing record with linked invoice" }, status: :unprocessable_entity
+          render_error("Cannot delete billing record with linked invoice", status: :unprocessable_entity)
           return
         end
 
@@ -112,7 +112,7 @@ module Api
       # Creates a GL invoice from the billing record
       def create_invoice
         if @record.gl_invoice_id.present?
-          render json: { success: false, error: "Invoice already exists" }, status: :unprocessable_entity
+          render_error("Invoice already exists", status: :unprocessable_entity)
           return
         end
 

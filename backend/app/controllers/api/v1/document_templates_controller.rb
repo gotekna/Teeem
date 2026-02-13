@@ -141,20 +141,14 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     key = params[:template_key].to_sym
 
     unless TeknaDocumentGenerator::TEMPLATES.key?(key)
-      return render json: {
-        success: false,
-        error: "Template not found: #{params[:template_key]}"
-      }, status: :not_found
+      return render_error("Template not found: #{params[:template_key]}", status: :not_found)
     end
 
     config = TeknaDocumentGenerator::TEMPLATES[key]
 
     # Don't allow editing SharePoint-sourced templates
     if config[:source] == :sharepoint
-      return render json: {
-        success: false,
-        error: "Cannot edit SharePoint-sourced templates"
-      }, status: :unprocessable_entity
+      return render_error("Cannot edit SharePoint-sourced templates", status: :unprocessable_entity)
     end
 
     updated = []
@@ -229,10 +223,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     layout_path = Rails.root.join("app/views/tekna_documents/layouts/#{name}.html.erb")
 
     unless File.exist?(layout_path)
-      return render json: {
-        success: false,
-        error: "Layout not found: #{name}"
-      }, status: :not_found
+      return render_error("Layout not found: #{name}", status: :not_found)
     end
 
     render json: {
@@ -256,17 +247,11 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     layout_path = Rails.root.join("app/views/tekna_documents/layouts/#{name}.html.erb")
 
     unless File.exist?(layout_path)
-      return render json: {
-        success: false,
-        error: "Layout not found: #{name}"
-      }, status: :not_found
+      return render_error("Layout not found: #{name}", status: :not_found)
     end
 
     unless params[:content].present?
-      return render json: {
-        success: false,
-        error: "Content is required"
-      }, status: :unprocessable_entity
+      return render_error("Content is required", status: :unprocessable_entity)
     end
 
     begin
@@ -285,10 +270,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       }
     rescue StandardError => e
       Rails.logger.error "[TemplateEditor] Error saving layout #{layout_path}: #{e.message}"
-      render json: {
-        success: false,
-        error: "Failed to save layout: #{e.message}"
-      }, status: :unprocessable_entity
+      render_error("Failed to save layout: #{e.message}", status: :unprocessable_entity)
     end
   end
 
@@ -310,10 +292,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
         data: template_json(template)
       }, status: :created
     else
-      render json: {
-        success: false,
-        errors: template.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(template)
     end
   end
 
@@ -325,10 +304,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
         data: template_json(@document_template)
       }
     else
-      render json: {
-        success: false,
-        errors: @document_template.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@document_template)
     end
   end
 
@@ -567,10 +543,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     item_id = params[:item_id]
 
     unless item_id.present?
-      return render json: {
-        success: false,
-        error: "item_id is required"
-      }, status: :bad_request
+      return render_error("item_id is required", status: :bad_request)
     end
 
     begin
@@ -578,10 +551,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       cred = MicrosoftCredential.sharepoint_credential
       storage_config = WarehouseProvider.instance
       unless cred && storage_config&.connected?
-        return render json: {
-          success: false,
-          error: "SharePoint not configured. Please connect in Admin > System > Connections."
-        }, status: :service_unavailable
+        return render_error("SharePoint not configured. Please connect in Admin > System > Connections.", status: :service_unavailable)
       end
 
       client = MicrosoftAppGraphClient.new(cred)
@@ -602,10 +572,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
         type: "application/octet-stream",
         disposition: "attachment"
     rescue MicrosoftAppGraphClient::ApiError => e
-      render json: {
-        success: false,
-        error: "SharePoint error: #{e.message}"
-      }, status: :unprocessable_entity
+      render_error("SharePoint error: #{e.message}", status: :unprocessable_entity)
     end
   end
 

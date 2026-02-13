@@ -49,10 +49,7 @@ module Api
             data: serialize_company_group(@company_group)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @company_group.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@company_group)
         end
       end
 
@@ -64,10 +61,7 @@ module Api
             data: serialize_company_group(@company_group)
           }
         else
-          render json: {
-            success: false,
-            errors: @company_group.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@company_group)
         end
       end
 

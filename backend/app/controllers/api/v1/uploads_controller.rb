@@ -38,11 +38,11 @@ module Api
         metadata = params[:metadata] || {}
 
         unless filename.present?
-          return render json: { success: false, error: "Filename required" }, status: :bad_request
+          return render_error("Filename required", status: :bad_request)
         end
 
         unless valid_scope?(scope)
-          return render json: { success: false, error: "Invalid scope: #{scope}" }, status: :bad_request
+          return render_error("Invalid scope: #{scope}", status: :bad_request)
         end
 
         begin
@@ -76,12 +76,12 @@ module Api
           }
         rescue DocumentProviders::NotConnectedError => e
           Rails.logger.error "[UploadsController#presign] Not connected: #{e.message}"
-          render json: { success: false, error: "Storage not configured: #{e.message}" }, status: :service_unavailable
+          render_error("Storage not configured: #{e.message}", status: :service_unavailable)
         rescue => e
           Rails.logger.error "[UploadsController#presign] Failed: #{e.class} - #{e.message}"
           Rails.logger.error e.backtrace.first(5).join("\n")
           # Return actual error message for debugging (internal API)
-          render json: { success: false, error: "Failed to generate upload URL: #{e.message}" }, status: :unprocessable_entity
+          render_error("Failed to generate upload URL: #{e.message}", status: :unprocessable_entity)
         end
       end
 
@@ -103,7 +103,7 @@ module Api
         metadata = params[:metadata] || {}
 
         unless key.present? && filename.present?
-          return render json: { success: false, error: "Key and filename required" }, status: :bad_request
+          return render_error("Key and filename required", status: :bad_request)
         end
 
         begin
@@ -122,10 +122,10 @@ module Api
             render json: { success: false, error: result[:error] }, status: :unprocessable_entity
           end
         rescue DocumentProviders::NotFoundError
-          render json: { success: false, error: "File not found in storage. Upload may have failed." }, status: :not_found
+          render_error("File not found in storage. Upload may have failed.", status: :not_found)
         rescue => e
           Rails.logger.error "[UploadsController#confirm] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
-          render json: { success: false, error: "Failed to confirm upload: #{e.message}" }, status: :unprocessable_entity
+          render_error("Failed to confirm upload: #{e.message}", status: :unprocessable_entity)
         end
       end
 

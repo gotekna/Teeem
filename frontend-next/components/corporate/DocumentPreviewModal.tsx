@@ -30,6 +30,9 @@ import {
   Pencil,
   X,
   RefreshCw,
+  Eye,
+  ScanSearch,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
@@ -255,6 +258,28 @@ interface CompanyDocument {
   }>;
 }
 
+// Classification breakdown from /api/v1/company_documents/:id/classification
+interface ClassificationBreakdown {
+  document_type?: string;
+  confidence: number;
+  signals: string[];
+  text_preview?: string;
+  status: string;
+  duration_ms?: number;
+  suggested_folder?: string;
+  suggested_name?: string;
+}
+
+interface ClassificationData {
+  success: boolean;
+  has_classification: boolean;
+  winner?: string;
+  ocr: ClassificationBreakdown;
+  ai: ClassificationBreakdown;
+  name_match: ClassificationBreakdown;
+  classified_at?: string;
+}
+
 interface DocumentPreviewModalProps {
   document: CompanyDocument;
   open: boolean;
@@ -317,6 +342,10 @@ export default function DocumentPreviewModal({
   } | null>(null);
   const [documentDataLoading, setDocumentDataLoading] = React.useState(false);
 
+  // Classification data (OCR + AI breakdown)
+  const [classificationData, setClassificationData] = React.useState<ClassificationData | null>(null);
+  const [classificationLoading, setClassificationLoading] = React.useState(false);
+
   // PDF Editor mode
   const [isEditingPdf, setIsEditingPdf] = React.useState(false);
 
@@ -334,6 +363,33 @@ export default function DocumentPreviewModal({
     };
     fetchDocumentTypes();
   }, []);
+
+  // Fetch classification breakdown (OCR + AI) for the 3-column comparison
+  React.useEffect(() => {
+    const fetchClassification = async () => {
+      if (!document?.id || !open) {
+        setClassificationData(null);
+        return;
+      }
+
+      setClassificationLoading(true);
+      try {
+        const response = await api.get<ClassificationData>(
+          `/api/v1/company_documents/${document.id}/classification`
+        );
+        if (response?.success) {
+          setClassificationData(response);
+        }
+      } catch (error) {
+        // Classification data is optional - don't block the modal
+        console.debug("Classification data not available:", error);
+      } finally {
+        setClassificationLoading(false);
+      }
+    };
+
+    fetchClassification();
+  }, [document?.id, open]);
 
   // Auto-fill date with today when Amended is checked
   React.useEffect(() => {
@@ -1123,7 +1179,7 @@ export default function DocumentPreviewModal({
       setSaving(true);
 
       // Sanitize the title before sending to prevent OneDrive API errors
-      const sanitizedTitle = sanitizeFilename(editedTitle);
+      const sanitizedTitle = sanitizeFilename(document.display_name || document.file_name || "");
 
       // Use relocate endpoint which moves/renames in OneDrive
       const response = await api.post<{ success: boolean; document: CompanyDocument }>(
@@ -1302,68 +1358,30 @@ export default function DocumentPreviewModal({
 
         {/* Main Content Area */}
         <div className="flex flex-1 overflow-hidden min-h-0">
-          {/* Left Section - Current Info + Edit + AI (hidden when validated) */}
-          {!validated && <div className="w-1/2 flex flex-col overflow-hidden border-r">
-            {/* Top Bar - Current Document Info (read-only) - compact */}
-            <div className="px-3 py-2 bg-muted/30 border-b flex-shrink-0">
-              <div className="flex items-center gap-2 mb-2">
-                <FileText className="h-3 w-3 text-muted-foreground" />
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Current</span>
-              </div>
-              <div className="grid grid-cols-6 gap-2 text-xs">
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Company</p>
-                  <p className="font-medium truncate text-xs">{currentCompanyName}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Folder</p>
-                  <Badge variant="secondary" className="text-[10px]" title={document.folder_path}>{document.folder || "GENERAL"}</Badge>
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Type</p>
-                  {document.document_type ? (
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      {getDocumentTypesForFolder(document.folder).find(t => t.value === document.document_type)?.abbrev || "?"}
-                    </Badge>
-                  ) : <span className="text-muted-foreground">-</span>}
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground">FY</p>
-                  <p className="font-medium text-xs">
-                    {Array.isArray(document.financial_years) && document.financial_years.length > 0
-                      ? document.financial_years.map((y) => `FY${y.toString().slice(-2)}`).join(", ")
-                      : <span className="text-muted-foreground">-</span>}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Asset</p>
-                  {document.asset ? (
-                    <Badge variant="secondary" className="text-[10px]">
-                      {document.asset.abbreviation || document.asset.display_name || document.asset.name}
-                    </Badge>
-                  ) : <span className="text-muted-foreground">-</span>}
-                </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground">Size</p>
-                  <p className="font-medium text-xs">{formatFileSize(document.file_size)}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Edit + AI Panels side by side */}
-            <div className="flex flex-1 overflow-hidden min-h-0">
-              {/* Left Panel - User Editable */}
-              <div className="w-1/2 overflow-y-auto border-r p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Pencil className="h-3 w-3 text-blue-500 dark:text-blue-400" />
-                <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Edit</span>
+          {/* Left Section - 3-column comparison (hidden when validated) */}
+          {!validated && <div className="w-1/2 flex overflow-hidden border-r">
+            {/* ═══ COLUMN 1: CURRENT (blue) ═══ */}
+            <div className="w-1/3 overflow-y-auto border-r p-2 flex flex-col">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Eye className="h-3 w-3 text-blue-500 dark:text-blue-400" />
+                <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Current</span>
+                {!isEditing && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1.5 ml-auto text-[10px] text-blue-600 dark:text-blue-400"
+                    onClick={() => setIsEditing(true)}
+                  >
+                    <Pencil className="h-2.5 w-2.5 mr-0.5" />Edit
+                  </Button>
+                )}
               </div>
 
-              <div className="space-y-2">
-                {/* Company (searchable) + Folder side by side */}
-                <div className="grid grid-cols-2 gap-1">
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Company</Label>
+              <div className="space-y-1.5 flex-1">
+                {/* Company */}
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">Company</Label>
+                  {isEditing ? (
                     <ComboboxDropdown
                       items={companies.map(c => ({
                         id: String(c.id),
@@ -1381,9 +1399,17 @@ export default function DocumentPreviewModal({
                       searchInTrigger
                       className="mt-0.5 h-7 text-xs"
                     />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Tab/Folder</Label>
+                  ) : (
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 truncate">
+                      {currentCompanyName}
+                    </div>
+                  )}
+                </div>
+
+                {/* Folder */}
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">Folder</Label>
+                  {isEditing ? (
                     <Select value={editedFolder} onValueChange={setEditedFolder}>
                       <SelectTrigger className="mt-0.5 h-7 text-xs">
                         <SelectValue placeholder="Select..." />
@@ -1394,138 +1420,80 @@ export default function DocumentPreviewModal({
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-                </div>
-
-                {/* Document Type + Signed/Unsigned + Amended */}
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] text-muted-foreground">Document Type</Label>
-                    <div className="flex items-center gap-2">
-                      {/* Signed/Unsigned toggle - required for CTR/TTR, must pick one */}
-                      {needsSignedToggle && (
-                        <div className="flex items-center gap-0.5 bg-muted rounded px-1 py-0.5">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant={signedStatus === 'unsigned' ? "default" : "ghost"}
-                            onClick={() => setSignedStatus('unsigned')}
-                            className={cn(
-                              "h-4 px-1.5 text-[9px]",
-                              signedStatus === 'unsigned' && "bg-orange-500 hover:bg-orange-600"
-                            )}
-                          >
-                            US
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant={signedStatus === 'signed' ? "default" : "ghost"}
-                            onClick={() => setSignedStatus('signed')}
-                            className={cn(
-                              "h-4 px-1.5 text-[9px]",
-                              signedStatus === 'signed' && "bg-green-500 hover:bg-green-600"
-                            )}
-                          >
-                            S
-                          </Button>
-                        </div>
-                      )}
-                      {/* Amended checkbox */}
-                      <div className="flex items-center gap-1">
-                        <Checkbox
-                          id="amended"
-                          checked={isAmended}
-                          onCheckedChange={(checked) => setIsAmended(checked === true)}
-                          className="h-3 w-3"
-                        />
-                        <label
-                          htmlFor="amended"
-                          className="text-[10px] text-muted-foreground cursor-pointer select-none"
-                        >
-                          Amended
-                          {isAmended && amendedNumber !== null && amendedNumber > 1 && (
-                            <Badge variant="secondary" className="ml-1 text-[10px] px-1">
-                              #{amendedNumber}
-                            </Badge>
-                          )}
-                        </label>
-                      </div>
+                  ) : (
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
+                      <Badge variant="secondary" className="text-[10px]" title={document.folder_path}>{document.folder || "GENERAL"}</Badge>
                     </div>
-                  </div>
-                  <Select value={editedDocumentType} onValueChange={setEditedDocumentType}>
-                    <SelectTrigger className="mt-0.5 h-7 text-xs">
-                      <SelectValue placeholder="Select type...">
-                        {editedDocumentType ? (
-                          <span className="flex items-center gap-1">
-                            <Badge variant="outline" className="font-mono text-[10px] px-1">
-                              {getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev || "?"}
-                            </Badge>
-                            <span className="truncate">{getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.label || editedDocumentType}</span>
-                          </span>
-                        ) : "Select..."}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getDocumentTypesForFolder(editedFolder).map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          <span className="flex items-center gap-1">
-                            <Badge variant="outline" className="font-mono text-[10px] px-1">{type.abbrev}</Badge>
-                            {type.label}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {editedDocumentType && getDocumentTypeRecord(editedDocumentType)?.naming_format && (
-                    <p className="mt-0.5 text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded truncate">
-                      {getDocumentTypeRecord(editedDocumentType)?.naming_format}
-                      {isAmended && " + Amended"}
-                    </p>
-                  )}
-                  {isAmended && existingAmendedDocs.length > 0 && (
-                    <p className="mt-0.5 text-[10px] text-orange-600 dark:text-orange-400">
-                      {existingAmendedDocs.length} amended doc{existingAmendedDocs.length > 1 ? "s" : ""} found
-                    </p>
                   )}
                 </div>
 
-                {/* Details/Period field - only show when format requires it */}
-                {(needsDescriptionAndDate || needsDetails || isBASDocument) && (
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">
-                      {needsDescriptionAndDate ? "Description" : isBASDocument ? "Period" : "Details"}
-                      {isBASDocument && (
-                        <span className="text-muted-foreground/50 ml-1">
-                          ({selectedCompanyBasFrequency === "monthly" ? "Mth" : "Qtr"})
-                        </span>
-                      )}
-                    </Label>
-                    {isBASDocument ? (
+                {/* Document Type */}
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
+                  {isEditing ? (
+                    <>
+                      <Select value={editedDocumentType} onValueChange={setEditedDocumentType}>
+                        <SelectTrigger className="mt-0.5 h-7 text-xs">
+                          <SelectValue placeholder="Select type...">
+                            {editedDocumentType ? (
+                              <span className="flex items-center gap-1">
+                                <Badge variant="outline" className="font-mono text-[10px] px-1">
+                                  {getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev || "?"}
+                                </Badge>
+                                <span className="truncate">{getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.label || editedDocumentType}</span>
+                              </span>
+                            ) : "Select..."}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getDocumentTypesForFolder(editedFolder).map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              <span className="flex items-center gap-1">
+                                <Badge variant="outline" className="font-mono text-[10px] px-1">{type.abbrev}</Badge>
+                                {type.label}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {/* Signed/Unsigned + Amended toggles */}
+                      <div className="flex items-center gap-2 mt-1">
+                        {needsSignedToggle && (
+                          <div className="flex items-center gap-0.5 bg-muted rounded px-1 py-0.5">
+                            <Button type="button" size="sm" variant={signedStatus === 'unsigned' ? "default" : "ghost"} onClick={() => setSignedStatus('unsigned')} className={cn("h-4 px-1.5 text-[9px]", signedStatus === 'unsigned' && "bg-orange-500 hover:bg-orange-600")}>US</Button>
+                            <Button type="button" size="sm" variant={signedStatus === 'signed' ? "default" : "ghost"} onClick={() => setSignedStatus('signed')} className={cn("h-4 px-1.5 text-[9px]", signedStatus === 'signed' && "bg-green-500 hover:bg-green-600")}>S</Button>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <Checkbox id="amended" checked={isAmended} onCheckedChange={(checked) => setIsAmended(checked === true)} className="h-3 w-3" />
+                          <label htmlFor="amended" className="text-[10px] text-muted-foreground cursor-pointer select-none">Amended</label>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
+                      {document.document_type ? (
+                        <Badge variant="outline" className="font-mono text-[10px]">
+                          {getDocumentTypesForFolder(document.folder).find(t => t.value === document.document_type)?.abbrev || document.document_type}
+                        </Badge>
+                      ) : <span className="text-muted-foreground">-</span>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Description */}
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">Description</Label>
+                  {isEditing ? (
+                    isBASDocument ? (
                       <div className="mt-0.5 flex flex-wrap gap-0.5">
                         {selectedCompanyBasFrequency === "monthly" ? (
                           MONTHLY_PERIODS.map((period) => (
-                            <Button
-                              key={period}
-                              type="button"
-                              size="sm"
-                              variant={editedDescription === period ? "default" : "outline"}
-                              onClick={() => setEditedDescription(period)}
-                              className="h-5 px-1.5 text-[10px]"
-                            >
-                              {period}
-                            </Button>
+                            <Button key={period} type="button" size="sm" variant={editedDescription === period ? "default" : "outline"} onClick={() => setEditedDescription(period)} className="h-5 px-1 text-[9px]">{period}</Button>
                           ))
                         ) : (
                           QUARTERLY_PERIODS.map((period) => (
-                            <Button
-                              key={period.value}
-                              type="button"
-                              size="sm"
-                              variant={editedDescription === period.value ? "default" : "outline"}
-                              onClick={() => setEditedDescription(period.value)}
-                              className="h-auto py-0.5 px-1.5 text-[10px] flex flex-col items-center"
-                            >
+                            <Button key={period.value} type="button" size="sm" variant={editedDescription === period.value ? "default" : "outline"} onClick={() => setEditedDescription(period.value)} className="h-auto py-0.5 px-1 text-[9px] flex flex-col items-center">
                               <span>{period.label}</span>
                               <span className="text-[8px] opacity-70">{period.subtitle}</span>
                             </Button>
@@ -1533,412 +1501,314 @@ export default function DocumentPreviewModal({
                         )}
                       </div>
                     ) : (
-                      <Input
-                        value={editedDescription}
-                        onChange={(e) => setEditedDescription(e.target.value)}
-                        className="mt-0.5 h-9 text-sm"
-                        placeholder={needsDescriptionAndDate ? "e.g., Notice of Assessment..." : "e.g., Q1, Draft..."}
-                      />
-                    )}
-                  </div>
-                )}
+                      <Input value={editedDescription} onChange={(e) => setEditedDescription(e.target.value)} className="mt-0.5 h-7 text-xs" placeholder="e.g., Q1, Draft..." />
+                    )
+                  ) : (
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 truncate">
+                      {document.ai_extracted_description || "-"}
+                    </div>
+                  )}
+                </div>
 
-                {/* Financial Year - after Period to match format order */}
-                {needsFinancialYear && (
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Financial Year</Label>
+                {/* Financial Year */}
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">FY</Label>
+                  {isEditing ? (
                     <div className="mt-0.5 flex flex-wrap gap-0.5">
                       {FY_OPTIONS.slice(0, 6).map((year) => (
-                        <Button
-                          key={year}
-                          type="button"
-                          size="sm"
-                          variant={editedFinancialYears.includes(year) ? "default" : "outline"}
-                          onClick={() => toggleFinancialYear(year)}
-                          className="h-5 px-1.5 text-[10px]"
-                        >
+                        <Button key={year} type="button" size="sm" variant={editedFinancialYears.includes(year) ? "default" : "outline"} onClick={() => toggleFinancialYear(year)} className="h-5 px-1 text-[9px]">
                           FY{year.toString().slice(-2)}
                         </Button>
                       ))}
                     </div>
-                  </div>
-                )}
-
-                {/* Date field (when format needs it or when Amended is checked) */}
-                {(needsDescriptionAndDate || isAmended) && (
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">
-                      {isAmended ? "Amended Date" : "Date"}
-                    </Label>
-                    <Input
-                      type="date"
-                      value={editedRefDate}
-                      onChange={(e) => setEditedRefDate(e.target.value)}
-                      className="mt-0.5 h-9 text-sm"
-                    />
-                  </div>
-                )}
-
-                {/* New filename - auto-generated from above fields */}
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">New File Name</Label>
-                  <Input
-                    value={editedTitle}
-                    onChange={(e) => setEditedTitle(e.target.value)}
-                    className="mt-0.5 h-10 font-mono text-sm bg-muted/50"
-                    placeholder="Auto-generated..."
-                  />
-                </div>
-
-                {/* UI Name + Download Name */}
-                <div className="space-y-1">
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">UI Name</Label>
-                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate">
-                      {document.display_name || "-"}
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Download Name</Label>
-                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate font-mono">
-                      {document.download_name || "-"}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Validate button - shown when document can be validated */}
-                <div className="pt-2 border-t">
-                  {validated ? (
-                    <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
-                      <Check className="h-4 w-4" />
-                      <span className="text-xs font-medium">Document Validated</span>
-                      {document.user_validated_at && (
-                        <span className="text-[10px] text-muted-foreground">
-                          ({new Date(document.user_validated_at).toLocaleDateString()})
-                        </span>
-                      )}
-                    </div>
                   ) : (
-                    <Button
-                      onClick={handleValidate}
-                      disabled={validating}
-                      size="sm"
-                      className="h-7 text-xs bg-green-600 hover:bg-green-700"
-                    >
-                      {validating ? (
-                        <><Spinner size={12} className="mr-1" />Validating</>
-                      ) : (
-                        <><Check className="h-3 w-3 mr-1" />Validate Document</>
-                      )}
-                    </Button>
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
+                      {Array.isArray(document.financial_years) && document.financial_years.length > 0
+                        ? document.financial_years.map((y) => `FY${y.toString().slice(-2)}`).join(", ")
+                        : "-"}
+                    </div>
                   )}
                 </div>
 
-                {/* Save button and action notes */}
-                {((editedTitle && editedTitle !== document.file_name) ||
-                  (editedFolder && editedFolder !== document.folder) ||
-                  (editedDocumentType && editedDocumentType !== document.document_type) ||
-                  (editedCompanyId && editedCompanyId !== String(document.company_id || document.company?.id || "")) ||
-                  (JSON.stringify(editedFinancialYears) !== JSON.stringify(parseFinancialYears(document.financial_years)))) && (
-                  <div className="pt-2 border-t space-y-1.5">
-                    <div className="flex items-center gap-1">
-                      <Button onClick={handleSave} disabled={saving || !editedTitle.trim()} size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700">
-                        {saving ? <><Spinner size={12} className="mr-1" />Saving</> : <><Check className="h-3 w-3 mr-1" />Apply</>}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          setEditedTitle(document.file_name || "");
+                {/* UI Name */}
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">UI Name</Label>
+                  <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate">
+                    {document.display_name || "-"}
+                  </div>
+                </div>
+
+                {/* Download Name */}
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">DL Name</Label>
+                  <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate font-mono">
+                    {document.download_name || "-"}
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="pt-1.5 border-t mt-auto space-y-1.5">
+                  {isEditing ? (
+                    <>
+                      <div className="flex items-center gap-1">
+                        <Button onClick={handleSave} disabled={saving} size="sm" className="h-6 text-[10px] bg-green-600 hover:bg-green-700">
+                          {saving ? <><Spinner size={10} className="mr-0.5" />Saving</> : <><Check className="h-2.5 w-2.5 mr-0.5" />Save</>}
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => {
+                          setIsEditing(false);
                           setEditedFolder(document.folder || "");
                           setEditedDocumentType(document.document_type || "");
                           setEditedCompanyId(String(document.company_id || document.company?.id || ""));
                           setEditedFinancialYears(parseFinancialYears(document.financial_years));
                           setActionNotes("");
-                        }}
-                      >
-                        Reset
-                      </Button>
-                    </div>
-                    <div>
-                      <Label className="text-[10px] text-muted-foreground">Notes (optional)</Label>
-                      <Input
-                        value={actionNotes}
-                        onChange={(e) => setActionNotes(e.target.value)}
-                        className="mt-0.5 h-9 text-sm"
-                        placeholder="e.g., Renamed per client request..."
-                      />
-                    </div>
-                  </div>
-                )}
+                        }}>Cancel</Button>
+                      </div>
+                      <Input value={actionNotes} onChange={(e) => setActionNotes(e.target.value)} className="h-6 text-[10px]" placeholder="Notes (optional)..." />
+                    </>
+                  ) : (
+                    <Button onClick={handleValidate} disabled={validating || validated} size="sm" className="h-6 text-[10px] w-full bg-green-600 hover:bg-green-700">
+                      {validating ? <><Spinner size={10} className="mr-0.5" />Validating</> : validated ? <><Check className="h-2.5 w-2.5 mr-0.5" />Validated</> : <><Check className="h-2.5 w-2.5 mr-0.5" />Validate</>}
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
 
-              {/* Right Panel - AI Suggestion (mirrors Edit panel layout exactly) */}
-              <div className={cn(
-                "w-1/2 overflow-y-auto p-3",
-                document.ai_suggested_name ? "bg-purple-50/50 dark:bg-purple-900/10" : "bg-muted/30"
-              )}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className={cn("h-3 w-3", document.ai_suggested_name ? "text-purple-500 dark:text-purple-400" : "text-muted-foreground/50")} />
-                  <span className={cn(
-                    "text-[10px] font-semibold uppercase tracking-wide",
-                    document.ai_suggested_name ? "text-purple-600 dark:text-purple-400" : "text-muted-foreground/50"
-                  )}>AI Suggestion</span>
-                  {document.ai_confidence_score && (
-                    <Badge variant="outline" className={cn(
-                      "text-[10px] ml-auto px-1",
-                      document.ai_confidence_score >= 80 ? "border-green-500 text-green-600 dark:text-green-400" :
-                      document.ai_confidence_score >= 60 ? "border-yellow-500 text-yellow-600 dark:text-yellow-400" : "border-red-500 text-red-600 dark:text-red-400"
-                    )}>
-                      {document.ai_confidence_score}%
-                    </Badge>
-                  )}
+            {/* ═══ COLUMN 2: OCR (amber) ═══ */}
+            <div className="w-1/3 overflow-y-auto border-r p-2 bg-amber-50/30 dark:bg-amber-900/5">
+              <div className="flex items-center gap-1.5 mb-2">
+                <ScanSearch className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide">OCR</span>
+                {classificationData?.ocr?.confidence != null && classificationData.ocr.confidence > 0 && (
+                  <Badge variant="outline" className={cn(
+                    "text-[10px] ml-auto px-1",
+                    classificationData.ocr.confidence >= 80 ? "border-green-500 text-green-600" :
+                    classificationData.ocr.confidence >= 60 ? "border-yellow-500 text-yellow-600" : "border-red-500 text-red-600"
+                  )}>{classificationData.ocr.confidence}%</Badge>
+                )}
+              </div>
+
+              {classificationLoading ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <Spinner size={20} className="mb-2 text-amber-500" />
+                  <p className="text-[10px]">Loading...</p>
                 </div>
-
-                {isProcessing ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                    <Spinner size={24} className="mb-2 text-purple-500 dark:text-purple-400" />
-                    <p className="text-xs">AI analyzing...</p>
+              ) : (
+                <div className={cn("space-y-1.5", !classificationData?.has_classification && "opacity-40")}>
+                  {/* Company - OCR doesn't detect company */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Company</Label>
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
                   </div>
-                ) : (
-                  <div className={cn("space-y-2", !document.ai_suggested_name && "opacity-40")}>
-                    {/* Company + Folder - matching Edit panel */}
-                    <div className="grid grid-cols-2 gap-1">
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground">Company</Label>
-                        <div className={cn(
-                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
-                          document.ai_suggested_name && editedCompanyId === String(document.company_id || document.company?.id || "")
-                            ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                            : document.ai_suggested_name ? "border-red-500 bg-red-50 dark:bg-red-900/20" : ""
-                        )}>
-                          {document.ai_suggested_name ? (
-                            document.company ? (
-                              <span className="truncate">{document.company.code ? `[${document.company.code}] ` : ''}{document.company.name}</span>
-                            ) : "-"
-                          ) : "-"}
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground">Tab/Folder</Label>
-                        <div className={cn(
-                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
-                          document.ai_suggested_name && document.ai_suggested_folder
-                            ? (editedFolder === document.ai_suggested_folder
-                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                              : "border-red-500 bg-red-50 dark:bg-red-900/20")
-                            : ""
-                        )}>
-                          {document.ai_suggested_folder || "-"}
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* Document Type - with Signed/Unsigned and Amended indicators */}
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <Label className="text-[10px] text-muted-foreground">Document Type</Label>
-                        <div className="flex items-center gap-2">
-                          {/* Show Signed/Unsigned toggle if AI suggested type needs it - same style as Edit */}
-                          {(() => {
-                            const suggestedType = document.ai_suggested_type?.toLowerCase() || "";
-                            const aiDocType = documentTypes.find(t =>
-                              t.name?.toLowerCase() === suggestedType ||
-                              t.abbreviation?.toLowerCase() === suggestedType ||
-                              t.name?.toLowerCase().includes(suggestedType) ||
-                              suggestedType.includes(t.abbreviation?.toLowerCase() || "")
-                            );
-                            // Also check if it's a CTR/TTR type directly
-                            const isTaxReturn = suggestedType.includes("ctr") || suggestedType.includes("ttr") ||
-                              suggestedType.includes("company tax return") || suggestedType.includes("trust tax return");
-                            const aiNeedsSigned = aiDocType?.naming_format?.includes("{Signed}") || isTaxReturn;
-                            if (aiNeedsSigned) {
-                              // Detect from suggested name which one AI picked (can be at start like "TD US CTR" or end like "TD CTR FY24 US.pdf")
-                              // Look for standalone S (not part of US) by checking for " S " or " S." pattern
-                              const hasUS = document.ai_suggested_name?.match(/\bUS\b/i);
-                              const hasStandaloneS = document.ai_suggested_name?.match(/(?<![U])\bS\b(?![\w])/i) && !hasUS;
-                              // Default to Unsigned if neither is explicitly present (for CTR/TTR)
-                              const isUnsigned = hasUS || !hasStandaloneS;
-                              const isSigned = hasStandaloneS;
-                              return (
-                                <div className="flex items-center gap-0.5 bg-muted rounded px-1 py-0.5">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant={isUnsigned ? "default" : "ghost"}
-                                    disabled
-                                    className={cn(
-                                      "h-4 px-1.5 text-[9px]",
-                                      isUnsigned && "bg-orange-500 hover:bg-orange-600"
-                                    )}
-                                  >
-                                    US
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant={isSigned ? "default" : "ghost"}
-                                    disabled
-                                    className={cn(
-                                      "h-4 px-1.5 text-[9px]",
-                                      isSigned && "bg-green-500 hover:bg-green-600"
-                                    )}
-                                  >
-                                    S
-                                  </Button>
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
-                          {/* Show Amended checkbox indicator - same style as Edit */}
-                          <div className="flex items-center gap-1">
-                            <Checkbox
-                              checked={document.ai_suggested_name?.toLowerCase().includes("amended") || false}
-                              disabled
-                              className="h-3 w-3"
-                            />
-                            <span className="text-[10px] text-muted-foreground">Amended</span>
-                          </div>
+                  {/* Folder - OCR doesn't detect folder */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Folder</Label>
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
+                  </div>
+
+                  {/* Document Type from OCR */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
+                    <div className={cn(
+                      "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
+                      classificationData?.ocr?.document_type
+                        ? (classificationData.ocr.document_type === document.document_type
+                          ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                          : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                        : ""
+                    )}>
+                      {classificationData?.ocr?.document_type?.replace(/_/g, ' ') || "-"}
+                    </div>
+                  </div>
+
+                  {/* Signals/matched terms */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Signals</Label>
+                    <div className="mt-0.5 min-h-[28px] text-[10px] border rounded-md px-2 py-1 bg-muted/50">
+                      {classificationData?.ocr?.signals && classificationData.ocr.signals.length > 0 ? (
+                        <div className="flex flex-wrap gap-0.5">
+                          {classificationData.ocr.signals.map((s, i) => (
+                            <Badge key={i} variant="secondary" className="text-[9px] px-1 py-0">{s}</Badge>
+                          ))}
                         </div>
-                      </div>
-                      <div className={cn(
-                        "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
-                        document.ai_suggested_name && document.ai_suggested_type
-                          ? (editedDocumentType.toLowerCase().replace(/[_\s]/g, '') === document.ai_suggested_type.toLowerCase().replace(/[_\s]/g, '')
-                            ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                            : "border-red-500 bg-red-50 dark:bg-red-900/20")
-                          : ""
-                      )}>
-                        {(() => {
-                          if (!document.ai_suggested_type) return "-";
-                          const match = documentTypes.find(t =>
-                            t.name?.toLowerCase() === document.ai_suggested_type?.toLowerCase() ||
-                            t.abbreviation?.toLowerCase() === document.ai_suggested_type?.toLowerCase()
-                          );
-                          return match?.name || document.ai_suggested_type;
-                        })()}
-                      </div>
-                      {/* Show naming format for AI suggested type */}
-                      {document.ai_suggested_type && (() => {
-                        const aiDocType = documentTypes.find(t =>
+                      ) : "-"}
+                    </div>
+                  </div>
+
+                  {/* Text Preview */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Text Preview</Label>
+                    <div className="mt-0.5 text-[10px] border rounded-md px-2 py-1 bg-muted/50 max-h-20 overflow-y-auto font-mono text-muted-foreground leading-tight">
+                      {classificationData?.ocr?.text_preview || "-"}
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Status</Label>
+                    <div className="mt-0.5 h-7 text-[10px] border rounded-md px-2 flex items-center bg-muted/50">
+                      {classificationData?.ocr?.status === "completed" ? (
+                        <Badge variant="outline" className="text-[9px] border-green-500 text-green-600">completed</Badge>
+                      ) : classificationData?.ocr?.status === "not_applicable" ? (
+                        <Badge variant="outline" className="text-[9px] border-gray-400 text-gray-500">n/a</Badge>
+                      ) : classificationData?.ocr?.status || "-"}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ═══ COLUMN 3: AI (purple) ═══ */}
+            <div className={cn(
+              "w-1/3 overflow-y-auto p-2",
+              document.ai_suggested_name ? "bg-purple-50/30 dark:bg-purple-900/5" : "bg-muted/20"
+            )}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <Brain className={cn("h-3 w-3", document.ai_suggested_name ? "text-purple-500 dark:text-purple-400" : "text-muted-foreground/50")} />
+                <span className={cn(
+                  "text-[10px] font-semibold uppercase tracking-wide",
+                  document.ai_suggested_name ? "text-purple-600 dark:text-purple-400" : "text-muted-foreground/50"
+                )}>AI</span>
+                {document.ai_confidence_score != null && document.ai_confidence_score > 0 && (
+                  <Badge variant="outline" className={cn(
+                    "text-[10px] ml-auto px-1",
+                    document.ai_confidence_score >= 80 ? "border-green-500 text-green-600 dark:text-green-400" :
+                    document.ai_confidence_score >= 60 ? "border-yellow-500 text-yellow-600 dark:text-yellow-400" : "border-red-500 text-red-600 dark:text-red-400"
+                  )}>{document.ai_confidence_score}%</Badge>
+                )}
+              </div>
+
+              {isProcessing ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <Spinner size={20} className="mb-2 text-purple-500 dark:text-purple-400" />
+                  <p className="text-[10px]">AI analyzing...</p>
+                </div>
+              ) : (
+                <div className={cn("space-y-1.5", !document.ai_suggested_name && "opacity-40")}>
+                  {/* Company */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Company</Label>
+                    <div className={cn(
+                      "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
+                      document.ai_suggested_name && document.company
+                        ? (String(document.company_id || document.company?.id) === editedCompanyId
+                          ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                          : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                        : ""
+                    )}>
+                      {document.company ? (
+                        <span className="truncate">{document.company.code ? `[${document.company.code}]` : ''} {document.company.name}</span>
+                      ) : "-"}
+                    </div>
+                  </div>
+
+                  {/* Folder */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Folder</Label>
+                    <div className={cn(
+                      "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
+                      document.ai_suggested_folder
+                        ? (document.ai_suggested_folder === (document.folder || "GENERAL")
+                          ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                          : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                        : ""
+                    )}>
+                      {document.ai_suggested_folder || "-"}
+                    </div>
+                  </div>
+
+                  {/* Document Type */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
+                    <div className={cn(
+                      "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
+                      document.ai_suggested_type
+                        ? (document.ai_suggested_type.toLowerCase().replace(/[_\s]/g, '') === (document.document_type || "").toLowerCase().replace(/[_\s]/g, '')
+                          ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                          : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                        : ""
+                    )}>
+                      {(() => {
+                        if (!document.ai_suggested_type) return "-";
+                        const match = documentTypes.find(t =>
                           t.name?.toLowerCase() === document.ai_suggested_type?.toLowerCase() ||
                           t.abbreviation?.toLowerCase() === document.ai_suggested_type?.toLowerCase()
                         );
-                        return aiDocType?.naming_format ? (
-                          <p className="mt-0.5 text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded truncate">
-                            {aiDocType.naming_format}
-                          </p>
-                        ) : null;
+                        return match?.name || document.ai_suggested_type;
                       })()}
                     </div>
+                  </div>
 
-                    {/* Description/Period - only show if AI suggested type needs it */}
-                    {aiNeedsDescription && (
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground">Description</Label>
-                        <div className={cn(
-                          "mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-muted/50 line-clamp-2",
-                          document.ai_extracted_description
-                            ? (editedDescription === document.ai_extracted_description
-                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                              : "border-purple-500 bg-purple-50 dark:bg-purple-900/20")
-                            : ""
-                        )}>
-                          {document.ai_extracted_description || "-"}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Financial Year - only show if AI suggested type needs it */}
-                    {aiNeedsFinancialYear && (
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground">Financial Year</Label>
-                        <div className={cn(
-                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
-                          document.ai_suggested_name && document.ai_suggested_fy
-                            ? (JSON.stringify(editedFinancialYears) === JSON.stringify(parseFinancialYears(document.ai_suggested_fy))
-                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                              : "border-red-500 bg-red-50 dark:bg-red-900/20")
-                            : ""
-                        )}>
-                          {document.ai_suggested_fy
-                            ? parseFinancialYears(document.ai_suggested_fy).map(y => `FY${y.toString().slice(-2)}`).join(", ")
-                            : "-"}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Date field - only show if Edit panel shows it */}
-                    {(needsDescriptionAndDate || isAmended) && (
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground">
-                          {isAmended ? "Amended Date" : "Date"}
-                        </Label>
-                        <div className={cn(
-                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
-                          document.ai_extracted_date
-                            ? (editedRefDate === document.ai_extracted_date
-                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                              : "border-purple-500 bg-purple-50 dark:bg-purple-900/20")
-                            : ""
-                        )}>
-                          {document.ai_extracted_date
-                            ? document.ai_extracted_date.match(/^\d{4}-\d{2}-\d{2}$/)
-                              ? document.ai_extracted_date.split('-').reverse().join('-')  // Convert YYYY-MM-DD to DD-MM-YYYY
-                              : document.ai_extracted_date
-                            : "-"}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* UI Name + Download Name */}
-                    <div className="space-y-1">
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground">UI Name</Label>
-                        <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 truncate">
-                          {document.display_name || "-"}
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-[10px] text-muted-foreground">Download Name</Label>
-                        <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate font-mono">
-                          {document.download_name || "-"}
-                        </div>
-                      </div>
+                  {/* Description */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Description</Label>
+                    <div className={cn(
+                      "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
+                      document.ai_extracted_description
+                        ? (document.ai_extracted_description === (document.ai_extracted_description || "")
+                          ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                          : "border-purple-500 bg-purple-50 dark:bg-purple-900/20")
+                        : ""
+                    )}>
+                      {document.ai_extracted_description || "-"}
                     </div>
+                  </div>
 
-                    {/* Action buttons - matching Edit panel button position */}
-                    {document.ai_suggested_name ? (
-                      <div className="pt-2 border-t flex items-center gap-2">
-                        <Button
-                          onClick={handleApplySuggestion}
-                          disabled={applyingSuggestion}
-                          size="sm"
-                          className="h-7 text-xs bg-purple-600 hover:bg-purple-700"
-                        >
-                          {applyingSuggestion ? (
-                            <><Spinner size={12} className="mr-1" />Applying</>
-                          ) : (
-                            <><Sparkles className="h-3 w-3 mr-1" />Apply AI</>
-                          )}
-                        </Button>
-                        <Button
-                          onClick={handleAiVerify}
-                          disabled={aiVerifying}
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs text-purple-600 dark:text-purple-400 border-purple-300 hover:bg-purple-100"
-                        >
-                          {aiVerifying ? (
-                            <><Spinner size={12} className="mr-1" />Analyzing</>
-                          ) : (
-                            <><RefreshCw className="h-3 w-3 mr-1" />Re-run</>
-                          )}
-                        </Button>
-                      </div>
+                  {/* Financial Year */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">FY</Label>
+                    <div className={cn(
+                      "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
+                      document.ai_suggested_fy
+                        ? (JSON.stringify(parseFinancialYears(document.ai_suggested_fy)) === JSON.stringify(parseFinancialYears(document.financial_years))
+                          ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                          : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                        : ""
+                    )}>
+                      {document.ai_suggested_fy
+                        ? parseFinancialYears(document.ai_suggested_fy).map(y => `FY${y.toString().slice(-2)}`).join(", ")
+                        : "-"}
+                    </div>
+                  </div>
+
+                  {/* Suggested Name */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Sugg. Name</Label>
+                    <div className="mt-0.5 min-h-[28px] text-[10px] border rounded-md px-2 py-1 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 truncate font-mono">
+                      {document.ai_suggested_name || "-"}
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  {document.ai_suggested_name ? (
+                    <div className="pt-1.5 border-t space-y-1">
+                      <Button
+                        onClick={handleApplySuggestion}
+                        disabled={applyingSuggestion}
+                        size="sm"
+                        className="h-6 text-[10px] w-full bg-purple-600 hover:bg-purple-700"
+                      >
+                        {applyingSuggestion ? (
+                          <><Spinner size={12} className="mr-1" />Applying</>
+                        ) : (
+                          <><Sparkles className="h-3 w-3 mr-1" />Apply AI</>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={handleAiVerify}
+                        disabled={aiVerifying}
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[10px] w-full text-purple-600 dark:text-purple-400 border-purple-300 hover:bg-purple-100"
+                      >
+                        {aiVerifying ? (
+                          <><Spinner size={12} className="mr-1" />Analyzing</>
+                        ) : (
+                          <><RefreshCw className="h-3 w-3 mr-1" />Re-run</>
+                        )}
+                      </Button>
+                    </div>
                     ) : canAiVerify ? (
                       <div className="pt-2 border-t">
                         <Button
@@ -2021,7 +1891,6 @@ export default function DocumentPreviewModal({
                     )}
                   </div>
                 )}
-              </div>
             </div>
           </div>}
 

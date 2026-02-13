@@ -69,10 +69,7 @@ module Api
         operation_type = params[:operation_type] || params[:type]
 
         unless BatchOperation::OPERATION_TYPES.include?(operation_type)
-          return render json: {
-            success: false,
-            error: "Invalid operation type. Must be one of: #{BatchOperation::OPERATION_TYPES.join(', ')}"
-          }, status: :unprocessable_entity
+          return render_error("Invalid operation type. Must be one of: #{BatchOperation::OPERATION_TYPES.join(', ')}", status: :unprocessable_entity)
         end
 
         # Route to specific handler based on operation type
@@ -108,19 +105,16 @@ module Api
 
       def create_plan_upload
         unless @job
-          return render json: { success: false, error: "job_id required for plan_upload" }, status: :unprocessable_entity
+          return render_error("job_id required for plan_upload", status: :unprocessable_entity)
         end
 
         unless params[:file].present?
-          return render json: { success: false, error: "No file provided" }, status: :unprocessable_entity
+          return render_error("No file provided", status: :unprocessable_entity)
         end
 
         # Check for existing active upload
         if @job.batch_operations.plan_uploads.active.exists?
-          return render json: {
-            success: false,
-            error: "An upload is already in progress for this job"
-          }, status: :conflict
+          return render_error("An upload is already in progress for this job", status: :conflict)
         end
 
         uploaded_file = params[:file]
@@ -145,7 +139,7 @@ module Api
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e
           operation.mark_failed!("Storage not connected: #{e.message}")
-          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
+          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
         end
 
         begin
@@ -179,7 +173,7 @@ module Api
         rescue DocumentProviders::Error => e
           Rails.logger.error("[BatchOperation] Storage error: #{e.message}")
           operation.mark_failed!(e.message)
-          render json: { success: false, error: "Storage error: #{e.message}" }, status: :bad_gateway
+          render_error("Storage error: #{e.message}", status: :bad_gateway)
         rescue => e
           Rails.logger.error("[BatchOperation] Upload failed: #{e.message}")
           operation.mark_failed!(e.message)
@@ -189,15 +183,12 @@ module Api
 
       def create_plan_reextract
         unless @job
-          return render json: { success: false, error: "job_id required for plan_reextract" }, status: :unprocessable_entity
+          return render_error("job_id required for plan_reextract", status: :unprocessable_entity)
         end
 
         # Check for existing active reextraction
         if @job.batch_operations.plan_reextracts.active.exists?
-          return render json: {
-            success: false,
-            error: "A re-extraction is already in progress for this job"
-          }, status: :conflict
+          return render_error("A re-extraction is already in progress for this job", status: :conflict)
         end
 
         # Create BatchOperation record
@@ -218,10 +209,7 @@ module Api
       def create_folder_scan
         # Check for existing active scan
         if BatchOperation.folder_scans.active.exists?
-          return render json: {
-            success: false,
-            error: "A folder scan is already in progress"
-          }, status: :conflict
+          return render_error("A folder scan is already in progress", status: :conflict)
         end
 
         # Create BatchOperation record
@@ -241,10 +229,7 @@ module Api
       def create_folder_process
         # Check for existing active process
         if BatchOperation.folder_processes.active.exists?
-          return render json: {
-            success: false,
-            error: "A folder process is already in progress"
-          }, status: :conflict
+          return render_error("A folder process is already in progress", status: :conflict)
         end
 
         # Create BatchOperation record

@@ -41,10 +41,7 @@ module Api
             data: serialize_revision(@revision)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: @revision.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          render_validation_errors(@revision)
         end
       end
 
@@ -56,10 +53,7 @@ module Api
             data: serialize_revision(@revision)
           }
         else
-          render json: {
-            success: false,
-            error: @revision.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          render_validation_errors(@revision)
         end
       end
 
@@ -67,10 +61,7 @@ module Api
       def destroy
         # Don't allow deleting the current revision
         if @job_plan.current_revision_id == @revision.id
-          return render json: {
-            success: false,
-            error: 'Cannot delete the current revision. Set another revision as current first.'
-          }, status: :unprocessable_entity
+          return render_error('Cannot delete the current revision. Set another revision as current first.', status: :unprocessable_entity)
         end
 
         @revision.destroy

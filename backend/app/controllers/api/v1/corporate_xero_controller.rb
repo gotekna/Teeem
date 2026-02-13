@@ -47,10 +47,7 @@ module Api
             }
           }
         else
-          render json: {
-            success: false,
-            error: "No Xero connection for this company"
-          }, status: :not_found
+          render_error("No Xero connection for this company", status: :not_found)
         end
       end
 
@@ -114,7 +111,7 @@ module Api
         tenant_id = params[:tenant_id]
 
         if tenant_id.blank?
-          render json: { success: false, error: "tenant_id is required" }, status: :bad_request
+          render_error("tenant_id is required", status: :bad_request)
           return
         end
 
@@ -127,7 +124,7 @@ module Api
                      end
 
         if credential.nil?
-          render json: { success: false, error: "Xero organization not found. Please authorize with Xero first." }, status: :not_found
+          render_error("Xero organization not found. Please authorize with Xero first.", status: :not_found)
           return
         end
 
@@ -135,7 +132,7 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.present?
-          render json: { success: false, error: "This company is already linked to #{connection.xero_tenant_name}" }, status: :unprocessable_entity
+          render_error("This company is already linked to #{connection.xero_tenant_name}", status: :unprocessable_entity)
           return
         end
 
@@ -157,7 +154,7 @@ module Api
             )
           }
         else
-          render json: { success: false, error: connection.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(connection)
         end
       end
 
@@ -185,17 +182,11 @@ module Api
         }
       rescue XeroApiClient::AuthenticationError => e
         Rails.logger.error("[Xero Authorize] Authentication error for company #{@company.id}: #{e.message}")
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :service_unavailable
+        render_error(e.message, status: :service_unavailable)
       rescue StandardError => e
         Rails.logger.error("[Xero Authorize] Unexpected error for company #{@company.id}: #{e.message}")
         Rails.logger.error(e.backtrace.first(5).join("\n"))
-        render json: {
-          success: false,
-          error: "Failed to generate authorization URL: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to generate authorization URL: #{e.message}", status: :internal_server_error)
       end
 
       # GET /api/v1/companies/:company_id/xero/callback
@@ -208,20 +199,14 @@ module Api
 
         if code.blank?
           Rails.logger.warn("[Xero Callback] Company #{@company.id} - Missing authorization code")
-          return render json: {
-            success: false,
-            error: "Authorization code not provided"
-          }, status: :bad_request
+          return render_error("Authorization code not provided", status: :bad_request)
         end
 
         # Verify state matches company_id
         expected_state = "company_#{@company.id}"
         if state != expected_state
           Rails.logger.warn("[Xero Callback] Company #{@company.id} - State mismatch. Expected: #{expected_state}, Got: #{state}")
-          return render json: {
-            success: false,
-            error: "Invalid state parameter"
-          }, status: :bad_request
+          return render_error("Invalid state parameter", status: :bad_request)
         end
 
         begin
@@ -239,24 +224,15 @@ module Api
             }
           else
             Rails.logger.error("[Xero Callback] Company #{@company.id} - Token exchange failed: #{result[:error]}")
-            render json: {
-              success: false,
-              error: result[:error] || "Failed to connect to Xero"
-            }, status: :unprocessable_entity
+            render_error(result[:error] || "Failed to connect to Xero", status: :unprocessable_entity)
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("[Xero Callback] Company #{@company.id} - Authentication error: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :unauthorized
+          render_error(e.message, status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("[Xero Callback] Company #{@company.id} - Unexpected error: #{e.message}")
           Rails.logger.error(e.backtrace.first(10).join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to complete Xero authorization: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to complete Xero authorization: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -266,10 +242,7 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :not_found
+          return render_error("Company is not connected to Xero", status: :not_found)
         end
 
         begin
@@ -295,19 +268,13 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         # Refresh tokens if needed
         if connection.needs_refresh?
           unless connection.refresh_tokens!
-            return render json: {
-              success: false,
-              error: "Failed to refresh Xero tokens. Please reconnect."
-            }, status: :unauthorized
+            return render_error("Failed to refresh Xero tokens. Please reconnect.", status: :unauthorized)
           end
         end
 
@@ -338,18 +305,12 @@ module Api
             error_msg = error_messages.compact.join("; ")
 
             connection.mark_error!(error_msg) if error_msg.present?
-            render json: {
-              success: false,
-              error: error_msg.presence || "Sync completed with issues"
-            }, status: :unprocessable_entity
+            render_error(error_msg.presence || "Sync completed with issues", status: :unprocessable_entity)
           end
         rescue StandardError => e
           Rails.logger.error("Xero sync error for company #{@company.id}: #{e.message}")
           connection.mark_error!(e.message)
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -359,10 +320,7 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         begin
@@ -375,10 +333,7 @@ module Api
             current_tenant_id: connection.xero_tenant_id
           }
         rescue StandardError => e
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -388,10 +343,7 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         begin
@@ -425,10 +377,7 @@ module Api
           end
         rescue StandardError => e
           Rails.logger.error("Failed to get bank accounts for company #{@company.id}: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -438,20 +387,14 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         bank_account_id = params[:bank_account_id]
         xero_account_id = params[:xero_account_id]
 
         if bank_account_id.blank? || xero_account_id.blank?
-          return render json: {
-            success: false,
-            error: "bank_account_id and xero_account_id are required"
-          }, status: :bad_request
+          return render_error("bank_account_id and xero_account_id are required", status: :bad_request)
         end
 
         begin
@@ -474,10 +417,7 @@ module Api
             render json: result, status: :unprocessable_entity
           end
         rescue StandardError => e
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -487,10 +427,7 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         begin
@@ -517,10 +454,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Failed to sync transactions for company #{@company.id}: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -530,10 +464,7 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         # Parse filters
@@ -583,19 +514,13 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         # Refresh tokens if needed
         if connection.needs_refresh?
           unless connection.refresh_tokens!
-            return render json: {
-              success: false,
-              error: "Failed to refresh Xero tokens. Please reconnect."
-            }, status: :unauthorized
+            return render_error("Failed to refresh Xero tokens. Please reconnect.", status: :unauthorized)
           end
         end
 
@@ -604,10 +529,7 @@ module Api
           result = client.get("Accounts", tenant_id: connection.xero_tenant_id, access_token: connection.access_token)
 
           unless result[:success]
-            return render json: {
-              success: false,
-              error: result[:error] || "Failed to fetch accounts from Xero"
-            }, status: :unprocessable_entity
+            return render_error(result[:error] || "Failed to fetch accounts from Xero", status: :unprocessable_entity)
           end
 
           xero_accounts = result[:data]["Accounts"] || []
@@ -653,10 +575,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Failed to fetch Xero accounts for company #{@company.id}: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -666,29 +585,20 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         account_id = params[:account_id]
         new_name = params[:name]
 
         if account_id.blank? || new_name.blank?
-          return render json: {
-            success: false,
-            error: "account_id and name are required"
-          }, status: :bad_request
+          return render_error("account_id and name are required", status: :bad_request)
         end
 
         # Refresh tokens if needed
         if connection.needs_refresh?
           unless connection.refresh_tokens!
-            return render json: {
-              success: false,
-              error: "Failed to refresh Xero tokens. Please reconnect."
-            }, status: :unauthorized
+            return render_error("Failed to refresh Xero tokens. Please reconnect.", status: :unauthorized)
           end
         end
 
@@ -708,17 +618,11 @@ module Api
               account: result[:account]
             }
           else
-            render json: {
-              success: false,
-              error: result[:error] || "Failed to rename account"
-            }, status: :unprocessable_entity
+            render_error(result[:error] || "Failed to rename account", status: :unprocessable_entity)
           end
         rescue StandardError => e
           Rails.logger.error("Failed to rename Xero account for company #{@company.id}: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -729,19 +633,13 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         # Refresh tokens if needed
         if connection.needs_refresh?
           unless connection.refresh_tokens!
-            return render json: {
-              success: false,
-              error: "Failed to refresh Xero tokens. Please reconnect."
-            }, status: :unauthorized
+            return render_error("Failed to refresh Xero tokens. Please reconnect.", status: :unauthorized)
           end
         end
 
@@ -752,10 +650,7 @@ module Api
           result = client.get("Accounts", tenant_id: connection.xero_tenant_id, access_token: connection.access_token)
 
           unless result[:success]
-            return render json: {
-              success: false,
-              error: result[:error] || "Failed to fetch accounts from Xero"
-            }, status: :unprocessable_entity
+            return render_error(result[:error] || "Failed to fetch accounts from Xero", status: :unprocessable_entity)
           end
 
           xero_accounts = result[:data]["Accounts"] || []
@@ -838,10 +733,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Failed to standardize Xero account names for company #{@company.id}: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -898,10 +790,7 @@ module Api
           .select { |c| c.corporate_xero_connection&.connected? }
 
         if companies_with_xero.empty?
-          return render json: {
-            success: false,
-            error: "No companies in this group are connected to Xero"
-          }, status: :bad_request
+          return render_error("No companies in this group are connected to Xero", status: :bad_request)
         end
 
         client = XeroApiClient.new
@@ -976,19 +865,13 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         # Refresh tokens if needed
         if connection.needs_refresh?
           unless connection.refresh_tokens!
-            return render json: {
-              success: false,
-              error: "Failed to refresh Xero tokens. Please reconnect."
-            }, status: :unauthorized
+            return render_error("Failed to refresh Xero tokens. Please reconnect.", status: :unauthorized)
           end
         end
 
@@ -1005,20 +888,14 @@ module Api
           )
 
           unless result[:success]
-            return render json: {
-              success: false,
-              error: result[:error] || "Failed to fetch Profit & Loss from Xero"
-            }, status: :unprocessable_entity
+            return render_error(result[:error] || "Failed to fetch Profit & Loss from Xero", status: :unprocessable_entity)
           end
 
           reports = result[:data]["Reports"] || []
           report = reports.first
 
           if report.nil?
-            return render json: {
-              success: false,
-              error: "No Profit & Loss report returned from Xero"
-            }, status: :unprocessable_entity
+            return render_error("No Profit & Loss report returned from Xero", status: :unprocessable_entity)
           end
 
           # Parse the report rows
@@ -1035,10 +912,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Failed to fetch Xero P&L for company #{@company.id}: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -1053,10 +927,7 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         begin
@@ -1077,10 +948,7 @@ module Api
               if @company.corporate_monthly_pls.any?
                 Rails.logger.warn("Xero sync failed, using cached data: #{sync_result[:error]}")
               else
-                return render json: {
-                  success: false,
-                  error: sync_result[:error] || "Failed to sync monthly P&L from Xero"
-                }, status: :unprocessable_entity
+                return render_error(sync_result[:error] || "Failed to sync monthly P&L from Xero", status: :unprocessable_entity)
               end
             end
           end
@@ -1114,10 +982,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Failed to fetch monthly P&L for company #{@company.id}: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -1127,19 +992,13 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         # Refresh tokens if needed
         if connection.needs_refresh?
           unless connection.refresh_tokens!
-            return render json: {
-              success: false,
-              error: "Failed to refresh Xero tokens. Please reconnect."
-            }, status: :unauthorized
+            return render_error("Failed to refresh Xero tokens. Please reconnect.", status: :unauthorized)
           end
         end
 
@@ -1154,20 +1013,14 @@ module Api
           )
 
           unless result[:success]
-            return render json: {
-              success: false,
-              error: result[:error] || "Failed to fetch Balance Sheet from Xero"
-            }, status: :unprocessable_entity
+            return render_error(result[:error] || "Failed to fetch Balance Sheet from Xero", status: :unprocessable_entity)
           end
 
           reports = result[:data]["Reports"] || []
           report = reports.first
 
           if report.nil?
-            return render json: {
-              success: false,
-              error: "No Balance Sheet report returned from Xero"
-            }, status: :unprocessable_entity
+            return render_error("No Balance Sheet report returned from Xero", status: :unprocessable_entity)
           end
 
           # Parse the report rows
@@ -1183,10 +1036,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Failed to fetch Xero Balance Sheet for company #{@company.id}: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -1196,27 +1046,18 @@ module Api
         connection = @company.corporate_xero_connection
 
         if connection.nil? || !connection.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         bank_account_id = params[:bank_account_id]
         if bank_account_id.blank?
-          return render json: {
-            success: false,
-            error: "bank_account_id is required"
-          }, status: :bad_request
+          return render_error("bank_account_id is required", status: :bad_request)
         end
 
         # Refresh tokens if needed
         if connection.needs_refresh?
           unless connection.refresh_tokens!
-            return render json: {
-              success: false,
-              error: "Failed to refresh Xero tokens. Please reconnect."
-            }, status: :unauthorized
+            return render_error("Failed to refresh Xero tokens. Please reconnect.", status: :unauthorized)
           end
         end
 
@@ -1248,10 +1089,7 @@ module Api
 
           unless result[:success]
             Rails.logger.error("[XeroBankTransactions] Xero API error: #{result[:error]}")
-            return render json: {
-              success: false,
-              error: result[:error] || "Failed to fetch bank transactions from Xero"
-            }, status: :unprocessable_entity
+            return render_error(result[:error] || "Failed to fetch bank transactions from Xero", status: :unprocessable_entity)
           end
 
           transactions = result[:data]["BankTransactions"] || []
@@ -1392,10 +1230,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error("[XeroBankTransactions] Error for company #{@company.id}: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -1501,10 +1336,7 @@ module Api
         companies = get_group_companies.select { |c| c.corporate_xero_connection&.connected? }
 
         if companies.empty?
-          return render json: {
-            success: false,
-            error: "No companies in this group are connected to Xero"
-          }, status: :bad_request
+          return render_error("No companies in this group are connected to Xero", status: :bad_request)
         end
 
         from_date = params[:from_date] || Date.today.beginning_of_year.to_s
@@ -1584,10 +1416,7 @@ module Api
         companies = get_group_companies.select { |c| c.corporate_xero_connection&.connected? }
 
         if companies.empty?
-          return render json: {
-            success: false,
-            error: "No companies in this group are connected to Xero"
-          }, status: :bad_request
+          return render_error("No companies in this group are connected to Xero", status: :bad_request)
         end
 
         as_of_date = params[:date] || Date.today.to_s
@@ -1665,10 +1494,7 @@ module Api
         connection = @company.corporate_xero_connection
 
         unless connection&.connected?
-          return render json: {
-            success: false,
-            error: "Company is not connected to Xero"
-          }, status: :bad_request
+          return render_error("Company is not connected to Xero", status: :bad_request)
         end
 
         xero_tenant_id = connection.xero_tenant_id
@@ -2116,7 +1942,7 @@ module Api
       def set_company
         @company = Corporate.find_by_slug_or_id(params[:company_id])
         unless @company
-          render json: { success: false, error: "Company not found" }, status: :not_found
+          render_error("Company not found", status: :not_found)
         end
       end
     end

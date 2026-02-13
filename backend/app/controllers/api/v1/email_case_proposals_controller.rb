@@ -85,10 +85,7 @@ module Api
 
         # Check if email has already been actioned for a case
         if email.match_type == "case_rejected"
-          return render json: {
-            success: false,
-            error: "This email was previously rejected for case creation"
-          }, status: :unprocessable_entity
+          return render_error("This email was previously rejected for case creation", status: :unprocessable_entity)
         end
 
         # Check if proposal already exists for this email
@@ -127,27 +124,18 @@ module Api
         }, status: :created
 
       rescue EmailToCaseService::RateLimitError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :too_many_requests
+        render_error(e.message, status: :too_many_requests)
 
       rescue StandardError => e
         Rails.logger.error "Case proposal creation error: #{e.message}"
-        render json: {
-          success: false,
-          error: "Failed to create proposal: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to create proposal: #{e.message}", status: :internal_server_error)
       end
 
       # POST /api/v1/email_case_proposals/:id/approve
       # Approve proposal and create case
       def approve
         unless @proposal.pending?
-          return render json: {
-            success: false,
-            error: "Proposal is not pending (status: #{@proposal.status})"
-          }, status: :unprocessable_entity
+          return render_error("Proposal is not pending (status: #{@proposal.status})", status: :unprocessable_entity)
         end
 
         # Get user edits from params
@@ -173,20 +161,14 @@ module Api
 
       rescue StandardError => e
         Rails.logger.error "Case approval error: #{e.message}"
-        render json: {
-          success: false,
-          error: "Failed to create case: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to create case: #{e.message}", status: :internal_server_error)
       end
 
       # POST /api/v1/email_case_proposals/:id/reject
       # Reject proposal
       def reject
         unless @proposal.pending?
-          return render json: {
-            success: false,
-            error: "Proposal is not pending (status: #{@proposal.status})"
-          }, status: :unprocessable_entity
+          return render_error("Proposal is not pending (status: #{@proposal.status})", status: :unprocessable_entity)
         end
 
         reason = params[:reason] || "No reason provided"
@@ -200,20 +182,14 @@ module Api
 
       rescue StandardError => e
         Rails.logger.error "Proposal rejection error: #{e.message}"
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/email_case_proposals/:id/re_extract
       # Re-extract data from email
       def re_extract
         unless @proposal.pending?
-          return render json: {
-            success: false,
-            error: "Can only re-extract pending proposals (current status: #{@proposal.status})"
-          }, status: :unprocessable_entity
+          return render_error("Can only re-extract pending proposals (current status: #{@proposal.status})", status: :unprocessable_entity)
         end
 
         email = @proposal.email_warehouse
@@ -250,17 +226,11 @@ module Api
         }
 
       rescue EmailToCaseService::RateLimitError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :too_many_requests
+        render_error(e.message, status: :too_many_requests)
 
       rescue StandardError => e
         Rails.logger.error "Re-extraction error: #{e.message}"
-        render json: {
-          success: false,
-          error: "Failed to re-extract proposal: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to re-extract proposal: #{e.message}", status: :internal_server_error)
       end
 
       # GET /api/v1/email_case_proposals/relationship_types

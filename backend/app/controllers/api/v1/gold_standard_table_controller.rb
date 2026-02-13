@@ -76,7 +76,7 @@ class Api::V1::GoldStandardTableController < ApplicationController
     if item.save
       render json: { success: true, item: item }, status: :created
     else
-      render json: { success: false, errors: item.errors.full_messages }, status: :unprocessable_entity
+      render_validation_errors(item)
     end
   end
 
@@ -84,7 +84,7 @@ class Api::V1::GoldStandardTableController < ApplicationController
     if @item.update(item_params)
       render json: { success: true, item: @item }
     else
-      render json: { success: false, errors: @item.errors.full_messages }, status: :unprocessable_entity
+      render_validation_errors(@item)
     end
   end
 
@@ -96,7 +96,7 @@ class Api::V1::GoldStandardTableController < ApplicationController
   # POST /api/v1/gold_standard_table/bulk_delete
   def bulk_delete
     ids = params[:ids]
-    return render json: { success: false, error: "No IDs provided" }, status: :bad_request if ids.blank?
+    return render_error("No IDs provided", status: :bad_request) if ids.blank?
 
     ids = ids.first(1000) if ids.is_a?(Array)
     deleted_count = GoldStandardTable.where(id: ids).delete_all
@@ -115,7 +115,7 @@ class Api::V1::GoldStandardTableController < ApplicationController
   def merge
     secondary_ids = params[:secondary_ids]
 
-    return render json: { success: false, error: "No secondary IDs provided" }, status: :bad_request if secondary_ids.blank?
+    return render_error("No secondary IDs provided", status: :bad_request) if secondary_ids.blank?
 
     secondary_items = GoldStandardTable.where(id: secondary_ids)
 
@@ -169,10 +169,7 @@ class Api::V1::GoldStandardTableController < ApplicationController
         }}
       }
     rescue => e
-      render json: {
-        success: false,
-        error: e.message
-      }, status: :internal_server_error
+      render_error(e.message, status: :internal_server_error)
     end
   end
 
@@ -181,7 +178,7 @@ class Api::V1::GoldStandardTableController < ApplicationController
   def set_item
     @item = GoldStandardTable.find(params[:id])
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "Item not found" }, status: :not_found
+    render_error("Item not found", status: :not_found)
   end
 
   # Apply filters to the query

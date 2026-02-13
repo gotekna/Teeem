@@ -27,7 +27,7 @@ class Api::V1::UserGroupsController < ApplicationController
         }
       }, status: :created
     else
-      render json: { success: false, error: @user_group.errors.full_messages.join(", ") }, status: :unprocessable_entity
+      render_validation_errors(@user_group)
     end
   end
 
@@ -42,7 +42,7 @@ class Api::V1::UserGroupsController < ApplicationController
     if @user_group.update(user_group_params)
       render json: { success: true, group: { id: @user_group.id, name: @user_group.name, description: @user_group.label } }
     else
-      render json: { success: false, error: @user_group.errors.full_messages.join(", ") }, status: :unprocessable_entity
+      render_validation_errors(@user_group)
     end
   end
 
@@ -58,16 +58,13 @@ class Api::V1::UserGroupsController < ApplicationController
     # Check if any users are in this group
     users_count = User.where(user_group_id: @user_group.id).count
     if users_count > 0
-      return render json: {
-        success: false,
-        error: "Cannot delete group '#{@user_group.label}' - #{users_count} user(s) are assigned to it"
-      }, status: :unprocessable_entity
+      return render_error("Cannot delete group '#{@user_group.label}' - #{users_count} user(s) are assigned to it", status: :unprocessable_entity)
     end
 
     if @user_group.destroy
       render json: { success: true, message: "Group deleted successfully" }
     else
-      render json: { success: false, error: "Failed to delete group" }, status: :unprocessable_entity
+      render_error("Failed to delete group", status: :unprocessable_entity)
     end
   end
 

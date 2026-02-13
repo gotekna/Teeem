@@ -36,7 +36,7 @@ module Api
           PlanFolderProcessJob.perform_later(scan.id)
           render json: { success: true, message: "Processing queued" }
         else
-          render json: { success: false, error: "Scan is not in pending state" }, status: :unprocessable_entity
+          render_error("Scan is not in pending state", status: :unprocessable_entity)
         end
       end
 

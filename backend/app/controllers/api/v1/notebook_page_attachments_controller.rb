@@ -20,7 +20,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
   # POST /api/v1/notebook_pages/:notebook_page_id/attachments
   def create
     unless params[:file].present?
-      render json: { success: false, error: "File is required" }, status: :unprocessable_entity
+      render_error("File is required", status: :unprocessable_entity)
       return
     end
 
@@ -44,7 +44,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
     if @attachment.save
       render json: { success: true, attachment: attachment_json(@attachment) }, status: :created
     else
-      render json: { success: false, errors: @attachment.errors.full_messages }, status: :unprocessable_entity
+      render_validation_errors(@attachment)
     end
   end
 
@@ -58,7 +58,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
   # GET /api/v1/notebook_page_attachments/:id/download
   def download
     unless @attachment.has_file?
-      render json: { success: false, error: "File not found" }, status: :not_found
+      render_error("File not found", status: :not_found)
       return
     end
 
@@ -83,7 +83,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
     return if notebook.nil?
 
     unless notebook.accessible_by?(current_user)
-      render json: { success: false, error: "Not authorized" }, status: :forbidden
+      render_error("Not authorized", status: :forbidden)
     end
   end
 
@@ -92,7 +92,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
     return if notebook.nil?
 
     unless notebook.editable_by?(current_user)
-      render json: { success: false, error: "Not authorized to edit" }, status: :forbidden
+      render_error("Not authorized to edit", status: :forbidden)
     end
   end
 

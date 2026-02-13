@@ -105,12 +105,12 @@ module Api
       # View master tenant's records for a specific table with sync preferences
       def master_records
         unless master_tenant
-          return render json: { success: false, error: "No master tenant found" }, status: :not_found
+          return render_error("No master tenant found", status: :not_found)
         end
 
         table_config = TenantConfigSyncService::CONFIG_TABLES[params[:table]&.to_sym]
         unless table_config
-          return render json: { success: false, error: "Unknown table" }, status: :bad_request
+          return render_error("Unknown table", status: :bad_request)
         end
 
         model = table_config[:model].constantize
@@ -221,7 +221,7 @@ module Api
         table = params[:table]&.to_sym
         table_config = TenantConfigSyncService::CONFIG_TABLES[table]
         unless table_config
-          return render json: { success: false, error: "Unknown table: #{params[:table]}" }, status: :bad_request
+          return render_error("Unknown table: #{params[:table]}", status: :bad_request)
         end
 
         service = TenantConfigSyncService.new(current_tenant)
@@ -629,7 +629,7 @@ module Api
             last_config_sync_by: current_tenant.tenant_setting.last_config_sync_by
           }
         else
-          render json: { success: false, error: "No tenant setting found" }, status: :not_found
+          render_error("No tenant setting found", status: :not_found)
         end
       end
 
@@ -648,7 +648,7 @@ module Api
         require_teeem_staff!
 
         unless master_tenant
-          return render json: { success: false, error: "No master tenant found" }, status: :not_found
+          return render_error("No master tenant found", status: :not_found)
         end
 
         service = TenantConfigSyncService.new(master_tenant)
@@ -686,13 +686,13 @@ module Api
       def require_teeem_staff!
         return if current_user&.teeem_staff?
 
-        render json: { success: false, error: "TEEEM staff access required" }, status: :forbidden
+        render_error("TEEEM staff access required", status: :forbidden)
       end
 
       def require_admin!
         return if current_user&.admin?
 
-        render json: { success: false, error: "Admin access required" }, status: :forbidden
+        render_error("Admin access required", status: :forbidden)
       end
 
       def current_tenant

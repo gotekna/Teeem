@@ -7,10 +7,7 @@ module Api
       # Dev mode only: Auto-login as default dev user
       def dev_login
         unless dev_mode_enabled?
-          render json: {
-            success: false,
-            error: "Dev mode is not enabled. Set DEV_MODE_AUTH_BYPASS=true in .env"
-          }, status: :forbidden
+          render_error("Dev mode is not enabled. Set DEV_MODE_AUTH_BYPASS=true in .env", status: :forbidden)
           return
         end
 
@@ -76,10 +73,7 @@ module Api
             }
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: user.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(user)
         end
       end
 
@@ -133,10 +127,7 @@ module Api
             }
           }
         else
-          render json: {
-            success: false,
-            error: "Invalid username or password"
-          }, status: :unauthorized
+          render_error("Invalid username or password", status: :unauthorized)
         end
       end
 
@@ -146,7 +137,7 @@ module Api
         user = @current_user
 
         unless user.authenticate(change_password_params[:current_password])
-          return render json: { success: false, error: "Current password is incorrect" }, status: :unprocessable_entity
+          return render_error("Current password is incorrect", status: :unprocessable_entity)
         end
 
         user.password = change_password_params[:new_password]
@@ -161,10 +152,7 @@ module Api
             message: "Password changed successfully"
           }
         else
-          render json: {
-            success: false,
-            errors: user.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(user)
         end
       end
 
@@ -176,7 +164,7 @@ module Api
         provided_secret = params[:secret] || request.headers["X-Admin-Secret"]
 
         unless provided_secret == admin_secret
-          render json: { success: false, error: "Invalid admin secret" }, status: :unauthorized
+          render_error("Invalid admin secret", status: :unauthorized)
           return
         end
 
@@ -188,7 +176,7 @@ module Api
         end
 
         unless user
-          render json: { success: false, error: "User not found" }, status: :not_found
+          render_error("User not found", status: :not_found)
           return
         end
 
@@ -215,7 +203,7 @@ module Api
         provided_secret = params[:secret] || request.headers["X-Admin-Secret"]
 
         unless provided_secret == admin_secret
-          render json: { success: false, error: "Invalid admin secret" }, status: :unauthorized
+          render_error("Invalid admin secret", status: :unauthorized)
           return
         end
 
@@ -289,7 +277,7 @@ module Api
       def forgot_password
         email = params[:email]&.strip&.downcase
         unless email.present?
-          render json: { success: false, error: "Email is required" }, status: :bad_request
+          render_error("Email is required", status: :bad_request)
           return
         end
 
@@ -335,19 +323,19 @@ module Api
         token = params[:token]
 
         unless token.present?
-          render json: { success: false, error: "Token is required" }, status: :bad_request
+          render_error("Token is required", status: :bad_request)
           return
         end
 
         user = User.find_by(reset_password_token: token)
 
         unless user
-          render json: { success: false, error: "Invalid or expired reset link" }, status: :unprocessable_entity
+          render_error("Invalid or expired reset link", status: :unprocessable_entity)
           return
         end
 
         if user.reset_password_sent_at && user.reset_password_sent_at < 48.hours.ago
-          render json: { success: false, error: "Reset link has expired. Please request a new one." }, status: :unprocessable_entity
+          render_error("Reset link has expired. Please request a new one.", status: :unprocessable_entity)
           return
         end
 
@@ -360,25 +348,25 @@ module Api
         new_password = params[:password]
 
         unless token.present? && new_password.present?
-          render json: { success: false, error: "Token and new password are required" }, status: :bad_request
+          render_error("Token and new password are required", status: :bad_request)
           return
         end
 
         user = User.find_by(reset_password_token: token)
 
         unless user
-          render json: { success: false, error: "Invalid or expired reset link" }, status: :unprocessable_entity
+          render_error("Invalid or expired reset link", status: :unprocessable_entity)
           return
         end
 
         # Check token expiry (48 hours - allows time for welcome emails to be opened)
         if user.reset_password_sent_at && user.reset_password_sent_at < 48.hours.ago
-          render json: { success: false, error: "Reset link has expired. Please request a new one." }, status: :unprocessable_entity
+          render_error("Reset link has expired. Please request a new one.", status: :unprocessable_entity)
           return
         end
 
         if new_password.length < 6
-          render json: { success: false, error: "Password must be at least 6 characters" }, status: :unprocessable_entity
+          render_error("Password must be at least 6 characters", status: :unprocessable_entity)
           return
         end
 
@@ -406,7 +394,7 @@ module Api
             }
           }
         else
-          render json: { success: false, error: user.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(user)
         end
       end
 

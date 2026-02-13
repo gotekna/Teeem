@@ -128,10 +128,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     # Test connection before saving
     test_result = credential.test_connection
     unless test_result[:success]
-      return render json: {
-        success: false,
-        error: "Connection failed: #{test_result[:error]}"
-      }, status: :unprocessable_entity
+      return render_error("Connection failed: #{test_result[:error]}", status: :unprocessable_entity)
     end
 
     if credential.save
@@ -144,10 +141,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
         message: "Email account connected successfully. Initial sync started."
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: credential.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(credential)
     end
   end
 
@@ -159,10 +153,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
         data: credential_json(@credential)
       }
     else
-      render json: {
-        success: false,
-        error: @credential.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@credential)
     end
   end
 
@@ -325,18 +316,12 @@ class Api::V1::ImapCredentialsController < ApplicationController
       # FRC (Feb 2026): Changed from .connected to .refreshable_app for 24/7 availability
       org_cred = MicrosoftCredential.refreshable_app.find_by(id: org_cred_id)
       unless org_cred
-        return render json: {
-          success: false,
-          error: "Microsoft 365 organization not found or not connected"
-        }, status: :not_found
+        return render_error("Microsoft 365 organization not found or not connected", status: :not_found)
       end
 
       # Get mailbox email from params or extract from account_id
       unless mailbox_email.present?
-        return render json: {
-          success: false,
-          error: "Mailbox email required for Microsoft 365 accounts"
-        }, status: :unprocessable_entity
+        return render_error("Mailbox email required for Microsoft 365 accounts", status: :unprocessable_entity)
       end
 
       begin
@@ -383,10 +368,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
             }
           } }
         else
-          render json: {
-            success: false,
-            error: "Failed to fetch folders: #{e.message}"
-          }, status: :unprocessable_entity
+          render_error("Failed to fetch folders: #{e.message}", status: :unprocessable_entity)
         end
       end
     else
@@ -394,10 +376,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
       # SSoT: Use accessible_by to include both owned and shared credentials
       credential = ImapCredential.accessible_by(current_user).find_by(id: account_id)
       unless credential
-        return render json: {
-          success: false,
-          error: "Account not found"
-        }, status: :not_found
+        return render_error("Account not found", status: :not_found)
       end
 
       service = ImapEmailService.new(credential)
@@ -415,10 +394,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
       }
     end
   rescue => e
-    render json: {
-      success: false,
-      error: "Failed to fetch folders: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to fetch folders: #{e.message}", status: :unprocessable_entity)
   end
 
   # GET /api/v1/imap_credentials/all_accounts
@@ -620,16 +596,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
         data: (result.data || {}).merge(message_id: result.message_id)
       }
     else
-      render json: {
-        success: false,
-        error: result.error || "Failed to send email"
-      }, status: :unprocessable_entity
+      render_error(result.error || "Failed to send email", status: :unprocessable_entity)
     end
   rescue => e
-    render json: {
-      success: false,
-      error: "Failed to send email: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to send email: #{e.message}", status: :unprocessable_entity)
   end
 
   # POST /api/v1/imap_credentials/schedule_email
@@ -662,16 +632,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
         data: result.data
       }
     else
-      render json: {
-        success: false,
-        error: result.error || "Failed to schedule email"
-      }, status: :unprocessable_entity
+      render_error(result.error || "Failed to schedule email", status: :unprocessable_entity)
     end
   rescue => e
-    render json: {
-      success: false,
-      error: "Failed to schedule email: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to schedule email: #{e.message}", status: :unprocessable_entity)
   end
 
   # GET /api/v1/imap_credentials/scheduled_emails
@@ -708,10 +672,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     folder_name = params[:folder_name]
 
     unless folder_name.present?
-      return render json: {
-        success: false,
-        error: "Folder name is required"
-      }, status: :unprocessable_entity
+      return render_error("Folder name is required", status: :unprocessable_entity)
     end
 
     service = ImapEmailService.new(@credential)
@@ -722,16 +683,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
         message: "Folder '#{folder_name}' created successfully"
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to create folder. It may already exist."
-      }, status: :unprocessable_entity
+      render_error("Failed to create folder. It may already exist.", status: :unprocessable_entity)
     end
   rescue => e
-    render json: {
-      success: false,
-      error: "Failed to create folder: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to create folder: #{e.message}", status: :unprocessable_entity)
   end
 
   # DELETE /api/v1/imap_credentials/:id/delete_folder
@@ -740,19 +695,13 @@ class Api::V1::ImapCredentialsController < ApplicationController
     folder_name = params[:folder_name]
 
     unless folder_name.present?
-      return render json: {
-        success: false,
-        error: "Folder name is required"
-      }, status: :unprocessable_entity
+      return render_error("Folder name is required", status: :unprocessable_entity)
     end
 
     # Prevent deletion of standard folders
     protected_folders = %w[INBOX Sent Drafts Trash Junk Spam Archive]
     if protected_folders.any? { |f| folder_name.downcase.include?(f.downcase) }
-      return render json: {
-        success: false,
-        error: "Cannot delete protected system folder"
-      }, status: :unprocessable_entity
+      return render_error("Cannot delete protected system folder", status: :unprocessable_entity)
     end
 
     service = ImapEmailService.new(@credential)
@@ -763,16 +712,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
         message: "Folder '#{folder_name}' deleted successfully"
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to delete folder"
-      }, status: :unprocessable_entity
+      render_error("Failed to delete folder", status: :unprocessable_entity)
     end
   rescue => e
-    render json: {
-      success: false,
-      error: "Failed to delete folder: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to delete folder: #{e.message}", status: :unprocessable_entity)
   end
 
   # PUT /api/v1/imap_credentials/:id/update_sharing
@@ -794,10 +737,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
       message: "Sharing updated successfully"
     }
   rescue => e
-    render json: {
-      success: false,
-      error: "Failed to update sharing: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to update sharing: #{e.message}", status: :unprocessable_entity)
   end
 
   # GET /api/v1/imap_credentials/shareable_users
@@ -817,7 +757,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     if params[:tenant_id].present?
       target_tenant = Tenant.find_by(id: params[:tenant_id])
       unless target_tenant
-        return render json: { success: false, error: "Tenant not found" }, status: :not_found
+        return render_error("Tenant not found", status: :not_found)
       end
 
       users = target_tenant.users
@@ -886,10 +826,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     source_folder = params[:source_folder] || "INBOX"
 
     unless uid.present? && destination_folder.present?
-      return render json: {
-        success: false,
-        error: "UID and destination folder are required"
-      }, status: :unprocessable_entity
+      return render_error("UID and destination folder are required", status: :unprocessable_entity)
     end
 
     service = ImapEmailService.new(@credential)
@@ -904,16 +841,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
         message: "Email moved to '#{destination_folder}'"
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to move email"
-      }, status: :unprocessable_entity
+      render_error("Failed to move email", status: :unprocessable_entity)
     end
   rescue => e
-    render json: {
-      success: false,
-      error: "Failed to move email: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to move email: #{e.message}", status: :unprocessable_entity)
   end
 
   # POST /api/v1/imap_credentials/save_folder_order
@@ -924,10 +855,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     folder_ids = params[:folder_ids]
 
     if account_id.blank? || folder_ids.blank?
-      return render json: {
-        success: false,
-        error: "account_id and folder_ids are required"
-      }, status: :unprocessable_entity
+      return render_error("account_id and folder_ids are required", status: :unprocessable_entity)
     end
 
     EmailFolderPreference.save_order(current_user.id, account_id, folder_ids)
@@ -937,10 +865,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
       message: "Folder order saved"
     }
   rescue => e
-    render json: {
-      success: false,
-      error: "Failed to save folder order: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to save folder order: #{e.message}", status: :unprocessable_entity)
   end
 
   # GET /api/v1/imap_credentials/folder_order
@@ -949,10 +874,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     account_id = params[:account_id]
 
     if account_id.blank?
-      return render json: {
-        success: false,
-        error: "account_id is required"
-      }, status: :unprocessable_entity
+      return render_error("account_id is required", status: :unprocessable_entity)
     end
 
     folder_ids = EmailFolderPreference.ordered_folder_ids(current_user.id, account_id)
@@ -970,10 +892,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     account_id = params[:account_id]
 
     if account_id.blank?
-      return render json: {
-        success: false,
-        error: "account_id is required"
-      }, status: :unprocessable_entity
+      return render_error("account_id is required", status: :unprocessable_entity)
     end
 
     is_favorite = EmailMailboxFavorite.toggle!(current_user.id, account_id)
@@ -995,10 +914,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     signature_html = params[:signature_html]
 
     if account_id.blank?
-      return render json: {
-        success: false,
-        error: "account_id is required"
-      }, status: :unprocessable_entity
+      return render_error("account_id is required", status: :unprocessable_entity)
     end
 
     case account_id.to_s
@@ -1008,18 +924,12 @@ class Api::V1::ImapCredentialsController < ApplicationController
       mailbox_email = params[:mailbox_email]
 
       unless mailbox_email.present?
-        return render json: {
-          success: false,
-          error: "mailbox_email is required for MS365 accounts"
-        }, status: :unprocessable_entity
+        return render_error("mailbox_email is required for MS365 accounts", status: :unprocessable_entity)
       end
 
       org_cred = MicrosoftCredential.find_by(id: org_cred_id)
       unless org_cred
-        return render json: {
-          success: false,
-          error: "Microsoft 365 credential not found"
-        }, status: :not_found
+        return render_error("Microsoft 365 credential not found", status: :not_found)
       end
 
       # Update sync_config with new signature
@@ -1039,10 +949,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
       cred_id = $1.to_i
       credential = ImapCredential.accessible_by(current_user).find_by(id: cred_id)
       unless credential
-        return render json: {
-          success: false,
-          error: "IMAP credential not found"
-        }, status: :not_found
+        return render_error("IMAP credential not found", status: :not_found)
       end
 
       credential.update!(email_signature: signature_html)
@@ -1052,16 +959,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
         message: "Signature updated for #{credential.email_address}"
       }
     else
-      render json: {
-        success: false,
-        error: "Unknown account type"
-      }, status: :unprocessable_entity
+      render_error("Unknown account type", status: :unprocessable_entity)
     end
   rescue => e
-    render json: {
-      success: false,
-      error: "Failed to update signature: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to update signature: #{e.message}", status: :unprocessable_entity)
   end
 
   # PUT /api/v1/imap_credentials/update_account_branding
@@ -1085,17 +986,11 @@ class Api::V1::ImapCredentialsController < ApplicationController
     branding_config = params[:branding_config]
 
     if account_id.blank?
-      return render json: {
-        success: false,
-        error: "account_id is required"
-      }, status: :unprocessable_entity
+      return render_error("account_id is required", status: :unprocessable_entity)
     end
 
     unless branding_config.is_a?(Hash) || branding_config.is_a?(ActionController::Parameters)
-      return render json: {
-        success: false,
-        error: "branding_config must be an object"
-      }, status: :unprocessable_entity
+      return render_error("branding_config must be an object", status: :unprocessable_entity)
     end
 
     # Sanitize branding config to only allow expected keys
@@ -1109,18 +1004,12 @@ class Api::V1::ImapCredentialsController < ApplicationController
       mailbox_email = params[:mailbox_email]
 
       unless mailbox_email.present?
-        return render json: {
-          success: false,
-          error: "mailbox_email is required for MS365 accounts"
-        }, status: :unprocessable_entity
+        return render_error("mailbox_email is required for MS365 accounts", status: :unprocessable_entity)
       end
 
       org_cred = MicrosoftCredential.find_by(id: org_cred_id)
       unless org_cred
-        return render json: {
-          success: false,
-          error: "Microsoft 365 credential not found"
-        }, status: :not_found
+        return render_error("Microsoft 365 credential not found", status: :not_found)
       end
 
       # Update sync_config with new branding
@@ -1140,10 +1029,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
       cred_id = $1.to_i
       credential = ImapCredential.accessible_by(current_user).find_by(id: cred_id)
       unless credential
-        return render json: {
-          success: false,
-          error: "IMAP credential not found"
-        }, status: :not_found
+        return render_error("IMAP credential not found", status: :not_found)
       end
 
       credential.update!(branding_config: sanitized_config)
@@ -1154,16 +1040,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
         data: { branding_config: sanitized_config }
       }
     else
-      render json: {
-        success: false,
-        error: "Unknown account type"
-      }, status: :unprocessable_entity
+      render_error("Unknown account type", status: :unprocessable_entity)
     end
   rescue => e
-    render json: {
-      success: false,
-      error: "Failed to update branding: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to update branding: #{e.message}", status: :unprocessable_entity)
   end
 
   private
@@ -1172,10 +1052,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
   # Email sending via personal Outlook is no longer supported
   # Use IMAP or MS365 org credentials instead
   def send_via_outlook
-    render json: {
-      success: false,
-      error: "Personal Outlook sending has been deprecated. Please use IMAP or MS365 organization account."
-    }, status: :gone
+    render_error("Personal Outlook sending has been deprecated. Please use IMAP or MS365 organization account.", status: :gone)
   end
 
   def set_credential

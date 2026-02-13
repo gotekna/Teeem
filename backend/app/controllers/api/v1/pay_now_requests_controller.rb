@@ -61,10 +61,7 @@ module Api
       # POST /api/v1/pay_now_requests/:id/approve
       def approve
         unless @request.can_be_approved?
-          render json: {
-            success: false,
-            error: "Cannot approve request with status '#{@request.status}'"
-          }, status: :unprocessable_entity
+          render_error("Cannot approve request with status '#{@request.status}'", status: :unprocessable_entity)
           return
         end
 
@@ -80,28 +77,19 @@ module Api
             data: admin_request_detail_json(@request.reload)
           }
         rescue StandardError => e
-          render json: {
-            success: false,
-            error: "Failed to approve payment request: #{e.message}"
-          }, status: :unprocessable_entity
+          render_error("Failed to approve payment request: #{e.message}", status: :unprocessable_entity)
         end
       end
 
       # POST /api/v1/pay_now_requests/:id/reject
       def reject
         unless @request.can_be_rejected?
-          render json: {
-            success: false,
-            error: "Cannot reject request with status '#{@request.status}'"
-          }, status: :unprocessable_entity
+          render_error("Cannot reject request with status '#{@request.status}'", status: :unprocessable_entity)
           return
         end
 
         unless params[:reason].present?
-          render json: {
-            success: false,
-            error: "Rejection reason is required"
-          }, status: :unprocessable_entity
+          render_error("Rejection reason is required", status: :unprocessable_entity)
           return
         end
 
@@ -117,10 +105,7 @@ module Api
             data: admin_request_detail_json(@request.reload)
           }
         rescue StandardError => e
-          render json: {
-            success: false,
-            error: "Failed to reject payment request: #{e.message}"
-          }, status: :unprocessable_entity
+          render_error("Failed to reject payment request: #{e.message}", status: :unprocessable_entity)
         end
       end
 
@@ -197,18 +182,12 @@ module Api
       def set_request
         @request = PayNowRequest.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Payment request not found"
-        }, status: :not_found
+        render_error("Payment request not found", status: :not_found)
       end
 
       def authorize_supervisor_or_admin
         unless current_user.supervisor? || current_user.builder? || current_user.admin?
-          render json: {
-            success: false,
-            error: "Unauthorized. Only supervisors and builders can approve/reject payment requests."
-          }, status: :forbidden
+          render_error("Unauthorized. Only supervisors and builders can approve/reject payment requests.", status: :forbidden)
         end
       end
 

@@ -410,9 +410,9 @@ class DocumentVerificationService
     end
   end
 
-  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
+  # SSoT: Uses OcrTextExtractorService for all PDF text extraction
   def extract_pdf_text(content)
-    result = PdfTextExtractionService.extract(
+    result = OcrTextExtractorService.extract(
       content,
       max_chars_per_page: 1500,
       include_page_numbers: true

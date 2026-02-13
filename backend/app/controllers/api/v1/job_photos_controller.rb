@@ -16,10 +16,7 @@ module Api
         begin
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e
-          return render json: {
-            success: false,
-            error: "Storage not connected: #{e.message}"
-          }, status: :unauthorized
+          return render_error("Storage not connected: #{e.message}", status: :unauthorized)
         end
 
         uploaded_file = params[:file]
@@ -42,7 +39,7 @@ module Api
         filename = params[:filename].presence || uploaded_file&.original_filename
 
         unless uploaded_file
-          return render json: { success: false, error: "No file provided" }, status: :bad_request
+          return render_error("No file provided", status: :bad_request)
         end
 
         begin
@@ -117,14 +114,14 @@ module Api
 
         rescue DocumentProviders::AuthenticationError => e
           Rails.logger.error "[JobPhotos] Auth error: #{e.message}"
-          render json: { success: false, error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue DocumentProviders::Error => e
           Rails.logger.error "[JobPhotos] Storage error: #{e.message}"
-          render json: { success: false, error: "Storage error: #{e.message}" }, status: :bad_gateway
+          render_error("Storage error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "[JobPhotos] Upload error: #{e.message}"
           Rails.logger.error e.backtrace.first(10).join("\n")
-          render json: { success: false, error: "Failed to upload photo: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to upload photo: #{e.message}", status: :internal_server_error)
         end
       end
 

@@ -48,10 +48,7 @@ module Api
             data: credential_json(@credential)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: @credential.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@credential)
         end
       end
 
@@ -63,10 +60,7 @@ module Api
             data: credential_json(@credential)
           }
         else
-          render json: {
-            success: false,
-            error: @credential.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@credential)
         end
       end
 
@@ -75,10 +69,7 @@ module Api
         # Check if credential is in use by backup configurations
         if BackupConfiguration.where(primary_credential_id: @credential.id)
             .or(BackupConfiguration.where(secondary_credential_id: @credential.id)).exists?
-          return render json: {
-            success: false,
-            error: "Cannot delete credential that is in use by backup configuration"
-          }, status: :unprocessable_entity
+          return render_error("Cannot delete credential that is in use by backup configuration", status: :unprocessable_entity)
         end
 
         @credential.destroy

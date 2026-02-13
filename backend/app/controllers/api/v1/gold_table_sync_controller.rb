@@ -8,10 +8,7 @@ class Api::V1::GoldTableSyncController < ApplicationController
     gold_standard_foundation = Foundation.find_by(slug: "gold_standard_table")
 
     unless gold_standard_foundation
-      render json: {
-        success: false,
-        error: "Gold Standard Reference foundation not found"
-      }, status: :not_found
+      render_error("Gold Standard Reference foundation not found", status: :not_found)
       return
     end
 

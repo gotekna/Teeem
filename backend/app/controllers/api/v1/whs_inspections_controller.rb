@@ -53,10 +53,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
         data: inspection.reload.as_json(include: serialization_includes)
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: inspection.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(inspection)
     end
   end
 
@@ -71,10 +68,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
         data: @whs_inspection.reload.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: @whs_inspection.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@whs_inspection)
     end
   end
 
@@ -86,10 +80,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
         data: { message: "Inspection deleted successfully" }
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to delete inspection"
-      }, status: :unprocessable_entity
+      render_error("Failed to delete inspection", status: :unprocessable_entity)
     end
   end
 
@@ -101,10 +92,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
         data: @whs_inspection.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot start inspection"
-      }, status: :unprocessable_entity
+      render_error("Cannot start inspection", status: :unprocessable_entity)
     end
   end
 
@@ -116,10 +104,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
         data: @whs_inspection.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot complete inspection"
-      }, status: :unprocessable_entity
+      render_error("Cannot complete inspection", status: :unprocessable_entity)
     end
   end
 

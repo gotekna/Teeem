@@ -14,10 +14,7 @@ module Api
         if params[:invite_token].present?
           invitation = TrialInvitation.valid.find_by(token: params[:invite_token])
           if invitation.nil?
-            return render json: {
-              success: false,
-              error: "Invalid or expired invitation"
-            }, status: :unprocessable_entity
+            return render_error("Invalid or expired invitation", status: :unprocessable_entity)
           end
         end
 
@@ -33,27 +30,18 @@ module Api
         # Validate required params
         missing = required_params - effective_params.keys.select { |k| effective_params[k].present? }
         if missing.any?
-          return render json: {
-            success: false,
-            error: "Missing required fields: #{missing.join(', ')}"
-          }, status: :unprocessable_entity
+          return render_error("Missing required fields: #{missing.join(', ')}", status: :unprocessable_entity)
         end
 
         # Check if company name/slug already exists
         slug = effective_params[:company_name].to_s.parameterize
         if CompanyGroup.exists?(slug: slug)
-          return render json: {
-            success: false,
-            error: "A company with this name already exists"
-          }, status: :unprocessable_entity
+          return render_error("A company with this name already exists", status: :unprocessable_entity)
         end
 
         # Check if admin email already exists
         if User.exists?(email: effective_params[:admin_email])
-          return render json: {
-            success: false,
-            error: "An account with this email already exists"
-          }, status: :unprocessable_entity
+          return render_error("An account with this email already exists", status: :unprocessable_entity)
         end
 
         # Provision the tenant with trial if from invitation
@@ -124,19 +112,13 @@ module Api
         token = params[:token]
 
         if token.blank?
-          return render json: {
-            success: false,
-            error: "Token is required"
-          }, status: :bad_request
+          return render_error("Token is required", status: :bad_request)
         end
 
         invitation = TrialInvitation.valid.find_by(token: token)
 
         if invitation.nil?
-          return render json: {
-            success: false,
-            error: "Invalid or expired invitation"
-          }, status: :not_found
+          return render_error("Invalid or expired invitation", status: :not_found)
         end
 
         # Split name into first/last

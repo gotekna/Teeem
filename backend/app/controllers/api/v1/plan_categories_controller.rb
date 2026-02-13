@@ -31,10 +31,7 @@ module Api
             data: serialize_category(@category)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: @category.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          render_validation_errors(@category)
         end
       end
 
@@ -46,20 +43,14 @@ module Api
             data: serialize_category(@category)
           }
         else
-          render json: {
-            success: false,
-            error: @category.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          render_validation_errors(@category)
         end
       end
 
       # DELETE /api/v1/plan_categories/:id
       def destroy
         if @category.plan_types.exists?
-          return render json: {
-            success: false,
-            error: 'Cannot delete category with existing plan types. Delete the plan types first.'
-          }, status: :unprocessable_entity
+          return render_error('Cannot delete category with existing plan types. Delete the plan types first.', status: :unprocessable_entity)
         end
 
         @category.destroy

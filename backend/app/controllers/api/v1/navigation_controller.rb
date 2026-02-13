@@ -39,7 +39,7 @@ module Api
         config.update!(is_collapsed: !config.is_collapsed)
         render json: { success: true, is_collapsed: config.is_collapsed }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Navigation item not found" }, status: :not_found
+        render_error("Navigation item not found", status: :not_found)
       end
 
       # POST /api/v1/navigation/reset

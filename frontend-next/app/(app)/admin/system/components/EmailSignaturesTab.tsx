@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { SYSTEM_ROLES } from "@/lib/constants/roles";
 import type { EmailAccount } from "@/lib/email-types";
 import {
   SIGNATURE_STYLES,
@@ -133,7 +134,7 @@ export function EmailSignaturesTab() {
 
   // Check if user is admin
   const userWithSig = user as UserWithSignature;
-  const isAdmin = userWithSig?.permissions?.includes('admin') ||
+  const isAdmin = userWithSig?.permissions?.includes(SYSTEM_ROLES.ADMIN) ||
                   userWithSig?.permissions?.includes('manage_settings');
 
   // Load company settings

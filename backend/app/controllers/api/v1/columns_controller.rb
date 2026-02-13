@@ -164,11 +164,11 @@ module Api
         column = @foundation.columns.find(params[:id])
 
         unless column.column_type.in?(Column::LOOKUP_COLUMN_TYPES)
-          return render json: { error: "Not a lookup column" }, status: :bad_request
+          return render_error("Not a lookup column", status: :bad_request)
         end
 
         unless column.lookup_foundation
-          return render json: { error: "Lookup foundation not configured" }, status: :unprocessable_entity
+          return render_error("Lookup foundation not configured")
         end
 
         target_foundation = column.lookup_foundation
@@ -205,7 +205,7 @@ module Api
           options: options
         }
       rescue => e
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/foundations/:foundation_id/columns/test_formula
@@ -213,7 +213,7 @@ module Api
         formula_expression = params[:formula]
 
         if formula_expression.blank?
-          return render json: { error: "Formula is required" }, status: :bad_request
+          return render_error("Formula is required", status: :bad_request)
         end
 
         # Get a sample record to test with (first record or a specific one if provided)
@@ -266,11 +266,11 @@ module Api
         column = @foundation.columns.find(params[:id])
 
         unless column.column_type.in?(Column::LOOKUP_COLUMN_TYPES)
-          return render json: { error: "Not a lookup column" }, status: :bad_request
+          return render_error("Not a lookup column", status: :bad_request)
         end
 
         unless column.lookup_foundation
-          return render json: { error: "Lookup foundation not configured" }, status: :unprocessable_entity
+          return render_error("Lookup foundation not configured")
         end
 
         search_term = params[:q].to_s.strip
@@ -352,7 +352,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "Lookup search error: #{e.message}"
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/foundations/:foundation_id/columns/:id/choices
@@ -361,7 +361,7 @@ module Api
         column = find_column_by_id_or_name(params[:id])
 
         unless column.column_type.in?(Column::CHOICE_COLUMN_TYPES)
-          return render json: { error: "Not a choice column" }, status: :bad_request
+          return render_error("Not a choice column", status: :bad_request)
         end
 
         model = @foundation.dynamic_model
@@ -410,7 +410,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "Error loading choices: #{e.message}"
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/foundations/:foundation_id/columns/:id/add_choice
@@ -420,11 +420,11 @@ module Api
         new_value = params[:value]
 
         if new_value.blank?
-          return render json: { error: "value is required" }, status: :bad_request
+          return render_error("value is required", status: :bad_request)
         end
 
         unless column.column_type.in?(Column::CHOICE_COLUMN_TYPES)
-          return render json: { error: "Not a choice column" }, status: :bad_request
+          return render_error("Not a choice column", status: :bad_request)
         end
 
         # Initialize available_choices array if it doesn't exist
@@ -432,7 +432,7 @@ module Api
 
         # Check if choice already exists
         if available_choices.include?(new_value)
-          return render json: { error: "Choice already exists" }, status: :bad_request
+          return render_error("Choice already exists", status: :bad_request)
         end
 
         # Add the new choice
@@ -445,7 +445,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "Error adding choice: #{e.message}"
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/foundations/:foundation_id/columns/:id/reorder_choices
@@ -455,11 +455,11 @@ module Api
         new_order = params[:order] || []
 
         if new_order.empty?
-          return render json: { error: "order array is required" }, status: :bad_request
+          return render_error("order array is required", status: :bad_request)
         end
 
         unless column.column_type.in?(Column::CHOICE_COLUMN_TYPES)
-          return render json: { error: "Not a choice column" }, status: :bad_request
+          return render_error("Not a choice column", status: :bad_request)
         end
 
         # Save the order
@@ -471,7 +471,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "Error reordering choices: #{e.message}"
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/foundations/:foundation_id/columns/:id/rename_choice
@@ -482,7 +482,7 @@ module Api
         new_value = params[:new_value]
 
         if old_value.blank? || new_value.blank?
-          return render json: { error: "Both old_value and new_value are required" }, status: :bad_request
+          return render_error("Both old_value and new_value are required", status: :bad_request)
         end
 
         model = @foundation.dynamic_model
@@ -503,7 +503,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "Error renaming choice: #{e.message}"
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/foundations/:foundation_id/columns/:id/merge_choices
@@ -514,7 +514,7 @@ module Api
         target_value = params[:target_value]
 
         if source_values.empty? || target_value.blank?
-          return render json: { error: "source_values and target_value are required" }, status: :bad_request
+          return render_error("source_values and target_value are required", status: :bad_request)
         end
 
         model = @foundation.dynamic_model
@@ -538,7 +538,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "Error merging choices: #{e.message}"
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # DELETE /api/v1/foundations/:foundation_id/columns/:id/delete_choice
@@ -549,7 +549,7 @@ module Api
         replacement_value = params[:replacement_value]
 
         if value.blank?
-          return render json: { error: "value is required" }, status: :bad_request
+          return render_error("value is required", status: :bad_request)
         end
 
         model = @foundation.dynamic_model
@@ -575,7 +575,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "Error deleting choice: #{e.message}"
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       private
@@ -583,13 +583,13 @@ module Api
       def set_foundation
         @foundation = Foundation.includes(:columns).find(params[:foundation_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { error: "Foundation not found" }, status: :not_found
+        render_error("Foundation not found", status: :not_found)
       end
 
       def set_column
         @column = @foundation.columns.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { error: "Column not found" }, status: :not_found
+        render_error("Column not found", status: :not_found)
       end
 
       # Find column by numeric ID or by column_name string

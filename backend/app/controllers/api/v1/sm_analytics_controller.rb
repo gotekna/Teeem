@@ -95,10 +95,7 @@ module Api
         active_baseline = @job.sm_baselines.active.first
 
         unless active_baseline
-          return render json: {
-            success: false,
-            error: "No active baseline found. Create a baseline first."
-          }, status: :not_found
+          return render_error("No active baseline found. Create a baseline first.", status: :not_found)
         end
 
         comparison = active_baseline.compare_to_current

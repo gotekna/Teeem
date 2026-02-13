@@ -30,7 +30,7 @@ module Api
         if config.update(templates: templates)
           render json: { success: true, message: "Settings updated successfully" }
         else
-          render json: { success: false, errors: config.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(config)
         end
       end
 
@@ -369,39 +369,27 @@ module Api
         credential_id = params[:document_provider_credential_id]
 
         unless Organization::DOCUMENT_PROVIDERS.include?(provider)
-          return render json: {
-            success: false,
-            error: "Invalid provider. Must be one of: #{Organization::DOCUMENT_PROVIDERS.join(', ')}"
-          }, status: :unprocessable_entity
+          return render_error("Invalid provider. Must be one of: #{Organization::DOCUMENT_PROVIDERS.join(', ')}", status: :unprocessable_entity)
         end
 
         # Validate credential if switching to S3
         credential = nil
         if provider == "s3_compatible"
           if credential_id.blank?
-            return render json: {
-              success: false,
-              error: "Please select an S3 credential to use"
-            }, status: :unprocessable_entity
+            return render_error("Please select an S3 credential to use", status: :unprocessable_entity)
           end
 
           # FRC (Feb 2026): Must be tenant-scoped
           credential = S3CompatibleCredential.for_tenant(current_tenant).find_by(id: credential_id)
           unless credential&.status == "connected"
-            return render json: {
-              success: false,
-              error: "Selected S3 credential is not connected. Please test the connection first."
-            }, status: :unprocessable_entity
+            return render_error("Selected S3 credential is not connected. Please test the connection first.", status: :unprocessable_entity)
           end
         end
 
         # SSoT: WarehouseProvider is THE ONE source - update it directly
         warehouse_provider = WarehouseProvider.instance
         unless warehouse_provider
-          return render json: {
-            success: false,
-            error: "Storage configuration not found"
-          }, status: :not_found
+          return render_error("Storage configuration not found", status: :not_found)
         end
 
         old_provider = warehouse_provider.provider_type
@@ -432,10 +420,7 @@ module Api
             }
           }
         else
-          render json: {
-            success: false,
-            errors: warehouse_provider.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(warehouse_provider)
         end
       end
 
@@ -458,10 +443,7 @@ module Api
         delete_source = params[:delete_source] == true || params[:delete_source] == "true"
 
         unless from_provider.present? && to_provider.present?
-          return render json: {
-            success: false,
-            error: "Both from_provider and to_provider are required"
-          }, status: :unprocessable_entity
+          return render_error("Both from_provider and to_provider are required", status: :unprocessable_entity)
         end
 
         result = DocumentMigrationService.start_migration(
@@ -476,10 +458,7 @@ module Api
             data: result
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -514,7 +493,7 @@ module Api
         from_provider = params[:from_provider]
 
         unless from_provider.present?
-          return render json: { success: false, error: "from_provider parameter required" }, status: :bad_request
+          return render_error("from_provider parameter required", status: :bad_request)
         end
 
         result = DocumentMigrationService.estimate_migration(from: from_provider)

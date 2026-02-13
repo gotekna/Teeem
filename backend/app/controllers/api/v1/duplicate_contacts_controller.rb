@@ -17,10 +17,7 @@ class Api::V1::DuplicateContactsController < ApplicationController
     }
   rescue => e
     Rails.logger.error("DuplicateContactsController#groups failed: #{e.message}")
-    render json: {
-      success: false,
-      error: e.message
-    }, status: :internal_server_error
+    render_error(e.message, status: :internal_server_error)
   end
 
   # GET /api/v1/duplicate_contacts/groups/:id
@@ -37,17 +34,11 @@ class Api::V1::DuplicateContactsController < ApplicationController
         group: group
       }
     else
-      render json: {
-        success: false,
-        error: "Group not found"
-      }, status: :not_found
+      render_error("Group not found", status: :not_found)
     end
   rescue => e
     Rails.logger.error("DuplicateContactsController#show failed: #{e.message}")
-    render json: {
-      success: false,
-      error: e.message
-    }, status: :internal_server_error
+    render_error(e.message, status: :internal_server_error)
   end
 
   # POST /api/v1/duplicate_contacts/groups/:id/merge
@@ -56,10 +47,7 @@ class Api::V1::DuplicateContactsController < ApplicationController
   #   - target_contact_id: The contact ID to merge into (SSoT)
   def merge
     unless params[:target_contact_id].present?
-      return render json: {
-        success: false,
-        error: "target_contact_id is required"
-      }, status: :bad_request
+      return render_error("target_contact_id is required", status: :bad_request)
     end
 
     service = XeroDuplicateFixService.new
@@ -87,17 +75,11 @@ class Api::V1::DuplicateContactsController < ApplicationController
         }
       end
     else
-      render json: {
-        success: false,
-        error: result[:error]
-      }, status: :internal_server_error
+      render_error(result[:error], status: :internal_server_error)
     end
   rescue => e
     Rails.logger.error("DuplicateContactsController#merge failed: #{e.message}")
-    render json: {
-      success: false,
-      error: e.message
-    }, status: :internal_server_error
+    render_error(e.message, status: :internal_server_error)
   end
 
   # POST /api/v1/duplicate_contacts/groups/:id/dismiss

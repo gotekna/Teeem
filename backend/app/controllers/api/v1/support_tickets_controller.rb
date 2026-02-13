@@ -99,7 +99,7 @@ module Api
 
           render json: { success: true, data: ticket_json(@ticket, full: true) }, status: :created
         else
-          render json: { success: false, error: @ticket.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@ticket)
         end
       end
 
@@ -115,7 +115,7 @@ module Api
 
           render json: { success: true, data: ticket_json(@ticket, full: true) }
         else
-          render json: { success: false, error: @ticket.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@ticket)
         end
       end
 

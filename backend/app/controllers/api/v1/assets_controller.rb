@@ -97,10 +97,7 @@ module Api
             asset: @asset.as_json(methods: [ :display_name ])
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @asset.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@asset)
         end
       end
 
@@ -124,10 +121,7 @@ module Api
             asset: @asset.as_json(methods: [ :display_name ])
           }
         else
-          render json: {
-            success: false,
-            errors: @asset.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@asset)
         end
       end
 
@@ -183,10 +177,7 @@ module Api
             service: service.as_json(methods: [ :display_name, :formatted_service_type ])
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: service.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(service)
         end
       end
 
@@ -218,10 +209,7 @@ module Api
               insurance: insurance.as_json(methods: [ :days_until_renewal ])
             }
           else
-            render json: {
-              success: false,
-              errors: insurance.errors.full_messages
-            }, status: :unprocessable_entity
+            render_validation_errors(insurance)
           end
         else
           insurance = @asset.build_asset_insurance(insurance_params)
@@ -232,10 +220,7 @@ module Api
               insurance: insurance.as_json(methods: [ :days_until_renewal ])
             }, status: :created
           else
-            render json: {
-              success: false,
-              errors: insurance.errors.full_messages
-            }, status: :unprocessable_entity
+            render_validation_errors(insurance)
           end
         end
       end
@@ -293,10 +278,7 @@ module Api
             depreciation_profile: profile.as_json(methods: [:current_book_wdv, :current_tax_wdv])
           }
         else
-          render json: {
-            success: false,
-            errors: profile.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(profile)
         end
       end
 
@@ -335,10 +317,7 @@ module Api
             **result
           }
         else
-          render json: {
-            success: false,
-            error: result[:error] || result[:errors]
-          }, status: :unprocessable_entity
+          render_error(result[:error] || result[:errors], status: :unprocessable_entity)
         end
       end
 
@@ -355,10 +334,7 @@ module Api
             forecasts: result[:forecasts]
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -378,10 +354,7 @@ module Api
             disposal: disposal.as_json
           }
         else
-          render json: {
-            success: false,
-            errors: disposal.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(disposal)
         end
       end
 
@@ -424,10 +397,7 @@ module Api
             expense: expense.as_json
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: expense.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(expense)
         end
       end
 
@@ -474,10 +444,7 @@ module Api
             odometer_reading: reading.as_json(methods: [:display_value])
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: reading.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(reading)
         end
       end
 
@@ -496,10 +463,7 @@ module Api
             )
           }
         else
-          render json: {
-            success: false,
-            errors: @asset.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@asset)
         end
       end
 
@@ -508,7 +472,7 @@ module Api
       def set_asset
         @asset = Asset.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Asset not found" }, status: :not_found
+        render_error("Asset not found", status: :not_found)
       end
 
       def asset_params

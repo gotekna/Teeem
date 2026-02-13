@@ -62,10 +62,7 @@ module Api
             data: job.as_json
           }
         else
-          render json: {
-            success: false,
-            error: "Job not found"
-          }, status: :not_found
+          render_error("Job not found", status: :not_found)
         end
       end
 
@@ -124,17 +121,11 @@ module Api
         job = BackgroundJobProgress.find_by(id: params[:id])
 
         unless job
-          return render json: {
-            success: false,
-            error: "Job not found"
-          }, status: :not_found
+          return render_error("Job not found", status: :not_found)
         end
 
         if job.status == "cancelled" || job.status == "completed" || job.status == "failed"
-          return render json: {
-            success: false,
-            error: "Job is already #{job.status}"
-          }, status: :unprocessable_entity
+          return render_error("Job is already #{job.status}", status: :unprocessable_entity)
         end
 
         job.update!(status: "cancelled")

@@ -9,11 +9,11 @@
 # - AsicConnectService
 #
 # Usage:
-#   result = PdfTextExtractionService.extract(pdf_content)
-#   result = PdfTextExtractionService.extract(file_path)
-#   result = PdfTextExtractionService.extract(storage_blob)  # StorageBlob SSoT
+#   result = OcrTextExtractorService.extract(pdf_content)
+#   result = OcrTextExtractorService.extract(file_path)
+#   result = OcrTextExtractorService.extract(storage_blob)  # StorageBlob SSoT
 #
-class PdfTextExtractionService
+class OcrTextExtractorService
   class ExtractionError < StandardError; end
 
   DEFAULT_OPTIONS = {
@@ -49,10 +49,10 @@ class PdfTextExtractionService
       error: nil
     }
   rescue PDF::Reader::MalformedPDFError => e
-    Rails.logger.warn "[PdfTextExtraction] Malformed PDF: #{e.message}"
+    Rails.logger.warn "[OcrTextExtractor] Malformed PDF: #{e.message}"
     { success: false, text: "", pages: [], page_count: 0, error: "Malformed PDF: #{e.message}", method: :error }
   rescue StandardError => e
-    Rails.logger.error "[PdfTextExtraction] Error: #{e.message}"
+    Rails.logger.error "[OcrTextExtractor] Error: #{e.message}"
     { success: false, text: "", pages: [], page_count: 0, error: e.message, method: :error }
   end
 
@@ -121,7 +121,7 @@ class PdfTextExtractionService
   def extract_page_text(page)
     page.text.to_s.strip
   rescue StandardError => e
-    Rails.logger.warn "[PdfTextExtraction] Error extracting page text: #{e.message}"
+    Rails.logger.warn "[OcrTextExtractor] Error extracting page text: #{e.message}"
     ""
   end
 

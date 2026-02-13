@@ -73,10 +73,7 @@ module Api
             data: subscription_detail_json(subscription)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: subscription.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(subscription)
         end
       end
 
@@ -89,10 +86,7 @@ module Api
             data: subscription_detail_json(@subscription)
           }
         else
-          render json: {
-            success: false,
-            error: @subscription.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@subscription)
         end
       end
 
@@ -116,10 +110,7 @@ module Api
             data: mailbox_json(mailbox)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: mailbox.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(mailbox)
         end
       end
 
@@ -138,7 +129,7 @@ module Api
 
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Mailbox not found" }, status: :not_found
+        render_error("Mailbox not found", status: :not_found)
       end
 
       # POST /api/v1/email_subscriptions/:id/start_migration
@@ -217,10 +208,7 @@ module Api
             data: alias_json(email_alias)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: email_alias.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(email_alias)
         end
       end
 
@@ -232,7 +220,7 @@ module Api
 
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Alias not found" }, status: :not_found
+        render_error("Alias not found", status: :not_found)
       end
 
       # POST /api/v1/email_subscriptions/:id/send_invite
@@ -375,7 +363,7 @@ module Api
       rescue EmailMigrationService::MigrationError => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact not found" }, status: :not_found
+        render_error("Contact not found", status: :not_found)
       end
 
       # GET /api/v1/email_subscriptions/pricing
@@ -413,10 +401,7 @@ module Api
       # Re-provision DNS records for a subscription
       def provision_dns
         unless CloudflareCredential.configured?
-          render json: {
-            success: false,
-            error: "Cloudflare not configured. Please set up Cloudflare credentials first."
-          }, status: :unprocessable_entity
+          render_error("Cloudflare not configured. Please set up Cloudflare credentials first.", status: :unprocessable_entity)
           return
         end
 
@@ -437,10 +422,7 @@ module Api
       # Verify DNS records are correct
       def verify_dns
         unless CloudflareCredential.configured?
-          render json: {
-            success: false,
-            error: "Cloudflare not configured"
-          }, status: :unprocessable_entity
+          render_error("Cloudflare not configured", status: :unprocessable_entity)
           return
         end
 
@@ -486,15 +468,9 @@ module Api
         }
       rescue CloudflareService::ZoneNotFoundError => e
         @subscription.update!(dns_status: 'zone_not_found')
-        render json: {
-          success: false,
-          error: "Domain zone not found in Cloudflare: #{@subscription.domain}"
-        }, status: :unprocessable_entity
+        render_error("Domain zone not found in Cloudflare: #{@subscription.domain}", status: :unprocessable_entity)
       rescue CloudflareService::ApiError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       private
@@ -502,7 +478,7 @@ module Api
       def set_subscription
         @subscription = EmailSubscription.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Subscription not found" }, status: :not_found
+        render_error("Subscription not found", status: :not_found)
       end
 
       def subscription_params

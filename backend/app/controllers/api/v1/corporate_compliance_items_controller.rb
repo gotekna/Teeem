@@ -54,10 +54,7 @@ module Api
             compliance_item: @item.as_json(methods: [ :formatted_compliance_type ])
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @item.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@item)
         end
       end
 
@@ -70,10 +67,7 @@ module Api
             compliance_item: @item.as_json(methods: [ :formatted_compliance_type ])
           }
         else
-          render json: {
-            success: false,
-            errors: @item.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@item)
         end
       end
 
@@ -102,7 +96,7 @@ module Api
       def set_compliance_item
         @item = CorporateComplianceItem.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Compliance item not found" }, status: :not_found
+        render_error("Compliance item not found", status: :not_found)
       end
 
       def compliance_item_params

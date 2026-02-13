@@ -98,7 +98,7 @@ module Api
       # Assigns a Xero credential to a TEEEM tenant (master tenant only)
       def assign_tenant
         unless current_tenant&.master_tenant?
-          return render json: { success: false, error: "Only master tenant can assign Xero organizations" }, status: :forbidden
+          return render_error("Only master tenant can assign Xero organizations", status: :forbidden)
         end
 
         credential = XeroCredential.find(params[:id])
@@ -175,10 +175,7 @@ module Api
             last_sync_at: @connection.last_sync_at
           }
         else
-          render json: {
-            success: false,
-            error: "Connection is not active"
-          }, status: :unprocessable_entity
+          render_error("Connection is not active", status: :unprocessable_entity)
         end
       end
 
@@ -213,7 +210,7 @@ module Api
       def set_connection
         @connection = CorporateXeroConnection.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Xero connection not found" }, status: :not_found
+        render_error("Xero connection not found", status: :not_found)
       end
 
       def connection_params

@@ -623,12 +623,9 @@ module DocumentProviders
 
     # Configure CORS on the S3 bucket to allow direct browser uploads/downloads
     # Must be called once per bucket setup (not per-request)
-    # SSoT: Allowed origins match cors.rb (Rails CORS) for consistency
+    # SSoT: Allowed origins from InfrastructureUrls + dev URLs
     def configure_cors!
-      allowed_origins = [
-        "https://teeem.vercel.app",
-        "https://teeem-staging.vercel.app",
-        "https://teeem-beta.vercel.app",
+      allowed_origins = InfrastructureUrls.all_frontend_urls + [
         "https://teeemrob.vercel.app",
         "https://teeemsam.vercel.app",
         "https://teeemjake.vercel.app",

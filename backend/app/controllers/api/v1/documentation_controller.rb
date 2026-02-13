@@ -76,7 +76,7 @@ module Api
         when "lexicon" then "TEEEM_LEXICON.md"
         when "user-manual" then "TEEEM_USER_MANUAL.md"
         else
-          return render json: { success: false, error: "Documentation not found" }, status: :not_found
+          return render_error("Documentation not found", status: :not_found)
         end
 
         # Try multiple paths: local dev (../TEEEM_DOCS) and Heroku (TEEEM_DOCS in app root)
@@ -86,7 +86,7 @@ module Api
         if !File.exist?(file_path) && doc_id == "bible"
           content = generate_bible_markdown
         elsif !File.exist?(file_path)
-          return render json: { success: false, error: "File not found" }, status: :not_found
+          return render_error("File not found", status: :not_found)
         else
           content = File.read(file_path)
         end
@@ -106,7 +106,7 @@ module Api
         }
       rescue StandardError => e
         Rails.logger.error("Documentation error: #{e.message}")
-        render json: { success: false, error: "Failed to load documentation" }, status: :internal_server_error
+        render_error("Failed to load documentation", status: :internal_server_error)
       end
 
       # GET /api/v1/documentation/search?q=gantt
@@ -115,7 +115,7 @@ module Api
         query = params[:q]&.downcase
 
         if query.blank?
-          return render json: { success: false, error: "Query parameter required" }, status: :bad_request
+          return render_error("Query parameter required", status: :bad_request)
         end
 
         results = []
@@ -152,7 +152,7 @@ module Api
         }
       rescue StandardError => e
         Rails.logger.error("Search error: #{e.message}")
-        render json: { success: false, error: "Search failed" }, status: :internal_server_error
+        render_error("Search failed", status: :internal_server_error)
       end
 
       private

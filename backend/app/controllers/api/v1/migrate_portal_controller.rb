@@ -105,7 +105,7 @@ module Api
         render json: { success: false, error: e.message }, status: :unprocessable_entity
       rescue Stripe::StripeError => e
         Rails.logger.error("[MigratePortal] Stripe error: #{e.message}")
-        render json: { success: false, error: "Payment service unavailable" }, status: :service_unavailable
+        render_error("Payment service unavailable", status: :service_unavailable)
       end
 
       # GET /api/v1/migrate/:token/progress
@@ -129,10 +129,7 @@ module Api
       # Confirm and start migration after payment
       def confirm_migration
         unless @invite.payment_complete?
-          return render json: {
-            success: false,
-            error: "Payment must be completed before migration can start"
-          }, status: :unprocessable_entity
+          return render_error("Payment must be completed before migration can start", status: :unprocessable_entity)
         end
 
         subscription = @invite.email_subscription
@@ -198,7 +195,7 @@ module Api
       def set_invite
         @invite = EmailMigrationInvite.find_by!(token: params[:token])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Invite not found or expired" }, status: :not_found
+        render_error("Invite not found or expired", status: :not_found)
       end
 
       def migration_progress_json(migration)

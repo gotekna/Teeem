@@ -43,10 +43,7 @@ module Api
             data: document_detail(document)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: document.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(document)
         end
       end
 
@@ -58,10 +55,7 @@ module Api
             data: document_detail(@document)
           }
         else
-          render json: {
-            success: false,
-            error: @document.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@document)
         end
       end
 
@@ -146,7 +140,7 @@ module Api
       def set_document
         @document = current_user.teeem_documents.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Document not found" }, status: :not_found
+        render_error("Document not found", status: :not_found)
       end
 
       def document_params

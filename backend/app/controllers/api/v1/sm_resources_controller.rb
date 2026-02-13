@@ -61,10 +61,7 @@ module Api
             resource: resource_to_json(@resource)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @resource.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@resource)
         end
       end
 
@@ -76,10 +73,7 @@ module Api
             resource: resource_to_json(@resource)
           }
         else
-          render json: {
-            success: false,
-            errors: @resource.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@resource)
         end
       end
 
@@ -151,10 +145,7 @@ module Api
           availability: availability_data
         }
       rescue ArgumentError => e
-        render json: {
-          success: false,
-          error: "Invalid date format"
-        }, status: :unprocessable_entity
+        render_error("Invalid date format", status: :unprocessable_entity)
       end
 
       # GET /api/v1/sm_resources/utilization
@@ -271,10 +262,7 @@ module Api
       def set_resource
         @resource = SmResource.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Resource not found"
-        }, status: :not_found
+        render_error("Resource not found", status: :not_found)
       end
 
       def parse_date(date_string)

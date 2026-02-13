@@ -53,7 +53,7 @@ module Api
             data: template_json(template, include_steps: true)
           }, status: :created
         else
-          render json: { success: false, errors: template.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(template)
         end
       end
 
@@ -61,7 +61,7 @@ module Api
       def update
         # Don't allow editing system templates directly
         if @template.is_system?
-          return render json: { success: false, error: "Cannot edit system templates. Duplicate to customize." }, status: :forbidden
+          return render_error("Cannot edit system templates. Duplicate to customize.", status: :forbidden)
         end
 
         if @template.update(template_params)
@@ -70,7 +70,7 @@ module Api
             data: template_json(@template, include_steps: true)
           }
         else
-          render json: { success: false, errors: @template.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@template)
         end
       end
 
@@ -78,7 +78,7 @@ module Api
       def destroy
         # Don't allow deleting system templates
         if @template.is_system?
-          return render json: { success: false, error: "Cannot delete system templates" }, status: :forbidden
+          return render_error("Cannot delete system templates", status: :forbidden)
         end
 
         @template.update(is_active: false)  # Soft delete
@@ -97,7 +97,7 @@ module Api
             data: template_json(copy, include_steps: true)
           }, status: :created
         else
-          render json: { success: false, errors: copy.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(copy)
         end
       end
 

@@ -67,10 +67,7 @@ module Api
             message: "Quote created successfully"
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: quote.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(quote)
         end
       end
 
@@ -83,10 +80,7 @@ module Api
             message: "Quote updated successfully"
           }
         else
-          render json: {
-            success: false,
-            errors: @inspiring_quote.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@inspiring_quote)
         end
       end
 

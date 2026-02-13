@@ -4,18 +4,12 @@ module Api
       def import_job_with_pos
         # Validate required parameters
         unless params[:csv_file].present?
-          render json: {
-            success: false,
-            error: "CSV file is required"
-          }, status: :unprocessable_entity
+          render_error("CSV file is required", status: :unprocessable_entity)
           return
         end
 
         unless params[:site_supervisor_name].present?
-          render json: {
-            success: false,
-            error: "Site supervisor name is required"
-          }, status: :unprocessable_entity
+          render_error("Site supervisor name is required", status: :unprocessable_entity)
           return
         end
 

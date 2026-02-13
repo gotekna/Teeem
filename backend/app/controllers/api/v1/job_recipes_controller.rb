@@ -46,10 +46,7 @@ module Api
             message: "Recipe '#{recipe.name}' applied to job"
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: @job_recipe.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@job_recipe)
         end
       end
 
@@ -63,10 +60,7 @@ module Api
             job_recipe: job_recipe_json(@job_recipe)
           }
         else
-          render json: {
-            success: false,
-            error: @job_recipe.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@job_recipe)
         end
       end
 
@@ -80,10 +74,7 @@ module Api
       # Generate purchase orders from this applied recipe
       def generate_pos
         if @job_recipe.status == 'po_generated'
-          render json: {
-            success: false,
-            error: "Purchase orders have already been generated for this recipe"
-          }, status: :unprocessable_entity
+          render_error("Purchase orders have already been generated for this recipe", status: :unprocessable_entity)
           return
         end
 
@@ -103,10 +94,7 @@ module Api
             }
           }
         rescue => e
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 

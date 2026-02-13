@@ -17,17 +17,11 @@ module Api
             ai_model_used: result[:ai_model_used]
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :internal_server_error
+          render_error(result[:error], status: :internal_server_error)
         end
       rescue StandardError => e
         Rails.logger.error "Job analysis error: #{e.message}"
-        render json: {
-          success: false,
-          error: "Failed to analyze job: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to analyze job: #{e.message}", status: :internal_server_error)
       end
 
       private

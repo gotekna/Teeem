@@ -336,7 +336,7 @@ class Asset < ApplicationRecord
   private
 
   def default_url_host
-    ENV["APP_HOST"] || (Rails.env.production? ? "https://teeemlive-ce8e2660a615.herokuapp.com" : "http://localhost:3001")
+    InfrastructureUrls.backend_url
   end
 
   # Create default depreciation profile when asset is created

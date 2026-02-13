@@ -41,10 +41,7 @@ module Api
             data: serialize_template(@minute_template, include_body: true)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @minute_template.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@minute_template)
         end
       end
 
@@ -56,10 +53,7 @@ module Api
             data: serialize_template(@minute_template, include_body: true)
           }
         else
-          render json: {
-            success: false,
-            errors: @minute_template.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@minute_template)
         end
       end
 

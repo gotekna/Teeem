@@ -47,10 +47,7 @@ module Api
             }
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @payment.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@payment)
         end
       end
 
@@ -63,10 +60,7 @@ module Api
             payment: payment_json(@payment)
           }
         else
-          render json: {
-            success: false,
-            errors: @payment.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@payment)
         end
       end
 
@@ -94,17 +88,11 @@ module Api
               payment: payment_json(@payment.reload)
             }
           else
-            render json: {
-              success: false,
-              error: result[:error]
-            }, status: :unprocessable_entity
+            render_error(result[:error], status: :unprocessable_entity)
           end
         rescue StandardError => e
           Rails.logger.error("Payment sync error: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 

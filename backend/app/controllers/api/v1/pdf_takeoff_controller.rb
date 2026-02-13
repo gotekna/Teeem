@@ -90,7 +90,7 @@ module Api
             }
           }
         else
-          render json: { success: false, errors: page_scale.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(page_scale)
         end
       end
 
@@ -115,7 +115,7 @@ module Api
       # AI-powered scale detection from page image
       def detect_scale
         unless params[:image_base64].present?
-          return render json: { success: false, error: "image_base64 is required" }, status: :unprocessable_entity
+          return render_error("image_base64 is required", status: :unprocessable_entity)
         end
 
         service = PdfScaleDetectionService.new
@@ -146,7 +146,7 @@ module Api
       # AI-powered detection of walls, doors, windows and other architectural elements
       def detect_elements
         unless params[:image_base64].present?
-          return render json: { success: false, error: "image_base64 is required" }, status: :unprocessable_entity
+          return render_error("image_base64 is required", status: :unprocessable_entity)
         end
 
         service = PdfElementDetectionService.new
@@ -230,7 +230,7 @@ module Api
             data: measurement_json(measurement)
           }, status: :created
         else
-          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(measurement)
         end
       end
 
@@ -242,11 +242,11 @@ module Api
         # Verify user has access (measurement belongs to their job or docsort_item)
         if measurement.job.present?
           unless measurement.job.accessible_by?(current_user)
-            return render json: { success: false, error: "Access denied" }, status: :forbidden
+            return render_error("Access denied", status: :forbidden)
           end
         elsif measurement.document_inbox.present?
           unless measurement.document_inbox.tenant_id == current_tenant.id
-            return render json: { success: false, error: "Access denied" }, status: :forbidden
+            return render_error("Access denied", status: :forbidden)
           end
         end
 
@@ -262,11 +262,11 @@ module Api
         # Verify user has access
         if measurement.job.present?
           unless measurement.job.accessible_by?(current_user)
-            return render json: { success: false, error: "Access denied" }, status: :forbidden
+            return render_error("Access denied", status: :forbidden)
           end
         elsif measurement.document_inbox.present?
           unless measurement.document_inbox.tenant_id == current_tenant.id
-            return render json: { success: false, error: "Access denied" }, status: :forbidden
+            return render_error("Access denied", status: :forbidden)
           end
         end
 
@@ -281,7 +281,7 @@ module Api
             data: measurement_json(measurement.reload)
           }
         else
-          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(measurement)
         end
       end
 
@@ -293,16 +293,16 @@ module Api
         # Verify access
         if measurement.job.present?
           unless measurement.job.accessible_by?(current_user)
-            return render json: { success: false, error: "Access denied" }, status: :forbidden
+            return render_error("Access denied", status: :forbidden)
           end
         elsif measurement.document_inbox.present?
           unless measurement.document_inbox.tenant_id == current_tenant.id
-            return render json: { success: false, error: "Access denied" }, status: :forbidden
+            return render_error("Access denied", status: :forbidden)
           end
         end
 
         unless measurement.measurement_type == "count"
-          return render json: { success: false, error: "Not a count measurement" }, status: :unprocessable_entity
+          return render_error("Not a count measurement", status: :unprocessable_entity)
         end
 
         # Append the new point to geometry_data.points
@@ -321,7 +321,7 @@ module Api
             data: measurement_json(measurement.reload)
           }
         else
-          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(measurement)
         end
       end
 
@@ -333,16 +333,16 @@ module Api
         # Verify access
         if measurement.job.present?
           unless measurement.job.accessible_by?(current_user)
-            return render json: { success: false, error: "Access denied" }, status: :forbidden
+            return render_error("Access denied", status: :forbidden)
           end
         elsif measurement.document_inbox.present?
           unless measurement.document_inbox.tenant_id == current_tenant.id
-            return render json: { success: false, error: "Access denied" }, status: :forbidden
+            return render_error("Access denied", status: :forbidden)
           end
         end
 
         unless measurement.measurement_type == "count"
-          return render json: { success: false, error: "Only count measurements support point removal" }, status: :unprocessable_entity
+          return render_error("Only count measurements support point removal", status: :unprocessable_entity)
         end
 
         point_index = params[:point_index].to_i
@@ -350,7 +350,7 @@ module Api
         points = geo["points"] || []
 
         unless point_index >= 0 && point_index < points.length
-          return render json: { success: false, error: "Invalid point index" }, status: :unprocessable_entity
+          return render_error("Invalid point index", status: :unprocessable_entity)
         end
 
         # If this is the last point, delete the entire measurement
@@ -371,7 +371,7 @@ module Api
             data: measurement_json(measurement.reload)
           }
         else
-          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(measurement)
         end
       end
 
@@ -383,11 +383,11 @@ module Api
         # Verify access
         if measurement.job.present?
           unless measurement.job.accessible_by?(current_user)
-            return render json: { success: false, error: "Access denied" }, status: :forbidden
+            return render_error("Access denied", status: :forbidden)
           end
         elsif measurement.document_inbox.present?
           unless measurement.document_inbox.tenant_id == current_tenant.id
-            return render json: { success: false, error: "Access denied" }, status: :forbidden
+            return render_error("Access denied", status: :forbidden)
           end
         end
 
@@ -396,7 +396,7 @@ module Api
         points = geo["points"] || []
 
         unless point_index >= 0 && point_index < points.length
-          return render json: { success: false, error: "Invalid point index" }, status: :unprocessable_entity
+          return render_error("Invalid point index", status: :unprocessable_entity)
         end
 
         points[point_index] = { "x" => params[:x].to_f, "y" => params[:y].to_f }
@@ -445,7 +445,7 @@ module Api
             data: measurement_json(measurement.reload)
           }
         else
-          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(measurement)
         end
       end
 
@@ -460,10 +460,7 @@ module Api
                                 .includes(:pricebook_item)
 
         if measurements.empty?
-          return render json: {
-            success: false,
-            error: "No measurements with pricebook items found"
-          }, status: :unprocessable_entity
+          return render_error("No measurements with pricebook items found", status: :unprocessable_entity)
         end
 
         group_by = params[:group_by] || "supplier"
@@ -616,7 +613,7 @@ module Api
             }
           }
         else
-          render json: { success: false, errors: page_scale.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(page_scale)
         end
       end
 
@@ -641,7 +638,7 @@ module Api
       # AI-powered scale detection from page image (docsort)
       def detect_scale_docsort
         unless params[:image_base64].present?
-          return render json: { success: false, error: "image_base64 is required" }, status: :unprocessable_entity
+          return render_error("image_base64 is required", status: :unprocessable_entity)
         end
 
         service = PdfScaleDetectionService.new
@@ -672,7 +669,7 @@ module Api
       # AI-powered detection of walls, doors, windows and other architectural elements (docsort)
       def detect_elements_docsort
         unless params[:image_base64].present?
-          return render json: { success: false, error: "image_base64 is required" }, status: :unprocessable_entity
+          return render_error("image_base64 is required", status: :unprocessable_entity)
         end
 
         service = PdfElementDetectionService.new
@@ -767,7 +764,7 @@ module Api
             }
           }, status: :created
         else
-          render json: { success: false, errors: measurement.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(measurement)
         end
       end
 
@@ -817,7 +814,7 @@ module Api
             }
           }, status: :created
         else
-          render json: { success: false, errors: layer.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(layer)
         end
       end
 
@@ -828,7 +825,7 @@ module Api
         if layer.update(layer_params)
           render json: { success: true, data: layer.as_json }
         else
-          render json: { success: false, errors: layer.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(layer)
         end
       end
 
@@ -906,7 +903,7 @@ module Api
             }
           }, status: :created
         else
-          render json: { success: false, errors: layer.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(layer)
         end
       end
 
@@ -920,7 +917,7 @@ module Api
         @document_inbox = DocumentInbox.find(params[:document_inbox_id])
         # Verify tenant access
         unless @document_inbox.tenant_id == current_tenant.id
-          render json: { success: false, error: "Access denied" }, status: :forbidden
+          render_error("Access denied", status: :forbidden)
         end
       end
 

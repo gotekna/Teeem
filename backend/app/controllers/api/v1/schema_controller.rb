@@ -363,7 +363,7 @@ module Api
           production_data = JSON.parse(response)
 
           unless production_data["tables"]
-            render json: { success: false, error: "No tables data from production" }, status: :unprocessable_entity
+            render_error("No tables data from production", status: :unprocessable_entity)
             return
           end
 

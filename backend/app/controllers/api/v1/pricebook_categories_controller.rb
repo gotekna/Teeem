@@ -43,10 +43,7 @@ module Api
             message: "Category '#{@pricebook_category.name}' created successfully"
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @pricebook_category.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@pricebook_category)
         end
       end
 
@@ -59,10 +56,7 @@ module Api
             message: "Category '#{@pricebook_category.name}' updated successfully"
           }
         else
-          render json: {
-            success: false,
-            errors: @pricebook_category.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@pricebook_category)
         end
       end
 
@@ -72,10 +66,7 @@ module Api
         items_count = @pricebook_category.pricebook_items.count
 
         if items_count > 0 && params[:force] != "true"
-          render json: {
-            success: false,
-            error: "Cannot delete category '#{name}' - it has #{items_count} items. Use force=true to delete anyway (items will have null category)."
-          }, status: :unprocessable_entity
+          render_error("Cannot delete category '#{name}' - it has #{items_count} items. Use force=true to delete anyway (items will have null category).", status: :unprocessable_entity)
           return
         end
 
@@ -92,7 +83,7 @@ module Api
         positions = params[:positions] # Expected format: { id: position, id: position, ... }
 
         unless positions.is_a?(Hash) || positions.is_a?(ActionController::Parameters)
-          render json: { success: false, error: "Invalid positions format" }, status: :unprocessable_entity
+          render_error("Invalid positions format", status: :unprocessable_entity)
           return
         end
 
@@ -123,7 +114,7 @@ module Api
       def set_pricebook_category
         @pricebook_category = PricebookCategory.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Category not found" }, status: :not_found
+        render_error("Category not found", status: :not_found)
       end
 
       def pricebook_category_params

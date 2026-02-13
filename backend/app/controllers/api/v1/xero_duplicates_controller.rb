@@ -57,27 +57,18 @@ module Api
       # Params: merge_target_id (required)
       def approve
         unless @duplicate_group.pending?
-          return render json: {
-            success: false,
-            error: "This duplicate group has already been processed (status: #{@duplicate_group.status})"
-          }, status: :unprocessable_entity
+          return render_error("This duplicate group has already been processed (status: #{@duplicate_group.status})", status: :unprocessable_entity)
         end
 
         merge_target_id = params[:merge_target_id]&.to_i
 
         unless merge_target_id
-          return render json: {
-            success: false,
-            error: "merge_target_id is required"
-          }, status: :unprocessable_entity
+          return render_error("merge_target_id is required", status: :unprocessable_entity)
         end
 
         # Verify target is in the group
         unless @duplicate_group.contact_ids.include?(merge_target_id)
-          return render json: {
-            success: false,
-            error: "merge_target_id must be one of the contacts in this duplicate group"
-          }, status: :unprocessable_entity
+          return render_error("merge_target_id must be one of the contacts in this duplicate group", status: :unprocessable_entity)
         end
 
         # Mark target in items
@@ -116,10 +107,7 @@ module Api
       # Rejects a duplicate group (marks as not duplicates)
       def reject
         unless @duplicate_group.pending?
-          return render json: {
-            success: false,
-            error: "This duplicate group has already been processed"
-          }, status: :unprocessable_entity
+          return render_error("This duplicate group has already been processed", status: :unprocessable_entity)
         end
 
         @duplicate_group.mark_rejected!(current_user&.email || params[:reviewer_email])
@@ -137,18 +125,12 @@ module Api
         merge_target_id = params[:merge_target_id]&.to_i
 
         unless merge_target_id
-          return render json: {
-            success: false,
-            error: "merge_target_id is required"
-          }, status: :unprocessable_entity
+          return render_error("merge_target_id is required", status: :unprocessable_entity)
         end
 
         # Verify target is in the group
         unless @duplicate_group.contact_ids.include?(merge_target_id)
-          return render json: {
-            success: false,
-            error: "merge_target_id must be one of the contacts in this duplicate group"
-          }, status: :unprocessable_entity
+          return render_error("merge_target_id must be one of the contacts in this duplicate group", status: :unprocessable_entity)
         end
 
         # Update target in items
@@ -174,10 +156,7 @@ module Api
           summary: summary
         }
       rescue StandardError => e
-        render json: {
-          success: false,
-          error: "Detection failed: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Detection failed: #{e.message}", status: :internal_server_error)
       end
 
       private
@@ -185,10 +164,7 @@ module Api
       def set_duplicate_group
         @duplicate_group = XeroDuplicateGroup.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Duplicate group not found"
-        }, status: :not_found
+        render_error("Duplicate group not found", status: :not_found)
       end
 
       def serialize_duplicate_group(group)

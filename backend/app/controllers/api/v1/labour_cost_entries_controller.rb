@@ -52,7 +52,7 @@ class Api::V1::LabourCostEntriesController < ApplicationController
 
   # GET /api/v1/labour_cost_entries/for_job
   def for_job
-    return render json: { success: false, error: "job_id is required" }, status: :bad_request unless params[:job_id].present?
+    return render_error("job_id is required", status: :bad_request) unless params[:job_id].present?
 
     service = LabourCostCalculatorService.new
     summary = service.job_cost_summary(
@@ -66,7 +66,7 @@ class Api::V1::LabourCostEntriesController < ApplicationController
 
   # GET /api/v1/labour_cost_entries/for_worker
   def for_worker
-    return render json: { success: false, error: "worker_profile_id is required" }, status: :bad_request unless params[:worker_profile_id].present?
+    return render_error("worker_profile_id is required", status: :bad_request) unless params[:worker_profile_id].present?
 
     start_date = params[:start_date]&.to_date || 30.days.ago.to_date
     end_date = params[:end_date]&.to_date || Date.current
@@ -125,10 +125,7 @@ class Api::V1::LabourCostEntriesController < ApplicationController
         data: entry_to_json(@entry)
       }, status: :created
     else
-      render json: {
-        success: false,
-        errors: @entry.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@entry)
     end
   end
 
@@ -136,10 +133,7 @@ class Api::V1::LabourCostEntriesController < ApplicationController
   def update
     # Don't allow updating invoiced entries
     if @entry.billing_status == "invoiced"
-      return render json: {
-        success: false,
-        error: "Cannot update invoiced entries"
-      }, status: :unprocessable_entity
+      return render_error("Cannot update invoiced entries", status: :unprocessable_entity)
     end
 
     if @entry.update(entry_params)
@@ -148,20 +142,17 @@ class Api::V1::LabourCostEntriesController < ApplicationController
         data: entry_to_json(@entry)
       }
     else
-      render json: {
-        success: false,
-        errors: @entry.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@entry)
     end
   end
 
   # POST /api/v1/labour_cost_entries/:id/mark_billed
   def mark_billed
     invoice_id = params[:invoice_id]
-    return render json: { success: false, error: "invoice_id is required" }, status: :bad_request unless invoice_id.present?
+    return render_error("invoice_id is required", status: :bad_request) unless invoice_id.present?
 
     invoice = Invoice.find_by(id: invoice_id)
-    return render json: { success: false, error: "Invoice not found" }, status: :not_found unless invoice
+    return render_error("Invoice not found", status: :not_found) unless invoice
 
     @entry.mark_billed!(invoice)
 
@@ -179,10 +170,10 @@ class Api::V1::LabourCostEntriesController < ApplicationController
     entry_ids = params[:entry_ids]
     invoice_id = params[:invoice_id]
 
-    return render json: { success: false, error: "entry_ids and invoice_id are required" }, status: :bad_request unless entry_ids.present? && invoice_id.present?
+    return render_error("entry_ids and invoice_id are required", status: :bad_request) unless entry_ids.present? && invoice_id.present?
 
     invoice = Invoice.find_by(id: invoice_id)
-    return render json: { success: false, error: "Invoice not found" }, status: :not_found unless invoice
+    return render_error("Invoice not found", status: :not_found) unless invoice
 
     updated_count = 0
     LabourCostEntry.where(id: entry_ids).find_each do |entry|
@@ -219,7 +210,7 @@ class Api::V1::LabourCostEntriesController < ApplicationController
   def set_entry
     @entry = LabourCostEntry.find(params[:id])
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "Labour cost entry not found" }, status: :not_found
+    render_error("Labour cost entry not found", status: :not_found)
   end
 
   def entry_params

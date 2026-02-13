@@ -58,10 +58,7 @@ module Api
           message: "Transaction created successfully"
         }, status: :created
       rescue FinancialTransactionService::TransactionError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # PUT /api/v1/financial_transactions/:id
@@ -76,10 +73,7 @@ module Api
           message: "Transaction updated successfully"
         }
       rescue FinancialTransactionService::TransactionError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # DELETE /api/v1/financial_transactions/:id
@@ -93,10 +87,7 @@ module Api
           message: "Transaction deleted successfully"
         }
       rescue FinancialTransactionService::TransactionError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/financial_transactions/:id/post
@@ -111,10 +102,7 @@ module Api
           message: "Transaction posted successfully"
         }
       rescue FinancialTransactionService::TransactionError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # GET /api/v1/financial_transactions/summary
@@ -163,10 +151,7 @@ module Api
       def set_transaction
         @transaction = FinancialTransaction.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Transaction not found"
-        }, status: :not_found
+        render_error("Transaction not found", status: :not_found)
       end
 
       def set_company
@@ -176,10 +161,7 @@ module Api
                     Corporate.first
         end
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Company not found"
-        }, status: :not_found
+        render_error("Company not found", status: :not_found)
       end
 
       def transaction_params

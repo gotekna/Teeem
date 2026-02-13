@@ -145,7 +145,11 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
           : doc.financial_years || "",
         validated: !!(doc.user_validated_at || doc.ai_verification_status === "verified"),
         validation_source: doc.user_validated_at ? "user" : doc.ai_verification_status === "verified" ? "ai" : undefined,
-        ai_confidence: doc.ai_confidence_score ? `${Math.round(Number(doc.ai_confidence_score) * 100)}%` : null,
+        ai_confidence: doc.ai_confidence_score ? (() => {
+          const raw = Number(doc.ai_confidence_score);
+          const pct = raw <= 1 ? Math.round(raw * 100) : Math.round(raw);
+          return `${pct}%`;
+        })() : null,
         user_validated_by: doc.user_validated_by_name || null,
         validated_at: doc.user_validated_at ? new Date(doc.user_validated_at).toLocaleDateString() : null,
       }));
@@ -270,7 +274,9 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
           );
         }
         if (doc.ai_confidence_score) {
-          const score = doc.ai_confidence_score;
+          // Score can be 0-1 (decimal) or 0-100 (percentage) - normalize to 0-100
+          const rawScore = Number(doc.ai_confidence_score);
+          const score = rawScore <= 1 ? Math.round(rawScore * 100) : Math.round(rawScore);
           const colorClass = score >= 90 ? "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30"
             : score >= 70 ? "text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30"
             : "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30";
@@ -452,7 +458,10 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
               d.id === docId ? {
                 ...d,
                 ...updatedDoc,
-                ai_confidence: updatedDoc.ai_confidence_score || null,
+                ai_confidence: updatedDoc.ai_confidence_score ? (() => {
+                  const raw = Number(updatedDoc.ai_confidence_score);
+                  return `${raw <= 1 ? Math.round(raw * 100) : Math.round(raw)}%`;
+                })() : null,
               } : d
             ));
           }

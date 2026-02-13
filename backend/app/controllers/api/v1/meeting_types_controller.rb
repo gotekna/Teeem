@@ -37,20 +37,14 @@ class Api::V1::MeetingTypesController < ApplicationController
         data: meeting_type.to_template
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: meeting_type.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(meeting_type)
     end
   end
 
   # PATCH /api/v1/meeting_types/:id
   def update
     if @meeting_type.is_system_default && params[:meeting_type][:is_active] == false
-      render json: {
-        success: false,
-        error: "Cannot deactivate system default meeting type"
-      }, status: :unprocessable_entity
+      render_error("Cannot deactivate system default meeting type", status: :unprocessable_entity)
       return
     end
 
@@ -60,28 +54,19 @@ class Api::V1::MeetingTypesController < ApplicationController
         data: @meeting_type.to_template
       }
     else
-      render json: {
-        success: false,
-        error: @meeting_type.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@meeting_type)
     end
   end
 
   # DELETE /api/v1/meeting_types/:id
   def destroy
     if @meeting_type.is_system_default
-      render json: {
-        success: false,
-        error: "Cannot delete system default meeting type"
-      }, status: :forbidden
+      render_error("Cannot delete system default meeting type", status: :forbidden)
       return
     end
 
     if @meeting_type.meetings.any?
-      render json: {
-        success: false,
-        error: "Cannot delete meeting type that is being used by existing meetings"
-      }, status: :unprocessable_entity
+      render_error("Cannot delete meeting type that is being used by existing meetings", status: :unprocessable_entity)
       return
     end
 
@@ -91,10 +76,7 @@ class Api::V1::MeetingTypesController < ApplicationController
         data: { message: "Meeting type deleted successfully" }
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to delete meeting type"
-      }, status: :unprocessable_entity
+      render_error("Failed to delete meeting type", status: :unprocessable_entity)
     end
   end
 
@@ -111,10 +93,7 @@ class Api::V1::MeetingTypesController < ApplicationController
   def set_meeting_type
     @meeting_type = MeetingType.find(params[:id])
   rescue ActiveRecord::RecordNotFound
-    render json: {
-      success: false,
-      error: "Meeting type not found"
-    }, status: :not_found
+    render_error("Meeting type not found", status: :not_found)
   end
 
   def meeting_type_params

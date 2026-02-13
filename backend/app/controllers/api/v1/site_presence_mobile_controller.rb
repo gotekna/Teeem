@@ -17,7 +17,7 @@ class Api::V1::SitePresenceMobileController < ApplicationController
   def home
     worker = current_worker_profile
     unless worker
-      return render json: { success: false, error: "No worker profile found" }, status: :not_found
+      return render_error("No worker profile found", status: :not_found)
     end
 
     active_session = worker.site_presence_sessions.active.first
@@ -43,18 +43,15 @@ class Api::V1::SitePresenceMobileController < ApplicationController
   # Simplified check-in for mobile
   def quick_checkin
     worker = current_worker_profile
-    return render json: { success: false, error: "No worker profile found" }, status: :not_found unless worker
+    return render_error("No worker profile found", status: :not_found) unless worker
 
     # Check for existing active session
     if worker.site_presence_sessions.active.exists?
-      return render json: {
-        success: false,
-        error: "You already have an active session. Please check out first."
-      }, status: :unprocessable_entity
+      return render_error("You already have an active session. Please check out first.", status: :unprocessable_entity)
     end
 
     job = Job.find_by(id: params[:job_id])
-    return render json: { success: false, error: "Job not found" }, status: :not_found unless job
+    return render_error("Job not found", status: :not_found) unless job
 
     # Create photo if provided
     photo = nil
@@ -99,10 +96,10 @@ class Api::V1::SitePresenceMobileController < ApplicationController
   # Simplified check-out for mobile
   def quick_checkout
     worker = current_worker_profile
-    return render json: { success: false, error: "No worker profile found" }, status: :not_found unless worker
+    return render_error("No worker profile found", status: :not_found) unless worker
 
     session = worker.site_presence_sessions.active.first
-    return render json: { success: false, error: "No active session found" }, status: :not_found unless session
+    return render_error("No active session found", status: :not_found) unless session
 
     # Create photo if provided
     photo = nil
@@ -152,10 +149,10 @@ class Api::V1::SitePresenceMobileController < ApplicationController
   # Live timer data for active session
   def timer
     worker = current_worker_profile
-    return render json: { success: false, error: "No worker profile found" }, status: :not_found unless worker
+    return render_error("No worker profile found", status: :not_found) unless worker
 
     session = worker.site_presence_sessions.active.first
-    return render json: { success: false, error: "No active session" }, status: :not_found unless session
+    return render_error("No active session", status: :not_found) unless session
 
     elapsed = session.checkin_at ? (Time.current - session.checkin_at) : 0
     hours = (elapsed / 1.hour).round(2)
@@ -184,7 +181,7 @@ class Api::V1::SitePresenceMobileController < ApplicationController
   # Recent session history for mobile
   def history
     worker = current_worker_profile
-    return render json: { success: false, error: "No worker profile found" }, status: :not_found unless worker
+    return render_error("No worker profile found", status: :not_found) unless worker
 
     days = (params[:days] || 7).to_i
     sessions = worker.site_presence_sessions
@@ -244,13 +241,13 @@ class Api::V1::SitePresenceMobileController < ApplicationController
   # Add break time to active session
   def add_break
     worker = current_worker_profile
-    return render json: { success: false, error: "No worker profile found" }, status: :not_found unless worker
+    return render_error("No worker profile found", status: :not_found) unless worker
 
     session = worker.site_presence_sessions.active.first
-    return render json: { success: false, error: "No active session" }, status: :not_found unless session
+    return render_error("No active session", status: :not_found) unless session
 
     minutes = params[:minutes]&.to_i || 0
-    return render json: { success: false, error: "Invalid break duration" }, status: :bad_request if minutes <= 0
+    return render_error("Invalid break duration", status: :bad_request) if minutes <= 0
 
     session.update!(break_minutes: (session.break_minutes || 0) + minutes)
 
@@ -265,7 +262,7 @@ class Api::V1::SitePresenceMobileController < ApplicationController
   # Pending AI suggestions for review
   def suggestions
     worker = current_worker_profile
-    return render json: { success: false, error: "No worker profile found" }, status: :not_found unless worker
+    return render_error("No worker profile found", status: :not_found) unless worker
 
     suggestions = worker.ai_timesheet_suggestions
                         .pending
@@ -290,10 +287,10 @@ class Api::V1::SitePresenceMobileController < ApplicationController
   # POST /api/v1/site_presence_mobile/accept_suggestion/:id
   def accept_suggestion
     worker = current_worker_profile
-    return render json: { success: false, error: "No worker profile found" }, status: :not_found unless worker
+    return render_error("No worker profile found", status: :not_found) unless worker
 
     suggestion = worker.ai_timesheet_suggestions.pending.find_by(id: params[:id])
-    return render json: { success: false, error: "Suggestion not found" }, status: :not_found unless suggestion
+    return render_error("Suggestion not found", status: :not_found) unless suggestion
 
     entry = suggestion.accept!
 

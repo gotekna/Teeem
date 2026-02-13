@@ -27,10 +27,7 @@ module Api
       # Approve a fuzzy match and enable sync
       def approve
         unless @xero_link.needs_review?
-          return render json: {
-            success: false,
-            error: "This link is not pending review"
-          }, status: :unprocessable_entity
+          return render_error("This link is not pending review", status: :unprocessable_entity)
         end
 
         @xero_link.approve_review!(params[:reviewer_email])
@@ -57,10 +54,7 @@ module Api
       # Reject a fuzzy match - this will unlink and create a new TEEEM contact
       def reject
         unless @xero_link.needs_review?
-          return render json: {
-            success: false,
-            error: "This link is not pending review"
-          }, status: :unprocessable_entity
+          return render_error("This link is not pending review", status: :unprocessable_entity)
         end
 
         xero_contact_id = @xero_link.external_contact_id
@@ -106,19 +100,13 @@ module Api
         tenant_id = params.dig(:xero_link, :tenant_id)
 
         unless tenant_id.present?
-          return render json: {
-            success: false,
-            error: "tenant_id is required"
-          }, status: :unprocessable_entity
+          return render_error("tenant_id is required", status: :unprocessable_entity)
         end
 
         # Check if already linked to this tenant
         # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
         if @contact.xero_links.exists?(xero_org_id: tenant_id)
-          return render json: {
-            success: false,
-            error: "Contact already linked to this Xero organization"
-          }, status: :unprocessable_entity
+          return render_error("Contact already linked to this Xero organization", status: :unprocessable_entity)
         end
 
         # Use the sync service to push to Xero and create link
@@ -131,10 +119,7 @@ module Api
             xero_link: serialize_xero_link(result[:link])
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: result[:error] || "Failed to push contact to Xero"
-          }, status: :unprocessable_entity
+          render_error(result[:error] || "Failed to push contact to Xero", status: :unprocessable_entity)
         end
       end
 
@@ -146,10 +131,7 @@ module Api
             xero_link: serialize_xero_link(@xero_link)
           }
         else
-          render json: {
-            success: false,
-            errors: @xero_link.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@xero_link)
         end
       end
 
@@ -177,17 +159,11 @@ module Api
         target_contact = Contact.find_by(id: params[:target_contact_id])
 
         unless target_contact
-          return render json: {
-            success: false,
-            error: "Target contact not found"
-          }, status: :not_found
+          return render_error("Target contact not found", status: :not_found)
         end
 
         if target_contact.id == @contact.id
-          return render json: {
-            success: false,
-            error: "Cannot transfer to the same contact"
-          }, status: :unprocessable_entity
+          return render_error("Cannot transfer to the same contact", status: :unprocessable_entity)
         end
 
         # Check if target already has link to same tenant
@@ -197,10 +173,7 @@ module Api
         )
 
         if existing_link
-          return render json: {
-            success: false,
-            error: "Target contact is already linked to #{@xero_link.tenant_name}"
-          }, status: :unprocessable_entity
+          return render_error("Target contact is already linked to #{@xero_link.tenant_name}", status: :unprocessable_entity)
         end
 
         old_contact = @xero_link.contact

@@ -61,10 +61,7 @@ module Api
             time_entry: time_entry_to_json(@time_entry)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @time_entry.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@time_entry)
         end
       end
 
@@ -72,10 +69,7 @@ module Api
       def update
         # Don't allow editing approved entries unless admin
         if @time_entry.approved? && !current_user&.admin?
-          return render json: {
-            success: false,
-            error: "Cannot edit approved time entries"
-          }, status: :forbidden
+          return render_error("Cannot edit approved time entries", status: :forbidden)
         end
 
         if @time_entry.update(time_entry_params)
@@ -84,10 +78,7 @@ module Api
             time_entry: time_entry_to_json(@time_entry)
           }
         else
-          render json: {
-            success: false,
-            errors: @time_entry.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@time_entry)
         end
       end
 
@@ -95,10 +86,7 @@ module Api
       def destroy
         # Don't allow deleting approved entries unless admin
         if @time_entry.approved? && !current_user&.admin?
-          return render json: {
-            success: false,
-            error: "Cannot delete approved time entries"
-          }, status: :forbidden
+          return render_error("Cannot delete approved time entries", status: :forbidden)
         end
 
         @time_entry.destroy
@@ -125,10 +113,7 @@ module Api
         entry_ids = params[:entry_ids]
 
         unless entry_ids.is_a?(Array) && entry_ids.present?
-          return render json: {
-            success: false,
-            error: "entry_ids must be a non-empty array"
-          }, status: :unprocessable_entity
+          return render_error("entry_ids must be a non-empty array", status: :unprocessable_entity)
         end
 
         approved_count = 0
@@ -172,7 +157,7 @@ module Api
           }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Resource not found" }, status: :not_found
+        render_error("Resource not found", status: :not_found)
       end
 
       # GET /api/v1/sm_time_entries/timesheet
@@ -224,7 +209,7 @@ module Api
           }
         }
       rescue ArgumentError
-        render json: { success: false, error: "Invalid date format" }, status: :unprocessable_entity
+        render_error("Invalid date format", status: :unprocessable_entity)
       end
 
       # GET /api/v1/sm_time_entries/resource_timesheet/:resource_id
@@ -242,7 +227,7 @@ module Api
 
         render json: { success: true }.merge(timesheet)
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Resource not found" }, status: :not_found
+        render_error("Resource not found", status: :not_found)
       end
 
       # GET /api/v1/sm_time_entries/task_timesheet/:task_id
@@ -252,7 +237,7 @@ module Api
 
         render json: { success: true }.merge(timesheet)
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Task not found" }, status: :not_found
+        render_error("Task not found", status: :not_found)
       end
 
       # GET /api/v1/sm_time_entries/pending_approvals
@@ -284,7 +269,7 @@ module Api
           days: summary
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Resource not found" }, status: :not_found
+        render_error("Resource not found", status: :not_found)
       end
 
       # POST /api/v1/sm_time_entries/log_time
@@ -325,10 +310,7 @@ module Api
         end_date = parse_date(params[:end_date])
 
         unless start_date && end_date
-          return render json: {
-            success: false,
-            error: "start_date and end_date are required"
-          }, status: :unprocessable_entity
+          return render_error("start_date and end_date are required", status: :unprocessable_entity)
         end
 
         payroll_data = service.export_for_payroll(
@@ -360,19 +342,13 @@ module Api
       def set_task
         @task = SmTask.find(params[:sm_task_id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Task not found"
-        }, status: :not_found
+        render_error("Task not found", status: :not_found)
       end
 
       def set_time_entry
         @time_entry = SmTimeEntry.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Time entry not found"
-        }, status: :not_found
+        render_error("Time entry not found", status: :not_found)
       end
 
       def time_entry_params

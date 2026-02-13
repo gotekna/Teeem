@@ -30,6 +30,7 @@ import {
   ChevronRight,
   ChevronDown,
   Calendar,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -124,11 +125,22 @@ interface SavingsEntry {
   monthlySaved: number;
 }
 
+interface ApiKeyStatus {
+  name: string;
+  type: "api_key" | "oauth";
+  status: string;
+  envVar?: string;
+  lastChars?: string;
+  expiresAt?: string;
+  expiresIn?: string;
+}
+
 interface InfrastructureData {
   dynos: DynoCost[];
   addons: AddonCost[];
   externalServices: ExternalService[];
   savingsHistory: SavingsEntry[];
+  apiKeyStatus?: ApiKeyStatus[];
   fetchedAt: string | null;
   cached: boolean;
   error?: string;
@@ -1394,6 +1406,81 @@ export default function CostsMap() {
           </Card>
         );
       })}
+
+      {/* API Key & Credential Status */}
+      {data.apiKeyStatus && data.apiKeyStatus.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <KeyRound className="h-4 w-4" />
+              API Keys & Credentials
+            </CardTitle>
+            <CardDescription>Token status and expiry times for all integrations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="pb-2 font-medium">Service</th>
+                    <th className="pb-2 font-medium">Type</th>
+                    <th className="pb-2 font-medium">Status</th>
+                    <th className="pb-2 font-medium">Expiry</th>
+                    <th className="pb-2 font-medium text-right">Key</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.apiKeyStatus.map((k, i) => (
+                    <tr key={`${k.name}-${i}`} className="border-b border-border last:border-0">
+                      <td className="py-1.5 font-medium">{k.name}</td>
+                      <td className="py-1.5">
+                        <Badge variant="outline" className="text-[10px]">
+                          {k.type === "oauth" ? "OAuth" : "API Key"}
+                        </Badge>
+                      </td>
+                      <td className="py-1.5">
+                        <span className={cn(
+                          "inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full",
+                          k.status === "active"
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            : k.status === "expired"
+                              ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                              : k.status === "missing"
+                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                : "bg-muted text-muted-foreground"
+                        )}>
+                          {k.status}
+                        </span>
+                      </td>
+                      <td className="py-1.5 text-muted-foreground text-xs">
+                        {k.expiresAt ? (
+                          <span className={cn(
+                            "font-mono",
+                            k.expiresIn === "Expired" && "text-red-600 dark:text-red-400 font-medium"
+                          )}>
+                            {new Date(k.expiresAt).toLocaleDateString("en-AU", {
+                              day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                              timeZone: "Australia/Brisbane"
+                            })}
+                            {k.expiresIn && k.expiresIn !== "Expired" && (
+                              <span className="text-muted-foreground ml-1">({k.expiresIn})</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 text-right font-mono text-xs text-muted-foreground">
+                        {k.lastChars || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Payment Methods Summary */}
       <Card>

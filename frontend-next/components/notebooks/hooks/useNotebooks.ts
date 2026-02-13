@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import type { NotebookPermission } from "@/lib/constants/roles";
 
 // Types
 export interface NotebookOwner {
@@ -39,7 +40,7 @@ export interface NotebookShare {
     name: string;
     email: string;
   };
-  permission: "view" | "edit" | "admin";
+  permission: NotebookPermission;
   granted_by: string | null;
   expires_at: string | null;
   created_at: string;
@@ -57,7 +58,7 @@ export interface Notebook {
   is_default: boolean;
   section_count: number;
   page_count: number;
-  permission: "view" | "edit" | "admin" | null;
+  permission: NotebookPermission | null;
   last_activity_at: string;
   created_at: string;
   updated_at: string;
@@ -179,7 +180,7 @@ export const notebookActions = {
 
   async share(
     id: number,
-    data: { user_id: number; permission: "view" | "edit" | "admin"; expires_at?: string }
+    data: { user_id: number; permission: NotebookPermission; expires_at?: string }
   ): Promise<NotebookShare> {
     const response = await api.post<{ success: boolean; share: NotebookShare }>(
       `/api/v1/notebooks/${id}/share`,

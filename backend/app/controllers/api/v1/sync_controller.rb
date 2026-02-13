@@ -68,13 +68,13 @@ module Api
         device_code = params[:device_code]&.upcase&.strip
 
         unless device_code.present?
-          return render json: { success: false, error: "Device code required" }, status: :bad_request
+          return render_error("Device code required", status: :bad_request)
         end
 
         # Find pending auth in cache
         pending = Rails.cache.read("device_auth:#{device_code}")
         unless pending
-          return render json: { success: false, error: "Invalid or expired device code" }, status: :not_found
+          return render_error("Invalid or expired device code", status: :not_found)
         end
 
         # Create the desktop client linked to current user
@@ -117,7 +117,7 @@ module Api
         device_code = params[:device_code]&.upcase&.strip
 
         unless device_code.present?
-          return render json: { success: false, error: "Device code required" }, status: :bad_request
+          return render_error("Device code required", status: :bad_request)
         end
 
         # Check if tokens are ready
@@ -156,18 +156,18 @@ module Api
         provided_refresh_token = params[:refresh_token]
 
         unless provided_refresh_token.present?
-          return render json: { success: false, error: "Refresh token required" }, status: :bad_request
+          return render_error("Refresh token required", status: :bad_request)
         end
 
         # Find client by refresh token (no JWT required for this endpoint)
         client = DesktopClient.find_by(refresh_token: provided_refresh_token, is_active: true)
         unless client
-          return render json: { success: false, error: "Invalid refresh token" }, status: :unauthorized
+          return render_error("Invalid refresh token", status: :unauthorized)
         end
 
         tokens = client.refresh_access_token!(provided_refresh_token)
         unless tokens
-          return render json: { success: false, error: "Invalid refresh token" }, status: :unauthorized
+          return render_error("Invalid refresh token", status: :unauthorized)
         end
 
         render json: { success: true, data: tokens }
@@ -228,12 +228,12 @@ module Api
         include_subfolders = params[:include_subfolders] != false
 
         unless %w[Job Corporate Contact].include?(syncable_type)
-          return render json: { success: false, error: "Invalid syncable_type" }, status: :bad_request
+          return render_error("Invalid syncable_type", status: :bad_request)
         end
 
         syncable = syncable_type.constantize.find_by(id: syncable_id)
         unless syncable
-          return render json: { success: false, error: "#{syncable_type} not found" }, status: :not_found
+          return render_error("#{syncable_type} not found", status: :not_found)
         end
 
         sub = @desktop_client.sync_subscriptions.find_or_create_by!(
@@ -251,7 +251,7 @@ module Api
       def destroy_subscription
         sub = @desktop_client.sync_subscriptions.find_by(id: params[:id])
         unless sub
-          return render json: { success: false, error: "Subscription not found" }, status: :not_found
+          return render_error("Subscription not found", status: :not_found)
         end
 
         sub.destroy!
@@ -331,7 +331,7 @@ module Api
         enabled = params[:enabled]
 
         unless SyncExclusionRule::FILE_CATEGORIES.key?(category_key.to_sym)
-          return render json: { success: false, error: "Unknown category" }, status: :bad_request
+          return render_error("Unknown category", status: :bad_request)
         end
 
         if enabled
@@ -387,7 +387,7 @@ module Api
         enabled = params[:enabled]
 
         unless SyncExclusionRule::FOLDER_SCOPES.key?(scope_key.to_sym)
-          return render json: { success: false, error: "Unknown folder scope" }, status: :bad_request
+          return render_error("Unknown folder scope", status: :bad_request)
         end
 
         if enabled
@@ -446,12 +446,12 @@ module Api
       def download_url
         file_state = @desktop_client.sync_file_states.find_by(id: params[:file_state_id])
         unless file_state
-          return render json: { success: false, error: "File not found" }, status: :not_found
+          return render_error("File not found", status: :not_found)
         end
 
         url = file_state.download_url
         unless url
-          return render json: { success: false, error: "Could not generate download URL" }, status: :internal_server_error
+          return render_error("Could not generate download URL", status: :internal_server_error)
         end
 
         # Mark as downloading
@@ -474,7 +474,7 @@ module Api
       def upload_url
         sub = @desktop_client.sync_subscriptions.find_by(id: params[:subscription_id])
         unless sub
-          return render json: { success: false, error: "Subscription not found" }, status: :not_found
+          return render_error("Subscription not found", status: :not_found)
         end
 
         file_name = params[:file_name]
@@ -544,7 +544,7 @@ module Api
       def upload_complete
         file_state = @desktop_client.sync_file_states.find_by(id: params[:file_state_id])
         unless file_state
-          return render json: { success: false, error: "File state not found" }, status: :not_found
+          return render_error("File state not found", status: :not_found)
         end
 
         file_state.update!(
@@ -564,12 +564,12 @@ module Api
       def resolve_conflict
         file_state = @desktop_client.sync_file_states.find_by(id: params[:file_state_id])
         unless file_state
-          return render json: { success: false, error: "File not found" }, status: :not_found
+          return render_error("File not found", status: :not_found)
         end
 
         resolution = params[:resolution]  # 'keep_local', 'keep_remote', 'keep_both'
         unless %w[keep_local keep_remote keep_both].include?(resolution)
-          return render json: { success: false, error: "Invalid resolution" }, status: :bad_request
+          return render_error("Invalid resolution", status: :bad_request)
         end
 
         file_state.resolve_conflict!(resolution)
@@ -609,7 +609,7 @@ module Api
         device_id = request.headers["X-Device-ID"]
 
         unless token.present?
-          return render json: { success: false, error: "Unauthorized" }, status: :unauthorized
+          return render_error("Unauthorized", status: :unauthorized)
         end
 
         begin
@@ -622,16 +622,16 @@ module Api
           )
 
           unless @desktop_client
-            return render json: { success: false, error: "Device not found or inactive" }, status: :unauthorized
+            return render_error("Device not found or inactive", status: :unauthorized)
           end
 
           # Set current_user for compatibility with base controller
           @current_user = @desktop_client.user
 
         rescue JWT::ExpiredSignature
-          render json: { success: false, error: "Token expired" }, status: :unauthorized
+          render_error("Token expired", status: :unauthorized)
         rescue JWT::DecodeError
-          render json: { success: false, error: "Invalid token" }, status: :unauthorized
+          render_error("Invalid token", status: :unauthorized)
         end
       end
 
@@ -649,7 +649,7 @@ module Api
         end
 
         unless @current_user
-          render json: { success: false, error: "Authorization required" }, status: :unauthorized
+          render_error("Authorization required", status: :unauthorized)
           return false
         end
         true

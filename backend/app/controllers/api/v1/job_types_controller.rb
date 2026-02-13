@@ -34,10 +34,7 @@ module Api
             job_type: job_type_json(@job_type)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @job_type.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@job_type)
         end
       end
 
@@ -49,10 +46,7 @@ module Api
             job_type: job_type_json(@job_type)
           }
         else
-          render json: {
-            success: false,
-            errors: @job_type.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@job_type)
         end
       end
 
@@ -86,17 +80,11 @@ module Api
         if template_id.present?
           template = SmScheduleMasterTemplate.find_by(id: template_id)
           unless template
-            return render json: {
-              success: false,
-              error: "Template not found"
-            }, status: :not_found
+            return render_error("Template not found", status: :not_found)
           end
 
           unless template.published_version.present?
-            return render json: {
-              success: false,
-              error: "Template has no published version"
-            }, status: :unprocessable_entity
+            return render_error("Template has no published version", status: :unprocessable_entity)
           end
         end
 

@@ -82,7 +82,7 @@ class Api::V1::AiTimesheetSuggestionsController < ApplicationController
   def generate
     worker = WorkerProfile.find_by(id: params[:worker_profile_id])
     unless worker
-      return render json: { success: false, error: "Worker profile not found" }, status: :not_found
+      return render_error("Worker profile not found", status: :not_found)
     end
 
     date = params[:date]&.to_date || Date.yesterday
@@ -99,19 +99,13 @@ class Api::V1::AiTimesheetSuggestionsController < ApplicationController
       data: result
     }
   rescue StandardError => e
-    render json: {
-      success: false,
-      error: "Generation failed: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Generation failed: #{e.message}")
   end
 
   # POST /api/v1/ai_timesheet_suggestions/:id/accept
   def accept
     unless @suggestion.pending?
-      return render json: {
-        success: false,
-        error: "Suggestion is not pending (status: #{@suggestion.status})"
-      }, status: :unprocessable_entity
+      return render_error("Suggestion is not pending (status: #{@suggestion.status})")
     end
 
     # Accept with optional modifications
@@ -135,25 +129,16 @@ class Api::V1::AiTimesheetSuggestionsController < ApplicationController
         message: "Suggestion accepted and labour cost entry created"
       }
     else
-      render json: {
-        success: false,
-        errors: @suggestion.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@suggestion)
     end
   rescue StandardError => e
-    render json: {
-      success: false,
-      error: "Accept failed: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Accept failed: #{e.message}")
   end
 
   # POST /api/v1/ai_timesheet_suggestions/:id/reject
   def reject
     unless @suggestion.pending?
-      return render json: {
-        success: false,
-        error: "Suggestion is not pending (status: #{@suggestion.status})"
-      }, status: :unprocessable_entity
+      return render_error("Suggestion is not pending (status: #{@suggestion.status})")
     end
 
     reason = params[:reason] || "Rejected by user"
@@ -166,10 +151,7 @@ class Api::V1::AiTimesheetSuggestionsController < ApplicationController
       message: "Suggestion rejected"
     }
   rescue StandardError => e
-    render json: {
-      success: false,
-      error: "Reject failed: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Reject failed: #{e.message}")
   end
 
   private
@@ -177,7 +159,7 @@ class Api::V1::AiTimesheetSuggestionsController < ApplicationController
   def set_suggestion
     @suggestion = AiTimesheetSuggestion.find(params[:id])
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "Suggestion not found" }, status: :not_found
+    render_error("Suggestion not found", status: :not_found)
   end
 
   def suggestion_to_json(suggestion, detailed: false, include_evidence: false)

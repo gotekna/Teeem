@@ -4,7 +4,7 @@ class Api::V1::UsersController < ApplicationController
   # Requires either contact_id (link to existing) or creates new contact from user info
   def create
     unless current_user&.admin?
-      return render json: { success: false, error: "Admin access required" }, status: :forbidden
+      return render_error("Admin access required", status: :forbidden)
     end
 
     @user = nil
@@ -83,10 +83,7 @@ class Api::V1::UsersController < ApplicationController
       update_params = update_params.merge(admin_user_params)
     elsif admin_fields_present
       # Non-admin trying to change admin fields - reject request
-      return render json: {
-        success: false,
-        error: "Thanks for helping, can you contact an administrator for assistance"
-      }, status: :forbidden
+      return render_error("Thanks for helping, can you contact an administrator for assistance", status: :forbidden)
     end
 
     # Handle primary role update (Jan 2026)
@@ -131,10 +128,7 @@ class Api::V1::UsersController < ApplicationController
         user: user_with_presence(@user)
       }
     else
-      render json: {
-        success: false,
-        errors: @user.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@user)
     end
   rescue ActiveRecord::RecordNotFound
     render json: { error: "User not found" }, status: :not_found
@@ -166,7 +160,7 @@ class Api::V1::UsersController < ApplicationController
   # Generate temp password, set force_password_change, and send welcome email
   def send_invite
     unless current_user&.admin?
-      return render json: { success: false, error: "Admin access required" }, status: :forbidden
+      return render_error("Admin access required", status: :forbidden)
     end
 
     @user = User.find(params[:id])
@@ -207,10 +201,7 @@ class Api::V1::UsersController < ApplicationController
         }
       end
     else
-      render json: {
-        success: false,
-        errors: @user.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@user)
     end
   rescue ActiveRecord::RecordNotFound
     render json: { error: "User not found" }, status: :not_found
@@ -222,13 +213,13 @@ class Api::V1::UsersController < ApplicationController
     contact = Contact.find(params[:contact_id])
     user = contact.user
     unless user
-      return render json: { success: false, error: "No user account linked to this contact" }, status: :not_found
+      return render_error("No user account linked to this contact", status: :not_found)
     end
     # Reuse personal_details by setting params[:id]
     params[:id] = user.id
     personal_details
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "Contact not found" }, status: :not_found
+    render_error("Contact not found", status: :not_found)
   end
 
   # GET /api/v1/users/:id/personal_details
@@ -281,7 +272,7 @@ class Api::V1::UsersController < ApplicationController
       }
     }
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "User not found" }, status: :not_found
+    render_error("User not found", status: :not_found)
   end
 
   # PATCH /api/v1/users/:id/personal_details
@@ -378,7 +369,7 @@ class Api::V1::UsersController < ApplicationController
     # Return fresh data
     personal_details
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "User not found" }, status: :not_found
+    render_error("User not found", status: :not_found)
   rescue ActiveRecord::RecordInvalid => e
     render json: { success: false, error: e.message }, status: :unprocessable_entity
   end
@@ -390,7 +381,7 @@ class Api::V1::UsersController < ApplicationController
     if @user.destroy
       render json: { success: true, message: "User removed successfully" }
     else
-      render json: { success: false, error: "Failed to remove user" }, status: :unprocessable_entity
+      render_error("Failed to remove user", status: :unprocessable_entity)
     end
   rescue ActiveRecord::RecordNotFound
     render json: { error: "User not found" }, status: :not_found
@@ -399,7 +390,7 @@ class Api::V1::UsersController < ApplicationController
   # POST /api/v1/users/bulk_delete
   def bulk_delete
     ids = params[:ids]
-    return render json: { success: false, error: "No IDs provided" }, status: :bad_request if ids.blank?
+    return render_error("No IDs provided", status: :bad_request) if ids.blank?
 
     ids = ids.first(1000) if ids.is_a?(Array)
     deleted_count = User.where(id: ids).destroy_all.count

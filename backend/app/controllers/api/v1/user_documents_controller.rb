@@ -74,7 +74,7 @@ module Api
       # Upload a new document
       def create
         unless params[:file].present?
-          return render json: { success: false, error: "No file provided" }, status: :unprocessable_entity
+          return render_error("No file provided", status: :unprocessable_entity)
         end
 
         file = params[:file]
@@ -121,10 +121,7 @@ module Api
             message: "Document uploaded successfully"
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: document.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(document)
         end
       end
 
@@ -149,10 +146,7 @@ module Api
             message: "Document updated successfully"
           }
         else
-          render json: {
-            success: false,
-            errors: @document.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@document)
         end
       end
 
@@ -165,12 +159,12 @@ module Api
       # GET /api/v1/user_documents/:id/download
       def download
         unless @document.storage_blob&.storage_path.present?
-          return render json: { success: false, error: "File not available" }, status: :not_found
+          return render_error("File not available", status: :not_found)
         end
 
         provider = fetch_document_provider
         unless provider
-          return render json: { success: false, error: "Storage provider not configured" }, status: :service_unavailable
+          return render_error("Storage provider not configured", status: :service_unavailable)
         end
 
         begin
@@ -182,7 +176,7 @@ module Api
           render json: { success: true, url: url }
         rescue => e
           Rails.logger.error "[UserDocuments] Failed to generate download URL: #{e.message}"
-          render json: { success: false, error: "Failed to generate download URL" }, status: :service_unavailable
+          render_error("Failed to generate download URL", status: :service_unavailable)
         end
       end
 
@@ -191,12 +185,12 @@ module Api
       def save_to_job
         job_id = params[:job_id]
         unless job_id.present?
-          return render json: { success: false, error: "Job ID required" }, status: :unprocessable_entity
+          return render_error("Job ID required", status: :unprocessable_entity)
         end
 
         job = Job.find_by(id: job_id)
         unless job
-          return render json: { success: false, error: "Job not found" }, status: :not_found
+          return render_error("Job not found", status: :not_found)
         end
 
         # SSoT: WarehouseDocumentCreator handles metadata + callbacks
@@ -224,10 +218,7 @@ module Api
             warehouse_document_id: warehouse_doc.id
           }
         else
-          render json: {
-            success: false,
-            errors: warehouse_doc.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(warehouse_doc)
         end
       end
 
@@ -238,7 +229,7 @@ module Api
         parent_folder = params[:parent]
 
         unless folder_name.present?
-          return render json: { success: false, error: "Folder name required" }, status: :unprocessable_entity
+          return render_error("Folder name required", status: :unprocessable_entity)
         end
 
         # Sanitize folder name
@@ -267,7 +258,7 @@ module Api
       def set_document
         @document = UserDocument.for_user(current_user.id).find_by(id: params[:id])
         unless @document
-          render json: { success: false, error: "Document not found" }, status: :not_found
+          render_error("Document not found", status: :not_found)
         end
       end
 

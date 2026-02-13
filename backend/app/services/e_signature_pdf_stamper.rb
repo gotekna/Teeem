@@ -506,7 +506,7 @@ class ESignaturePdfStamper
     canvas.font("Helvetica", size: 9)
     canvas.fill_color("0066cc")
     canvas.text(
-      "Verify this document at: https://teeem.vercel.app/verify/#{cert&.certificate_number}",
+      "Verify this document at: #{InfrastructureUrls.production_frontend_url}/verify/#{cert&.certificate_number}",
       at: [ MARGIN, y ]
     )
   end

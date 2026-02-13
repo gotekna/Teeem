@@ -31,10 +31,7 @@ module Api
             data: serialize_format(@format)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: @format.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          render_validation_errors(@format)
         end
       end
 
@@ -51,20 +48,14 @@ module Api
             data: serialize_format(@format)
           }
         else
-          render json: {
-            success: false,
-            error: @format.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          render_validation_errors(@format)
         end
       end
 
       # DELETE /api/v1/revision_formats/:id
       def destroy
         if RevisionFormat.count <= 1
-          return render json: {
-            success: false,
-            error: 'Cannot delete the last revision format.'
-          }, status: :unprocessable_entity
+          return render_error('Cannot delete the last revision format.', status: :unprocessable_entity)
         end
 
         @format.destroy

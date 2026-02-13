@@ -98,7 +98,7 @@ class WorkerWatchdog
       end
 
       app_name = ENV["HEROKU_APP_NAME"]
-      api_key = ENV["HEROKU_API_KEY"]
+      api_key = HerokuPlatformService.api_key
 
       Rails.logger.warn("[WorkerWatchdog] Restarting worker dyno on #{app_name}")
       record_restart!

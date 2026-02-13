@@ -52,7 +52,7 @@ module Api
         if @warehouse_folder.save
           render json: { success: true, data: @warehouse_folder.as_nested_json }, status: :created
         else
-          render json: { success: false, error: @warehouse_folder.errors.full_messages.join(', ') }, status: :unprocessable_entity
+          render_validation_errors(@warehouse_folder)
         end
       end
 
@@ -66,7 +66,7 @@ module Api
           @warehouse_folder.reload
           render json: { success: true, data: @warehouse_folder.as_nested_json }
         else
-          render json: { success: false, error: @warehouse_folder.errors.full_messages.join(', ') }, status: :unprocessable_entity
+          render_validation_errors(@warehouse_folder)
         end
       end
 
@@ -151,7 +151,7 @@ module Api
         types = params[:entity_types]
 
         unless types.is_a?(Array) && types.all? { |t| t.is_a?(String) && t.present? }
-          return render json: { success: false, error: "entity_types must be an array of strings" }, status: :unprocessable_entity
+          return render_error("entity_types must be an array of strings", status: :unprocessable_entity)
         end
 
         TenantSetting.update_corporate_entity_types(types)

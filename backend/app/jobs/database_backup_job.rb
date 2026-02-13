@@ -32,7 +32,7 @@ class DatabaseBackupJob < ApplicationJob
       return
     end
 
-    unless heroku_api_key.present?
+    unless HerokuPlatformService.api_key?
       Rails.logger.warn "[DatabaseBackup] Skipped - HEROKU_API_KEY not set"
       return
     end
@@ -71,7 +71,7 @@ class DatabaseBackupJob < ApplicationJob
   private
 
   def heroku_api_key
-    ENV["HEROKU_API_KEY"]
+    HerokuPlatformService.api_key
   end
 
   def fetch_heroku_backup_url

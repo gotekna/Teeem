@@ -199,10 +199,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
         expires_at: microsoft_token.token_expires_at
       }
     else
-      render json: {
-        success: false,
-        error: microsoft_token.sync_error || "Failed to refresh token"
-      }, status: :unprocessable_entity
+      render_error(microsoft_token.sync_error || "Failed to refresh token", status: :unprocessable_entity)
     end
   end
 

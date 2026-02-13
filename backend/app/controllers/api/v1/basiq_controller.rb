@@ -59,10 +59,7 @@ module Api
             }
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -121,7 +118,7 @@ module Api
         credential = BasiqCredential.for_org(current_organization)
 
         if credential.nil?
-          render json: { success: false, error: "No bank feed connected" }, status: :not_found
+          render_error("No bank feed connected", status: :not_found)
           return
         end
 
@@ -133,10 +130,7 @@ module Api
             message: "Bank feed disconnected"
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -146,7 +140,7 @@ module Api
         credential = BasiqCredential.for_org(current_organization)
 
         unless credential&.connected?
-          render json: { success: false, error: "Bank feed not connected" }, status: :not_found
+          render_error("Bank feed not connected", status: :not_found)
           return
         end
 
@@ -158,10 +152,7 @@ module Api
             data: result[:accounts]
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -171,7 +162,7 @@ module Api
         credential = BasiqCredential.for_org(current_organization)
 
         unless credential&.connected?
-          render json: { success: false, error: "Bank feed not connected" }, status: :not_found
+          render_error("Bank feed not connected", status: :not_found)
           return
         end
 
@@ -193,10 +184,7 @@ module Api
             }
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -206,7 +194,7 @@ module Api
         credential = BasiqCredential.for_org(current_organization)
 
         unless credential&.connected?
-          render json: { success: false, error: "Bank feed not connected" }, status: :not_found
+          render_error("Bank feed not connected", status: :not_found)
           return
         end
 
@@ -219,10 +207,7 @@ module Api
             refreshed: result[:refreshed]
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -258,10 +243,7 @@ module Api
             data: result[:institutions]
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -281,7 +263,7 @@ module Api
 
       def require_organization
         unless current_organization
-          render json: { success: false, error: "Organization required" }, status: :unauthorized
+          render_error("Organization required", status: :unauthorized)
         end
       end
 

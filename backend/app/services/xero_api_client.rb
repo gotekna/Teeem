@@ -17,12 +17,12 @@ class XeroApiClient
 
   # Allowed origins for dynamic redirect_uri
   # Must match exactly what's registered in Xero Developer Portal
-  ALLOWED_ORIGINS = [
-    "https://teeem.vercel.app",
-    "https://teeem-staging.vercel.app",
-    "https://teeem-beta.vercel.app",
-    "https://teeemrob.vercel.app"
-  ].freeze
+  # SSoT: Infrastructure URLs + personal dev URLs
+  ALLOWED_ORIGINS = (
+    InfrastructureUrls.all_frontend_urls + [
+      "https://teeemrob.vercel.app"
+    ]
+  ).freeze
 
   def initialize(redirect_uri: nil, teeem_tenant: nil)
     @client_id = ENV["XERO_CLIENT_ID"]

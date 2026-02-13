@@ -42,18 +42,12 @@ class Api::V1::EmailDraftsController < ApplicationController
         data: draft.as_api_response
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: draft.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(draft)
     end
   rescue StandardError => e
     Rails.logger.error("[EmailDraftsController] create failed: #{e.class} - #{e.message}")
     Rails.logger.error(e.backtrace.first(5).join("\n"))
-    render json: {
-      success: false,
-      error: "Failed to create draft: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to create draft: #{e.message}", status: :unprocessable_entity)
   end
 
   # PATCH/PUT /api/v1/email_drafts/:id
@@ -64,18 +58,12 @@ class Api::V1::EmailDraftsController < ApplicationController
         data: @draft.as_api_response
       }
     else
-      render json: {
-        success: false,
-        error: @draft.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@draft)
     end
   rescue StandardError => e
     Rails.logger.error("[EmailDraftsController] update failed: #{e.class} - #{e.message}")
     Rails.logger.error(e.backtrace.first(5).join("\n"))
-    render json: {
-      success: false,
-      error: "Failed to update draft: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to update draft: #{e.message}", status: :unprocessable_entity)
   end
 
   # DELETE /api/v1/email_drafts/:id

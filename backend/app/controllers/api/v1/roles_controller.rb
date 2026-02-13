@@ -32,10 +32,7 @@ module Api
             }
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: role.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(role)
         end
       end
 

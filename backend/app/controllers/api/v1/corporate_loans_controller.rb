@@ -72,10 +72,7 @@ module Api
             data: serialize_loan(@loan)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @loan.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@loan)
         end
       end
 
@@ -87,10 +84,7 @@ module Api
             data: serialize_loan(@loan)
           }
         else
-          render json: {
-            success: false,
-            errors: @loan.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@loan)
         end
       end
 

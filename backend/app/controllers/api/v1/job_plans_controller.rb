@@ -96,10 +96,7 @@ module Api
             data: serialize_plan(@job_plan)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: @job_plan.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          render_validation_errors(@job_plan)
         end
       end
 
@@ -116,10 +113,7 @@ module Api
             data: serialize_plan(@job_plan)
           }
         else
-          render json: {
-            success: false,
-            error: @job_plan.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          render_validation_errors(@job_plan)
         end
       end
 
@@ -143,10 +137,7 @@ module Api
           data: serialize_revision(revision)
         }, status: :created
       rescue => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # PUT /api/v1/jobs/:job_id/job_plans/:id/set_on_issue
@@ -159,10 +150,7 @@ module Api
           data: serialize_plan(@job_plan.reload)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: 'Revision not found'
-        }, status: :not_found
+        render_error('Revision not found', status: :not_found)
       end
 
       # GET /api/v1/jobs/:job_id/job_plans/suggested_recipients
@@ -239,7 +227,7 @@ module Api
         begin
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e
-          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
+          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
         end
 
         uploaded_file = params[:file]
@@ -282,7 +270,7 @@ module Api
 
       rescue DocumentProviders::Error => e
         Rails.logger.error("upload_plan_set storage error: #{e.message}")
-        render json: { success: false, error: "Storage error: #{e.message}" }, status: :bad_gateway
+        render_error("Storage error: #{e.message}", status: :bad_gateway)
       rescue StandardError => e
         Rails.logger.error("upload_plan_set failed: #{e.class} - #{e.message}")
         Rails.logger.error(e.backtrace.first(10).join("\n"))
@@ -350,10 +338,7 @@ module Api
       # Reprocess a single plan with the AI Processing Pipeline (OCR + AI)
       def reprocess
         unless @job_plan.current_revision&.storage_reference.present?
-          return render json: {
-            success: false,
-            error: "Plan has no file attached to reprocess"
-          }, status: :unprocessable_entity
+          return render_error("Plan has no file attached to reprocess", status: :unprocessable_entity)
         end
 
         # Queue AI analysis job for this specific plan
@@ -376,17 +361,11 @@ module Api
         body = params[:body] || ""
 
         if plan_ids.empty?
-          return render json: {
-            success: false,
-            error: 'No plans selected'
-          }, status: :unprocessable_entity
+          return render_error('No plans selected', status: :unprocessable_entity)
         end
 
         if recipient_emails.empty?
-          return render json: {
-            success: false,
-            error: 'No recipients specified'
-          }, status: :unprocessable_entity
+          return render_error('No recipients specified', status: :unprocessable_entity)
         end
 
         # Get plans and their files
@@ -407,10 +386,7 @@ module Api
           sent_to: result[:sent_to]
         }
       rescue => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       private
