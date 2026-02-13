@@ -56,12 +56,13 @@ module HealthChecks
     # Orphaned documents (documentable deleted)
     def check_orphaned_documents
       # Find documents where documentable no longer exists
+      # Note: Cannot use left_joins/eager_load on polymorphic associations (Rails limitation)
+      # Instead, load candidates and check in Ruby
       orphaned = WarehouseDocument.where.not(documentable_type: nil)
                                    .where.not(documentable_id: nil)
-                                   .left_joins(:documentable)
-                                   .where("warehouse_documents.documentable_type IS NOT NULL AND warehouse_documents.documentable_id IS NOT NULL")
-                                   .limit(100)
+                                   .limit(500)
                                    .select { |d| d.documentable.nil? }
+                                   .first(100)
 
       build_result(
         name: "Orphaned Documents",

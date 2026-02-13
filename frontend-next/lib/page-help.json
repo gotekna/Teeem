@@ -980,9 +980,9 @@
     },
     "/settings/company": {
       "title": "Company Settings",
-      "description": "Configure organization-wide settings and branding.",
-      "tips": ["Brand colors affect buttons and accents throughout the app", "Document templates use company letterhead", "Holidays affect scheduling calculations"],
-      "tasks": ["Update company information", "Configure brand colors", "Manage document templates", "Set public holidays"]
+      "description": "Configure organization-wide settings, branding, and monitor data health.",
+      "tips": ["Brand colors affect buttons and accents throughout the app", "Document templates use company letterhead", "Holidays affect scheduling calculations", "Data Health tab shows system-wide health score and quick fixes"],
+      "tasks": ["Update company information", "Configure brand colors", "Manage document templates", "Set public holidays", "Review data health and fix issues"]
     },
     "/settings/corporate": {
       "title": "Corporate Settings",

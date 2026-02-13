@@ -180,7 +180,7 @@ export function ContactOverviewTab({
         params: {
           search: query,
           per_page: PAGE_SIZE_AUTOCOMPLETE,
-          entity_types: "company,trust,partnership,sole_trader"
+          entity_type: "company,trust,partnership,sole_trader"
         },
       });
       // Exclude self and already-linked companies

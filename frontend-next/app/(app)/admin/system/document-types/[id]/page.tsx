@@ -616,13 +616,25 @@ export default function DocumentTypeDetailPage() {
     return getInitialsSSoT(name) || "";
   };
 
-  // Initialize checkbox state based on whether uiName exists
+  // Initialize checkbox state by deriving from saved data
   React.useEffect(() => {
     if (documentType) {
-      // Always default all to true - user can uncheck if they want custom display name
       setDisplayNameSameAsFileName(true);
       setShowFullDescription(true);
-      setRemoveCompanyName(true);
+
+      // Derive removeCompanyName from saved uiName: if the uiName contains
+      // entity placeholders for its scope, the user had "Hide Company" unchecked
+      const uiName = documentType.uiName || "";
+      const scope = documentType.scope || "company";
+      let hasEntityPlaceholders = false;
+      if (scope === "contacts") {
+        hasEntityPlaceholders = /\{PersonName\}|\{PersonCode\}|\{Person\}/.test(uiName);
+      } else if (scope === "job") {
+        hasEntityPlaceholders = /\{JobTitle\}|\{JobCode\}|\{JobName\}/.test(uiName);
+      } else {
+        hasEntityPlaceholders = /\{CompanyName\}|\{CompanyCode\}/.test(uiName);
+      }
+      setRemoveCompanyName(!hasEntityPlaceholders);
     }
   }, [documentType?.id]); // Only run when document type changes
 
