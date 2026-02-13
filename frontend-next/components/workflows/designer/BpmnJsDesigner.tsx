@@ -21,6 +21,7 @@ import {
   Settings,
   Cog,
   UserCheck,
+  ClipboardList,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescri
 import { api, getApiBaseUrl } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
+import { AdaptiveFormDesigner } from "@/components/workflows/forms/designer/AdaptiveFormDesigner";
+import type { AdaptiveFormSchema } from "@/lib/workflow-forms/types";
+import { createEmptySchema } from "@/lib/workflow-forms/schema-utils";
 
 // Default empty BPMN diagram
 const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
@@ -146,6 +150,11 @@ interface TaskConfig {
   invoice_description?: string;
   invoice_amount?: number;
   claim_stage?: string; // deposit, frame, lock_up, etc.
+  // For UserTask (adaptive form)
+  form_schema?: AdaptiveFormSchema;
+  assignee_type?: string;
+  assignee_value?: string;
+  due_days?: number;
 }
 
 // Contact key options for signers
@@ -202,6 +211,7 @@ export default function BpmnJsDesigner({
   );
   const [previewJobData, setPreviewJobData] = useState<PreviewJobData | null>(null);
   const [loadingJobContacts, setLoadingJobContacts] = useState(false);
+  const [formDesignerOpen, setFormDesignerOpen] = useState(false);
   const { toast } = useToast();
 
   // Update editable name when prop changes (e.g., data loads from server)
@@ -1448,6 +1458,96 @@ export default function BpmnJsDesigner({
                     </div>
                   );
                 })()}
+
+                {/* User Task Config - Form Designer */}
+                {selectedElement.type === "bpmn:UserTask" && (() => {
+                  const taskConfig = getTaskConfig();
+                  const formSchema = taskConfig.form_schema;
+                  const fieldCount = formSchema?.fields?.length ?? 0;
+
+                  return (
+                    <div className="pt-4 border-t space-y-4">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        <ClipboardList className="h-4 w-4" />
+                        User Task Form
+                      </h4>
+
+                      {fieldCount > 0 ? (
+                        <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{formSchema?.title || "Untitled Form"}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {fieldCount} field{fieldCount !== 1 ? "s" : ""}
+                            </Badge>
+                          </div>
+                          {formSchema?.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">{formSchema.description}</p>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full mt-2"
+                            onClick={() => setFormDesignerOpen(true)}
+                          >
+                            <ClipboardList className="h-4 w-4 mr-2" />
+                            Edit Form
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 border rounded-lg bg-muted/20">
+                          <ClipboardList className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                          <p className="text-sm text-muted-foreground mb-2">
+                            No form configured
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setFormDesignerOpen(true)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Design Form
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Assignee Config */}
+                      <div className="space-y-3 pt-2">
+                        <div>
+                          <Label className="text-xs">Assignee Type</Label>
+                          <select
+                            value={taskConfig.assignee_type || "role"}
+                            onChange={(e) => updateTaskConfig({ assignee_type: e.target.value })}
+                            className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          >
+                            <option value="role">By Role</option>
+                            <option value="user">Specific User</option>
+                            <option value="starter">Process Starter</option>
+                          </select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Assignee Value</Label>
+                          <Input
+                            value={taskConfig.assignee_value || ""}
+                            onChange={(e) => updateTaskConfig({ assignee_value: e.target.value })}
+                            placeholder={taskConfig.assignee_type === "user" ? "user@email.com" : "admin"}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Due In (Days)</Label>
+                          <Input
+                            type="number"
+                            value={taskConfig.due_days ?? ""}
+                            onChange={(e) => updateTaskConfig({ due_days: e.target.value ? Number(e.target.value) : undefined })}
+                            placeholder="7"
+                            min={1}
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <div className="text-sm text-muted-foreground">
@@ -1457,6 +1557,29 @@ export default function BpmnJsDesigner({
           </div>
         </div>
       </div>
+
+      {/* Form Designer Sheet */}
+      <Sheet open={formDesignerOpen} onOpenChange={setFormDesignerOpen}>
+        <SheetContent className="w-full sm:max-w-[900px] p-0" side="right">
+          <AdaptiveFormDesigner
+            initialSchema={(() => {
+              if (!selectedElement) return undefined;
+              const config = getTaskConfig();
+              const fs = config.form_schema;
+              return fs?.version === 1 ? fs : undefined;
+            })()}
+            onSave={(schema) => {
+              updateTaskConfig({ form_schema: schema } as Partial<TaskConfig>);
+              setFormDesignerOpen(false);
+              toast({
+                title: "Form Saved",
+                description: `Form with ${schema.fields.length} field${schema.fields.length !== 1 ? "s" : ""} saved to task`,
+              });
+            }}
+            onCancel={() => setFormDesignerOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

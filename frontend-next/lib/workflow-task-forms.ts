@@ -28,6 +28,9 @@ const TASK_FORM_REGISTRY: Record<string, ComponentType<TaskFormProps>> = {
   director_change: lazy(
     () => import("@/components/workflows/forms/DirectorChangeForm")
   ),
+  adaptive: lazy(
+    () => import("@/components/workflows/forms/AdaptiveFormRenderer")
+  ),
 };
 
 export function getFormComponent(

@@ -127,11 +127,12 @@ export default function ESignaturePreparePage() {
   }, []);
 
   // Add a new signer
-  const handleAddSigner = useCallback((email: string, name?: string) => {
+  const handleAddSigner = useCallback((email: string, name?: string, contactId?: number) => {
     const newSigner: Signer = {
       id: `signer-${Date.now()}`,
       email,
       name,
+      contactId,
       color: SIGNER_COLORS[signers.length % SIGNER_COLORS.length],
       order: signers.length,
     };
@@ -195,6 +196,7 @@ export default function ESignaturePreparePage() {
           email: s.email,
           name: s.name || s.email.split("@")[0],
           signing_order: index,
+          contact_id: s.contactId || undefined,
         })),
         fields_attributes: fields.map((f) => ({
           field_type: f.type,

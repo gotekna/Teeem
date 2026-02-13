@@ -12,10 +12,25 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Plus, Trash2, GripVertical, Check, User } from "lucide-react";
+import { Plus, Trash2, Check, User, PenLine, Keyboard } from "lucide-react";
 import type { Signer, SignerPanelProps, SignatureField } from "./types";
 import { SIGNER_COLORS } from "./types";
 import { cn } from "@/lib/utils";
+import {
+  ComboboxDropdown,
+  type ComboboxItem,
+} from "@/components/ui/combobox-dropdown";
+import { formatContactLabel } from "@/lib/formatters/display-formatters";
+import { api } from "@/lib/api";
+
+interface Contact {
+  id: number;
+  display_name?: string;
+  company_name?: string;
+  email?: string;
+  mobile_phone?: string;
+  employer_name?: string;
+}
 
 interface ExtendedSignerPanelProps extends SignerPanelProps {
   fields?: SignatureField[];
@@ -30,25 +45,71 @@ export function SignerPanel({
   onReorderSigners,
   fields = [],
 }: ExtendedSignerPanelProps) {
+  const [isAdding, setIsAdding] = React.useState(false);
+  const [isManualEntry, setIsManualEntry] = React.useState(false);
   const [newSignerEmail, setNewSignerEmail] = React.useState("");
   const [newSignerName, setNewSignerName] = React.useState("");
-  const [isAdding, setIsAdding] = React.useState(false);
 
-  const handleAddSigner = () => {
+  // Contact loading
+  const [contacts, setContacts] = React.useState<Contact[]>([]);
+  const [loadingContacts, setLoadingContacts] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadContacts() {
+      try {
+        setLoadingContacts(true);
+        const response = await api.get<{ contacts?: Contact[] } | Contact[]>("/api/v1/contacts");
+        if (cancelled) return;
+        const data = Array.isArray(response) ? response : response?.contacts || [];
+        setContacts(data);
+      } catch {
+        // Silently fail - manual entry is always available
+      } finally {
+        if (!cancelled) setLoadingContacts(false);
+      }
+    }
+    loadContacts();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Convert contacts to ComboboxItems, excluding already-added signers
+  const contactItems: ComboboxItem[] = React.useMemo(() => {
+    const existingEmails = new Set(signers.map((s) => s.email.toLowerCase()));
+    return contacts
+      .filter((c) => c.email && !existingEmails.has(c.email.toLowerCase()))
+      .map((c) => ({
+        id: c.id.toString(),
+        label: formatContactLabel(c, true),
+        searchText: c.email || undefined,
+      }));
+  }, [contacts, signers]);
+
+  const handleContactSelect = (item: ComboboxItem) => {
+    const contact = contacts.find((c) => c.id.toString() === item.id);
+    if (!contact || !contact.email) return;
+
+    const displayName = contact.display_name || contact.company_name || contact.email.split("@")[0];
+    onAddSigner(contact.email, displayName, contact.id);
+    setIsAdding(false);
+  };
+
+  const handleManualAdd = () => {
     if (!newSignerEmail.trim()) return;
-
     onAddSigner(newSignerEmail.trim(), newSignerName.trim() || undefined);
     setNewSignerEmail("");
     setNewSignerName("");
+    setIsManualEntry(false);
     setIsAdding(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      handleAddSigner();
+      handleManualAdd();
     } else if (e.key === "Escape") {
       setIsAdding(false);
+      setIsManualEntry(false);
       setNewSignerEmail("");
       setNewSignerName("");
     }
@@ -104,7 +165,7 @@ export function SignerPanel({
               }}
               onClick={() => onSelectSigner(isSelected ? null : signer)}
             >
-              {/* Color indicator / drag handle */}
+              {/* Color indicator */}
               <div
                 className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-medium shrink-0"
                 style={{ backgroundColor: signer.color }}
@@ -121,6 +182,35 @@ export function SignerPanel({
                   {signer.email}
                 </div>
               </div>
+
+              {/* Draggable signature badge */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      draggable
+                      onDragStart={(e) => {
+                        e.stopPropagation();
+                        e.dataTransfer.setData("application/x-esign-signer-id", signer.id);
+                        e.dataTransfer.setData("application/x-esign-field-type", "signature");
+                        e.dataTransfer.effectAllowed = "copy";
+                      }}
+                      className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium cursor-grab active:cursor-grabbing shrink-0 border border-dashed"
+                      style={{
+                        backgroundColor: `${signer.color}20`,
+                        borderColor: signer.color,
+                        color: signer.color,
+                      }}
+                    >
+                      <PenLine className="h-2.5 w-2.5" />
+                      Sig
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    <p>Drag onto PDF to place signature</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
               {/* Field count badge */}
               <TooltipProvider>
@@ -165,45 +255,83 @@ export function SignerPanel({
         {/* Add signer form */}
         {isAdding && (
           <div className="p-2 rounded-md border bg-muted/30 space-y-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Email</Label>
-              <Input
-                type="email"
-                placeholder="signer@example.com"
-                value={newSignerEmail}
-                onChange={(e) => setNewSignerEmail(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="h-8 text-sm"
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Name (optional)</Label>
-              <Input
-                type="text"
-                placeholder="John Doe"
-                value={newSignerName}
-                onChange={(e) => setNewSignerName(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="h-8 text-sm"
-              />
-            </div>
-            <div className="flex gap-1">
+            {!isManualEntry ? (
+              <>
+                {/* Contact search mode */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Search contacts</Label>
+                  <ComboboxDropdown
+                    placeholder="Search contacts..."
+                    items={contactItems}
+                    onSelect={handleContactSelect}
+                    isLoading={loadingContacts}
+                    className="w-full"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                  onClick={() => setIsManualEntry(true)}
+                >
+                  <Keyboard className="h-3 w-3 inline mr-1" />
+                  Or enter manually
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Manual entry mode */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="signer@example.com"
+                    value={newSignerEmail}
+                    onChange={(e) => setNewSignerEmail(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="h-8 text-sm"
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Name (optional)</Label>
+                  <Input
+                    type="text"
+                    placeholder="John Doe"
+                    value={newSignerName}
+                    onChange={(e) => setNewSignerName(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    className="h-7 flex-1 text-xs"
+                    onClick={handleManualAdd}
+                    disabled={!newSignerEmail.trim()}
+                  >
+                    <Check className="h-3 w-3 mr-1" />
+                    Add
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => setIsManualEntry(false)}
+                  >
+                    Back
+                  </Button>
+                </div>
+              </>
+            )}
+            <div className="flex justify-end">
               <Button
                 size="sm"
-                className="h-7 flex-1 text-xs"
-                onClick={handleAddSigner}
-                disabled={!newSignerEmail.trim()}
-              >
-                <Check className="h-3 w-3 mr-1" />
-                Add
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs"
+                variant="ghost"
+                className="h-6 text-xs text-muted-foreground"
                 onClick={() => {
                   setIsAdding(false);
+                  setIsManualEntry(false);
                   setNewSignerEmail("");
                   setNewSignerName("");
                 }}
