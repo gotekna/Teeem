@@ -1,9 +1,17 @@
 # Public controller for the e-signature signing ceremony.
 # This controller uses token-based authentication, not JWT.
 #
+# ⚠️ DO NOT SIMPLIFY - Tenant context required for SaaS (Feb 2026)
+# ════════════════════════════════════════════════════════════════
+# Why: This is a PUBLIC controller (no JWT auth). Without explicit tenant
+# context, TenantSetting.instance and MicrosoftCredential lookups fall back
+# to Tenant.first - which breaks in multi-tenant SaaS (wrong credentials,
+# wrong from address). We resolve the tenant from signer → request → user → tenant.
+# ════════════════════════════════════════════════════════════════
 class Api::V1::SigningCeremonyController < ApplicationController
   skip_before_action :authorize_request
   before_action :authenticate_signer, except: [ :verify_token ]
+  before_action :set_tenant_from_signer, except: [ :verify_token ]
 
   # GET /api/v1/sign/:token
   # Verify the token and get signing session info
@@ -51,6 +59,12 @@ class Api::V1::SigningCeremonyController < ApplicationController
       }
     end
 
+    # Set tenant context for this request (SSoT for SaaS)
+    set_tenant_from_request(signer.e_signature_request)
+
+    # Check tenant setting for email verification requirement
+    email_verification_required = resolve_email_verification_required(signer)
+
     render json: {
       success: true,
       signer: {
@@ -60,7 +74,8 @@ class Api::V1::SigningCeremonyController < ApplicationController
         role: signer.role,
         status: signer.status,
         can_sign: signer.can_sign?,
-        email_verified: signer.email_verified?
+        email_verified: signer.email_verified?,
+        email_verification_required: email_verification_required
       },
       request: {
         id: request.id,
@@ -96,7 +111,23 @@ class Api::V1::SigningCeremonyController < ApplicationController
   def send_verification_code
     code = @signer.generate_verification_code!
 
-    ESignatureMailer.verification_code(@signer).deliver_later
+    begin
+      ESignatureEmailService.deliver(ESignatureMailer.verification_code(@signer))
+    rescue ESignatureEmailService::DeliveryError, MicrosoftAppGraphClient::ApiError => e
+      Rails.logger.error "[ESignature] Verification code email failed for #{@signer.email}: #{e.message}"
+      render json: {
+        success: false,
+        errors: [ "Failed to send verification email. Please try again or contact the sender." ]
+      }, status: :unprocessable_entity
+      return
+    rescue MicrosoftAppGraphClient::NotConnectedError, MicrosoftAppGraphClient::DeadTokenError => e
+      Rails.logger.error "[ESignature] Email service not available: #{e.message}"
+      render json: {
+        success: false,
+        errors: [ "Email service is temporarily unavailable. Please try again later." ]
+      }, status: :service_unavailable
+      return
+    end
 
     render json: {
       success: true,
@@ -136,7 +167,7 @@ class Api::V1::SigningCeremonyController < ApplicationController
       return
     end
 
-    unless @signer.email_verified?
+    if resolve_email_verification_required(@signer) && !@signer.email_verified?
       render json: {
         success: false,
         errors: [ "Please verify your email before signing" ]
@@ -150,7 +181,8 @@ class Api::V1::SigningCeremonyController < ApplicationController
       typed_font: params[:typed_font],
       ip_address: request.remote_ip,
       user_agent: request.user_agent,
-      device: detect_device
+      device: detect_device,
+      skip_email_verification: !resolve_email_verification_required(@signer)
     )
 
     if success
@@ -191,7 +223,7 @@ class Api::V1::SigningCeremonyController < ApplicationController
       return
     end
 
-    unless @signer.email_verified?
+    if resolve_email_verification_required(@signer) && !@signer.email_verified?
       render json: {
         success: false,
         errors: [ "Please verify your email before signing" ]
@@ -251,10 +283,12 @@ class Api::V1::SigningCeremonyController < ApplicationController
 
   # GET /api/v1/sign/:token/document
   # Download the document to be signed
+  # Supports both StorageBlob (S3/Wasabi) and SharePoint storage
   def download_document
     request_obj = @signer.e_signature_request
+    storage_ref = request_obj.original_storage_reference
 
-    unless request_obj.original_storage_file_id.present?
+    unless storage_ref.present?
       render json: {
         success: false,
         errors: [ "Document not available" ]
@@ -263,12 +297,7 @@ class Api::V1::SigningCeremonyController < ApplicationController
     end
 
     begin
-      client = MicrosoftAppGraphClient.new
-      content = client.get_drive_item_content(
-        site_id: request_obj.storage_site_id,
-        drive_id: request_obj.storage_drive_id,
-        item_id: request_obj.original_storage_file_id
-      )
+      content = fetch_document_content(request_obj, storage_ref)
 
       # Log download event
       @signer.log_event("document_downloaded",
@@ -281,7 +310,8 @@ class Api::V1::SigningCeremonyController < ApplicationController
                 filename: "#{request_obj.title}.pdf",
                 type: "application/pdf",
                 disposition: "inline"
-    rescue MicrosoftAppGraphClient::ApiError => e
+    rescue => e
+      Rails.logger.error "[ESignature] Document download failed: #{e.class} - #{e.message}"
       render json: {
         success: false,
         errors: [ "Failed to retrieve document" ]
@@ -290,6 +320,29 @@ class Api::V1::SigningCeremonyController < ApplicationController
   end
 
   private
+
+  # Fetch document content from StorageBlob (S3/Wasabi) or SharePoint
+  def fetch_document_content(request_obj, storage_ref)
+    # Try StorageBlob first (S3/Wasabi - used by DirectorChangeService and newer code)
+    blob = StorageBlob.find_by(id: storage_ref)
+    if blob
+      Rails.logger.info "[ESignature] Downloading document from StorageBlob ##{blob.id}"
+      return blob.download
+    end
+
+    # Fall back to SharePoint (legacy path)
+    if request_obj.storage_site_id.present? && request_obj.storage_drive_id.present?
+      Rails.logger.info "[ESignature] Downloading document from SharePoint (item: #{storage_ref})"
+      client = MicrosoftAppGraphClient.new
+      return client.get_drive_item_content(
+        site_id: request_obj.storage_site_id,
+        drive_id: request_obj.storage_drive_id,
+        item_id: storage_ref
+      )
+    end
+
+    raise "No storage backend available for document (ref: #{storage_ref})"
+  end
 
   def authenticate_signer
     token = params[:token]
@@ -315,6 +368,28 @@ class Api::V1::SigningCeremonyController < ApplicationController
       .where("access_token_expires_at > ?", Time.current)
       .where(e_signature_requests: { status: %w[sent in_progress] })
       .first
+  end
+
+  # SSoT: Set ActsAsTenant.current_tenant from the signer's request chain.
+  # This ensures TenantSetting.instance, MicrosoftCredential lookups, and all
+  # tenant-scoped queries resolve to the correct tenant in this public controller.
+  def set_tenant_from_signer
+    return unless @signer
+
+    set_tenant_from_request(@signer.e_signature_request)
+  end
+
+  def set_tenant_from_request(esign_request)
+    tenant = esign_request&.created_by&.tenant
+    ActsAsTenant.current_tenant = tenant if tenant
+  end
+
+  def resolve_email_verification_required(signer)
+    tenant = signer.e_signature_request.created_by&.tenant
+    return true unless tenant
+
+    setting = TenantSetting.find_by(tenant_id: tenant.id)
+    setting&.esignature_require_email_verification != false
   end
 
   def detect_device

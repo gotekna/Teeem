@@ -12,6 +12,7 @@ module Api
         PurchaseOrder
         Estimate
         QuoteRequest
+        Corporate
       ].freeze
 
       before_action :set_process

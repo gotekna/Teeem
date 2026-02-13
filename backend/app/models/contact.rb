@@ -512,8 +512,15 @@ class Contact < ApplicationRecord
   # SSoT: contact_code is a database column (user-editable)
   # Default format: "C" + id (e.g., "C1310")
   # Auto-generated on create, can be customized by user
-  validates :contact_code, presence: true, uniqueness: true, on: :update
-  after_create :generate_contact_code_if_blank
+  # FRC: Only validate uniqueness when contact_code is actually changing.
+  # Rails runs ALL on: :update validations regardless of which attrs changed.
+  # Previous config syncs copied master codes to tenants, creating duplicates.
+  # Without this guard, ANY update to a contact with a duplicate code fails —
+  # even if the update doesn't touch contact_code at all.
+  validates :contact_code, presence: true, on: :update
+  validates :contact_code, uniqueness: { conditions: -> { where(is_active: true) } }, on: :update, if: :contact_code_changed?
+  before_create :ensure_contact_code_for_insert
+  after_create :set_canonical_contact_code
 
   # Entity-type specific name validations
   validate :validate_name_fields_for_entity_type
@@ -1259,9 +1266,9 @@ class Contact < ApplicationRecord
     xero_links.enabled.order(:created_at).first&.xero_contact_status
   end
 
-  # All Xero tenant IDs this contact is linked to
+  # All Xero org IDs this contact is linked to
   def xero_tenants
-    xero_links.enabled.pluck(:tenant_id)
+    xero_links.enabled.pluck(:xero_org_id)
   end
 
   # Update cached xero link columns (called by ContactExternalLink callbacks)
@@ -2144,9 +2151,20 @@ class Contact < ApplicationRecord
   end
 
   # SSoT: Auto-generate contact_code on create (e.g., "C1310")
-  # User can customize after creation
-  def generate_contact_code_if_blank
-    return if contact_code.present?
-    update_column(:contact_code, "C#{id}")
+  # FRC (Feb 2026): Split into before_create + after_create to fix PG::NotNullViolation.
+  # The contact_code column has a NOT NULL constraint, so the INSERT needs a value.
+  # But the canonical "C#{id}" format requires the ID, which only exists after INSERT.
+  # Solution: before_create sets a temporary unique value, after_create sets "C#{id}".
+  def ensure_contact_code_for_insert
+    if contact_code.blank?
+      @needs_canonical_contact_code = true
+      self.contact_code = "C-TEMP-#{SecureRandom.hex(6)}"
+    end
+  end
+
+  def set_canonical_contact_code
+    if @needs_canonical_contact_code
+      update_column(:contact_code, "C#{id}")
+    end
   end
 end

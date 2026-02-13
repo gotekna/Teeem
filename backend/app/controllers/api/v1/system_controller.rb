@@ -138,6 +138,113 @@ module Api
         }
       end
 
+      # GET /api/v1/system/queue_status
+      # Throughput-aware endpoint for header bar worker queue health indicator
+      def queue_status
+        alive_cutoff = 5.minutes.ago
+
+        # Auto-clear stale failed jobs (>24h old) - users shouldn't have to do this manually
+        auto_clear_stale_failures
+
+        # 1. Process breakdown by kind (Worker/Dispatcher/Scheduler)
+        processes_raw = SolidQueue::Process
+          .where("last_heartbeat_at > ?", alive_cutoff)
+          .pluck(:kind, :last_heartbeat_at, :hostname)
+
+        processes = processes_raw
+          .group_by { |kind, _, _| kind }
+          .transform_values { |rows| { count: rows.size, latestHeartbeat: rows.map { |_, hb, _| hb }.max&.iso8601 } }
+
+        worker_count = processes.dig("Worker", :count) || 0
+
+        # 2. Execution counts (all indexed COUNTs on small tables)
+        pending = SolidQueue::ReadyExecution.count
+        running = SolidQueue::ClaimedExecution.count
+        failed = SolidQueue::FailedExecution.count
+        scheduled = SolidQueue::ScheduledExecution.count
+        blocked = SolidQueue::BlockedExecution.count
+
+        # 3. Throughput (last 5 min)
+        recent_completed = SolidQueue::Job.where("finished_at > ?", 5.minutes.ago).count
+        completed_per_min = (recent_completed / 5.0).round(1)
+
+        trend = if running == 0 && pending == 0
+                  "idle"
+                elsif running > 0 && (pending < 50 || completed_per_min > 0)
+                  pending > 100 ? "draining" : "idle"
+                elsif pending > 50 && running == 0
+                  "stuck"
+                else
+                  "stable"
+                end
+
+        # 4. Smart status
+        status_result = compute_queue_status(
+          worker_count: worker_count, pending: pending, running: running,
+          failed: failed, trend: trend
+        )
+
+        # 5. Queue depth by queue
+        queue_depth = SolidQueue::ReadyExecution
+          .joins(:job)
+          .group("solid_queue_jobs.queue_name")
+          .count
+          .map { |queue, count| { queue: queue, count: count } }
+          .sort_by { |q| -q[:count] }
+
+        # 6. Paused queues
+        paused_queues = SolidQueue::Pause.pluck(:queue_name)
+
+        # 7. Top failed (only if failed > 0)
+        top_failed = if failed > 0
+          SolidQueue::FailedExecution
+            .joins(:job)
+            .select("solid_queue_jobs.class_name, COUNT(*) as count")
+            .group("solid_queue_jobs.class_name")
+            .order("count DESC")
+            .limit(5)
+            .map { |r| { className: r.class_name.delete_suffix("Job"), count: r.count } }
+        else
+          []
+        end
+
+        render json: {
+          success: true,
+          data: {
+            status: status_result[:level],
+            statusMessage: status_result[:message],
+            processes: processes,
+            pending: pending,
+            running: running,
+            failed: failed,
+            scheduled: scheduled,
+            blocked: blocked,
+            completedPerMin: completed_per_min,
+            trend: trend,
+            queueDepth: queue_depth,
+            pausedQueues: paused_queues,
+            topFailed: top_failed,
+            watchdog: WorkerWatchdog.last_status.slice(:status, :last_heartbeat, :staleness_seconds)
+          }
+        }
+      rescue StandardError => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # DELETE /api/v1/system/clear_failed_jobs
+      # Clears all failed job executions (resets the counter)
+      def clear_failed_jobs
+        count = SolidQueue::FailedExecution.count
+        SolidQueue::FailedExecution.delete_all
+
+        render json: {
+          success: true,
+          data: { cleared: count }
+        }
+      rescue StandardError => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       # GET /api/v1/system/metrics
       def metrics
         render json: {
@@ -262,17 +369,60 @@ module Api
         []
       end
 
+      def compute_queue_status(worker_count:, pending:, running:, failed:, trend:)
+        # Error: no workers at all
+        if worker_count == 0
+          return { level: "error", message: "No workers running" }
+        end
+
+        # Error: stuck - lots pending but nothing running
+        if trend == "stuck"
+          return { level: "error", message: "Queue stuck - #{pending} pending, none running" }
+        end
+
+        # Degraded: high failure count
+        if failed > 50
+          return { level: "degraded", message: "#{failed} jobs retrying - auto-clears in 24h" }
+        end
+
+        # Busy: actively processing a backlog
+        if pending > 50 && running > 0
+          return { level: "busy", message: "Processing - #{running} running, #{pending} queued" }
+        end
+
+        # Minor failures worth noting
+        if failed > 10
+          return { level: "busy", message: "#{failed} jobs retrying" }
+        end
+
+        # Healthy
+        msg = running > 0 ? "#{worker_count} workers, #{running} running" : "#{worker_count} workers, idle"
+        { level: "healthy", message: msg }
+      end
+
+      # Auto-clear failed jobs older than 24 hours
+      # Users shouldn't need to manually clear stale failures
+      def auto_clear_stale_failures
+        cutoff = 24.hours.ago
+        stale = SolidQueue::FailedExecution.where("created_at < ?", cutoff)
+        count = stale.count
+        if count > 0
+          stale.delete_all
+          Rails.logger.info "[SystemController] Auto-cleared #{count} stale failed jobs (>24h old)"
+        end
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] auto_clear_stale_failures failed: #{e.message}"
+      end
+
       def get_pending_jobs_count
-        # If using SolidQueue
-        SolidQueue::Job.pending.count
+        SolidQueue::ReadyExecution.count
       rescue StandardError => e
         Rails.logger.debug "[SystemController] get_pending_jobs_count unavailable: #{e.message}"
         0
       end
 
       def get_failed_jobs_count
-        # If using SolidQueue
-        SolidQueue::Job.failed.count
+        SolidQueue::FailedExecution.count
       rescue StandardError => e
         Rails.logger.debug "[SystemController] get_failed_jobs_count unavailable: #{e.message}"
         0

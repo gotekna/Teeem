@@ -3,6 +3,34 @@
 module Api
   module V1
     class PdfGenerationsController < ApplicationController
+      # GET /api/v1/pdf_generations
+      # List recent PDF generations, optionally filtered by generator_type and status
+      # Used to resume in-progress generations (e.g., Director Change wizard reopened)
+      def index
+        scope = PdfGeneration.where(tenant_id: current_tenant&.id)
+
+        scope = scope.where(generator_type: params[:generator_type]) if params[:generator_type].present?
+        # Support comma-separated statuses: ?status=pending,processing,completed
+        if params[:status].present?
+          statuses = params[:status].to_s.split(",").map(&:strip)
+          scope = scope.where(status: statuses)
+        end
+
+        # Filter by generator_params key/value (e.g., company_id=36)
+        if params[:params_filter].present?
+          params[:params_filter].each do |key, value|
+            scope = scope.where("generator_params->>? = ?", key.to_s, value.to_s)
+          end
+        end
+
+        pdf_gens = scope.order(created_at: :desc).limit(params[:limit] || 5)
+
+        render json: {
+          success: true,
+          data: pdf_gens.map { |pg| serialize(pg) }
+        }
+      end
+
       # POST /api/v1/pdf_generations
       # Enqueue a new PDF generation job
       def create
@@ -39,6 +67,38 @@ module Api
         }
       end
 
+      # PATCH /api/v1/pdf_generations/:id/cancel
+      # Cancel a pending or processing PDF generation
+      def cancel
+        pdf_gen = PdfGeneration.find(params[:id])
+
+        unless pdf_gen.tenant_id == current_tenant&.id
+          return render json: { success: false, error: "Not found" }, status: :not_found
+        end
+
+        unless pdf_gen.pending_or_processing?
+          return render json: { success: false, error: "Cannot cancel - status is #{pdf_gen.status}" }, status: :unprocessable_entity
+        end
+
+        pdf_gen.update!(status: "failed", error_message: "Cancelled by user")
+
+        render json: { success: true, data: serialize(pdf_gen) }
+      end
+
+      # PATCH /api/v1/pdf_generations/:id/dismiss
+      # Dismiss a completed generation so it no longer shows in the wizard
+      def dismiss
+        pdf_gen = PdfGeneration.find(params[:id])
+
+        unless pdf_gen.tenant_id == current_tenant&.id
+          return render json: { success: false, error: "Not found" }, status: :not_found
+        end
+
+        pdf_gen.update!(status: "failed", error_message: "Dismissed by user")
+
+        render json: { success: true, data: serialize(pdf_gen) }
+      end
+
       # GET /api/v1/pdf_generations/:id/download
       # Download the generated PDF (redirects to presigned URL or streams inline)
       def download
@@ -58,11 +118,25 @@ module Api
           return
         end
 
-        url = pdf_gen.download_url
-        if url
+        # ⚠️ DO NOT SIMPLIFY - Stream vs Redirect (Feb 2026)
+        # ════════════════════════════════════════════════════════════
+        # Why: fetch() following a redirect to S3/Wasabi presigned URL gets
+        #      blocked by CORS (S3 doesn't return Access-Control-Allow-Origin).
+        # ❌ WRONG: Always redirect_to presigned URL — breaks frontend fetch()
+        # ✅ CORRECT: Stream content for API requests (Authorization header),
+        #            redirect for browser navigation (no auth header)
+        # ════════════════════════════════════════════════════════════
+        stream_directly = request.headers["Authorization"].present? || params[:stream] == "true"
+
+        if stream_directly && pdf_gen.storage_blob
+          send_data pdf_gen.storage_blob.download,
+                    filename: pdf_gen.result_filename || "document.pdf",
+                    type: "application/pdf",
+                    disposition: params[:inline] ? "inline" : "attachment"
+        elsif (url = pdf_gen.download_url)
           redirect_to url, allow_other_host: true
         elsif pdf_gen.storage_blob
-          send_data pdf_gen.storage_blob.read_content,
+          send_data pdf_gen.storage_blob.download,
                     filename: pdf_gen.result_filename || "document.pdf",
                     type: "application/pdf",
                     disposition: params[:inline] ? "inline" : "attachment"
@@ -80,14 +154,27 @@ module Api
           generatorType: pdf_gen.generator_type,
           filename: pdf_gen.result_filename,
           createdAt: pdf_gen.created_at&.iso8601,
-          updatedAt: pdf_gen.updated_at&.iso8601
+          updatedAt: pdf_gen.updated_at&.iso8601,
+          userName: pdf_gen.user&.display_name
         }
+
+        # Include company context from generator_params (for cross-company lists)
+        if pdf_gen.generator_params["company_id"].present?
+          company = Corporate.find_by(id: pdf_gen.generator_params["company_id"])
+          data[:companyName] = company&.name
+          data[:companyId] = pdf_gen.generator_params["company_id"].to_s
+        end
 
         if pdf_gen.completed?
           data[:downloadUrl] = download_api_v1_pdf_generation_path(pdf_gen)
         end
 
         data[:error] = pdf_gen.error_message if pdf_gen.failed?
+
+        # Include result data from generator (e.g., e-sig request info, documents list)
+        if pdf_gen.completed? && pdf_gen.generator_params["_result"].present?
+          data[:result] = pdf_gen.generator_params["_result"]
+        end
 
         data
       end

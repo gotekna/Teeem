@@ -59,6 +59,9 @@ while IFS= read -r file; do
     .claude/*|TEEEM_DOCS/*)
       echo "  📋 Config: $file (skip-able)"
       ;;
+    backend/*)
+      echo "  🔧 Backend: $file (skip-able)"
+      ;;
     *)
       echo "  🔨 Code: $file (requires build)"
       SKIP_BUILD=false

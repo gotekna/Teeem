@@ -115,10 +115,17 @@ class ESignatureSigner < ApplicationRecord
     return if notified_at.present?
 
     generate_access_token!
-    ESignatureMailer.signing_request(e_signature_request, self).deliver_later
+    begin
+      ESignatureEmailService.deliver(
+        ESignatureMailer.signing_request(e_signature_request, self)
+      )
+    rescue ESignatureEmailService::DeliveryError, Net::ReadTimeout, Net::OpenTimeout, Errno::ECONNREFUSED, Errno::ECONNRESET => e
+      log_event("notification_failed", description: "Email delivery failed: #{e.message}")
+      raise DirectorChangeService::GenerationError, "Failed to send email to #{email}: #{e.class.name} - check E-Signature Outbox in Settings > Email Setup"
+    end
 
     update!(status: "notified", notified_at: Time.current)
-    log_event("notified", description: "Signing notification sent")
+    log_event("notified", description: "Signing notification sent to #{email}")
   end
 
   def mark_viewed!(ip_address: nil, user_agent: nil)
@@ -141,9 +148,9 @@ class ESignatureSigner < ApplicationRecord
     e_signature_request.mark_in_progress!
   end
 
-  def sign!(signature_data:, signature_type:, ip_address: nil, user_agent: nil, typed_font: nil, device: nil)
+  def sign!(signature_data:, signature_type:, ip_address: nil, user_agent: nil, typed_font: nil, device: nil, skip_email_verification: false)
     return false unless can_sign?
-    return false unless email_verified?
+    return false unless skip_email_verification || email_verified?
 
     transaction do
       update!(

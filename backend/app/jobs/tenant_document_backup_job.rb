@@ -18,6 +18,7 @@ class TenantDocumentBackupJob < ApplicationJob
 
   def perform(tenant_id, options = {})
     @tenant = Tenant.find(tenant_id)
+    @tenant_slug = @tenant.slug
     @incremental = options.fetch(:incremental, true)
     @since = options[:since]
 
@@ -70,7 +71,7 @@ class TenantDocumentBackupJob < ApplicationJob
           content = download_document(doc)
           next unless content
 
-          key = "documents/#{@tenant.id}/#{doc.storage_path}"
+          key = "#{@tenant_slug}/documents/#{doc.storage_path}"
 
           service.upload(
             key: key,
@@ -96,15 +97,6 @@ class TenantDocumentBackupJob < ApplicationJob
       )
 
       @config.record_backup_completed!(:documents)
-
-      # Queue mirror job if enabled
-      if @config.mirror_enabled? && @config.secondary_credential
-        BackupMirrorJob.perform_later(
-          @tenant.id,
-          "documents",
-          "documents/#{@tenant.id}/"
-        )
-      end
 
       Rails.logger.info "[TenantDocumentBackup] Complete for tenant #{@tenant.id}: #{files_count} files, #{total_size} bytes"
     rescue => e
@@ -158,8 +150,27 @@ class TenantDocumentBackupJob < ApplicationJob
 
   def download_from_s3(doc)
     storage_config = WarehouseProvider.instance
-    client = S3StorageClient.new(storage_config)
-    client.download(doc.storage_path)
+
+    credential = if storage_config.storage_credential_id.present?
+                   S3CompatibleCredential.find_by(id: storage_config.storage_credential_id)
+                 else
+                   S3CompatibleCredential.active.first
+                 end
+    return nil unless credential
+
+    bucket = storage_config.bucket
+    return nil unless bucket.present?
+
+    client = Aws::S3::Client.new(
+      access_key_id: credential.access_key_id,
+      secret_access_key: credential.secret_access_key,
+      region: credential.region || "us-east-1",
+      endpoint: credential.endpoint,
+      force_path_style: true
+    )
+
+    response = client.get_object(bucket: bucket, key: doc.storage_path)
+    response.body.read
   end
 
   def elapsed(start_time)

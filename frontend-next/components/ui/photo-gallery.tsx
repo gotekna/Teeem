@@ -233,25 +233,34 @@ function PhotoThumbnail({
       )}
 
       {/* Download button - shown on hover (top-right) */}
+      {/* Uses div+role instead of button to avoid invalid nested <button> in HTML */}
       {onDownload && !selectable && (
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             onDownload(photo);
           }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              onDownload(photo);
+            }
+          }}
           className={cn(
             "absolute top-2 right-2 z-10",
             "p-1.5 rounded-sm",
-            "bg-black/60 hover:bg-black/80 text-white",
+            "bg-black/60 hover:bg-black/80 text-white cursor-pointer",
             "opacity-0 group-hover:opacity-100 transition-opacity duration-200",
             "focus:outline-none focus:ring-2 focus:ring-white/50"
           )}
           title="Open document"
         >
           <ExternalLink className="h-4 w-4" />
-        </button>
+        </div>
       )}
 
       {/* Hover overlay with filename */}

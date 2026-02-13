@@ -7,17 +7,32 @@
 # NOTE: YAML anchors/aliases (<<: *default) removed for Psych 5.x compatibility
 #
 # QUEUE PRIORITY ORDER (first = highest priority):
-# - default: BPMN workflows, user-triggered jobs (must run fast)
-# - solid_queue_recurring: Scheduled recurring tasks
+# - critical: SmRolloverJob, time-sensitive operations
+# - default: BPMN workflows, user-triggered jobs, email sync
+# - solid_queue_recurring: SolidQueue's internal recurring task scheduler
+# - xero_sync: Xero contact/invoice sync operations
 # - xero_bulk: Xero API bulk operations (rate-limited)
 # - low: Background analytics, warehouse jobs (can wait)
+# - low_priority: Long-running backfill, non-urgent maintenance
+#
+# FRC (Feb 2026): Split into two worker groups so low-priority bulk jobs
+# (MV refresh, backups, email uploads) cannot starve user-facing jobs.
+# Previous config had 3 threads on a single worker listening to only 4 queues,
+# silently ignoring critical, xero_sync, and low_priority queues entirely.
 
 production:
   workers:
-    - queues: [default, solid_queue_recurring, xero_bulk, low]
-      threads: 3  # Must match DATABASE_POOL (5) minus overhead for dispatcher/scheduler
+    # Priority worker: user-facing + critical operations
+    - queues: [critical, default, solid_queue_recurring]
+      threads: 3
       processes: 1
       polling_interval: 0.1
+
+    # Background worker: analytics, bulk ops, maintenance
+    - queues: [xero_sync, xero_bulk, low, low_priority]
+      threads: 2
+      processes: 1
+      polling_interval: 1
 
   dispatchers:
     - polling_interval: 1
@@ -28,7 +43,7 @@ production:
 
 development:
   workers:
-    - queues: [default, solid_queue_recurring, xero_bulk, low]
+    - queues: [critical, default, solid_queue_recurring, xero_sync, xero_bulk, low, low_priority]
       threads: 3
       processes: 1
       polling_interval: 0.1
@@ -42,7 +57,7 @@ development:
 
 test:
   workers:
-    - queues: [default, solid_queue_recurring, xero_bulk, low]
+    - queues: [critical, default, solid_queue_recurring, xero_sync, xero_bulk, low, low_priority]
       threads: 1
       processes: 1
       polling_interval: 0.1

@@ -50,23 +50,45 @@ module DocumentProviders
       new(credential, tenant: organization&.tenant)
     end
 
-    # Find credential for tenant (SSoT: Jan 2026 fix)
-    # Skips credentials that can't be decrypted (key mismatch)
+    # Find credential for tenant
+    # SSoT (Feb 2026): WarehouseProvider.connection_config['credential_id'] is THE ONE source.
+    # When set, we use that exact credential - no guessing, no priority algorithm.
+    # This prevents the "backup credential picked over primary" bug that occurs when
+    # multiple credentials exist (e.g., Wasabi primary + Backblaze B2 backup).
+    # Fallback search only runs when credential_id is not configured (backward compat).
     def self.find_credential_for_tenant(tenant)
       return nil unless defined?(S3CompatibleCredential)
       return nil unless tenant
 
-      # Get all organizations in this tenant
+      # SSoT: Check WarehouseProvider for explicit credential_id first
+      config = WarehouseProvider.for_tenant(tenant)
+      explicit_id = config&.connection_config&.dig("credential_id")
+      if explicit_id.present?
+        cred = S3CompatibleCredential.find_by(id: explicit_id)
+        if cred&.is_active? && cred&.decryptable?
+          return cred
+        else
+          Rails.logger.warn "[S3Compatible] Explicit credential_id=#{explicit_id} from WarehouseProvider " \
+                            "is inactive or undecryptable for tenant #{tenant.name}. Falling back to search."
+        end
+      end
+
+      # Fallback: Search for a matching credential (backward compat for unconfigured tenants)
+      # For 10k clients this should eventually be removed - every tenant should have explicit credential_id
       org_ids = tenant.organizations.pluck(:id)
 
-      # Try tenant's org-specific credentials first
+      # Try tenant-scoped credentials first (no org dependency)
+      cred = S3CompatibleCredential.active.connected.where(tenant: tenant, organization_id: nil).find { |c| c.decryptable? }
+      return cred if cred
+
+      # Then try org-specific credentials
       if org_ids.any?
         cred = S3CompatibleCredential.active.connected.where(organization_id: org_ids).find { |c| c.decryptable? }
         return cred if cred
       end
 
-      # Fall back to global credential (no org)
-      S3CompatibleCredential.active.connected.where(organization_id: nil).find { |c| c.decryptable? }
+      # Final fallback: global credential (no org, no tenant)
+      S3CompatibleCredential.active.connected.where(organization_id: nil, tenant_id: nil).find { |c| c.decryptable? }
     end
 
     # Find credential for organization (legacy)
@@ -597,6 +619,40 @@ module DocumentProviders
         expires_in: expires_in,
         content_type: content_type
       )
+    end
+
+    # Configure CORS on the S3 bucket to allow direct browser uploads/downloads
+    # Must be called once per bucket setup (not per-request)
+    # SSoT: Allowed origins match cors.rb (Rails CORS) for consistency
+    def configure_cors!
+      allowed_origins = [
+        "https://teeem.vercel.app",
+        "https://teeem-staging.vercel.app",
+        "https://teeem-beta.vercel.app",
+        "https://teeemrob.vercel.app",
+        "https://teeemsam.vercel.app",
+        "https://teeemjake.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:5173"
+      ]
+
+      @client.put_bucket_cors(
+        bucket: @bucket,
+        cors_configuration: {
+          cors_rules: [
+            {
+              allowed_headers: ["*"],
+              allowed_methods: ["PUT", "GET", "HEAD"],
+              allowed_origins: allowed_origins,
+              expose_headers: ["ETag"],
+              max_age_seconds: 3600
+            }
+          ]
+        }
+      )
+
+      Rails.logger.info "[S3Compatible] CORS configured for bucket #{@bucket} with #{allowed_origins.size} origins"
+      true
     end
 
     # Delete all files with a prefix (delete folder and contents)

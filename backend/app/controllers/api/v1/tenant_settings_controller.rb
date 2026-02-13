@@ -239,7 +239,8 @@ module Api
           :internal_email_domains,
           :monitored_mailbox_pay, :monitored_mailbox_newtask,
           :monitored_mailbox_newjob, :monitored_mailbox_newcase,
-          :monitored_mailbox_docsort
+          :monitored_mailbox_docsort, :monitored_mailbox_esignature,
+          :esignature_require_email_verification
         )
       end
 

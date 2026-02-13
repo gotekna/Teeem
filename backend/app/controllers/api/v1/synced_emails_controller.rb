@@ -568,8 +568,16 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # GET /api/v1/synced_emails/sync_dashboard
   # Admin dashboard showing mailboxes grouped by organization with sync stats
   def sync_dashboard
-    # MS365 Organizations
-    ms_credentials = MicrosoftCredential.refreshable_app.includes(:organization)
+    # FRC (Feb 2026): Tenant-scope ALL queries. MicrosoftCredential and ImapCredential
+    # are indirectly related to tenant (via Organization/User) so need manual filtering.
+    # SyncedEmail and StorageBlob have acts_as_tenant and are auto-scoped.
+    tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
+    tenant_user_ids = current_tenant&.users&.pluck(:id) || []
+
+    # MS365 Organizations - scoped to current tenant's organizations
+    ms_credentials = MicrosoftCredential.refreshable_app
+                                         .where(organization_id: tenant_org_ids)
+                                         .includes(:organization)
 
     ms365_orgs = ms_credentials.map do |cred|
       mailboxes = SyncedEmailMailbox
@@ -595,8 +603,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
       }
     end
 
-    # IMAP Accounts
-    imap_credentials = ImapCredential.where(is_active: true)
+    # IMAP Accounts - scoped to current tenant's users
+    imap_credentials = ImapCredential.where(is_active: true, user_id: tenant_user_ids)
 
     imap_accounts = imap_credentials.map do |cred|
       mailboxes = SyncedEmailMailbox
@@ -624,8 +632,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
     # Combine both types
     all_organizations = ms365_orgs + imap_accounts
 
-    # Orphaned mailboxes (no credential linked - can't sync)
+    # Orphaned mailboxes - scoped to tenant via SyncedEmail (which has acts_as_tenant)
+    # Use subquery to avoid loading all email IDs into memory
+    tenant_email_ids_subquery = SyncedEmail.select(:id)
     orphaned_mailboxes = SyncedEmailMailbox
+      .where(synced_email_id: tenant_email_ids_subquery)
       .where(microsoft_credential_id: nil, imap_credential_id: nil)
       .select("LOWER(mailbox_owner_email) as email")
       .distinct
@@ -646,19 +657,24 @@ class Api::V1::SyncedEmailsController < ApplicationController
       }
     end
 
-    # Get storage/blob stats
-    # Note: email_attachments table DROPPED (Jan 2026) - use WarehouseDocument count
+    # Get storage/blob stats (StorageBlob and WarehouseDocument have acts_as_tenant - auto-scoped)
     blob_stats = {
       total_blobs: StorageBlob.count,
       total_size_bytes: StorageBlob.sum(:file_size),
       email_attachments: WarehouseDocument.where(source_type: 'email_attachment').count
     }
 
+    # SyncedEmail has acts_as_tenant - auto-scoped
+    # SyncedEmailMailbox needs manual scoping via tenant's synced emails (subquery)
+    tenant_mailbox_count = SyncedEmailMailbox
+      .where(synced_email_id: tenant_email_ids_subquery)
+      .select(:mailbox_owner_email).distinct.count
+
     render json: {
       success: true,
       data: {
         total_emails: SyncedEmail.count,
-        total_mailboxes: SyncedEmailMailbox.select(:mailbox_owner_email).distinct.count,
+        total_mailboxes: tenant_mailbox_count,
         organizations: all_organizations,
         storage: blob_stats
       }

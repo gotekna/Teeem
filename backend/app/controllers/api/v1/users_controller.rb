@@ -22,6 +22,8 @@ class Api::V1::UsersController < ApplicationController
       if @user.save
         # Assign roles if provided
         assign_roles_to_user(@user)
+        # Auto-link as employee of tenant company
+        link_user_to_tenant_company(@user)
         success = true
       else
         raise ActiveRecord::Rollback
@@ -177,13 +179,33 @@ class Api::V1::UsersController < ApplicationController
     @user.force_password_change = true
 
     if @user.save
-      # Send the welcome email with temp credentials
-      UserMailer.welcome_email(@user, temp_password).deliver_later
+      # Generate a password reset token so the welcome email can link directly
+      # to the reset-password page (user doesn't need to know temp password)
+      reset_token = SecureRandom.urlsafe_base64(32)
+      @user.update_columns(
+        reset_password_token: reset_token,
+        reset_password_sent_at: Time.current
+      )
 
-      render json: {
-        success: true,
-        message: "Login email sent to #{@user.email}"
-      }
+      if params[:compose_mode]
+        # Return reset token so frontend can compose email with direct reset link
+        render json: {
+          success: true,
+          compose: true,
+          user_email: @user.email,
+          user_name: @user.name,
+          reset_token: reset_token,
+          message: "Reset token generated. Compose email to send welcome."
+        }
+      else
+        # Send the welcome email with temp credentials via Rails mailer
+        UserMailer.welcome_email(@user, temp_password).deliver_later
+
+        render json: {
+          success: true,
+          message: "Login email sent to #{@user.email}"
+        }
+      end
     else
       render json: {
         success: false,
@@ -192,6 +214,173 @@ class Api::V1::UsersController < ApplicationController
     end
   rescue ActiveRecord::RecordNotFound
     render json: { error: "User not found" }, status: :not_found
+  end
+
+  # GET /api/v1/users/by_contact/:contact_id/personal_details
+  # Lookup user by their linked contact and return personal details
+  def personal_details_by_contact
+    contact = Contact.find(params[:contact_id])
+    user = contact.user
+    unless user
+      return render json: { success: false, error: "No user account linked to this contact" }, status: :not_found
+    end
+    # Reuse personal_details by setting params[:id]
+    params[:id] = user.id
+    personal_details
+  rescue ActiveRecord::RecordNotFound
+    render json: { success: false, error: "Contact not found" }, status: :not_found
+  end
+
+  # GET /api/v1/users/:id/personal_details
+  # Returns user + contact personal data for the User tab on contact detail page
+  def personal_details
+    @user = User.includes(:contact).find(params[:id])
+    contact = @user.contact
+
+    # Personal mobile: contact_phone with label 'mobile' or is_primary
+    personal_mobile = contact&.contact_phones&.find_by(label: "mobile") ||
+                      contact&.contact_phones&.find_by(phone_type: "mobile")
+
+    # Personal email: contact_email with label 'personal'
+    personal_email = contact&.contact_emails&.find_by(label: "personal")
+
+    # Home address: primary STREET address
+    home_address = contact&.contact_addresses&.find_by(address_type: "STREET", is_primary: true) ||
+                   contact&.contact_addresses&.street&.first
+
+    render json: {
+      success: true,
+      data: {
+        # User fields
+        id: @user.id,
+        name: @user.name,
+        username: @user.username,
+        email: @user.email,
+        photoUrl: @user.photo_url,
+        # Contact fields
+        contactId: contact&.id,
+        dateOfBirth: contact&.date_of_birth,
+        emergencyContactName: contact&.emergency_contact_name,
+        emergencyContactPhone: contact&.emergency_contact_phone,
+        emergencyContactRelationship: contact&.emergency_contact_relationship,
+        # Personal contact info
+        personalMobile: personal_mobile&.phone_number,
+        personalMobileId: personal_mobile&.id,
+        personalEmail: personal_email&.email,
+        personalEmailId: personal_email&.id,
+        # Home address
+        homeAddress: home_address ? {
+          id: home_address.id,
+          line1: home_address.line1,
+          line2: home_address.line2,
+          city: home_address.city,
+          region: home_address.region,
+          postalCode: home_address.postal_code,
+          country: home_address.country
+        } : nil
+      }
+    }
+  rescue ActiveRecord::RecordNotFound
+    render json: { success: false, error: "User not found" }, status: :not_found
+  end
+
+  # PATCH /api/v1/users/:id/personal_details
+  # Updates user + contact personal data
+  def update_personal_details
+    @user = User.includes(:contact).find(params[:id])
+    contact = @user.contact
+
+    ActiveRecord::Base.transaction do
+      # Update user fields
+      if params[:name].present?
+        @user.update!(name: params[:name])
+      end
+      if params.key?(:username)
+        @user.update!(username: params[:username].presence)
+      end
+
+      # Update contact fields
+      if contact
+        contact_updates = {}
+        contact_updates[:date_of_birth] = params[:dateOfBirth] if params.key?(:dateOfBirth)
+        contact_updates[:emergency_contact_name] = params[:emergencyContactName] if params.key?(:emergencyContactName)
+        contact_updates[:emergency_contact_phone] = params[:emergencyContactPhone] if params.key?(:emergencyContactPhone)
+        contact_updates[:emergency_contact_relationship] = params[:emergencyContactRelationship] if params.key?(:emergencyContactRelationship)
+        contact.update!(contact_updates) if contact_updates.any?
+
+        # Personal mobile - create or update
+        if params.key?(:personalMobile)
+          phone = contact.contact_phones.find_by(label: "mobile") ||
+                  contact.contact_phones.find_by(phone_type: "mobile")
+          if params[:personalMobile].present?
+            if phone
+              phone.update!(phone_number: params[:personalMobile])
+            else
+              contact.contact_phones.create!(
+                phone_number: params[:personalMobile],
+                phone_type: "mobile",
+                label: "mobile",
+                is_primary: contact.contact_phones.empty?,
+                position: (contact.contact_phones.maximum(:position) || 0) + 1
+              )
+            end
+          elsif phone
+            phone.destroy!
+          end
+        end
+
+        # Personal email - create or update
+        if params.key?(:personalEmail)
+          email_record = contact.contact_emails.find_by(label: "personal")
+          if params[:personalEmail].present?
+            if email_record
+              email_record.update!(email: params[:personalEmail])
+            else
+              contact.contact_emails.create!(
+                email: params[:personalEmail],
+                label: "personal",
+                is_primary: contact.contact_emails.empty?,
+                position: (contact.contact_emails.maximum(:position) || 0) + 1
+              )
+            end
+          elsif email_record
+            email_record.destroy!
+          end
+        end
+
+        # Home address - create or update
+        if params.key?(:homeAddress)
+          addr_params = params[:homeAddress]
+          address = contact.contact_addresses.find_by(address_type: "STREET", is_primary: true) ||
+                    contact.contact_addresses.street.first
+
+          if addr_params.present? && addr_params.values.any?(&:present?)
+            attrs = {
+              line1: addr_params[:line1],
+              line2: addr_params[:line2],
+              city: addr_params[:city],
+              region: addr_params[:region],
+              postal_code: addr_params[:postalCode],
+              country: addr_params[:country] || "Australia",
+              address_type: "STREET",
+              is_primary: true
+            }
+            if address
+              address.update!(attrs)
+            else
+              contact.contact_addresses.create!(attrs)
+            end
+          end
+        end
+      end
+    end
+
+    # Return fresh data
+    personal_details
+  rescue ActiveRecord::RecordNotFound
+    render json: { success: false, error: "User not found" }, status: :not_found
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { success: false, error: e.message }, status: :unprocessable_entity
   end
 
   # DELETE /api/v1/users/:id
@@ -314,6 +503,40 @@ class Api::V1::UsersController < ApplicationController
         end
       end
     end
+  end
+
+  # Auto-link new user's contact as employee of the tenant company
+  # SSoT: TenantSetting.company_name → Contact (company) → ContactRelationship (employee_of)
+  def link_user_to_tenant_company(user)
+    contact = user.contact
+    return unless contact&.entity_type == "person"
+
+    company_name = TenantSetting.instance&.company_name
+    return if company_name.blank?
+
+    company_contact = Contact.where(entity_type: "company")
+      .where("display_name ILIKE ?", company_name)
+      .first
+    return unless company_contact
+    return if contact.id == company_contact.id
+
+    # Skip if relationship already exists
+    return if ContactRelationship.exists?(
+      source_contact_id: contact.id,
+      related_contact_id: company_contact.id,
+      relationship_type: "employee_of"
+    )
+
+    ContactRelationship.create!(
+      source_contact_id: contact.id,
+      related_contact_id: company_contact.id,
+      relationship_type: "employee_of",
+      is_active: true,
+      start_date: Date.today
+    )
+  rescue => e
+    # Non-critical: log but don't fail user creation
+    Rails.logger.warn "Failed to auto-link user #{user.id} to tenant company: #{e.message}"
   end
 
   # Assign roles to newly created user

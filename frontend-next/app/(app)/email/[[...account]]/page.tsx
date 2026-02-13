@@ -812,7 +812,7 @@ export default function EmailPage() {
   const [resumeDraft, setResumeDraft] = useAtom(resumeDraftAtom);
   const [replyToAtomValue, setReplyToAtomValue] = useAtom(replyToDataAtom);
   // Backwards compatible type (has extra fields)
-  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; replyToMessageId?: string } | null;
+  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; fromEmail?: string; replyToMessageId?: string } | null;
   const setReplyTo = setReplyToAtomValue as unknown as React.Dispatch<React.SetStateAction<typeof replyTo>>;
 
   const [isPending, startTransition] = useTransition();
@@ -1076,6 +1076,48 @@ export default function EmailPage() {
     setReplyTo(null);
     setComposeOpen(true);
   }, []);
+
+  // Auto-open compose from query params (e.g., ?compose_to=email&compose_subject=text&compose_body=text)
+  // ⚠️ DO NOT SIMPLIFY - Uses param fingerprint, not boolean ref (2026-02-11)
+  // ════════════════════════════════════════════
+  // Why: composeOpen comes from a Jotai atom that persists across navigations.
+  //   A boolean ref + !composeOpen guard would fail when navigating back to /email
+  //   with new compose params if the modal was previously open.
+  // ❌ WRONG: useRef(false) + if (!ref.current && !composeOpen)
+  // ✅ CORRECT: Track param fingerprint so new navigations always trigger
+  // ════════════════════════════════════════════
+  const lastComposeParams = React.useRef<string | null>(null);
+  useEffect(() => {
+    const composeTo = searchParams.get("compose_to");
+    const composeSubject = searchParams.get("compose_subject");
+    const composeBody = searchParams.get("compose_body");
+    const hasComposeParams = composeTo !== null || composeSubject !== null || composeBody !== null;
+    if (!hasComposeParams) return;
+
+    // Fingerprint current params - only process if they changed
+    const paramKey = `${composeTo}|${composeSubject?.slice(0, 50)}|${composeBody?.slice(0, 50)}`;
+    if (paramKey === lastComposeParams.current) return;
+    lastComposeParams.current = paramKey;
+
+    setReplyTo({
+      to: composeTo || "",
+      cc: searchParams.get("compose_cc") || "",
+      subject: composeSubject || "",
+      body: composeBody || "",
+      fromEmail: searchParams.get("compose_from") || undefined,
+      replyToMessageId: undefined,
+    });
+    setComposeOpen(true);
+
+    // Clear compose params from URL so refresh doesn't reopen the modal
+    const url = new URL(window.location.href);
+    url.searchParams.delete("compose_to");
+    url.searchParams.delete("compose_subject");
+    url.searchParams.delete("compose_body");
+    url.searchParams.delete("compose_cc");
+    url.searchParams.delete("compose_from");
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, [searchParams, setReplyTo, setComposeOpen, router]);
 
   // Initialize keyboard shortcuts
   useEmailKeyboardShortcuts({
@@ -1535,9 +1577,9 @@ export default function EmailPage() {
         const account = accounts.find(a => String(a.id) === selectedAccount);
         if (account) {
           if (account.type === "imap") {
-            // Sync specific IMAP account
+            // Sync specific IMAP account (account.id IS the credential ID for IMAP)
             const imapResult = await api.post<{ total_synced?: number; message?: string }>(
-              `/api/v1/imap_credentials/${account.org_credential_id}/sync`
+              `/api/v1/imap_credentials/${account.id}/sync`
             ).catch(() => ({}));
             if (imapResult) results.push(imapResult);
           } else if (account.type === "outlook" || account.type === "ms365") {
@@ -2771,6 +2813,7 @@ To: ${email.to_emails?.join(", ") || ""}
         defaultSubject={replyTo?.subject || ""}
         defaultBody={replyTo?.body || ""}
         defaultFromAccountId={replyTo?.fromAccountId}
+        defaultFromEmail={replyTo?.fromEmail}
         replyToMessageId={replyTo?.replyToMessageId}
         draft={resumeDraft || undefined}
         onSent={() => {

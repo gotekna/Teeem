@@ -32,6 +32,7 @@ import {
   Shield,
   Download,
   RefreshCw,
+  Eye,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format, formatDistanceToNow } from "date-fns";
@@ -68,8 +69,11 @@ interface ESignatureRequest {
   signers: Signer[];
   has_positioned_fields: boolean;
   has_certificate: boolean;
+  has_document: boolean;
   message_to_signers: string;
   send_reminders: boolean;
+  document_type_id: number | null;
+  document_type_name: string | null;
 }
 
 interface ESignatureResponse {
@@ -130,6 +134,16 @@ export default function ESignatureDetailPage() {
       setShowCancelDialog(false);
     },
   });
+
+  const handleViewDocument = async () => {
+    try {
+      const blob = await api.getBlob(`/api/v1/e_signature_requests/${id}/document`);
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch {
+      // Silently fail - button only shows when document exists
+    }
+  };
 
   const request = data?.e_signature_request;
   const statusConfig = request ? STATUS_CONFIG[request.status] || STATUS_CONFIG.draft : null;
@@ -196,6 +210,13 @@ export default function ESignatureDetailPage() {
               </Button>
             )}
 
+            {request.has_document && (
+              <Button variant="outline" onClick={handleViewDocument}>
+                <Eye className="h-4 w-4 mr-2" />
+                View Document
+              </Button>
+            )}
+
             {request.status === "completed" && request.has_certificate && (
               <Button variant="outline">
                 <Download className="h-4 w-4 mr-2" />
@@ -230,40 +251,103 @@ export default function ESignatureDetailPage() {
                 </span>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {request.signers.map((signer, index) => {
                   const signerStatus = SIGNER_STATUS_CONFIG[signer.status] || SIGNER_STATUS_CONFIG.pending;
+
+                  // Build timeline events for this signer
+                  const timelineEvents: { label: string; date: string | null; icon: React.ReactNode; done: boolean; color: string }[] = [
+                    {
+                      label: "Notified",
+                      date: signer.notified_at,
+                      icon: <Send className="h-3 w-3" />,
+                      done: !!signer.notified_at,
+                      color: "text-blue-600 dark:text-blue-400",
+                    },
+                    {
+                      label: "Viewed",
+                      date: signer.viewed_at,
+                      icon: <Eye className="h-3 w-3" />,
+                      done: !!signer.viewed_at,
+                      color: "text-amber-600 dark:text-amber-400",
+                    },
+                    ...(signer.declined_at
+                      ? [{
+                          label: "Declined",
+                          date: signer.declined_at,
+                          icon: <XCircle className="h-3 w-3" />,
+                          done: true,
+                          color: "text-red-600 dark:text-red-400",
+                        }]
+                      : [{
+                          label: "Signed",
+                          date: signer.signed_at,
+                          icon: <CheckCircle2 className="h-3 w-3" />,
+                          done: !!signer.signed_at,
+                          color: "text-green-600 dark:text-green-400",
+                        }]
+                    ),
+                  ];
 
                   return (
                     <div
                       key={signer.id}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
+                      className="p-4 rounded-lg border bg-muted/30"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
-                          {index + 1}
-                        </div>
-                        <div>
-                          <div className="font-medium">{signer.name}</div>
-                          <div className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            {signer.email}
-                            {signer.role && (
-                              <span className="ml-2 text-xs">({signer.role})</span>
-                            )}
+                      {/* Signer header */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <div className="font-medium">{signer.name}</div>
+                            <div className="text-sm text-muted-foreground flex items-center gap-1">
+                              <Mail className="h-3 w-3" />
+                              {signer.email}
+                              {signer.role && (
+                                <span className="ml-2 text-xs">({signer.role})</span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        {signer.signed_at && (
-                          <span className="text-xs text-muted-foreground">
-                            {format(new Date(signer.signed_at), "MMM d, yyyy h:mm a")}
-                          </span>
-                        )}
                         <Badge className={signerStatus.color} variant="secondary">
                           {signerStatus.label}
                         </Badge>
+                      </div>
+
+                      {/* Timeline */}
+                      <div className="ml-11 flex items-center gap-0">
+                        {timelineEvents.map((event, i) => (
+                          <React.Fragment key={event.label}>
+                            {/* Step */}
+                            <div className="flex items-center gap-1.5">
+                              <div className={`flex items-center justify-center w-5 h-5 rounded-full border ${
+                                event.done
+                                  ? `${event.color} border-current bg-current/10`
+                                  : "text-muted-foreground/40 border-muted-foreground/30"
+                              }`}>
+                                {event.done ? event.icon : <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />}
+                              </div>
+                              <div className={event.done ? "" : "opacity-40"}>
+                                <span className={`text-xs font-medium ${event.done ? event.color : "text-muted-foreground"}`}>
+                                  {event.label}
+                                </span>
+                                {event.date && (
+                                  <span className="text-[11px] text-muted-foreground ml-1">
+                                    {format(new Date(event.date), "MMM d, h:mm a")}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {/* Connector line */}
+                            {i < timelineEvents.length - 1 && (
+                              <div className={`flex-1 h-px mx-2 min-w-4 ${
+                                timelineEvents[i + 1].done ? "bg-muted-foreground/40" : "bg-muted-foreground/20"
+                              }`} />
+                            )}
+                          </React.Fragment>
+                        ))}
                       </div>
                     </div>
                   );
@@ -340,6 +424,16 @@ export default function ESignatureDetailPage() {
                     {request.has_positioned_fields ? "Positioned Fields" : "Standard Signature"}
                   </div>
                 </div>
+
+                {request.document_type_name && (
+                  <div>
+                    <div className="text-sm text-muted-foreground flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      Document Type
+                    </div>
+                    <div>{request.document_type_name}</div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

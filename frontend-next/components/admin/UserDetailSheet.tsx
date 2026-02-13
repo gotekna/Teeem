@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -24,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { User, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2, PenLine, Lock, Send } from "lucide-react";
+import { User, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2, PenLine, Lock, Send, KeyRound } from "lucide-react";
 import { SIGNATURE_STYLES, type SignatureStyleId, DEFAULT_SIGNATURE_STYLE, CUSTOM_SIGNATURE_ID } from "@/lib/email-signature";
 import {
   Select,
@@ -34,7 +35,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
-import Link from "next/link";
 
 interface Role {
   id: number;
@@ -72,6 +72,7 @@ interface UserDetailSheetProps {
 }
 
 export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailSheetProps) {
+  const router = useRouter();
   const [editData, setEditData] = useState<Partial<UserData>>({});
   const [fullUserData, setFullUserData] = useState<UserData | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -79,6 +80,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
   const [loading, setLoading] = useState(false);
   const [sendingInvite, setSendingInvite] = useState(false);
   const [showInviteConfirm, setShowInviteConfirm] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
   const { toast } = useToast();
 
   // Signature force mode state (Jan 2026)
@@ -214,12 +216,31 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
 
     setSendingInvite(true);
     try {
-      const response = await api.post<{ success: boolean; message?: string; error?: string }>(
+      const response = await api.post<{ success: boolean; compose?: boolean; user_email?: string; user_name?: string; reset_token?: string; message?: string; error?: string }>(
         `/api/v1/users/${user.id}/send_invite`,
-        {}
+        { compose_mode: true }
       );
 
-      if (response?.success) {
+      if (response?.success && response?.compose) {
+        // SSoT: Production URL is always teeem.vercel.app (3 e's)
+        // Link goes directly to password reset page - user sets their own password
+        const resetUrl = "https://teeem.vercel.app/reset-password?token=" + encodeURIComponent(response.reset_token || "");
+        const firstName = (response.user_name || "").split(" ")[0] || "there";
+
+        const subject = encodeURIComponent("Welcome to Teeem - Your Account is Ready");
+        const body = encodeURIComponent(
+          `<p>Hi ${firstName},</p>` +
+          `<p>Welcome to Teeem - your complete business management system.</p>` +
+          `<p>Your account has been created and is ready to go:</p>` +
+          `<p><strong><a href="${resetUrl}">Click here to set your password and login</a></strong></p>` +
+          `<p>Teeem brings together your jobs, contacts, documents, emails, scheduling, and finances in one place. If you need any help getting started, just reply to this email.</p>` +
+          `<p>Best regards</p>`
+        );
+        const to = encodeURIComponent(response.user_email || user.email);
+        setShowInviteConfirm(false);
+        onClose();
+        router.push(`/email?compose_to=${to}&compose_subject=${subject}&compose_body=${body}&compose_from=${encodeURIComponent("setup@teeem.com.au")}`);
+      } else if (response?.success) {
         toast({
           title: "Login email sent",
           description: response.message || `Login credentials sent to ${user.email}`,
@@ -241,6 +262,26 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
       });
     } finally {
       setSendingInvite(false);
+    }
+  };
+
+  const handleSendResetPassword = async () => {
+    if (!user) return;
+    setSendingReset(true);
+    try {
+      const response = await api.post<{ success: boolean; message?: string }>("/api/v1/auth/forgot_password", { email: user.email });
+      toast({
+        title: "Reset email sent",
+        description: `Password reset link sent to ${user.email}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to send reset password email",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingReset(false);
     }
   };
 
@@ -313,12 +354,19 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
                 </div>
               </div>
               {displayUser?.contact_id && (
-                <Link href={`/contacts/${typeof displayUser.contact_id === 'object' ? (displayUser.contact_id as { id: number }).id : displayUser.contact_id}`}>
-                  <Button variant="outline" size="sm" className="gap-1.5 h-8">
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    Profile
-                  </Button>
-                </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 h-8"
+                  onClick={() => {
+                    const contactId = displayUser.contact_id && typeof displayUser.contact_id === 'object' ? (displayUser.contact_id as unknown as { id: number }).id : displayUser.contact_id;
+                    onClose();
+                    router.push(`/contacts/${contactId}`);
+                  }}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Personal Details
+                </Button>
               )}
             </div>
           </div>
@@ -490,22 +538,35 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             </span>
           </div>
 
-          {/* Send Login Email - only for users who have never logged in */}
-          {!displayUser?.last_login_at && (
+          {/* Email Actions */}
+          <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={() => setShowInviteConfirm(true)}
               disabled={sendingInvite}
-              className="w-full h-9 gap-2"
+              className="flex-1 h-9 gap-2"
             >
               {sendingInvite ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              {sendingInvite ? "Sending..." : "Send Login Email"}
+              {sendingInvite ? "Sending..." : displayUser?.last_login_at ? "Resend Welcome Email" : "Send Login Email"}
             </Button>
-          )}
+            <Button
+              variant="outline"
+              onClick={handleSendResetPassword}
+              disabled={sendingReset}
+              className="flex-1 h-9 gap-2"
+            >
+              {sendingReset ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <KeyRound className="h-4 w-4" />
+              )}
+              {sendingReset ? "Sending..." : "Reset Password"}
+            </Button>
+          </div>
 
           {/* Actions */}
           <div className="flex gap-2 pt-2">

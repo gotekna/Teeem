@@ -1,11 +1,17 @@
 class ChatMessage < ApplicationRecord
   include StorageUploadable
+  acts_as_tenant :tenant
 
-  belongs_to :user
-  belongs_to :recipient_user, class_name: "User", optional: true
+  # Cross-tenant chat: unscope user lookups so messages from Teeem support
+  # (different tenant) still load the sender/recipient correctly
+  belongs_to :user, -> { unscope(where: :tenant_id) }, optional: true
+  belongs_to :recipient_user, -> { unscope(where: :tenant_id) }, class_name: "User", optional: true
   belongs_to :job, optional: true
   belongs_to :contact, optional: true
   belongs_to :legal_case, class_name: "CaseRecord", foreign_key: "case_id", optional: true
+
+  belongs_to :chat_conversation, optional: true
+  belongs_to :chat_guest_session, optional: true
 
   # SSoT: Link to deduplicated file storage (Jan 2026)
   belongs_to :storage_blob, optional: true
@@ -16,6 +22,11 @@ class ChatMessage < ApplicationRecord
 
   validates :content, presence: true
   validates :message_type, inclusion: { in: %w[text image file] }, allow_nil: true
+
+  # Ensure tenant_id is set from user before validation
+  before_validation :set_tenant_from_user, on: :create
+  # Auto-propagate job_id from guest session (client chats appear in Job > Coms)
+  before_validation :set_job_from_guest_session, on: :create
 
   # Upload to storage after file is attached
   after_commit :upload_to_storage, on: [:create, :update], if: :should_upload_to_storage?
@@ -34,16 +45,29 @@ class ChatMessage < ApplicationRecord
     ).order(created_at: :asc)
   }
 
+  # Display name: user name for authenticated senders, guest_sender_name for guests
+  def sender_display_name
+    return guest_sender_name if guest_sender_name.present?
+    user&.name || "Unknown"
+  end
+
+  def guest_message?
+    chat_guest_session_id.present? && user_id.nil?
+  end
+
   def as_json(options = {})
-    super(options.merge(
+    json = super(options.merge(
       include: {
         user: {},
         job: {},
         contact: {},
         legal_case: {}
       },
-      methods: [ :formatted_timestamp, :file_url ]
+      methods: [ :formatted_timestamp, :file_url, :sender_display_name ]
     ))
+    json[:is_guest] = guest_message?
+    json[:guest_sender_name] = guest_sender_name if guest_sender_name.present?
+    json
   end
 
   # Returns the URL for the attached file (for image/file display)
@@ -159,6 +183,20 @@ class ChatMessage < ApplicationRecord
   end
 
   private
+
+  # Set tenant from user on create (defense-in-depth)
+  # acts_as_tenant normally sets this from ActsAsTenant.current_tenant,
+  # but in ActionCable callbacks there may be no tenant context.
+  def set_tenant_from_user
+    self.tenant_id ||= user&.tenant_id || chat_guest_session&.tenant_id
+  end
+
+  # Auto-propagate job_id from guest session so client messages
+  # appear in the job's Communications page EntityChat
+  def set_job_from_guest_session
+    return unless chat_guest_session_id.present? && job_id.nil?
+    self.job_id ||= chat_guest_session&.job_id
+  end
 
   # Resolve tenant for WarehouseProvider access
   # ⚠️ FRC (Jan 2026): Model callbacks don't have ActsAsTenant context

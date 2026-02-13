@@ -59,6 +59,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { StorageCostTab } from "./StorageCostTab";
 import { BackupSettingsTab } from "./BackupSettingsTab";
+import { ConfigSyncSection } from "./ConfigSyncSection";
+import { EmailAccountsTab } from "./EmailAccountsTab";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -2420,9 +2422,11 @@ function IntegrationsSubTab() {
 const CONNECTIONS_SUB_TABS = [
   { id: "provider", label: "Storage Provider" },
   { id: "integrations", label: "Integrations" },
+  { id: "email-accounts", label: "Email Accounts" },
   { id: "migration", label: "Migration" },
   { id: "costs", label: "Cost Comparison" },
   { id: "backups", label: "Backups" },
+  { id: "sync", label: "Sync" },
 ];
 
 // SSoT: Connections is now top-level in Settings (Jan 2026)
@@ -2430,19 +2434,34 @@ const DEFAULT_CONNECTIONS_BASE_PATH = "/settings/connections";
 
 interface ConnectionsTabProps {
   subTab?: string;
+  deepTab?: string;
   basePath?: string;
 }
 
 // Main Connections Tab
-export function ConnectionsTab({ subTab, basePath = DEFAULT_CONNECTIONS_BASE_PATH }: ConnectionsTabProps) {
+export function ConnectionsTab({ subTab, deepTab, basePath = DEFAULT_CONNECTIONS_BASE_PATH }: ConnectionsTabProps) {
   const router = useRouter();
 
   // Validate and default the sub-tab
   const activeSubTab = CONNECTIONS_SUB_TABS.some((t) => t.id === subTab) ? subTab : "provider";
 
+  // Track visited tabs so we keep them mounted (no remount/refetch on return visit)
+  const [visitedTabs, setVisitedTabs] = React.useState<Set<string>>(new Set([activeSubTab || "provider"]));
+
+  React.useEffect(() => {
+    if (activeSubTab && !visitedTabs.has(activeSubTab)) {
+      setVisitedTabs((prev) => new Set([...prev, activeSubTab]));
+    }
+  }, [activeSubTab]);
+
   const handleSubTabChange = (tabId: string) => {
     // Navigate to sub-tab URL
-    router.push(`${basePath}/${tabId}`, { scroll: false });
+    // For email-accounts, include default deep tab so breadcrumb shows it
+    if (tabId === "email-accounts") {
+      router.push(`${basePath}/email-accounts/configuration`, { scroll: false });
+    } else {
+      router.push(`${basePath}/${tabId}`, { scroll: false });
+    }
   };
 
   return (
@@ -2455,24 +2474,32 @@ export function ConnectionsTab({ subTab, basePath = DEFAULT_CONNECTIONS_BASE_PAT
         ))}
       </TabsList>
 
-      <TabsContent value="provider">
-        <DocumentStorageProvider />
+      <TabsContent value="provider" forceMount className={activeSubTab !== "provider" ? "hidden" : ""}>
+        {visitedTabs.has("provider") && <DocumentStorageProvider />}
       </TabsContent>
-      <TabsContent value="integrations">
-        <IntegrationsSubTab />
+      <TabsContent value="integrations" forceMount className={activeSubTab !== "integrations" ? "hidden" : ""}>
+        {visitedTabs.has("integrations") && <IntegrationsSubTab />}
       </TabsContent>
-      <TabsContent value="migration">
-        <div className="space-y-4">
-          <EmailMigrationCard />
-          <AttachmentDeduplicationCard />
-          <DocumentMigrationCard />
-        </div>
+      <TabsContent value="email-accounts" forceMount className={activeSubTab !== "email-accounts" ? "hidden" : ""}>
+        {visitedTabs.has("email-accounts") && <EmailAccountsTab subTab={deepTab} basePath={`${basePath}/email-accounts`} />}
       </TabsContent>
-      <TabsContent value="costs">
-        <StorageCostTab />
+      <TabsContent value="migration" forceMount className={activeSubTab !== "migration" ? "hidden" : ""}>
+        {visitedTabs.has("migration") && (
+          <div className="space-y-4">
+            <EmailMigrationCard />
+            <AttachmentDeduplicationCard />
+            <DocumentMigrationCard />
+          </div>
+        )}
       </TabsContent>
-      <TabsContent value="backups">
-        <BackupSettingsTab />
+      <TabsContent value="costs" forceMount className={activeSubTab !== "costs" ? "hidden" : ""}>
+        {visitedTabs.has("costs") && <StorageCostTab />}
+      </TabsContent>
+      <TabsContent value="backups" forceMount className={activeSubTab !== "backups" ? "hidden" : ""}>
+        {visitedTabs.has("backups") && <BackupSettingsTab />}
+      </TabsContent>
+      <TabsContent value="sync" forceMount className={activeSubTab !== "sync" ? "hidden" : ""}>
+        {visitedTabs.has("sync") && <ConfigSyncSection />}
       </TabsContent>
     </Tabs>
   );

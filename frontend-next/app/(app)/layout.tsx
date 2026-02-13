@@ -20,6 +20,7 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import consoleCapture from "@/utils/consoleCapture";
 import { POInvoiceModal } from "@/components/purchase-orders/POInvoiceModal";
 import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
+import { ScreenSharePrompt } from "@/components/screen-share/ScreenSharePrompt";
 
 // Initialize console capture immediately to catch ALL errors from the start
 // This ensures the error count badge in the sidebar matches DevTools
@@ -107,7 +108,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         className={`sidebar-content-area h-screen flex flex-col overflow-hidden ${containerClassName} transition-[padding-left] duration-300 ease-in-out pb-16 md:pb-0`}
         style={{ paddingTop: shouldHideSidebar ? headerOffset : headerOffset + BREADCRUMB_BAR_HEIGHT }}
       >
-        <div className={`flex-1 min-h-0 overflow-auto ${contentClassName}`}>
+        <div className={`flex-1 min-h-0 ${contentClassName}`}>
           {children}
         </div>
       </main>
@@ -131,6 +132,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Global PO vs Invoice Modal - accessible from any page via usePOInvoiceModal() */}
       <POInvoiceModal />
+
+      {/* Global Screen Share Prompt - handles incoming requests from any page */}
+      <ScreenSharePrompt />
 
       {/* Force Password Change Dialog (Feb 2026) - shown when admin sends login invite */}
       <ChangePasswordDialog

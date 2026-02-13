@@ -208,13 +208,20 @@ module Api
         # MS365 org accounts (with user mailbox access)
         # SSoT: Use MicrosoftCredential for app credentials
         # FRC (Feb 2026): Must be tenant-scoped
+        # Track emails already added across all orgs to prevent cross-org duplicates.
+        # Auto-include adds user's own email once; explicitly configured emails always appear.
+        seen_emails = Set.new(accounts.map { |a| a[:name]&.downcase }.compact)
+
         MicrosoftCredential.for_tenant(current_tenant).refreshable_app.each do |org_cred|
           user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
           configured_emails = user_mailbox_access[current_user.id.to_s] || []
 
           # SSoT: Auto-include user's own email ONLY if it exists in this tenant
+          # and hasn't already been added from another org
           tenant_emails = org_cred.list_tenant_users.map { |u| u[:email]&.downcase }.compact
-          auto_emails = if current_user.email.present? && tenant_emails.include?(current_user.email.downcase)
+          auto_emails = if current_user.email.present? &&
+                           tenant_emails.include?(current_user.email.downcase) &&
+                           !seen_emails.include?(current_user.email.downcase)
             [current_user.email]
           else
             []
@@ -223,6 +230,9 @@ module Api
 
           user_emails.each do |email|
             next if email.blank?
+            next if seen_emails.include?(email.downcase)
+
+            seen_emails.add(email.downcase)
             account_id = "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}"
             accounts << {
               id: account_id,

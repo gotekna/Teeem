@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,8 +34,22 @@ import {
   AlertCircle,
   Users,
   FileText,
+  Trash2,
+  Eye,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { SearchInput } from "@/components/ui/search-input";
+import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 
@@ -52,6 +66,9 @@ interface ESignatureRequest {
   completed_at: string | null;
   created_at: string;
   created_by: string;
+  document_type_id: number | null;
+  document_type_name: string | null;
+  has_document: boolean;
 }
 
 interface ESignatureResponse {
@@ -72,6 +89,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 export default function ESignaturePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["e-signature-requests", statusFilter],
@@ -79,6 +98,19 @@ export default function ESignaturePage() {
       const params = statusFilter !== "all" ? `?status=${statusFilter}` : "";
       const response = await api.get<ESignatureResponse>(`/api/v1/e_signature_requests${params}`);
       return response;
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return api.delete(`/api/v1/e_signature_requests/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["e-signature-requests"] });
+      toast({ title: "Request deleted", description: "E-signature request has been deleted" });
+    },
+    onError: () => {
+      toast({ title: "Delete failed", description: "Could not delete the request", variant: "destructive" });
     },
   });
 
@@ -189,10 +221,11 @@ export default function ESignaturePage() {
               <TableRow>
                 <TableHead>Request</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Document Type</TableHead>
                 <TableHead>Progress</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Expires</TableHead>
-                <TableHead className="w-20"></TableHead>
+                <TableHead className="w-28"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -214,6 +247,9 @@ export default function ESignaturePage() {
                         {statusConfig.icon}
                         {statusConfig.label}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {request.document_type_name || "—"}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -240,11 +276,55 @@ export default function ESignaturePage() {
                         : "—"}
                     </TableCell>
                     <TableCell>
-                      <Link href={`/e-signature/${request.id}`}>
-                        <Button variant="ghost" size="sm">
-                          View
-                        </Button>
-                      </Link>
+                      <div className="flex items-center gap-1">
+                        {request.has_document && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground"
+                            title="View Document"
+                            onClick={async () => {
+                              try {
+                                const blob = await api.getBlob(`/api/v1/e_signature_requests/${request.id}/document`);
+                                window.open(URL.createObjectURL(blob), "_blank");
+                              } catch { /* ignore */ }
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Link href={`/e-signature/${request.id}`}>
+                          <Button variant="ghost" size="sm">
+                            View
+                          </Button>
+                        </Link>
+                        {["draft", "cancelled"].includes(request.status) && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete request?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete &quot;{request.title}&quot; ({request.request_number}). This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteMutation.mutate(request.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

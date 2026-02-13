@@ -12,6 +12,7 @@ module Api
         PurchaseOrder
         Estimate
         QuoteRequest
+        Corporate
       ].freeze
 
       before_action :set_instance, only: [ :show, :cancel, :suspend, :resume ]
@@ -46,7 +47,7 @@ module Api
       end
 
       def create
-        process = BpmnProcess.published.find(params[:bpmn_process_id])
+        process = find_process(params[:bpmn_process_id])
         subject = find_subject
 
         @instance = Bpmn::EngineService.start_process(
@@ -56,7 +57,18 @@ module Api
           triggered_by: "user:#{current_user&.id}"
         )
 
-        render json: { success: true, instance: serialize_instance(@instance) }, status: :created
+        # Include first pending user task ID for frontend redirect
+        first_task = BpmnTaskInstance.joins(:bpmn_token)
+          .where(bpmn_tokens: { bpmn_process_instance_id: @instance.id })
+          .where(task_type: "user_task")
+          .actionable
+          .first
+
+        render json: {
+          success: true,
+          instance: serialize_instance(@instance),
+          first_task_id: first_task&.id
+        }, status: :created
       rescue ArgumentError => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
       rescue Bpmn::EngineService::ProcessError => e
@@ -99,6 +111,14 @@ module Api
 
       def set_instance
         @instance = BpmnProcessInstance.find(params[:id])
+      end
+
+      def find_process(id_or_name)
+        if id_or_name.to_s =~ /\A\d+\z/
+          BpmnProcess.published.find(id_or_name)
+        else
+          BpmnProcess.published.find_by!(name: id_or_name)
+        end
       end
 
       def find_subject

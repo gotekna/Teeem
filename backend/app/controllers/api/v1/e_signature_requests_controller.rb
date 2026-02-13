@@ -1,9 +1,11 @@
 class Api::V1::ESignatureRequestsController < ApplicationController
-  before_action :set_request, only: [ :show, :update, :destroy, :send_for_signing, :cancel, :audit_trail, :certificate ]
+  include PresignedUploadHandler
+
+  before_action :set_request, only: [ :show, :update, :destroy, :send_for_signing, :cancel, :audit_trail, :certificate, :download_document ]
 
   # GET /api/v1/e_signature_requests
   def index
-    requests = ESignatureRequest.includes(:signers, :created_by)
+    requests = ESignatureRequest.includes(:signers, :created_by, :document_type)
 
     # Filter by status
     requests = requests.by_status(params[:status]) if params[:status].present?
@@ -87,10 +89,10 @@ class Api::V1::ESignatureRequestsController < ApplicationController
 
   # DELETE /api/v1/e_signature_requests/:id
   def destroy
-    unless @request.status == "draft"
+    unless @request.status.in?(%w[draft cancelled])
       render json: {
         success: false,
-        errors: [ "Cannot delete a request that has been sent. Cancel it instead." ]
+        errors: [ "Only draft or cancelled requests can be deleted" ]
       }, status: :unprocessable_entity
       return
     end
@@ -200,6 +202,47 @@ class Api::V1::ESignatureRequestsController < ApplicationController
     end
   end
 
+  # GET /api/v1/e_signature_requests/:id/document
+  # Download document: stamped/signed version for completed requests, original otherwise.
+  # Pass ?version=original to force the original document.
+  def download_document
+    storage_ref = @request.original_storage_reference
+
+    unless storage_ref.present?
+      render json: {
+        success: false,
+        errors: [ "Document not available" ]
+      }, status: :not_found
+      return
+    end
+
+    begin
+      # For completed requests, generate stamped PDF with signatures (unless original requested)
+      if @request.status == "completed" && params[:version] != "original"
+        stamper = ESignaturePdfStamper.new(@request)
+        content = stamper.stamp!
+        filename = "#{@request.title} (Signed).pdf"
+      end
+
+      # Fall back to original document
+      unless content.present?
+        content = fetch_document_content(@request, storage_ref)
+        filename = "#{@request.title}.pdf"
+      end
+
+      send_data content,
+                filename: filename,
+                type: "application/pdf",
+                disposition: "inline"
+    rescue => e
+      Rails.logger.error "[ESignature] Document download failed: #{e.class} - #{e.message}"
+      render json: {
+        success: false,
+        errors: [ "Failed to retrieve document" ]
+      }, status: :unprocessable_entity
+    end
+  end
+
   # POST /api/v1/e_signature_requests/:id/signers
   def add_signer
     @request = ESignatureRequest.find(params[:e_signature_request_id])
@@ -225,6 +268,48 @@ class Api::V1::ESignatureRequestsController < ApplicationController
         errors: signer.errors.full_messages
       }, status: :unprocessable_entity
     end
+  end
+
+  # POST /api/v1/e_signature_requests/upload_document
+  # Upload a PDF document for e-signature, returns a StorageBlob reference.
+  # Accepts multipart file upload (params[:file]) or presigned S3 key (params[:storage_key]).
+  def upload_document
+    file = resolve_uploaded_file(:file, :storage_key)
+    unless file
+      return render json: {
+        success: false,
+        errors: [ "No file provided. Use 'file' for multipart or 'storage_key' for presigned URL upload." ]
+      }, status: :unprocessable_entity
+    end
+
+    content = file.read
+    # FRC (Feb 2026): Force binary encoding to prevent PDF corruption
+    content.force_encoding("BINARY") if content.respond_to?(:force_encoding)
+
+    filename = file.respond_to?(:original_filename) ? file.original_filename : "document.pdf"
+    content_type = file.respond_to?(:content_type) ? file.content_type : "application/pdf"
+
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+    blob.increment_reference!
+
+    render json: {
+      success: true,
+      storage_blob_id: blob.id,
+      storage_reference: blob.id.to_s,
+      filename: blob.original_filename,
+      file_size: blob.file_size,
+      content_hash: blob.content_hash
+    }
+  rescue => e
+    Rails.logger.error "[ESignature] Document upload failed: #{e.class} - #{e.message}"
+    render json: {
+      success: false,
+      errors: [ "Failed to upload document: #{e.message}" ]
+    }, status: :unprocessable_entity
   end
 
   # DELETE /api/v1/e_signature_requests/:id/signers/:signer_id
@@ -270,12 +355,14 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       :description,
       :documentable_type,
       :documentable_id,
+      :document_type_id,
       :signing_order,
       :expires_at,
       :send_reminders,
       :reminder_interval_days,
       :message_to_signers,
       :original_storage_file_id,
+      :original_storage_item_id,
       :storage_site_id,
       :storage_drive_id,
       signers_attributes: [ :id, :name, :email, :role, :signing_order, :contact_id, :_destroy ]
@@ -301,7 +388,10 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       expires_at: request.expires_at,
       completed_at: request.completed_at,
       created_at: request.created_at,
-      created_by: request.created_by&.email
+      created_by: request.created_by&.email,
+      document_type_id: request.document_type_id,
+      document_type_name: request.document_type&.name,
+      has_document: request.original_storage_reference.present?
     }
 
     if include_details
@@ -316,6 +406,7 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       json[:send_reminders] = request.send_reminders
       json[:reminder_interval_days] = request.reminder_interval_days
       json[:has_certificate] = request.certificate.present?
+      json[:has_document] = request.original_storage_reference.present?
     end
 
     json
@@ -355,6 +446,26 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       signer_id: field.e_signature_signer_id,
       signer_email: field.e_signature_signer&.email
     }
+  end
+
+  # Fetch document content from StorageBlob (S3/Wasabi) or SharePoint
+  # Same pattern as signing_ceremony_controller#fetch_document_content
+  def fetch_document_content(request_obj, storage_ref)
+    blob = StorageBlob.find_by(id: storage_ref)
+    if blob
+      return blob.download
+    end
+
+    if request_obj.storage_site_id.present? && request_obj.storage_drive_id.present?
+      client = MicrosoftAppGraphClient.new
+      return client.get_drive_item_content(
+        site_id: request_obj.storage_site_id,
+        drive_id: request_obj.storage_drive_id,
+        item_id: storage_ref
+      )
+    end
+
+    raise "No storage backend available for document (ref: #{storage_ref})"
   end
 
   # Create fields and map signer_index to actual signer IDs

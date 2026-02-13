@@ -4,7 +4,7 @@ import * as React from "react";
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
-import { X, Building2, Briefcase, Mail, ExternalLink, UserPlus } from "lucide-react";
+import { X, Building2, Briefcase, Mail, ExternalLink } from "lucide-react";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import type { EmailContact, ContactEmail } from "@/lib/email-types";
 import { api } from "@/lib/api";
@@ -422,6 +422,27 @@ export function EmailContactAutocomplete({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData("text");
+    // Extract all emails from pasted text (handles comma/semicolon/space/newline separated)
+    const emailRegex = /[^\s,;<>]+@[^\s,;<>]+\.[^\s,;<>]+/g;
+    const emails = pasted.match(emailRegex);
+    if (emails && emails.length > 0) {
+      e.preventDefault();
+      const newChips = [...chips];
+      for (const email of emails) {
+        const cleaned = email.toLowerCase().trim();
+        if (!emailChips.some(e => e.toLowerCase() === cleaned)) {
+          newChips.push({ email: cleaned, contactId: undefined, displayName: undefined });
+        }
+      }
+      updateChips(newChips);
+      setSearchInput("");
+      onSearch("");
+      setIsOpen(false);
+    }
+  };
+
   const handleFocus = () => {
     if (searchInput.trim().length >= minSearchChars && contacts.length > 0) {
       setIsOpen(true);
@@ -475,25 +496,6 @@ export function EmailContactAutocomplete({
                 }}
               />
             )}
-            {/* Create contact icon for unknown emails */}
-            {chip.resolved && !chip.contactId && (
-              <span
-                title="Create contact"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Extract name guess from email (before @)
-                  const localPart = chip.email.split("@")[0] || "";
-                  const nameGuess = localPart
-                    .replace(/[._-]/g, " ")
-                    .replace(/\b\w/g, c => c.toUpperCase());
-                  const params = new URLSearchParams({ email: chip.email });
-                  if (nameGuess) params.set("name", nameGuess);
-                  window.open(`/contacts/new?${params.toString()}`, '_blank');
-                }}
-              >
-                <UserPlus className="h-3 w-3 text-amber-500 opacity-70 group-hover:opacity-100 cursor-pointer" />
-              </span>
-            )}
             {/* Delete button */}
             <button
               type="button"
@@ -515,6 +517,7 @@ export function EmailContactAutocomplete({
           value={searchInput}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           onFocus={handleFocus}
           placeholder={emailChips.length === 0 ? placeholder : ""}
           className="flex-1 min-w-[100px] h-7 bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground"

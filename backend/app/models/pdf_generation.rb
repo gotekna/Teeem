@@ -20,6 +20,9 @@ class PdfGeneration < ApplicationRecord
     invoice
     bank_report
     contract_overlay
+    director_change
+    financial_report
+    form43_certificate
   ].freeze
 
   def completed?

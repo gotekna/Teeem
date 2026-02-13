@@ -18,6 +18,8 @@ module Api
       def tables
         service = TenantConfigSyncService.new(current_tenant)
 
+        tenant_setting = current_tenant&.tenant_setting
+
         response = {
           success: true,
           tables: service.available_tables,
@@ -25,7 +27,10 @@ module Api
           groups: TenantConfigSyncService.groups,
           tenant: current_tenant ? tenant_info(current_tenant) : nil,
           master_tenant: master_tenant ? tenant_info(master_tenant) : nil,
-          is_master_tenant: current_tenant&.is_master_tenant? || false
+          is_master_tenant: current_tenant&.is_master_tenant? || false,
+          last_config_sync_at: tenant_setting&.last_config_sync_at&.iso8601,
+          last_config_sync_by: tenant_setting&.last_config_sync_by,
+          config_sync_table_timestamps: tenant_setting&.config_sync_table_timestamps || {}
         }
 
         # Only TEEEM (master tenant) can see all tenant data
@@ -337,6 +342,9 @@ module Api
             result[:errors]&.first(3)&.each { |e| Rails.logger.warn "  Error: #{e}" }
           end
 
+          # Record per-table sync timestamp (only on last batch or single batch)
+          record_table_sync(table, imported: imported_count, updated: 0, skipped: skipped_count) unless has_more
+
           render json: {
             success: true, table: table.to_s,
             imported: imported_count,
@@ -414,6 +422,9 @@ module Api
             result[:skipped]&.first(3)&.each { |s| Rails.logger.warn "  Skipped: #{s[:name]} - #{s[:reason]}" }
             result[:errors]&.first(3)&.each { |e| Rails.logger.warn "  Error: #{e}" }
           end
+
+          # Record per-table sync timestamp (only on last batch or single batch)
+          record_table_sync(table, imported: imported_count, updated: updated_count, skipped: skipped_count) unless has_more
 
           render json: {
             success: true, table: table.to_s,
@@ -530,6 +541,8 @@ module Api
 
               total_imported += imported_count
               total_skipped += skipped_count
+
+              record_table_sync(table, imported: imported_count, updated: 0, skipped: skipped_count)
             rescue => e
               errors << "#{table}: #{e.message}"
               results[table.to_s] = { error: e.message }
@@ -569,11 +582,21 @@ module Api
               total_imported += imported_count
               total_updated += updated_count
               total_skipped += skipped_count
+
+              record_table_sync(table, imported: imported_count, updated: updated_count, skipped: skipped_count)
             rescue => e
               errors << "#{table}: #{e.message}"
               results[table.to_s] = { error: e.message }
             end
           end
+        end
+
+        # Record last sync timestamp for audit trail
+        if errors.empty? && current_tenant&.tenant_setting
+          current_tenant.tenant_setting.update_columns(
+            last_config_sync_at: Time.current,
+            last_config_sync_by: current_user&.email
+          )
         end
 
         render json: {
@@ -586,8 +609,28 @@ module Api
             skipped: total_skipped,
             tables_processed: results.keys.length
           },
-          errors: errors.presence
+          errors: errors.presence,
+          last_config_sync_at: current_tenant&.tenant_setting&.last_config_sync_at&.iso8601,
+          last_config_sync_by: current_tenant&.tenant_setting&.last_config_sync_by
         }
+      end
+
+      # POST /api/v1/config_sync/record_sync
+      # Record that a full sync was performed (called by frontend after pull_all completes)
+      def record_sync
+        if current_tenant&.tenant_setting
+          current_tenant.tenant_setting.update_columns(
+            last_config_sync_at: Time.current,
+            last_config_sync_by: current_user&.email
+          )
+          render json: {
+            success: true,
+            last_config_sync_at: current_tenant.tenant_setting.last_config_sync_at.iso8601,
+            last_config_sync_by: current_tenant.tenant_setting.last_config_sync_by
+          }
+        else
+          render json: { success: false, error: "No tenant setting found" }, status: :not_found
+        end
       end
 
       # Helper to generate match key
@@ -671,6 +714,22 @@ module Api
         }
       end
 
+      # Record per-table sync timestamp for audit trail
+      def record_table_sync(table_key, imported: 0, updated: 0, skipped: 0)
+        return unless current_tenant&.tenant_setting
+
+        ts = current_tenant.tenant_setting
+        timestamps = (ts.config_sync_table_timestamps || {}).dup
+        timestamps[table_key.to_s] = {
+          "at" => Time.current.iso8601,
+          "by" => current_user&.email,
+          "imported" => imported,
+          "updated" => updated,
+          "skipped" => skipped
+        }
+        ts.update_columns(config_sync_table_timestamps: timestamps)
+      end
+
       def pull_params
         params.permit(:table, :mode, :price_markup_percent, record_ids: [])
       end
@@ -695,6 +754,13 @@ module Api
       def filter_ids_by_existing_fks(source_ids, model, source_tenant, remap_fks)
         return source_ids if remap_fks.blank?
 
+        # FRC (Feb 2026): Skip self-referential FKs (e.g. warehouse_folders.parent_id).
+        # The service handles these with a two-pass import (defer parent_id to pass 2).
+        # Pre-filtering them here creates a chicken-and-egg problem: new child records
+        # get filtered out because their new parent hasn't been synced yet.
+        non_self_ref_fks = remap_fks.reject { |_f, c| c[:model] == model.name }
+        return source_ids if non_self_ref_fks.blank?
+
         # Load source records with their FK values
         source_records = ActsAsTenant.with_tenant(source_tenant) do
           model.where(id: source_ids)
@@ -703,7 +769,7 @@ module Api
         # Build lookup sets for each FK: { match_value => true }
         # These are the values that exist in the current (target) tenant
         target_values = {}
-        remap_fks.each do |fk_field, remap_config|
+        non_self_ref_fks.each do |fk_field, remap_config|
           fk_model = remap_config[:model].constantize
           match_field = remap_config[:match_field]
           target_values[fk_field] = ActsAsTenant.with_tenant(current_tenant) do
@@ -713,7 +779,7 @@ module Api
 
         # Build source FK value lookups (source_id → match_value)
         source_fk_values = {}
-        remap_fks.each do |fk_field, remap_config|
+        non_self_ref_fks.each do |fk_field, remap_config|
           fk_model = remap_config[:model].constantize
           match_field = remap_config[:match_field]
           source_fk_ids = source_records.map { |r| r.send(fk_field) }.compact.uniq
@@ -722,9 +788,9 @@ module Api
           end
         end
 
-        # Filter: keep only records where ALL FKs have a matching target
+        # Filter: keep only records where ALL non-self-ref FKs have a matching target
         kept_ids = source_records.select do |record|
-          remap_fks.all? do |fk_field, _config|
+          non_self_ref_fks.all? do |fk_field, _config|
             fk_id = record.send(fk_field)
             next true if fk_id.blank? # Optional FK, allow nil
 

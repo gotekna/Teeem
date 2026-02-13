@@ -67,10 +67,13 @@ bin/rails teeem:create_system_foundations 2>&1 | tail -5
 bin/rails tenant:assign_null_to_tekna
 
 # Step 7: Clear encrypted credentials (can't decrypt with local keys)
+# Uses session_replication_role to bypass FK constraints (e.g. synced_email_mailboxes → microsoft_credentials)
 bin/rails runner "
+ActiveRecord::Base.connection.execute('SET session_replication_role = replica')
 deleted_ms = MicrosoftCredential.delete_all
 deleted_app = OrganizationMicrosoftAppCredential.delete_all rescue 0
 deleted_s3 = S3Credential.delete_all rescue 0
+ActiveRecord::Base.connection.execute('SET session_replication_role = DEFAULT')
 puts '🔑 Cleared ' + (deleted_ms + deleted_app + deleted_s3).to_s + ' credentials (encrypted with prod keys)'
 "
 

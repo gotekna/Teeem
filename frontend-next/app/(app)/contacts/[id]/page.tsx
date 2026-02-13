@@ -97,6 +97,7 @@ import {
   ContactTabDocuments,
   ContactCommunicationsTab,
   ContactPortalTab,
+  ContactUserTab,
 } from "./components";
 import type {
   Contact,
@@ -2198,6 +2199,15 @@ export default function ContactDetailPage() {
               entityType: "Contact",
               entityId: contact.id,
             }}
+          />
+        </TabsContent>
+
+        {/* User Tab - Personal details for linked user account */}
+        <TabsContent value="user" className="mt-6">
+          <ContactUserTab
+            contact={contact}
+            onContactUpdate={setContact}
+            refreshKey={refreshKey}
           />
         </TabsContent>
 

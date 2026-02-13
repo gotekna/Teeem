@@ -479,21 +479,21 @@ module HealthChecks
     def check_duplicate_xero_ids
       # Find external_contact_ids that appear more than once per tenant in contact_external_links
       duplicates = ContactExternalLink.xero
-                                      .group(:external_contact_id, :tenant_id)
+                                      .group(:external_contact_id, :xero_org_id)
                                       .having("COUNT(DISTINCT contact_id) > 1")
-                                      .pluck(:external_contact_id, :tenant_id)
+                                      .pluck(:external_contact_id, :xero_org_id)
 
-      items = duplicates.map do |external_contact_id, tenant_id|
-        # Find all links with this external_contact_id and tenant
+      items = duplicates.map do |external_contact_id, xero_org_id|
+        # Find all links with this external_contact_id and xero org
         links = ContactExternalLink.xero
-                                   .where(external_contact_id: external_contact_id, tenant_id: tenant_id)
+                                   .where(external_contact_id: external_contact_id, xero_org_id: xero_org_id)
                                    .includes(contact: :primary_company)
         contacts = links.map(&:contact).compact.uniq
         {
           id: contacts.first&.id,
           display: "Xero contact #{external_contact_id[0..7]}... linked to: #{contacts.map(&:display_name).join(', ')}",
           xero_id: external_contact_id,
-          tenant_id: tenant_id,
+          xero_org_id: xero_org_id,
           contact_ids: contacts.map(&:id),
           contact_names: contacts.map(&:display_name)
         }

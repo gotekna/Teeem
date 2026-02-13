@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
+import { AddressSearchInput } from "@/components/ui/address-search-input";
 import {
   Lead,
   LeadStatus,
@@ -212,12 +213,20 @@ export function LeadForm({ open, onOpenChange, lead, onSubmit }: LeadFormProps) 
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <Label htmlFor="site_address">Site Address *</Label>
-                  <Input
+                  <AddressSearchInput
                     id="site_address"
                     value={formData.site_address}
-                    onChange={(e) => updateField("site_address", e.target.value)}
-                    placeholder="123 Main Street"
+                    placeholder="Search address..."
                     required
+                    onSelect={(address, suggestion) => {
+                      updateField("site_address", address);
+                      if (suggestion?.address) {
+                        const addr = suggestion.address;
+                        if (addr.suburb) updateField("site_suburb", addr.suburb);
+                        if (addr.state) updateField("site_state", addr.state);
+                        if (addr.postcode) updateField("site_postcode", addr.postcode);
+                      }
+                    }}
                   />
                 </div>
 

@@ -3,7 +3,10 @@
 # ESignatureMailer handles all email notifications for the e-signature system.
 #
 class ESignatureMailer < ApplicationMailer
-  default from: -> { ENV.fetch("ESIGNATURE_FROM_EMAIL", "esign@teeem.com.au") }
+  default from: -> {
+    TenantSetting.monitored_mailbox_esignature.presence ||
+      ENV.fetch("ESIGNATURE_FROM_EMAIL", "robert@teeem.com.au")
+  }
 
   # Sent when a signer is asked to sign a document
   def signing_request(request, signer)
@@ -70,6 +73,22 @@ class ESignatureMailer < ApplicationMailer
     )
   end
 
+  # Sent when a request is cancelled (only to signers who received a signing link)
+  def cancellation_notification(request, reason: nil)
+    @request = request
+    @reason = reason
+
+    # Only notify signers who were already notified (not pending ones who never got a link)
+    recipients = [ request.created_by&.email ]
+    recipients += request.signers.where.not(status: "pending").pluck(:email)
+    recipients = recipients.compact.uniq
+
+    mail(
+      to: recipients,
+      subject: "Signing request cancelled: #{request.title}"
+    )
+  end
+
   # Sent when a request expires
   def expiration_notification(request)
     @request = request
@@ -88,7 +107,16 @@ class ESignatureMailer < ApplicationMailer
 
   def signing_url_for(signer)
     token = signer.generate_access_token!
-    frontend_url = ENV.fetch("FRONTEND_URL", "https://teeem.vercel.app")
+    frontend_url = ENV.fetch("FRONTEND_URL") {
+      app_name = ENV["HEROKU_APP_NAME"].to_s
+      if app_name.include?("staging")
+        "https://teeem-staging.vercel.app"
+      elsif app_name.include?("beta")
+        "https://teeem-beta.vercel.app"
+      else
+        "https://teeem.vercel.app"
+      end
+    }
     "#{frontend_url}/sign/#{token}"
   end
 end

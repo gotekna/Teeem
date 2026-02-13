@@ -578,6 +578,22 @@ class WarehouseProvider < ApplicationRecord
     connection_config["region"]
   end
 
+  # SSoT (Feb 2026): Explicit credential link for S3-compatible storage.
+  # When set, DocumentProviders::S3Compatible uses this exact credential - no guessing.
+  def storage_credential_id
+    connection_config["credential_id"]
+  end
+
+  # SSoT (Feb 2026): Backup storage credential for mirroring/redundancy.
+  # Global Backblaze B2 credential shared by all tenants.
+  def backup_credential_id
+    connection_config["backup_credential_id"]
+  end
+
+  def backup_bucket
+    connection_config["backup_bucket"]
+  end
+
   # Update connection config
   def update_connection(new_config)
     update!(connection_config: connection_config.merge(new_config))
@@ -604,11 +620,14 @@ class WarehouseProvider < ApplicationRecord
     when S3CompatibleCredential
       # SSoT (Jan 2026): bucket is stored in WarehouseProvider only, NOT synced from credential
       # Credential stores auth only (endpoint, region for client init)
+      # SSoT (Feb 2026): credential_id explicitly links THE ONE credential for this provider.
+      # This prevents backup credentials from being picked over primary storage credentials.
       update!(
         provider_type: "s3_compatible",
         connection_config: connection_config.merge(
           "endpoint" => credential.endpoint,
-          "region" => credential.region
+          "region" => credential.region,
+          "credential_id" => credential.id
           # bucket intentionally NOT synced - WarehouseProvider.connection_config['bucket'] is SSoT
         ).compact,
         status: credential.status == "connected" ? "connected" : "disconnected"
@@ -741,10 +760,15 @@ class WarehouseProvider < ApplicationRecord
   end
 
   # SSoT: connected? checks the appropriate credential for the configured provider
+  # Feb 2026: Uses explicit credential_id when set (no guessing)
   def connected?
     case provider_type
     when "s3_compatible"
-      S3CompatibleCredential.active.first&.status == "connected"
+      if storage_credential_id.present?
+        S3CompatibleCredential.find_by(id: storage_credential_id)&.status == "connected"
+      else
+        S3CompatibleCredential.active.first&.status == "connected"
+      end
     when "sharepoint"
       MicrosoftCredential.sharepoint_credential&.status == "connected"
     when "local"
@@ -769,7 +793,7 @@ class WarehouseProvider < ApplicationRecord
   def warehouse_sync_enabled?
     # Only sync if connected to S3/Wasabi
     return false unless connected?
-    return false unless %w[s3 wasabi].include?(provider_type)
+    return false unless s3_compatible?
 
     # Check the warehouse_sync_enabled flag (defaults to true if column doesn't exist)
     respond_to?(:warehouse_sync_enabled) ? warehouse_sync_enabled : true

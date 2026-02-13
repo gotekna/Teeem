@@ -2282,6 +2282,7 @@ module Api
             {
               xero_contact_name: name,
               xero_contact_id: record.external_contact_id,
+              xero_inferred_type: infer_entity_type(name, xero_details),
               invoice_count: record.invoice_count,
               total_amount: record.total_amount&.to_f || 0,
               potential_matches: potential_matches,
@@ -2563,10 +2564,12 @@ module Api
             normalized_name = xero_name.to_s.strip.squish.downcase
 
             # Try to find exact match first (also normalize DB values)
-            teeem_contact = Contact.find_by("LOWER(TRIM(display_name)) = ?", normalized_name)
+            # Exclude price_only contacts - these are pricebook-only entries, not real business contacts
+            match_scope = Contact.where.not(entity_type: 'price_only')
+            teeem_contact = match_scope.find_by("LOWER(TRIM(display_name)) = ?", normalized_name)
 
             # Try company name match
-            teeem_contact ||= Contact.find_by("LOWER(TRIM(company_name_or_trust)) = ?", normalized_name)
+            teeem_contact ||= match_scope.find_by("LOWER(TRIM(company_name_or_trust)) = ?", normalized_name)
 
             if teeem_contact
               # Link all invoices with this name
@@ -3685,26 +3688,29 @@ module Api
         # Normalize name - same logic as auto_match_contacts for consistency
         name_lower = xero_name.to_s.strip.squish.downcase
 
+        # Exclude price_only contacts - these are pricebook-only entries, not real business contacts
+        base_scope = Contact.where.not(entity_type: 'price_only')
+
         # Priority 1: Exact display_name match (with TRIM for whitespace normalization)
-        exact = Contact.where("LOWER(TRIM(display_name)) = ?", name_lower).first
+        exact = base_scope.where("LOWER(TRIM(display_name)) = ?", name_lower).first
         if exact
-          matches << { id: exact.id, name: exact.display_name, match_type: "exact", score: 100 }
+          matches << { id: exact.id, name: exact.display_name, entity_type: exact.entity_type, match_type: "exact", score: 100 }
         end
 
         # Priority 2: Exact company_name_or_trust match
-        company_exact = Contact.where("LOWER(TRIM(company_name_or_trust)) = ?", name_lower).first
+        company_exact = base_scope.where("LOWER(TRIM(company_name_or_trust)) = ?", name_lower).first
         if company_exact && company_exact.id != exact&.id
-          matches << { id: company_exact.id, name: company_exact.display_name, match_type: "company_exact", score: 95 }
+          matches << { id: company_exact.id, name: company_exact.display_name, entity_type: company_exact.entity_type, match_type: "company_exact", score: 95 }
         end
 
         # Priority 3: Partial name match (TEEEM contains Xero name)
-        partial = Contact.where("LOWER(display_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?", "%#{name_lower}%", "%#{name_lower}%")
+        partial = base_scope.where("LOWER(display_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?", "%#{name_lower}%", "%#{name_lower}%")
           .where.not(id: matches.map { |m| m[:id] })
           .limit(5)
 
         partial.each do |p|
           score = calculate_name_similarity(name_lower, p.display_name&.downcase || "")
-          matches << { id: p.id, name: p.display_name, match_type: "partial", score: score }
+          matches << { id: p.id, name: p.display_name, entity_type: p.entity_type, match_type: "partial", score: score }
         end
 
         # Priority 3b: Reverse partial match (Xero name contains TEEEM name)
@@ -3712,7 +3718,7 @@ module Api
         if matches.size < 5
           # Find contacts where the Xero name contains the TEEEM display_name
           escaped_name = ActiveRecord::Base.connection.quote_string(name_lower)
-          reverse_partial = Contact.where("? LIKE '%' || LOWER(display_name) || '%'", name_lower)
+          reverse_partial = base_scope.where("? LIKE '%' || LOWER(display_name) || '%'", name_lower)
             .where("LENGTH(display_name) >= 5") # Avoid tiny matches
             .where.not(id: matches.map { |m| m[:id] })
             .limit(5)
@@ -3722,7 +3728,7 @@ module Api
             teeem_name = p.display_name&.downcase || ""
             base_score = ((teeem_name.length.to_f / name_lower.length) * 100).round
             score = [base_score, 90].min # Cap at 90 since it's not exact
-            matches << { id: p.id, name: p.display_name, match_type: "partial", score: score }
+            matches << { id: p.id, name: p.display_name, entity_type: p.entity_type, match_type: "partial", score: score }
           end
         end
 
@@ -3732,7 +3738,7 @@ module Api
         words = name_lower.split(/\s+/).reject { |w| w.length < 3 || common_suffixes.include?(w) }
         if words.any? && matches.size < 5
           word_conditions = words.map { |w| "LOWER(display_name) LIKE '%#{ActiveRecord::Base.connection.quote_string(w)}%'" }.join(" OR ")
-          word_matches = Contact.where(word_conditions)
+          word_matches = base_scope.where(word_conditions)
             .where.not(id: matches.map { |m| m[:id] })
             .limit(20) # Get more candidates for scoring
 
@@ -3743,12 +3749,33 @@ module Api
           end.sort_by { |m| -m[:score] }.first(5 - matches.size)
 
           scored_word_matches.each do |m|
-            matches << { id: m[:contact].id, name: m[:contact].display_name, match_type: "word", score: m[:score] }
+            matches << { id: m[:contact].id, name: m[:contact].display_name, entity_type: m[:contact].entity_type, match_type: "word", score: m[:score] }
           end
         end
 
         # Sort by score descending and return top 5
         matches.sort_by { |m| -m[:score] }.first(5)
+      end
+
+      # Infer entity type from Xero contact name
+      # Used to show what type the contact would be if imported
+      #
+      # FRC (Feb 2026): Xero splits ALL names into first_name/last_name - even
+      # "Bunnings Trade" becomes first="Bunnings" last="Trade". So those fields
+      # are NOT a reliable person signal. Only use name pattern analysis.
+      def infer_entity_type(name, _xero_details = nil)
+        return nil if name.blank?
+
+        # Legal/structural suffixes (high confidence company)
+        legal_pattern = /\b(pty|ltd|limited|inc|corp|llc|plc|trust|fund|super|association|council|government|dept|department)\b/i
+        return 'company' if name.match?(legal_pattern)
+
+        # Business activity words (strong company signal)
+        business_pattern = /\b(trade|trading|holdings|group|services|solutions|industries|enterprises|company|contractors|constructions?|electrical|plumbing|carpentry|scaffolding|roofing|painting|flooring|tiling|fencing|landscaping|excavation|demolition|concrete|steel|timber|glass|building|supplies|materials|hardware|hire|hires|rental|rentals|transport|logistics|freight|waste|management|consulting|engineering|designs?|projects|developments?|investments|properties|real\s*estate|insurance|finance|accounting|recruitment|training|security|cleaning|maintenance|catering|hospitality|medical|dental|pharmacy|legal|automotive|mechanical|fabrication|manufacturing|wholesale|retail|distributors?|imports?|exports?|concepts|creations?|innovations?|technologies|tech|digital|systems|communications?|media|print|signs?|graphics|agencies?|partners|ventures|capital|advisory|strategy|global|national|australian|pacific)\b/i
+        return 'company' if name.match?(business_pattern)
+
+        # Ambiguous - don't guess
+        nil
       end
 
       # Calculate simple similarity score between two names

@@ -1,4 +1,6 @@
 class ImapSyncJob < ApplicationJob
+  include DeduplicatableJob
+
   queue_as :default
 
   # Retry network errors up to 2 times with backoff, then discard

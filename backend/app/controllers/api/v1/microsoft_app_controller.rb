@@ -169,6 +169,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
         name: org_name,
         credential_type: "app",
         organization: org,
+        tenant: current_tenant,
         client_id: client_id,
         client_secret: client_secret,
         azure_tenant_id: azure_tenant_id,
@@ -236,6 +237,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
         name: org_name,
         credential_type: "app",
         organization: org,
+        tenant: current_tenant,
         client_id: client_id,
         client_secret: client_secret,
         azure_tenant_id: azure_tenant_id,
@@ -446,10 +448,23 @@ class Api::V1::MicrosoftAppController < ApplicationController
     # SSoT (Jan 2026): Filter MS365 credentials by current tenant's organizations
     # MicrosoftCredential belongs_to Organization, which belongs_to Tenant (indirect relationship)
     tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
+
+    # FRC (Feb 2026): Filter mailboxes by tenant's email domains to prevent
+    # cross-tenant leakage. Multiple TEEEM tenants may share the same Azure AD,
+    # so Graph API returns ALL users. Without filtering, Tenant B sees Tenant A's mailboxes.
+    # Primary: TenantSetting.internal_email_domains (admin-configured)
+    # Fallback: Derive domains from tenant users' email addresses
+    tenant_domains = TenantSetting.internal_email_domains
+    if tenant_domains.blank?
+      tenant_domains = current_tenant&.users&.pluck(:email)&.compact
+                         &.map { |e| e.split("@").last&.downcase }
+                         &.uniq&.compact || []
+    end
+
     organizations = MicrosoftCredential.app_credentials.active
                                         .where(organization_id: tenant_org_ids)
                                         .order(:name).map do |org|
-      # Get mailboxes from tenant
+      # Get mailboxes from Microsoft 365 tenant
       all_mailboxes = if org.status == "connected"
         begin
           org.list_tenant_users.map { |u| u[:email] }.compact
@@ -461,10 +476,14 @@ class Api::V1::MicrosoftAppController < ApplicationController
         []
       end
 
-      # Show all mailboxes from the tenant for each org
-      # Since all orgs may share the same Microsoft tenant, we don't filter by domain
-      # Admins configure which users can access which mailboxes per org
-      mailboxes = all_mailboxes.sort
+      mailboxes = if tenant_domains.present?
+        all_mailboxes.select do |email|
+          domain = email.to_s.split("@").last&.downcase
+          tenant_domains.any? { |d| d.casecmp?(domain) }
+        end.sort
+      else
+        all_mailboxes.sort
+      end
 
       # Get current user-mailbox access configuration
       user_mailbox_access = org.sync_config&.dig("user_mailbox_access") || {}
@@ -794,6 +813,115 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
   end
 
+  # POST /api/v1/microsoft_app/import_users
+  # Bulk import M365 users as Teeem users (Contact + User + Role + Employee link)
+  def import_users
+    unless current_user_admin?
+      return render json: { error: "Only admins can import users" }, status: :forbidden
+    end
+
+    microsoft_user_ids = params[:microsoft_user_ids]
+    if microsoft_user_ids.blank? || !microsoft_user_ids.is_a?(Array)
+      return render json: { error: "microsoft_user_ids array is required" }, status: :bad_request
+    end
+
+    credential = find_credential_with_org_context
+    unless credential&.status == "connected"
+      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
+    end
+
+    # Clear cache to ensure fresh data with has_license field
+    credential.clear_tenant_users_cache
+    all_m365_users = credential.list_tenant_users
+    selected_users = all_m365_users.select { |u| microsoft_user_ids.include?(u[:id]) }
+
+    if selected_users.empty?
+      return render json: { error: "No matching Microsoft 365 users found" }, status: :not_found
+    end
+
+    # Get existing tenant user emails for duplicate detection
+    existing_emails = current_tenant&.users&.pluck(:email)&.map(&:downcase) || []
+
+    created = []
+    skipped = []
+    errors = []
+    default_role = Role.find_by(name: "user")
+
+    selected_users.each do |m365_user|
+      email = m365_user[:email]&.downcase
+      display_name = m365_user[:name].to_s
+
+      if email.blank?
+        skipped << { name: display_name, reason: "No email address" }
+        next
+      end
+
+      if existing_emails.include?(email)
+        skipped << { name: display_name, email: email, reason: "Already exists in Teeem" }
+        next
+      end
+
+      begin
+        ActiveRecord::Base.transaction do
+          # Split displayName into first/last
+          parts = display_name.strip.split(/\s+/)
+          first_name = parts[0]
+          last_name = parts.length > 1 ? parts[1..].join(" ") : nil
+
+          # Create Contact
+          contact = Contact.create!(
+            display_name: display_name,
+            first_name: first_name,
+            last_name: last_name,
+            contact_type: "person",
+            entity_type: "person",
+            is_user_cached: true
+          )
+
+          # Add email to contact_emails
+          contact.contact_emails.create!(
+            email: email,
+            label: "login",
+            is_primary: true,
+            position: 1
+          )
+
+          # Create User with random password
+          user = User.new(
+            name: display_name,
+            email: email,
+            password: SecureRandom.hex(16),
+            contact: contact,
+            tenant_id: current_user.tenant_id
+          )
+          user.save!
+
+          # Assign default "user" role
+          if default_role && !user.roles.exists?(id: default_role.id)
+            user.roles << default_role
+          end
+
+          # Auto-link as employee of tenant company (reuses UsersController pattern)
+          link_imported_user_to_tenant_company(user)
+
+          created << { name: display_name, email: email, user_id: user.id }
+          existing_emails << email # Prevent duplicates within same batch
+        end
+      rescue => e
+        Rails.logger.error "[MicrosoftApp] Failed to import user #{display_name}: #{e.message}"
+        errors << { name: display_name, email: email, error: e.message }
+      end
+    end
+
+    render json: {
+      success: true,
+      created: created,
+      skipped: skipped,
+      errors: errors,
+      message: "Imported #{created.count} user(s). #{skipped.count} skipped. #{errors.count} error(s)."
+    }
+  end
+
   # POST /api/v1/microsoft_app/sync_to_storage
   # Sync emails to SyncedEmail and upload to configured storage provider (SSoT: WarehouseProvider)
   def sync_to_storage
@@ -1006,6 +1134,38 @@ class Api::V1::MicrosoftAppController < ApplicationController
   def current_user_admin?
     # SSoT: admin? now checks user_roles join table
     current_user&.admin? || current_user&.permissions&.include?("admin")
+  end
+
+  # Auto-link imported user's contact as employee of the tenant company
+  # Reuses same pattern as UsersController#link_user_to_tenant_company
+  def link_imported_user_to_tenant_company(user)
+    contact = user.contact
+    return unless contact&.entity_type == "person"
+
+    company_name = TenantSetting.instance&.company_name
+    return if company_name.blank?
+
+    company_contact = Contact.where(entity_type: "company")
+      .where("display_name ILIKE ?", company_name)
+      .first
+    return unless company_contact
+    return if contact.id == company_contact.id
+
+    return if ContactRelationship.exists?(
+      source_contact_id: contact.id,
+      related_contact_id: company_contact.id,
+      relationship_type: "employee_of"
+    )
+
+    ContactRelationship.create!(
+      source_contact_id: contact.id,
+      related_contact_id: company_contact.id,
+      relationship_type: "employee_of",
+      is_active: true,
+      start_date: Date.today
+    )
+  rescue => e
+    Rails.logger.warn "Failed to auto-link imported user #{user.id} to tenant company: #{e.message}"
   end
 
   # SSoT: Find organization by ID, name, or slug

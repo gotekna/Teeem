@@ -16,7 +16,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string; forcePasswordChange?: boolean }>;
   signup: (name: string, email: string, password: string, passwordConfirmation: string) => Promise<{ success: boolean; errors?: string[] }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -175,14 +175,33 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       const response = await api.get<AuthResponse>('/api/v1/auth/me');
       if (response.success && response.user) {
-        // ⚠️ DO NOT REDIRECT in checkAuth (Feb 2026)
+        // ⚠️ Cross-domain redirect with token passthrough (Feb 2026)
         // ════════════════════════════════════════════════════════════════════
-        // Environment redirect happens ONLY at login time (with token passthrough).
-        // checkAuth runs on page refresh - the user is already on the correct
-        // frontend, so redirecting here would cause the cross-domain cookie loss
-        // bug (Jan 2026). Stay on current frontend; stored api_url determines
-        // which backend to use.
+        // If the user's tenant is configured for a different environment
+        // (e.g., staging), redirect to the correct frontend with token in URL.
+        // This handles: existing sessions on wrong frontend, cookie persistence
+        // after cache clear, bookmark to wrong frontend, etc.
+        // Safe because token-passthrough avoids the cross-domain cookie loss bug.
         // ════════════════════════════════════════════════════════════════════
+        if (response.frontend_url && typeof window !== 'undefined') {
+          const currentOrigin = window.location.origin;
+          try {
+            const targetOrigin = new URL(response.frontend_url).origin;
+            if (currentOrigin !== targetOrigin && token) {
+              const params = new URLSearchParams({
+                token: token,
+                redirect: window.location.pathname || '/dashboard',
+              });
+              if (response.api_url) params.set('api_url', response.api_url);
+              if (response.environment) params.set('environment', response.environment);
+              params.set('remember', '1'); // Preserve session (they were already logged in)
+              window.location.href = `${targetOrigin}/login?${params.toString()}`;
+              return; // Don't set user state - we're redirecting
+            }
+          } catch {
+            // Invalid frontend_url - ignore and continue normally
+          }
+        }
 
         setUser(response.user);
         // Only apply user's preferred theme on initial page load
@@ -233,7 +252,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setLoading(false);
   };
 
-  const login = async (email: string, password: string, rememberMe?: boolean): Promise<{ success: boolean; error?: string }> => {
+  const login = async (email: string, password: string, rememberMe?: boolean): Promise<{ success: boolean; error?: string; forcePasswordChange?: boolean }> => {
     try {
       // Use loginToProduction - production backend is the "router" that returns api_url
       // for the company's chosen environment
@@ -265,7 +284,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             // The login page on the target handles ?token=xxx via handleTokenFromRedirect
             const params = new URLSearchParams({
               token: response.token,
-              redirect: '/dashboard',
+              redirect: response.user.force_password_change ? '/settings/security' : '/dashboard',
             });
             if (response.api_url) params.set('api_url', response.api_url);
             if (response.environment) params.set('environment', response.environment);
@@ -291,14 +310,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
 
         // Check if user must change their temporary password (Feb 2026)
-        if (response.user.force_password_change) {
+        const mustChangePassword = !!response.user.force_password_change;
+        if (mustChangePassword) {
           setForcePasswordChange(true);
           setTempPassword(password);
         }
 
         // Load column type definitions from SSoT (fires in background)
         loadTypeDefinitions();
-        return { success: true };
+        return { success: true, forcePasswordChange: mustChangePassword };
       } else {
         return { success: false, error: response?.error || 'Login failed' };
       }

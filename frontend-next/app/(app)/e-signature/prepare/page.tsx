@@ -17,6 +17,13 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   FileText,
   Users,
   PenLine,
@@ -34,8 +41,13 @@ import type { Signer, SignatureField } from "@/components/ui/pdf-editor/types";
 import { SIGNER_COLORS } from "@/components/ui/pdf-editor/types";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+
+interface DocumentType {
+  id: number;
+  name: string;
+}
 
 type PrepareStep = "document" | "fields" | "review";
 
@@ -61,6 +73,7 @@ export default function ESignaturePreparePage() {
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [documentTypeId, setDocumentTypeId] = useState<string>("");
 
   // Signers state
   const [signers, setSigners] = useState<Signer[]>([]);
@@ -72,6 +85,16 @@ export default function ESignaturePreparePage() {
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch document types for classification
+  const { data: documentTypesData } = useQuery({
+    queryKey: ["document-types"],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: DocumentType[] }>("/api/v1/document_types");
+      return response;
+    },
+  });
+  const documentTypes = documentTypesData?.data || [];
 
   // Create e-signature request mutation
   interface CreateRequestResponse {
@@ -148,11 +171,26 @@ export default function ESignaturePreparePage() {
     setError(null);
 
     try {
-      // First, upload the document to get SharePoint file info
-      // For now, we'll create the request with the fields
+      // Step 1: Upload the PDF to S3 via StorageBlob
+      const formData = new FormData();
+      formData.append("file", documentFile);
+
+      const uploadResult = await api.postFormData<{
+        success: boolean;
+        storage_reference?: string;
+        errors?: string[];
+      }>("/api/v1/e_signature_requests/upload_document", formData);
+
+      if (!uploadResult?.success || !uploadResult.storage_reference) {
+        throw new Error(uploadResult?.errors?.[0] || "Failed to upload document");
+      }
+
+      // Step 2: Create the e-signature request with the storage reference
       const requestData = {
         title,
         description,
+        document_type_id: documentTypeId ? parseInt(documentTypeId) : undefined,
+        original_storage_item_id: uploadResult.storage_reference,
         signers_attributes: signers.map((s, index) => ({
           email: s.email,
           name: s.name || s.email.split("@")[0],
@@ -319,6 +357,24 @@ export default function ESignaturePreparePage() {
                         placeholder="Brief description of the document..."
                         rows={3}
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="document-type">Document Type (optional)</Label>
+                      <Select value={documentTypeId} onValueChange={setDocumentTypeId}>
+                        <SelectTrigger id="document-type">
+                          <SelectValue placeholder="Select a document type..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {documentTypes.map((dt) => (
+                            <SelectItem key={dt.id} value={String(dt.id)}>
+                              {dt.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Classify this document for automatic filing in the File Warehouse when signed
+                      </p>
                     </div>
                   </CardContent>
                 </Card>

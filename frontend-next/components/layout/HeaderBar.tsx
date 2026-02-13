@@ -47,7 +47,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { InspiringBanner } from "./InspiringBanner";
+import { WorkerQueueStatus } from "./WorkerQueueStatus";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
+import { SupportChatWidget } from "@/components/chat/SupportChatWidget";
 import { NotificationBell } from "@/components/ui/notification-bell";
 import { CreateTaskDialog } from "@/components/task-hub/CreateTaskDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -296,6 +298,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         setEmailConnectedCount(0);
         setEmailAccounts([]);
       }
+
     };
 
     // Prevent duplicate fetches on React StrictMode double-mount
@@ -651,6 +654,9 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             )}
           </Link>
 
+          {/* Worker Queue Status */}
+          <WorkerQueueStatus />
+
           {/* Data Warehouse */}
           <Link prefetch={false}
             href="/data-warehouse"
@@ -674,6 +680,9 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           <div className="flex-1 flex justify-center px-2">
             <InspiringBanner />
           </div>
+
+          {/* AI Support Chat */}
+          <SupportChatWidget inline={true} />
 
           {/* Help Button */}
           <FloatingHelpButton inline={true} />

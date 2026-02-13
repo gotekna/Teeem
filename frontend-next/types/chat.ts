@@ -38,9 +38,11 @@ export interface Participant {
   name: string;
   avatar_url: string | null;
   is_online: boolean;
+  is_admin?: boolean;
+  last_read_at?: string | null;
 }
 
-export type ConversationType = "direct" | "group" | "job" | "contact" | "case" | "channel";
+export type ConversationType = "direct" | "group" | "guest" | "support" | "job" | "contact" | "case" | "channel";
 
 export interface Conversation {
   id: number | string;
@@ -63,7 +65,16 @@ export interface Conversation {
 
   // Channel support
   channel?: string;
+
+  // Guest chat link support
+  is_guest?: boolean;
+  guest_token?: string;
+  share_url?: string;
+
+  // AI support chat
+  is_support?: boolean;
 }
+
 
 export interface OnlineUser {
   id: number;
@@ -71,6 +82,7 @@ export interface OnlineUser {
   email: string;
   presence_status: "online" | "away" | "offline";
   is_online: boolean;
+  is_teeem_support?: boolean;
   last_seen_at: string | null;
 }
 

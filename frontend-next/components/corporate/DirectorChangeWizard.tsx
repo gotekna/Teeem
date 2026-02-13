@@ -14,6 +14,10 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { AddressSearchInput } from "@/components/ui/address-search-input";
 import {
   Sheet,
   SheetContent,
@@ -34,20 +38,94 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  CalendarIcon,
   Check,
+  Clock,
   Download,
   FileText,
+  Pencil,
   Plus,
+  Mail,
   Send,
   Trash2,
   User,
   X,
 } from "lucide-react";
 import { format } from "date-fns";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { pollPdfGeneration, type PdfGenerationStatus } from "@/lib/pdf-generation";
 import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
 
+// --- Date Picker (standard Popover + Calendar, replaces native input[type=date]) ---
+
+function DatePickerInput({
+  value,
+  onChange,
+  placeholder = "Pick date...",
+  isDob = false,
+  className,
+}: {
+  value?: string;
+  onChange: (date: string) => void;
+  placeholder?: string;
+  isDob?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const parsed = value ? new Date(value + "T00:00:00") : undefined;
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            "h-8 w-full justify-start text-left font-normal text-sm",
+            !parsed && "text-muted-foreground",
+            className,
+          )}
+        >
+          <CalendarIcon className="mr-2 h-3 w-3" />
+          {parsed ? format(parsed, "dd/MM/yyyy") : placeholder}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={parsed}
+          defaultMonth={parsed || (isDob ? new Date(1980, 0) : new Date())}
+          onSelect={(date) => {
+            if (date) {
+              const iso = format(date, "yyyy-MM-dd");
+              onChange(iso);
+              setOpen(false);
+            }
+          }}
+          {...(isDob ? {
+            captionLayout: "dropdown",
+            fromYear: 1920,
+            toYear: currentYear,
+          } : {
+            fromYear: currentYear - 5,
+            toYear: currentYear + 1,
+          })}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // --- Types ---
+
+interface ContactEmail {
+  id: number;
+  email: string;
+  is_primary: boolean;
+  label: string | null;
+}
 
 interface CeasingDirector {
   corporate_director_id: number;
@@ -57,6 +135,14 @@ interface CeasingDirector {
   position: string;
   positions: string[];
   cessation_date: string;
+  has_dob: boolean;
+  has_address: boolean;
+  dob: string;
+  address: string;
+  editing_dob: boolean;
+  editing_address: boolean;
+  emails: ContactEmail[];      // All available emails
+  selected_email: string;      // Email selected for e-signature
 }
 
 interface NewAppointment {
@@ -67,6 +153,12 @@ interface NewAppointment {
   appointment_date: string;
   has_dob: boolean;
   has_address: boolean;
+  dob: string;
+  address: string;
+  editing_dob: boolean;
+  editing_address: boolean;
+  emails: ContactEmail[];      // All available emails
+  selected_email: string;      // Email selected for e-signature
 }
 
 interface ContactSearchResult {
@@ -76,6 +168,20 @@ interface ContactSearchResult {
   date_of_birth?: string;
   full_address?: string;
   entity_type?: string;
+}
+
+interface PendingGeneration {
+  id: number;
+  status: string;
+  generatorType: string;
+  filename: string | null;
+  downloadUrl?: string | null;
+  createdAt: string;
+  companyName?: string;
+  companyId?: string;
+  userName?: string;
+  error?: string;
+  result?: Record<string, unknown>;
 }
 
 const POSITION_OPTIONS = [
@@ -95,6 +201,30 @@ interface DirectorChangeWizardProps {
   onComplete?: () => void;
 }
 
+/**
+ * Fetch a PDF from the backend download endpoint and return a blob URL.
+ * The backend streams content directly when Authorization header is present,
+ * avoiding CORS issues with S3/Wasabi presigned URL redirects.
+ */
+async function fetchPdfAsBlob(downloadPath: string): Promise<string | null> {
+  try {
+    const baseUrl = getApiBaseUrl();
+    const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
+    const resp = await fetch(`${baseUrl}${downloadPath}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (resp.ok) {
+      const blob = await resp.blob();
+      return URL.createObjectURL(blob);
+    }
+    console.error("[DirectorChangeWizard] PDF fetch failed:", resp.status, resp.statusText);
+    return null;
+  } catch (err) {
+    console.error("[DirectorChangeWizard] PDF fetch error:", err);
+    return null;
+  }
+}
+
 export function DirectorChangeWizard({
   open,
   onOpenChange,
@@ -105,6 +235,7 @@ export function DirectorChangeWizard({
 }: DirectorChangeWizardProps) {
   const [step, setStep] = React.useState(1);
   const [loading, setLoading] = React.useState(false);
+  const [loadingMessage, setLoadingMessage] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
 
   // Step 2 state
@@ -112,7 +243,8 @@ export function DirectorChangeWizard({
   const [newAppointments, setNewAppointments] = React.useState<NewAppointment[]>([]);
 
   // Step 3 state
-  const [pdfBase64, setPdfBase64] = React.useState<string | null>(null);
+  const [pdfGenerationId, setPdfGenerationId] = React.useState<number | null>(null);
+  const [pdfDownloadUrl, setPdfDownloadUrl] = React.useState<string | null>(null);
   const [generatedFilename, setGeneratedFilename] = React.useState<string>("");
   const [generatedDocuments, setGeneratedDocuments] = React.useState<Array<{ type: string; name: string }>>([]);
 
@@ -120,6 +252,11 @@ export function DirectorChangeWizard({
   const [sending, setSending] = React.useState(false);
   const [sent, setSent] = React.useState(false);
   const [requestNumber, setRequestNumber] = React.useState<string>("");
+  const [eSignRequestId, setESignRequestId] = React.useState<number | null>(null);
+
+  // Pending generations (cross-tenant)
+  const [pendingGenerations, setPendingGenerations] = React.useState<PendingGeneration[]>([]);
+  const [loadingPending, setLoadingPending] = React.useState(false);
 
   // Contact search
   const [contactSearch, setContactSearch] = React.useState("");
@@ -129,20 +266,114 @@ export function DirectorChangeWizard({
   // Current officers (for ceasing selection)
   const currentOfficers = officers.filter((o) => o.is_current);
 
-  // Reset state when wizard opens/closes
+  // Reset state when wizard opens/closes - check for unprocessed PDF generations
   React.useEffect(() => {
     if (open) {
       setStep(1);
       setCeasingDirectors([]);
       setNewAppointments([]);
-      setPdfBase64(null);
+      setPdfGenerationId(null);
+      if (pdfDownloadUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(pdfDownloadUrl);
+      }
+      setPdfDownloadUrl(null);
       setGeneratedFilename("");
       setGeneratedDocuments([]);
       setSent(false);
       setRequestNumber("");
       setError(null);
+      setPendingGenerations([]);
+
+      // Check for ALL unprocessed PDF generations across the tenant
+      checkPendingGenerations();
     }
   }, [open]);
+
+  // Check for unprocessed PDF generations across the entire tenant
+  const checkPendingGenerations = async () => {
+    setLoadingPending(true);
+    try {
+      const response = await api.get<{ success: boolean; data: PendingGeneration[] }>(
+        `/api/v1/pdf_generations?status=pending,processing,completed&limit=20`
+      );
+      if (response?.success && response.data?.length) {
+        // Only show recent ones (within last 24 hours)
+        const recentCutoff = Date.now() - 24 * 60 * 60 * 1000;
+        const recent = response.data.filter(
+          (pg) => new Date(pg.createdAt || "").getTime() > recentCutoff
+        );
+        setPendingGenerations(recent);
+      }
+    } catch {
+      // Silently fail - not critical
+    } finally {
+      setLoadingPending(false);
+    }
+  };
+
+  // Cancel (pending/processing) or dismiss (completed) a PDF generation
+  const dismissGeneration = async (gen: PendingGeneration) => {
+    try {
+      const endpoint = gen.status === "completed"
+        ? `/api/v1/pdf_generations/${gen.id}/dismiss`
+        : `/api/v1/pdf_generations/${gen.id}/cancel`;
+      await api.patch(endpoint, {});
+      setPendingGenerations((prev) => prev.filter((pg) => pg.id !== gen.id));
+    } catch {
+      setError("Failed to dismiss generation");
+    }
+  };
+
+  // Continue/resume a pending, processing, or completed PDF generation
+  const continueGeneration = async (gen: PendingGeneration) => {
+    setPendingGenerations([]); // Dismiss the list
+
+    if (gen.status === "completed" && gen.downloadUrl) {
+      // Already done - skip to preview
+      setPdfGenerationId(gen.id);
+      setLoadingMessage("Loading completed preview...");
+      setLoading(true);
+      try {
+        const blobUrl = await fetchPdfAsBlob(gen.downloadUrl!);
+        if (blobUrl) setPdfDownloadUrl(blobUrl);
+        setGeneratedFilename(gen.filename || "");
+        const docs = gen.result?.documents as Array<{ type: string; name: string }> | undefined;
+        if (docs) setGeneratedDocuments(docs);
+        setStep(3);
+      } finally {
+        setLoading(false);
+      }
+    } else if (gen.status === "pending" || gen.status === "processing") {
+      // Still in progress - resume polling
+      setPdfGenerationId(gen.id);
+      setLoading(true);
+      setLoadingMessage(gen.status === "processing" ? "Generating PDF documents..." : "Queued — waiting for worker...");
+      setStep(2);
+      try {
+        const result = await pollPdfGeneration(gen.id, {
+          intervalMs: 1500,
+          maxWaitMs: 120_000,
+          onProgress: (status) => {
+            if (status.status === "processing") setLoadingMessage("Generating PDF documents...");
+            else if (status.status === "pending") setLoadingMessage("Queued — waiting for worker...");
+          },
+        });
+        if (result.status === "completed" && result.downloadUrl) {
+          setLoadingMessage("Downloading preview...");
+          const blobUrl = await fetchPdfAsBlob(result.downloadUrl);
+          if (blobUrl) setPdfDownloadUrl(blobUrl);
+          setGeneratedFilename(result.filename || "");
+          const docs = result.result?.documents as Array<{ type: string; name: string }> | undefined;
+          if (docs) setGeneratedDocuments(docs);
+          setStep(3);
+        } else {
+          setError(result.error || "PDF generation failed — please try again");
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
 
   // Contact search debounce
   React.useEffect(() => {
@@ -174,7 +405,7 @@ export function DirectorChangeWizard({
 
   // --- Ceasing Directors ---
 
-  const addCeasingDirector = (officer: OfficerRecord) => {
+  const addCeasingDirector = async (officer: OfficerRecord) => {
     // Check if this contact is already added (by contact id, not officer id)
     const contactId = officer.contact?.id;
     if (contactId && ceasingDirectors.some((cd) => cd.contact_id === contactId)) return;
@@ -183,12 +414,54 @@ export function DirectorChangeWizard({
     const allPositions = currentOfficers
       .filter((o) => o.contact?.id === contactId && o.is_current)
       .map((o) => o.position);
-    const uniquePositions = [...new Set(allPositions)];
+    const deduped = [...new Set(allPositions)];
+    // Remove combined position strings (e.g. "Director Secretary Public Officer")
+    // that are just concatenations of individual positions already in the list
+    const uniquePositions = deduped.filter((pos) => {
+      const others = deduped.filter(
+        (p) => p !== pos && pos.toLowerCase().includes(p.toLowerCase())
+      );
+      return others.length < 2;
+    });
 
     // Collect all officer record IDs for this contact
     const officerIds = currentOfficers
       .filter((o) => o.contact?.id === contactId && o.is_current)
       .map((o) => o.id);
+
+    // Fetch contact details for DOB/address/emails
+    let dob = "";
+    let address = "";
+    let hasDob = false;
+    let hasAddress = false;
+    let emails: ContactEmail[] = [];
+    let selectedEmail = officer.contact?.email || "";
+    if (contactId) {
+      try {
+        const detail = await api.get<{ contact: { date_of_birth?: string; residential_address?: string | null; full_address?: string; contact_emails?: ContactEmail[]; contact_addresses?: Array<{ line1?: string; line2?: string; city?: string; region?: string; postal_code?: string; country?: string; address_type?: string }> } }>(
+          `/api/v1/contacts/${contactId}`
+        );
+        const c = detail.contact;
+        dob = c?.date_of_birth || "";
+        hasDob = !!dob && dob !== "[RESTRICTED]";
+        // Check residential_address first, fall back to contact_addresses
+        if (c?.residential_address && c.residential_address !== "[RESTRICTED]") {
+          hasAddress = true;
+          address = c.residential_address;
+        } else if (c?.contact_addresses?.length) {
+          const streetAddr = c.contact_addresses.find((a) => a.address_type === "STREET") || c.contact_addresses[0];
+          const parts = [streetAddr.line1, streetAddr.line2, streetAddr.city, streetAddr.region, streetAddr.postal_code].filter(Boolean);
+          if (parts.length > 0) {
+            hasAddress = true;
+            address = parts.join(", ");
+          }
+        }
+        // Emails for e-signature delivery
+        emails = c?.contact_emails || [];
+        const primary = emails.find((e) => e.is_primary);
+        selectedEmail = primary?.email || emails[0]?.email || selectedEmail;
+      } catch { /* proceed without details */ }
+    }
 
     setCeasingDirectors((prev) => [
       ...prev,
@@ -200,6 +473,14 @@ export function DirectorChangeWizard({
         position: officer.position,
         positions: uniquePositions.length > 0 ? uniquePositions : [officer.position],
         cessation_date: format(new Date(), "yyyy-MM-dd"),
+        has_dob: hasDob,
+        has_address: hasAddress,
+        dob,
+        address,
+        editing_dob: false,
+        editing_address: false,
+        emails,
+        selected_email: selectedEmail,
       },
     ]);
   };
@@ -228,18 +509,39 @@ export function DirectorChangeWizard({
     // Default appointment date to the first ceasing director's cessation date (continuity)
     const defaultDate = ceasingDirectors[0]?.cessation_date || format(new Date(), "yyyy-MM-dd");
 
-    // Fetch full contact details to check DOB and residential address (search API doesn't include these)
+    // Fetch full contact details to get DOB, residential address, and emails
     // ASIC forms require residential_address specifically, not just contact_addresses
     let hasDob = !!contact.date_of_birth;
     let hasAddress = false;
+    let dobValue = "";
+    let addressValue = "";
+    let emails: ContactEmail[] = [];
+    let selectedEmail = contact.email || "";
     try {
-      const detail = await api.get<{ contact: { date_of_birth?: string; residential_address?: string | null; contact_addresses?: Array<{ line1?: string; city?: string }> } }>(
+      const detail = await api.get<{ contact: { date_of_birth?: string; residential_address?: string | null; contact_emails?: ContactEmail[]; contact_addresses?: Array<{ line1?: string; line2?: string; city?: string; region?: string; postal_code?: string; country?: string; address_type?: string }> } }>(
         `/api/v1/contacts/${contact.id}`
       );
       const c = detail.contact;
       hasDob = !!c?.date_of_birth && c.date_of_birth !== "[RESTRICTED]";
+      if (hasDob && c?.date_of_birth) {
+        dobValue = c.date_of_birth;
+      }
       // Check residential_address first (ASIC requirement), fall back to contact_addresses
-      hasAddress = (!!c?.residential_address && c.residential_address !== "[RESTRICTED]") || (c?.contact_addresses?.length ?? 0) > 0;
+      if (c?.residential_address && c.residential_address !== "[RESTRICTED]") {
+        hasAddress = true;
+        addressValue = c.residential_address;
+      } else if (c?.contact_addresses?.length) {
+        const streetAddr = c.contact_addresses.find((a) => a.address_type === "STREET") || c.contact_addresses[0];
+        const parts = [streetAddr.line1, streetAddr.line2, streetAddr.city, streetAddr.region, streetAddr.postal_code].filter(Boolean);
+        if (parts.length > 0) {
+          hasAddress = true;
+          addressValue = parts.join(", ");
+        }
+      }
+      // Emails for e-signature delivery
+      emails = c?.contact_emails || [];
+      const primary = emails.find((e) => e.is_primary);
+      selectedEmail = primary?.email || emails[0]?.email || selectedEmail;
     } catch {
       // If fetch fails, keep search-level values
     }
@@ -254,6 +556,12 @@ export function DirectorChangeWizard({
         appointment_date: defaultDate,
         has_dob: hasDob,
         has_address: hasAddress,
+        dob: dobValue,
+        address: addressValue,
+        editing_dob: false,
+        editing_address: false,
+        emails,
+        selected_email: selectedEmail,
       },
     ]);
     setContactSearch("");
@@ -282,35 +590,73 @@ export function DirectorChangeWizard({
 
   const generatePreview = async () => {
     setLoading(true);
+    setLoadingMessage("Submitting request...");
     setError(null);
     try {
+      // Enqueue async PDF generation on worker dyno
       const response = await api.post<{
         success: boolean;
-        pdf_base64: string;
-        filename: string;
-        documents: Array<{ type: string; name: string }>;
+        data: {
+          pdfGenerationId: number;
+          statusUrl: string;
+          downloadUrl: string;
+        };
         error?: string;
       }>(`/api/v1/companies/${companyId}/director_changes`, {
         ceasing_directors: ceasingDirectors.map((cd) => ({
           corporate_director_id: cd.corporate_director_id,
           positions: cd.positions,
           cessation_date: cd.cessation_date,
+          email: cd.selected_email,
+          address: cd.address,
         })),
         new_appointments: newAppointments.map((a) => ({
           contact_id: a.contact_id,
           positions: a.positions,
           appointment_date: a.appointment_date,
+          email: a.selected_email,
+          address: a.address,
         })),
-        send_for_signing: false,
       });
 
-      if (response?.success) {
-        setPdfBase64(response.pdf_base64);
-        setGeneratedFilename(response.filename);
-        setGeneratedDocuments(response.documents);
+      if (!response?.success || !response.data?.pdfGenerationId) {
+        setError("Failed to start PDF generation");
+        return;
+      }
+
+      const genId = response.data.pdfGenerationId;
+      setPdfGenerationId(genId);
+      setLoadingMessage("Queued — waiting for worker...");
+
+      // Poll until complete
+      const result = await pollPdfGeneration(genId, {
+        intervalMs: 1500,
+        maxWaitMs: 120_000,
+        onProgress: (status) => {
+          if (status.status === "processing") {
+            setLoadingMessage("Generating PDF documents...");
+          } else if (status.status === "pending") {
+            setLoadingMessage("Queued — waiting for worker...");
+          }
+        },
+      });
+
+      if (result.status === "completed" && result.downloadUrl) {
+        setLoadingMessage("Downloading preview...");
+        const blobUrl = await fetchPdfAsBlob(result.downloadUrl);
+        if (blobUrl) {
+          setPdfDownloadUrl(blobUrl);
+        } else {
+          setError("Failed to download generated PDF");
+        }
+        setGeneratedFilename(result.filename || "");
+        const docs = result.result?.documents as Array<{ type: string; name: string }> | undefined;
+        if (docs) {
+          setGeneratedDocuments(docs);
+        }
         setStep(3);
       } else {
-        setError(response?.error || "Failed to generate package");
+        setError(result.error || "PDF generation failed");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate package");
@@ -320,54 +666,73 @@ export function DirectorChangeWizard({
   };
 
   const downloadPdf = () => {
-    if (!pdfBase64) return;
-
-    const byteCharacters = atob(pdfBase64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: "application/pdf" });
-
-    const url = URL.createObjectURL(blob);
+    if (!pdfDownloadUrl) return;
     const link = document.createElement("a");
-    link.href = url;
-    link.download = generatedFilename;
+    link.href = pdfDownloadUrl;
+    link.download = generatedFilename || "director-change-package.pdf";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   const sendForSigning = async () => {
     setSending(true);
+    setLoadingMessage("Submitting request...");
     setError(null);
     try {
+      // Enqueue async PDF generation + send on worker dyno
       const response = await api.post<{
         success: boolean;
-        request_number: string;
+        data: {
+          pdfGenerationId: number;
+        };
         error?: string;
       }>(`/api/v1/companies/${companyId}/director_changes`, {
         ceasing_directors: ceasingDirectors.map((cd) => ({
           corporate_director_id: cd.corporate_director_id,
           positions: cd.positions,
           cessation_date: cd.cessation_date,
+          email: cd.selected_email,
+          address: cd.address,
         })),
         new_appointments: newAppointments.map((a) => ({
           contact_id: a.contact_id,
           positions: a.positions,
           appointment_date: a.appointment_date,
+          email: a.selected_email,
+          address: a.address,
         })),
         send_for_signing: true,
+        reuse_pdf_generation_id: pdfGenerationId,
       });
 
-      if (response?.success) {
+      if (!response?.success || !response.data?.pdfGenerationId) {
+        setError("Failed to start send process");
+        return;
+      }
+
+      setLoadingMessage("Queued — waiting for worker...");
+
+      // Poll until complete
+      const result = await pollPdfGeneration(response.data.pdfGenerationId, {
+        intervalMs: 1500,
+        maxWaitMs: 120_000,
+        onProgress: (status) => {
+          if (status.status === "processing") {
+            setLoadingMessage("Generating & sending documents...");
+          } else if (status.status === "pending") {
+            setLoadingMessage("Queued — waiting for worker...");
+          }
+        },
+      });
+
+      if (result.status === "completed") {
         setSent(true);
-        setRequestNumber(response.request_number);
+        setRequestNumber((result.result?.request_number as string) || "");
+        setESignRequestId((result.result?.e_signature_request_id as number) || null);
         onComplete?.();
       } else {
-        setError(response?.error || "Failed to send for signing");
+        setError(result.error || "Failed to send for signing");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send for signing");
@@ -381,8 +746,15 @@ export function DirectorChangeWizard({
   const stepTitles = ["Company", "Changes", "Preview", "Send"];
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+    <Sheet open={open} onOpenChange={(v) => {
+      // Prevent closing while PDF is generating or sending
+      if (!v && (loading || sending)) return;
+      onOpenChange(v);
+    }}>
+      <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto"
+        onInteractOutside={(e) => { if (loading || sending) e.preventDefault(); }}
+        onEscapeKeyDown={(e) => { if (loading || sending) e.preventDefault(); }}
+      >
         <SheetHeader>
           <SheetTitle>Director Change Package</SheetTitle>
           <SheetDescription>ASIC Form 484 - Change to Company Details</SheetDescription>
@@ -426,6 +798,93 @@ export function DirectorChangeWizard({
             <button onClick={() => setError(null)} className="ml-auto">
               <X className="w-4 h-4" />
             </button>
+          </div>
+        )}
+
+        {/* Pending Generations List (cross-tenant) */}
+        {step === 1 && pendingGenerations.length > 0 && (
+          <div className="mb-4 space-y-3">
+            <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                {pendingGenerations.length} unfinished PDF generation{pendingGenerations.length > 1 ? "s" : ""} found. Continue or cancel before starting a new one.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {pendingGenerations.map((gen) => (
+                <div key={gen.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium truncate">
+                        {gen.companyName || "Unknown Company"}
+                      </p>
+                      <Badge
+                        variant={gen.status === "completed" ? "default" : "secondary"}
+                        className={`text-xs shrink-0 ${
+                          gen.status === "completed"
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                            : gen.status === "processing"
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                              : ""
+                        }`}
+                      >
+                        {gen.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {gen.generatorType?.replace(/_/g, " ")} &middot;{" "}
+                      {gen.createdAt ? format(new Date(gen.createdAt), "dd/MM HH:mm") : "Unknown time"}
+                      {gen.userName ? ` · by ${gen.userName}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => continueGeneration(gen)}
+                    >
+                      {gen.status === "completed" ? "View" : "Continue"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className={`h-7 text-xs ${gen.status === "completed" ? "text-muted-foreground" : "text-destructive hover:text-destructive"}`}
+                      onClick={() => dismissGeneration(gen)}
+                    >
+                      {gen.status === "completed" ? "Dismiss" : "Cancel"}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-xs text-muted-foreground"
+              onClick={async () => {
+                // Dismiss all on backend, then clear local state
+                await Promise.allSettled(
+                  pendingGenerations.map((gen) => {
+                    const endpoint = gen.status === "completed"
+                      ? `/api/v1/pdf_generations/${gen.id}/dismiss`
+                      : `/api/v1/pdf_generations/${gen.id}/cancel`;
+                    return api.patch(endpoint, {});
+                  })
+                );
+                setPendingGenerations([]);
+              }}
+            >
+              Dismiss all — start new generation
+            </Button>
+          </div>
+        )}
+
+        {loadingPending && step === 1 && (
+          <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
+            <Spinner size={16} /> Checking for unfinished generations...
           </div>
         )}
 
@@ -485,7 +944,12 @@ export function DirectorChangeWizard({
               {ceasingDirectors.map((cd) => (
                 <div key={cd.corporate_director_id} className="p-3 border rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-sm">{cd.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm">{cd.name}</p>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        <Pencil className="w-2.5 h-2.5 mr-0.5" /> Signs Resignation
+                      </Badge>
+                    </div>
                     <button
                       onClick={() => removeCeasingDirector(cd.corporate_director_id)}
                       className="text-muted-foreground hover:text-destructive"
@@ -493,6 +957,156 @@ export function DirectorChangeWizard({
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+
+                  {/* DOB and Address for ceasing director */}
+                  <div className="space-y-2 p-2 bg-muted/50 border rounded text-sm">
+                    {/* Date of Birth */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Date of Birth</Label>
+                        {cd.has_dob && !cd.editing_dob && (
+                          <button
+                            onClick={() => setCeasingDirectors((prev) =>
+                              prev.map((c) => c.corporate_director_id === cd.corporate_director_id ? { ...c, editing_dob: true } : c)
+                            )}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            <Pencil className="w-3 h-3" /> Update
+                          </button>
+                        )}
+                      </div>
+                      {cd.has_dob && !cd.editing_dob ? (
+                        <p className="text-sm">
+                          {cd.dob ? format(new Date(cd.dob + "T00:00:00"), "dd/MM/yyyy") : "On file"}
+                        </p>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {!cd.has_dob && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                              <AlertCircle className="w-3 h-3" />
+                              Required
+                            </div>
+                          )}
+                          <DatePickerInput
+                            value={cd.editing_dob ? cd.dob : ""}
+                            isDob
+                            placeholder="Select date of birth..."
+                            className="flex-1"
+                            onChange={async (date) => {
+                              try {
+                                await api.patch(`/api/v1/contacts/${cd.contact_id}`, {
+                                  contact: { date_of_birth: date },
+                                });
+                                setCeasingDirectors((prev) =>
+                                  prev.map((c) => c.corporate_director_id === cd.corporate_director_id
+                                    ? { ...c, has_dob: true, dob: date, editing_dob: false }
+                                    : c)
+                                );
+                              } catch { /* ignore */ }
+                            }}
+                          />
+                          {cd.editing_dob && (
+                            <button
+                              onClick={() => setCeasingDirectors((prev) =>
+                                prev.map((c) => c.corporate_director_id === cd.corporate_director_id ? { ...c, editing_dob: false } : c)
+                              )}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Residential Address */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Residential Address</Label>
+                        {cd.has_address && !cd.editing_address && (
+                          <button
+                            onClick={() => setCeasingDirectors((prev) =>
+                              prev.map((c) => c.corporate_director_id === cd.corporate_director_id ? { ...c, editing_address: true } : c)
+                            )}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            <Pencil className="w-3 h-3" /> Update
+                          </button>
+                        )}
+                      </div>
+                      {cd.has_address && !cd.editing_address ? (
+                        <p className="text-sm">{cd.address || "On file"}</p>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {!cd.has_address && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                              <AlertCircle className="w-3 h-3" />
+                              Required
+                            </div>
+                          )}
+                          <AddressSearchInput
+                            defaultValue={cd.editing_address ? cd.address : ""}
+                            className="flex-1"
+                            inputClassName="h-8 text-sm"
+                            onSelect={async (address) => {
+                              if (!address) return;
+                              try {
+                                await api.patch(`/api/v1/contacts/${cd.contact_id}`, {
+                                  contact: { residential_address: address },
+                                });
+                                setCeasingDirectors((prev) =>
+                                  prev.map((c) => c.corporate_director_id === cd.corporate_director_id
+                                    ? { ...c, has_address: true, address, editing_address: false }
+                                    : c)
+                                );
+                              } catch { /* ignore */ }
+                            }}
+                          />
+                          {cd.editing_address && (
+                            <button
+                              onClick={() => setCeasingDirectors((prev) =>
+                                prev.map((c) => c.corporate_director_id === cd.corporate_director_id ? { ...c, editing_address: false } : c)
+                              )}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* E-Signature Email */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Mail className="w-3 h-3" /> Resignation sent for signature to
+                      </Label>
+                      {cd.emails.length > 1 ? (
+                        <select
+                          value={cd.selected_email}
+                          onChange={(e) => setCeasingDirectors((prev) =>
+                            prev.map((c) => c.corporate_director_id === cd.corporate_director_id
+                              ? { ...c, selected_email: e.target.value } : c)
+                          )}
+                          className="w-full h-8 text-sm rounded-md border border-input bg-background px-2"
+                        >
+                          {cd.emails.map((em) => (
+                            <option key={em.id} value={em.email}>
+                              {em.email}{em.label ? ` (${em.label})` : ""}{em.is_primary ? " \u2014 primary" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      ) : cd.selected_email ? (
+                        <p className="text-sm font-medium">{cd.selected_email}</p>
+                      ) : (
+                        <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                          <AlertCircle className="w-3 h-3" />
+                          No email on file
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <div>
                       <Label className="text-xs">Resigning From</Label>
@@ -517,11 +1131,10 @@ export function DirectorChangeWizard({
                     </div>
                     <div>
                       <Label className="text-xs">Cessation Date</Label>
-                      <Input
-                        type="date"
+                      <DatePickerInput
                         value={cd.cessation_date}
-                        onChange={(e) => updateCeasingDate(cd.corporate_director_id, e.target.value)}
-                        className="h-8 text-sm"
+                        onChange={(date) => updateCeasingDate(cd.corporate_director_id, date)}
+                        placeholder="Select cessation date..."
                       />
                     </div>
                   </div>
@@ -575,9 +1188,11 @@ export function DirectorChangeWizard({
               {newAppointments.map((appt) => (
                 <div key={appt.contact_id} className="p-3 border rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex items-center gap-2">
                       <p className="font-medium text-sm">{appt.name}</p>
-                      {appt.email && <p className="text-xs text-muted-foreground">{appt.email}</p>}
+                      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 text-[10px] px-1.5 py-0">
+                        <Pencil className="w-2.5 h-2.5 mr-0.5" /> Signs Consent
+                      </Badge>
                     </div>
                     <button
                       onClick={() => removeAppointment(appt.contact_id)}
@@ -587,61 +1202,154 @@ export function DirectorChangeWizard({
                     </button>
                   </div>
 
-                  {/* Missing fields - inline entry */}
-                  {(!appt.has_dob || !appt.has_address) && (
-                    <div className="space-y-2 p-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded text-sm">
-                      <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        Required for ASIC forms:
+                  {/* DOB and Address - display values for confirmation or inline entry if missing */}
+                  <div className="space-y-2 p-2 bg-muted/50 border rounded text-sm">
+                    {/* Date of Birth */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Date of Birth</Label>
+                        {appt.has_dob && !appt.editing_dob && (
+                          <button
+                            onClick={() => setNewAppointments((prev) =>
+                              prev.map((a) => a.contact_id === appt.contact_id ? { ...a, editing_dob: true } : a)
+                            )}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            <Pencil className="w-3 h-3" /> Update
+                          </button>
+                        )}
                       </div>
-                      {!appt.has_dob && (
-                        <div>
-                          <Label className="text-xs">Date of Birth</Label>
-                          <Input
-                            type="date"
-                            className="h-8 text-sm"
-                            onChange={async (e) => {
-                              if (!e.target.value) return;
+                      {appt.has_dob && !appt.editing_dob ? (
+                        <p className="text-sm">
+                          {appt.dob ? format(new Date(appt.dob + "T00:00:00"), "dd/MM/yyyy") : "On file"}
+                        </p>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {!appt.has_dob && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                              <AlertCircle className="w-3 h-3" />
+                              Required
+                            </div>
+                          )}
+                          <DatePickerInput
+                            value={appt.editing_dob ? appt.dob : ""}
+                            isDob
+                            placeholder="Select date of birth..."
+                            className="flex-1"
+                            onChange={async (date) => {
                               try {
                                 await api.patch(`/api/v1/contacts/${appt.contact_id}`, {
-                                  contact: { date_of_birth: e.target.value },
+                                  contact: { date_of_birth: date },
                                 });
                                 setNewAppointments((prev) =>
-                                  prev.map((a) => a.contact_id === appt.contact_id ? { ...a, has_dob: true } : a)
+                                  prev.map((a) => a.contact_id === appt.contact_id
+                                    ? { ...a, has_dob: true, dob: date, editing_dob: false }
+                                    : a)
                                 );
                               } catch { /* ignore */ }
                             }}
                           />
-                        </div>
-                      )}
-                      {!appt.has_address && (
-                        <div>
-                          <Label className="text-xs">Residential Address</Label>
-                          <Input
-                            type="text"
-                            placeholder="e.g. 123 Main St, Brisbane QLD 4000"
-                            className="h-8 text-sm"
-                            onBlur={async (e) => {
-                              if (!e.target.value) return;
-                              try {
-                                await api.patch(`/api/v1/contacts/${appt.contact_id}`, {
-                                  contact: {
-                                    contact_addresses_attributes: [
-                                      { line1: e.target.value, address_type: "STREET", is_primary: true },
-                                    ],
-                                  },
-                                });
-                                setNewAppointments((prev) =>
-                                  prev.map((a) => a.contact_id === appt.contact_id ? { ...a, has_address: true } : a)
-                                );
-                              } catch { /* ignore */ }
-                            }}
-                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                          />
+                          {appt.editing_dob && (
+                            <button
+                              onClick={() => setNewAppointments((prev) =>
+                                prev.map((a) => a.contact_id === appt.contact_id ? { ...a, editing_dob: false } : a)
+                              )}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
+
+                    {/* Residential Address */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Residential Address</Label>
+                        {appt.has_address && !appt.editing_address && (
+                          <button
+                            onClick={() => setNewAppointments((prev) =>
+                              prev.map((a) => a.contact_id === appt.contact_id ? { ...a, editing_address: true } : a)
+                            )}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            <Pencil className="w-3 h-3" /> Update
+                          </button>
+                        )}
+                      </div>
+                      {appt.has_address && !appt.editing_address ? (
+                        <p className="text-sm">{appt.address || "On file"}</p>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {!appt.has_address && (
+                            <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 shrink-0">
+                              <AlertCircle className="w-3 h-3" />
+                              Required
+                            </div>
+                          )}
+                          <AddressSearchInput
+                            defaultValue={appt.editing_address ? appt.address : ""}
+                            className="flex-1"
+                            inputClassName="h-8 text-sm"
+                            onSelect={async (address) => {
+                              if (!address) return;
+                              try {
+                                await api.patch(`/api/v1/contacts/${appt.contact_id}`, {
+                                  contact: { residential_address: address },
+                                });
+                                setNewAppointments((prev) =>
+                                  prev.map((a) => a.contact_id === appt.contact_id
+                                    ? { ...a, has_address: true, address, editing_address: false }
+                                    : a)
+                                );
+                              } catch { /* ignore */ }
+                            }}
+                          />
+                          {appt.editing_address && (
+                            <button
+                              onClick={() => setNewAppointments((prev) =>
+                                prev.map((a) => a.contact_id === appt.contact_id ? { ...a, editing_address: false } : a)
+                              )}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* E-Signature Email */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Mail className="w-3 h-3" /> Consent sent for signature to
+                      </Label>
+                      {appt.emails.length > 1 ? (
+                        <select
+                          value={appt.selected_email}
+                          onChange={(e) => setNewAppointments((prev) =>
+                            prev.map((a) => a.contact_id === appt.contact_id
+                              ? { ...a, selected_email: e.target.value } : a)
+                          )}
+                          className="w-full h-8 text-sm rounded-md border border-input bg-background px-2"
+                        >
+                          {appt.emails.map((em) => (
+                            <option key={em.id} value={em.email}>
+                              {em.email}{em.label ? ` (${em.label})` : ""}{em.is_primary ? " \u2014 primary" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      ) : appt.selected_email ? (
+                        <p className="text-sm font-medium">{appt.selected_email}</p>
+                      ) : (
+                        <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                          <AlertCircle className="w-3 h-3" />
+                          No email on file
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
                   <div className="space-y-2">
                     <div>
@@ -667,11 +1375,10 @@ export function DirectorChangeWizard({
                     </div>
                     <div>
                       <Label className="text-xs">Appointment Date</Label>
-                      <Input
-                        type="date"
+                      <DatePickerInput
                         value={appt.appointment_date}
-                        onChange={(e) => updateAppointmentDate(appt.contact_id, e.target.value)}
-                        className="h-8 text-sm"
+                        onChange={(date) => updateAppointmentDate(appt.contact_id, date)}
+                        placeholder="Select appointment date..."
                       />
                     </div>
                   </div>
@@ -719,7 +1426,7 @@ export function DirectorChangeWizard({
               <Button onClick={generatePreview} disabled={!canProceedToPreview || loading}>
                 {loading ? (
                   <>
-                    <Spinner size={16} className="mr-1" /> Generating...
+                    <Spinner size={16} className="mr-1" /> {loadingMessage || "Generating..."}
                   </>
                 ) : (
                   <>
@@ -736,31 +1443,69 @@ export function DirectorChangeWizard({
           <div className="space-y-4">
             <div className="space-y-2">
               <h4 className="text-sm font-semibold">Generated Documents</h4>
-              {generatedDocuments.map((doc, i) => (
-                <div key={i} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
-                  <FileText className="w-4 h-4 text-muted-foreground" />
-                  <span>{doc.name}</span>
-                  <Badge variant="secondary" className="ml-auto text-xs">
-                    {doc.type}
-                  </Badge>
-                </div>
-              ))}
+              {generatedDocuments.map((doc, i) => {
+                // Determine signer for this document
+                let signerLabel = "";
+                let signerColor = "text-muted-foreground";
+                if (doc.type === "resignation") {
+                  const cd = ceasingDirectors.find((c) => doc.name.includes(c.name));
+                  signerLabel = cd ? `${cd.name} signs → ${cd.selected_email}` : "";
+                  signerColor = "text-red-600 dark:text-red-400";
+                } else if (doc.type === "consent") {
+                  const appt = newAppointments.find((a) => doc.name.includes(a.name));
+                  signerLabel = appt ? `${appt.name} signs → ${appt.selected_email}` : "";
+                  signerColor = "text-green-600 dark:text-green-400";
+                } else if (doc.type === "minutes") {
+                  signerLabel = "Signed by Chairperson at meeting";
+                  signerColor = "text-blue-600 dark:text-blue-400";
+                } else if (doc.type === "form_484") {
+                  signerLabel = "Internal record — no signature required";
+                }
+
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm cursor-pointer hover:bg-muted transition-colors"
+                    onDoubleClick={() => pdfDownloadUrl && window.open(pdfDownloadUrl, "_blank")}
+                    title="Double-click to open in new window"
+                  >
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <span className="select-none">{doc.name}</span>
+                      {signerLabel && (
+                        <div className={`text-xs ${signerColor} flex items-center gap-1`}>
+                          <Pencil className="w-3 h-3" />
+                          {signerLabel}
+                        </div>
+                      )}
+                    </div>
+                    <Badge variant="secondary" className="ml-auto text-xs shrink-0">
+                      {doc.type}
+                    </Badge>
+                  </div>
+                );
+              })}
             </div>
 
             {/* PDF Preview */}
-            {pdfBase64 && (
-              <div className="border rounded-lg overflow-hidden" style={{ height: "400px" }}>
-                <iframe
-                  src={`data:application/pdf;base64,${pdfBase64}`}
+            {pdfDownloadUrl && (
+              <div className="border rounded-lg overflow-hidden" style={{ height: "500px" }}>
+                <object
+                  data={`${pdfDownloadUrl}#toolbar=1&navpanes=0`}
+                  type="application/pdf"
                   className="w-full h-full"
-                  title="Director Change Package Preview"
-                />
+                >
+                  <p className="p-4 text-center text-muted-foreground">
+                    PDF preview not available in this browser.{" "}
+                    <button onClick={downloadPdf} className="text-primary underline">Download PDF</button>
+                  </p>
+                </object>
               </div>
             )}
 
-            <Button variant="outline" onClick={downloadPdf} className="w-full">
+            <Button variant="outline" onClick={downloadPdf} disabled={!pdfDownloadUrl} className="w-full">
               <Download className="w-4 h-4 mr-2" />
-              Download {generatedFilename}
+              Download {generatedFilename || "PDF"}
             </Button>
 
             {/* Navigation */}
@@ -789,7 +1534,7 @@ export function DirectorChangeWizard({
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">{cd.name}</p>
-                    <p className="text-xs text-muted-foreground">Resignation Letter</p>
+                    <p className="text-xs text-muted-foreground">Resignation Letter → {cd.selected_email}</p>
                   </div>
                   <Badge variant="secondary" className="text-xs">Resigning</Badge>
                 </div>
@@ -804,7 +1549,7 @@ export function DirectorChangeWizard({
                   <div className="flex-1">
                     <p className="text-sm font-medium">{appt.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {appt.email || "No email - add email to contact first"}
+                      Consent to Act → {appt.email || "No email - add email to contact first"}
                     </p>
                   </div>
                   <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 text-xs">
@@ -846,7 +1591,7 @@ export function DirectorChangeWizard({
               >
                 {sending ? (
                   <>
-                    <Spinner size={16} className="mr-1" /> Sending...
+                    <Spinner size={16} className="mr-1" /> {loadingMessage || "Sending..."}
                   </>
                 ) : (
                   <>
@@ -865,19 +1610,52 @@ export function DirectorChangeWizard({
               <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
             </div>
             <div className="text-center space-y-2">
-              <h3 className="text-lg font-semibold">Package Sent</h3>
+              <h3 className="text-lg font-semibold">Package Sent for Signing</h3>
               <p className="text-sm text-muted-foreground">
-                Director change package has been sent for signing.
+                Signing invitations have been sent to all signers.
               </p>
               {requestNumber && (
-                <p className="text-sm">
+                <p className="text-xs text-muted-foreground">
                   Reference: <span className="font-mono font-medium">{requestNumber}</span>
                 </p>
               )}
             </div>
-            <Button onClick={() => onOpenChange(false)} className="mt-4">
-              Close
-            </Button>
+
+            {/* Show who received emails */}
+            <div className="w-full space-y-2 px-2">
+              <p className="text-xs font-medium text-muted-foreground text-center">Emails sent to:</p>
+              {ceasingDirectors.map((cd) => (
+                <div key={cd.corporate_director_id} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
+                  <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <span className="font-medium">{cd.name}</span>
+                  <span className="text-muted-foreground text-xs ml-auto">{cd.selected_email}</span>
+                </div>
+              ))}
+              {newAppointments.map((appt) => (
+                <div key={appt.contact_id} className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm">
+                  <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <span className="font-medium">{appt.name}</span>
+                  <span className="text-muted-foreground text-xs ml-auto">{appt.email}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              {eSignRequestId && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    onOpenChange(false);
+                    window.location.href = `/e-signature/${eSignRequestId}`;
+                  }}
+                >
+                  <FileText className="w-4 h-4 mr-1" /> View Signing Status
+                </Button>
+              )}
+              <Button onClick={() => onOpenChange(false)}>
+                Close
+              </Button>
+            </div>
           </div>
         )}
       </SheetContent>

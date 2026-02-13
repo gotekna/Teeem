@@ -28,9 +28,11 @@ Rails.application.routes.draw do
       end
 
       # Async PDF Generation
-      resources :pdf_generations, only: [:create, :show] do
+      resources :pdf_generations, only: [:index, :create, :show] do
         member do
           get :download
+          patch :cancel
+          patch :dismiss
         end
       end
 
@@ -296,6 +298,9 @@ Rails.application.routes.draw do
       # Authentication routes
       post "auth/signup", to: "authentication#signup"
       post "auth/login", to: "authentication#login"
+      post "auth/forgot_password", to: "authentication#forgot_password"
+      post "auth/reset_password", to: "authentication#reset_password"
+      post "auth/validate_reset_token", to: "authentication#validate_reset_token"
       get "auth/me", to: "authentication#me"
       get "auth/dev_login", to: "authentication#dev_login"  # Dev mode only
       get "auth/users", to: "authentication#users"  # Admin: list users for impersonation
@@ -329,11 +334,21 @@ Rails.application.routes.draw do
       # Git integration
       get "git/branch_status", to: "git#branch_status"
 
+      # Heroku Infrastructure (admin-only, live from Heroku Platform API)
+      get "heroku/infrastructure", to: "heroku#infrastructure"
+      get "heroku/vercel_billing", to: "heroku#vercel_billing"
+      get "heroku/vercel_usage_breakdown", to: "heroku#vercel_usage_breakdown"
+      get "heroku/storage_billing", to: "heroku#storage_billing"
+      patch "heroku/scale", to: "heroku#scale"
+      post "heroku/share_dev_database", to: "heroku#share_dev_database"
+
       # System & Performance Monitoring
       get "system/health", to: "system#health"
       get "system/performance", to: "system#performance"
       get "system/metrics", to: "system#metrics"
       get "system/scheduled_jobs", to: "system#scheduled_jobs"
+      get "system/queue_status", to: "system#queue_status"
+      delete "system/clear_failed_jobs", to: "system#clear_failed_jobs"
 
       # Navigation (sidebar menu - SSoT is NavigationItem, user stores collapse only)
       get "navigation", to: "navigation#index"
@@ -458,6 +473,7 @@ Rails.application.routes.draw do
           post :auto_sync_compulsory  # Auto-sync all compulsory records from master
           post :pull_all  # Fresh pull of ALL records from ALL tables
           post :pull_one_table  # Pull a single table (for live progress)
+          post :record_sync  # Record that a full sync was performed
         end
       end
       delete "job_status_stages/:id", to: "job_status_stages#destroy"
@@ -723,7 +739,7 @@ Rails.application.routes.draw do
       # SmTask + Job are THE ONE systems for tasks and project tracking
 
       # Meetings (non-nested routes)
-      resources :meetings, only: [ :index, :show, :update, :destroy ] do
+      resources :meetings, only: [ :index, :create, :show, :update, :destroy ] do
         member do
           post :start
           post :complete
@@ -797,11 +813,15 @@ Rails.application.routes.draw do
 
       # E-Signature Requests
       resources :e_signature_requests, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          post :upload_document
+        end
         member do
           post :send_for_signing, path: "send"
           post :cancel
           get :audit_trail
           get :certificate
+          get :download_document, path: "document"
         end
         resources :signers, controller: "e_signature_requests", only: [] do
           collection do
@@ -1225,9 +1245,28 @@ Rails.application.routes.draw do
           get :conversations
           post :mark_as_read
           post :save_conversation_to_job
+          post :support
+          get :support_history
         end
         member do
           post :save_to_job
+        end
+      end
+
+      # Guest chat sessions (shareable links)
+      resources :chat_guest_sessions, only: [:index, :create, :destroy] do
+        member do
+          post :join
+          get :messages
+          post :send_message
+        end
+      end
+
+      # Group chat conversations
+      resources :chat_conversations, only: [ :create, :update ] do
+        member do
+          post :add_participant
+          post :remove_participant
         end
       end
 
@@ -1236,10 +1275,13 @@ Rails.application.routes.draw do
         collection do
           post :bulk_delete
           get :for_select
+          get "by_contact/:contact_id/personal_details", action: :personal_details_by_contact
         end
         member do
           get :signature_usages, to: "signature_usages#user_history"
           post :send_invite
+          get :personal_details
+          patch :personal_details, action: :update_personal_details
         end
       end
 
@@ -1336,6 +1378,7 @@ Rails.application.routes.draw do
           get :admin_consent_callback
           post :test
           get :users
+          post :import_users
           post :configure_sync
           post :sync_to_storage
           post :sync_to_sharepoint # Legacy alias for sync_to_storage
@@ -2807,8 +2850,14 @@ Rails.application.routes.draw do
             post :bulk_delete
             post :bulk_update
             post :bulk_create
+            get :export
           end
         end
+
+        # Foundation data import (into existing tables)
+        post "import/preview", to: "foundation_imports#preview"
+        post "import/execute", to: "foundation_imports#execute"
+        get "import/status/:session_key", to: "foundation_imports#status"
       end
 
       # Foundation views (user-specific saved views)
@@ -4228,6 +4277,7 @@ Rails.application.routes.draw do
         post "auth/signup", to: "authentication#signup"
         post "auth/forgot_password", to: "authentication#forgot_password"
         post "auth/reset_password", to: "authentication#reset_password"
+        post "auth/validate_reset_token", to: "authentication#validate_reset_token"
         get "auth/me", to: "authentication#me"
 
         # Quote requests (subcontractor view)

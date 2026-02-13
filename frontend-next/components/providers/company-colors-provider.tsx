@@ -98,6 +98,21 @@ export function CompanyColorsProvider({ children }: { children: React.ReactNode 
 }
 
 /**
+ * Parse HSL string (e.g. "161 63% 13%") and return lightness as 0-100
+ */
+function getHslLightness(hsl: string): number {
+  const parts = hsl.replace(/%/g, '').split(/[\s,]+/);
+  return parseFloat(parts[2] || '50');
+}
+
+/**
+ * Return white or dark foreground based on background lightness
+ */
+function contrastForeground(bgHsl: string): string {
+  return getHslLightness(bgHsl) < 55 ? '0 0% 100%' : '0 0% 9%';
+}
+
+/**
  * Apply brand colors to CSS custom properties
  */
 function applyColors(colors: BrandColors) {
@@ -109,7 +124,7 @@ function applyColors(colors: BrandColors) {
 
   // Secondary color (card backgrounds, hover states)
   root.style.setProperty('--secondary', colors.secondary);
-  root.style.setProperty('--secondary-foreground', '0 0% 9%'); // Dark text on light bg
+  root.style.setProperty('--secondary-foreground', contrastForeground(colors.secondary));
 
   // Muted foreground color (labels, disabled text, secondary text)
   // NOTE: We only set --muted-foreground here, NOT --muted
@@ -117,9 +132,9 @@ function applyColors(colors: BrandColors) {
   // --muted-foreground is for text color which can be branded
   root.style.setProperty('--muted-foreground', colors.muted);
 
-  // Accent color (highlights, AI elements)
+  // Accent color (highlights, AI elements, dropdown focus states)
   root.style.setProperty('--accent', colors.accent);
-  root.style.setProperty('--accent-foreground', '0 0% 9%');
+  root.style.setProperty('--accent-foreground', contrastForeground(colors.accent));
 }
 
 /**

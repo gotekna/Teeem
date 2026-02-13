@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AddressSearchInput } from "@/components/ui/address-search-input";
 import {
   Command,
   CommandEmpty,
@@ -706,11 +707,11 @@ export default function NewContactPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
-                <Input
+                <AddressSearchInput
                   id="address"
-                  placeholder="e.g., 123 Main Street, Brisbane QLD 4000"
+                  placeholder="Search address..."
                   value={formData.address}
-                  onChange={(e) => handleChange("address", e.target.value)}
+                  onSelect={(address) => handleChange("address", address)}
                 />
               </div>
 

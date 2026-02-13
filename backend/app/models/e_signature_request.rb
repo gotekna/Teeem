@@ -16,6 +16,7 @@ class ESignatureRequest < ApplicationRecord
   # Associations
   belongs_to :documentable, polymorphic: true, optional: true
   belongs_to :created_by, class_name: "User", optional: true
+  belongs_to :document_type, optional: true
 
   has_many :signers, class_name: "ESignatureSigner", dependent: :destroy
   has_many :events, class_name: "ESignatureEvent", dependent: :destroy
@@ -64,7 +65,15 @@ class ESignatureRequest < ApplicationRecord
         expires_at: 30.days.from_now
       )
 
-      signers.each(&:send_notification!)
+      if sequential_signing?
+        # Only notify the first signer - subsequent signers get notified
+        # after the previous signer completes (see ESignatureSigner#sign!)
+        first_signer = signers.order(:signing_order).first
+        first_signer&.send_notification!
+      else
+        signers.each(&:send_notification!)
+      end
+
       log_event("sent", description: "Request sent for signing")
     end
 
@@ -100,10 +109,11 @@ class ESignatureRequest < ApplicationRecord
       )
 
       generate_certificate!
+      store_signed_document!
       log_event("completed", description: "All signers have signed")
 
       # Send completion notifications
-      ESignatureMailer.completion_notification(self).deliver_later
+      ESignatureEmailService.deliver(ESignatureMailer.completion_notification(self))
     end
   end
 
@@ -122,7 +132,7 @@ class ESignatureRequest < ApplicationRecord
     )
 
     # Notify creator
-    ESignatureMailer.decline_notification(self, signer).deliver_later
+    ESignatureEmailService.deliver(ESignatureMailer.decline_notification(self, signer))
   end
 
   def cancel!(reason: nil)
@@ -130,6 +140,17 @@ class ESignatureRequest < ApplicationRecord
 
     update!(status: "cancelled")
     log_event("cancelled", description: reason || "Request cancelled")
+
+    # Notify all signers and the creator that the request was cancelled
+    begin
+      ESignatureEmailService.deliver(
+        ESignatureMailer.cancellation_notification(self, reason: reason)
+      )
+    rescue => e
+      Rails.logger.error "[ESignature] Cancellation notification failed: #{e.message}"
+      # Don't fail the cancellation if notification fails
+    end
+
     true
   end
 
@@ -141,7 +162,7 @@ class ESignatureRequest < ApplicationRecord
     log_event("expired", description: "Request expired")
 
     # Notify all parties
-    ESignatureMailer.expiration_notification(self).deliver_later
+    ESignatureEmailService.deliver(ESignatureMailer.expiration_notification(self))
   end
 
   # Progress tracking
@@ -221,7 +242,7 @@ class ESignatureRequest < ApplicationRecord
     return unless send_reminders?
 
     signers.pending.each do |signer|
-      ESignatureMailer.reminder(self, signer).deliver_later
+      ESignatureEmailService.deliver(ESignatureMailer.reminder(self, signer))
     end
 
     update!(last_reminder_sent_at: Time.current)
@@ -287,5 +308,93 @@ class ESignatureRequest < ApplicationRecord
 
   def generate_certificate!
     ESignatureCertificate.generate_for!(self)
+  end
+
+  # Store the signed document as a WarehouseDocument in the File Warehouse.
+  # Follows the Form43CertificateGenerator pattern (SSoT: GeneratePdfJob lines 229-252).
+  #
+  # Downloads the original PDF from storage, creates a StorageBlob (deduplicated),
+  # and creates a WarehouseDocument linked to the documentable (Job, Corporate, etc.).
+  def store_signed_document!
+    storage_ref = original_storage_reference
+    return unless storage_ref.present?
+
+    begin
+      # Download original document content from storage
+      # SSoT pattern: Try StorageBlob first (used by DirectorChangeService, signing ceremony),
+      # fall back to S3 direct download (legacy path)
+      blob_source = StorageBlob.find_by(id: storage_ref)
+      if blob_source
+        content = blob_source.download
+      else
+        storage_service = DocumentStorageService.new
+        provider = storage_service.send(:s3_provider)
+        return unless provider
+        content = provider.download_file(storage_ref)
+      end
+      return if content.blank?
+
+      filename = generate_signed_filename
+      source_type = resolve_source_type
+
+      # Reuse existing blob if available, otherwise create new with deduplication
+      blob = blob_source || StorageBlob.find_or_create_for_content!(
+        content,
+        filename: filename,
+        content_type: "application/pdf"
+      )
+
+      # Create WarehouseDocument via standard service (SSoT: WarehouseDocumentCreator)
+      metadata = {
+        "version_status" => "signed",
+        "e_signature_request_id" => id,
+        "request_number" => request_number,
+        "signed_at" => completed_at&.iso8601,
+        "source" => "e_signature"
+      }
+      metadata["document_type_id"] = document_type_id if document_type_id.present?
+      metadata["document_type"] = document_type.name if document_type.present?
+
+      # Resolve warehouse folder from document type (for precise path materialization)
+      warehouse_folder_id = document_type&.primary_warehouse_folder&.id
+
+      WarehouseDocumentCreator.create!(
+        filename: filename,
+        source_type: source_type,
+        linkable: documentable,
+        storage_blob: blob,
+        warehouse_folder_id: warehouse_folder_id,
+        file_size: content.bytesize,
+        content_type: "application/pdf",
+        metadata: metadata
+      )
+
+      Rails.logger.info "[ESignature] Stored signed document for #{request_number} as WarehouseDocument"
+    rescue => e
+      # Don't fail the completion if document storage fails
+      Rails.logger.error "[ESignature] Failed to store signed document for #{request_number}: #{e.message}"
+    end
+  end
+
+  # Generate filename for the signed document.
+  # Uses document type naming template if available, otherwise falls back to title.
+  def generate_signed_filename
+    if document_type&.download_name.present? && documentable.is_a?(Job)
+      document_type.generate_proposed_name(job: documentable, file_extension: "pdf", description: "Signed")
+    else
+      date = CompanySetting.in_company_timezone { Date.today }.strftime("%d-%m-%Y")
+      sanitized_title = title.to_s.gsub(/[<>:"\/\\|?*]/, "_").strip[0..60]
+      "#{sanitized_title} - Signed #{date}.pdf"
+    end
+  end
+
+  # Map documentable_type to WarehouseDocument source_type
+  def resolve_source_type
+    case documentable_type
+    when "Job" then "job"
+    when "Corporate" then "corporate"
+    when "Contact" then "contact"
+    else "corporate"
+    end
   end
 end

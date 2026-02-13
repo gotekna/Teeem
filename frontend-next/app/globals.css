@@ -333,7 +333,19 @@
 }
 
 /* Custom scrollbar styling - TEEEM design system */
-/* Visible but minimal: 8px width, transparent track, rounded thumb */
+/* Always-visible thin scrollbar with subtle track */
+/*
+ * ⚠️ DO NOT SIMPLIFY - Scrollbar visibility fix (Feb 2026)
+ * ════════════════════════════════════════════
+ * Why: Chrome 121+ uses standard scrollbar-color over ::-webkit-scrollbar.
+ * With a transparent track + macOS overlay scrollbars, the scrollbar is
+ * completely invisible until the user scrolls. Users can't discover that
+ * the page is scrollable.
+ *
+ * ❌ WRONG: scrollbar-color: thumb-color transparent (invisible track)
+ * ✅ CORRECT: scrollbar-color: thumb-color track-color (subtle but visible)
+ * ════════════════════════════════════════════
+ */
 
 /* Apply to all scrollable elements in the app */
 *::-webkit-scrollbar {
@@ -342,17 +354,17 @@
 }
 
 *::-webkit-scrollbar-track {
-  background: transparent;
+  background: hsl(var(--muted-foreground) / 0.08);
   border-radius: 0;
 }
 
 *::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.4);
+  background: hsl(var(--muted-foreground) / 0.3);
   border-radius: 4px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.6);
+  background: hsl(var(--muted-foreground) / 0.5);
 }
 
 *::-webkit-scrollbar-corner {
@@ -362,7 +374,29 @@
 /* Firefox + Chrome 121+ (standard scrollbar API) */
 * {
   scrollbar-width: thin;
-  scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.3) hsl(var(--muted-foreground) / 0.08);
+}
+
+/* ⚠️ DO NOT SIMPLIFY - Next.js scroll restoration fix (Feb 2026)
+ * ════════════════════════════════════════════
+ * Why: Next.js App Router sets `overflow: initial` as an inline style on the
+ * main content scroll container during client-side navigation. Inline styles
+ * beat CSS classes in specificity, so overflow-y-auto from Tailwind gets
+ * overridden and scrolling breaks entirely until a full page refresh.
+ *
+ * !important is the ONLY way to override inline styles from CSS classes.
+ * This class is applied to the main content div in app/(app)/layout.tsx.
+ *
+ * ❌ WRONG: Tailwind overflow-y-auto (beaten by inline overflow: initial)
+ * ✅ CORRECT: !important override (beats inline styles)
+ * ════════════════════════════════════════════ */
+.main-scroll-container {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.main-scroll-container-hidden {
+  overflow: hidden !important;
 }
 
 [type="search"]::-webkit-search-cancel-button,

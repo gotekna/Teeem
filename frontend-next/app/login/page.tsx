@@ -13,7 +13,7 @@ import { getApiBaseUrl } from "@/lib/api";
 import Link from "next/link";
 
 function LoginForm() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true); // Default to checked for convenience
   const [error, setError] = useState("");
@@ -45,6 +45,18 @@ function LoginForm() {
     }
   }, [searchParams, router, handleTokenFromRedirect]);
 
+  // Pre-fill email and password from URL params (e.g., welcome email link)
+  useEffect(() => {
+    const emailParam = searchParams.get('email');
+    if (emailParam && !identifier) {
+      setIdentifier(emailParam);
+    }
+    const pwParam = searchParams.get('p');
+    if (pwParam && !password) {
+      setPassword(pwParam);
+    }
+  }, [searchParams]);
+
   // Check for session expired redirect
   useEffect(() => {
     if (searchParams.get('expired') === 'true') {
@@ -68,9 +80,11 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      const result = await login(email, password, rememberMe);
+      const result = await login(identifier, password, rememberMe);
       if (result.success) {
-        router.push("/dashboard");
+        // Force password change shows dialog immediately via layout
+        // Push to dashboard - the ChangePasswordDialog will block interaction
+        router.push(result.forcePasswordChange ? "/settings/security" : "/dashboard");
       } else {
         setError(result.error || "Login failed. Please try again.");
       }
@@ -122,13 +136,13 @@ function LoginForm() {
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="identifier">Username</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="identifier"
+                type="text"
+                placeholder="Enter your username"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
                 disabled={isLoading}
               />
@@ -167,31 +181,7 @@ function LoginForm() {
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Signing in..." : "Sign in"}
             </Button>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or continue with
-                </span>
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleMicrosoftLogin}
-              disabled={isLoading}
-            >
-              <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21" fill="none">
-                <rect x="1" y="1" width="9" height="9" fill="#f25022" />
-                <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
-                <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
-                <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
-              </svg>
-              Microsoft 365
-            </Button>
+            {/* Microsoft 365 SSO - hidden until tenant-level SSO config is built */}
             <p className="text-center text-sm text-muted-foreground">
               Don't have an account?{" "}
               <Link

@@ -1,11 +1,14 @@
 "use client";
 
-import { Fragment } from "react";
-import { Dialog, Transition } from "@headlessui/react";
 import {
-  XMarkIcon,
-  CheckCircleIcon,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   XCircleIcon,
+  CheckCircleIcon,
   ClockIcon,
   BanknotesIcon,
   CalendarIcon,
@@ -107,364 +110,322 @@ export default function PayNowRequestDetailModal({
   if (!request) return null;
 
   return (
-    <Transition.Root show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-muted0 bg-opacity-75 transition-opacity" />
-        </Transition.Child>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30">
+              {getStatusIcon(request.status)}
+            </div>
+            <div>
+              <DialogTitle>Payment Request Details</DialogTitle>
+              <div className="mt-1">
+                <span
+                  className={`inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium ${getStatusBadgeClass(
+                    request.status
+                  )}`}
+                >
+                  {request.status_display}
+                </span>
+              </div>
+            </div>
+          </div>
+        </DialogHeader>
 
-        <div className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-              enterTo="opacity-100 translate-y-0 sm:scale-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 translate-y-0 sm:scale-100"
-              leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-            >
-              <Dialog.Panel className="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-3xl sm:p-6">
-                {/* Close button */}
-                <div className="absolute right-0 top-0 pr-4 pt-4">
-                  <button
-                    type="button"
-                    className="rounded-md bg-white text-muted-foreground hover:text-muted-foreground"
-                    onClick={onClose}
-                  >
-                    <XMarkIcon className="h-6 w-6" />
-                  </button>
+        {/* Content */}
+        <div className="space-y-6">
+          {/* Purchase Order Info */}
+          <div className="bg-muted rounded-lg p-4">
+            <h4 className="text-sm font-medium text-foreground mb-3">
+              Purchase Order
+            </h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">PO Number:</span>
+                <span className="font-medium text-foreground">
+                  {request.purchase_order_number}
+                </span>
+              </div>
+              {request.purchase_order?.construction_name && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Job:</span>
+                  <span className="font-medium text-foreground">
+                    {request.purchase_order.construction_name}
+                  </span>
                 </div>
+              )}
+            </div>
+          </div>
 
-                {/* Header */}
-                <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10">
-                    {getStatusIcon(request.status)}
-                  </div>
-                  <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left flex-1">
-                    <Dialog.Title
-                      as="h3"
-                      className="text-lg font-semibold leading-6 text-foreground"
-                    >
-                      Payment Request Details
-                    </Dialog.Title>
-                    <div className="mt-2">
-                      <span
-                        className={`inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium ${getStatusBadgeClass(
-                          request.status
-                        )}`}
-                      >
-                        {request.status_display}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+          {/* Financial Details */}
+          <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
+            <h4 className="text-sm font-medium text-indigo-900 dark:text-indigo-300 mb-3 flex items-center">
+              <BanknotesIcon className="h-5 w-5 mr-2" />
+              Financial Details
+            </h4>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs text-indigo-600 dark:text-indigo-400">Original Amount</p>
+                <p className="text-lg font-semibold text-foreground">
+                  {request.original_amount}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                  Discount ({request.discount_percentage}%)
+                </p>
+                <p className="text-lg font-semibold text-red-600 dark:text-red-400">
+                  -{request.discount_amount}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-indigo-600 dark:text-indigo-400">Final Payment</p>
+                <p className="text-lg font-semibold text-green-600 dark:text-green-400">
+                  {request.discounted_amount}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-800">
+              <p className="text-xs text-indigo-600 dark:text-indigo-400">Your Savings</p>
+              <p className="text-xl font-bold text-green-600 dark:text-green-400">
+                {request.discount_amount}
+              </p>
+            </div>
+          </div>
 
-                {/* Content */}
-                <div className="mt-6 space-y-6">
-                  {/* Purchase Order Info */}
-                  <div className="bg-muted rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-foreground mb-3">
-                      Purchase Order
-                    </h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">PO Number:</span>
-                        <span className="font-medium text-foreground">
-                          {request.purchase_order_number}
+          {/* Timeline */}
+          <div>
+            <h4 className="text-sm font-medium text-foreground mb-3 flex items-center">
+              <CalendarIcon className="h-5 w-5 mr-2" />
+              Timeline
+            </h4>
+            <div className="flow-root">
+              <ul className="-mb-8">
+                {/* Requested */}
+                <li>
+                  <div className="relative pb-8">
+                    <span
+                      className="absolute left-4 top-4 -ml-px h-full w-0.5 bg-muted"
+                      aria-hidden="true"
+                    />
+                    <div className="relative flex space-x-3">
+                      <div>
+                        <span className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center ring-8 ring-background">
+                          <ClockIcon className="h-5 w-5 text-white" />
                         </span>
                       </div>
-                      {request.purchase_order?.construction_name && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Job:</span>
-                          <span className="font-medium text-foreground">
-                            {request.purchase_order.construction_name}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Financial Details */}
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-indigo-900 mb-3 flex items-center">
-                      <BanknotesIcon className="h-5 w-5 mr-2" />
-                      Financial Details
-                    </h4>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-xs text-indigo-600">Original Amount</p>
-                        <p className="text-lg font-semibold text-foreground">
-                          {request.original_amount}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-indigo-600">
-                          Discount ({request.discount_percentage}%)
-                        </p>
-                        <p className="text-lg font-semibold text-red-600 dark:text-red-400">
-                          -{request.discount_amount}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-indigo-600">Final Payment</p>
-                        <p className="text-lg font-semibold text-green-600 dark:text-green-400">
-                          {request.discounted_amount}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-indigo-200">
-                      <p className="text-xs text-indigo-600">Your Savings</p>
-                      <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                        {request.discount_amount}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Timeline */}
-                  <div>
-                    <h4 className="text-sm font-medium text-foreground mb-3 flex items-center">
-                      <CalendarIcon className="h-5 w-5 mr-2" />
-                      Timeline
-                    </h4>
-                    <div className="flow-root">
-                      <ul className="-mb-8">
-                        {/* Requested */}
-                        <li>
-                          <div className="relative pb-8">
-                            <span
-                              className="absolute left-4 top-4 -ml-px h-full w-0.5 bg-muted"
-                              aria-hidden="true"
-                            />
-                            <div className="relative flex space-x-3">
-                              <div>
-                                <span className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center ring-8 ring-white">
-                                  <ClockIcon className="h-5 w-5 text-white" />
-                                </span>
-                              </div>
-                              <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
-                                <div>
-                                  <p className="text-sm text-muted-foreground">
-                                    Request Submitted
-                                  </p>
-                                </div>
-                                <div className="whitespace-nowrap text-right text-sm text-muted-foreground">
-                                  {formatDate(request.requested_at)}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </li>
-
-                        {/* Reviewed */}
-                        {request.reviewed_at && (
-                          <li>
-                            <div className="relative pb-8">
-                              <span
-                                className="absolute left-4 top-4 -ml-px h-full w-0.5 bg-muted"
-                                aria-hidden="true"
-                              />
-                              <div className="relative flex space-x-3">
-                                <div>
-                                  <span
-                                    className={`h-8 w-8 rounded-full ${
-                                      request.status === "rejected"
-                                        ? "bg-red-500"
-                                        : "bg-green-500"
-                                    } flex items-center justify-center ring-8 ring-white`}
-                                  >
-                                    {request.status === "rejected" ? (
-                                      <XCircleIcon className="h-5 w-5 text-white" />
-                                    ) : (
-                                      <CheckCircleIcon className="h-5 w-5 text-white" />
-                                    )}
-                                  </span>
-                                </div>
-                                <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">
-                                      {request.status === "rejected"
-                                        ? "Rejected"
-                                        : "Approved"}{" "}
-                                      by {request.reviewed_by || "Supervisor"}
-                                    </p>
-                                    {request.supervisor_notes && (
-                                      <p className="mt-1 text-sm text-foreground">
-                                        {request.supervisor_notes}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div className="whitespace-nowrap text-right text-sm text-muted-foreground">
-                                    {formatDate(request.reviewed_at)}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </li>
-                        )}
-
-                        {/* Paid */}
-                        {request.paid_at && (
-                          <li>
-                            <div className="relative pb-8">
-                              <div className="relative flex space-x-3">
-                                <div>
-                                  <span className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center ring-8 ring-white">
-                                    <BanknotesIcon className="h-5 w-5 text-white" />
-                                  </span>
-                                </div>
-                                <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
-                                  <div>
-                                    <p className="text-sm text-muted-foreground">
-                                      Payment Processed
-                                    </p>
-                                    {request.payment?.reference_number && (
-                                      <p className="mt-1 text-xs text-muted-foreground">
-                                        Ref: {request.payment.reference_number}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div className="whitespace-nowrap text-right text-sm text-muted-foreground">
-                                    {formatDate(request.paid_at)}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* Rejection Reason */}
-                  {request.rejection_reason && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <h4 className="text-sm font-medium text-red-900 mb-2">
-                        Rejection Reason
-                      </h4>
-                      <p className="text-sm text-red-800">
-                        {request.rejection_reason}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Supplier Notes */}
-                  {request.supplier_notes && (
-                    <div className="bg-muted rounded-lg p-4">
-                      <h4 className="text-sm font-medium text-foreground mb-2 flex items-center">
-                        <DocumentTextIcon className="h-5 w-5 mr-2" />
-                        Your Notes
-                      </h4>
-                      <p className="text-sm text-foreground">
-                        {request.supplier_notes}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Attachments */}
-                  {(request.invoice_file_url ||
-                    (request.proof_photos && request.proof_photos.length > 0)) && (
-                    <div>
-                      <h4 className="text-sm font-medium text-foreground mb-3 flex items-center">
-                        <PhotoIcon className="h-5 w-5 mr-2" />
-                        Attachments
-                      </h4>
-
-                      {request.invoice_file_url && (
-                        <div className="mb-3">
-                          <p className="text-xs text-muted-foreground mb-1">Invoice File</p>
-                          <a
-                            href={request.invoice_file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800"
-                          >
-                            <DocumentTextIcon className="h-4 w-4 mr-1" />
-                            View Invoice
-                          </a>
-                        </div>
-                      )}
-
-                      {request.proof_photos && request.proof_photos.length > 0 && (
+                      <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
                         <div>
-                          <p className="text-xs text-muted-foreground mb-2">
-                            Proof of Completion ({request.proof_photos.length} photos)
+                          <p className="text-sm text-muted-foreground">
+                            Request Submitted
                           </p>
-                          <div className="grid grid-cols-4 gap-2">
-                            {request.proof_photos.map((photo, index) => (
-                              <a
-                                key={index}
-                                href={photo}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="aspect-square rounded-lg overflow-hidden bg-muted hover:opacity-75 transition"
-                              >
-                                <img
-                                  src={photo}
-                                  alt={`Proof ${index + 1}`}
-                                  className="w-full h-full object-cover"
-                                />
-                              </a>
-                            ))}
-                          </div>
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Payment Details */}
-                  {request.payment && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <h4 className="text-sm font-medium text-green-900 mb-3">
-                        Payment Information
-                      </h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-green-700">Amount Paid:</span>
-                          <span className="font-medium text-green-900">
-                            {formatCurrency(request.payment.amount)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-green-700">Payment Date:</span>
-                          <span className="font-medium text-green-900">
-                            {formatDate(request.payment.payment_date)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-green-700">Reference:</span>
-                          <span className="font-medium text-green-900">
-                            {request.payment.reference_number}
-                          </span>
+                        <div className="whitespace-nowrap text-right text-sm text-muted-foreground">
+                          {formatDate(request.requested_at)}
                         </div>
                       </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                </li>
 
-                {/* Footer */}
-                <div className="mt-6">
-                  <button
-                    type="button"
-                    className="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                    onClick={onClose}
-                  >
-                    Close
-                  </button>
-                </div>
-              </Dialog.Panel>
-            </Transition.Child>
+                {/* Reviewed */}
+                {request.reviewed_at && (
+                  <li>
+                    <div className="relative pb-8">
+                      <span
+                        className="absolute left-4 top-4 -ml-px h-full w-0.5 bg-muted"
+                        aria-hidden="true"
+                      />
+                      <div className="relative flex space-x-3">
+                        <div>
+                          <span
+                            className={`h-8 w-8 rounded-full ${
+                              request.status === "rejected"
+                                ? "bg-red-500"
+                                : "bg-green-500"
+                            } flex items-center justify-center ring-8 ring-background`}
+                          >
+                            {request.status === "rejected" ? (
+                              <XCircleIcon className="h-5 w-5 text-white" />
+                            ) : (
+                              <CheckCircleIcon className="h-5 w-5 text-white" />
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
+                          <div>
+                            <p className="text-sm text-muted-foreground">
+                              {request.status === "rejected"
+                                ? "Rejected"
+                                : "Approved"}{" "}
+                              by {request.reviewed_by || "Supervisor"}
+                            </p>
+                            {request.supervisor_notes && (
+                              <p className="mt-1 text-sm text-foreground">
+                                {request.supervisor_notes}
+                              </p>
+                            )}
+                          </div>
+                          <div className="whitespace-nowrap text-right text-sm text-muted-foreground">
+                            {formatDate(request.reviewed_at)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                )}
+
+                {/* Paid */}
+                {request.paid_at && (
+                  <li>
+                    <div className="relative pb-8">
+                      <div className="relative flex space-x-3">
+                        <div>
+                          <span className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center ring-8 ring-background">
+                            <BanknotesIcon className="h-5 w-5 text-white" />
+                          </span>
+                        </div>
+                        <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
+                          <div>
+                            <p className="text-sm text-muted-foreground">
+                              Payment Processed
+                            </p>
+                            {request.payment?.reference_number && (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Ref: {request.payment.reference_number}
+                              </p>
+                            )}
+                          </div>
+                          <div className="whitespace-nowrap text-right text-sm text-muted-foreground">
+                            {formatDate(request.paid_at)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                )}
+              </ul>
+            </div>
           </div>
+
+          {/* Rejection Reason */}
+          {request.rejection_reason && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-red-900 dark:text-red-300 mb-2">
+                Rejection Reason
+              </h4>
+              <p className="text-sm text-red-800 dark:text-red-400">
+                {request.rejection_reason}
+              </p>
+            </div>
+          )}
+
+          {/* Supplier Notes */}
+          {request.supplier_notes && (
+            <div className="bg-muted rounded-lg p-4">
+              <h4 className="text-sm font-medium text-foreground mb-2 flex items-center">
+                <DocumentTextIcon className="h-5 w-5 mr-2" />
+                Your Notes
+              </h4>
+              <p className="text-sm text-foreground">
+                {request.supplier_notes}
+              </p>
+            </div>
+          )}
+
+          {/* Attachments */}
+          {(request.invoice_file_url ||
+            (request.proof_photos && request.proof_photos.length > 0)) && (
+            <div>
+              <h4 className="text-sm font-medium text-foreground mb-3 flex items-center">
+                <PhotoIcon className="h-5 w-5 mr-2" />
+                Attachments
+              </h4>
+
+              {request.invoice_file_url && (
+                <div className="mb-3">
+                  <p className="text-xs text-muted-foreground mb-1">Invoice File</p>
+                  <a
+                    href={request.invoice_file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800"
+                  >
+                    <DocumentTextIcon className="h-4 w-4 mr-1" />
+                    View Invoice
+                  </a>
+                </div>
+              )}
+
+              {request.proof_photos && request.proof_photos.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Proof of Completion ({request.proof_photos.length} photos)
+                  </p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {request.proof_photos.map((photo, index) => (
+                      <a
+                        key={index}
+                        href={photo}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="aspect-square rounded-lg overflow-hidden bg-muted hover:opacity-75 transition"
+                      >
+                        <img
+                          src={photo}
+                          alt={`Proof ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Payment Details */}
+          {request.payment && (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-green-900 dark:text-green-300 mb-3">
+                Payment Information
+              </h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-green-700 dark:text-green-400">Amount Paid:</span>
+                  <span className="font-medium text-green-900 dark:text-green-300">
+                    {formatCurrency(request.payment.amount)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-green-700 dark:text-green-400">Payment Date:</span>
+                  <span className="font-medium text-green-900 dark:text-green-300">
+                    {formatDate(request.payment.payment_date)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-green-700 dark:text-green-400">Reference:</span>
+                  <span className="font-medium text-green-900 dark:text-green-300">
+                    {request.payment.reference_number}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      </Dialog>
-    </Transition.Root>
+
+        {/* Footer */}
+        <div className="mt-2">
+          <button
+            type="button"
+            className="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -9,6 +9,8 @@
 #
 # Part of "Scale Xero Sync to 15k" plan (Phase 3)
 class RefreshXeroStatsCacheJob < ApplicationJob
+  include DeduplicatableJob
+
   queue_as :low
 
   def perform

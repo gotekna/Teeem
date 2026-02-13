@@ -38,12 +38,63 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
 // Types
+interface ClassificationSuggestion {
+  name: string;
+  confidence: number;
+  match_type: string;
+  matched_term: string | null;
+}
+
+interface MethodResult {
+  document_type: string | null;
+  confidence: number;
+  method: string;
+  status: "completed" | "not_applicable" | "disabled" | "error";
+  signals: string[];
+  matched_document_type?: string;
+  suggestions?: ClassificationSuggestion[];
+  text_preview?: string;
+  reason?: string;
+  duration_ms?: number;
+}
+
+interface ClassificationResult {
+  document_type: string | null;
+  confidence: number;
+  method: string;
+  signals: string[];
+  matched_document_type?: string;
+  suggestions?: ClassificationSuggestion[];
+  classified_at: string;
+  // New 3-method fields
+  winner?: string;
+  methods?: {
+    name_match: MethodResult;
+    content_match: MethodResult;
+    ai_match: MethodResult;
+  };
+}
+
 interface DocumentInboxItem {
   id: number;
   source: string;
@@ -67,6 +118,7 @@ interface DocumentInboxItem {
   source_icon: string;
   display_name: string;
   can_auto_route: boolean;
+  classification_result: ClassificationResult | null;
   created_at: string;
   updated_at: string;
 }
@@ -119,18 +171,33 @@ const STATUS_COLORS: Record<string, string> = {
   red: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
 };
 
-// Document type options
-const DOCUMENT_TYPES = [
-  { value: "invoice", label: "Invoice" },
-  { value: "plan", label: "Plan/Drawing" },
-  { value: "quote", label: "Quote/Estimate" },
-  { value: "contract", label: "Contract" },
-  { value: "purchase_order", label: "Purchase Order" },
-  { value: "work_order", label: "Work Order" },
-  { value: "certificate", label: "Certificate" },
-  { value: "compliance", label: "Compliance" },
-  { value: "correspondence", label: "Correspondence" },
-  { value: "email", label: "Email" },
+// Classification method labels
+const METHOD_LABELS: Record<string, string> = {
+  filename_pattern: "Filename pattern match",
+  content_type: "Content type detection",
+  file_extension: "File extension detection",
+  document_type_matcher: "Document type matcher",
+  ai: "AI classification",
+  default: "Default (no match)",
+};
+
+// Display names for the 3 classification methods
+const METHOD_DISPLAY_NAMES: Record<string, string> = {
+  name_match: "Name Match",
+  content_match: "Content Match (OCR)",
+  ai_match: "AI Match",
+};
+
+// Status labels for method results
+const METHOD_STATUS_LABELS: Record<string, string> = {
+  completed: "Completed",
+  not_applicable: "N/A",
+  disabled: "Disabled",
+  error: "Error",
+};
+
+// Fallback document type options (used while DB types load)
+const FALLBACK_DOCUMENT_TYPES = [
   { value: "general", label: "General" },
 ];
 
@@ -147,11 +214,107 @@ export default function DocsortPage() {
   const [selectedItem, setSelectedItem] = useState<DocumentInboxItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const [reclassifyingAll, setReclassifyingAll] = useState(false);
+  const [documentTypes, setDocumentTypes] = useState<{ value: string; label: string; id?: number; folderPath?: string; targetFolder?: string; uiName?: string; downloadName?: string }[]>(FALLBACK_DOCUMENT_TYPES);
+  const [companies, setCompanies] = useState<ComboboxItem[]>([]);
+  const [companyGroupMap, setCompanyGroupMap] = useState<Record<string, string>>({});
+  const [selectedCorporate, setSelectedCorporate] = useState<ComboboxItem | undefined>();
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Load document types from database
+  const loadDocumentTypes = useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; primary_folder_path?: string; target_folder?: string; uiName?: string; downloadName?: string }> }>(
+        "/api/v1/document_types"
+      );
+      if (response?.data) {
+        const types = response.data.map((dt) => ({
+          // Match Rails .parameterize(separator: '_')
+          value: dt.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
+          label: dt.name,
+          id: dt.id,
+          folderPath: dt.primary_folder_path,
+          targetFolder: dt.target_folder,
+          uiName: dt.uiName,
+          downloadName: dt.downloadName,
+        }));
+        // Add "General" at the end if not already present
+        if (!types.find((t) => t.value === "general")) {
+          types.push({ value: "general", label: "General", id: 0, folderPath: undefined, targetFolder: undefined, uiName: undefined, downloadName: undefined });
+        }
+        setDocumentTypes(types);
+      }
+    } catch (error) {
+      console.error("Failed to load document types:", error);
+    }
+  }, []);
+
+  // Load companies for the filing dropdown
+  const loadCompanies = useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; companies: Array<{ id: number; name: string; company_code?: string; company_group?: { id: number; name: string } | null }> }>(
+        "/api/v1/companies?include_unlinked=true"
+      );
+      if (response?.companies) {
+        setCompanies(
+          response.companies.map((c) => ({
+            id: c.id.toString(),
+            label: c.name,
+            searchText: c.company_code || undefined,
+          }))
+        );
+        // Build company ID → group name map for template expansion
+        const groupMap: Record<string, string> = {};
+        for (const c of response.companies) {
+          if (c.company_group?.name) {
+            groupMap[c.id.toString()] = c.company_group.name;
+          }
+        }
+        setCompanyGroupMap(groupMap);
+      }
+    } catch (error) {
+      console.error("Failed to load companies:", error);
+    }
+  }, []);
+
+  // Load document types and companies once on mount
+  useEffect(() => {
+    loadDocumentTypes();
+    loadCompanies();
+  }, [loadDocumentTypes, loadCompanies]);
+
+  // Auto-detect company from filename by finding the longest company name match
+  const detectCompanyFromFilename = useCallback((filename: string | null): ComboboxItem | undefined => {
+    if (!filename || companies.length === 0) return undefined;
+    // Strip extension and normalize
+    const baseName = filename.replace(/\.[^.]+$/, "");
+
+    // Normalize abbreviations so "Ltd" matches "Limited", "Pty" matches "Proprietary", etc.
+    const normalizeAbbreviations = (s: string) =>
+      s.toLowerCase()
+        .replace(/\blimited\b/g, "ltd")
+        .replace(/\bproprietary\b/g, "pty")
+        .replace(/\bincorporated\b/g, "inc")
+        .replace(/\bcorporation\b/g, "corp")
+        .trim();
+
+    const normalizedFilename = normalizeAbbreviations(baseName);
+    let bestMatch: ComboboxItem | undefined;
+    let bestLength = 0;
+    for (const company of companies) {
+      // Strip trailing markers like " *" and normalize abbreviations
+      const name = normalizeAbbreviations(company.label.replace(/\s*\*\s*$/, ""));
+      if (name.length > 2 && normalizedFilename.includes(name) && name.length > bestLength) {
+        bestMatch = company;
+        bestLength = name.length;
+      }
+    }
+    return bestMatch;
+  }, [companies]);
 
   // Load items and stats
   const loadData = useCallback(async () => {
@@ -267,8 +430,14 @@ export default function DocsortPage() {
   const handleClassify = async (item: DocumentInboxItem) => {
     setProcessingId(item.id);
     try {
-      await api.post(`/api/v1/document_inboxes/${item.id}/classify`);
-      toast({ title: "Classification started" });
+      const response = await api.post<{ success: boolean; item: DocumentInboxItem }>(
+        `/api/v1/document_inboxes/${item.id}/classify`
+      );
+      toast({ title: "Re-classified successfully" });
+      // Update the selected item with fresh data if it's the one we just classified
+      if (response?.item && selectedItem?.id === item.id) {
+        setSelectedItem(response.item);
+      }
       loadData();
     } catch (error) {
       toast({
@@ -280,11 +449,40 @@ export default function DocsortPage() {
     }
   };
 
-  const handleRoute = async (item: DocumentInboxItem, jobId?: number) => {
+  const handleReclassifyAll = async () => {
+    const classifiableItems = items.filter((item) => item.status !== "completed");
+    if (classifiableItems.length === 0) {
+      toast({ title: "No items to re-classify", description: "All items are already completed" });
+      return;
+    }
+
+    setReclassifyingAll(true);
+    let success = 0;
+    let failed = 0;
+
+    for (const item of classifiableItems) {
+      try {
+        await api.post(`/api/v1/document_inboxes/${item.id}/classify`);
+        success++;
+      } catch {
+        failed++;
+      }
+    }
+
+    toast({
+      title: "Re-classification complete",
+      description: `${success} classified${failed > 0 ? `, ${failed} failed` : ""}`,
+    });
+    loadData();
+    setReclassifyingAll(false);
+  };
+
+  const handleRoute = async (item: DocumentInboxItem, jobId?: number, corporateId?: string) => {
     setProcessingId(item.id);
     try {
       const params: any = {};
       if (jobId) params.job_id = jobId;
+      if (corporateId) params.corporate_id = corporateId;
 
       const response = await api.post<{ success: boolean; routing: any }>(
         `/api/v1/document_inboxes/${item.id}/route`,
@@ -385,6 +583,15 @@ export default function DocsortPage() {
               <span>{stats.today_count} today</span>
             </div>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReclassifyAll}
+            disabled={reclassifyingAll || loading || items.length === 0}
+          >
+            <ArrowPathIcon className={cn("h-4 w-4 mr-2", reclassifyingAll && "animate-spin")} />
+            {reclassifyingAll ? "Re-classifying..." : "Re-classify All"}
+          </Button>
           <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
             <ArrowPathIcon className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
             Refresh
@@ -439,53 +646,36 @@ export default function DocsortPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col gap-2 p-4 border-b bg-muted/30">
-            <div className="flex items-center gap-3">
-              <SearchInput value={searchQuery} onChange={setSearchQuery} className="flex-1 max-w-xs" />
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px]">
-                  <FunnelIcon className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="classified">Classified</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="error">Errors</SelectItem>
-                  <SelectItem value="all">All</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {/* Document type filter chips */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-xs text-muted-foreground mr-1">Type:</span>
-              <button
-                onClick={() => setTypeFilter("all")}
-                className={cn(
-                  "px-2 py-0.5 text-xs rounded-full border transition-colors",
-                  typeFilter === "all"
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background hover:bg-muted border-border"
-                )}
-              >
-                All
-              </button>
-              {DOCUMENT_TYPES.map((type) => (
-                <button
-                  key={type.value}
-                  onClick={() => setTypeFilter(type.value)}
-                  className={cn(
-                    "px-2 py-0.5 text-xs rounded-full border transition-colors",
-                    typeFilter === type.value
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background hover:bg-muted border-border"
-                  )}
-                >
-                  {type.label}
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center gap-3 p-4 border-b bg-muted/30">
+            <SearchInput value={searchQuery} onChange={setSearchQuery} className="flex-1 max-w-xs" />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]">
+                <FunnelIcon className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="classified">Classified</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="error">Errors</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-[200px]">
+                <DocumentIcon className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Document Type" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                <SelectItem value="all">All Types</SelectItem>
+                {documentTypes.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* List */}
@@ -513,7 +703,11 @@ export default function DocsortPage() {
                         "flex items-center gap-4 px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors",
                         selectedItem?.id === item.id && "bg-muted"
                       )}
-                      onClick={() => setSelectedItem(item)}
+                      onClick={() => {
+                        setSelectedItem(item);
+                        setSelectedCorporate(detectCompanyFromFilename(item.original_filename));
+                        setDrawerOpen(true);
+                      }}
                     >
                       {/* Icon */}
                       <div className="flex-shrink-0">
@@ -547,8 +741,52 @@ export default function DocsortPage() {
                         {item.document_type && (
                           <Badge className={cn("text-xs", CONFIDENCE_COLORS[item.confidence_color])}>
                             {item.document_type_label}
-                            {item.confidence_percent && ` (${item.confidence_percent}%)`}
+                            {item.confidence_percent != null && ` (${item.confidence_percent}%)`}
                           </Badge>
+                        )}
+
+                        {/* 3-method indicators */}
+                        {item.classification_result?.methods && (
+                          <div className="flex items-center gap-1">
+                            {(["name_match", "content_match", "ai_match"] as const).map((key) => {
+                              const m = (item.classification_result!.methods as Record<string, MethodResult>)[key];
+                              if (!m) return null;
+                              const isWinner = item.classification_result!.winner === key;
+                              const pct = Math.round(m.confidence * 100);
+                              const label = key === "name_match" ? "N" : key === "content_match" ? "O" : "AI";
+                              const hasResult = m.status === "completed" && m.document_type;
+
+                              return (
+                                <TooltipProvider key={key} delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span
+                                        className={cn(
+                                          "inline-flex items-center text-[10px] font-medium rounded px-1 py-0.5 tabular-nums",
+                                          isWinner
+                                            ? "bg-primary/15 text-primary ring-1 ring-primary/30"
+                                            : hasResult
+                                              ? "bg-muted text-muted-foreground"
+                                              : "bg-muted/50 text-muted-foreground/50"
+                                        )}
+                                      >
+                                        {label}:{hasResult ? `${pct}%` : "—"}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="text-xs">
+                                      <p className="font-medium">{METHOD_DISPLAY_NAMES[key]}</p>
+                                      {hasResult ? (
+                                        <p>{m.matched_document_type || m.document_type} — {pct}%</p>
+                                      ) : (
+                                        <p className="text-muted-foreground">{METHOD_STATUS_LABELS[m.status] || m.status}</p>
+                                      )}
+                                      {isWinner && <p className="text-primary">Winner</p>}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              );
+                            })}
+                          </div>
                         )}
 
                         {/* Status badge - clickable dropdown for pending items */}
@@ -567,7 +805,7 @@ export default function DocsortPage() {
                               <SelectValue placeholder="pending" />
                             </SelectTrigger>
                             <SelectContent>
-                              {DOCUMENT_TYPES.map((type) => (
+                              {documentTypes.map((type) => (
                                 <SelectItem key={type.value} value={type.value}>
                                   {type.label}
                                 </SelectItem>
@@ -622,6 +860,7 @@ export default function DocsortPage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedItem(item);
+                          setSelectedCorporate(detectCompanyFromFilename(item.original_filename));
                           setDrawerOpen(true);
                         }}
                         className="p-1 rounded hover:bg-muted transition-colors"
@@ -639,9 +878,12 @@ export default function DocsortPage() {
         {/* Right: Detail panel */}
         <Sheet open={drawerOpen} onOpenChange={(open) => {
           setDrawerOpen(open);
-          if (!open) setSelectedItem(null);
+          if (!open) {
+            setSelectedItem(null);
+            setSelectedCorporate(undefined);
+          }
         }}>
-          <SheetContent className="w-[400px] sm:w-[540px]">
+          <SheetContent side="right-xl" className="overflow-y-auto">
             {selectedItem && (
               <>
                 <SheetHeader>
@@ -660,7 +902,7 @@ export default function DocsortPage() {
                 </SheetHeader>
 
                 <div className="mt-6 space-y-6">
-                  {/* Classification */}
+                  {/* Classification Header */}
                   <div>
                     <h4 className="text-sm font-medium mb-3">Classification</h4>
                     <div className="space-y-3">
@@ -675,7 +917,7 @@ export default function DocsortPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {DOCUMENT_TYPES.map((type) => (
+                            {documentTypes.map((type) => (
                               <SelectItem key={type.value} value={type.value}>
                                 {type.label}
                               </SelectItem>
@@ -683,6 +925,93 @@ export default function DocsortPage() {
                           </SelectContent>
                         </Select>
                       </div>
+                      {/* Folder path, proposed names, and doc type link */}
+                      {(() => {
+                        const matchedType = documentTypes.find(
+                          (t) => t.value === (selectedItem.document_type || "general")
+                        );
+                        if (!matchedType || matchedType.value === "general") return null;
+
+                        // Expand {{Token}} placeholders with available context
+                        const expandTemplate = (template: string | undefined) => {
+                          if (!template) return null;
+                          const now = new Date();
+                          const dd = String(now.getDate()).padStart(2, '0');
+                          const mm = String(now.getMonth() + 1).padStart(2, '0');
+                          const yyyy = now.getFullYear();
+                          const originalFilename = selectedItem.original_filename || selectedItem.display_name || '';
+                          const baseName = originalFilename.replace(/\.[^/.]+$/, '');
+                          const ext = originalFilename.split('.').pop() || '';
+
+                          let result = template;
+                          const tokens: Record<string, string> = {
+                            DocTypeName: matchedType.label,
+                            DocTypeCode: matchedType.value,
+                            CompanyName: selectedCorporate?.label || '',
+                            CompanyCode: selectedCorporate?.searchText || '',
+                            CompanyGroup: (selectedCorporate?.id && companyGroupMap[selectedCorporate.id]) || '',
+                            Date: `${dd}-${mm}-${yyyy}`,
+                            DDMMYYYY: `${dd}-${mm}-${yyyy}`,
+                            YYYYMMDD: `${yyyy}-${mm}-${dd}`,
+                            OriginalFileName: baseName,
+                            OriginalFileNameWithExt: originalFilename,
+                            FileExtension: ext,
+                            Subject: selectedItem.subject || '',
+                            FromEmail: selectedItem.from_email || '',
+                          };
+                          for (const [key, val] of Object.entries(tokens)) {
+                            if (val) {
+                              result = result.replaceAll(`{{${key}}}`, val).replaceAll(`{${key}}`, val);
+                            }
+                          }
+                          // Clean unreplaced tokens
+                          result = result.replace(/\s*\{\{?[^}]+\}?\}\s*/g, ' ').replace(/\s+/g, ' ').trim();
+                          return result || null;
+                        };
+
+                        const proposedFolder = expandTemplate(matchedType.targetFolder);
+                        const proposedUiName = expandTemplate(matchedType.uiName);
+                        const proposedDlName = expandTemplate(matchedType.downloadName);
+
+                        return (
+                          <div className="space-y-1.5">
+                            {matchedType.targetFolder && (
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-sm text-muted-foreground shrink-0">Folder Path</span>
+                                <span className="text-sm text-right text-muted-foreground/80 font-mono truncate" title={`Template: ${matchedType.targetFolder}\nResolved: ${proposedFolder}`}>
+                                  {proposedFolder || matchedType.targetFolder}
+                                </span>
+                              </div>
+                            )}
+                            {proposedUiName && (
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-sm text-muted-foreground shrink-0">Proposed UI Name</span>
+                                <span className="text-sm text-right truncate" title={`Template: ${matchedType.uiName}\nResolved: ${proposedUiName}`}>
+                                  {proposedUiName}
+                                </span>
+                              </div>
+                            )}
+                            {proposedDlName && (
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-sm text-muted-foreground shrink-0">Proposed DL Name</span>
+                                <span className="text-sm text-right truncate" title={`Template: ${matchedType.downloadName}\nResolved: ${proposedDlName}`}>
+                                  {proposedDlName}
+                                </span>
+                              </div>
+                            )}
+                            {matchedType.id && (
+                              <div className="flex items-center justify-end">
+                                <button
+                                  onClick={() => window.open(`/admin/system/document-types/${matchedType.id}`, '_blank')}
+                                  className="text-xs text-primary hover:underline"
+                                >
+                                  Open Document Type Settings →
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {selectedItem.classification_confidence !== null && (
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-muted-foreground">Confidence</span>
@@ -700,24 +1029,224 @@ export default function DocsortPage() {
                     </div>
                   </div>
 
+                  {/* 3-Method Classification Display */}
+                  {selectedItem.classification_result?.methods ? (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Classification Methods</h4>
+                      <Accordion
+                        type="multiple"
+                        defaultValue={selectedItem.classification_result.winner ? [selectedItem.classification_result.winner] : ["name_match"]}
+                        className="w-full"
+                      >
+                        {(Object.entries(selectedItem.classification_result.methods) as [string, MethodResult][]).map(
+                          ([methodKey, methodResult]) => {
+                            const isWinner = selectedItem.classification_result?.winner === methodKey;
+                            const hasResult = methodResult.status === "completed" && methodResult.document_type;
+                            const confidencePercent = Math.round(methodResult.confidence * 100);
+                            const docTypeLabel = hasResult
+                              ? documentTypes.find((t) => t.value === methodResult.document_type)?.label || methodResult.document_type
+                              : null;
+
+                            return (
+                              <AccordionItem key={methodKey} value={methodKey} className="border-b last:border-b-0">
+                                <AccordionTrigger className="py-3 text-sm hover:no-underline">
+                                  <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+                                    <span className="font-medium shrink-0">
+                                      {METHOD_DISPLAY_NAMES[methodKey] || methodKey}
+                                    </span>
+                                    {hasResult ? (
+                                      <>
+                                        <span className="text-muted-foreground truncate">{docTypeLabel}</span>
+                                        <Badge
+                                          variant="outline"
+                                          className={cn(
+                                            "text-xs shrink-0",
+                                            confidencePercent >= 80
+                                              ? "border-green-500 text-green-700 dark:text-green-400"
+                                              : confidencePercent >= 60
+                                                ? "border-yellow-500 text-yellow-700 dark:text-yellow-400"
+                                                : "border-gray-400 text-gray-600 dark:text-gray-400"
+                                          )}
+                                        >
+                                          {confidencePercent}%
+                                        </Badge>
+                                      </>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">
+                                        {METHOD_STATUS_LABELS[methodResult.status] || methodResult.status}
+                                      </span>
+                                    )}
+                                    {isWinner && (
+                                      <Badge className="text-xs bg-primary/10 text-primary border-primary/30 shrink-0">
+                                        Winner
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="text-sm">
+                                  <div className="space-y-2 pl-1">
+                                    {/* Signals / Matched Terms */}
+                                    {methodResult.signals && methodResult.signals.length > 0 && (
+                                      <div>
+                                        <span className="text-xs text-muted-foreground">
+                                          {methodKey === "content_match" ? "Matched Terms" : "Signals"}
+                                        </span>
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {methodResult.signals.map((signal, i) => (
+                                            <Badge key={i} variant="outline" className="text-xs font-mono">
+                                              {signal}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Text Preview (Content Match / OCR) */}
+                                    {methodResult.text_preview && (
+                                      <div>
+                                        <span className="text-xs text-muted-foreground">Text Preview</span>
+                                        <p className="text-xs mt-1 p-2 rounded bg-muted/50 font-mono whitespace-pre-wrap line-clamp-4">
+                                          {methodResult.text_preview}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {/* Suggestions (Name Match) */}
+                                    {methodResult.suggestions && methodResult.suggestions.length > 0 && (
+                                      <div>
+                                        <span className="text-xs text-muted-foreground">Suggestions</span>
+                                        <div className="space-y-1 mt-1">
+                                          {methodResult.suggestions.map((suggestion, i) => (
+                                            <div
+                                              key={i}
+                                              className="flex items-center justify-between p-1.5 rounded bg-muted/50 text-xs"
+                                            >
+                                              <div className="flex-1 min-w-0">
+                                                <span className="font-medium">{suggestion.name}</span>
+                                                {suggestion.matched_term && (
+                                                  <span className="text-muted-foreground ml-1">
+                                                    via {suggestion.match_type}: &quot;{suggestion.matched_term}&quot;
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <Badge
+                                                variant="outline"
+                                                className={cn(
+                                                  "text-xs ml-2 shrink-0",
+                                                  suggestion.confidence >= 80
+                                                    ? "border-green-500 text-green-700 dark:text-green-400"
+                                                    : suggestion.confidence >= 60
+                                                      ? "border-yellow-500 text-yellow-700 dark:text-yellow-400"
+                                                      : "border-gray-400 text-gray-600 dark:text-gray-400"
+                                                )}
+                                              >
+                                                {suggestion.confidence}%
+                                              </Badge>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Reason (for N/A, disabled, error) */}
+                                    {methodResult.reason && (
+                                      <p className="text-xs text-muted-foreground italic">{methodResult.reason}</p>
+                                    )}
+
+                                    {/* Duration */}
+                                    {methodResult.duration_ms != null && (
+                                      <p className="text-xs text-muted-foreground">Time: {methodResult.duration_ms}ms</p>
+                                    )}
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
+                            );
+                          }
+                        )}
+                      </Accordion>
+                    </div>
+                  ) : selectedItem.classification_result ? (
+                    /* Backward compatibility: old single-result display */
+                    <div>
+                      <h4 className="text-sm font-medium mb-3">Classification Details</h4>
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm text-muted-foreground shrink-0">Method</span>
+                          <span className="text-sm text-right break-words min-w-0">
+                            {METHOD_LABELS[selectedItem.classification_result.method] || selectedItem.classification_result.method}
+                          </span>
+                        </div>
+                        {selectedItem.classification_result.signals?.length > 0 && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Signals</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {selectedItem.classification_result.signals.map((signal, i) => (
+                                <Badge key={i} variant="outline" className="text-xs font-mono">
+                                  {signal}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {selectedItem.classification_result.matched_document_type && (
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm text-muted-foreground shrink-0">Matched Type</span>
+                            <span className="text-sm text-right break-words min-w-0">
+                              {selectedItem.classification_result.matched_document_type}
+                            </span>
+                          </div>
+                        )}
+                        {selectedItem.classification_result.suggestions &&
+                          selectedItem.classification_result.suggestions.length > 0 && (
+                          <div>
+                            <span className="text-sm text-muted-foreground">Suggestions</span>
+                            <div className="space-y-1 mt-1">
+                              {selectedItem.classification_result.suggestions.map((suggestion, i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-center justify-between p-1.5 rounded bg-muted/50 text-xs"
+                                >
+                                  <span className="font-medium">{suggestion.name}</span>
+                                  <Badge variant="outline" className="text-xs ml-2">
+                                    {suggestion.confidence}%
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* No classification at all */}
+                  {selectedItem.document_type === "general" &&
+                    !selectedItem.classification_result && (
+                    <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400">
+                      <p className="text-sm">
+                        No document type matches found. Use the dropdown above to manually classify this document.
+                      </p>
+                    </div>
+                  )}
+
                   {/* File info */}
                   <div>
                     <h4 className="text-sm font-medium mb-3">File Details</h4>
                     <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Filename</span>
-                        <span className="truncate max-w-[200px]">{selectedItem.original_filename || "—"}</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground shrink-0">Filename</span>
+                        <span className="text-right break-words min-w-0">{selectedItem.original_filename || "—"}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Size</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground shrink-0">Size</span>
                         <span>{formatFileSize(selectedItem.file_size)}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Type</span>
-                        <span>{selectedItem.content_type || "—"}</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground shrink-0">Type</span>
+                        <span className="text-right break-words min-w-0">{selectedItem.content_type || "—"}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Source</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground shrink-0">Source</span>
                         <span className="capitalize">{selectedItem.source}</span>
                       </div>
                     </div>
@@ -749,11 +1278,30 @@ export default function DocsortPage() {
                     </div>
                   )}
 
+                  {/* File under company */}
+                  {selectedItem.status === "classified" && !selectedItem.routed_to_type && (
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium flex items-center gap-1.5 text-muted-foreground">
+                        <BuildingOffice2Icon className="h-4 w-4" />
+                        File under Company
+                      </label>
+                      <ComboboxDropdown
+                        items={companies}
+                        selectedItem={selectedCorporate}
+                        onSelect={(item) => setSelectedCorporate(item)}
+                        placeholder="Select company..."
+                        searchPlaceholder="Search companies..."
+                        clearable
+                        onClear={() => setSelectedCorporate(undefined)}
+                      />
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="flex flex-col gap-2">
                     {selectedItem.status === "classified" && !selectedItem.routed_to_type && (
                       <Button
-                        onClick={() => handleRoute(selectedItem)}
+                        onClick={() => handleRoute(selectedItem, undefined, selectedCorporate?.id)}
                         disabled={processingId === selectedItem.id}
                       >
                         {processingId === selectedItem.id ? (
@@ -761,7 +1309,7 @@ export default function DocsortPage() {
                         ) : (
                           <CheckCircleIcon className="h-4 w-4 mr-2" />
                         )}
-                        Route Document
+                        {selectedCorporate ? `File under ${selectedCorporate.label}` : "Route Document"}
                       </Button>
                     )}
 

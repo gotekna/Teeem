@@ -426,7 +426,12 @@ export function PhonePropertyGroup({
   const handleSaveExisting = useCallback(
     async (phone: ContactPhone, updates: Partial<ContactPhone>) => {
       const updatedPhones = phones.map((p) => {
-        if (p.id === phone.id || p._tempId === phone._tempId) {
+        const match = phone.id
+          ? p.id === phone.id
+          : phone._tempId
+            ? p._tempId === phone._tempId
+            : false;
+        if (match) {
           return { ...p, ...updates };
         }
         return p;
@@ -441,7 +446,11 @@ export function PhonePropertyGroup({
     async (phone: ContactPhone) => {
       const updatedPhones = phones.map((p) => ({
         ...p,
-        is_primary: p.id === phone.id || p._tempId === phone._tempId,
+        is_primary: phone.id
+          ? p.id === phone.id
+          : phone._tempId
+            ? p._tempId === phone._tempId
+            : false,
       }));
       await onSave(updatedPhones);
     },

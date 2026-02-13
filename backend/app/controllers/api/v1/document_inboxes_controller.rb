@@ -158,9 +158,13 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        # Optional: allow specifying job_id for routing
+        # Optional: allow specifying job_id or corporate_id for routing
         if params[:job_id].present?
           @item.metadata['job_id'] = params[:job_id]
+          @item.save!
+        end
+        if params[:corporate_id].present?
+          @item.metadata['corporate_id'] = params[:corporate_id]
           @item.save!
         end
 
@@ -177,13 +181,6 @@ module Api
       def override
         unless params[:document_type].present?
           return render json: { error: 'document_type required' }, status: :unprocessable_entity
-        end
-
-        unless DocumentInbox::DOCUMENT_TYPES.include?(params[:document_type])
-          return render json: {
-            error: 'Invalid document_type',
-            valid_types: DocumentInbox::DOCUMENT_TYPES
-          }, status: :unprocessable_entity
         end
 
         @item.override_classification!(
@@ -290,13 +287,13 @@ module Api
           source_icon: item.source_icon,
           display_name: item.display_name,
           can_auto_route: item.can_auto_route?,
+          classification_result: item.classification_result,
           created_at: item.created_at,
           updated_at: item.updated_at
         }
 
         if detailed
           base.merge!(
-            classification_result: item.classification_result,
             metadata: item.metadata,
             uploaded_by: item.uploaded_by&.slice(:id, :name, :email),
             overridden_by: item.overridden_by&.slice(:id, :name, :email),

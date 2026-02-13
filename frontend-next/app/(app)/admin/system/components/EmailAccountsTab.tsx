@@ -55,7 +55,11 @@ import {
   Palette,
   ChevronDown,
   ChevronUp,
+  Link,
+  Shield,
+  UserPlus,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
@@ -70,6 +74,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { EmailSyncDashboardTab } from "./EmailSyncDashboardTab";
+import { EmailConfigTab } from "./EmailConfigTab";
 import {
   SIGNATURE_STYLES,
   generateSignatureByStyle,
@@ -78,6 +83,7 @@ import {
   type SignatureCompanyData,
 } from "@/lib/email-signature";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTenant } from "@/contexts/TenantContext";
 
 interface ImapCredential {
   id: number;
@@ -166,6 +172,15 @@ interface TeeemUser {
   email: string;
 }
 
+// M365 tenant user with license info (for import dialog)
+interface M365TenantUser {
+  id: string;
+  name: string;
+  email: string;
+  has_license: boolean;
+  already_in_teeem: boolean; // Computed client-side
+}
+
 interface ShareableUser {
   id: number;
   name: string;
@@ -184,6 +199,8 @@ interface TenantOption {
 // Component for configuring MS365 mailbox access
 function MS365MailboxAccessConfig() {
   const { toast } = useToast();
+  const router = useRouter();
+  const { currentTenant } = useTenant();
   const [organizations, setOrganizations] = useState<MS365Organization[]>([]);
   const [teeemUsers, setTeeemUsers] = useState<TeeemUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -193,6 +210,14 @@ function MS365MailboxAccessConfig() {
   const [togglingSyncAll, setTogglingSyncAll] = useState<number | null>(null);
   const [syncingOrgId, setSyncingOrgId] = useState<number | null>(null);
   // NOTE (Feb 2026): docsortMailboxes REMOVED - now in TenantSettings (SSoT)
+
+  // Import Users dialog state
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importOrgId, setImportOrgId] = useState<number | null>(null);
+  const [m365Users, setM365Users] = useState<M365TenantUser[]>([]);
+  const [selectedImportIds, setSelectedImportIds] = useState<Set<string>>(new Set());
+  const [loadingM365Users, setLoadingM365Users] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   // Trigger a full sync for an MS365 organization
   const handleSyncOrg = async (orgId: number) => {
@@ -330,6 +355,151 @@ function MS365MailboxAccessConfig() {
     return userEmail?.toLowerCase() === mailbox?.toLowerCase();
   };
 
+  // Open import dialog and fetch M365 users for the org
+  const handleOpenImportDialog = async (orgId: number) => {
+    setImportOrgId(orgId);
+    setShowImportDialog(true);
+    setLoadingM365Users(true);
+    setSelectedImportIds(new Set());
+
+    try {
+      const response = await api.get<{
+        users: Array<{ id: string; name: string; email: string; has_license: boolean }>;
+        total: number;
+      }>(`/api/v1/microsoft_app/users?organization_id=${orgId}`);
+
+      // Cross-reference with existing Teeem users to mark already_in_teeem
+      const existingEmails = new Set(teeemUsers.map(u => u.email.toLowerCase()));
+      const enriched: M365TenantUser[] = (response.users || []).map(u => ({
+        ...u,
+        already_in_teeem: existingEmails.has(u.email?.toLowerCase() || ""),
+      }));
+
+      // Sort: licensed first, then alphabetical
+      enriched.sort((a, b) => {
+        if (a.already_in_teeem !== b.already_in_teeem) return a.already_in_teeem ? 1 : -1;
+        if (a.has_license !== b.has_license) return a.has_license ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      setM365Users(enriched);
+    } catch (error) {
+      console.error("Failed to fetch M365 users:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch Microsoft 365 users",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingM365Users(false);
+    }
+  };
+
+  const toggleImportSelection = (userId: string) => {
+    setSelectedImportIds(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllImportable = () => {
+    const importable = m365Users
+      .filter(u => !u.already_in_teeem && u.email)
+      .map(u => u.id);
+    setSelectedImportIds(new Set(importable));
+  };
+
+  const selectLicensedOnly = () => {
+    const licensed = m365Users
+      .filter(u => !u.already_in_teeem && u.has_license && u.email)
+      .map(u => u.id);
+    setSelectedImportIds(new Set(licensed));
+  };
+
+  const clearImportSelection = () => {
+    setSelectedImportIds(new Set());
+  };
+
+  const handleImportUsers = async () => {
+    if (selectedImportIds.size === 0 || !importOrgId) return;
+    setImporting(true);
+
+    try {
+      const response = await api.post<{
+        success: boolean;
+        created: Array<{ name: string; email: string; user_id: number }>;
+        skipped: Array<{ name: string; email?: string; reason: string }>;
+        errors: Array<{ name: string; email?: string; error: string }>;
+        message: string;
+      }>("/api/v1/microsoft_app/import_users", {
+        microsoft_user_ids: Array.from(selectedImportIds),
+        organization_id: importOrgId,
+      });
+
+      if (!response) throw new Error("No response");
+      const created = response.created || [];
+      const skipped = response.skipped || [];
+      const importErrors = response.errors || [];
+
+      toast({
+        title: `Imported ${created.length} User${created.length !== 1 ? "s" : ""}`,
+        description: [
+          created.length > 0 ? `Created: ${created.map((u: { name: string }) => u.name).join(", ")}` : null,
+          skipped.length > 0 ? `Skipped: ${skipped.length}` : null,
+          importErrors.length > 0 ? `Errors: ${importErrors.length}` : null,
+        ].filter(Boolean).join(". "),
+        variant: importErrors.length > 0 ? "destructive" : "default",
+      });
+
+      setShowImportDialog(false);
+      // Refresh data to show new users in the mailbox access matrix
+      fetchData();
+    } catch (error) {
+      console.error("Failed to import users:", error);
+      toast({
+        title: "Import Failed",
+        description: "Failed to import users from Microsoft 365",
+        variant: "destructive",
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // State for inline "Create Link" to add MS365 org
+  // ⚠️ All hooks MUST be before any early returns (React rules of hooks)
+  const [ms365OrgName, setMs365OrgName] = React.useState(currentTenant?.name || "");
+  const [ms365Connecting, setMs365Connecting] = React.useState(false);
+  const [ms365ConsentUrl, setMs365ConsentUrl] = React.useState<string | null>(null);
+  const [ms365ConsentOrg, setMs365ConsentOrg] = React.useState("");
+  const [ms365Copied, setMs365Copied] = React.useState(false);
+  const [ms365Waiting, setMs365Waiting] = React.useState(false);
+  const [ms365Error, setMs365Error] = React.useState<string | null>(null);
+
+  // Poll for consent completion
+  React.useEffect(() => {
+    if (!ms365Waiting || !ms365ConsentOrg) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get<{ configured: boolean; organizations: Array<{ name: string; status: string }> }>(
+          "/api/v1/microsoft_app/status"
+        );
+        const org = res.organizations?.find(o => o.name === ms365ConsentOrg);
+        if (org?.status === "connected") {
+          setMs365Waiting(false);
+          setMs365ConsentUrl(null);
+          window.location.reload();
+        }
+      } catch { /* ignore polling errors */ }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [ms365Waiting, ms365ConsentOrg]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -338,19 +508,170 @@ function MS365MailboxAccessConfig() {
     );
   }
 
+  const handleCreateMs365Link = async (orgName: string) => {
+    setMs365Connecting(true);
+    setMs365Error(null);
+    try {
+      const response = await api.post<{ success: boolean; admin_consent_url?: string; message?: string; configured?: boolean }>(
+        "/api/v1/microsoft_app/setup_from_env",
+        { name: orgName }
+      );
+      if (response?.configured === false) {
+        setMs365Error(response.message || "Microsoft 365 credentials not configured");
+        setMs365Connecting(false);
+        return;
+      }
+      if (response?.admin_consent_url) {
+        setMs365ConsentUrl(response.admin_consent_url);
+        setMs365ConsentOrg(orgName);
+        setMs365Copied(false);
+      }
+    } catch (err: unknown) {
+      const error = err as { data?: { error?: string }; message?: string };
+      setMs365Error(error.data?.error || error.message || "Failed to create link");
+    }
+    setMs365Connecting(false);
+  };
+
   if (organizations.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center">
-          <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">
-            No Microsoft 365 organizations connected.
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Connect an organization in Admin → System → Connections
-          </p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="py-8 text-center">
+            <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">
+              No Microsoft 365 organizations connected.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Consent URL card */}
+        {ms365ConsentUrl && (
+          <Card className="border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20">
+            <CardHeader className="py-4">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <Link className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <CardTitle className="text-base">Admin Consent Link for {ms365ConsentOrg}</CardTitle>
+                </div>
+                <CardDescription className="text-sm">
+                  Send this link to {ms365ConsentOrg}&apos;s Microsoft 365 Global Admin. They click it, sign in, and approve.
+                </CardDescription>
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={ms365ConsentUrl}
+                    className="text-xs font-mono flex-1 bg-white dark:bg-card"
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                  />
+                  <Button
+                    size="sm"
+                    variant={ms365Copied ? "default" : "outline"}
+                    onClick={() => {
+                      navigator.clipboard.writeText(ms365ConsentUrl);
+                      setMs365Copied(true);
+                      setMs365Waiting(true);
+                      setTimeout(() => setMs365Copied(false), 3000);
+                    }}
+                    className="shrink-0"
+                  >
+                    {ms365Copied ? "Copied!" : "Copy Link"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const subject = encodeURIComponent(`Link to Connect ${ms365ConsentOrg} to Teeem`);
+                      const body = encodeURIComponent(`Hi,\n\nPlease find the link to connect ${ms365ConsentOrg} to Teeem's Microsoft 365 integration.\n\nClick the link below, sign in with your Global Admin account, and approve:\n\n${ms365ConsentUrl}\n\nOnce approved, we'll be able to access your organization's emails and SharePoint.\n\nBest regards`);
+                      router.push(`/email?compose_to=&compose_subject=${subject}&compose_body=${body}&compose_from=${encodeURIComponent("setup@teeem.com.au")}`);
+                      setMs365Waiting(true);
+                    }}
+                    className="shrink-0"
+                  >
+                    <Mail className="h-4 w-4 mr-1" />
+                    Send Email
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setMs365ConsentUrl(null);
+                      setMs365Waiting(false);
+                    }}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+                {ms365Waiting && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Spinner size={14} />
+                    <span>Waiting for {ms365ConsentOrg}&apos;s admin to approve... (checking every 5s)</span>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+          </Card>
+        )}
+
+        {ms365Error && (
+          <Card className="border-red-300 dark:border-red-700">
+            <CardContent className="py-3 text-sm text-red-600 dark:text-red-400">
+              {ms365Error}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Add Organization - Create Link */}
+        <Card className="border-dashed">
+          <CardHeader className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-muted dark:bg-card">
+                  <Plus className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Add Microsoft 365 Organization</CardTitle>
+                  <CardDescription className="text-xs">Generate a consent link for an organization&apos;s Global Admin</CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Organization name"
+                  value={ms365OrgName}
+                  onChange={(e) => setMs365OrgName(e.target.value)}
+                  className="w-48 h-8 text-sm"
+                  disabled={ms365Connecting}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && ms365OrgName.trim()) {
+                      handleCreateMs365Link(ms365OrgName.trim());
+                      setMs365OrgName("");
+                    }
+                  }}
+                />
+                {ms365Connecting ? (
+                  <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                    <Spinner size={12} className="mr-1" />
+                    Creating...
+                  </Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (ms365OrgName.trim()) {
+                        handleCreateMs365Link(ms365OrgName.trim());
+                        setMs365OrgName("");
+                      }
+                    }}
+                    disabled={!ms365OrgName.trim() || ms365Connecting}
+                  >
+                    <Link className="h-4 w-4 mr-1" />
+                    Create Link
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+      </div>
     );
   }
 
@@ -431,6 +752,24 @@ function MS365MailboxAccessConfig() {
                   )}
                   Save
                 </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenImportDialog(org.id)}
+                        disabled={org.status !== "connected"}
+                      >
+                        <UserPlus className="h-4 w-4 mr-1" />
+                        Import Users
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Import Microsoft 365 users as Teeem users</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
           </CardHeader>
@@ -496,6 +835,127 @@ function MS365MailboxAccessConfig() {
           </CardContent>
         </Card>
       ))}
+
+      {/* Import Users from Microsoft 365 Dialog */}
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Import Users from Microsoft 365
+            </DialogTitle>
+            <DialogDescription>
+              Select users to create as Teeem accounts. Licensed users have active M365 subscriptions.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingM365Users ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner className="h-6 w-6 mr-2" />
+              <span className="text-sm text-muted-foreground">Loading Microsoft 365 users...</span>
+            </div>
+          ) : (
+            <>
+              {/* Quick selection buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button size="sm" variant="outline" onClick={selectLicensedOnly}>
+                  Select Licensed Only
+                </Button>
+                <Button size="sm" variant="outline" onClick={selectAllImportable}>
+                  Select All
+                </Button>
+                <Button size="sm" variant="ghost" onClick={clearImportSelection}>
+                  Clear
+                </Button>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {selectedImportIds.size} selected of {m365Users.filter(u => !u.already_in_teeem).length} importable
+                </span>
+              </div>
+
+              {/* Users table */}
+              <div className="overflow-y-auto flex-1 border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead className="text-center">License</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {m365Users.map(user => (
+                      <TableRow
+                        key={user.id}
+                        className={user.already_in_teeem ? "opacity-50" : "cursor-pointer hover:bg-muted/50"}
+                        onClick={() => {
+                          if (!user.already_in_teeem && user.email) {
+                            toggleImportSelection(user.id);
+                          }
+                        }}
+                      >
+                        <TableCell className="text-center">
+                          <Checkbox
+                            checked={selectedImportIds.has(user.id)}
+                            disabled={user.already_in_teeem || !user.email}
+                            onCheckedChange={() => toggleImportSelection(user.id)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{user.name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {user.email || <span className="italic">No email</span>}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {user.has_license ? (
+                            <Badge variant="default" className="text-xs">Licensed</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">No License</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {user.already_in_teeem ? (
+                            <Badge variant="outline" className="text-xs">
+                              <Check className="h-3 w-3 mr-1" />
+                              In Teeem
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Ready</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {m365Users.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          No users found in this Microsoft 365 tenant.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowImportDialog(false)} disabled={importing}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImportUsers}
+              disabled={selectedImportIds.size === 0 || importing}
+            >
+              {importing ? (
+                <Spinner className="h-4 w-4 mr-1" />
+              ) : (
+                <UserPlus className="h-4 w-4 mr-1" />
+              )}
+              Import {selectedImportIds.size > 0 ? `${selectedImportIds.size} User${selectedImportIds.size !== 1 ? "s" : ""}` : "Selected"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -653,9 +1113,18 @@ function TeamEmailDomainsConfig() {
   );
 }
 
-export function EmailAccountsTab() {
+interface EmailAccountsTabProps {
+  subTab?: string;
+  basePath?: string;
+}
+
+const EMAIL_ACCOUNTS_SUB_TABS = ["configuration", "sync-dashboard", "email-setup"] as const;
+
+export function EmailAccountsTab({ subTab, basePath }: EmailAccountsTabProps = {}) {
+  const router = useRouter();
   const { toast } = useToast();
   const { confirm } = useConfirm();
+  const { currentTenant } = useTenant();
   const [credentials, setCredentials] = useState<ImapCredential[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -700,6 +1169,20 @@ export function EmailAccountsTab() {
   });
   // Get current user for signature preview
   const { user: currentUser } = useAuth();
+
+  // Compute connected domains and aliases from IMAP credentials for Email Config auto-fill
+  const connectedDomains = React.useMemo(() => {
+    return [...new Set(
+      credentials
+        .flatMap((c) => [c.email_address, ...(c.email_aliases || [])])
+        .map((email) => email.split("@")[1])
+        .filter(Boolean)
+    )];
+  }, [credentials]);
+
+  const connectedAliases = React.useMemo(() => {
+    return credentials.flatMap((c) => [c.email_address, ...(c.email_aliases || [])]);
+  }, [credentials]);
 
   // Fetch credentials and providers on mount
   useEffect(() => {
@@ -1146,10 +1629,20 @@ export function EmailAccountsTab() {
 
   return (
     <div className="space-y-6 pb-8">
-      <Tabs defaultValue="configuration" className="w-full">
+      <Tabs
+        value={(EMAIL_ACCOUNTS_SUB_TABS as readonly string[]).includes(subTab || "") ? subTab : "configuration"}
+        onValueChange={(tabId) => {
+          if (basePath) {
+            // URL-based navigation when basePath is provided
+            router.push(`${basePath}/${tabId}`, { scroll: false });
+          }
+        }}
+        className="w-full"
+      >
         <TabsList>
           <TabsTrigger value="configuration">Configuration</TabsTrigger>
           <TabsTrigger value="sync-dashboard">Sync Dashboard</TabsTrigger>
+          <TabsTrigger value="email-setup">Email Setup</TabsTrigger>
         </TabsList>
 
         <TabsContent value="configuration" className="mt-6 space-y-6">
@@ -1585,6 +2078,13 @@ export function EmailAccountsTab() {
 
         <TabsContent value="sync-dashboard" className="mt-6">
           <EmailSyncDashboardTab />
+        </TabsContent>
+
+        <TabsContent value="email-setup" className="mt-6">
+          <EmailConfigTab
+            connectedDomains={connectedDomains}
+            connectedAliases={connectedAliases}
+          />
         </TabsContent>
       </Tabs>
 

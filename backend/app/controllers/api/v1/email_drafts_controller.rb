@@ -35,7 +35,6 @@ class Api::V1::EmailDraftsController < ApplicationController
   def create
     draft = current_user.email_drafts.build(draft_params)
     draft.tenant = current_tenant
-    draft.organization = current_organization # DEPRECATED: kept for backwards compat
 
     if draft.save
       render json: {

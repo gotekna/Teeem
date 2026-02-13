@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_13_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -471,6 +471,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
     t.integer "retention_count", default: 5, null: false
+    t.string "mirror_schedule", default: "daily_2am", null: false
     t.index ["primary_credential_id"], name: "index_backup_configurations_on_primary_credential_id"
     t.index ["secondary_credential_id"], name: "index_backup_configurations_on_secondary_credential_id"
     t.index ["tenant_id"], name: "index_backup_configurations_on_tenant_id"
@@ -1143,8 +1144,49 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.index ["tenant_id"], name: "index_cases_on_tenant_id"
   end
 
-  create_table "chat_messages", force: :cascade do |t|
+  create_table "chat_conversation_participants", force: :cascade do |t|
+    t.bigint "chat_conversation_id", null: false
     t.bigint "user_id", null: false
+    t.datetime "last_read_at"
+    t.boolean "is_admin", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_conversation_id", "user_id"], name: "idx_chat_conv_participants_unique", unique: true
+    t.index ["user_id"], name: "index_chat_conversation_participants_on_user_id"
+  end
+
+  create_table "chat_conversations", force: :cascade do |t|
+    t.string "conversation_type", default: "group", null: false
+    t.string "name"
+    t.bigint "created_by_id", null: false
+    t.bigint "tenant_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_chat_conversations_on_created_by_id"
+    t.index ["tenant_id"], name: "index_chat_conversations_on_tenant_id"
+  end
+
+  create_table "chat_guest_sessions", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "host_user_id", null: false
+    t.string "token", null: false
+    t.string "guest_name"
+    t.string "guest_email"
+    t.string "status", default: "pending", null: false
+    t.datetime "expires_at"
+    t.datetime "guest_joined_at"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "job_id"
+    t.index ["host_user_id"], name: "index_chat_guest_sessions_on_host_user_id"
+    t.index ["job_id"], name: "index_chat_guest_sessions_on_job_id"
+    t.index ["tenant_id"], name: "index_chat_guest_sessions_on_tenant_id"
+    t.index ["token"], name: "index_chat_guest_sessions_on_token", unique: true
+  end
+
+  create_table "chat_messages", force: :cascade do |t|
+    t.bigint "user_id"
     t.text "content", null: false
     t.string "channel", default: "general", null: false
     t.datetime "created_at", null: false
@@ -1160,8 +1202,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.string "storage_file_id"
     t.string "storage_item_id"
     t.bigint "storage_blob_id"
+    t.bigint "chat_conversation_id"
+    t.bigint "tenant_id"
+    t.bigint "chat_guest_session_id"
+    t.string "guest_sender_name"
     t.index ["case_id"], name: "index_chat_messages_on_case_id"
     t.index ["channel", "created_at"], name: "index_chat_messages_on_channel_and_created_at"
+    t.index ["chat_conversation_id"], name: "index_chat_messages_on_chat_conversation_id"
+    t.index ["chat_guest_session_id"], name: "index_chat_messages_on_chat_guest_session_id"
     t.index ["contact_id"], name: "index_chat_messages_on_contact_id"
     t.index ["created_at"], name: "index_chat_messages_on_created_at"
     t.index ["job_id", "channel", "created_at"], name: "index_chat_messages_on_construction_channel_created"
@@ -1170,6 +1218,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.index ["storage_blob_id"], name: "index_chat_messages_on_storage_blob_id"
     t.index ["storage_file_id"], name: "index_chat_messages_on_storage_file_id"
     t.index ["storage_item_id"], name: "index_chat_messages_on_storage_item_id"
+    t.index ["tenant_id"], name: "index_chat_messages_on_tenant_id"
     t.index ["user_id"], name: "index_chat_messages_on_user_id"
   end
 
@@ -1420,47 +1469,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.index ["contact_id", "company_group_id", "membership_type"], name: "idx_contact_group_membership_unique", unique: true
     t.index ["contact_id"], name: "index_contact_company_group_memberships_on_contact_id"
     t.index ["tenant_id"], name: "index_contact_company_group_memberships_on_tenant_id"
-  end
-
-  create_table "contact_documents", force: :cascade do |t|
-    t.bigint "contact_id", null: false
-    t.string "title", null: false
-    t.text "description"
-    t.string "document_type", null: false
-    t.date "document_date"
-    t.date "expiry_date"
-    t.string "file_name"
-    t.integer "file_size"
-    t.string "mime_type"
-    t.datetime "uploaded_at"
-    t.string "folder"
-    t.string "source", default: "manual"
-    t.bigint "document_type_id"
-    t.string "content_hash"
-    t.string "external_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "storage_provider"
-    t.string "storage_item_id"
-    t.string "storage_path"
-    t.string "migration_status"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.text "migration_error"
-    t.string "source_provider"
-    t.string "source_item_id"
-    t.bigint "storage_blob_id"
-    t.index ["contact_id"], name: "index_contact_documents_on_contact_id"
-    t.index ["content_hash"], name: "index_contact_documents_on_content_hash"
-    t.index ["document_date"], name: "index_contact_documents_on_document_date"
-    t.index ["document_type"], name: "index_contact_documents_on_document_type"
-    t.index ["document_type_id"], name: "index_contact_documents_on_document_type_id"
-    t.index ["expiry_date"], name: "index_contact_documents_on_expiry_date"
-    t.index ["external_id"], name: "index_contact_documents_on_external_id"
-    t.index ["migration_status"], name: "index_contact_documents_on_migration_status"
-    t.index ["storage_blob_id"], name: "index_contact_documents_on_storage_blob_id"
-    t.index ["storage_provider", "migration_status"], name: "idx_people_docs_provider_migration"
-    t.index ["storage_provider"], name: "index_contact_documents_on_storage_provider"
   end
 
   create_table "contact_emails", force: :cascade do |t|
@@ -1728,6 +1736,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.bigint "parent_company_contact_id"
     t.string "sync_key"
     t.date "date_of_birth"
+    t.string "emergency_contact_name"
+    t.string "emergency_contact_phone"
+    t.string "emergency_contact_relationship"
     t.index "lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -2456,7 +2467,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.datetime "updated_at", null: false
     t.string "original_storage_item_id"
     t.string "signed_storage_item_id"
+    t.bigint "document_type_id"
     t.index ["created_by_id"], name: "index_e_signature_requests_on_created_by_id"
+    t.index ["document_type_id"], name: "index_e_signature_requests_on_document_type_id"
     t.index ["documentable_type", "documentable_id"], name: "index_e_signature_requests_on_documentable"
     t.index ["expires_at"], name: "index_e_signature_requests_on_expires_at"
     t.index ["request_number"], name: "index_e_signature_requests_on_request_number", unique: true
@@ -2554,6 +2567,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.jsonb "folder_paths", default: []
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["case_record_id"], name: "idx_email_case_proposals_case"
+    t.index ["created_by_id"], name: "idx_email_case_proposals_created_by"
+    t.index ["email_warehouse_id", "status"], name: "idx_email_case_proposals_warehouse_status"
+    t.index ["email_warehouse_id"], name: "idx_email_case_proposals_warehouse"
+    t.index ["status"], name: "idx_email_case_proposals_status"
   end
 
   create_table "email_dns_records", force: :cascade do |t|
@@ -2627,6 +2645,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.datetime "approved_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["created_by_user_id"], name: "idx_email_job_proposals_created_by"
+    t.index ["email_warehouse_id", "status"], name: "idx_email_job_proposals_warehouse_status"
+    t.index ["email_warehouse_id"], name: "idx_email_job_proposals_warehouse"
+    t.index ["job_id"], name: "idx_email_job_proposals_job"
+    t.index ["status"], name: "idx_email_job_proposals_status"
   end
 
   create_table "email_label_assignments", force: :cascade do |t|
@@ -8736,7 +8759,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.string "response_zip_path"
     t.datetime "response_zip_created_at"
     t.boolean "auto_attach_email_files", default: true, null: false
-    t.string "sync_key"
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
@@ -9766,6 +9788,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.boolean "force_email_signature", default: false
     t.string "forced_signature_style"
     t.string "monitored_mailbox_docsort", comment: "SSoT: Email address for DocSort inbox (AI document classification)"
+    t.datetime "last_config_sync_at"
+    t.string "last_config_sync_by"
+    t.jsonb "config_sync_table_timestamps", default: {}
+    t.string "monitored_mailbox_esignature"
+    t.boolean "esignature_require_email_verification", default: true, null: false
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"
@@ -10041,6 +10068,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.boolean "enable_ai_writing_assistant", default: false, null: false
     t.string "email_signature_style", default: "modern-dark"
     t.boolean "force_password_change", default: false, null: false
+    t.string "username"
+    t.jsonb "chat_read_timestamps", default: {}, null: false
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["contact_id"], name: "index_users_on_contact_id_unique", unique: true, where: "(contact_id IS NOT NULL)"
     t.index ["email", "tenant_id"], name: "index_users_on_email_and_tenant", unique: true
@@ -10048,6 +10077,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
     t.index ["signature_blob_id"], name: "index_users_on_signature_blob_id"
     t.index ["tenant_id"], name: "index_users_on_tenant_id"
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
+    t.index ["username"], name: "index_users_on_username", unique: true, where: "(username IS NOT NULL)"
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
@@ -10922,8 +10952,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
   add_foreign_key "cases", "tenants"
   add_foreign_key "cases", "users", column: "assigned_to_id"
   add_foreign_key "cases", "users", column: "created_by_id"
+  add_foreign_key "chat_conversation_participants", "chat_conversations"
+  add_foreign_key "chat_conversation_participants", "users"
+  add_foreign_key "chat_conversations", "tenants"
+  add_foreign_key "chat_conversations", "users", column: "created_by_id"
+  add_foreign_key "chat_guest_sessions", "jobs"
+  add_foreign_key "chat_guest_sessions", "tenants"
+  add_foreign_key "chat_guest_sessions", "users", column: "host_user_id"
+  add_foreign_key "chat_messages", "chat_conversations"
+  add_foreign_key "chat_messages", "chat_guest_sessions"
   add_foreign_key "chat_messages", "jobs"
   add_foreign_key "chat_messages", "storage_blobs"
+  add_foreign_key "chat_messages", "tenants"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "claim_invoice_templates", "tenants", on_delete: :cascade
   add_foreign_key "cloudflare_credentials", "tenants", on_delete: :cascade
@@ -10942,7 +10982,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
   add_foreign_key "contact_company_group_memberships", "contacts"
   add_foreign_key "contact_company_group_memberships", "corporates", column: "company_id"
   add_foreign_key "contact_company_group_memberships", "tenants"
-  add_foreign_key "contact_documents", "storage_blobs"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"
@@ -11016,6 +11055,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_11_163000) do
   add_foreign_key "e_signature_events", "users", column: "actor_user_id"
   add_foreign_key "e_signature_fields", "e_signature_requests"
   add_foreign_key "e_signature_fields", "e_signature_signers"
+  add_foreign_key "e_signature_requests", "document_types"
   add_foreign_key "e_signature_requests", "users", column: "created_by_id"
   add_foreign_key "e_signature_signers", "contacts"
   add_foreign_key "e_signature_signers", "e_signature_requests"

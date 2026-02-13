@@ -77,6 +77,24 @@ class DirectorChangeService
     }
   end
 
+  # Send for e-signature using an existing StorageBlob (from preview step).
+  # Avoids regenerating the PDF when the user already previewed it.
+  def send_with_existing_blob!(blob)
+    pdf_content = blob.download
+
+    e_sig_request = create_e_signature_request_from_blob(blob, pdf_content)
+    e_sig_request.send_for_signing!
+
+    documents = build_document_metadata
+
+    {
+      e_signature_request: e_sig_request,
+      pdf_content: pdf_content,
+      filename: generate_filename,
+      documents: documents
+    }
+  end
+
   # Called when e-signature completes - updates director records
   def complete_signing!(e_signature_request)
     ActiveRecord::Base.transaction do
@@ -190,8 +208,8 @@ class DirectorChangeService
 
     context = {
       company: build_company_context,
-      director: build_director_context(contact),
-      positions: cd_data[:positions],
+      director: build_director_context(contact, selected_email: cd_data[:email], selected_address: cd_data[:address]),
+      positions: deduplicate_positions(cd_data[:positions]),
       cessation_date: cessation_date,
       cessation_date_formatted: cessation_date.strftime("%d/%m/%Y")
     }
@@ -205,7 +223,7 @@ class DirectorChangeService
       html: html,
       pdf_content: pdf,
       signer_name: contact.display_name,
-      signer_email: contact.primary_email,
+      signer_email: cd_data[:email].presence || contact.primary_email,
       signer_contact: contact,
       signer_role: "director"
     }
@@ -217,8 +235,8 @@ class DirectorChangeService
 
     context = {
       company: build_company_context,
-      director: build_director_context(contact),
-      positions: appt_data[:positions],
+      director: build_director_context(contact, selected_email: appt_data[:email], selected_address: appt_data[:address]),
+      positions: deduplicate_positions(appt_data[:positions]),
       appointment_date: appointment_date,
       appointment_date_formatted: appointment_date.strftime("%d/%m/%Y")
     }
@@ -232,7 +250,7 @@ class DirectorChangeService
       html: html,
       pdf_content: pdf,
       signer_name: contact.display_name,
-      signer_email: contact.primary_email,
+      signer_email: appt_data[:email].presence || contact.primary_email,
       signer_contact: contact,
       signer_role: "director"
     }
@@ -247,9 +265,31 @@ class DirectorChangeService
     remaining_directors = remaining.group_by(&:contact_id).map do |_cid, dirs|
       {
         full_name: dirs.first.contact.display_name,
-        positions: dirs.map(&:position)
+        positions: deduplicate_positions(dirs.map(&:position))
       }
     end
+
+    # Determine chairperson for signing badge
+    # Priority: 1) remaining director with "chair" position, 2) first remaining director,
+    # 3) first ceasing director (outgoing chairs the meeting), 4) first new appointment
+    chairperson_contact = nil
+    chairperson_selected_email = nil
+    remaining.each do |dir|
+      if dir.position&.downcase&.include?("chair")
+        chairperson_contact = dir.contact
+        break
+      end
+    end
+    chairperson_contact ||= remaining.first&.contact
+    unless chairperson_contact
+      # Fallback to ceasing director - use their wizard-selected email
+      cd = ceasing_directors.first
+      if cd
+        chairperson_contact = cd[:corporate_director]&.contact
+        chairperson_selected_email = cd[:email]
+      end
+    end
+    chairperson_contact ||= new_appointments.first&.dig(:contact)
 
     context = {
       company: build_company_context,
@@ -257,7 +297,7 @@ class DirectorChangeService
         contact = cd[:corporate_director].contact
         {
           full_name: contact.display_name,
-          positions: cd[:positions],
+          positions: deduplicate_positions(cd[:positions]),
           cessation_date_formatted: cd[:cessation_date].strftime("%d/%m/%Y")
         }
       end,
@@ -265,12 +305,14 @@ class DirectorChangeService
         contact = appt[:contact]
         {
           full_name: contact.display_name,
-          address: contact.full_address,
-          positions: appt[:positions],
+          address: appt[:address].presence || contact.residential_address.presence || contact.full_address,
+          positions: deduplicate_positions(appt[:positions]),
           appointment_date_formatted: appt[:appointment_date].strftime("%d/%m/%Y")
         }
       end,
       remaining_directors: remaining_directors,
+      chairperson_name: chairperson_contact&.display_name,
+      chairperson_email: chairperson_selected_email.presence || chairperson_contact&.primary_email,
       meeting_date: meeting_date,
       meeting_date_formatted: meeting_date.strftime("%d/%m/%Y")
     }
@@ -296,8 +338,8 @@ class DirectorChangeService
         {
           full_name: contact.display_name,
           date_of_birth: contact.date_of_birth&.strftime("%d/%m/%Y"),
-          address: contact.full_address,
-          positions: cd[:positions],
+          address: cd[:address].presence || contact.residential_address.presence || contact.full_address,
+          positions: deduplicate_positions(cd[:positions]),
           cessation_date_formatted: cd[:cessation_date].strftime("%d/%m/%Y")
         }
       end,
@@ -306,8 +348,8 @@ class DirectorChangeService
         {
           full_name: contact.display_name,
           date_of_birth: contact.date_of_birth&.strftime("%d/%m/%Y"),
-          address: contact.full_address,
-          positions: appt[:positions],
+          address: appt[:address].presence || contact.residential_address.presence || contact.full_address,
+          positions: deduplicate_positions(appt[:positions]),
           appointment_date_formatted: appt[:appointment_date].strftime("%d/%m/%Y")
         }
       end,
@@ -328,11 +370,11 @@ class DirectorChangeService
 
   # --- Template Rendering ---
 
-  def render_template(template_name, assigns)
-    ApplicationController.render(
+  def render_template(template_name, local_vars)
+    PdfRenderController.render(
       template: "#{TEMPLATE_BASE}/#{template_name}",
       layout: "pdf",
-      assigns: assigns
+      locals: local_vars
     )
   end
 
@@ -360,12 +402,12 @@ class DirectorChangeService
     }
   end
 
-  def build_director_context(contact)
+  def build_director_context(contact, selected_email: nil, selected_address: nil)
     {
       full_name: contact.display_name,
       date_of_birth: contact.date_of_birth&.strftime("%d/%m/%Y"),
-      address: contact.full_address,
-      email: contact.primary_email
+      address: selected_address.presence || contact.residential_address.presence || contact.full_address,
+      email: selected_email.presence || contact.primary_email
     }
   end
 
@@ -397,12 +439,21 @@ class DirectorChangeService
   end
 
   def store_signed_document(e_signature_request)
+    # Link to the signed PDF blob from the e-signature system
+    signed_blob = StorageBlob.find_by(id: e_signature_request.signed_storage_reference)
+
+    # Find the "Officers" warehouse folder (corporate doc type for director changes)
+    officers_folder = WarehouseFolder.find_by_type_and_name("corporate", "Officers")
+
     WarehouseDocumentCreator.create!(
       filename: generate_filename,
       source_type: "corporate",
       linkable: company,
+      storage_blob: signed_blob,
+      warehouse_folder_id: officers_folder&.id,
       metadata: {
         form_type: "form_484",
+        document_type: "Officers",
         e_signature_request_id: e_signature_request.id,
         ceasing_directors: ceasing_directors.map { |cd| cd[:corporate_director].contact.display_name },
         new_appointments: new_appointments.map { |appt| appt[:contact].display_name },
@@ -428,24 +479,78 @@ class DirectorChangeService
     request.set_original_storage_reference(blob.id.to_s)
     request.save!
 
-    # Add signers from documents that need signatures
-    signing_order = 0
-    package_documents = generate_all_documents
+    # Add signers from input data (no need to regenerate PDFs for signer metadata)
+    add_signers_to_request(request)
 
-    package_documents.each do |doc|
-      next unless doc[:signer_email].present?
+    request
+  end
+
+  # Create e-signature request using an existing blob (reuse from preview step)
+  def create_e_signature_request_from_blob(blob, pdf_content)
+    request = ESignatureRequest.create!(
+      title: "Director Change - #{company.name}",
+      documentable: company,
+      created_by: user,
+      signing_order: ESignatureRequest::SIGNING_ORDERS[:sequential],
+      send_reminders: true,
+      original_document_hash: Digest::SHA256.hexdigest(pdf_content)
+    )
+
+    request.set_original_storage_reference(blob.id.to_s)
+    request.save!
+
+    add_signers_to_request(request)
+
+    request
+  end
+
+  # Extract signer info directly from ceasing_directors and new_appointments
+  # without regenerating PDFs (avoids expensive Grover HTML→PDF conversion)
+  def add_signers_to_request(request)
+    signing_order = 0
+
+    ceasing_directors.each do |cd|
+      contact = cd[:corporate_director].contact
+      email = cd[:email].presence || contact.primary_email
+      next unless email.present?
 
       signing_order += 1
       request.signers.create!(
-        name: doc[:signer_name],
-        email: doc[:signer_email],
-        contact: doc[:signer_contact],
-        role: doc[:signer_role],
+        name: contact.display_name,
+        email: email,
+        contact: contact,
+        role: "director",
         signing_order: signing_order
       )
     end
 
-    request
+    new_appointments.each do |appt|
+      contact = appt[:contact]
+      email = appt[:email].presence || contact.primary_email
+      next unless email.present?
+
+      signing_order += 1
+      request.signers.create!(
+        name: contact.display_name,
+        email: email,
+        contact: contact,
+        role: "director",
+        signing_order: signing_order
+      )
+    end
+  end
+
+  # Build document metadata without generating PDFs
+  def build_document_metadata
+    docs = [{ type: :minutes, name: "Minutes of Meeting of Directors" }]
+    ceasing_directors.each do |cd|
+      docs << { type: :resignation, name: "Resignation - #{cd[:corporate_director].contact.display_name}" }
+    end
+    new_appointments.each do |appt|
+      docs << { type: :consent, name: "Consent to Act - #{appt[:contact].display_name}" }
+    end
+    docs << { type: :form_484, name: "Form 484 Record" }
+    docs
   end
 
   # --- Helpers ---
@@ -462,6 +567,17 @@ class DirectorChangeService
     ceasing_directors.each { |cd| dates << cd[:cessation_date] }
     new_appointments.each { |appt| dates << appt[:appointment_date] }
     dates.compact.min || Date.current
+  end
+
+  # Deduplicate positions: removes combined strings like "Director Secretary Public Officer"
+  # when individual positions ("Director", "Secretary", "Public Officer") are also present.
+  def deduplicate_positions(positions)
+    return positions if positions.length <= 1
+
+    positions.reject do |pos|
+      others = positions.select { |p| p != pos && pos.downcase.include?(p.downcase) }
+      others.length >= 2
+    end
   end
 
   def log_activity(activity_type, description)

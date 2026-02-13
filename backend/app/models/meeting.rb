@@ -1,4 +1,6 @@
 class Meeting < ApplicationRecord
+  acts_as_tenant :tenant
+
   # Associations
   belongs_to :job, optional: true
   belongs_to :created_by, class_name: "User"

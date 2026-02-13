@@ -13,7 +13,8 @@ class ChatMessageStorageUploadJob < ApplicationJob
   queue_as :default
 
   def perform(chat_message_id)
-    message = ChatMessage.find_by(id: chat_message_id)
+    # unscoped: background jobs don't have ActsAsTenant context
+    message = ChatMessage.unscoped.find_by(id: chat_message_id)
     return unless message
     return if message.storage_reference.present?
     return unless message.file.attached?

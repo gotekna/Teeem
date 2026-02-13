@@ -475,13 +475,23 @@ export function ComposeEmailModal({
       }
 
       // If no account found by ID, try to find by email address (for replies)
+      // When matched by alias, use the alias as from_address (not the primary email)
+      let matchedFromAlias: string | undefined;
       if (!accountToSelect && defaultFromEmail) {
         const emailLower = defaultFromEmail.toLowerCase();
         accountToSelect = activeAccounts.find(
-          (a) => a.email_address.toLowerCase() === emailLower ||
-                 a.email_aliases?.some(alias => alias.toLowerCase() === emailLower)
+          (a) => a.email_address.toLowerCase() === emailLower
         );
-        console.log('[ComposeAccounts] Looking for defaultFromEmail:', defaultFromEmail, 'found:', !!accountToSelect);
+        if (!accountToSelect) {
+          // Check aliases - if matched, remember which alias to use as FROM
+          accountToSelect = activeAccounts.find(
+            (a) => a.email_aliases?.some(alias => alias.toLowerCase() === emailLower)
+          );
+          if (accountToSelect) {
+            matchedFromAlias = defaultFromEmail;
+          }
+        }
+        console.log('[ComposeAccounts] Looking for defaultFromEmail:', defaultFromEmail, 'found:', !!accountToSelect, 'alias:', matchedFromAlias);
       }
 
       if (!accountToSelect) {
@@ -490,13 +500,15 @@ export function ComposeEmailModal({
       }
 
       if (accountToSelect) {
-        console.log('[ComposeAccounts] Setting credential_id:', accountToSelect.id);
+        // Use the matched alias as FROM if we found via alias, otherwise use primary email
+        const fromAddress = matchedFromAlias || accountToSelect.email_address;
+        console.log('[ComposeAccounts] Setting credential_id:', accountToSelect.id, 'from:', fromAddress);
         setFormData((prev) => {
           console.log('[ComposeAccounts] setFormData called, prev credential_id:', prev.credential_id);
           return {
             ...prev,
             credential_id: String(accountToSelect!.id),
-            from_address: accountToSelect!.email_address,
+            from_address: fromAddress,
           };
         });
       } else {

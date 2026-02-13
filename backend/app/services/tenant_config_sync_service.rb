@@ -176,7 +176,10 @@ class TenantConfigSyncService
                     :abn, :acn, :website, :email_domains, :address, :city, :state, :postcode,
                     :bank_bsb, :bank_account_number, :bank_account_name,
                     :default_purchase_account, :default_sales_account, :payment_terms,
-                    :is_active, :entity_type, :notes, :contact_code],
+                    :is_active, :entity_type, :notes],
+      # FRC: contact_code deliberately excluded from sync_fields — each tenant
+      # auto-generates unique codes (C{id}). Syncing master's codes causes collisions
+      # with existing contacts. sync_key (display_name) handles cross-tenant matching.
       scope: -> { where(entity_type: "price_only") },  # SSoT: Only sync price_only supplier stubs
       description: "Contacts (price_only suppliers for pricebook)",
       group: "contacts"
@@ -742,6 +745,11 @@ class TenantConfigSyncService
     existing_records = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
     existing_index = build_record_index(existing_records, config[:match_fields], config[:remap_fks])
 
+    # FRC (Feb 2026): Fix historical contact_code duplicates before importing
+    if table.to_sym == :contacts
+      fix_duplicate_contact_codes(tenant)
+    end
+
     # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
     # use two-pass import: first import all records WITHOUT the self-ref FK so all
     # warehouse_type_ids are correct, then set parent_id in a second pass.
@@ -783,6 +791,14 @@ class TenantConfigSyncService
           next unless record
           begin
             deferred_attrs.each do |field, value|
+              # FRC (Feb 2026): If the remap returned nil during pass 1 (parent processed
+              # after child), re-compute now that all records exist in the target tenant.
+              if value.nil? && self_ref_fks.key?(field)
+                source_record = source_records.find { |sr| sr.send(config[:name_field]) == record.send(config[:name_field]) }
+                if source_record && source_record.send(field).present?
+                  value = remap_foreign_key(field, source_record.send(field), self_ref_fks[field])
+                end
+              end
               record.update_column(field, value) if value.present?
             end
           rescue => e
@@ -905,6 +921,13 @@ class TenantConfigSyncService
     tenant_all = ActsAsTenant.with_tenant(tenant) { model.all.to_a }
     existing_index = build_record_index(tenant_all, config[:match_fields], config[:remap_fks])
 
+    # FRC (Feb 2026): Fix historical contact_code duplicates created by previous syncs
+    # that copied master codes to tenant (now removed from sync_fields).
+    # Regenerate codes as C{id} for any duplicates so update! validations pass.
+    if table.to_sym == :contacts
+      fix_duplicate_contact_codes(tenant)
+    end
+
     # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
     # use two-pass: first pass without self-ref FK, second pass sets parent_id.
     self_ref_fks = (config[:remap_fks] || {}).select { |_f, c| c[:model] == config[:model] }
@@ -954,6 +977,27 @@ class TenantConfigSyncService
               imported << new_record
               deferred_parents[new_record.id] = deferred if deferred.any?
             end
+          rescue ActiveRecord::RecordInvalid => e
+            # FRC (Feb 2026): Uniqueness collision — find_match didn't find the record
+            # but it exists (sync_key diverged). Fall back to finding the colliding record
+            # using the sync attrs (actual DB columns), then update it instead.
+            if e.message.include?("already been taken") || e.message.include?("has already been") || e.message.include?("already exists")
+              fallback = find_uniqueness_collision(model, attrs, config[:match_fields], master_record)
+
+              if fallback
+                begin
+                  ActsAsTenant.with_tenant(tenant) { fallback.update!(attrs) }
+                  updated << fallback
+                  deferred_parents[fallback.id] = deferred if deferred.any?
+                rescue => update_err
+                  skipped << { name: master_record.send(config[:name_field]), reason: update_err.message }
+                end
+              else
+                skipped << { name: master_record.send(config[:name_field]), reason: e.message }
+              end
+            else
+              skipped << { name: master_record.send(config[:name_field]), reason: e.message }
+            end
           rescue => e
             skipped << { name: master_record.send(config[:name_field]), reason: e.message }
           end
@@ -975,6 +1019,14 @@ class TenantConfigSyncService
           next unless record
           begin
             deferred_attrs.each do |field, value|
+              # FRC (Feb 2026): If the remap returned nil during pass 1 (parent processed
+              # after child), re-compute now that all records exist in the target tenant.
+              if value.nil? && self_ref_fks.key?(field)
+                master_record = master_records.find { |mr| mr.send(config[:name_field]) == record.send(config[:name_field]) }
+                if master_record && master_record.send(field).present?
+                  value = remap_foreign_key(field, master_record.send(field), self_ref_fks[field])
+                end
+              end
               record.update_column(field, value) if value.present?
             end
           rescue => e
@@ -1105,6 +1157,35 @@ class TenantConfigSyncService
   # Helper Methods
   # ============================================================================
 
+  # FRC (Feb 2026): Previous config syncs copied master contact_codes to tenant contacts,
+  # creating duplicates (e.g. master's "C42" overwrote tenant contact, but tenant already
+  # had its own contact with auto-generated "C42"). This blocks ALL updates to those
+  # contacts because the uniqueness validation fires on: :update.
+  # Fix: regenerate codes to C{id} for the second (and beyond) duplicate.
+  def fix_duplicate_contact_codes(target_tenant)
+    ActsAsTenant.with_tenant(target_tenant) do
+      dup_codes = Contact.where(is_active: true)
+                         .group(:contact_code)
+                         .having("COUNT(*) > 1")
+                         .pluck(:contact_code)
+
+      return if dup_codes.empty?
+
+      fixed = 0
+      dup_codes.each do |code|
+        # Keep the first (lowest ID), regenerate the rest
+        dupes = Contact.where(contact_code: code, is_active: true).order(:id).to_a
+        dupes.drop(1).each do |contact|
+          new_code = "C#{contact.id}"
+          contact.update_column(:contact_code, new_code)
+          fixed += 1
+        end
+      end
+
+      Rails.logger.info "[ConfigSync] Fixed #{fixed} duplicate contact_codes across #{dup_codes.length} codes in tenant #{target_tenant.name}"
+    end
+  end
+
   def master_tenant
     # Use Tenant model (new multi-tenancy) instead of CorporateGroup
     Tenant.find_by(is_master_tenant: true) || Tenant.find_by(slug: "teeem")
@@ -1148,6 +1229,41 @@ class TenantConfigSyncService
       model.instance_exec(&config[:scope])
     else
       model.all
+    end
+  end
+
+  # FRC (Feb 2026): Find the record causing a uniqueness collision during sync.
+  # Uses two strategies:
+  # 1. Try match_fields as DB columns (works for simple fields like contact_code)
+  # 2. Try sync attrs from build_sync_attrs (works for scoped uniqueness like
+  #    warehouse_folders where name + warehouse_type_id + parent_id must be unique)
+  def find_uniqueness_collision(model, attrs, match_fields, source_record)
+    ActsAsTenant.with_tenant(tenant) do
+      # Strategy 1: match_fields as DB columns (fast, covers most cases)
+      db_columns = model.column_names
+      match_fields.each do |field|
+        next unless db_columns.include?(field.to_s)
+        value = source_record.send(field)
+        next if value.blank?
+        found = model.find_by(field => value) ||
+                model.where("LOWER(#{model.connection.quote_column_name(field)}) = ?",
+                            value.to_s.downcase.strip).first
+        return found if found
+      end
+
+      # Strategy 2: Use the remapped sync attrs (actual DB column values)
+      # Extract unique-looking column combinations from attrs
+      # Try name-based lookups since most uniqueness validations include name
+      if attrs[:name].present?
+        # Build progressively narrower queries using available FK columns
+        query = model.where(name: attrs[:name])
+        query = query.where(warehouse_type_id: attrs[:warehouse_type_id]) if attrs.key?(:warehouse_type_id)
+        query = query.where(parent_id: attrs[:parent_id]) if attrs.key?(:parent_id)
+        found = query.first
+        return found if found
+      end
+
+      nil
     end
   end
 
@@ -1326,23 +1442,12 @@ class TenantConfigSyncService
     result
   rescue ActiveRecord::RecordInvalid => e
     # FRC (Feb 2026): Uniqueness collision — match didn't find the record but it exists.
-    # This happens when sync_key diverged and match_fields differ slightly (e.g., contact
-    # matched by sync_key to wrong record, but contact_code belongs to a different record).
-    # Fallback: find by each match_field directly and update that record instead.
-    if e.message.include?("already been taken") || e.message.include?("has already been")
-      fallback = ActsAsTenant.with_tenant(tenant) do
-        config[:match_fields].each do |field|
-          value = source_record.send(field)
-          next if value.blank?
-          # Try exact match first, then case-insensitive (DB unique index may be CI)
-          found = model.find_by(field => value) ||
-                  model.where("LOWER(#{model.connection.quote_column_name(field)}) = ?",
-                              value.to_s.downcase.strip).first
-          break found if found
-        end
-      end
+    # This happens when sync_key diverged and match_fields differ slightly.
+    # Fallback: find the colliding record using sync attrs (actual DB columns) and update it.
+    if e.message.include?("already been taken") || e.message.include?("has already been") || e.message.include?("already exists")
+      fallback = find_uniqueness_collision(model, attrs, config[:match_fields], source_record)
 
-      if fallback.is_a?(ActiveRecord::Base)
+      if fallback
         ActsAsTenant.with_tenant(tenant) { fallback.update!(attrs) }
         return { imported: true, record: fallback }
       end

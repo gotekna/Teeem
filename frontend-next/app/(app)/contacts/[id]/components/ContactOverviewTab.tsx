@@ -22,6 +22,7 @@ import {
   EmailPropertyGroup,
   AddressPropertyGroup,
 } from "@/components/contact";
+import { ContactIdentityCard } from "./ContactIdentityCard";
 import { SortableList, SortableItem } from "@/components/ui/dnd";
 import type {
   Contact,
@@ -711,65 +712,13 @@ export function ContactOverviewTab({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* LEFT COLUMN */}
         <div className="space-y-6">
-          {/* Identity Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Identity</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {isPerson ? (
-                <>
-                  <PropertyRow
-                    label="First Name"
-                    value={contact.first_name}
-                    onSave={(value) => saveField("first_name", value)}
-                    placeholder="Enter first name"
-                  />
-                  <PropertyRow
-                    label="Middle Name"
-                    value={contact.middle_name}
-                    onSave={(value) => saveField("middle_name", value)}
-                    placeholder="Enter middle name"
-                  />
-                  <PropertyRow
-                    label="Last Name"
-                    value={contact.last_name}
-                    onSave={(value) => saveField("last_name", value)}
-                    placeholder="Enter last name"
-                  />
-                </>
-              ) : (
-                <PropertyRow
-                  label="Company/Trust Name"
-                  value={contact.company_name_or_trust}
-                  onSave={(value) => saveField("company_name_or_trust", value)}
-                  placeholder="Enter company or trust name"
-                />
-              )}
-
-              <PropertyRow
-                label="Entity Type"
-                value={contact.entity_type}
-                onSave={(value) => saveField("entity_type", value)}
-                type="select"
-                options={entityTypeOptions}
-              />
-
-              <PropertyRow
-                label="Active"
-                value={contact.is_active}
-                onSave={(value) => saveField("is_active", value)}
-                type="switch"
-              />
-
-              <PropertyRow
-                label="Team Contact"
-                value={contact.is_team_contact}
-                onSave={(value) => saveField("is_team_contact", value)}
-                type="switch"
-              />
-            </CardContent>
-          </Card>
+          {/* Identity Card - SSoT shared component (also used in User tab) */}
+          <ContactIdentityCard
+            contact={contact}
+            onContactUpdate={onContactUpdate}
+            entityTypeOptions={entityTypeOptions}
+            showContactSettings
+          />
 
           {/* Business & Tax Card - Hide for employees with primary company */}
           {!(canHaveEmployer(contact.entity_type) && contact.primary_company) && (

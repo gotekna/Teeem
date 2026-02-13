@@ -72,10 +72,10 @@ const ENVIRONMENTS: EnvironmentStatus[] = [
   {
     name: "Shared Worker",
     type: "worker",
-    herokuApp: "teeem-staging-worker",
+    herokuApp: "teeem-shared-worker",
     branch: "Staging",
-    backendUrl: "https://teeem-staging-worker-6569c4d9c62f.herokuapp.com",
-    description: "Background jobs for ALL environments (shared DB = shared queue). Standard-2X dyno.",
+    backendUrl: "https://teeem-shared-worker-18a27334000e.herokuapp.com",
+    description: "Background jobs for ALL environments (shared DB = shared queue). Worker-only Standard-2X dyno (no web).",
     status: "checking",
   },
 ];

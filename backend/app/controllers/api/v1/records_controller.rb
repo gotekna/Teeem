@@ -73,7 +73,9 @@ module Api
             # Company/Role panel view: Search name-related columns only
             # This prevents matching irrelevant contacts via city, place_of_birth, abn_entity_name, etc.
             # Note: Contacts table has no 'email' column - emails are in contact_emails table
-            %w[display_name first_name last_name company_name_or_trust]
+            # CRITICAL: Table-qualify columns because eager loading :primary_company
+            # creates a self-JOIN on contacts, making display_name ambiguous
+            %w[contacts.display_name contacts.first_name contacts.last_name contacts.company_name_or_trust]
           elsif search_all
             # Search ALL text columns (comprehensive but slower)
             if @foundation.table_type == "system"
@@ -102,6 +104,13 @@ module Api
             else
               []
             end
+          end
+
+          # SSoT: Contacts foundation - qualify columns to avoid ambiguity
+          # Eager loading :primary_company creates a self-JOIN (contacts → contacts),
+          # making columns like display_name ambiguous. Qualify with table name.
+          if @foundation.slug == "contacts" && !is_company_role_view
+            searchable_columns = searchable_columns.map { |col| col.include?(".") ? col : "contacts.#{col}" }
           end
 
           # SSoT: Jobs foundation - also search client name via job_contacts join
@@ -864,6 +873,95 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
+      # POST /api/v1/foundations/:foundation_id/records/bulk_create
+      def bulk_create
+        model = @foundation.dynamic_model
+        records_data = params[:records]
+
+        if records_data.blank? || !records_data.is_a?(Array)
+          return render json: { error: "No records provided. Expected { records: [...] }" }, status: :unprocessable_entity
+        end
+
+        if records_data.size > 1000
+          return render json: { error: "Maximum 1000 records per batch" }, status: :unprocessable_entity
+        end
+
+        created = []
+        errors = []
+
+        ActiveRecord::Base.transaction do
+          records_data.each_with_index do |record_data, idx|
+            attributes = permitted_bulk_attributes(record_data)
+            attributes = apply_default_values(model, attributes)
+            record = model.new(attributes)
+
+            if record.save
+              created << { index: idx, id: record.id }
+            else
+              errors << { index: idx, errors: record.errors.full_messages }
+            end
+          end
+
+          # Rollback entire batch if any errors (atomic import)
+          raise ActiveRecord::Rollback if errors.any?
+        end
+
+        if errors.any?
+          render json: {
+            success: false,
+            created_count: 0,
+            error_count: errors.size,
+            errors: errors
+          }, status: :unprocessable_entity
+        else
+          render json: {
+            success: true,
+            created_count: created.size,
+            records: created
+          }, status: :created
+        end
+      rescue => e
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # GET /api/v1/foundations/:foundation_id/records/export
+      # Exports ALL matching records as CSV or XLSX
+      # Accepts same filter/sort params as index
+      def export
+        model = @foundation.dynamic_model
+        query = build_filtered_query(model)
+
+        # Cap export at 50,000 records to prevent memory issues
+        total = query.count
+        if total > 50_000
+          return render json: { error: "Export limited to 50,000 records. Apply filters to reduce the dataset." }, status: :unprocessable_entity
+        end
+
+        records = query.limit(50_000).to_a
+
+        # Get column definitions for headers
+        columns = if @foundation.table_type == "system"
+          @foundation.columns.where(visible: true).order(:position).map do |col|
+            { name: col.column_name, label: col.display_name || col.column_name.titleize }
+          end
+        else
+          @foundation.columns.order(:position).map do |col|
+            { name: col.column_name, label: col.display_name || col.column_name.titleize }
+          end
+        end
+
+        format = params[:format_type] || "csv"
+
+        case format
+        when "xlsx"
+          export_xlsx(records, columns)
+        else
+          export_csv(records, columns)
+        end
+      rescue => e
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
       private
 
       # Check if a contact has any related records that would require soft delete
@@ -1438,6 +1536,201 @@ module Api
           query.includes(*associations)
         else
           query
+        end
+      end
+
+      # Build a filtered and sorted query using the same params as index
+      # Used by export to ensure consistent filtering
+      def build_filtered_query(model)
+        query = model.all
+        query = apply_eager_loading(query, model)
+        query = query.distinct
+
+        # Exclude soft-deleted records
+        if model.column_names.include?("deleted")
+          query = query.where(deleted: [false, nil])
+        end
+
+        # Exclude archived contacts unless requested
+        if model.table_name == "contacts" && params[:include_archived] != "true"
+          query = query.where(is_active: [true, nil])
+        end
+
+        # Apply search
+        search = params[:search]
+        if search.present?
+          searchable_columns = @foundation.columns.where(searchable: true).pluck(:column_name)
+          searchable_columns = model.column_names.select { |c| [:string, :text].include?(model.columns_hash[c]&.type) } if searchable_columns.empty?
+
+          if searchable_columns.any?
+            conditions = searchable_columns.map do |col|
+              "#{ActiveRecord::Base.connection.quote_column_name(col)} ILIKE ?"
+            end
+            query = query.where(conditions.join(" OR "), *searchable_columns.map { "%#{search}%" })
+          end
+        end
+
+        # Apply filters (same as index)
+        if params[:filters].present?
+          begin
+            filters = JSON.parse(params[:filters])
+            filter_groups = params[:filter_groups].present? ? JSON.parse(params[:filter_groups]) : []
+            inter_group_logic = params[:inter_group_logic] || "AND"
+
+            filters_by_group = filters.group_by { |f| f["groupId"] || "default" }
+
+            group_conditions = filters_by_group.map do |group_id, group_filters|
+              group = filter_groups.find { |g| g["id"] == group_id }
+              group_logic = group&.dig("logic") || "AND"
+
+              filter_conditions = group_filters.map do |filter|
+                column = filter["column"]
+                operator = filter["operator"]
+                value = filter["value"]
+
+                valid_columns = if @foundation.table_type == "system"
+                  model.column_names
+                else
+                  @foundation.columns.pluck(:column_name)
+                end
+                next nil unless valid_columns.include?(column)
+
+                conn = ActiveRecord::Base.connection
+                quoted_column = conn.quote_column_name(column)
+
+                case operator
+                when "=", "equals"
+                  ["#{quoted_column} = ?", value]
+                when "!=", "not_equals"
+                  ["#{quoted_column} != ? OR #{quoted_column} IS NULL", value]
+                when "contains"
+                  ["#{quoted_column} ILIKE ?", "%#{value}%"]
+                when "is_empty"
+                  ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
+                when "is_not_empty"
+                  ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
+                else
+                  nil
+                end
+              end.compact
+
+              if filter_conditions.any?
+                sql = filter_conditions.map(&:first).join(group_logic == "AND" ? " AND " : " OR ")
+                bind_values = filter_conditions.flat_map { |c| c[1..-1] }
+                [sql, *bind_values]
+              end
+            end.compact
+
+            if group_conditions.any?
+              if inter_group_logic == "AND"
+                group_conditions.each { |condition| query = query.where(condition) }
+              else
+                or_sql = group_conditions.map { |c| "(#{c.first})" }.join(" OR ")
+                or_bind_values = group_conditions.flat_map { |c| c[1..-1] }
+                query = query.where(or_sql, *or_bind_values)
+              end
+            end
+          rescue JSON::ParserError => e
+            Rails.logger.error "Failed to parse export filter params: #{e.message}"
+          end
+        end
+
+        # Apply sorting
+        sort_by = params[:sort_by]
+        sort_direction = params[:sort_direction]&.downcase == "desc" ? "desc" : "asc"
+        if sort_by.present?
+          valid_columns = if @foundation.table_type == "system"
+            model.column_names
+          else
+            @foundation.columns.pluck(:column_name)
+          end
+          if valid_columns.include?(sort_by)
+            query = query.order(Arel.sql("#{ActiveRecord::Base.connection.quote_column_name(sort_by)} #{sort_direction}"))
+          else
+            query = query.order(created_at: :desc)
+          end
+        else
+          query = query.order(created_at: :desc)
+        end
+
+        query
+      end
+
+      # Permit attributes for bulk create (same validation as record_params but from array item)
+      def permitted_bulk_attributes(record_data)
+        columns = @foundation.columns
+        permitted = {}
+
+        columns.each do |col|
+          col_name = col.column_name
+          next unless record_data.key?(col_name)
+          permitted[col_name] = record_data[col_name]
+        end
+
+        permitted
+      end
+
+      # Export records as CSV
+      def export_csv(records, columns)
+        require "csv"
+
+        csv_data = CSV.generate do |csv|
+          csv << columns.map { |c| c[:label] }
+
+          records.each do |record|
+            csv << columns.map { |c| format_export_value(record, c[:name]) }
+          end
+        end
+
+        send_data csv_data,
+          filename: "#{@foundation.slug}_export_#{Date.today.iso8601}.csv",
+          type: "text/csv",
+          disposition: "attachment"
+      end
+
+      # Export records as XLSX using caxlsx
+      def export_xlsx(records, columns)
+        package = Axlsx::Package.new
+        workbook = package.workbook
+
+        workbook.add_worksheet(name: @foundation.name.truncate(31)) do |sheet|
+          # Header row with bold styling
+          header_style = sheet.styles.add_style(b: true, bg_color: "4472C4", fg_color: "FFFFFF")
+          sheet.add_row columns.map { |c| c[:label] }, style: header_style
+
+          records.each do |record|
+            sheet.add_row columns.map { |c| format_export_value(record, c[:name]) }
+          end
+        end
+
+        xlsx_data = package.to_stream.read
+        send_data xlsx_data,
+          filename: "#{@foundation.slug}_export_#{Date.today.iso8601}.xlsx",
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          disposition: "attachment"
+      end
+
+      # Format a record value for export (flatten lookups, handle arrays)
+      def format_export_value(record, column_name)
+        value = record.respond_to?(column_name) ? record.send(column_name) : record.attributes[column_name]
+
+        case value
+        when Hash
+          # Expanded lookup - use display value
+          value[:display] || value["display"] || value[:id] || value["id"]
+        when Array
+          # Multiple lookups - join display values
+          value.map { |v| v.is_a?(Hash) ? (v[:display_value] || v["display_value"] || v[:id]) : v }.join(", ")
+        when TrueClass
+          "Yes"
+        when FalseClass
+          "No"
+        when Time, DateTime
+          value.strftime("%Y-%m-%d %H:%M")
+        when Date
+          value.iso8601
+        else
+          value.to_s
         end
       end
     end

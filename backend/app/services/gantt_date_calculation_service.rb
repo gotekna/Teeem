@@ -175,7 +175,7 @@ class GanttDateCalculationService
     # ❌ WRONG: task.locked? - catches held tasks, returns stale weekend end_dates
     # ✅ CORRECT: Check confirm/supplier_confirm/started/completed explicitly
     # ════════════════════════════════════════════════════════════════
-    if task.respond_to?(:confirm?) && task.start_date.present? &&
+    if task.respond_to?(:confirm?) && task.respond_to?(:start_date) && task.start_date.present? &&
        (task.confirm? || task.supplier_confirm? || task.status_started? || task.status_completed?)
       row_start = task.start_date
       row_end = task.end_date || @calendar.add_working_days(row_start, (task.duration_days || 1) - 1)
