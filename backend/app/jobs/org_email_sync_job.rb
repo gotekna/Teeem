@@ -60,8 +60,8 @@ class OrgEmailSyncJob < ApplicationJob
   # Solution: Always add overlap buffer and enforce minimum lookback.
   # Overlap is SAFE (upsert handles duplicates). Missing emails is NOT.
   # ════════════════════════════════════════════════════════════════
-  SYNC_OVERLAP_BUFFER = 2.hours   # Always look back this much before last_sync_at
-  SYNC_MINIMUM_LOOKBACK = 24.hours # Never sync less than this window
+  SYNC_OVERLAP_BUFFER = EmailConstants::SYNC_OVERLAP_BUFFER   # Always look back this much before last_sync_at
+  SYNC_MINIMUM_LOOKBACK = EmailConstants::RECENT_EMAIL_WINDOW # Never sync less than this window
 
   # SSoT: Supports multi-org via organization_id (preferred)
   # Falls back to credential_id or org_name for legacy compatibility (with warning)
@@ -487,7 +487,7 @@ class OrgEmailSyncJob < ApplicationJob
 
     # Return highest confidence match if above threshold (0.8)
     best_match = matches.first
-    return nil unless best_match && best_match[:confidence] >= 0.8
+    return nil unless best_match && best_match[:confidence] >= EmailConstants::DEFAULT_AUTO_ASSIGN_CONFIDENCE
 
     Rails.logger.info "[OrgEmailSync] Matched email #{email.id} to job #{best_match[:job].id} (#{best_match[:match_type]}, confidence: #{best_match[:confidence]})"
     best_match[:job]

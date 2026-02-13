@@ -11,7 +11,7 @@ class Api::V1::EmailsController < ApplicationController
     elsif params[:unassigned]
       emails = emails.where(job_id: nil)
     else
-      emails = emails.limit(50)
+      emails = emails.limit(EmailConstants::DEFAULT_PER_PAGE)
     end
 
     render json: { success: true, emails: emails.as_json }

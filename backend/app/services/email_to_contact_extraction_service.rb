@@ -890,7 +890,7 @@ class EmailToContactExtractionService
     # Try exact match first (through contact)
     exact_matches = Corporate.joins(:contact)
                            .where("LOWER(contacts.display_name) = ?", suggested_name.downcase)
-                           .limit(10)
+                           .limit(EmailConstants::COMPANY_MATCH_LIMIT)
 
     matches.concat(exact_matches) if exact_matches.any?
 
@@ -900,7 +900,7 @@ class EmailToContactExtractionService
                              .where("LOWER(contacts.display_name) LIKE ?", "#{suggested_name.downcase}%")
                              .where.not(id: matches.map(&:id))  # Exclude already found
                              .order("LENGTH(contacts.display_name)")
-                             .limit(10)
+                             .limit(EmailConstants::COMPANY_MATCH_LIMIT)
 
     matches.concat(partial_matches) if partial_matches.any?
 
@@ -913,7 +913,7 @@ class EmailToContactExtractionService
       abbreviation_matches = Corporate.joins(:contact)
                                     .where("contacts.display_name ~* ?", "\\y#{suggested_name}\\y")
                                     .order("LENGTH(contacts.display_name)")
-                                    .limit(10)
+                                    .limit(EmailConstants::COMPANY_MATCH_LIMIT)
 
       # Also try matching first letters of words (e.g., "SVP" matches "SV Partners", "St Vincent Partners")
       if abbreviation_matches.empty?
@@ -922,7 +922,7 @@ class EmailToContactExtractionService
         word_match = Corporate.joins(:contact)
                            .where("contacts.display_name ILIKE ?", "%#{suggested_name}%")
                            .order("LENGTH(contacts.display_name)")
-                           .limit(10)
+                           .limit(EmailConstants::COMPANY_MATCH_LIMIT)
 
         matches.concat(word_match) if word_match.any?
       else
@@ -935,7 +935,7 @@ class EmailToContactExtractionService
       contained_matches = Corporate.joins(:contact)
                                  .where("LOWER(?) LIKE CONCAT('%', LOWER(contacts.display_name), '%')", suggested_name)
                                  .order("LENGTH(contacts.display_name) DESC")
-                                 .limit(10)
+                                 .limit(EmailConstants::COMPANY_MATCH_LIMIT)
 
       matches.concat(contained_matches) if contained_matches.any?
     end

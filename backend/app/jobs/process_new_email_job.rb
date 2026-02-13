@@ -12,7 +12,7 @@ class ProcessNewEmailJob < ApplicationJob
 
     # Try to auto-assign to a job based on matching rules
     # Priority: explicit ID > thread inheritance > address match > contact match
-    job = email.auto_assign_to_job!(min_confidence: 0.7)
+    job = email.auto_assign_to_job!(min_confidence: EmailConstants::AUTO_ASSIGN_MIN_CONFIDENCE)
 
     if job
       Rails.logger.info "[ProcessNewEmailJob] Auto-assigned email #{email_id} to job #{job.id}"

@@ -114,7 +114,7 @@ class Api::V1::EmailLabelsController < ApplicationController
 
     # Pagination
     page = (params[:page] || 1).to_i
-    per_page = [(params[:per_page] || 50).to_i, 200].min
+    per_page = [(params[:per_page] || EmailConstants::DEFAULT_PER_PAGE).to_i, EmailConstants::MAX_PER_PAGE].min
     total = emails.count
 
     emails = emails.offset((page - 1) * per_page).limit(per_page)
@@ -252,7 +252,7 @@ class Api::V1::EmailLabelsController < ApplicationController
     }
 
     if include_emails
-      json[:emails] = label.emails.order(received_at: :desc).limit(50).map { |e| email_summary_json(e) }
+      json[:emails] = label.emails.order(received_at: :desc).limit(EmailConstants::DEFAULT_PER_PAGE).map { |e| email_summary_json(e) }
     end
 
     json

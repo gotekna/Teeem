@@ -23,7 +23,7 @@ class ProcessNewTaskEmailsJob < ApplicationJob
     new_task_emails = SyncedEmail
       .where("? = ANY(to_emails)", newtask_address)
       .where.not(id: processed_email_ids)
-      .where("received_at > ?", 24.hours.ago) # Only process recent emails
+      .where("received_at > ?", EmailConstants::RECENT_EMAIL_WINDOW.ago) # Only process recent emails
       .order(received_at: :desc)
 
     return if new_task_emails.empty?

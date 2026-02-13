@@ -82,6 +82,20 @@ export const UI_EXPORT_STATUS_MS = 5000;
  */
 export const UI_AUTOSAVE_FEEDBACK_MS = 2000;
 
+/**
+ * Delay for cleaning up blob URLs after download (1 second).
+ * Ensures browser has time to process the download before revoking the URL.
+ * SSoT for: components/emails/AttachmentList.tsx
+ */
+export const BLOB_URL_CLEANUP_DELAY_MS = 1000;
+
+/**
+ * Delay for resetting modal state after close (300ms).
+ * Allows closing animation to complete before state reset.
+ * SSoT for: components/emails/EmailToContactsModal.tsx
+ */
+export const MODAL_RESET_DELAY_MS = 300;
+
 // =============================================================================
 // DEBOUNCE CONSTANTS
 // =============================================================================

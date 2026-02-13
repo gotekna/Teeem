@@ -616,7 +616,7 @@ class SyncedEmail < ApplicationRecord
       matches << {
         job: job,
         match_type: "contact_email_with_context",
-        confidence: 0.75,
+        confidence: EmailConstants::CONTACT_MATCH_CONFIDENCE,
         reason: "Email #{job.matched_email} is linked to job contact"
       }
     end
@@ -693,7 +693,7 @@ class SyncedEmail < ApplicationRecord
   end
 
   # Auto-assign to best matching job if confidence is high enough
-  def auto_assign_to_job!(min_confidence: 0.8)
+  def auto_assign_to_job!(min_confidence: EmailConstants::DEFAULT_AUTO_ASSIGN_CONFIDENCE)
     return if job_id.present?  # Already assigned
 
     matches = find_matching_jobs

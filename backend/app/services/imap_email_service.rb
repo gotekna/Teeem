@@ -32,7 +32,7 @@ class ImapEmailService
 
       # Fetch email data in batches
       # Use BODY.PEEK[] instead of RFC822 to avoid marking emails as read
-      message_ids.each_slice(50) do |batch|
+      message_ids.each_slice(EmailConstants::IMAP_FETCH_BATCH_SIZE) do |batch|
         fetch_data = imap.fetch(batch, [
           "UID",
           "BODY.PEEK[]",
@@ -77,7 +77,7 @@ class ImapEmailService
 
       # Fetch email data
       # Use BODY.PEEK[] instead of RFC822 to avoid marking emails as read
-      message_ids.each_slice(50) do |batch|
+      message_ids.each_slice(EmailConstants::IMAP_FETCH_BATCH_SIZE) do |batch|
         fetch_data = imap.uid_fetch(batch, [
           "UID",
           "BODY.PEEK[]",
@@ -345,15 +345,15 @@ class ImapEmailService
         since_date = if sync_all_mode
                        nil  # No date limit - sync all emails
                      elsif full_sync
-                       90.days.ago
+                       EmailConstants::FULL_SYNC_LOOKBACK.ago
                      else
                        # For incremental, sync emails from last sync time minus 1 hour buffer
                        # The buffer handles timezone issues and any emails that arrived just before last sync
                        # Duplicates are handled by internet_message_id uniqueness check
-                       (credential.last_synced_at || 7.days.ago) - 1.hour
+                       (credential.last_synced_at || EmailConstants::INCREMENTAL_SYNC_LOOKBACK.ago) - 1.hour
                      end
         # sync_all mode: no limit. full_sync: 500. incremental: 250
-        limit = sync_all_mode ? nil : (full_sync ? 500 : 250)
+        limit = sync_all_mode ? nil : (full_sync ? EmailConstants::SYNC_LIMIT_FULL : EmailConstants::SYNC_LIMIT_INCREMENTAL)
         emails = fetch_emails(folder: folder, since: since_date, limit: limit)
         all_emails.concat(emails)
       rescue => e

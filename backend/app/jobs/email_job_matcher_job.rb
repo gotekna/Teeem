@@ -54,7 +54,7 @@ class EmailJobMatcherJob < ApplicationJob
         email.update!(
           job_id: job.id,
           match_type: "auto_reverse",
-          match_confidence: 0.7,
+          match_confidence: EmailConstants::JOB_MATCH_CONFIDENCE,
           matched_at: Time.current
         )
         matched_count += 1
@@ -84,7 +84,7 @@ class EmailJobMatcherJob < ApplicationJob
         .update_all(
           job_id: job.id,
           match_type: "thread_inheritance",
-          match_confidence: 0.7,
+          match_confidence: EmailConstants::JOB_MATCH_CONFIDENCE,
           matched_at: Time.current
         )
 
@@ -118,7 +118,7 @@ class EmailJobMatcherJob < ApplicationJob
       email.update!(
         job_id: job.id,
         match_type: "auto_reverse_contact",
-        match_confidence: 0.75,
+        match_confidence: EmailConstants::CONTACT_MATCH_CONFIDENCE,
         matched_at: Time.current
       )
       matched_count += 1

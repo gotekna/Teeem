@@ -5,7 +5,7 @@ class ClassifyEmailWithAiJob < ApplicationJob
 
   # Rate limiting to control AI costs: max 100 classifications per hour
   # At $0.0001 per email, this caps costs at $0.01/hour or $7.20/month max
-  RATE_LIMIT_THRESHOLD = 100
+  RATE_LIMIT_THRESHOLD = EmailConstants::AI_RATE_LIMIT_PER_HOUR
   RATE_LIMIT_PERIOD = 1.hour
 
   # Skip this job if Anthropic API key is not configured
@@ -19,7 +19,7 @@ class ClassifyEmailWithAiJob < ApplicationJob
 
     # Skip if already confidently classified
     current = email.email_classification || {}
-    return if current["confidence"].to_f >= 0.8
+    return if current["confidence"].to_f >= EmailConstants::AI_CONFIDENCE_SKIP_THRESHOLD
 
     # Check rate limit
     if rate_limit_exceeded?
@@ -118,7 +118,7 @@ class ClassifyEmailWithAiJob < ApplicationJob
 
     # Atomic increment returns the NEW value after incrementing
     # This ensures each concurrent job sees a unique, increasing value
-    new_count = Rails.cache.increment(cache_key, 1, expires_in: 2.hours) || 1
+    new_count = Rails.cache.increment(cache_key, 1, expires_in: EmailConstants::AI_RATE_LIMIT_CACHE_EXPIRY) || 1
 
     if new_count > RATE_LIMIT_THRESHOLD
       # We exceeded the limit - our slot shouldn't count

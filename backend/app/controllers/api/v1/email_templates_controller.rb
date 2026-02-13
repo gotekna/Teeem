@@ -197,7 +197,7 @@ class Api::V1::EmailTemplatesController < ApplicationController
   # GET /api/v1/email_templates/quick_replies
   # Get quick reply templates for fast access
   def quick_replies
-    templates = EmailTemplate.quick_replies_for(current_user).limit(10)
+    templates = EmailTemplate.quick_replies_for(current_user).limit(EmailConstants::QUICK_REPLIES_LIMIT)
 
     render json: {
       success: true,

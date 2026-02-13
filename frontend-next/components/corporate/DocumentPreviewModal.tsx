@@ -220,6 +220,7 @@ interface CompanyDocument {
   file_url?: string;
   file_size?: number;
   folder?: string;
+  folder_path?: string;
   document_type?: string;
   financial_years?: number[] | string;
   ref_date?: string;
@@ -1290,7 +1291,7 @@ export default function DocumentPreviewModal({
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground">Folder</p>
-                  <Badge variant="secondary" className="text-[10px]">{document.folder || "GENERAL"}</Badge>
+                  <Badge variant="secondary" className="text-[10px]" title={document.folder_path}>{document.folder || "GENERAL"}</Badge>
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground">Type</p>

@@ -24,6 +24,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 
 interface ContactInfo {
   id: number;
@@ -116,7 +117,7 @@ export function EmailContactMatch({
       if (searchQuery) {
         searchContacts(searchQuery);
       }
-    }, 300);
+    }, DEBOUNCE_SEARCH_MS);
 
     return () => clearTimeout(timer);
   }, [searchQuery, searchContacts]);

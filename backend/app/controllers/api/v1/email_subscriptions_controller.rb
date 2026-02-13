@@ -16,7 +16,7 @@ module Api
                          .order(created_at: :desc)
 
         subscriptions = subscriptions.where(status: params[:status]) if params[:status].present?
-        subscriptions = subscriptions.limit(params[:limit] || 100)
+        subscriptions = subscriptions.limit(params[:limit] || EmailConstants::SUBSCRIPTIONS_DEFAULT_LIMIT)
 
         render json: {
           success: true,

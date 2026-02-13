@@ -173,7 +173,7 @@ class EmailClassificationService
     result = classify_with_heuristics
 
     # Queue for AI classification if uncertain AND AI is enabled
-    if result[:confidence] < 0.7 && ClassifyEmailWithAiJob.enabled?
+    if result[:confidence] < EmailConstants::AUTO_ASSIGN_MIN_CONFIDENCE && ClassifyEmailWithAiJob.enabled?
       ClassifyEmailWithAiJob.perform_later(@email.id)
     else
       # Store heuristic result immediately
@@ -402,7 +402,7 @@ class EmailClassificationService
   def marketing_classification(signal)
     {
       email_type: "marketing",
-      confidence: 0.95,
+      confidence: EmailConstants::MARKETING_CONFIDENCE,
       signals: [ signal ],
       classified_at: Time.current,
       method: "heuristic"
@@ -412,7 +412,7 @@ class EmailClassificationService
   def spam_classification(signal)
     {
       email_type: "spam",
-      confidence: 0.9,
+      confidence: EmailConstants::SPAM_CONFIDENCE,
       signals: [ signal ],
       classified_at: Time.current,
       method: "heuristic"
@@ -422,7 +422,7 @@ class EmailClassificationService
   def transactional_classification(signal)
     {
       email_type: "transactional",
-      confidence: 0.85,
+      confidence: EmailConstants::TRANSACTIONAL_CONFIDENCE,
       signals: [ signal ],
       classified_at: Time.current,
       method: "heuristic"

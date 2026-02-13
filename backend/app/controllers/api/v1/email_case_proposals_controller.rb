@@ -39,7 +39,7 @@ module Api
 
         # Pagination
         page = (params[:page] || 1).to_i
-        per_page = [ (params[:per_page] || 20).to_i, 100 ].min
+        per_page = [ (params[:per_page] || EmailConstants::PROPOSALS_PER_PAGE).to_i, EmailConstants::PROPOSALS_MAX_PER_PAGE ].min
         total = proposals.count
 
         proposals = proposals.recent.offset((page - 1) * per_page).limit(per_page)

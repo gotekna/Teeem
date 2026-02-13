@@ -279,7 +279,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Pagination
     page = (params[:page] || 1).to_i
-    per_page = [ (params[:per_page] || 50).to_i, 200 ].min
+    per_page = [ (params[:per_page] || EmailConstants::DEFAULT_PER_PAGE).to_i, EmailConstants::MAX_PER_PAGE ].min
     total = emails.count
 
     # Performance: Eager load job association and paginate
@@ -421,7 +421,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Pagination
     page = (params[:page] || 1).to_i
-    per_page = [ (params[:per_page] || 50).to_i, 200 ].min
+    per_page = [ (params[:per_page] || EmailConstants::DEFAULT_PER_PAGE).to_i, EmailConstants::MAX_PER_PAGE ].min
     total = emails.count
 
     # Performance: Eager load and batch contacts
@@ -538,7 +538,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     return render json: { error: "Search query required" }, status: :bad_request if params[:q].blank?
 
     # Performance: Eager load and batch contacts
-    emails = SyncedEmail.search_text(params[:q]).includes(:job).latest_in_thread.recent_first.limit(100)
+    emails = SyncedEmail.search_text(params[:q]).includes(:job).latest_in_thread.recent_first.limit(EmailConstants::SEARCH_RESULTS_LIMIT)
     all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
 
@@ -812,7 +812,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Pagination
     page = (params[:page] || 1).to_i
-    per_page = [ (params[:per_page] || 50).to_i, 200 ].min
+    per_page = [ (params[:per_page] || EmailConstants::DEFAULT_PER_PAGE).to_i, EmailConstants::MAX_PER_PAGE ].min
     total = emails.count
 
     # Performance: Eager load and batch contacts
@@ -1140,7 +1140,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     suggestions = Contact.joins(:contact_emails)
                          .where("LOWER(contact_emails.email) IN (?)", email_addresses)
                          .distinct
-                         .limit(10)
+                         .limit(EmailConstants::CLASSIFICATION_EXAMPLES_LIMIT)
 
     # Also check AI-extracted entities if available
     if email.extracted_entities.present?
@@ -1964,7 +1964,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     if params[:category].present?
       category = params[:category].to_sym
       page = (params[:page] || 1).to_i
-      per_page = [ (params[:per_page] || 50).to_i, 200 ].min
+      per_page = [ (params[:per_page] || EmailConstants::DEFAULT_PER_PAGE).to_i, EmailConstants::MAX_PER_PAGE ].min
 
       emails = service.emails_for_category(category, page: page, per_page: per_page)
       total = service.category_counts[category] || 0

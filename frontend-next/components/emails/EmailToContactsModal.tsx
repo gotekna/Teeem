@@ -36,6 +36,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { extractEmailsFromRows } from "@/lib/email-utils";
+import { MODAL_RESET_DELAY_MS } from "@/lib/constants/timeout-constants";
 
 interface EmailCandidate {
   email: string;
@@ -138,7 +139,7 @@ export function EmailToContactsModal({
         setCompanyActions(new Map());
         setDuplicateActions(new Map());
         setResults(null);
-      }, 300);
+      }, MODAL_RESET_DELAY_MS);
     }
   }, [open]);
 

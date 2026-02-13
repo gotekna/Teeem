@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { formatFileSize } from "@/utils/formatters";
+import { BLOB_URL_CLEANUP_DELAY_MS } from "@/lib/constants/timeout-constants";
 
 // File type detection helpers
 function isSpreadsheetFile(name: string, contentType?: string): boolean {
@@ -184,7 +185,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           const blob = await fetchAttachmentBlob(attachment);
           const url = window.URL.createObjectURL(blob);
           window.open(url, "_blank");
-          setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+          setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
         }
         return;
       }
@@ -223,7 +224,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
             // Fallback to blob preview
             const url = window.URL.createObjectURL(blob);
             window.open(url, "_blank");
-            setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+            setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
           }
         };
         reader.readAsDataURL(blob);
@@ -234,7 +235,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
       const blob = await fetchAttachmentBlob(attachment);
       const url = window.URL.createObjectURL(blob);
       window.open(url, "_blank");
-      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+      setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
     } catch (error) {
       console.error("Failed to open attachment:", error);
     } finally {
@@ -276,7 +277,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           const blob = await fetchAttachmentBlob(attachment);
           const url = window.URL.createObjectURL(blob);
           window.open(url, "preview", "width=900,height=700,menubar=no,toolbar=no,location=no,status=no");
-          setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+          setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
         }
         return;
       }
@@ -319,7 +320,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
             // Fallback to blob preview
             const url = window.URL.createObjectURL(blob);
             window.open(url, "preview", "width=900,height=700,menubar=no,toolbar=no,location=no,status=no");
-            setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+            setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
           }
         };
         reader.readAsDataURL(blob);
@@ -330,7 +331,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
       const blob = await fetchAttachmentBlob(attachment);
       const url = window.URL.createObjectURL(blob);
       window.open(url, "preview", "width=900,height=700,menubar=no,toolbar=no,location=no,status=no");
-      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+      setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
     } catch (error) {
       console.error("Failed to preview attachment:", error);
     } finally {
