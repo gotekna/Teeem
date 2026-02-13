@@ -28,6 +28,7 @@ class PricebookItem < ApplicationRecord
   before_save :check_pricing_review_status
   before_save :update_price_timestamp, if: :will_save_change_to_current_price?
   after_update :track_price_change, if: :should_track_price_change?
+  after_update :sync_price_from_new_default_supplier, if: :saved_change_to_default_supplier_id?
 
   # SSoT: Update contact's cached supplier flag when pricebook item changes
   after_commit :refresh_supplier_cached_flag, on: [:create, :destroy]
@@ -368,12 +369,33 @@ class PricebookItem < ApplicationRecord
     old_price = saved_change_to_current_price[0]
     new_price = saved_change_to_current_price[1]
 
+    # Use default_supplier_id (SSoT) with fallback to legacy supplier_id
+    tracking_supplier_id = default_supplier_id || supplier_id
+
     price_histories.create!(
       old_price: old_price,
       new_price: new_price,
       change_reason: "manual_edit",
-      supplier_id: supplier_id
+      supplier_id: tracking_supplier_id
     )
+  end
+
+  # SSoT: When default_supplier_id changes, sync current_price to the new supplier's latest history.
+  def sync_price_from_new_default_supplier
+    return if default_supplier_id.nil?
+
+    latest = price_histories
+      .where(supplier_id: default_supplier_id)
+      .order(date_effective: :desc, created_at: :desc)
+      .first
+
+    return unless latest
+    return if current_price == latest.new_price
+
+    self.skip_price_history_callback = true
+    update!(current_price: latest.new_price)
+  rescue StandardError => e
+    Rails.logger.error("PricebookItem##{id}: Failed to sync price from new default supplier - #{e.message}")
   end
 
   def update_price_timestamp
