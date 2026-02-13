@@ -36,6 +36,7 @@ import {
 import type { DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import type { EmailFilters, UseEmailFiltersReturn } from "@/hooks/useEmailFilters";
+import { DATE_MEDIUM } from "@/lib/constants/date-formats";
 
 export interface EmailSearchFiltersProps {
   /** Filter state from useEmailFilters hook */
@@ -136,9 +137,9 @@ export function EmailSearchFilters({
   const formatDateRange = () => {
     if (!filters.dateRange?.from) return "Select date range";
     if (filters.dateRange.to) {
-      return `${format(filters.dateRange.from, "MMM d")} - ${format(filters.dateRange.to, "MMM d, yyyy")}`;
+      return `${format(filters.dateRange.from, "MMM d")} - ${format(filters.dateRange.to, DATE_MEDIUM)}`;
     }
-    return `From ${format(filters.dateRange.from, "MMM d, yyyy")}`;
+    return `From ${format(filters.dateRange.from, DATE_MEDIUM)}`;
   };
 
   return (

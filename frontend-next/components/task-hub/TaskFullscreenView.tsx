@@ -108,6 +108,7 @@ import {
 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { DATE_ISO, DATETIME_COMPACT, DATE_MEDIUM } from '@/lib/constants/date-formats';
 import { toast } from 'sonner';
 import { useWorkingDays } from '@/lib/hooks/useWorkingDays';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
@@ -3967,7 +3968,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             allQA: context.allQA
           };
           const encoded = encodeViewerContext(viewerContext);
-          const enhancedUrl = `https://teeem.vercel.app/view/${encoded}`;
+          const enhancedUrl = `${window.location.origin}/view/${encoded}`;
 
           // URL length limit: browsers support ~2000 chars, but keep under 1800 to be safe
           // Presigned S3 URLs can be 300+ chars each, so fall back for long URLs
@@ -3976,7 +3977,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           } else if (viewerContextIdRef.current) {
             // Use server-stored context (preserves Q&A sidebar)
             const idx = context.currentIndex ?? 0;
-            viewerUrl = `https://teeem.vercel.app/view/ctx/${viewerContextIdRef.current}?idx=${idx}`;
+            viewerUrl = `${window.location.origin}/view/ctx/${viewerContextIdRef.current}?idx=${idx}`;
           } else {
             // Last resort: simple URL for this file only (pass type hint for blob URLs without extension)
             const viewerParams = new URLSearchParams({
@@ -3985,7 +3986,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               download: downloadUrl
             });
             if (typeHint) viewerParams.set('type', typeHint);
-            viewerUrl = `https://teeem.vercel.app/view?${viewerParams.toString()}`;
+            viewerUrl = `${window.location.origin}/view?${viewerParams.toString()}`;
           }
         } else {
           // Fallback to simple query params for single files without Q&A context
@@ -5095,7 +5096,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           onSelect={(date) => {
                             if (date) {
                               setSelectedConfirmDate(date);
-                              confirmTask(task.id, format(date, 'yyyy-MM-dd'));
+                              confirmTask(task.id, format(date, DATE_ISO));
                               setConfirmDateOpen(false);
                             }
                           }}
@@ -5134,7 +5135,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           onSelect={(date) => {
                             if (date) {
                               setSelectedSupplierDate(date);
-                              supplierConfirmTask(task.id, format(date, 'yyyy-MM-dd'));
+                              supplierConfirmTask(task.id, format(date, DATE_ISO));
                               setSupplierConfirmDateOpen(false);
                             }
                           }}
@@ -5449,7 +5450,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             // When start date changes, recalculate end_date using working days
                             const newEndDate = calculateEndDate(date, task.duration_days);
                             await updateTask(task.id, {
-                              start_date: format(date, 'yyyy-MM-dd'),
+                              start_date: format(date, DATE_ISO),
                               end_date: newEndDate
                             });
                           }
@@ -5486,7 +5487,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             // Ensure minimum duration of 1 day
                             const validDuration = Math.max(1, newDuration);
                             await updateTask(task.id, {
-                              end_date: format(date, 'yyyy-MM-dd'),
+                              end_date: format(date, DATE_ISO),
                               duration_days: validDuration
                             });
                             setDuration(validDuration);
@@ -5524,7 +5525,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       selected={task.required_by ? new Date(task.required_by) : undefined}
                       onSelect={async (date) => {
                         await updateTask(task.id, {
-                          required_by: date ? format(date, 'yyyy-MM-dd') : undefined
+                          required_by: date ? format(date, DATE_ISO) : undefined
                         });
                       }}
                       initialFocus
@@ -8506,7 +8507,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                   {email.from_name || email.from_email}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  {format(new Date(email.received_at), 'dd/MM/yy HH:mm')}
+                                  {format(new Date(email.received_at), DATETIME_COMPACT)}
                                 </span>
                               </div>
                               <p className="text-sm truncate">{email.subject}</p>
@@ -8561,7 +8562,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                   {email.from_name || email.from_email}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  {format(new Date(email.received_at), 'dd/MM/yy HH:mm')}
+                                  {format(new Date(email.received_at), DATETIME_COMPACT)}
                                 </span>
                               </div>
                               <p className="text-sm truncate">{email.subject}</p>
@@ -8616,7 +8617,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                   {email.from_name || email.from_email}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  {format(new Date(email.received_at), 'dd/MM/yy HH:mm')}
+                                  {format(new Date(email.received_at), DATETIME_COMPACT)}
                                 </span>
                               </div>
                               <p className="text-sm truncate">{email.subject}</p>

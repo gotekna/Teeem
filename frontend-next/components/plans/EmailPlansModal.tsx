@@ -29,6 +29,7 @@ import { api } from "@/lib/api";
 import { EmailContactAutocomplete } from "@/components/emails/EmailContactAutocomplete";
 import type { EmailContact } from "@/lib/email-types";
 import { DEBOUNCE_SEARCH_MS } from '@/lib/constants/timeout-constants';
+import { PLAN_RECIPIENT_TYPES, type PlanRecipientType } from "@/lib/constants/roles";
 
 const CONTACT_SEARCH_MIN_CHARS = 2;
 const CONTACT_SEARCH_DEBOUNCE_MS = DEBOUNCE_SEARCH_MS;
@@ -48,7 +49,7 @@ interface SuggestedRecipient {
   name: string;
   email: string;
   role: string;
-  type: "client" | "supervisor" | "contractor" | "contact";
+  type: PlanRecipientType;
 }
 
 interface EmailPlansModalProps {
@@ -160,14 +161,15 @@ export function EmailPlansModal({
     );
   };
 
-  const getRecipientIcon = (type: string) => {
+  const getRecipientIcon = (type: PlanRecipientType) => {
     switch (type) {
-      case "client":
+      case PLAN_RECIPIENT_TYPES.CLIENT:
         return <User className="h-4 w-4" />;
-      case "supervisor":
+      case PLAN_RECIPIENT_TYPES.SUPERVISOR:
         return <HardHat className="h-4 w-4" />;
-      case "contractor":
+      case PLAN_RECIPIENT_TYPES.CONTRACTOR:
         return <Building2 className="h-4 w-4" />;
+      case PLAN_RECIPIENT_TYPES.CONTACT:
       default:
         return <Users className="h-4 w-4" />;
     }

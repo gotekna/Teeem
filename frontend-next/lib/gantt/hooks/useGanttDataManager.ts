@@ -27,6 +27,7 @@ import {
   type SuccessorInfo,
 } from '@/lib/gantt/types';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
+import { UI_AUTOSAVE_FEEDBACK_MS } from '@/lib/constants/timeout-constants';
 import { type GanttMode, getGanttApiConfig, wrapPayload } from './ganttApi';
 
 // =============================================================================
@@ -1552,7 +1553,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
       if (silent) {
         setAutoSaveStatus('saved');
-        setTimeout(() => setAutoSaveStatus('idle'), 2000);
+        setTimeout(() => setAutoSaveStatus('idle'), UI_AUTOSAVE_FEEDBACK_MS);
         loadData({ silent: true });
       } else {
         toast({ title: 'Success', description: 'Task updated' });

@@ -47,6 +47,7 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { DATE_ISO } from '@/lib/constants/date-formats';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { Briefcase } from 'lucide-react';
 import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletionDialog';
@@ -220,7 +221,7 @@ function DelegatedTaskView({
     setDueDate(date);
     setDueDateOpen(false);
     if (date) {
-      const dateStr = format(date, 'yyyy-MM-dd');
+      const dateStr = format(date, DATE_ISO);
       await updateTask(task.id, { end_date: dateStr });
     }
   };
@@ -680,7 +681,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     if (!date || loading) return;
     setLoading('confirm');
     try {
-      await confirmTask(task.id, format(date, 'yyyy-MM-dd'));
+      await confirmTask(task.id, format(date, DATE_ISO));
       setConfirmDateOpen(false);
     } finally {
       setLoading(null);
@@ -692,7 +693,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     if (!date || loading) return;
     setLoading('supplier_confirm');
     try {
-      await supplierConfirmTask(task.id, format(date, 'yyyy-MM-dd'));
+      await supplierConfirmTask(task.id, format(date, DATE_ISO));
       setSupplierConfirmDateOpen(false);
     } finally {
       setLoading(null);
@@ -772,7 +773,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     setRequiredByOpen(false);
     setLoading('required_by');
     try {
-      await updateTask(task.id, { required_by: date ? format(date, 'yyyy-MM-dd') : undefined });
+      await updateTask(task.id, { required_by: date ? format(date, DATE_ISO) : undefined });
     } finally {
       setLoading(null);
     }

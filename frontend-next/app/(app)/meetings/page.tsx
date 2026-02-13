@@ -23,6 +23,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { format, isToday, isTomorrow } from "date-fns";
 import { getInitials } from "@/utils/formatters";
+import { DATE_ISO } from "@/lib/constants/date-formats";
 
 interface Meeting {
   id: number;
@@ -94,7 +95,7 @@ export default function MeetingsPage() {
   const groupedMeetings = React.useMemo(() => {
     const groups: Record<string, Meeting[]> = {};
     meetings.forEach((meeting) => {
-      const date = format(new Date(meeting.start_time), "yyyy-MM-dd");
+      const date = format(new Date(meeting.start_time), DATE_ISO);
       if (!groups[date]) groups[date] = [];
       groups[date].push(meeting);
     });

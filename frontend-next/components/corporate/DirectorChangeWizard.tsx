@@ -56,6 +56,7 @@ import { api, getApiBaseUrl } from "@/lib/api";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { pollPdfGeneration, type PdfGenerationStatus } from "@/lib/pdf-generation";
 import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
+import { DATE_DISPLAY, DATE_ISO, DATETIME_COMPACT } from "@/lib/constants/date-formats";
 
 // --- Date Picker (standard Popover + Calendar, replaces native input[type=date]) ---
 
@@ -89,7 +90,7 @@ function DatePickerInput({
           )}
         >
           <CalendarIcon className="mr-2 h-3 w-3" />
-          {parsed ? format(parsed, "dd/MM/yyyy") : placeholder}
+          {parsed ? format(parsed, DATE_DISPLAY) : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -99,7 +100,7 @@ function DatePickerInput({
           defaultMonth={parsed || (isDob ? new Date(1980, 0) : new Date())}
           onSelect={(date) => {
             if (date) {
-              const iso = format(date, "yyyy-MM-dd");
+              const iso = format(date, DATE_ISO);
               onChange(iso);
               setOpen(false);
             }
@@ -472,7 +473,7 @@ export function DirectorChangeWizard({
         name: officer.contact?.display_name || "Unknown",
         position: officer.position,
         positions: uniquePositions.length > 0 ? uniquePositions : [officer.position],
-        cessation_date: format(new Date(), "yyyy-MM-dd"),
+        cessation_date: format(new Date(), DATE_ISO),
         has_dob: hasDob,
         has_address: hasAddress,
         dob,
@@ -507,7 +508,7 @@ export function DirectorChangeWizard({
     if (newAppointments.some((a) => a.contact_id === contact.id)) return;
 
     // Default appointment date to the first ceasing director's cessation date (continuity)
-    const defaultDate = ceasingDirectors[0]?.cessation_date || format(new Date(), "yyyy-MM-dd");
+    const defaultDate = ceasingDirectors[0]?.cessation_date || format(new Date(), DATE_ISO);
 
     // Fetch full contact details to get DOB, residential address, and emails
     // ASIC forms require residential_address specifically, not just contact_addresses
@@ -834,7 +835,7 @@ export function DirectorChangeWizard({
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {gen.generatorType?.replace(/_/g, " ")} &middot;{" "}
-                      {gen.createdAt ? format(new Date(gen.createdAt), "dd/MM HH:mm") : "Unknown time"}
+                      {gen.createdAt ? format(new Date(gen.createdAt), DATETIME_COMPACT) : "Unknown time"}
                       {gen.userName ? ` · by ${gen.userName}` : ""}
                     </p>
                   </div>
@@ -977,7 +978,7 @@ export function DirectorChangeWizard({
                       </div>
                       {cd.has_dob && !cd.editing_dob ? (
                         <p className="text-sm">
-                          {cd.dob ? format(new Date(cd.dob + "T00:00:00"), "dd/MM/yyyy") : "On file"}
+                          {cd.dob ? format(new Date(cd.dob + "T00:00:00"), DATE_DISPLAY) : "On file"}
                         </p>
                       ) : (
                         <div className="flex items-center gap-2">
@@ -1221,7 +1222,7 @@ export function DirectorChangeWizard({
                       </div>
                       {appt.has_dob && !appt.editing_dob ? (
                         <p className="text-sm">
-                          {appt.dob ? format(new Date(appt.dob + "T00:00:00"), "dd/MM/yyyy") : "On file"}
+                          {appt.dob ? format(new Date(appt.dob + "T00:00:00"), DATE_DISPLAY) : "On file"}
                         </p>
                       ) : (
                         <div className="flex items-center gap-2">

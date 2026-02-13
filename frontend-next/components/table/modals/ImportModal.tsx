@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
+import { MAX_IMPORT_SIZE } from '@/lib/constants/file-size-limits';
 
 // ============================================================================
 // TYPES
@@ -132,7 +133,7 @@ export function ImportModal({
       'application/xml': ['.xml'],
     },
     maxFiles: 1,
-    maxSize: 50 * 1024 * 1024, // 50MB
+    maxSize: MAX_IMPORT_SIZE,
   });
 
   const handleUpload = async () => {

@@ -10,6 +10,7 @@
 
 import { useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { SYSTEM_ROLES } from "@/lib/constants/roles";
 
 interface SettingsAccess {
   /** User has admin role - can access organization settings */
@@ -27,20 +28,20 @@ export function useSettingsAccess(): SettingsAccess {
     if (!user) return false;
 
     // Check permissions array for "admin"
-    if (user.permissions?.includes("admin")) {
+    if (user.permissions?.includes(SYSTEM_ROLES.ADMIN)) {
       return true;
     }
 
     // Check role_names array for "admin" (case-insensitive)
     const roleNames = (user as { role_names?: string[] }).role_names;
     if (Array.isArray(roleNames)) {
-      return roleNames.some((r) => r.toLowerCase() === "admin");
+      return roleNames.some((r) => r.toLowerCase() === SYSTEM_ROLES.ADMIN);
     }
 
     // Check single role field
     const role = (user as { role?: string }).role;
     if (typeof role === "string") {
-      return role.toLowerCase() === "admin";
+      return role.toLowerCase() === SYSTEM_ROLES.ADMIN;
     }
 
     return false;

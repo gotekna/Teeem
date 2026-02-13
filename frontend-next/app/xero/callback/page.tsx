@@ -83,10 +83,14 @@ function XeroCallbackContent() {
     try {
       // Get auth token from localStorage (shared with main window)
       const token = localStorage.getItem("teeem_token");
-      const apiUrl = localStorage.getItem("teeem_api_url") || "https://teeem-staging-d60a657ed68a.herokuapp.com";
+      const apiUrl = localStorage.getItem("teeem_api_url") || process.env.NEXT_PUBLIC_API_URL || "";
 
       if (!token) {
         throw new Error("No auth token found. Please log in again.");
+      }
+
+      if (!apiUrl) {
+        throw new Error("API URL not configured. Please log in again.");
       }
 
       const endpoint = isCompanyCallback && companyId

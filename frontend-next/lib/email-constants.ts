@@ -5,6 +5,8 @@
  * This prevents duplication and ensures consistency across the codebase.
  */
 
+import { MAX_EMAIL_ATTACHMENT_SIZE } from '@/lib/constants/file-size-limits';
+
 // =============================================================================
 // VALIDATION CONSTANTS
 // =============================================================================
@@ -87,12 +89,12 @@ export const CONTACT_SEARCH_MAX_RESULTS = 20;
  * Maximum size for a single attachment in bytes (25MB).
  * Microsoft 365 and most email providers limit attachments to 25MB.
  */
-export const MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
+export const MAX_ATTACHMENT_SIZE_BYTES = MAX_EMAIL_ATTACHMENT_SIZE;
 
 /**
  * Maximum total size for all attachments combined in bytes (25MB).
  */
-export const MAX_TOTAL_ATTACHMENTS_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
+export const MAX_TOTAL_ATTACHMENTS_SIZE_BYTES = MAX_EMAIL_ATTACHMENT_SIZE;
 
 // =============================================================================
 // ACCOUNT TYPES

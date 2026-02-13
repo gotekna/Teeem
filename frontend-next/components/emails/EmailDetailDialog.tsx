@@ -29,6 +29,7 @@ import { AttachmentList, type Attachment } from "./AttachmentList";
 import { ComposeEmailModal } from "./ComposeEmailModal";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { cn } from "@/lib/utils";
+import { DATETIME_FULL_12H } from "@/lib/constants/date-formats";
 
 /**
  * Strips existing quoted content from email body text.
@@ -261,7 +262,7 @@ export function EmailDetailDialog({
     if (!printWindow) return;
 
     const formattedDate = email.received_at
-      ? format(new Date(email.received_at), "MMM d, yyyy, h:mm:ss a")
+      ? format(new Date(email.received_at), DATETIME_FULL_12H)
       : "";
 
     printWindow.document.write(`

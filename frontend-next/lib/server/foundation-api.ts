@@ -13,7 +13,11 @@ import type { SavedView } from '@/components/table/types';
 
 // SSR always uses env variable directly - no localStorage on server
 const getServerApiUrl = () => {
-  const url = process.env.NEXT_PUBLIC_API_URL || 'https://teeem-production-121159e1ff9d.herokuapp.com';
+  const url = process.env.NEXT_PUBLIC_API_URL;
+  if (!url) {
+    console.warn('[SSR] NEXT_PUBLIC_API_URL not set - API requests will fail');
+    throw new Error('NEXT_PUBLIC_API_URL environment variable is required');
+  }
   console.log('[SSR] API URL:', url);
   return url;
 };

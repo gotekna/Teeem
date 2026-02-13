@@ -11,6 +11,7 @@ import * as React from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { DATE_DISPLAY } from "@/lib/constants/date-formats";
 import {
   Table,
   TableBody,
@@ -108,7 +109,7 @@ export function ShareholdingsTab({ company, companyId }: ShareholdingsTabProps) 
                   <TableCell className="px-4 py-3 text-sm capitalize">{sh.share_class || "Ordinary"}</TableCell>
                   <TableCell className="px-4 py-3 text-sm text-right font-mono">{sh.number_of_shares.toLocaleString()}</TableCell>
                   <TableCell className="px-4 py-3 text-sm text-right">{sh.percentage}%</TableCell>
-                  <TableCell className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), "dd/MM/yyyy") : "-"}</TableCell>
+                  <TableCell className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), DATE_DISPLAY) : "-"}</TableCell>
                   <TableCell className="px-4 py-3 text-sm">-</TableCell>
                   <TableCell className="px-4 py-3">
                     <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">Current</Badge>
@@ -134,8 +135,8 @@ export function ShareholdingsTab({ company, companyId }: ShareholdingsTabProps) 
                   <TableCell className="px-4 py-3 text-sm capitalize">{sh.share_class || "Ordinary"}</TableCell>
                   <TableCell className="px-4 py-3 text-sm text-right font-mono">{sh.number_of_shares.toLocaleString()}</TableCell>
                   <TableCell className="px-4 py-3 text-sm text-right">{sh.percentage}%</TableCell>
-                  <TableCell className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), "dd/MM/yyyy") : "-"}</TableCell>
-                  <TableCell className="px-4 py-3 text-sm">{sh.disposal_date ? format(new Date(sh.disposal_date), "dd/MM/yyyy") : "-"}</TableCell>
+                  <TableCell className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), DATE_DISPLAY) : "-"}</TableCell>
+                  <TableCell className="px-4 py-3 text-sm">{sh.disposal_date ? format(new Date(sh.disposal_date), DATE_DISPLAY) : "-"}</TableCell>
                   <TableCell className="px-4 py-3">
                     <Badge variant="secondary">Former</Badge>
                   </TableCell>

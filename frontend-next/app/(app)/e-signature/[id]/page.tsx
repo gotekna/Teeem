@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format, formatDistanceToNow } from "date-fns";
+import { DATETIME_MEDIUM_12H } from "@/lib/constants/date-formats";
 
 interface Signer {
   id: number;
@@ -377,7 +378,7 @@ export default function ESignatureDetailPage() {
                     <Calendar className="h-3 w-3" />
                     Created
                   </div>
-                  <div>{format(new Date(request.created_at), "MMM d, yyyy h:mm a")}</div>
+                  <div>{format(new Date(request.created_at), DATETIME_MEDIUM_12H)}</div>
                 </div>
 
                 {request.sent_at && (
@@ -386,7 +387,7 @@ export default function ESignatureDetailPage() {
                       <Send className="h-3 w-3" />
                       Sent
                     </div>
-                    <div>{format(new Date(request.sent_at), "MMM d, yyyy h:mm a")}</div>
+                    <div>{format(new Date(request.sent_at), DATETIME_MEDIUM_12H)}</div>
                   </div>
                 )}
 
@@ -396,7 +397,7 @@ export default function ESignatureDetailPage() {
                       <Clock className="h-3 w-3" />
                       Expires
                     </div>
-                    <div>{format(new Date(request.expires_at), "MMM d, yyyy h:mm a")}</div>
+                    <div>{format(new Date(request.expires_at), DATETIME_MEDIUM_12H)}</div>
                   </div>
                 )}
 
@@ -406,7 +407,7 @@ export default function ESignatureDetailPage() {
                       <CheckCircle2 className="h-3 w-3" />
                       Completed
                     </div>
-                    <div>{format(new Date(request.completed_at), "MMM d, yyyy h:mm a")}</div>
+                    <div>{format(new Date(request.completed_at), DATETIME_MEDIUM_12H)}</div>
                   </div>
                 )}
 

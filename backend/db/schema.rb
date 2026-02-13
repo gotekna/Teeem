@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_13_210001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_14_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9041,6 +9041,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_210001) do
     t.index ["job_type_id"], name: "index_specification_templates_on_job_type_id"
     t.index ["tenant_id", "sync_key"], name: "idx_specification_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_specification_templates_on_tenant_id"
+  end
+
+  create_table "storage_billing_snapshots", force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "period", null: false
+    t.float "total_size_gb"
+    t.integer "total_objects"
+    t.float "estimated_cost"
+    t.jsonb "details", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "period"], name: "index_storage_billing_snapshots_on_provider_and_period", unique: true
   end
 
   create_table "storage_blobs", force: :cascade do |t|

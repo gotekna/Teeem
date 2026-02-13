@@ -46,6 +46,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
+import { SYSTEM_ROLES } from "@/lib/constants/roles";
 
 // ============================================
 // Organization-Wide Access Section (Admin Only)
@@ -312,8 +313,8 @@ export default function MicrosoftIntegrationPage() {
   const [connectingOrg, setConnectingOrg] = React.useState<string | null>(null);
 
   // Check if user is admin (SSoT: backend returns role_names array, not role string)
-  const isAdmin = user?.permissions?.includes("admin") ||
-    (Array.isArray(user?.role_names) && user.role_names.some((r: string) => r.toLowerCase() === "admin"));
+  const isAdmin = user?.permissions?.includes(SYSTEM_ROLES.ADMIN) ||
+    (Array.isArray(user?.role_names) && user.role_names.some((r: string) => r.toLowerCase() === SYSTEM_ROLES.ADMIN));
 
   // Check for callback params
   React.useEffect(() => {

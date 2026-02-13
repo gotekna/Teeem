@@ -45,12 +45,36 @@ class StorageBillingService
       wasabi = fetch_wasabi_usage
       backblaze = fetch_backblaze_usage
 
+      # Save monthly snapshots for billing history
+      save_snapshot("wasabi", wasabi) if wasabi[:success]
+      save_snapshot("backblaze", backblaze) if backblaze[:success]
+
+      # Attach billing history to each provider
+      wasabi[:billingHistory] = StorageBillingSnapshot.history_for("wasabi") if wasabi[:success]
+      backblaze[:billingHistory] = StorageBillingSnapshot.history_for("backblaze") if backblaze[:success]
+
       {
         success: true,
         wasabi: wasabi,
         backblaze: backblaze,
         fetchedAt: Time.current.iso8601
       }
+    end
+
+    def save_snapshot(provider, data)
+      StorageBillingSnapshot.record_snapshot(
+        provider: provider,
+        total_size_gb: data[:totalSizeGB],
+        total_objects: data[:totalObjects],
+        estimated_cost: data[:estimatedCost],
+        details: {
+          bucket: data[:bucket],
+          billableTB: data[:billableTB],
+          ratePerTB: data[:ratePerTB]
+        }
+      )
+    rescue StandardError => e
+      Rails.logger.warn("[StorageBillingService] Failed to save #{provider} snapshot: #{e.message}")
     end
 
     def fetch_wasabi_usage

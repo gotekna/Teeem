@@ -26,6 +26,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Spinner } from "@/components/ui/spinner";
 import type { DateEditorProps } from './types';
+import { DATE_DISPLAY, TIME_DISPLAY } from '@/lib/constants/date-formats';
 
 export function DateEditor({
   value,
@@ -41,7 +42,7 @@ export function DateEditor({
   disabled,
   className,
   placeholder,
-  dateFormat = 'dd/MM/yyyy',
+  dateFormat = DATE_DISPLAY,
   includeTime = false,
   minDate,
   maxDate,
@@ -62,7 +63,7 @@ export function DateEditor({
   }, [value]);
 
   // Format for display
-  const displayFormat = includeTime ? `${dateFormat} HH:mm` : dateFormat;
+  const displayFormat = includeTime ? `${dateFormat} ${TIME_DISPLAY}` : dateFormat;
 
   // Format date for input
   const formatDateForInput = useCallback(

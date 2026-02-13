@@ -68,6 +68,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { WritingChecker, useWritingCheckerState, WritingIssue } from "./tiptap-writing-checker";
+import { MAX_INLINE_IMAGE_SIZE } from "@/lib/constants/file-size-limits";
 
 // Custom extension for font size
 declare module "@tiptap/core" {
@@ -466,7 +467,7 @@ export function EditorToolbar({
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) return;
-    if (file.size > 5 * 1024 * 1024) return;
+    if (file.size > MAX_INLINE_IMAGE_SIZE) return;
 
     const reader = new FileReader();
     reader.onload = () => {

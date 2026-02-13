@@ -15,6 +15,7 @@
 
 import { openDB, DBSchema, IDBPDatabase } from "idb";
 import { formatFileSize } from "@/utils/formatters";
+import { MAX_SIGNATURE_SIZE } from "@/lib/constants/file-size-limits";
 
 // =============================================================================
 // Configuration
@@ -25,7 +26,7 @@ const DB_VERSION = 1;
 const PHOTOS_STORE = "photos";
 
 // Max photo size after compression (2MB)
-export const MAX_PHOTO_SIZE_BYTES = 2 * 1024 * 1024;
+export const MAX_PHOTO_SIZE_BYTES = MAX_SIGNATURE_SIZE;
 
 // Target dimensions for compression
 const MAX_PHOTO_DIMENSION = 1920;

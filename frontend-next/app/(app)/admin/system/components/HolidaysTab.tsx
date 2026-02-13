@@ -50,6 +50,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { format } from "date-fns";
+import { DATE_ISO, DATE_MEDIUM } from "@/lib/constants/date-formats";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 
 const REGIONS = [
@@ -208,7 +209,7 @@ export function HolidaysTab() {
         const failedDates: string[] = [];
 
         for (const date of dates) {
-          const dateStr = format(date, "yyyy-MM-dd");
+          const dateStr = format(date, DATE_ISO);
 
           // Skip if holiday already exists for this date
           if (existingDates.has(dateStr)) {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { WorkingDaysCalendar, Holiday } from '@/lib/gantt/engine/WorkingDaysCalendar';
 import { format } from 'date-fns';
+import { DATE_ISO } from '@/lib/constants/date-formats';
 
 /**
  * Hook to provide working day calculations with holidays loaded from API
@@ -97,7 +98,7 @@ export function useWorkingDays() {
   const calculateEndDate = useCallback((startDate: Date | string, durationDays: number): string => {
     const start = typeof startDate === 'string' ? new Date(startDate) : startDate;
     const endDate = addWorkingDays(start, durationDays);
-    return format(endDate, 'yyyy-MM-dd');
+    return format(endDate, DATE_ISO);
   }, [addWorkingDays]);
 
   /**

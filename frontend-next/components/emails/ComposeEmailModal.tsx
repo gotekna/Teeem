@@ -51,6 +51,7 @@ import type { EmailDraft, EmailAccount, EmailContact, PreUploadedAttachment } fr
 import { LayoutTemplate } from "lucide-react";
 import { TemplatePicker, type EmailTemplate } from "./TemplateManager";
 import { format, setHours, setMinutes } from "date-fns";
+import { DATE_ISO } from "@/lib/constants/date-formats";
 
 // Use EmailContact as Contact for backwards compatibility
 type Contact = EmailContact;
@@ -841,9 +842,9 @@ export function ComposeEmailModal({
               <Clock className="h-4 w-4 text-muted-foreground" />
               <Input
                 type="date"
-                value={scheduledDate ? format(scheduledDate, "yyyy-MM-dd") : ""}
+                value={scheduledDate ? format(scheduledDate, DATE_ISO) : ""}
                 onChange={(e) => setScheduledDate(e.target.value ? new Date(e.target.value) : undefined)}
-                min={format(new Date(), "yyyy-MM-dd")}
+                min={format(new Date(), DATE_ISO)}
                 className="w-[130px] h-8 text-xs"
               />
               <Input

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
+import { MAX_INLINE_IMAGE_SIZE } from "@/lib/constants/file-size-limits";
 
 interface Transaction {
   id: number;
@@ -140,7 +141,7 @@ export default function TransactionForm({
     const file = e.target.files?.[0];
     if (file) {
       // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
+      if (file.size > MAX_INLINE_IMAGE_SIZE) {
         setError("File size must be less than 5MB");
         return;
       }

@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import type { FormFieldDef } from "@/lib/workflow-forms/types";
 import { isDisplayField } from "@/lib/workflow-forms/types";
+import { DATE_ISO } from "@/lib/constants/date-formats";
 
 interface AdaptiveFieldRendererProps {
   field: FormFieldDef;
@@ -216,7 +217,7 @@ export function AdaptiveFieldRenderer({
             <Calendar
               mode="single"
               selected={dateValue}
-              onSelect={(date) => onChange(date ? format(date, "yyyy-MM-dd") : "")}
+              onSelect={(date) => onChange(date ? format(date, DATE_ISO) : "")}
             />
           </PopoverContent>
         </Popover>

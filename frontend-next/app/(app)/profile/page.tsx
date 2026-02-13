@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { MAX_UPLOAD_SIZE } from "@/lib/constants/file-size-limits";
 
 interface User {
   id: number;
@@ -17,7 +18,7 @@ interface User {
   photo_url?: string | null;
 }
 
-const MAX_PHOTO_SIZE = 1 * 1024 * 1024; // 1MB
+const MAX_PHOTO_SIZE = MAX_UPLOAD_SIZE;
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
 
 export default function ProfilePage() {
@@ -82,7 +83,7 @@ export default function ProfilePage() {
     if (file.size > MAX_PHOTO_SIZE) {
       toast({
         title: "File too large",
-        description: "Photo must be under 1MB.",
+        description: "Photo must be under 10MB.",
         variant: "destructive",
       });
       return;
@@ -215,7 +216,7 @@ export default function ProfilePage() {
                     )}
                   </Button>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    JPG, GIF or PNG. 1MB max.
+                    JPG, GIF or PNG. 10MB max.
                   </p>
                 </div>
               </div>

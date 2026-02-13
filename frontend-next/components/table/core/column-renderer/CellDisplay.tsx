@@ -26,6 +26,7 @@ import { CheckCircle2, Circle, ExternalLink, Check, ShieldCheck } from "lucide-r
 import type { TableColumn, TableRow } from "../../types";
 import { formatValue } from "@/lib/formatters/display-formatters";
 import { isTypeDefinitionsLoaded } from "@/lib/column-type-registry";
+import { DATE_DISPLAY, DATETIME_DISPLAY } from "@/lib/constants/date-formats";
 
 // Consistent link styling
 const LINK_CLASSES = "text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]";
@@ -228,7 +229,7 @@ export function displayDate(value: unknown): React.ReactNode {
   try {
     const date = new Date(String(value));
     if (isNaN(date.getTime())) return <span className="text-[11px]">{String(value)}</span>;
-    return <span className="text-[11px]">{format(date, "dd/MM/yyyy")}</span>;
+    return <span className="text-[11px]">{format(date, DATE_DISPLAY)}</span>;
   } catch {
     return <span className="text-[11px]">{String(value)}</span>;
   }
@@ -243,7 +244,7 @@ export function displayDateTime(value: unknown): React.ReactNode {
   try {
     const date = new Date(String(value));
     if (isNaN(date.getTime())) return <span className="text-[11px]">{String(value)}</span>;
-    return <span className="text-[11px]">{format(date, "dd/MM/yyyy HH:mm")}</span>;
+    return <span className="text-[11px]">{format(date, DATETIME_DISPLAY)}</span>;
   } catch {
     return <span className="text-[11px]">{String(value)}</span>;
   }

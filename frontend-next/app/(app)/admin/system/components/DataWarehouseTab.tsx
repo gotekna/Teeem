@@ -57,6 +57,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
+import { DATETIME_MEDIUM_12H } from "@/lib/constants/date-formats";
 import { cn } from "@/lib/utils";
 import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { formatFileSize } from "@/utils/formatters";
@@ -613,7 +614,7 @@ export function DataWarehouseTab() {
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "Never";
-    return format(new Date(dateStr), "MMM d, yyyy h:mm a");
+    return format(new Date(dateStr), DATETIME_MEDIUM_12H);
   };
 
   if (loading) {
@@ -639,7 +640,7 @@ export function DataWarehouseTab() {
     if (typeof value === "object") return JSON.stringify(value);
     if (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}/)) {
       try {
-        return format(new Date(value), "MMM d, yyyy h:mm a");
+        return format(new Date(value), DATETIME_MEDIUM_12H);
       } catch {
         return String(value);
       }

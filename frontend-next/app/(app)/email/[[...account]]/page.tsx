@@ -97,6 +97,7 @@ import {
 import { api } from "@/lib/api";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { formatDistanceToNow, format, isToday, differenceInDays } from "date-fns";
+import { DATE_DISPLAY } from "@/lib/constants/date-formats";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { DraftsList } from "@/components/emails/DraftsList";
@@ -308,7 +309,7 @@ function formatEmailDate(dateStr: string): string {
     return format(date, "EEE h:mm a");
   } else {
     // Older: just date
-    return format(date, "dd/MM/yyyy");
+    return format(date, DATE_DISPLAY);
   }
 }
 

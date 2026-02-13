@@ -64,6 +64,7 @@ interface CompanyDocument extends TableRow {
   ai_analysis_notes?: string;
   ai_error_message?: string;
   user_validated_by_id?: number;
+  user_validated_by_name?: string;
   company_id?: number;
 }
 
@@ -144,7 +145,9 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
           : doc.financial_years || "",
         validated: !!(doc.user_validated_at || doc.ai_verification_status === "verified"),
         validation_source: doc.user_validated_at ? "user" : doc.ai_verification_status === "verified" ? "ai" : undefined,
-        ai_confidence: doc.ai_confidence_score || null,
+        ai_confidence: doc.ai_confidence_score ? `${Math.round(Number(doc.ai_confidence_score) * 100)}%` : null,
+        user_validated_by: doc.user_validated_by_name || null,
+        validated_at: doc.user_validated_at ? new Date(doc.user_validated_at).toLocaleDateString() : null,
       }));
       setDocuments(transformed);
     } catch (error) {

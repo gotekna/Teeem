@@ -49,6 +49,7 @@ import {
   DEFAULT_SIGNATURE_STYLE,
 } from "@/lib/email-signature";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { MAX_UPLOAD_SIZE, MAX_SIGNATURE_SIZE } from "@/lib/constants/file-size-limits";
 
 // QBCC Licence Classes relevant for Form 43 certificates
 const QBCC_LICENCE_CLASSES = [
@@ -172,7 +173,7 @@ export default function ProfileSettingsPage() {
         return;
       }
       // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > MAX_UPLOAD_SIZE) {
         toast({ title: "File Too Large", description: "Photo must be less than 10MB", variant: "destructive" });
         return;
       }
@@ -193,7 +194,7 @@ export default function ProfileSettingsPage() {
         return;
       }
       // Validate file size (max 2MB)
-      if (file.size > 2 * 1024 * 1024) {
+      if (file.size > MAX_SIGNATURE_SIZE) {
         toast({ title: "File Too Large", description: "Signature image must be less than 2MB", variant: "destructive" });
         return;
       }

@@ -13,6 +13,7 @@ import { CopyableField, CopyableLink } from "@/components/ui/copyable";
 import { CheckCircle, AlertTriangle, Mail, Phone } from "lucide-react";
 import { format } from "date-fns";
 import type { Corporate } from "@/lib/types/corporate";
+import { DATE_DISPLAY } from "@/lib/constants/date-formats";
 
 interface InformationTabProps {
   company: Corporate;
@@ -55,7 +56,7 @@ export function InformationTab({ company }: InformationTabProps) {
           label="Date Incorporated"
           value={
             company.date_incorporated
-              ? format(new Date(company.date_incorporated), "dd/MM/yyyy")
+              ? format(new Date(company.date_incorporated), DATE_DISPLAY)
               : null
           }
         />

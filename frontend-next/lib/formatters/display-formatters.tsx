@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CheckCircle2, Circle, ExternalLink } from "lucide-react";
 import { getTypeDefinition, type ColumnTypeDefinition } from "../column-type-registry";
+import { DATE_DISPLAY, DATETIME_DISPLAY } from "@/lib/constants/date-formats";
 
 // Consistent link styling
 const LINK_CLASSES = "text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]";
@@ -181,9 +182,9 @@ const FORMATTERS: Record<string, FormatterFn> = {
       if (isNaN(date.getTime())) return <span className="text-[11px]">{String(value)}</span>;
 
       // Default format based on type
-      let dateFormat = "dd/MM/yyyy";
+      let dateFormat = DATE_DISPLAY;
       if (config.type_key === "datetime") {
-        dateFormat = "dd/MM/yyyy HH:mm";
+        dateFormat = DATETIME_DISPLAY;
       }
       // Override with display_format if provided
       if (config.display_format) {

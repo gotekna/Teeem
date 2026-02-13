@@ -18,6 +18,7 @@
 
 import { openDB, DBSchema, IDBPDatabase } from "idb";
 import { formatFileSize } from "@/utils/formatters";
+import { MAX_UPLOAD_SIZE } from "@/lib/constants/file-size-limits";
 
 // =============================================================================
 // Configuration
@@ -32,7 +33,7 @@ const JOBS_STORE = "syncedJobs";
 export const DOCUMENT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Max size per document (10MB - larger files skip caching)
-export const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
+export const MAX_DOCUMENT_SIZE_BYTES = MAX_UPLOAD_SIZE;
 
 // =============================================================================
 // Types

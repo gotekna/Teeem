@@ -51,8 +51,8 @@ class VercelBillingService
       return { success: false, error: "VERCEL_TOKEN not configured" } unless token.present?
       return { success: false, error: "VERCEL_TEAM_ID not configured" } unless team_id.present?
 
-      # Fetch latest 2 paid invoices + upcoming (current period) in parallel
-      invoices_data = vercel_get(token, "/v1/invoices?teamId=#{team_id}&limit=2")
+      # Fetch paid invoices (up to 12 for billing history) + upcoming (current period)
+      invoices_data = vercel_get(token, "/v1/invoices?teamId=#{team_id}&limit=12")
       upcoming_data = vercel_get(token, "/v1/invoices/upcoming?teamId=#{team_id}")
 
       return { success: false, error: "Failed to fetch Vercel invoices" } unless invoices_data
@@ -89,6 +89,22 @@ class VercelBillingService
         }
       end
 
+      # Build billing history from all invoices
+      billing_history = invoices.map do |inv|
+        build = extract_build_minutes_detail(inv)
+        {
+          invoiceNumber: inv["invoiceNumber"],
+          periodStart: build&.dig(:periodStart),
+          periodEnd: build&.dig(:periodEnd),
+          buildMinutes: build&.dig(:minutes) || 0,
+          buildCost: build&.dig(:cost) || 0.0,
+          teamSeats: extract_team_seats(inv),
+          amountDue: inv["amountDue"].to_f,
+          status: inv["status"],
+          createdAt: inv["createdAt"]
+        }
+      end
+
       {
         success: true,
         plan: "pro",
@@ -107,6 +123,7 @@ class VercelBillingService
         buildMinutes: last_build ? { cost: last_build[:cost], minutes: last_build[:minutes] } : nil,
         previousBuildMinutes: prev_build ? { cost: prev_build[:cost], minutes: prev_build[:minutes] } : nil,
         teamSeats: extract_team_seats(last_paid),
+        billingHistory: billing_history,
         fetchedAt: Time.current.iso8601
       }
     end

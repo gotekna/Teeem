@@ -13,6 +13,7 @@
 
 import { api, getApiBaseUrl } from "./api";
 import { getStorageItem, STORAGE_KEYS } from './storage-utils';
+import { UPLOAD_CHUNK_SIZE, SMALL_FILE_THRESHOLD } from '@/lib/constants/file-size-limits';
 
 interface UploadSessionResponse {
   success: boolean;
@@ -51,9 +52,7 @@ export interface DirectUploadOptions {
 }
 
 // Chunk size: 5MB (must be multiple of 320 KiB per Microsoft Graph API)
-const CHUNK_SIZE = 5 * 1024 * 1024;
-// Small file threshold: 4MB (below this, single PUT is sufficient)
-const SMALL_FILE_THRESHOLD = 4 * 1024 * 1024;
+const CHUNK_SIZE = UPLOAD_CHUNK_SIZE;
 
 /**
  * Upload a file directly to SharePoint, bypassing the backend proxy.

@@ -45,11 +45,18 @@ module Api
           end
         end
 
+        # Preload companies for the company object
+        company_ids = docs.filter_map { |d| d.metadata&.dig("company_id") }.uniq
+        companies_by_id = Corporate.where(id: company_ids).index_by(&:id) if company_ids.any?
+        companies_by_id ||= {}
+
         documents = docs.map do |doc|
+          company = companies_by_id[doc.metadata&.dig("company_id")&.to_i]
+
           {
             id: doc.id,
             display_name: doc.ui_name,
-            download_name: doc.download_name,
+            download_name: doc.download_filename,
             file_name: doc.storage_blob&.original_filename || doc.ui_name,
             document_type: doc.metadata&.dig("document_type")&.downcase,
             folder: doc.folder_path&.split("/")&.last&.upcase,
@@ -61,14 +68,16 @@ module Api
             document_date: doc.metadata&.dig("document_date"),
             financial_years: doc.metadata&.dig("financial_years"),
             file_url: "/api/v1/company_documents/#{doc.id}/download",
-            company_id: doc.metadata&.dig("company_id"),
+            company_id: company&.id,
+            company: company ? { id: company.id, name: company.name, code: company.company_code } : nil,
             ai_verification_status: doc.metadata&.dig("ai_verification_status"),
             ai_suggested_name: doc.metadata&.dig("ai_suggested_name"),
             ai_suggested_folder: doc.metadata&.dig("ai_suggested_folder"),
             ai_suggested_type: doc.metadata&.dig("ai_suggested_type"),
             ai_confidence_score: doc.metadata&.dig("ai_confidence_score"),
             user_validated_at: doc.metadata&.dig("user_validated_at"),
-            user_validated_by_id: doc.metadata&.dig("user_validated_by_id")
+            user_validated_by_id: doc.metadata&.dig("user_validated_by_id"),
+            user_validated_by_name: doc.metadata&.dig("user_validated_by_name")
           }
         end
 
@@ -120,6 +129,27 @@ module Api
         else
           render json: { success: false, error: "Download not available" }, status: :not_found
         end
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Document not found" }, status: :not_found
+      end
+
+      # POST /api/v1/company_documents/:id/validate
+      # Stamps the document as human-validated (user reviewed and confirmed classification)
+      def validate
+        doc = WarehouseDocument.find(params[:id])
+
+        doc.metadata = (doc.metadata || {}).merge(
+          "user_validated_at" => Time.current.iso8601,
+          "user_validated_by_id" => current_user&.id,
+          "user_validated_by_name" => current_user&.name
+        )
+        doc.save!
+
+        render json: {
+          success: true,
+          validated_at: doc.metadata["user_validated_at"],
+          validated_by: current_user&.name
+        }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Document not found" }, status: :not_found
       end

@@ -222,9 +222,8 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
       );
 
       if (response?.success && response?.compose) {
-        // SSoT: Production URL is always teeem.vercel.app (3 e's)
-        // Link goes directly to password reset page - user sets their own password
-        const resetUrl = "https://teeem.vercel.app/reset-password?token=" + encodeURIComponent(response.reset_token || "");
+        // Password reset URL uses current frontend origin (works in any environment)
+        const resetUrl = `${window.location.origin}/reset-password?token=${encodeURIComponent(response.reset_token || "")}`;
         const firstName = (response.user_name || "").split(" ")[0] || "there";
 
         const subject = encodeURIComponent("Welcome to Teeem - Your Account is Ready");

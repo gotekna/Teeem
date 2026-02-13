@@ -535,6 +535,7 @@ Rails.application.routes.draw do
           get :preview
           get :content
           get :download
+          post :validate
         end
       end
 

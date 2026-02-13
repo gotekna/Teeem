@@ -217,6 +217,7 @@ interface CompanyDocument {
   id: number | string;
   file_name?: string;
   display_name?: string;
+  download_name?: string;
   file_url?: string;
   file_size?: number;
   folder?: string;
@@ -234,6 +235,7 @@ interface CompanyDocument {
   storage_file_id?: string;
   user_validated_at?: string;
   user_validated_by_id?: number;
+  user_validated_by_name?: string;
   ai_verification_status?: "pending" | "processing" | "verified" | "mismatch" | "error" | string;
   ai_suggested_name?: string;
   ai_suggested_folder?: string;
@@ -533,7 +535,7 @@ export default function DocumentPreviewModal({
 
       if (filtered.length > 0) {
         types = filtered.map(dt => ({
-          value: dt.name,
+          value: dt.name.toLowerCase(),
           label: dt.name,
           abbrev: dt.abbreviation || dt.name.substring(0, 3).toUpperCase()
         }));
@@ -567,7 +569,7 @@ export default function DocumentPreviewModal({
     const allTypes = [
       ...folderTypes,
       ...documentTypes.map(dt => ({
-        value: dt.name,
+        value: dt.name.toLowerCase(),
         label: dt.name,
         abbrev: dt.abbreviation || dt.name.substring(0, 3).toUpperCase()
       }))
@@ -618,7 +620,7 @@ export default function DocumentPreviewModal({
       if (dt.abbreviation) {
         const regex = new RegExp(`\\b${dt.abbreviation}\\b`, "i");
         if (regex.test(filenameUpper)) {
-          return dt.name;
+          return dt.name.toLowerCase();
         }
       }
     }
@@ -632,7 +634,7 @@ export default function DocumentPreviewModal({
           // Check if this is a database type name directly
           const dbType = documentTypes.find(dt => dt.name === typeValue);
           if (dbType) {
-            return dbType.name;
+            return dbType.name.toLowerCase();
           }
           // Otherwise find matching type in available folder options
           const matchingType = uniqueTypes.find(t => t.value === typeValue);
@@ -1063,8 +1065,15 @@ export default function DocumentPreviewModal({
   const handleValidate = async () => {
     try {
       setValidating(true);
-      await api.post(`/api/v1/company_documents/${document.id}/validate`);
+      const response = await api.post<{ success: boolean; validated_at: string; validated_by: string }>(
+        `/api/v1/company_documents/${document.id}/validate`
+      );
       setValidated(true);
+      setDocument(prev => ({
+        ...prev,
+        user_validated_at: response?.validated_at || new Date().toISOString(),
+        user_validated_by_name: response?.validated_by
+      }));
       if (onDocumentUpdate) {
         await onDocumentUpdate();
       }
@@ -1260,6 +1269,23 @@ export default function DocumentPreviewModal({
                 <span className="text-xs">{isEditingPdf ? "View Mode" : "Edit PDF"}</span>
               </Button>
             )}
+            {validated && (
+              <Badge variant="outline" className="text-[10px] border-green-500 text-green-600 dark:text-green-400">
+                <Check className="h-3 w-3 mr-0.5" />Validated
+                {document.user_validated_by_name && (
+                  <span className="ml-1 text-muted-foreground">by {document.user_validated_by_name}</span>
+                )}
+                {document.user_validated_at && (
+                  <span className="ml-1 text-muted-foreground">{new Date(document.user_validated_at).toLocaleDateString()}</span>
+                )}
+              </Badge>
+            )}
+            {validated && (
+              <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => setValidated(false)}>
+                <Pencil className="h-3 w-3 mr-1" />
+                <span className="text-xs">Edit</span>
+              </Button>
+            )}
             {document.file_url && (
               <Button variant="ghost" size="sm" asChild className="h-6 px-2">
                 <a href={document.file_url} target="_blank" rel="noopener noreferrer">
@@ -1274,10 +1300,10 @@ export default function DocumentPreviewModal({
           </div>
         </DialogHeader>
 
-        {/* Main Content Area - Three Panels */}
+        {/* Main Content Area */}
         <div className="flex flex-1 overflow-hidden min-h-0">
-          {/* Left Section - Current Info + Edit + AI (stacked) */}
-          <div className="w-1/2 flex flex-col overflow-hidden border-r">
+          {/* Left Section - Current Info + Edit + AI (hidden when validated) */}
+          {!validated && <div className="w-1/2 flex flex-col overflow-hidden border-r">
             {/* Top Bar - Current Document Info (read-only) - compact */}
             <div className="px-3 py-2 bg-muted/30 border-b flex-shrink-0">
               <div className="flex items-center gap-2 mb-2">
@@ -1564,45 +1590,19 @@ export default function DocumentPreviewModal({
                   />
                 </div>
 
-                {/* Table Title Preview - shows full document type name + dates/FY + Signed/Unsigned + Amended */}
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Table Title Preview</Label>
-                  <div className="mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 line-clamp-2">
-                    {(() => {
-                      const docTypeRecord = getDocumentTypeRecord(editedDocumentType);
-                      const fullTypeName = docTypeRecord?.name || editedDocumentType || "";
-                      const fullTypeNameLower = fullTypeName.toLowerCase();
-
-                      // Check if this is a date-range document (statements, etc)
-                      const isDateRangeDoc = fullTypeNameLower.includes("statement") ||
-                        fullTypeNameLower.includes("summary") ||
-                        editedTitle?.includes(" to ");
-
-                      // Extract date range and print date from edited title
-                      // Format: "TD Income Tax Statement 01-07-2023 to 01-07-2025 (01-07-2025).pdf"
-                      const dateRangeMatch = editedTitle?.match(/(\d{2}-\d{2}-\d{4})\s*to\s*(\d{2}-\d{2}-\d{4})/);
-                      const printDateMatch = editedTitle?.match(/\((\d{2}-\d{2}-\d{4})\)/);
-
-                      let datePart = "";
-                      if (isDateRangeDoc && dateRangeMatch) {
-                        // Use full date range for statement-type documents
-                        datePart = `${dateRangeMatch[1]} to ${dateRangeMatch[2]}`;
-                        // Add print date if present
-                        if (printDateMatch) {
-                          datePart += ` (${printDateMatch[1]})`;
-                        }
-                      } else {
-                        // Use FY format for other documents (2-digit)
-                        datePart = editedFinancialYears.length > 0
-                          ? editedFinancialYears.map(y => `FY${String(y).slice(-2)}`).join(" ")
-                          : "";
-                      }
-
-                      const signedPart = signedStatus === 'signed' ? 'Signed' : signedStatus === 'unsigned' ? 'Unsigned' : '';
-                      const amendedPart = isAmended ? (amendedNumber && amendedNumber > 1 ? `Amended ${amendedNumber}` : 'Amended') : '';
-                      const parts = [fullTypeName, datePart, signedPart, amendedPart].filter(Boolean);
-                      return parts.length > 0 ? parts.join(" ") : "-";
-                    })()}
+                {/* UI Name + Download Name */}
+                <div className="space-y-1">
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">UI Name</Label>
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate">
+                      {document.display_name || "-"}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Download Name</Label>
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate font-mono">
+                      {document.download_name || "-"}
+                    </div>
                   </div>
                 </div>
 
@@ -1812,7 +1812,14 @@ export default function DocumentPreviewModal({
                             : "border-red-500 bg-red-50 dark:bg-red-900/20")
                           : ""
                       )}>
-                        {document.ai_suggested_type || "-"}
+                        {(() => {
+                          if (!document.ai_suggested_type) return "-";
+                          const match = documentTypes.find(t =>
+                            t.name?.toLowerCase() === document.ai_suggested_type?.toLowerCase() ||
+                            t.abbreviation?.toLowerCase() === document.ai_suggested_type?.toLowerCase()
+                          );
+                          return match?.name || document.ai_suggested_type;
+                        })()}
                       </div>
                       {/* Show naming format for AI suggested type */}
                       {document.ai_suggested_type && (() => {
@@ -1887,91 +1894,19 @@ export default function DocumentPreviewModal({
                       </div>
                     )}
 
-                    {/* Suggested File Name */}
-                    <div>
-                      <Label className="text-[10px] text-muted-foreground">Suggested File Name</Label>
-                      <div className={cn(
-                        "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center font-mono bg-muted/50 overflow-hidden",
-                        document.ai_suggested_name
-                          ? ((() => {
-                              // Compare filenames ignoring .pdf extension
-                              const normalizeFilename = (name: string) => name?.replace(/\.pdf$/i, '').trim().toLowerCase() || '';
-                              return normalizeFilename(editedTitle) === normalizeFilename(document.ai_suggested_name || '');
-                            })()
-                            ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                            : "border-red-500 bg-red-50 dark:bg-red-900/20")
-                          : ""
-                      )}>
-                        <span className="truncate">{(() => {
-                          // Auto-inject US for CTR/TTR if missing signed status
-                          let suggestedName = document.ai_suggested_name || "-";
-                          if (suggestedName !== "-") {
-                            const isCtrOrTtr = /\b(CTR|TTR)\b/i.test(suggestedName);
-                            const hasSignedStatus = /\b(US|S)\b/.test(suggestedName);
-                            if (isCtrOrTtr && !hasSignedStatus) {
-                              // Insert "US" before .pdf or at end
-                              suggestedName = suggestedName.replace(/\.pdf$/i, ' US.pdf');
-                              if (!suggestedName.endsWith('.pdf')) {
-                                suggestedName = suggestedName + ' US';
-                              }
-                            }
-                          }
-                          return suggestedName;
-                        })()}</span>
+                    {/* UI Name + Download Name */}
+                    <div className="space-y-1">
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">UI Name</Label>
+                        <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 truncate">
+                          {document.display_name || "-"}
+                        </div>
                       </div>
-                    </div>
-
-                    {/* Table Title Preview - shows full document type name + dates/FY + Signed/Unsigned + Amended */}
-                    <div>
-                      <Label className="text-[10px] text-muted-foreground">Table Title Preview</Label>
-                      <div className="mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 line-clamp-2">
-                        {(() => {
-                          // Use the AI suggested type directly (it's already the full name from backend)
-                          const fullTypeName = document.ai_suggested_type || "";
-                          const suggestedTypeLower = fullTypeName.toLowerCase();
-
-                          // Check if this is a date-range document (statements, etc)
-                          const isDateRangeDoc = suggestedTypeLower.includes("statement") ||
-                            suggestedTypeLower.includes("summary") ||
-                            document.ai_suggested_name?.includes(" to ");
-
-                          // Extract date range and print date from suggested filename
-                          // Format: "TD Income Tax Statement 01-07-2023 to 01-07-2025 (01-07-2025).pdf"
-                          const dateRangeMatch = document.ai_suggested_name?.match(/(\d{2}-\d{2}-\d{4})\s*to\s*(\d{2}-\d{2}-\d{4})/);
-                          const printDateMatch = document.ai_suggested_name?.match(/\((\d{2}-\d{2}-\d{4})\)/);
-
-                          let datePart = "";
-                          if (isDateRangeDoc && dateRangeMatch) {
-                            // Use full date range for statement-type documents
-                            datePart = `${dateRangeMatch[1]} to ${dateRangeMatch[2]}`;
-                            // Add print date if present
-                            if (printDateMatch) {
-                              datePart += ` (${printDateMatch[1]})`;
-                            }
-                          } else {
-                            // Use FY format for other documents (2-digit)
-                            const fyArray = parseFinancialYears(document.ai_suggested_fy);
-                            datePart = fyArray.length > 0
-                              ? fyArray.map(y => `FY${String(y).slice(-2)}`).join(" ")
-                              : "";
-                          }
-
-                          // Check if this type needs signed/unsigned
-                          const isTaxReturn = suggestedTypeLower.includes("ctr") || suggestedTypeLower.includes("ttr") ||
-                            suggestedTypeLower.includes("company tax return") || suggestedTypeLower.includes("trust tax return");
-                          // Detect signed/unsigned from AI suggested name (can be at start or end of filename)
-                          const isUnsigned = document.ai_suggested_name?.match(/\bUS\b/i);
-                          const isSigned = document.ai_suggested_name?.match(/\bS\b/) && !isUnsigned;
-                          const signedPart = isTaxReturn ? (isSigned ? 'Signed' : isUnsigned ? 'Unsigned' : 'Unsigned') : '';
-
-                          // Extract amendment number from AI suggested name (e.g., "Amended 2" -> 2)
-                          const amendedMatch = document.ai_suggested_name?.match(/amended\s*(\d+)?/i);
-                          const amendedPart = amendedMatch
-                            ? (amendedMatch[1] && parseInt(amendedMatch[1]) > 1 ? `Amended ${amendedMatch[1]}` : 'Amended')
-                            : '';
-                          const parts = [fullTypeName, datePart, signedPart, amendedPart].filter(Boolean);
-                          return parts.length > 0 ? parts.join(" ") : "-";
-                        })()}
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">Download Name</Label>
+                        <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate font-mono">
+                          {document.download_name || "-"}
+                        </div>
                       </div>
                     </div>
 
@@ -2088,10 +2023,10 @@ export default function DocumentPreviewModal({
                 )}
               </div>
             </div>
-          </div>
+          </div>}
 
-          {/* Right Half - Document Preview or Editor (full height) */}
-          <div className="w-1/2 bg-muted flex flex-col overflow-hidden">
+          {/* Right Half - Document Preview or Editor (full width when validated) */}
+          <div className={cn(validated ? "w-full" : "w-1/2", "bg-muted flex flex-col overflow-hidden")}>
               {isEditingPdf && fileType === "pdf" && document.id ? (
                 // PDF Editor Mode - use /content endpoint to bypass CORS
                 <PDFEditor

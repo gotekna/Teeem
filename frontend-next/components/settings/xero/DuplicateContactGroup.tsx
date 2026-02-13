@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { DATE_MEDIUM } from "@/lib/constants/date-formats";
 
 interface Props {
   group: DuplicateGroup;
@@ -213,7 +214,7 @@ function ContactCard({ contact, isRecommended, isSelected, borderColor, onSelect
         <div>
           <div className="font-semibold text-base">{contact.display_name}</div>
           <div className="text-xs text-muted-foreground mt-1">
-            Created {format(new Date(contact.created_at), 'MMM d, yyyy')}
+            Created {format(new Date(contact.created_at), DATE_MEDIUM)}
           </div>
         </div>
 

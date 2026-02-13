@@ -227,7 +227,7 @@ class DocumentInboxRoutingService
       "ai_verification_status" => "verified",
       "ai_suggested_type" => doc_type&.name&.downcase || @item.document_type&.downcase,
       "ai_suggested_folder" => folder_name,
-      "ai_suggested_name" => @item.display_name || @item.original_filename,
+      "ai_suggested_name" => doc_type&.name || @item.document_type,
       "ai_confidence_score" => @item.classification_confidence
     }
 
