@@ -342,8 +342,7 @@ class TenantConfigSyncService
       match_fields: [:name],
       sync_fields: [:name, :description, :is_active, :position],
       description: "PO template pack definitions",
-      group: "operations",
-      master_is_source: true
+      group: "operations"
     },
     po_template_items: {
       model: "PoTemplateItem",
@@ -353,7 +352,6 @@ class TenantConfigSyncService
                     :position, :budget, :notes, :status_on_create],
       description: "PO template pack items (individual PO definitions)",
       group: "operations",
-      master_is_source: true,
       remap_fks: {
         po_template_pack_id: { model: "PoTemplatePack", match_field: :name },
         sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key }
@@ -367,7 +365,6 @@ class TenantConfigSyncService
                     :unit_price, :gst_code, :line_number],
       description: "PO template line item details",
       group: "operations",
-      master_is_source: true,
       remap_fks: {
         po_template_item_id: { model: "PoTemplateItem", match_field: :sync_key }
       }
@@ -946,6 +943,21 @@ class TenantConfigSyncService
 
         # Build attrs with FK remapping, deferring self-referential FKs
         attrs = build_sync_attrs(master_record, config)
+
+        # Skip orphaned records where a required FK couldn't be remapped to target tenant.
+        # Prevents importing child records whose parent doesn't exist in the target.
+        if config[:remap_fks].present?
+          orphaned = false
+          config[:remap_fks].each do |field, _rc|
+            next unless config[:sync_fields].include?(field)
+            next unless attrs.key?(field) && attrs[field].nil? && master_record.send(field).present?
+            skipped << { name: master_record.send(config[:name_field]), reason: "FK remap failed: #{field}" }
+            orphaned = true
+            break
+          end
+          next if orphaned
+        end
+
         deferred = {}
         if self_ref_fks.any?
           self_ref_fks.each_key do |field|
@@ -1405,6 +1417,19 @@ class TenantConfigSyncService
     # FRC (Feb 2026): Use build_sync_attrs for FK remapping (was missing - raw FK IDs
     # from source tenant were copied directly, causing constraint violations)
     attrs = build_sync_attrs(source_record, config)
+
+    # FRC (Feb 2026): Skip orphaned records where a required FK couldn't be remapped.
+    # Without this, reverse sync (tenant → master) imports orphaned child records
+    # whose parent doesn't exist in the target, creating duplicates.
+    # e.g. PO template line items whose parent item was deleted — remap returns nil.
+    if config[:remap_fks].present?
+      config[:remap_fks].each do |field, _remap_config|
+        next unless config[:sync_fields].include?(field)
+        next unless attrs.key?(field) && attrs[field].nil? && source_record.send(field).present?
+        # Source had a value but remap returned nil → parent doesn't exist in target
+        return { imported: false, reason: "FK remap failed: #{field} (orphaned record)" }
+      end
+    end
 
     # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
     # defer those fields to a second pass. First pass sets all other fields (including
