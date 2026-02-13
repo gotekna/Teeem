@@ -206,9 +206,12 @@ class TenantConfigSyncService
                     :require_photo, :confirm, :po_required, :critical_po, :has_subtasks,
                     :subtask_count, :subtask_names, :tags, :color, :is_active, :cost_centre,
                     :supplier_confirm, :header_gantt, :hold, :assigned_role, :is_claim_task,
-                    :claim_percentage, :is_variation],
+                    :claim_percentage, :is_variation, :sm_template_ids],
       description: "Schedule Master task templates",
-      group: "schedule"
+      group: "schedule",
+      remap_fks: {
+        sm_template_ids: { model: "SmScheduleMasterTemplate", match_field: :name, array: true }
+      }
     },
     sm_trades: {
       model: "SmTrade",
@@ -1497,7 +1500,13 @@ class TenantConfigSyncService
 
       # Check if this field needs FK remapping
       if config[:remap_fks]&.key?(field) && value.present?
-        value = remap_foreign_key(field, value, config[:remap_fks][field])
+        remap_config = config[:remap_fks][field]
+        if remap_config[:array] && value.is_a?(Array)
+          # JSONB array of FKs (e.g., sm_template_ids) - remap each element
+          value = value.filter_map { |id| remap_foreign_key(field, id, remap_config) }
+        else
+          value = remap_foreign_key(field, value, remap_config)
+        end
       end
 
       attrs[field] = value
