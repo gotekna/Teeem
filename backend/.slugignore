@@ -76,6 +76,10 @@ db/import_data/
 pricebook*.csv
 price_histories*.csv
 
+# Ignore database dump files
+*.dump
+latest.dump
+
 # Ignore ActiveStorage local files (not needed on Heroku - uses S3)
 storage/
 

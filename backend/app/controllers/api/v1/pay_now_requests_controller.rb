@@ -257,7 +257,7 @@ module Api
             name: request.contact.display_name,
             email: request.contact.email,
             phone: request.contact.mobile_phone,
-            teeem_rating: request.contact.teeem_rating
+            teeem_rating: nil
           },
           financial_details: {
             original_amount: request.formatted_original_amount,

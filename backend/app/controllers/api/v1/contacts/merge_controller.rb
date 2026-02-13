@@ -240,10 +240,8 @@ module Api
         def merge_supplier_fields(source, target_contact)
           return unless source.is_supplier? && target_contact.is_supplier?
 
-          # Keep the better rating
-          if source.rating.to_i > target_contact.rating.to_i
-            target_contact.update(rating: source.rating)
-          end
+          # FRC (Feb 2026): rating column was removed from contacts in Dec 2025
+          # Rating merge removed - no rating column exists on contacts
 
           # Combine notes if both have them
           if source.notes.present? && target_contact.notes.present?

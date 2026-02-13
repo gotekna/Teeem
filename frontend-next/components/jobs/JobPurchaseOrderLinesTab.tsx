@@ -22,18 +22,16 @@ export function JobPurchaseOrderLinesTab({ jobId }: JobPurchaseOrderLinesTabProp
   }, [router]);
 
   return (
-    <div className="flex flex-col h-full -mx-4">
-      <TeeemTableView
-        foundationId={FOUNDATION_SLUGS.PURCHASE_ORDER_LINE_ITEMS}
-        autoFetchRecords={true}
-        extraQueryParams={{ job_id: String(jobId) }}
-        tableName="Purchase Order Lines"
-        enableExport={true}
-        onRowDoubleClick={handleRowDoubleClick}
-        hideAddRecord={true}
-        alwaysEditable={true}
-      />
-    </div>
+    <TeeemTableView
+      foundationId={FOUNDATION_SLUGS.PURCHASE_ORDER_LINE_ITEMS}
+      autoFetchRecords={true}
+      extraQueryParams={{ job_id: String(jobId) }}
+      tableName="Purchase Order Lines"
+      enableExport={true}
+      onRowDoubleClick={handleRowDoubleClick}
+      hideAddRecord={true}
+      alwaysEditable={true}
+    />
   );
 }
 
