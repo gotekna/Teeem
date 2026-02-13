@@ -342,7 +342,8 @@ class TenantConfigSyncService
       match_fields: [:name],
       sync_fields: [:name, :description, :is_active, :position],
       description: "PO template pack definitions",
-      group: "operations"
+      group: "operations",
+      master_is_source: true
     },
     po_template_items: {
       model: "PoTemplateItem",
@@ -352,6 +353,7 @@ class TenantConfigSyncService
                     :position, :budget, :notes, :status_on_create],
       description: "PO template pack items (individual PO definitions)",
       group: "operations",
+      master_is_source: true,
       remap_fks: {
         po_template_pack_id: { model: "PoTemplatePack", match_field: :name },
         sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key }
@@ -365,6 +367,7 @@ class TenantConfigSyncService
                     :unit_price, :gst_code, :line_number],
       description: "PO template line item details",
       group: "operations",
+      master_is_source: true,
       remap_fks: {
         po_template_item_id: { model: "PoTemplateItem", match_field: :sync_key }
       }
@@ -731,9 +734,9 @@ class TenantConfigSyncService
     skipped = []
     deleted_count = 0
 
-    # Get source records
+    # Get source records (enforce scope filter to prevent importing out-of-scope records)
     source_records = ActsAsTenant.with_tenant(source_tenant) do
-      model.where(id: record_ids)
+      scoped_query(model, config).where(id: record_ids)
     end
 
     # For price_histories with replace mode, delete existing prices for the same supplier+item
@@ -915,9 +918,9 @@ class TenantConfigSyncService
     updated = []
     skipped = []
 
-    # Get master records
+    # Get master records (enforce scope filter to prevent importing out-of-scope records)
     master_records = ActsAsTenant.with_tenant(master) do
-      model.where(id: record_ids)
+      scoped_query(model, config).where(id: record_ids)
     end
 
     # Get existing tenant records for matching (sync_key primary, legacy fallback)

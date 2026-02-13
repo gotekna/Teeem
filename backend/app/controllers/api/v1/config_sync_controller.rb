@@ -237,6 +237,17 @@ module Api
         end
 
         if is_master
+          # Skip tables where master is the authoritative source (e.g. PO templates).
+          # Reverse-syncing these from a tenant back into master creates duplicates.
+          if table_config[:master_is_source]
+            return render json: {
+              success: true, table: table.to_s,
+              imported: 0, updated: 0, skipped: 0, total: 0, total_records: 0,
+              has_more: false,
+              message: "Skipped: master is the source for #{table} (reverse sync would create duplicates)"
+            }
+          end
+
           # Allow explicit source tenant selection (from frontend dropdown)
           # Falls back to auto-selecting the tenant with the most records
           best_source = nil
@@ -471,6 +482,10 @@ module Api
           if is_master
             # Master tenant: skip contact_types (not needed in master)
             next if table == :contact_types
+
+            # Skip tables where master is the authoritative source (e.g. PO templates).
+            # Reverse-syncing these from a tenant back into master creates duplicates.
+            next if table_config[:master_is_source]
 
             # Master tenant: import from the tenant with the most records for this table
             best_source = nil

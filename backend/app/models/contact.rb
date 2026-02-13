@@ -110,7 +110,10 @@ class Contact < ApplicationRecord
   has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy
 
   # SSoT: Contact documents (ID, licenses, personal documents for people scope)
-  has_many :contact_documents, dependent: :destroy
+  # DISABLED: contact_documents table does not exist yet (model created but migration never run).
+  # This was crashing ALL contact deletes with PG::UndefinedTable.
+  # TODO: Create migration for contact_documents table, then re-enable this line.
+  # has_many :contact_documents, dependent: :destroy
 
   # Company Group memberships (SSoT - links contact to company groups with permissions)
   has_many :company_group_memberships, class_name: "ContactCompanyGroupMembership", dependent: :destroy
